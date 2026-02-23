@@ -519,10 +519,7 @@ describe("session-memory hook", () => {
       cfg: makeSessionMemoryConfig(tempDir),
       previousSessionEntry: {
         sessionId: oldSessionId,
-        sessionFile: path.join(
-          sessionsDir,
-          `${oldSessionId}.jsonl.reset.2026-02-22T23-24-07.565Z`,
-        ),
+        sessionFile: path.join(sessionsDir, `${oldSessionId}.jsonl.reset.2026-02-22T23-24-07.565Z`),
       },
     });
 

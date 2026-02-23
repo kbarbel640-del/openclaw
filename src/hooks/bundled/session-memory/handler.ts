@@ -148,7 +148,6 @@ async function findPreviousSessionFile(params: {
         return path.join(params.sessionsDir, topicVariants[0]);
       }
     }
-
   } catch {
     // Ignore directory read errors.
   }
