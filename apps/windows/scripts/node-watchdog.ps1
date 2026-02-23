@@ -29,7 +29,7 @@ function Get-GatewayConfig {
       try {
         return Get-Content $path -Raw | ConvertFrom-Json
       } catch {
-        Write-Log "Failed to parse config at $path: $($_.Exception.Message)"
+        Write-Log "Failed to parse config at ${path}: $($_.Exception.Message)"
       }
     }
   }
