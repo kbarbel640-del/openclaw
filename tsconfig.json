@@ -23,19 +23,21 @@
     "target": "es2023",
     "useDefineForClassFields": false,
     "paths": {
-      "openclaw/plugin-sdk": ["./src/plugin-sdk/index.ts"],
-      "openclaw/plugin-sdk/*": ["./src/plugin-sdk/*.ts"],
-      "openclaw/plugin-sdk/account-id": ["./src/plugin-sdk/account-id.ts"]
+      "openclaw/plugin-sdk": [
+        "./src/plugin-sdk/index.ts"
+      ],
+      "openclaw/plugin-sdk/*": [
+        "./src/plugin-sdk/*.ts"
+      ],
+      "openclaw/plugin-sdk/account-id": [
+        "./src/plugin-sdk/account-id.ts"
+      ]
     }
   },
-<<<<<<< HEAD
-  "include": ["src/**/*", "ui/**/*", "extensions/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-=======
   "include": [
     "src/**/*",
-    "ui/**/*"
+    "ui/**/*",
+    "extensions/**/*"
   ],
   "exclude": [
     "node_modules",
@@ -45,4 +47,3 @@
     "src/**/test-helpers.ts"
   ]
 }
->>>>>>> d154b94da36b953421475c2f7c0507aca1fc6c48
