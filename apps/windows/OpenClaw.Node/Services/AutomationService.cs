@@ -79,9 +79,76 @@ namespace OpenClaw.Node.Services
                 return Task.FromResult(false);
             }
 
-            _ = ShowWindow(target, SW_RESTORE);
-            var ok = SetForegroundWindow(target);
-            return Task.FromResult(ok);
+            // Fast path
+            if (GetForegroundWindow() == target)
+            {
+                return Task.FromResult(true);
+            }
+
+            if (IsIconic(target))
+            {
+                _ = ShowWindow(target, SW_RESTORE);
+            }
+
+            _ = ShowWindow(target, SW_SHOW);
+            _ = BringWindowToTop(target);
+
+            if (SetForegroundWindow(target) && GetForegroundWindow() == target)
+            {
+                return Task.FromResult(true);
+            }
+
+            // Fallback path for foreground lock constraints:
+            // temporarily attach input queues and retry focus activation.
+            var foreground = GetForegroundWindow();
+            var currentThread = GetCurrentThreadId();
+            var targetThread = GetWindowThreadProcessId(target, out _);
+            var fgThread = foreground != IntPtr.Zero ? GetWindowThreadProcessId(foreground, out _) : 0;
+
+            var attachedToTarget = false;
+            var attachedToForeground = false;
+
+            try
+            {
+                if (targetThread != 0 && targetThread != currentThread)
+                {
+                    attachedToTarget = AttachThreadInput(currentThread, targetThread, true);
+                }
+
+                if (fgThread != 0 && fgThread != currentThread)
+                {
+                    attachedToForeground = AttachThreadInput(currentThread, fgThread, true);
+                }
+
+                _ = BringWindowToTop(target);
+                _ = SetActiveWindow(target);
+                _ = SetFocus(target);
+                _ = SetForegroundWindow(target);
+
+                if (GetForegroundWindow() == target)
+                {
+                    return Task.FromResult(true);
+                }
+
+                // Last attempt: ALT keystroke nudge, then SetForegroundWindow again.
+                keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+                keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                _ = SetForegroundWindow(target);
+
+                return Task.FromResult(GetForegroundWindow() == target);
+            }
+            finally
+            {
+                if (attachedToForeground)
+                {
+                    _ = AttachThreadInput(currentThread, fgThread, false);
+                }
+
+                if (attachedToTarget)
+                {
+                    _ = AttachThreadInput(currentThread, targetThread, false);
+                }
+            }
         }
 
         public async Task<bool> TypeTextAsync(string text)
@@ -235,6 +302,9 @@ namespace OpenClaw.Node.Services
         }
 
         private const int SW_RESTORE = 9;
+        private const int SW_SHOW = 5;
+        private const byte VK_MENU = 0x12; // ALT
+        private const uint KEYEVENTF_KEYUP = 0x0002;
 
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -260,6 +330,29 @@ namespace OpenClaw.Node.Services
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
         [DllImport("user32.dll")]
+        private static extern bool BringWindowToTop(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetFocus(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetActiveWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+#pragma warning disable SYSLIB0003
+        [DllImport("user32.dll")]
+        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+#pragma warning restore SYSLIB0003
     }
 }
