@@ -5,20 +5,26 @@ import { describe, expect, it } from "vitest";
 import { applyExtraParamsToAgent } from "./extra-params.js";
 
 type StreamPayload = {
+  reasoning?: unknown;
+  reasoning_effort?: unknown;
   messages: Array<{
     role: string;
     content: unknown;
   }>;
 };
 
-function runOpenRouterPayload(payload: StreamPayload, modelId: string) {
+function runOpenRouterPayload(
+  payload: StreamPayload,
+  modelId: string,
+  thinkingLevel?: "off" | "low",
+) {
   const baseStreamFn: StreamFn = (_model, _context, options) => {
     options?.onPayload?.(payload);
     return createAssistantMessageEventStream();
   };
   const agent = { streamFn: baseStreamFn };
 
-  applyExtraParamsToAgent(agent, undefined, "openrouter", modelId);
+  applyExtraParamsToAgent(agent, undefined, "openrouter", modelId, undefined, thinkingLevel);
 
   const model = {
     api: "openai-completions",
@@ -89,5 +95,17 @@ describe("extra-params: OpenRouter Anthropic cache_control", () => {
     runOpenRouterPayload(payload, "anthropic/claude-opus-4-6");
 
     expect(payload.messages[0].content).toBe("Hello");
+  });
+
+  it("does not inject reasoning when payload already has reasoning_effort", () => {
+    const payload: StreamPayload = {
+      reasoning_effort: "low",
+      messages: [{ role: "user", content: "Hello" }],
+    };
+
+    runOpenRouterPayload(payload, "openai/gpt-5", "low");
+
+    expect(payload.reasoning_effort).toBe("low");
+    expect(payload.reasoning).toBeUndefined();
   });
 });
