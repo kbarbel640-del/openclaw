@@ -88,6 +88,15 @@ USER.md
 # local tooling
 .serena/
 
+# Claude Code local config (NEVER COMMIT)
+.claude/
+CLAUDE.local.md
+.mcp.json
+
+# Local documentation
+architektur.md
+claude-code-optimierung.md
+
 # Agent credentials and memory (NEVER COMMIT)
 /memory/
 .agent/*.json
