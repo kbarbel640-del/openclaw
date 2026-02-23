@@ -17,30 +17,6 @@ const ANTHROPIC_SONNET_TEMPLATE_MODEL_IDS = ["claude-sonnet-4-5", "claude-sonnet
 const ZAI_GLM5_MODEL_ID = "glm-5";
 const ZAI_GLM5_TEMPLATE_MODEL_IDS = ["glm-4.7"] as const;
 
-const ANTIGRAVITY_OPUS_46_MODEL_ID = "claude-opus-4-6";
-const ANTIGRAVITY_OPUS_46_DOT_MODEL_ID = "claude-opus-4.6";
-const ANTIGRAVITY_OPUS_TEMPLATE_MODEL_IDS = ["claude-opus-4-5", "claude-opus-4.5"] as const;
-const ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID = "claude-opus-4-6-thinking";
-const ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID = "claude-opus-4.6-thinking";
-const ANTIGRAVITY_OPUS_THINKING_TEMPLATE_MODEL_IDS = [
-  "claude-opus-4-5-thinking",
-  "claude-opus-4.5-thinking",
-] as const;
-
-export const ANTIGRAVITY_OPUS_46_FORWARD_COMPAT_CANDIDATES = [
-  {
-    id: ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID,
-    templatePrefixes: [
-      "google-antigravity/claude-opus-4-5-thinking",
-      "google-antigravity/claude-opus-4.5-thinking",
-    ],
-  },
-  {
-    id: ANTIGRAVITY_OPUS_46_MODEL_ID,
-    templatePrefixes: ["google-antigravity/claude-opus-4-5", "google-antigravity/claude-opus-4.5"],
-  },
-] as const;
-
 function cloneFirstTemplateModel(params: {
   normalizedProvider: string;
   trimmedModelId: string;
@@ -279,7 +255,6 @@ function resolveAntigravityOpus46ForwardCompatModel(
     patch: { api: "google-antigravity" as Api },
   });
 }
-
 export function resolveForwardCompatModel(
   provider: string,
   modelId: string,
@@ -289,7 +264,6 @@ export function resolveForwardCompatModel(
     resolveOpenAICodexGpt53FallbackModel(provider, modelId, modelRegistry) ??
     resolveAnthropicOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAnthropicSonnet46ForwardCompatModel(provider, modelId, modelRegistry) ??
-    resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry) ??
-    resolveAntigravityOpus46ForwardCompatModel(provider, modelId, modelRegistry)
+    resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry)
   );
 }
