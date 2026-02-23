@@ -2,7 +2,7 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { describe, expect, it, vi } from "vitest";
 
 const piCodingAgentMocks = vi.hoisted(() => ({
-  estimateTokens: vi.fn(() => 1),
+  estimateTokens: vi.fn((_message: unknown) => 1),
   generateSummary: vi.fn(async () => "summary"),
 }));
 
