@@ -34,7 +34,7 @@ import { chunkDiscordTextWithMode } from "../chunk.js";
 import { resolveDiscordDraftStreamingChunking } from "../draft-chunking.js";
 import { createDiscordDraftStream } from "../draft-stream.js";
 import { splitDiscordReasoningText } from "../reasoning-split.js";
-import { reactMessageDiscord, removeReactionDiscord } from "../send.js";
+import { reactMessageDiscord, removeReactionDiscord, sendMessageDiscord } from "../send.js";
 import { editMessageDiscord } from "../send.messages.js";
 import { normalizeDiscordSlug, resolveDiscordOwnerAllowFrom } from "./allow-list.js";
 import { resolveTimestampMs } from "./format.js";
@@ -635,6 +635,52 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
 
         // Clear the preview and fall through to standard delivery
         if (!finalizedViaPreviewMessage) {
+          // Multi-chunk: try editing preview to first chunk, send rest as new messages.
+          // This avoids deleting + re-sending which races and can lose content,
+          // and preserves the reply reference on the preview message.
+          const previewId = draftStream.messageId();
+          if (
+            typeof previewId === "string" &&
+            typeof finalText === "string" &&
+            !hasMedia &&
+            !payload.isError
+          ) {
+            const formatted = convertMarkdownTables(finalText, tableMode);
+            const multiChunks = chunkDiscordTextWithMode(formatted, {
+              maxChars: draftMaxChars,
+              maxLines: discordConfig?.maxLinesPerMessage,
+              chunkMode,
+            });
+            if (multiChunks.length > 1 && multiChunks[0]?.trim()) {
+              try {
+                await editMessageDiscord(
+                  deliverChannelId,
+                  previewId,
+                  { content: multiChunks[0].trim() },
+                  { rest: client.rest },
+                );
+                finalizedViaPreviewMessage = true;
+                replyReference.markSent();
+                // Send remaining chunks as new messages
+                for (let i = 1; i < multiChunks.length; i++) {
+                  const chunkText = multiChunks[i].trim();
+                  if (!chunkText) {
+                    continue;
+                  }
+                  await sendMessageDiscord(deliverTarget, chunkText, {
+                    token,
+                    rest: client.rest,
+                    accountId,
+                  });
+                }
+                return;
+              } catch (err) {
+                logVerbose(
+                  `discord: multi-chunk preview edit failed; falling back to clear + resend (${String(err)})`,
+                );
+              }
+            }
+          }
           await draftStream.clear();
         }
       }
