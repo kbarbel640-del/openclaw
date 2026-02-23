@@ -1,8 +1,8 @@
+import { POLL_EVENT_TYPES } from "../poll-types.js";
 import { resolveMatrixRoomId, sendMessageMatrix } from "../send.js";
 import { resolveActionClient } from "./client.js";
 import { resolveMatrixActionLimit } from "./limits.js";
 import { summarizeMatrixRawEvent } from "./summary.js";
-import { POLL_EVENT_TYPES } from "../poll-types.js";
 import {
   EventType,
   MsgType,
@@ -111,10 +111,11 @@ export async function readMatrixMessages(
       },
     )) as { chunk: MatrixRawEvent[]; start?: string; end?: string };
     const messages = res.chunk
-      .filter((event) =>
-        event.type === EventType.RoomMessage ||
-        // Polls (MSC3381): include so clients/agents can read poll questions + responses
-        POLL_EVENT_TYPES.includes(event.type),
+      .filter(
+        (event) =>
+          event.type === EventType.RoomMessage ||
+          // Polls (MSC3381): include so clients/agents can read poll questions + responses
+          POLL_EVENT_TYPES.includes(event.type),
       )
       .filter((event) => !event.unsigned?.redacted_because)
       .map(summarizeMatrixRawEvent);
