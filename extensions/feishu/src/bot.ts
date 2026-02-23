@@ -33,6 +33,34 @@ import { getFeishuRuntime } from "./runtime.js";
 import { getMessageFeishu, sendMessageFeishu } from "./send.js";
 import type { FeishuMessageContext, FeishuMediaInfo, ResolvedFeishuAccount } from "./types.js";
 import type { DynamicAgentCreationConfig } from "./types.js";
+import type { CardHeaderOptions } from "./send.js";
+
+// --- Agent card metadata resolution ---
+// Resolve agent name and model from config to populate card header/note.
+function resolveAgentCardMeta(
+  cfg: ClawdbotConfig,
+  agentId: string,
+): { cardHeader?: CardHeaderOptions; cardNote?: string } {
+  const agents = (cfg as Record<string, unknown>).agents as
+    | { list?: Array<{ id?: string; name?: string; model?: string | Record<string, unknown> }> }
+    | undefined;
+  const agent = agents?.list?.find((a) => a.id === agentId);
+  if (!agent) {
+    return {};
+  }
+  const name = agent.name ?? agentId;
+  const model =
+    typeof agent.model === "string"
+      ? agent.model
+      : typeof agent.model === "object" && agent.model !== null
+        ? (agent.model as { primary?: string }).primary ?? ""
+        : "";
+  const shortModel = model.includes("/") ? model.split("/").pop()! : model;
+  return {
+    cardHeader: { title: name },
+    cardNote: shortModel ? `${name} · ${shortModel}` : name,
+  };
+}
 
 // --- Permission error extraction ---
 // Extract permission grant URL from Feishu API error response.
@@ -967,6 +995,9 @@ export async function handleFeishuMessage(params: {
       chatId: ctx.chatId,
       replyToMessageId: ctx.messageId,
       mentionTargets: ctx.mentionTargets,
+      accountId: account.accountId,
+      ...resolveAgentCardMeta(cfg, route.agentId),
+    });
       accountId: account.accountId,
     });
 

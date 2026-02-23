@@ -11,8 +11,8 @@ import { createFeishuClient } from "./client.js";
 import type { MentionTarget } from "./mention.js";
 import { buildMentionedCardContent } from "./mention.js";
 import { getFeishuRuntime } from "./runtime.js";
-import { sendMarkdownCardFeishu, sendMessageFeishu } from "./send.js";
-import { FeishuStreamingSession } from "./streaming-card.js";
+import { sendMarkdownCardFeishu, sendMessageFeishu, type CardHeaderOptions } from "./send.js";
+import { FeishuStreamingSession, type StreamingCardHeader } from "./streaming-card.js";
 import { resolveReceiveIdType } from "./targets.js";
 import { addTypingIndicator, removeTypingIndicator, type TypingIndicatorState } from "./typing.js";
 
@@ -29,11 +29,16 @@ export type CreateFeishuReplyDispatcherParams = {
   replyToMessageId?: string;
   mentionTargets?: MentionTarget[];
   accountId?: string;
+  /** Optional card header displayed on all card messages */
+  cardHeader?: CardHeaderOptions;
+  /** Optional footer note text (e.g. "Agent · Model") */
+  cardNote?: string;
 };
 
 export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherParams) {
   const core = getFeishuRuntime();
-  const { cfg, agentId, chatId, replyToMessageId, mentionTargets, accountId } = params;
+  const { cfg, agentId, chatId, replyToMessageId, mentionTargets, accountId, cardHeader, cardNote } =
+    params;
   const account = resolveFeishuAccount({ cfg, accountId });
   const prefixContext = createReplyPrefixContext({ cfg, agentId });
 
@@ -99,7 +104,10 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
         params.runtime.log?.(`feishu[${account.accountId}] ${message}`),
       );
       try {
-        await streaming.start(chatId, resolveReceiveIdType(chatId));
+        await streaming.start(chatId, resolveReceiveIdType(chatId), {
+          header: cardHeader,
+          note: cardNote,
+        });
       } catch (error) {
         params.runtime.error?.(`feishu: streaming start failed: ${String(error)}`);
         streaming = null;
@@ -142,6 +150,22 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
           return;
         }
 
+        // Suppress internal control messages in all modes
+        const trimmed = text.trim();
+        if (/^NO_REPLY$/i.test(trimmed) || /^HEARTBEAT/i.test(trimmed) || /HEARTBEAT_OK/i.test(trimmed)) {
+          return;
+        }
+
+        // In raw mode the agent controls message delivery via direct API calls
+        // (e.g. a custom card script). Suppress intermediate chunks to prevent
+        // internal thoughts and tool-status text from leaking to the channel.
+        // Only "final" payloads with real content pass through as a safety net.
+        if (renderMode === "raw") {
+          if (info?.kind !== "final") {
+            return;
+          }
+        }
+
         const useCard = renderMode === "card" || (renderMode === "auto" && shouldUseCard(text));
 
         if ((info?.kind === "block" || info?.kind === "final") && streamingEnabled && useCard) {
@@ -152,6 +176,18 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
         }
 
         if (streaming?.isActive()) {
+          if (info?.kind === "tool") {
+            streamText = text;
+            partialUpdateQueue = partialUpdateQueue.then(async () => {
+              if (streamingStartPromise) {
+                await streamingStartPromise;
+              }
+              if (streaming?.isActive()) {
+                await streaming.update(streamText);
+              }
+            });
+            return;
+          }
           if (info?.kind === "final") {
             streamText = text;
             await closeStreaming();
@@ -173,6 +209,8 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
               replyToMessageId,
               mentions: first ? mentionTargets : undefined,
               accountId,
+              header: first ? cardHeader : undefined,
+              note: first ? cardNote : undefined,
             });
             first = false;
           }
@@ -200,6 +238,15 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
           `feishu[${account.accountId}] ${info.kind} reply failed: ${String(error)}`,
         );
         await closeStreaming();
+        // Send error notification card so the user knows something went wrong
+        await sendMarkdownCardFeishu({
+          cfg,
+          to: chatId,
+          text: `**Error**: ${String(error)}`,
+          replyToMessageId,
+          accountId,
+          header: { title: "⚠️ Reply Failed", template: "red" },
+        }).catch(() => {});
         typingCallbacks.onIdle?.();
       },
       onIdle: async () => {

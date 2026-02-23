@@ -251,26 +251,43 @@ export async function updateCardFeishu(params: {
   }
 }
 
+/** Optional card header and footer metadata */
+export type CardHeaderOptions = {
+  /** Card title displayed in the header bar */
+  title: string;
+  /** Color template: blue, green, red, orange, purple, indigo, wathet, turquoise, yellow, grey, carmine, violet, lime */
+  template?: string;
+};
+
 /**
  * Build a Feishu interactive card with markdown content.
  * Cards render markdown properly (code blocks, tables, links, etc.)
  * Uses schema 2.0 format for proper markdown rendering.
  */
-export function buildMarkdownCard(text: string): Record<string, unknown> {
-  return {
+export function buildMarkdownCard(
+  text: string,
+  options?: { header?: CardHeaderOptions; note?: string },
+): Record<string, unknown> {
+  const elements: Record<string, unknown>[] = [{ tag: "markdown", content: text }];
+  if (options?.note) {
+    elements.push({ tag: "hr" });
+    elements.push({
+      tag: "markdown",
+      content: options.note,
+    });
+  }
+  const card: Record<string, unknown> = {
     schema: "2.0",
-    config: {
-      wide_screen_mode: true,
-    },
-    body: {
-      elements: [
-        {
-          tag: "markdown",
-          content: text,
-        },
-      ],
-    },
+    config: { wide_screen_mode: true },
+    body: { elements },
   };
+  if (options?.header) {
+    card.header = {
+      title: { tag: "plain_text", content: options.header.title },
+      template: options.header.template ?? "blue",
+    };
+  }
+  return card;
 }
 
 /**
@@ -285,14 +302,18 @@ export async function sendMarkdownCardFeishu(params: {
   /** Mention target users */
   mentions?: MentionTarget[];
   accountId?: string;
+  /** Optional card header */
+  header?: CardHeaderOptions;
+  /** Optional footer note text */
+  note?: string;
 }): Promise<FeishuSendResult> {
-  const { cfg, to, text, replyToMessageId, mentions, accountId } = params;
+  const { cfg, to, text, replyToMessageId, mentions, accountId, header, note } = params;
   // Build message content (with @mention support)
   let cardText = text;
   if (mentions && mentions.length > 0) {
     cardText = buildMentionedCardContent(mentions, text);
   }
-  const card = buildMarkdownCard(cardText);
+  const card = buildMarkdownCard(cardText, { header, note });
   return sendCardFeishu({ cfg, to, card, replyToMessageId, accountId });
 }
 

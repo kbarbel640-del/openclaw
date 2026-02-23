@@ -57,6 +57,13 @@ function truncateSummary(text: string, max = 50): string {
   return clean.length <= max ? clean : clean.slice(0, max - 3) + "...";
 }
 
+/** Optional header for streaming cards (title bar with color template) */
+export type StreamingCardHeader = {
+  title: string;
+  /** Color template: blue, green, red, orange, purple, indigo, wathet, turquoise, yellow, grey, carmine, violet, lime */
+  template?: string;
+};
+
 /** Streaming card session manager */
 export class FeishuStreamingSession {
   private client: Client;
@@ -78,23 +85,38 @@ export class FeishuStreamingSession {
   async start(
     receiveId: string,
     receiveIdType: "open_id" | "user_id" | "union_id" | "email" | "chat_id" = "chat_id",
+    options?: { header?: StreamingCardHeader; note?: string },
   ): Promise<void> {
     if (this.state) {
       return;
     }
 
     const apiBase = resolveApiBase(this.creds.domain);
-    const cardJson = {
+    const elements: Record<string, unknown>[] = [
+      { tag: "markdown", content: "⏳ Thinking...", element_id: "main_content" },
+    ];
+    if (options?.note) {
+      elements.push({ tag: "hr" });
+      elements.push({
+        tag: "markdown",
+        content: options.note,
+      });
+    }
+    const cardJson: Record<string, unknown> = {
       schema: "2.0",
       config: {
         streaming_mode: true,
         summary: { content: "[Generating...]" },
         streaming_config: { print_frequency_ms: { default: 50 }, print_step: { default: 2 } },
       },
-      body: {
-        elements: [{ tag: "markdown", content: "⏳ Thinking...", element_id: "content" }],
-      },
+      body: { elements },
     };
+    if (options?.header) {
+      cardJson.header = {
+        title: { tag: "plain_text", content: options.header.title },
+        template: options.header.template ?? "blue",
+      };
+    }
 
     // Create card entity
     const createRes = await fetch(`${apiBase}/cardkit/v1/cards`, {
@@ -152,7 +174,7 @@ export class FeishuStreamingSession {
       this.state.currentText = text;
       this.state.sequence += 1;
       const apiBase = resolveApiBase(this.creds.domain);
-      await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/content/content`, {
+      await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/main_content/content`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${await getToken(this.creds)}`,
@@ -182,7 +204,7 @@ export class FeishuStreamingSession {
     // Only send final update if content differs from what's already displayed
     if (text && text !== this.state.currentText) {
       this.state.sequence += 1;
-      await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/content/content`, {
+      await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/main_content/content`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${await getToken(this.creds)}`,
