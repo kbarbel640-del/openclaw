@@ -353,13 +353,13 @@ namespace OpenClaw.Node.Services
             };
         }
 
-        private async Task<BridgeInvokeResponse> HandleDevRestartAsync(BridgeInvokeRequest request)
+        private Task<BridgeInvokeResponse> HandleDevRestartAsync(BridgeInvokeRequest request)
         {
             var root = ParseParams(request.ParamsJSON);
 
             if (root != null && root.Value.TryGetProperty("delayMs", out var dEl) && dEl.ValueKind != JsonValueKind.Number)
             {
-                return Invalid(request.Id, "dev.restart params.delayMs must be a number when provided");
+                return Task.FromResult(Invalid(request.Id, "dev.restart params.delayMs must be a number when provided"));
             }
 
             var delayMs = root != null && root.Value.TryGetProperty("delayMs", out var d) && d.ValueKind == JsonValueKind.Number
@@ -370,7 +370,7 @@ namespace OpenClaw.Node.Services
             var processPath = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(processPath))
             {
-                return new BridgeInvokeResponse
+                return Task.FromResult(new BridgeInvokeResponse
                 {
                     Id = request.Id,
                     Ok = false,
@@ -379,7 +379,7 @@ namespace OpenClaw.Node.Services
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = "dev.restart unavailable: unable to resolve current process path"
                     }
-                };
+                });
             }
 
             var args = Environment.GetCommandLineArgs();
@@ -406,7 +406,7 @@ namespace OpenClaw.Node.Services
 
                 if (proc == null)
                 {
-                    return new BridgeInvokeResponse
+                    return Task.FromResult(new BridgeInvokeResponse
                     {
                         Id = request.Id,
                         Ok = false,
@@ -415,7 +415,7 @@ namespace OpenClaw.Node.Services
                             Code = OpenClawNodeErrorCode.Unavailable,
                             Message = "dev.restart failed to schedule restart process"
                         }
-                    };
+                    });
                 }
 
                 var payload = new
@@ -427,16 +427,16 @@ namespace OpenClaw.Node.Services
                     pid = currentPid
                 };
 
-                return new BridgeInvokeResponse
+                return Task.FromResult(new BridgeInvokeResponse
                 {
                     Id = request.Id,
                     Ok = true,
                     PayloadJSON = JsonSerializer.Serialize(payload)
-                };
+                });
             }
             catch (Exception ex)
             {
-                return new BridgeInvokeResponse
+                return Task.FromResult(new BridgeInvokeResponse
                 {
                     Id = request.Id,
                     Ok = false,
@@ -445,7 +445,7 @@ namespace OpenClaw.Node.Services
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = $"dev.restart scheduling failed: {ex.Message}"
                     }
-                };
+                });
             }
         }
 
