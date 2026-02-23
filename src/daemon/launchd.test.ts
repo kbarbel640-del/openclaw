@@ -227,7 +227,6 @@ describe("launchd install", () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
-});
 
   it("preserves custom EnvironmentVariables from existing plist on reinstall", async () => {
     const originalPath = process.env.PATH;
