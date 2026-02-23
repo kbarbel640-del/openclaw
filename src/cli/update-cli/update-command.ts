@@ -592,6 +592,7 @@ async function maybeRestartService(params: {
               `Run \`${replaceCliName(formatCliCommand("openclaw gateway status --probe --deep"), CLI_NAME)}\` for details.`,
             ),
           );
+          throw new Error("Gateway did not become healthy after restart.");
         }
         defaultRuntime.log("");
       }
@@ -604,6 +605,7 @@ async function maybeRestartService(params: {
           ),
         );
       }
+      defaultRuntime.exit(2);
     }
     return;
   }

@@ -21,6 +21,9 @@ const serviceReadRuntime = vi.fn();
 const inspectPortUsage = vi.fn();
 const classifyPortListener = vi.fn();
 const formatPortDiagnostics = vi.fn();
+const waitForGatewayHealthyRestart = vi.fn();
+const renderRestartDiagnostics = vi.fn();
+const terminateStaleGatewayPids = vi.fn();
 
 vi.mock("@clack/prompts", () => ({
   confirm,
@@ -99,6 +102,12 @@ vi.mock("../infra/ports.js", () => ({
 vi.mock("./update-cli/restart-helper.js", () => ({
   prepareRestartScript: (...args: unknown[]) => prepareRestartScript(...args),
   runRestartScript: (...args: unknown[]) => runRestartScript(...args),
+}));
+
+vi.mock("./daemon-cli/restart-health.js", () => ({
+  waitForGatewayHealthyRestart: (...args: unknown[]) => waitForGatewayHealthyRestart(...args),
+  renderRestartDiagnostics: (...args: unknown[]) => renderRestartDiagnostics(...args),
+  terminateStaleGatewayPids: (...args: unknown[]) => terminateStaleGatewayPids(...args),
 }));
 
 // Mock doctor (heavy module; should not run in unit tests)
@@ -269,6 +278,9 @@ describe("update-cli", () => {
     inspectPortUsage.mockClear();
     classifyPortListener.mockClear();
     formatPortDiagnostics.mockClear();
+    waitForGatewayHealthyRestart.mockClear();
+    renderRestartDiagnostics.mockClear();
+    terminateStaleGatewayPids.mockClear();
     vi.mocked(resolveOpenClawPackageRoot).mockResolvedValue(process.cwd());
     vi.mocked(readConfigFileSnapshot).mockResolvedValue(baseSnapshot);
     vi.mocked(fetchNpmTagVersion).mockResolvedValue({
@@ -331,6 +343,23 @@ describe("update-cli", () => {
     });
     classifyPortListener.mockReturnValue("gateway");
     formatPortDiagnostics.mockReturnValue(["Port 18789 is already in use."]);
+    waitForGatewayHealthyRestart.mockResolvedValue({
+      runtime: {
+        status: "running",
+        pid: 4242,
+        state: "running",
+      },
+      portUsage: {
+        port: 18789,
+        status: "busy",
+        listeners: [{ pid: 4242, command: "openclaw-gateway" }],
+        hints: [],
+      },
+      healthy: true,
+      staleGatewayPids: [],
+    });
+    renderRestartDiagnostics.mockReturnValue(["Service runtime: status=running, pid=4242"]);
+    terminateStaleGatewayPids.mockResolvedValue([]);
     vi.mocked(runDaemonInstall).mockResolvedValue(undefined);
     vi.mocked(runDaemonRestart).mockResolvedValue(true);
     vi.mocked(doctorCommand).mockResolvedValue(undefined);
@@ -653,6 +682,47 @@ describe("update-cli", () => {
 
     const logLines = vi.mocked(defaultRuntime.log).mock.calls.map((call) => String(call[0]));
     expect(logLines.some((line) => line.includes("Daemon restarted successfully."))).toBe(false);
+  });
+
+  it("updateCommand exits with code 2 when restart script fails", async () => {
+    vi.mocked(runGatewayUpdate).mockResolvedValue(makeOkUpdateResult());
+    serviceLoaded.mockResolvedValue(true);
+    prepareRestartScript.mockResolvedValue("/tmp/openclaw-restart-test.sh");
+    runRestartScript.mockRejectedValueOnce(new Error("restart boom"));
+
+    await updateCommand({});
+
+    expect(defaultRuntime.exit).toHaveBeenCalledWith(2);
+  });
+
+  it("updateCommand exits with code 2 when gateway stays unhealthy after restart", async () => {
+    vi.mocked(runGatewayUpdate).mockResolvedValue(makeOkUpdateResult());
+    serviceLoaded.mockResolvedValue(true);
+    prepareRestartScript.mockResolvedValue("/tmp/openclaw-restart-test.sh");
+    runRestartScript.mockResolvedValue(undefined);
+    waitForGatewayHealthyRestart.mockResolvedValueOnce({
+      runtime: {
+        status: "running",
+        pid: 4242,
+        state: "running",
+      },
+      portUsage: {
+        port: 18789,
+        status: "free",
+        listeners: [],
+        hints: [],
+      },
+      healthy: false,
+      staleGatewayPids: [],
+    });
+    renderRestartDiagnostics.mockReturnValueOnce([
+      "Service runtime: status=running, state=running, pid=4242",
+      "Gateway port 18789 status: free.",
+    ]);
+
+    await updateCommand({});
+
+    expect(defaultRuntime.exit).toHaveBeenCalledWith(2);
   });
 
   it.each([
