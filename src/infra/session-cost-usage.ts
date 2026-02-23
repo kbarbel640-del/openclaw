@@ -287,6 +287,24 @@ async function scanUsageFile(params: {
   });
 }
 
+/**
+ * Check if a filename looks like an archived transcript (from session deletion/reset).
+ * Archives are named like: <sessionId>.jsonl.deleted.<timestamp> or <sessionId>.jsonl.reset.<timestamp>
+ */
+function isArchivedTranscriptFile(filename: string): boolean {
+  return filename.endsWith(".deleted.") || filename.endsWith(".reset.");
+}
+
+/**
+ * Extract session ID from archived transcript filename.
+ * e.g., "abc123.jsonl.deleted.2024-01-01T00-00-00.000Z" -> "abc123"
+ */
+function extractSessionIdFromArchive(filename: string): string | null {
+  // Match pattern: <sessionId>.jsonl.deleted.<timestamp> or <sessionId>.jsonl.reset.<timestamp>
+  const match = /^(.+)\.jsonl\.(deleted|reset)\./.exec(filename);
+  return match ? match[1] : null;
+}
+
 export async function loadCostUsageSummary(params?: {
   startMs?: number;
   endMs?: number;
@@ -312,6 +330,7 @@ export async function loadCostUsageSummary(params?: {
 
   const dailyMap = new Map<string, CostUsageTotals>();
   const totals = emptyTotals();
+  let deletedSessionsCount = 0;
 
   const sessionsDir = resolveSessionTranscriptsDirForAgent(params?.agentId);
   const entries = await fs.promises.readdir(sessionsDir, { withFileTypes: true }).catch(() => []);
@@ -333,6 +352,60 @@ export async function loadCostUsageSummary(params?: {
         }),
     )
   ).filter((filePath): filePath is string => Boolean(filePath));
+
+  // Also check for archived transcripts that might contain deleted session data
+  const archivedEntries = entries.filter(
+    (entry) => entry.isFile() && isArchivedTranscriptFile(entry.name),
+  );
+
+  // Process archived transcripts to include their costs (if within date range)
+  for (const entry of archivedEntries) {
+    const filePath = path.join(sessionsDir, entry.name);
+    const stats = await fs.promises.stat(filePath).catch(() => null);
+    if (!stats) {
+      continue;
+    }
+
+    // Check if the archive was created within our date range
+    // The mtime represents when the session was archived (deleted/reset)
+    if (stats.mtimeMs < sinceTime || stats.mtimeMs > untilTime) {
+      continue;
+    }
+
+    // Count unique deleted sessions from archive filenames
+    const sessionId = extractSessionIdFromArchive(entry.name);
+    if (sessionId) {
+      deletedSessionsCount++;
+    }
+
+    // Scan the archived file for usage data
+    await scanUsageFile({
+      filePath,
+      config: params?.config,
+      onEntry: (entry) => {
+        const ts = entry.timestamp?.getTime();
+        if (!ts || ts < sinceTime || ts > untilTime) {
+          return;
+        }
+        const dayKey = formatDayKey(entry.timestamp ?? now);
+        const bucket = dailyMap.get(dayKey) ?? emptyTotals();
+        applyUsageTotals(bucket, entry.usage);
+        if (entry.costBreakdown?.total !== undefined) {
+          applyCostBreakdown(bucket, entry.costBreakdown);
+        } else {
+          applyCostTotal(bucket, entry.costTotal);
+        }
+        dailyMap.set(dayKey, bucket);
+
+        applyUsageTotals(totals, entry.usage);
+        if (entry.costBreakdown?.total !== undefined) {
+          applyCostBreakdown(totals, entry.costBreakdown);
+        } else {
+          applyCostTotal(totals, entry.costTotal);
+        }
+      },
+    });
+  }
 
   for (const filePath of files) {
     await scanUsageFile({
@@ -370,11 +443,18 @@ export async function loadCostUsageSummary(params?: {
   // Calculate days for backwards compatibility in response
   const days = Math.ceil((untilTime - sinceTime) / (24 * 60 * 60 * 1000)) + 1;
 
+  // Build warning message if there are deleted sessions that were included
+  const warning =
+    deletedSessionsCount > 0
+      ? `Cost includes ${deletedSessionsCount} deleted session(s) from this period`
+      : undefined;
+
   return {
     updatedAt: Date.now(),
     days,
     daily,
     totals,
+    warning,
   };
 }
 
