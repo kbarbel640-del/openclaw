@@ -2,7 +2,7 @@
 summary: "Integrate ACP coding agents via a first-class ACP control plane in core and plugin-backed runtimes (acpx first)"
 owner: "onutc"
 status: "draft"
-last_updated: "2026-02-22"
+last_updated: "2026-02-23"
 title: "ACP Thread Bound Agents"
 ---
 
@@ -11,6 +11,10 @@ title: "ACP Thread Bound Agents"
 ## Overview
 
 This plan defines how OpenClaw should support ACP coding agents in Discord threads with production level lifecycle and recovery.
+
+Related document:
+
+- [ACP Discord Streaming Strategy](/experiments/plans/acp-discord-streaming-strategy)
 
 Target user experience:
 
