@@ -3,5 +3,19 @@
 *.user
 *.suo
 
+# Build outputs (extra guardrails)
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.exp
+*.nupkg
+*.snupkg
+
+# Local runtime/log artifacts
+node-watchdog-child.log
+node-watchdog-child.err.log
+*.tmp
+
 # Windows ADS metadata artifacts
 **/*:Zone.Identifier

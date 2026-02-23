@@ -68,8 +68,6 @@ This project is intended to run next to OpenClaw Gateway and be controlled by Op
   - `system.run`
   - `system.which`
   - `system.notify`
-  - `system.update`
-  - `system.restart`
   - `system.screenshot`
 - Screen/camera:
   - `screen.list`
@@ -86,7 +84,7 @@ This project is intended to run next to OpenClaw Gateway and be controlled by Op
 Named Pipe endpoint with auth support:
 
 - `\\.\pipe\openclaw.node.ipc`
-- Methods include `ipc.ping`, window/input methods, `ipc.dev.update`, `ipc.dev.restart`
+- Methods include `ipc.ping` plus window/input methods
 - Per-request timeout (`params.timeoutMs`) with explicit `TIMEOUT` errors
 
 ### Discovery

@@ -518,43 +518,7 @@ namespace OpenClaw.Node.Tests
             Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
         }
 
-        [Fact]
-        public async Task SystemUpdate_InvalidBranchType_ShouldReturnInvalidRequest()
-        {
-            var executor = new NodeCommandExecutor();
-            var req = new BridgeInvokeRequest
-            {
-                Id = "system-update-invalid-branch",
-                Command = "system.update",
-                ParamsJSON = "{\"branch\":123}"
-            };
-
-            var res = await executor.ExecuteAsync(req);
-
-            Assert.False(res.Ok);
-            Assert.NotNull(res.Error);
-            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
-        }
-
-        [Fact]
-        public async Task SystemRestart_InvalidDelayType_ShouldReturnInvalidRequest()
-        {
-            var executor = new NodeCommandExecutor();
-            var req = new BridgeInvokeRequest
-            {
-                Id = "system-restart-invalid-delay",
-                Command = "system.restart",
-                ParamsJSON = "{\"delayMs\":\"soon\"}"
-            };
-
-            var res = await executor.ExecuteAsync(req);
-
-            Assert.False(res.Ok);
-            Assert.NotNull(res.Error);
-            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
-        }
-
-        [Fact]
+                        [Fact]
         public async Task SystemScreenshot_ShouldReturnExpectedResult_ForCurrentPlatform()
         {
             var executor = new NodeCommandExecutor();

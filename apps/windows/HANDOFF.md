@@ -23,8 +23,6 @@
    - `system.run`
    - `system.which`
    - `system.notify`
-   - `system.update` (development helper: pull latest branch + optional build in repo path)
-   - `system.restart` (development helper: schedule process self-restart with optional delay)
    - `system.screenshot` (development helper: capture primary-screen jpg + focused window metadata)
    - `screen.list` (Phase 2: returns display metadata list `{ index, id, name }`)
    - `screen.record` (Phase 2 timed MP4 path: returns base64 mp4 with recording metadata)
@@ -51,8 +49,6 @@
    - `ipc.input.click`
    - `ipc.input.scroll`
    - `ipc.input.click.relative`
-   - `ipc.dev.update` (supports `dryRun=true` for non-destructive validation)
-   - `ipc.dev.restart` (supports `dryRun=true` for non-destructive validation)
    - per-request timeout support via `params.timeoutMs` (clamped); timeout returns `TIMEOUT`
    - auth token required when configured (Program currently uses gateway token as shared secret)
 7. Phase 3 discovery is active:
@@ -103,7 +99,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **99 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **95 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash
