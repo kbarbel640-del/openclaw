@@ -59,6 +59,7 @@
 ## Current caveats
 - Node now connects using node identity (`client.id = node-host`, role/mode = node).
 - Basic command execution exists (`system.run`, `system.which`, `system.notify`) and Phase 2 now includes `screen.record` timed MP4 recording via `ScreenRecorderLib` plus `camera.snap` via native WinRT capture/list (PowerShell bridge) with optional bundled ffmpeg fallback if packaged.
+- Real-host camera validation is complete for current hardware (single USB webcam): `camera.snap` works in generic and explicit `deviceId` modes; `facing=front/back` may map to the same physical camera semantics on single-camera hosts; `maxWidth` and `quality` controls are verified.
 - Camera path no longer depends on `MediaFoundation.Net`; this removes the `NU1701` framework-compat warning path for `net8.0` builds.
 - Build/test currently require x64 platform selection when running commands from CLI in this environment (e.g. `-p:Platform=x64`) because `ScreenRecorderLib` does not support AnyCPU.
 - Pairing pending state is currently in-memory and filled from broadcast events (`device.pair.requested`, `node.pair.requested`) and cleared on `*.pair.resolved` via `CoreMethodService.HandleGatewayEvent`; not persisted locally.
@@ -84,9 +85,8 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 (or rely on env/config auto-resolution)
 
 ## Immediate next steps
-1. Run real-gateway validation of `screen.record` end-to-end from the OpenClaw CLI path and tune source selection/audio defaults as needed.
-2. Run real-gateway end-to-end validation for `camera.snap` on a physical Windows host (front/back selection, deviceId routing, and payload dimensions).
-3. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (now with signed device-auth handshake on connect; suite currently 10 passing and covers node-connect/status plus screen.list/camera.list/window.list/window.rect response-shape paths, screen.record generic + explicit screenIndex path, and camera.snap generic + explicit deviceId path when available).
-4. On Windows hosts, ensure camera prerequisites are explicit in onboarding/docs: Camera privacy toggles enabled for desktop apps.
-5. Add IPC integration tests that invoke the new dev helper methods in a non-destructive mode.
-6. If needed later, persist pairing pending cache to disk (currently in-memory only).
+1. Keep running `RUN_REAL_GATEWAY_INTEGRATION=1 dotnet test --filter "FullyQualifiedName~RealGatewayIntegrationTests" -p:Platform=x64` before major merges (now with signed device-auth handshake on connect; suite covers node-connect/status plus screen.list/camera.list/window.list/window.rect response-shape paths, screen.record generic + explicit screenIndex path, and camera.snap generic + explicit deviceId/front-back shape paths when available).
+2. On Windows hosts, ensure camera prerequisites are explicit in onboarding/docs: Camera privacy toggles enabled for desktop apps.
+3. Extend camera validation on true multi-camera hardware (distinct front/back/external) to tune device-selection heuristics beyond single-camera semantics.
+4. Add IPC integration tests that invoke the new dev helper methods in a non-destructive mode.
+5. If needed later, persist pairing pending cache to disk (currently in-memory only).

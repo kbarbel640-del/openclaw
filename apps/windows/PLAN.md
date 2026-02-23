@@ -18,6 +18,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
+- ✅ Real-host camera validation completed (`camera.snap` generic + explicit `deviceId`; front/back semantics tolerate single-camera hosts; `maxWidth`/`quality` verified)
 - ✅ Tests passing (74 total) (including device-auth connect assertions + node.invoke.result request-path assertion; real-gateway suite: 10 passing)
 - ✅ Removed `MediaFoundation.Net` NU1701 warning path from build by moving camera stack off framework-only package
 
@@ -66,7 +67,7 @@ Build a native Windows application that replicates the functionality of the Open
     - `camera.snap` -> `{ format: "jpg", base64, width, height }`
   - [x] Replaced MediaFoundation.Net camera path with net8-safe native WinRT backend (PowerShell bridge) and optional bundled ffmpeg fallback (no user setup required)
   - [x] Added actionable unavailable error when camera frame cannot be produced (privacy/setup guidance + backend reason)
-  - [ ] Validate on real Windows host with physical cameras and tune device-selection heuristics
+  - [x] Validate on real Windows host with physical cameras (`camera.snap` generic + explicit `deviceId`, `facing=front/back`, `maxWidth`, `quality`)
 - **Automation (`Automation/`)**
   - [x] MVP command set wired (`window.list`, `window.focus`, `window.rect`, `input.type`, `input.key`, `input.click`, `input.scroll`, `input.click.relative`)
   - [x] `window.list` returns `{ windows: [{ handle, title, process, isFocused }] }`

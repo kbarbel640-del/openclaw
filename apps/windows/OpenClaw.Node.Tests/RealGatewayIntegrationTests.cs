@@ -243,6 +243,121 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task RealGateway_CameraSnap_FrontBack_WithDeviceId_ToleratesSingleCameraSemantics()
+        {
+            if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var cfg = LoadGatewayConfig();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+            using var client = new RealGatewayRpcClient();
+
+            await client.ConnectAsOperatorAsync(cfg.Url, cfg.Token, cts.Token);
+            var nodeId = await ResolveFirstConnectedNodeIdAsync(client, cts.Token);
+            if (string.IsNullOrWhiteSpace(nodeId)) return;
+
+            var listInvoke = await client.RequestAsync(
+                "node.invoke",
+                new
+                {
+                    nodeId,
+                    command = "camera.list",
+                    @params = new { },
+                    timeoutMs = 15000,
+                    idempotencyKey = "itest-camera-list-front-back"
+                },
+                cts.Token);
+
+            if (!listInvoke.TryGetProperty("ok", out var listOk) || !listOk.GetBoolean())
+            {
+                return;
+            }
+
+            if (!listInvoke.TryGetProperty("payload", out var listPayload) ||
+                !listPayload.TryGetProperty("devices", out var devices) ||
+                devices.ValueKind != JsonValueKind.Array ||
+                devices.GetArrayLength() == 0)
+            {
+                return;
+            }
+
+            string? deviceId = null;
+            foreach (var d in devices.EnumerateArray())
+            {
+                if (d.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String)
+                {
+                    deviceId = idEl.GetString();
+                    if (!string.IsNullOrWhiteSpace(deviceId)) break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(deviceId)) return;
+
+            async Task<JsonElement> InvokeSnapAsync(string facing, string key)
+            {
+                return await client.RequestAsync(
+                    "node.invoke",
+                    new
+                    {
+                        nodeId,
+                        command = "camera.snap",
+                        @params = new { deviceId, facing, delayMs = 0, quality = 0.85, maxWidth = 1280 },
+                        timeoutMs = 15000,
+                        idempotencyKey = key
+                    },
+                    cts.Token);
+            }
+
+            var front = await InvokeSnapAsync("front", "itest-camera-snap-front-device-id");
+            var back = await InvokeSnapAsync("back", "itest-camera-snap-back-device-id");
+
+            Assert.Equal("res", front.GetProperty("type").GetString());
+            Assert.Equal("res", back.GetProperty("type").GetString());
+            Assert.True(front.TryGetProperty("ok", out var frontOk));
+            Assert.True(back.TryGetProperty("ok", out var backOk));
+
+            if (frontOk.GetBoolean())
+            {
+                Assert.True(front.TryGetProperty("payload", out var p), JsonSerializer.Serialize(front));
+                Assert.Equal("jpg", p.GetProperty("format").GetString());
+                Assert.False(string.IsNullOrWhiteSpace(p.GetProperty("base64").GetString()));
+                Assert.True(p.GetProperty("width").GetInt32() > 0);
+                Assert.True(p.GetProperty("height").GetInt32() > 0);
+            }
+            else
+            {
+                Assert.True(front.TryGetProperty("error", out var err), JsonSerializer.Serialize(front));
+                Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(front));
+            }
+
+            if (backOk.GetBoolean())
+            {
+                Assert.True(back.TryGetProperty("payload", out var p), JsonSerializer.Serialize(back));
+                Assert.Equal("jpg", p.GetProperty("format").GetString());
+                Assert.False(string.IsNullOrWhiteSpace(p.GetProperty("base64").GetString()));
+                Assert.True(p.GetProperty("width").GetInt32() > 0);
+                Assert.True(p.GetProperty("height").GetInt32() > 0);
+            }
+            else
+            {
+                Assert.True(back.TryGetProperty("error", out var err), JsonSerializer.Serialize(back));
+                Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(back));
+            }
+
+            // On single-camera hosts, front/back may map to the same device backend.
+            // If both succeed, dimensions should still be consistent for identical params.
+            if (frontOk.GetBoolean() && backOk.GetBoolean())
+            {
+                var frontPayload = front.GetProperty("payload");
+                var backPayload = back.GetProperty("payload");
+                Assert.Equal(frontPayload.GetProperty("width").GetInt32(), backPayload.GetProperty("width").GetInt32());
+                Assert.Equal(frontPayload.GetProperty("height").GetInt32(), backPayload.GetProperty("height").GetInt32());
+            }
+        }
+
+        [Fact]
         public async Task RealGateway_CameraListCommand_ReturnsResponseShape_WhenNodeAvailable()
         {
             if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
