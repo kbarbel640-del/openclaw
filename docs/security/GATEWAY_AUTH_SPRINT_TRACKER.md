@@ -37,10 +37,10 @@
 | 5     | 5.2  | Remove local direct request canvas bypass                   | done        | —   | auth-hardening    | 2026-02-20 | Local bypass gone ✓  |
 | 6     | 6.1  | Add auth to all plugin routes                               | done        | —   | auth-hardening    | 2026-02-20 | All routes auth ✓    |
 | 6     | 6.2  | Update plugin documentation                                 | not-started | —   | docs-writer       | —          | Depends: 6.1         |
-| 7     | 7.1  | Change `exemptLoopback` default to `false`                  | done        | —   | auth-hardening    | 2026-02-20 | 410 tests pass ✓     |
-| 7     | 7.2  | Remove explicit `exemptLoopback: true` overrides            | done        | —   | auth-hardening    | 2026-02-20 | No overrides found   |
-| 8     | 8.1  | Remove `isLocalDirectRequest` auth bypass usage             | done        | —   | auth-hardening    | 2026-02-20 | Bypass removed ✓     |
-| 8     | 8.2  | Update `authorizeGatewayConnect` local bypass               | done        | —   | auth-hardening    | 2026-02-20 | localDirect removed  |
+| 7     | 7.1  | Change `exemptLoopback` default to `false`                  | done        | —   | auth-hardening    | 2026-02-23 | 410 tests pass ✓     |
+| 7     | 7.2  | Remove explicit `exemptLoopback: true` overrides            | done        | —   | auth-hardening    | 2026-02-23 | No overrides found   |
+| 8     | 8.1  | Remove `isLocalDirectRequest` auth bypass usage             | done        | —   | auth-hardening    | 2026-02-23 | Bypass removed ✓     |
+| 8     | 8.2  | Update `authorizeGatewayConnect` local bypass               | done        | —   | auth-hardening    | 2026-02-23 | localDirect removed  |
 | 9     | 9.1  | Hooks token startup validation                              | done        | —   | onboarding-wizard | 2026-02-20 | Hooks secured        |
 | 9     | 9.2  | Hooks token security requirement                            | done        | —   | onboarding-wizard | 2026-02-20 | Hooks secured        |
 | 10    | 10.1 | Critical severity audit checks                              | not-started | —   | security-audit    | —          | Depends: Phases 1-9  |
@@ -60,20 +60,21 @@
 ## Summary
 
 - **Total Tasks**: 30
-- **Done**: 14
+- **Done**: 18
 - **In Progress**: 0
 - **Blocked**: 0
-- **Remaining**: 16
+- **Remaining**: 12
 
 ---
 
 ## Sprint Log
 
-| Date       | Sprint   | Action      | Details                                   |
-| ---------- | -------- | ----------- | ----------------------------------------- |
-| 2026-02-20 | Sprint 4 | Completed   | Phases 4-6 (Control/Canvas/Plugin auth) ✓ |
-| 2026-02-20 | Sprint 3 | Completed   | Phases 2 & 9 (onboarding + hooks) ✓       |
-| 2026-02-20 | Sprint 2 | Completed   | Phase 3 verified, 1,182 tests ✓           |
-| 2026-02-20 | Sprint 1 | Completed   | Phase 1 verified, 36/36 tests ✓           |
-| 2026-02-19 | Sprint 1 | Started     | Phase 1 (security schema) kickoff         |
-| 2026-02-18 | —        | Initialized | Sprint tracker created                    |
+| Date       | Sprint   | Action      | Details                                    |
+| ---------- | -------- | ----------- | ------------------------------------------ |
+| 2026-02-23 | Sprint 5 | Completed   | Phases 7-8 (Rate limiter + local bypass) ✓ |
+| 2026-02-20 | Sprint 4 | Completed   | Phases 4-6 (Control/Canvas/Plugin auth) ✓  |
+| 2026-02-20 | Sprint 3 | Completed   | Phases 2 & 9 (onboarding + hooks) ✓        |
+| 2026-02-20 | Sprint 2 | Completed   | Phase 3 verified, 1,182 tests ✓            |
+| 2026-02-20 | Sprint 1 | Completed   | Phase 1 verified, 36/36 tests ✓            |
+| 2026-02-19 | Sprint 1 | Started     | Phase 1 (security schema) kickoff          |
+| 2026-02-18 | —        | Initialized | Sprint tracker created                     |
