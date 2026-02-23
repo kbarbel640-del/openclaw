@@ -273,33 +273,48 @@ export async function monitorMSTeamsProvider(
     fallback: "/api/messages",
   });
 
-  // Start listening and capture the HTTP server handle
-  const httpServer = expressApp.listen(port, () => {
-    log.info(`msteams provider started on port ${port}`);
-  });
+  // Return a long-lived Promise that stays pending while the server is
+  // running. The channel orchestrator treats a resolved startAccount Promise
+  // as "account exited" and schedules a restart — resolving immediately
+  // caused an infinite restart loop with EADDRINUSE errors (#24374).
+  return new Promise<MonitorMSTeamsResult>((resolve, reject) => {
+    const httpServer = expressApp.listen(port, () => {
+      log.info(`msteams provider started on port ${port}`);
+    });
 
-  httpServer.on("error", (err) => {
-    log.error("msteams server error", { error: String(err) });
-  });
-
-  const shutdown = async () => {
-    log.info("shutting down msteams provider");
-    return new Promise<void>((resolve) => {
-      httpServer.close((err) => {
-        if (err) {
-          log.debug?.("msteams server close error", { error: String(err) });
-        }
-        resolve();
+    const shutdown = async () => {
+      log.info("shutting down msteams provider");
+      return new Promise<void>((res) => {
+        httpServer.close((err) => {
+          if (err) {
+            log.debug?.("msteams server close error", { error: String(err) });
+          }
+          res();
+        });
       });
-    });
-  };
+    };
 
-  // Handle abort signal
-  if (opts.abortSignal) {
-    opts.abortSignal.addEventListener("abort", () => {
-      void shutdown();
+    httpServer.on("error", (err) => {
+      log.error("msteams server error", { error: String(err) });
+      reject(err);
     });
-  }
 
-  return { app: expressApp, shutdown };
+    httpServer.on("close", () => {
+      resolve({ app: expressApp, shutdown });
+    });
+
+    if (opts.abortSignal) {
+      if (opts.abortSignal.aborted) {
+        void shutdown();
+        return;
+      }
+      opts.abortSignal.addEventListener(
+        "abort",
+        () => {
+          void shutdown();
+        },
+        { once: true },
+      );
+    }
+  });
 }
