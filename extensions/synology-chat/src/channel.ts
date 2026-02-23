@@ -297,7 +297,10 @@ export function createSynologyChatPlugin() {
         const abortSignal = ctx.abortSignal;
         await new Promise<void>((resolve) => {
           if (abortSignal) {
-            if (abortSignal.aborted) { resolve(); return; }
+            if (abortSignal.aborted) {
+              resolve();
+              return;
+            }
             abortSignal.addEventListener("abort", () => resolve(), { once: true });
           }
         });
