@@ -210,38 +210,47 @@ namespace OpenClaw.Node.Services
             return await ClickAsync(absX, absY, button, doubleClick);
         }
 
-        public Task<bool> TypeTextAsync(string text)
+        public async Task<bool> TypeTextAsync(string text)
         {
-            if (string.IsNullOrEmpty(text)) return Task.FromResult(false);
-            if (!OperatingSystem.IsWindows()) return Task.FromResult(false);
+            if (string.IsNullOrEmpty(text)) return false;
+            if (!OperatingSystem.IsWindows()) return false;
 
             try
             {
+                var allOk = true;
                 foreach (var ch in text)
                 {
                     if (!SendUnicodeChar(ch))
                     {
-                        return Task.FromResult(false);
+                        allOk = false;
+                        break;
                     }
                 }
 
-                return Task.FromResult(true);
+                if (allOk)
+                {
+                    return true;
+                }
+
+                // Fallback path for environments where SendInput is blocked by window/UIPI constraints.
+                var escaped = EscapeForSendKeys(text);
+                return await RunSendKeysScriptAsync($"[System.Windows.Forms.SendKeys]::SendWait('{escaped}')");
             }
             catch
             {
-                return Task.FromResult(false);
+                return false;
             }
         }
 
-        public Task<bool> SendKeyAsync(string key)
+        public async Task<bool> SendKeyAsync(string key)
         {
-            if (string.IsNullOrWhiteSpace(key)) return Task.FromResult(false);
-            if (!OperatingSystem.IsWindows()) return Task.FromResult(false);
+            if (string.IsNullOrWhiteSpace(key)) return false;
+            if (!OperatingSystem.IsWindows()) return false;
 
             var parts = key.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length == 0)
             {
-                return Task.FromResult(false);
+                return false;
             }
 
             var modifiers = new List<ushort>();
@@ -250,7 +259,7 @@ namespace OpenClaw.Node.Services
                 var mod = MapModifierToVirtualKey(parts[i]);
                 if (!mod.HasValue)
                 {
-                    return Task.FromResult(false);
+                    return false;
                 }
 
                 modifiers.Add(mod.Value);
@@ -259,29 +268,42 @@ namespace OpenClaw.Node.Services
             var main = MapKeyTokenToVirtualKey(parts[^1]);
             if (!main.HasValue)
             {
-                return Task.FromResult(false);
+                return false;
             }
 
             try
             {
+                var allOk = true;
+
                 foreach (var mod in modifiers)
                 {
-                    if (!SendVirtualKey(mod, keyUp: false)) return Task.FromResult(false);
+                    if (!SendVirtualKey(mod, keyUp: false)) { allOk = false; break; }
                 }
 
-                if (!SendVirtualKey(main.Value, keyUp: false)) return Task.FromResult(false);
-                if (!SendVirtualKey(main.Value, keyUp: true)) return Task.FromResult(false);
+                if (allOk && !SendVirtualKey(main.Value, keyUp: false)) allOk = false;
+                if (allOk && !SendVirtualKey(main.Value, keyUp: true)) allOk = false;
 
-                for (var i = modifiers.Count - 1; i >= 0; i--)
+                if (allOk)
                 {
-                    if (!SendVirtualKey(modifiers[i], keyUp: true)) return Task.FromResult(false);
+                    for (var i = modifiers.Count - 1; i >= 0; i--)
+                    {
+                        if (!SendVirtualKey(modifiers[i], keyUp: true)) { allOk = false; break; }
+                    }
                 }
 
-                return Task.FromResult(true);
+                if (allOk)
+                {
+                    return true;
+                }
+
+                // Fallback to SendKeys format for reliability in constrained desktop contexts.
+                var token = ConvertKeyToSendKeysToken(key);
+                if (string.IsNullOrWhiteSpace(token)) return false;
+                return await RunSendKeysScriptAsync($"[System.Windows.Forms.SendKeys]::SendWait('{token}')");
             }
             catch
             {
-                return Task.FromResult(false);
+                return false;
             }
         }
 
@@ -366,6 +388,99 @@ namespace OpenClaw.Node.Services
 
             mouse_event(MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)deltaY), UIntPtr.Zero);
             return Task.FromResult(true);
+        }
+
+        private static async Task<bool> RunSendKeysScriptAsync(string body)
+        {
+            var script = $"Add-Type -AssemblyName System.Windows.Forms; {body}";
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-Command");
+            psi.ArgumentList.Add(script);
+
+            try
+            {
+                using var p = new Process { StartInfo = psi };
+                p.Start();
+                await p.WaitForExitAsync();
+                return p.ExitCode == 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string EscapeForSendKeys(string text)
+        {
+            return text
+                .Replace("{", "{{}")
+                .Replace("}", "{}}")
+                .Replace("+", "{+}")
+                .Replace("^", "{^}")
+                .Replace("%", "{%}")
+                .Replace("~", "{~}")
+                .Replace("(", "{(}")
+                .Replace(")", "{)}")
+                .Replace("[", "{[}")
+                .Replace("]", "{]}")
+                .Replace("'", "''");
+        }
+
+        private static string? ConvertKeyToSendKeysToken(string key)
+        {
+            var parts = key.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 0) return null;
+
+            var mods = new StringBuilder();
+            for (var i = 0; i < parts.Length - 1; i++)
+            {
+                var m = parts[i].ToLowerInvariant();
+                if (m is "ctrl" or "control") mods.Append('^');
+                else if (m is "alt") mods.Append('%');
+                else if (m is "shift") mods.Append('+');
+            }
+
+            var keyPart = parts[^1].ToLowerInvariant();
+            var main = keyPart switch
+            {
+                "enter" => "{ENTER}",
+                "tab" => "{TAB}",
+                "esc" or "escape" => "{ESC}",
+                "space" => " ",
+                "up" => "{UP}",
+                "down" => "{DOWN}",
+                "left" => "{LEFT}",
+                "right" => "{RIGHT}",
+                "delete" => "{DELETE}",
+                "backspace" => "{BACKSPACE}",
+                _ => ConvertFunctionOrChar(keyPart),
+            };
+
+            return string.IsNullOrWhiteSpace(main) ? null : mods + main;
+        }
+
+        private static string? ConvertFunctionOrChar(string key)
+        {
+            if (key.Length == 1)
+            {
+                return key;
+            }
+
+            if (key.StartsWith("f", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(key[1..], out var fn) && fn is >= 1 and <= 24)
+            {
+                return $"{{F{fn}}}";
+            }
+
+            return null;
         }
 
         private static bool SendUnicodeChar(char ch)
