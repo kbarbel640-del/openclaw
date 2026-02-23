@@ -406,6 +406,8 @@ export class TelegramExecApprovalHandler {
     }
 
     if (messages.length === 0) {
+      // Clean up cache to avoid memory leak when no messages were delivered
+      this.requestCache.delete(request.id);
       return;
     }
 
@@ -483,6 +485,7 @@ export class TelegramExecApprovalHandler {
         } else {
           await bot.api.editMessageText(msg.chatId, msg.messageId, text, {
             parse_mode: "HTML",
+            reply_markup: { inline_keyboard: [] }, // Clear keyboard to prevent stale clicks
           });
         }
       } catch (err) {
