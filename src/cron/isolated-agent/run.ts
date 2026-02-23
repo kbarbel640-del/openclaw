@@ -44,7 +44,12 @@ import {
   isExternalHookSession,
 } from "../../security/external-content.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
-import type { CronJob, CronRunOutcome, CronRunTelemetry } from "../types.js";
+import type {
+  CronDeliveryOutcomeReason,
+  CronJob,
+  CronRunOutcome,
+  CronRunTelemetry,
+} from "../types.js";
 import {
   dispatchCronDelivery,
   matchesMessagingToolDeliveryTarget,
@@ -73,6 +78,8 @@ export type RunCronAgentTurnResult = {
    * messages.  See: https://github.com/openclaw/openclaw/issues/15692
    */
   delivered?: boolean;
+  /** Optional reason code for delivery branch decisions. */
+  deliveryOutcomeReason?: CronDeliveryOutcomeReason;
 } & CronRunOutcome &
   CronRunTelemetry;
 
@@ -589,8 +596,16 @@ export async function runCronIsolatedAgentTurn(params: {
     return deliveryResult.result;
   }
   const delivered = deliveryResult.delivered;
+  const deliveryOutcomeReason = deliveryResult.deliveryOutcomeReason;
   summary = deliveryResult.summary;
   outputText = deliveryResult.outputText;
 
-  return withRunSession({ status: "ok", summary, outputText, delivered, ...telemetry });
+  return withRunSession({
+    status: "ok",
+    summary,
+    outputText,
+    delivered,
+    deliveryOutcomeReason,
+    ...telemetry,
+  });
 }
