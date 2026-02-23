@@ -93,14 +93,9 @@ describe("processEvent (functional)", () => {
     const { ctx, hangupCalls } = createRejectingInboundContext();
     const event = createInboundInitiatedEvent({
       id: "evt-1",
-      type: "call.initiated",
-      callId: "prov-1",
       providerCallId: "prov-1",
-      timestamp: Date.now(),
-      direction: "inbound",
       from: "+15559999999",
-      to: "+15550000000",
-    };
+    });
 
     processEvent(ctx, event);
 
@@ -143,14 +138,9 @@ describe("processEvent (functional)", () => {
     const { ctx, hangupCalls } = createRejectingInboundContext();
     const event1 = createInboundInitiatedEvent({
       id: "evt-init",
-      type: "call.initiated",
-      callId: "prov-dup",
       providerCallId: "prov-dup",
-      timestamp: Date.now(),
-      direction: "inbound",
       from: "+15552222222",
-      to: "+15550000000",
-    };
+    });
     const event2: NormalizedEvent = {
       id: "evt-ring",
       type: "call.ringing",
