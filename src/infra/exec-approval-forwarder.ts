@@ -58,8 +58,9 @@ export function isSafeRegexPattern(pattern: string): boolean {
   if (pattern.length > 200) {
     return false;
   }
-  // Reject nested quantifiers: a quantifier (+, *, {n,}) applied to a group that itself contains a quantifier
-  if (/([+*}])\s*\)\s*[+*{?]/.test(pattern)) {
+  // Reject nested quantifiers: a quantifier (+, *, ?, {n,}) applied to a group that itself contains a quantifier
+  // Includes non-greedy quantifiers like (a+?)+ or (a*?)* which can still cause ReDoS
+  if (/([+*?}])\s*\)\s*[+*{?]/.test(pattern)) {
     return false;
   }
   return true;

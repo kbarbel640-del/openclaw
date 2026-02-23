@@ -194,4 +194,20 @@ describe("isSafeRegexPattern", () => {
   it("rejects the classic ReDoS pattern (a+)+$", () => {
     expect(isSafeRegexPattern("(a+)+$")).toBe(false);
   });
+
+  it("rejects non-greedy nested quantifiers like (a+?)+", () => {
+    expect(isSafeRegexPattern("(a+?)+")).toBe(false);
+  });
+
+  it("rejects non-greedy nested quantifiers like (a*?)*", () => {
+    expect(isSafeRegexPattern("(a*?)*")).toBe(false);
+  });
+
+  it("rejects non-greedy nested quantifiers like (a+?)*", () => {
+    expect(isSafeRegexPattern("(a+?)*")).toBe(false);
+  });
+
+  it("rejects non-greedy nested quantifiers like (a{2,}?)+", () => {
+    expect(isSafeRegexPattern("(a{2,}?)+")).toBe(false);
+  });
 });
