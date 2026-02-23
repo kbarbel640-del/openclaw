@@ -32,6 +32,9 @@ importers:
       '@clack/prompts':
         specifier: ^1.0.1
         version: 1.0.1
+      '@crosscopy/clipboard':
+        specifier: ^0.3.6
+        version: 0.3.6
       '@discordjs/voice':
         specifier: ^0.19.0
         version: 0.19.0(@discordjs/opus@0.10.0)(opusscript@0.0.8)
@@ -866,6 +869,34 @@ packages:
 
   '@cloudflare/workers-types@4.20260120.0':
     resolution: {integrity: sha512-B8pueG+a5S+mdK3z8oKu1ShcxloZ7qWb68IEyLLaepvdryIbNC7JVPcY0bWsjS56UQVKc5fnyRge3yZIwc9bxw==}
+
+  '@crosscopy/clipboard-darwin-arm64@0.3.6':
+    resolution: {integrity: sha512-l2FtoiefGpYIWL8Fvku/pEth8KlI4j4andtn8WveumMiNx/0TNI2OEhSe+mX4X/me0+b5le/PTVrOPXrxvZuiA==}
+    engines: {node: '>= 10.20.0 < 11 || >= 12.17.0 < 13 || >= 14.0.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@crosscopy/clipboard-darwin-x64@0.3.6':
+    resolution: {integrity: sha512-fXVk7oLUkCyjVakW6VZc1JIeUcXH0/edJXAUREFpWastMlcZAp4AF/7njtlimWmANxtAQu3R2YI3ziFzEF4Neg==}
+    engines: {node: '>= 10.20.0 < 11 || >= 12.17.0 < 13 || >= 14.0.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@crosscopy/clipboard-linux-x64-gnu@0.3.6':
+    resolution: {integrity: sha512-bPKMdbmPM6wa9smgpA9RSpIfWhQxd93XWmRQf9vkwrmvnP43shgXegV+vO8SyDd3ZPZy/OvHe3p/YyWNBC4S6g==}
+    engines: {node: '>= 10.20.0 < 11 || >= 12.17.0 < 13 || >= 14.0.0'}
+    cpu: [x64]
+    os: [linux]
+
+  '@crosscopy/clipboard-win32-x64-msvc@0.3.6':
+    resolution: {integrity: sha512-GZ0i9XoPYQV5DhTQWiHjArE3ZTuovHmHNL7yE6Pm/91icOtrm9Mk9tVnpU/rQR9bzOn3MqN8+AFsp5NKZqTg7Q==}
+    engines: {node: '>= 10.20.0 < 11 || >= 12.17.0 < 13 || >= 14.0.0'}
+    cpu: [x64]
+    os: [win32]
+
+  '@crosscopy/clipboard@0.3.6':
+    resolution: {integrity: sha512-h/LlfI5t/xsxLr63g3Os0mjoeITj7/8x8Goy5PZ+f4bk3DDgc1r5VXO462U3e8/+LjHixtvS9sTk/MoKEwSutw==}
+    engines: {node: '>= 10.20.0 < 11 || >= 12.17.0 < 13 || >= 14.0.0'}
 
   '@cypress/request-promise@5.0.0':
     resolution: {integrity: sha512-eKdYVpa9cBEw2kTBlHeu1PP16Blwtum6QHg/u9s/MoHkZfuo1pRGka1VlUHXF5kdew82BvOJVVGk0x8X0nbp+w==}
@@ -6439,6 +6470,25 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260120.0':
     optional: true
+
+  '@crosscopy/clipboard-darwin-arm64@0.3.6':
+    optional: true
+
+  '@crosscopy/clipboard-darwin-x64@0.3.6':
+    optional: true
+
+  '@crosscopy/clipboard-linux-x64-gnu@0.3.6':
+    optional: true
+
+  '@crosscopy/clipboard-win32-x64-msvc@0.3.6':
+    optional: true
+
+  '@crosscopy/clipboard@0.3.6':
+    optionalDependencies:
+      '@crosscopy/clipboard-darwin-arm64': 0.3.6
+      '@crosscopy/clipboard-darwin-x64': 0.3.6
+      '@crosscopy/clipboard-linux-x64-gnu': 0.3.6
+      '@crosscopy/clipboard-win32-x64-msvc': 0.3.6
 
   '@cypress/request-promise@5.0.0(@cypress/request@3.0.10)(@cypress/request@3.0.10)':
     dependencies:

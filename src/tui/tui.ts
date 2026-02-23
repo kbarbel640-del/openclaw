@@ -705,6 +705,7 @@ export async function runTui(opts: TuiOptions) {
     const reasoning = sessionInfo.reasoningLevel ?? "off";
     const reasoningLabel =
       reasoning === "on" ? "reasoning" : reasoning === "stream" ? "reasoning:stream" : null;
+    const attachmentCount = stagedAttachments.length;
     const footerParts = [
       `agent ${agentLabel}`,
       `session ${sessionLabel}`,
@@ -713,6 +714,9 @@ export async function runTui(opts: TuiOptions) {
       verbose !== "off" ? `verbose ${verbose}` : null,
       reasoningLabel,
       tokens,
+      attachmentCount > 0
+        ? `📎 ${attachmentCount} attachment${attachmentCount > 1 ? "s" : ""}`
+        : null,
     ].filter(Boolean);
     footer.setText(theme.dim(footerParts.join(" | ")));
   };
@@ -774,6 +778,29 @@ export async function runTui(opts: TuiOptions) {
     process.exit(0);
   };
 
+  // Staged attachments (images ready to send with next message)
+  let stagedAttachments: Array<{
+    type: string;
+    mimeType: string;
+    fileName: string;
+    content: string;
+  }> = [];
+
+  const clearStagedAttachments = () => {
+    stagedAttachments = [];
+    updateFooter();
+  };
+
+  const addStagedAttachment = (attachment: {
+    type: string;
+    mimeType: string;
+    fileName: string;
+    content: string;
+  }) => {
+    stagedAttachments.push(attachment);
+    updateFooter();
+  };
+
   const { handleCommand, sendMessage, openModelSelector, openAgentSelector, openSessionSelector } =
     createCommandHandlers({
       client,
@@ -795,6 +822,8 @@ export async function runTui(opts: TuiOptions) {
       noteLocalRunId,
       forgetLocalRunId,
       requestExit,
+      getStagedAttachments: () => stagedAttachments,
+      clearStagedAttachments,
     });
 
   const { runLocalShellLine } = createLocalShellRunner({
@@ -863,6 +892,54 @@ export async function runTui(opts: TuiOptions) {
   editor.onCtrlT = () => {
     showThinking = !showThinking;
     void loadHistory();
+  };
+
+  // Image paste via Ctrl+V — receives a temp file path from CustomEditor
+  editor.onImagePaste = async (filePath: string, fileName: string) => {
+    if (fileName.startsWith("error:")) {
+      chatLog.addSystem(`❌ Image paste failed: ${fileName.slice(7)}`);
+      setActivityStatus("image paste failed");
+      tui.requestRender();
+      return;
+    }
+
+    if (!filePath) {
+      chatLog.addSystem(`❌ No image file available`);
+      setActivityStatus("image paste failed");
+      tui.requestRender();
+      return;
+    }
+
+    try {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      const imageBuffer = fs.readFileSync(filePath);
+      const base64Data = imageBuffer.toString("base64");
+
+      addStagedAttachment({
+        type: "image",
+        mimeType: "image/png",
+        fileName,
+        content: `data:image/png;base64,${base64Data}`,
+      });
+
+      // Clean up temp file
+      try {
+        fs.rmSync(path.dirname(filePath), { recursive: true, force: true });
+      } catch {
+        // Non-critical — temp files get cleaned up by OS eventually
+      }
+
+      const sizeKB = (imageBuffer.length / 1024).toFixed(1);
+      chatLog.addSystem(
+        `📎 Image attached: ${fileName} (${sizeKB}KB) — type your message and press Enter to send`,
+      );
+      setActivityStatus("image attached");
+    } catch (error) {
+      chatLog.addSystem(`❌ Failed to attach image: ${String(error)}`);
+      setActivityStatus("image attach failed");
+    }
+    tui.requestRender();
   };
 
   client.onEvent = (evt) => {

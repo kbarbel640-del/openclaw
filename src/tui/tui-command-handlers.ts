@@ -44,6 +44,13 @@ type CommandHandlerContext = {
   noteLocalRunId: (runId: string) => void;
   forgetLocalRunId?: (runId: string) => void;
   requestExit: () => void;
+  getStagedAttachments?: () => Array<{
+    type: string;
+    mimeType: string;
+    fileName: string;
+    content: string;
+  }>;
+  clearStagedAttachments?: () => void;
 };
 
 export function createCommandHandlers(context: CommandHandlerContext) {
@@ -464,6 +471,7 @@ export function createCommandHandlers(context: CommandHandlerContext) {
       state.activeChatRunId = runId;
       setActivityStatus("sending");
       tui.requestRender();
+      const attachments = context.getStagedAttachments?.() ?? [];
       await client.sendChat({
         sessionKey: state.currentSessionKey,
         message: text,
@@ -471,7 +479,11 @@ export function createCommandHandlers(context: CommandHandlerContext) {
         deliver: deliverDefault,
         timeoutMs: opts.timeoutMs,
         runId,
+        ...(attachments.length > 0 ? { attachments } : {}),
       });
+      if (attachments.length > 0) {
+        context.clearStagedAttachments?.();
+      }
       setActivityStatus("waiting");
       tui.requestRender();
     } catch (err) {
