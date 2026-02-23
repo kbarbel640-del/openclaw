@@ -34,6 +34,9 @@ namespace OpenClaw.Node.Services
                     "input.click" => await HandleInputClickAsync(request),
                     "input.scroll" => await HandleInputScrollAsync(request),
                     "input.click.relative" => await HandleInputClickRelativeAsync(request),
+                    "ui.find" => await HandleUiFindAsync(request),
+                    "ui.click" => await HandleUiClickAsync(request),
+                    "ui.type" => await HandleUiTypeAsync(request),
                     _ => new BridgeInvokeResponse
                     {
                         Id = request.Id,
@@ -1300,6 +1303,247 @@ namespace OpenClaw.Node.Services
                     }
                 };
             }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleUiFindAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            if (root == null)
+            {
+                return Invalid(request.Id, "ui.find requires params");
+            }
+
+            if (!TryParseUiSelectorParams(request.Id, root.Value, out var handle, out var titleContains, out var name, out var automationId, out var controlType, out var timeoutMs, out var invalid))
+            {
+                return invalid!;
+            }
+
+            try
+            {
+                var svc = new AutomationService();
+                var element = await svc.FindUiElementAsync(handle, titleContains, name, automationId, controlType, timeoutMs);
+                if (element == null)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "UI element not found"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { element })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"UI find failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleUiClickAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            if (root == null)
+            {
+                return Invalid(request.Id, "ui.click requires params");
+            }
+
+            if (!TryParseUiSelectorParams(request.Id, root.Value, out var handle, out var titleContains, out var name, out var automationId, out var controlType, out _, out var invalid))
+            {
+                return invalid!;
+            }
+
+            var button = root.Value.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
+                ? (bEl.GetString() ?? "primary")
+                : "primary";
+
+            if (!string.Equals(button, "left", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "right", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "primary", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "secondary", StringComparison.OrdinalIgnoreCase))
+            {
+                return Invalid(request.Id, "ui.click params.button must be 'primary', 'secondary', 'left', or 'right'");
+            }
+
+            var doubleClick = root.Value.TryGetProperty("doubleClick", out var dEl) &&
+                              (dEl.ValueKind == JsonValueKind.True || dEl.ValueKind == JsonValueKind.False)
+                ? dEl.GetBoolean()
+                : false;
+
+            try
+            {
+                var svc = new AutomationService();
+                var ok = await svc.ClickUiElementAsync(handle, titleContains, name, automationId, controlType, button.ToLowerInvariant(), doubleClick);
+                if (!ok)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "UI click failed"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, button = button.ToLowerInvariant(), doubleClick })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"UI click failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleUiTypeAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            if (root == null)
+            {
+                return Invalid(request.Id, "ui.type requires params");
+            }
+
+            if (!TryParseUiSelectorParams(request.Id, root.Value, out var handle, out var titleContains, out var name, out var automationId, out var controlType, out _, out var invalid))
+            {
+                return invalid!;
+            }
+
+            if (!root.Value.TryGetProperty("text", out var textEl) || textEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "ui.type requires params.text");
+            }
+
+            var text = textEl.GetString();
+            if (string.IsNullOrEmpty(text))
+            {
+                return Invalid(request.Id, "ui.type requires params.text");
+            }
+
+            try
+            {
+                var svc = new AutomationService();
+                var ok = await svc.TypeIntoUiElementAsync(handle, titleContains, name, automationId, controlType, text);
+                if (!ok)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "UI type failed"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"UI type failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private bool TryParseUiSelectorParams(
+            string requestId,
+            JsonElement root,
+            out long? handle,
+            out string? titleContains,
+            out string? name,
+            out string? automationId,
+            out string? controlType,
+            out int timeoutMs,
+            out BridgeInvokeResponse? invalid)
+        {
+            invalid = null;
+            handle = root.TryGetProperty("handle", out var hEl) && hEl.ValueKind == JsonValueKind.Number
+                ? hEl.GetInt64()
+                : (long?)null;
+            titleContains = root.TryGetProperty("titleContains", out var tEl) && tEl.ValueKind == JsonValueKind.String
+                ? tEl.GetString()
+                : null;
+
+            name = root.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String
+                ? nEl.GetString()
+                : null;
+            automationId = root.TryGetProperty("automationId", out var aEl) && aEl.ValueKind == JsonValueKind.String
+                ? aEl.GetString()
+                : null;
+            controlType = root.TryGetProperty("controlType", out var cEl) && cEl.ValueKind == JsonValueKind.String
+                ? cEl.GetString()
+                : null;
+
+            timeoutMs = root.TryGetProperty("timeoutMs", out var tmEl) && tmEl.ValueKind == JsonValueKind.Number
+                ? tmEl.GetInt32()
+                : 1500;
+
+            if ((!handle.HasValue || handle.Value == 0) && string.IsNullOrWhiteSpace(titleContains))
+            {
+                invalid = Invalid(requestId, "ui.* requires params.handle or params.titleContains");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(automationId) && string.IsNullOrWhiteSpace(controlType))
+            {
+                invalid = Invalid(requestId, "ui.* requires at least one selector: params.name, params.automationId, or params.controlType");
+                return false;
+            }
+
+            if (timeoutMs <= 0)
+            {
+                invalid = Invalid(requestId, "ui.* params.timeoutMs must be > 0");
+                return false;
+            }
+
+            return true;
         }
 
         private static BridgeInvokeResponse Invalid(string id, string message) => new()

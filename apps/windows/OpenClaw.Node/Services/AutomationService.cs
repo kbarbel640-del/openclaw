@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace OpenClaw.Node.Services
@@ -26,6 +28,21 @@ namespace OpenClaw.Node.Services
             public int Bottom { get; set; }
             public int Width => Right - Left;
             public int Height => Bottom - Top;
+        }
+
+        public sealed class UiElementInfo
+        {
+            public string Name { get; set; } = string.Empty;
+            public string AutomationId { get; set; } = string.Empty;
+            public string ControlType { get; set; } = string.Empty;
+            public int Left { get; set; }
+            public int Top { get; set; }
+            public int Right { get; set; }
+            public int Bottom { get; set; }
+            public int Width => Right - Left;
+            public int Height => Bottom - Top;
+            public int CenterX => Left + (Width / 2);
+            public int CenterY => Top + (Height / 2);
         }
 
         public Task<WindowInfo[]> ListWindowsAsync()
@@ -195,6 +212,150 @@ namespace OpenClaw.Node.Services
                 Right = rect.Right,
                 Bottom = rect.Bottom,
             });
+        }
+
+        public async Task<UiElementInfo?> FindUiElementAsync(long? handle, string? titleContains, string? name, string? automationId, string? controlType, int timeoutMs = 1500)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(automationId) && string.IsNullOrWhiteSpace(controlType))
+            {
+                return null;
+            }
+
+            var target = ResolveWindow(handle, titleContains);
+            if (target == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            var controlTypeToken = MapControlTypeToken(controlType);
+            var safeName = EscapeForPowerShellSingleQuoted(name ?? string.Empty);
+            var safeAutomationId = EscapeForPowerShellSingleQuoted(automationId ?? string.Empty);
+            var safeControlType = EscapeForPowerShellSingleQuoted(controlTypeToken ?? string.Empty);
+            var safeTimeout = Math.Clamp(timeoutMs, 200, 10000);
+
+            var script = $@"
+Add-Type -AssemblyName UIAutomationClient
+$h = [IntPtr]::new({target.ToInt64()})
+$root = [System.Windows.Automation.AutomationElement]::FromHandle($h)
+if (-not $root) {{ return }}
+
+$conds = New-Object System.Collections.Generic.List[System.Windows.Automation.Condition]
+if ('{safeName}'.Length -gt 0) {{
+  $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, '{safeName}')))
+}}
+if ('{safeAutomationId}'.Length -gt 0) {{
+  $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '{safeAutomationId}')))
+}}
+if ('{safeControlType}'.Length -gt 0) {{
+  $ctName = [System.Windows.Automation.ControlType].GetProperty('{safeControlType}', [System.Reflection.BindingFlags]'Public,Static,IgnoreCase')
+  if ($ctName) {{
+    $ct = $ctName.GetValue($null)
+    $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, $ct)))
+  }}
+}}
+if ($conds.Count -eq 0) {{ return }}
+
+$cond = if ($conds.Count -eq 1) {{ $conds[0] }} else {{ New-Object System.Windows.Automation.AndCondition($conds.ToArray()) }}
+$deadline = [DateTime]::UtcNow.AddMilliseconds({safeTimeout})
+$el = $null
+while (-not $el -and [DateTime]::UtcNow -lt $deadline) {{
+  $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+  if (-not $el) {{ Start-Sleep -Milliseconds 100 }}
+}}
+if (-not $el) {{ return }}
+
+$rect = $el.Current.BoundingRectangle
+if ($rect.IsEmpty) {{ return }}
+$out = [pscustomobject]@{{
+  name = $el.Current.Name
+  automationId = $el.Current.AutomationId
+  controlType = $el.Current.ControlType.ProgrammaticName
+  left = [int][Math]::Round($rect.Left)
+  top = [int][Math]::Round($rect.Top)
+  right = [int][Math]::Round($rect.Right)
+  bottom = [int][Math]::Round($rect.Bottom)
+}}
+$out | ConvertTo-Json -Compress
+";
+
+            var result = await RunPowerShellAsync(script);
+            if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.StdOut))
+            {
+                return null;
+            }
+
+            var jsonLine = result.StdOut
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .FirstOrDefault(x => x.StartsWith("{", StringComparison.Ordinal));
+
+            if (string.IsNullOrWhiteSpace(jsonLine))
+            {
+                return null;
+            }
+
+            try
+            {
+                var dto = JsonSerializer.Deserialize<UiElementPowerShellDto>(jsonLine);
+                if (dto == null)
+                {
+                    return null;
+                }
+
+                return new UiElementInfo
+                {
+                    Name = dto.Name ?? string.Empty,
+                    AutomationId = dto.AutomationId ?? string.Empty,
+                    ControlType = dto.ControlType ?? string.Empty,
+                    Left = dto.Left,
+                    Top = dto.Top,
+                    Right = dto.Right,
+                    Bottom = dto.Bottom,
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<bool> ClickUiElementAsync(long? handle, string? titleContains, string? name, string? automationId, string? controlType, string button = "primary", bool doubleClick = false)
+        {
+            var element = await FindUiElementAsync(handle, titleContains, name, automationId, controlType);
+            if (element == null)
+            {
+                return false;
+            }
+
+            return await ClickAsync(element.CenterX, element.CenterY, button, doubleClick);
+        }
+
+        public async Task<bool> TypeIntoUiElementAsync(long? handle, string? titleContains, string? name, string? automationId, string? controlType, string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return false;
+            }
+
+            var element = await FindUiElementAsync(handle, titleContains, name, automationId, controlType);
+            if (element == null)
+            {
+                return false;
+            }
+
+            var clicked = await ClickAsync(element.CenterX, element.CenterY, "primary", false);
+            if (!clicked)
+            {
+                return false;
+            }
+
+            await Task.Delay(50);
+            return await TypeTextAsync(text);
         }
 
         public async Task<bool> ClickRelativeToWindowAsync(long? handle, string? titleContains, int offsetX, int offsetY, string button = "primary", bool doubleClick = false)
@@ -393,6 +554,12 @@ namespace OpenClaw.Node.Services
         private static async Task<bool> RunSendKeysScriptAsync(string body)
         {
             var script = $"Add-Type -AssemblyName System.Windows.Forms; {body}";
+            var result = await RunPowerShellAsync(script);
+            return result.ExitCode == 0;
+        }
+
+        private static async Task<PowerShellResult> RunPowerShellAsync(string script)
+        {
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
@@ -409,12 +576,25 @@ namespace OpenClaw.Node.Services
             {
                 using var p = new Process { StartInfo = psi };
                 p.Start();
+                var stdoutTask = p.StandardOutput.ReadToEndAsync();
+                var stderrTask = p.StandardError.ReadToEndAsync();
                 await p.WaitForExitAsync();
-                return p.ExitCode == 0;
+
+                return new PowerShellResult
+                {
+                    ExitCode = p.ExitCode,
+                    StdOut = await stdoutTask,
+                    StdErr = await stderrTask,
+                };
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                return new PowerShellResult
+                {
+                    ExitCode = -1,
+                    StdErr = ex.Message,
+                    StdOut = string.Empty,
+                };
             }
         }
 
@@ -481,6 +661,58 @@ namespace OpenClaw.Node.Services
             }
 
             return null;
+        }
+
+        private static string EscapeForPowerShellSingleQuoted(string value)
+        {
+            return (value ?? string.Empty).Replace("'", "''");
+        }
+
+        private static string? MapControlTypeToken(string? controlType)
+        {
+            if (string.IsNullOrWhiteSpace(controlType))
+            {
+                return null;
+            }
+
+            return controlType.Trim().ToLowerInvariant() switch
+            {
+                "button" => "Button",
+                "edit" or "textbox" or "text" => "Edit",
+                "checkbox" => "CheckBox",
+                "combobox" => "ComboBox",
+                "list" => "List",
+                "listitem" => "ListItem",
+                "menu" => "Menu",
+                "menuitem" => "MenuItem",
+                "tab" => "Tab",
+                "tabitem" => "TabItem",
+                "tree" => "Tree",
+                "treeitem" => "TreeItem",
+                "pane" => "Pane",
+                "window" => "Window",
+                "hyperlink" => "Hyperlink",
+                "radio" or "radiobutton" => "RadioButton",
+                _ => controlType.Trim(),
+            };
+        }
+
+        private sealed class PowerShellResult
+        {
+            public int ExitCode { get; set; }
+            public string StdOut { get; set; } = string.Empty;
+            public string StdErr { get; set; } = string.Empty;
+        }
+
+        private sealed class UiElementPowerShellDto
+        {
+            public string? Name { get; set; }
+            public string? AutomationId { get; set; }
+            public string? ControlType { get; set; }
+            public int Left { get; set; }
+            public int Top { get; set; }
+            public int Right { get; set; }
+            public int Bottom { get; set; }
         }
 
         private static bool SendUnicodeChar(char ch)

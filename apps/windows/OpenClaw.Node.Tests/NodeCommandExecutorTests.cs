@@ -533,6 +533,93 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task UiFind_MissingParams_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest { Id = "ui-find-1", Command = "ui.find", ParamsJSON = "{}" };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task UiFind_MissingSelectors_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "ui-find-2",
+                Command = "ui.find",
+                ParamsJSON = JsonSerializer.Serialize(new { titleContains = "Notepad" })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task UiClick_InvalidButton_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "ui-click-1",
+                Command = "ui.click",
+                ParamsJSON = JsonSerializer.Serialize(new { titleContains = "Notepad", name = "Edit", button = "middle" })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task UiType_MissingText_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "ui-type-1",
+                Command = "ui.type",
+                ParamsJSON = JsonSerializer.Serialize(new { titleContains = "Notepad", name = "Edit" })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task UiFind_OnNonWindows_ShouldReturnUnavailable_WhenSelectorsProvided()
+        {
+            if (OperatingSystem.IsWindows()) return;
+
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "ui-find-3",
+                Command = "ui.find",
+                ParamsJSON = JsonSerializer.Serialize(new { titleContains = "Notepad", name = "Edit", timeoutMs = 1000 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.Unavailable, res.Error!.Code);
+        }
+
+        [Fact]
         public async Task UnknownCommand_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
