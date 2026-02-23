@@ -8,6 +8,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Skills: auto-restart gateway when skills are installed or changed, so new skills take effect without manual restart.
 - Update/Core: add an optional built-in auto-updater for package installs (`update.auto.*`), default-off, with stable rollout delay+jitter and beta hourly cadence.
 - CLI/Update: add `openclaw update --dry-run` to preview channel/tag/target/restart actions without mutating config, installing, syncing plugins, or restarting.
 - Config/UI: add tag-aware settings filtering and broaden config labels/help copy so fields are easier to discover and understand in the dashboard config screen.

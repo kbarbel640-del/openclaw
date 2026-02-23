@@ -64,7 +64,8 @@ Common flows:
 
 By default, `clawhub` installs into `./skills` under your current working
 directory (or falls back to the configured OpenClaw workspace). OpenClaw picks
-that up as `<workspace>/skills` on the next session.
+that up as `<workspace>/skills`. The gateway auto-restarts when skill files
+change, so new skills take effect without a manual restart.
 
 ## Security notes
 
