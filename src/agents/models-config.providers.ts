@@ -434,6 +434,13 @@ export function normalizeProviders(params: {
           normalizedProvider = { ...normalizedProvider, apiKey };
         }
       }
+
+      // Keep models.json valid for ModelRegistry even when a custom provider
+      // has no discoverable credential source (common for local/proxy endpoints).
+      if (!normalizedProvider.apiKey?.trim()) {
+        mutated = true;
+        normalizedProvider = { ...normalizedProvider, apiKey: "-" };
+      }
     }
 
     if (normalizedKey === "google") {
