@@ -1,7 +1,7 @@
 # Handoff - OpenClaw Windows Node
 
 ## Repo path
-`/home/david/openclaw_source/apps/windows`
+`<repo-root>/apps/windows`
 
 ## What works now
 1. `OpenClaw.Node` builds/runs.
@@ -107,14 +107,14 @@
 
 Run:
 ```bash
-cd /home/david/openclaw_source/apps/windows
+cd <repo-root>/apps/windows
 dotnet build OpenClaw.Node/OpenClaw.Node.csproj -p:Platform=x64
 dotnet test OpenClaw.Node.Tests/OpenClaw.Node.Tests.csproj -p:Platform=x64
 ```
 
 ## Run app locally
 ```bash
-cd /home/david/openclaw_source/apps/windows/OpenClaw.Node
+cd <repo-root>/apps/windows/OpenClaw.Node
 dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token <TOKEN>
 ```
 

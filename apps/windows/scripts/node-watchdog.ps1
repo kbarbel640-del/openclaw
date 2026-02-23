@@ -1,5 +1,5 @@
 param(
-  [string]$RepoPath = "C:\Users\david\Documents\WORK\openclaw_source\apps\windows",
+  [string]$RepoPath = "",
   [string]$Platform = "x64",
   [string]$Configuration = "Debug",
   [int]$PollMs = 1500,
@@ -9,6 +9,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($RepoPath)) {
+  $RepoPath = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+}
 
 function Write-Log {
   param([string]$Message)
@@ -32,9 +36,12 @@ function Get-RunningNodeProcesses {
 }
 
 function Get-GatewayConfig {
+  $wslUser = if ($env:OPENCLAW_WSL_USER) { $env:OPENCLAW_WSL_USER } else { $env:USERNAME.ToLowerInvariant() }
+  $wslDistro = if ($env:OPENCLAW_WSL_DISTRO) { $env:OPENCLAW_WSL_DISTRO } else { "Ubuntu-24.04" }
+
   $candidates = @(
     "$env:USERPROFILE\.openclaw\openclaw.json",
-    "\\wsl.localhost\Ubuntu-24.04\home\david\.openclaw\openclaw.json"
+    "\\wsl.localhost\$wslDistro\home\$wslUser\.openclaw\openclaw.json"
   )
 
   foreach ($path in $candidates) {

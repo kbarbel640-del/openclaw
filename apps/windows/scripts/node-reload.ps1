@@ -1,5 +1,5 @@
 param(
-  [string]$RepoPath = "C:\Users\david\Documents\WORK\openclaw_source\apps\windows",
+  [string]$RepoPath = "",
   [string]$Branch = "windows_companion_app",
   [string]$Platform = "x64",
   [string]$Configuration = "Debug",
@@ -10,6 +10,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($RepoPath)) {
+  $RepoPath = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+}
 
 function Log { param([string]$m) Write-Host "[$(Get-Date -Format HH:mm:ss)] $m" }
 

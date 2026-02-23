@@ -1,9 +1,13 @@
 param(
-  [string]$RepoPath = "C:\Users\david\Documents\WORK\openclaw_source\apps\windows",
+  [string]$RepoPath = "",
   [string]$TaskName = "OpenClawNodeWatchdog"
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($RepoPath)) {
+  $RepoPath = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+}
 
 $scriptPath = Join-Path $RepoPath "scripts\node-watchdog.ps1"
 if (-not (Test-Path $scriptPath)) {
