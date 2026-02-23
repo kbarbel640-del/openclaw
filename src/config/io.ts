@@ -136,6 +136,8 @@ function hasOwnObjectKey(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
+// Keep writes compatible with legacy configs by mapping top-level
+// channels.whatsapp.enabled into channels.whatsapp.accounts.default.enabled.
 function normalizeLegacyWhatsAppEnabledForWrite(value: unknown): unknown {
   if (!isWritePlainObject(value)) {
     return value;
