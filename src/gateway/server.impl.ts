@@ -16,6 +16,7 @@ import {
   loadConfig,
   migrateLegacyConfig,
   readConfigFileSnapshot,
+  readConfigFileSnapshotForWrite,
   writeConfigFile,
 } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
@@ -209,7 +210,8 @@ export async function startGatewayServer(
     description: "raw stream log path override",
   });
 
-  let configSnapshot = await readConfigFileSnapshot();
+  let configRead = await readConfigFileSnapshotForWrite();
+  let configSnapshot = configRead.snapshot;
   if (configSnapshot.legacyIssues.length > 0) {
     if (isNixMode) {
       throw new Error(
@@ -222,7 +224,7 @@ export async function startGatewayServer(
         `Legacy config entries detected but auto-migration failed. Run "${formatCliCommand("openclaw doctor")}" to migrate.`,
       );
     }
-    await writeConfigFile(migrated);
+    await writeConfigFile(migrated, configRead.writeOptions);
     if (changes.length > 0) {
       log.info(
         `gateway: migrated legacy config entries:\n${changes
@@ -232,7 +234,8 @@ export async function startGatewayServer(
     }
   }
 
-  configSnapshot = await readConfigFileSnapshot();
+  configRead = await readConfigFileSnapshotForWrite();
+  configSnapshot = configRead.snapshot;
   if (configSnapshot.exists && !configSnapshot.valid) {
     const issues =
       configSnapshot.issues.length > 0
@@ -248,7 +251,7 @@ export async function startGatewayServer(
   const autoEnable = applyPluginAutoEnable({ config: configSnapshot.config, env: process.env });
   if (autoEnable.changes.length > 0) {
     try {
-      await writeConfigFile(autoEnable.config);
+      await writeConfigFile(autoEnable.config, configRead.writeOptions);
       log.info(
         `gateway: auto-enabled plugins:\n${autoEnable.changes
           .map((entry) => `- ${entry}`)
@@ -343,6 +346,7 @@ export async function startGatewayServer(
     });
   }
 
+  const authConfigRead = await readConfigFileSnapshotForWrite();
   cfgAtStart = loadConfig();
   const authBootstrap = await ensureGatewayStartupAuth({
     cfg: cfgAtStart,
@@ -350,6 +354,7 @@ export async function startGatewayServer(
     authOverride: opts.auth,
     tailscaleOverride: opts.tailscale,
     persist: true,
+    configWriteOptions: authConfigRead.writeOptions,
   });
   cfgAtStart = authBootstrap.cfg;
   if (authBootstrap.generatedToken) {
