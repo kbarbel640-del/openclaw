@@ -56,6 +56,8 @@ export type CostUsageSummary = {
   days: number;
   daily: CostUsageDailyEntry[];
   totals: CostUsageTotals;
+  // Usage totals are derived from transcript files currently present on disk.
+  coverageNote: string;
 };
 
 export type SessionDailyUsage = {

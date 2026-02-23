@@ -11,7 +11,11 @@ import {
 import { logVerbose } from "../../globals.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { scheduleGatewaySigusr1Restart, triggerOpenClawRestart } from "../../infra/restart.js";
-import { loadCostUsageSummary, loadSessionCostSummary } from "../../infra/session-cost-usage.js";
+import {
+  COST_USAGE_COVERAGE_NOTE,
+  loadCostUsageSummary,
+  loadSessionCostSummary,
+} from "../../infra/session-cost-usage.js";
 import { formatTokenCount, formatUsd } from "../../utils/usage-format.js";
 import { parseActivationCommand } from "../group-activation.js";
 import { parseSendPolicyCommand } from "../send-policy.js";
@@ -260,10 +264,13 @@ export const handleUsageCommand: CommandHandler = async (params, allowTextComman
     const last30Missing = summary.totals.missingCostEntries;
     const last30Suffix = last30Missing > 0 ? " (partial)" : "";
     const last30Line = `Last 30d ${last30Cost ?? "n/a"}${last30Suffix}`;
+    const coverageLine = `Note: ${summary.coverageNote || COST_USAGE_COVERAGE_NOTE}`;
 
     return {
       shouldContinue: false,
-      reply: { text: `💸 Usage cost\n${sessionLine}\n${todayLine}\n${last30Line}` },
+      reply: {
+        text: `💸 Usage cost\n${sessionLine}\n${todayLine}\n${last30Line}\n${coverageLine}`,
+      },
     };
   }
 

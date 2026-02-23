@@ -74,6 +74,10 @@ function renderCostUsageSummary(summary: CostUsageSummary, days: number, rich: b
     );
   }
 
+  if (summary.coverageNote) {
+    lines.push(`${colorize(rich, theme.muted, "Note:")} ${summary.coverageNote}`);
+  }
+
   const latest = summary.daily.at(-1);
   if (latest) {
     const latestCost = formatUsd(latest.totalCost) ?? "$0.00";

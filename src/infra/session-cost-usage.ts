@@ -67,6 +67,9 @@ const emptyTotals = (): CostUsageTotals => ({
   missingCostEntries: 0,
 });
 
+export const COST_USAGE_COVERAGE_NOTE =
+  "Totals include only existing session transcripts; deleted sessions are excluded.";
+
 const toFiniteNumber = (value: unknown): number | undefined => {
   if (typeof value !== "number") {
     return undefined;
@@ -375,6 +378,7 @@ export async function loadCostUsageSummary(params?: {
     days,
     daily,
     totals,
+    coverageNote: COST_USAGE_COVERAGE_NOTE,
   };
 }
 

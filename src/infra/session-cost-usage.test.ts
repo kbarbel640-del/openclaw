@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import { withEnvAsync } from "../test-utils/env.js";
 import {
+  COST_USAGE_COVERAGE_NOTE,
   discoverAllSessions,
   loadCostUsageSummary,
   loadSessionCostSummary,
@@ -107,6 +108,7 @@ describe("session cost usage", () => {
       expect(summary.daily.length).toBe(1);
       expect(summary.totals.totalTokens).toBe(50);
       expect(summary.totals.totalCost).toBeCloseTo(0.03003, 5);
+      expect(summary.coverageNote).toBe(COST_USAGE_COVERAGE_NOTE);
     });
   });
 
