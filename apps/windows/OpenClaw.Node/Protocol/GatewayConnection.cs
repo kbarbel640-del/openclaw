@@ -1,0 +1,357 @@
+using System;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+
+namespace OpenClaw.Node.Protocol
+{
+    public class GatewayConnection : IDisposable
+    {
+        private ClientWebSocket? _webSocket;
+        private readonly Uri _serverUri;
+        private readonly string _token;
+        private readonly ConnectParams _connectParams;
+        private CancellationTokenSource _cts = new();
+        private string? _pendingConnectRequestId;
+        
+        // Resilience
+        private int _backoffMs = 500;
+        private DateTime _lastTickTime;
+        private int _tickIntervalMs = 30000;
+        private bool _connected = false;
+
+        public event Action<string>? OnLog;
+        public event Action<EventFrame>? OnEventReceived;
+        public event Action? OnConnected;
+        public event Action? OnDisconnected;
+        public event Func<BridgeInvokeRequest, Task<BridgeInvokeResponse>>? OnNodeInvoke;
+
+        private readonly ConcurrentDictionary<string, Func<RequestFrame, Task<object?>>> _methodHandlers = new();
+
+        private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        public GatewayConnection(string serverUrl, string token, ConnectParams connectParams)
+        {
+            _serverUri = new Uri(serverUrl);
+            _token = token;
+            _connectParams = connectParams;
+        }
+
+        public void RegisterMethodHandler(string method, Func<RequestFrame, Task<object?>> handler)
+        {
+            _methodHandlers[method] = handler;
+        }
+
+        public async Task SendEventAsync(string eventName, object? payload, CancellationToken cancellationToken)
+        {
+            var eventFrame = new EventFrame
+            {
+                Type = "event",
+                Event = eventName,
+                Payload = payload
+            };
+            var json = JsonSerializer.Serialize(eventFrame, JsonOptions);
+            await SendRawAsync(json, cancellationToken);
+        }
+
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _ = Task.Run(() => TickMonitorLoopAsync(_cts.Token), _cts.Token);
+
+            while (!_cts.IsCancellationRequested)
+            {
+                try
+                {
+                    await ConnectAndReceiveLoopAsync(_cts.Token);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)
+                {
+                    OnLog?.Invoke($"[Gateway] Disconnected: {ex.Message}");
+                }
+
+                if (!_cts.IsCancellationRequested)
+                {
+                    _backoffMs = Math.Min(_backoffMs * 2, 30000);
+                    OnLog?.Invoke($"[Gateway] Reconnecting in {_backoffMs}ms...");
+                    await Task.Delay(_backoffMs, _cts.Token);
+                }
+            }
+        }
+
+        private async Task ConnectAndReceiveLoopAsync(CancellationToken cancellationToken)
+        {
+            _connected = false;
+            _webSocket = new ClientWebSocket();
+            _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {_token}");
+            
+            OnLog?.Invoke($"[Gateway] Connecting to {_serverUri}...");
+            await _webSocket.ConnectAsync(_serverUri, cancellationToken);
+            
+            var buffer = new byte[16384];
+            while (_webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+            {
+                var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    await DisconnectAsync();
+                    break;
+                }
+
+                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                _ = Task.Run(() => ProcessMessageAsync(message, cancellationToken), cancellationToken);
+            }
+        }
+
+        private async Task TickMonitorLoopAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(1000, cancellationToken);
+                
+                if (!_connected) continue;
+
+                var timeSinceLastTick = (DateTime.UtcNow - _lastTickTime).TotalMilliseconds;
+                var tolerance = _tickIntervalMs + 5000; // 5s tolerance
+
+                if (timeSinceLastTick > tolerance)
+                {
+                    OnLog?.Invoke($"[Gateway] Tick missed (elapsed: {timeSinceLastTick}ms, tolerance: {tolerance}ms). Forcing reconnect.");
+                    await DisconnectAsync(); // This breaks the receive loop, triggering reconnect backoff
+                }
+            }
+        }
+
+        private async Task ProcessMessageAsync(string json, CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("type", out var typeElement))
+                {
+                    var type = typeElement.GetString();
+                    if (type == "req")
+                    {
+                        var req = JsonSerializer.Deserialize<RequestFrame>(json, JsonOptions);
+                        if (req != null) 
+                        {
+                            await HandleRequestAsync(req, cancellationToken);
+                        }
+                    }
+                    else if (type == "event")
+                    {
+                        var evt = JsonSerializer.Deserialize<EventFrame>(json, JsonOptions);
+                        if (evt != null) 
+                        {
+                            if (evt.Event == "tick")
+                            {
+                                _lastTickTime = DateTime.UtcNow;
+                            }
+                            else if (evt.Event == "connect.challenge")
+                            {
+                                await HandleConnectChallengeAsync(evt, cancellationToken);
+                            }
+                            else if (evt.Event == "node.invoke.request")
+                            {
+                                await HandleNodeInvokeRequestAsync(evt, cancellationToken);
+                            }
+                            else
+                            {
+                                OnEventReceived?.Invoke(evt);
+                            }
+                        }
+                    }
+                    else if (type == "res")
+                    {
+                        var res = JsonSerializer.Deserialize<ResponseFrame>(json, JsonOptions);
+                        if (res != null)
+                        {
+                            await HandleResponseAsync(res);
+                        }
+                    }
+                }
+                else
+                {
+                    OnLog?.Invoke($"[Gateway] Unknown message format: {json}");
+                }
+            }
+            catch (Exception ex)
+            {
+                OnLog?.Invoke($"[Gateway] Error processing message: {ex.Message}");
+            }
+        }
+
+        private async Task HandleConnectChallengeAsync(EventFrame evt, CancellationToken cancellationToken)
+        {
+            OnLog?.Invoke("[Gateway] Received connect.challenge. Sending connect request...");
+            
+            _connectParams.Auth = new Dictionary<string, object> { { "token", _token } };
+            
+            var connectReq = new RequestFrame 
+            { 
+                Type = "req", 
+                Id = Guid.NewGuid().ToString(), 
+                Method = "connect", 
+                Params = _connectParams 
+            };
+            
+            _pendingConnectRequestId = connectReq.Id;
+            var connectJson = JsonSerializer.Serialize(connectReq, JsonOptions);
+            await SendRawAsync(connectJson, cancellationToken);
+        }
+
+        private Task HandleResponseAsync(ResponseFrame res)
+        {
+            if (_pendingConnectRequestId != null && res.Id == _pendingConnectRequestId)
+            {
+                if (res.Ok)
+                {
+                    _backoffMs = 500;
+                    _connected = true;
+                    _lastTickTime = DateTime.UtcNow;
+
+                    if (res.Payload != null)
+                    {
+                        try
+                        {
+                            var payloadJson = JsonSerializer.Serialize(res.Payload, JsonOptions);
+                            var helloOk = JsonSerializer.Deserialize<HelloOkPayload>(payloadJson, JsonOptions);
+                            if (helloOk?.Policy?.TickIntervalMs.HasValue == true)
+                            {
+                                _tickIntervalMs = helloOk.Policy.TickIntervalMs.Value;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            OnLog?.Invoke($"[Gateway] Failed to parse hello-ok payload: {ex.Message}");
+                        }
+                    }
+
+                    OnLog?.Invoke($"[Gateway] Connect accepted (hello-ok). Session established. Tick interval: {_tickIntervalMs}ms");
+                    OnConnected?.Invoke();
+                }
+                else
+                {
+                    var errorText = JsonSerializer.Serialize(res.Error, JsonOptions);
+                    OnLog?.Invoke($"[Gateway] Connect rejected: {errorText}");
+                }
+
+                _pendingConnectRequestId = null;
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private async Task HandleNodeInvokeRequestAsync(EventFrame evt, CancellationToken cancellationToken)
+        {
+            if (evt.Payload == null) return;
+            
+            try
+            {
+                var payloadJson = JsonSerializer.Serialize(evt.Payload, JsonOptions);
+                var req = JsonSerializer.Deserialize<BridgeInvokeRequest>(payloadJson, JsonOptions);
+                if (req == null || OnNodeInvoke == null) return;
+
+                OnLog?.Invoke($"[Gateway] Executing node.invoke.request id={req.Id} command={req.Command}");
+                var response = await OnNodeInvoke(req);
+                
+                await SendEventAsync("node.invoke.result", new
+                {
+                    id = req.Id,
+                    ok = response.Ok,
+                    payloadJSON = response.PayloadJSON,
+                    error = response.Error
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                OnLog?.Invoke($"[Gateway] Error processing node.invoke.request: {ex.Message}");
+            }
+        }
+
+        private async Task HandleRequestAsync(RequestFrame req, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (_methodHandlers.TryGetValue(req.Method, out var handler))
+                {
+                    var result = await handler(req);
+                    await SendResponseAsync(new ResponseFrame { Type = "res", Id = req.Id, Ok = true, Payload = result }, cancellationToken);
+                }
+                else
+                {
+                    OnLog?.Invoke($"[Gateway] Unhandled method: {req.Method}");
+                    await SendResponseAsync(new ResponseFrame 
+                    { 
+                        Type = "res",
+                        Id = req.Id,
+                        Ok = false,
+                        Error = new { message = "Method not found", code = "INVALID_REQUEST" }
+                    }, cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                OnLog?.Invoke($"[Gateway] Error handling method {req.Method}: {ex.Message}");
+                await SendResponseAsync(new ResponseFrame 
+                { 
+                    Type = "res",
+                    Id = req.Id,
+                    Ok = false,
+                    Error = new { message = ex.Message, code = "UNAVAILABLE" }
+                }, cancellationToken);
+            }
+        }
+
+        public async Task SendRawAsync(string message, CancellationToken cancellationToken)
+        {
+            if (_webSocket?.State != WebSocketState.Open) return;
+            var bytes = Encoding.UTF8.GetBytes(message);
+            await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cancellationToken);
+        }
+
+        public async Task SendResponseAsync(ResponseFrame response, CancellationToken cancellationToken)
+        {
+            var json = JsonSerializer.Serialize(response, JsonOptions);
+            await SendRawAsync(json, cancellationToken);
+        }
+
+        public async Task DisconnectAsync()
+        {
+            _connected = false;
+            if (_webSocket != null)
+            {
+                if (_webSocket.State == WebSocketState.Open)
+                {
+                    try { await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None); }
+                    catch { }
+                }
+                _webSocket.Dispose();
+                _webSocket = null;
+                OnDisconnected?.Invoke();
+            }
+        }
+
+        public void Stop()
+        {
+            _cts.Cancel();
+        }
+
+        public void Dispose()
+        {
+            _cts.Cancel();
+            _webSocket?.Dispose();
+        }
+    }
+}

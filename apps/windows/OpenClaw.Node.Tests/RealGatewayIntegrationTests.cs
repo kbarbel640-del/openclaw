@@ -1,0 +1,200 @@
+using System;
+using System.IO;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using OpenClaw.Node.Protocol;
+using Xunit;
+
+namespace OpenClaw.Node.Tests
+{
+    public class RealGatewayIntegrationTests
+    {
+        [Fact]
+        public async Task RealGateway_NodeConnectsAndReceivesHelloOk()
+        {
+            if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var cfg = LoadGatewayConfig();
+            Assert.False(string.IsNullOrWhiteSpace(cfg.Url));
+            Assert.False(string.IsNullOrWhiteSpace(cfg.Token));
+
+            var connectParams = new ConnectParams
+            {
+                MinProtocol = Constants.GatewayProtocolVersion,
+                MaxProtocol = Constants.GatewayProtocolVersion,
+                Role = "node",
+                Client = new System.Collections.Generic.Dictionary<string, object>
+                {
+                    { "id", "node-host" },
+                    { "displayName", "windows-node-test" },
+                    { "platform", "windows" },
+                    { "mode", "node" },
+                    { "version", "test" },
+                    { "instanceId", Guid.NewGuid().ToString("N") },
+                    { "deviceFamily", "Windows" }
+                },
+                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "screen.record" },
+                Scopes = new System.Collections.Generic.List<string>(),
+            };
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var node = new GatewayConnection(cfg.Url, cfg.Token, connectParams);
+
+            var connectedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            node.OnConnected += () => connectedTcs.TrySetResult(true);
+
+            var nodeTask = node.StartAsync(cts.Token);
+
+            var connected = await Task.WhenAny(connectedTcs.Task, Task.Delay(TimeSpan.FromSeconds(8), cts.Token));
+            Assert.Same(connectedTcs.Task, connected);
+            Assert.True(await connectedTcs.Task);
+
+            cts.Cancel();
+            await nodeTask;
+        }
+
+        [Fact]
+        public async Task RealGateway_StatusCommand_ReturnsResponse()
+        {
+            if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var cfg = LoadGatewayConfig();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var client = new RealGatewayRpcClient();
+
+            await client.ConnectAsOperatorAsync(cfg.Url, cfg.Token, cts.Token);
+            var res = await client.RequestAsync("status", new { }, cts.Token);
+
+            Assert.Equal("res", res.GetProperty("type").GetString());
+            Assert.True(res.TryGetProperty("ok", out _));
+
+            if (res.GetProperty("ok").GetBoolean())
+            {
+                Assert.True(res.TryGetProperty("payload", out _), JsonSerializer.Serialize(res));
+            }
+            else
+            {
+                // On some setups this token may not carry operator.read scope; still validate real command response shape.
+                Assert.True(res.TryGetProperty("error", out var err), JsonSerializer.Serialize(res));
+                Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(res));
+            }
+        }
+
+        private static (string Url, string Token) LoadGatewayConfig()
+        {
+            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".openclaw", "openclaw.json");
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            var gw = doc.RootElement.GetProperty("gateway");
+            var port = gw.GetProperty("port").GetInt32();
+            var token = gw.GetProperty("auth").GetProperty("token").GetString() ?? string.Empty;
+            return ($"ws://127.0.0.1:{port}/", token);
+        }
+
+        private sealed class RealGatewayRpcClient : IDisposable
+        {
+            private readonly ClientWebSocket _ws = new();
+
+            public async Task ConnectAsOperatorAsync(string wsUrl, string token, CancellationToken ct)
+            {
+                _ws.Options.SetRequestHeader("Authorization", $"Bearer {token}");
+                _ws.Options.SetRequestHeader("Origin", "http://127.0.0.1");
+                await _ws.ConnectAsync(new Uri(wsUrl), ct);
+
+                var challenge = await ReceiveAsync(ct);
+                Assert.Equal("event", challenge.GetProperty("type").GetString());
+                Assert.Equal("connect.challenge", challenge.GetProperty("event").GetString());
+
+                var connectId = Guid.NewGuid().ToString("N");
+                await SendAsync(new
+                {
+                    type = "req",
+                    id = connectId,
+                    method = "connect",
+                    @params = new
+                    {
+                        minProtocol = Constants.GatewayProtocolVersion,
+                        maxProtocol = Constants.GatewayProtocolVersion,
+                        role = "operator",
+                        client = new
+                        {
+                            id = "cli",
+                            mode = "cli",
+                            platform = "windows",
+                            version = "test"
+                        },
+                        auth = new { token }
+                    }
+                }, ct);
+
+                var res = await ReceiveResponseByIdAsync(connectId, ct);
+                Assert.True(res.GetProperty("ok").GetBoolean(), JsonSerializer.Serialize(res));
+            }
+
+            public async Task<JsonElement> RequestAsync(string method, object @params, CancellationToken ct)
+            {
+                var id = Guid.NewGuid().ToString("N");
+                await SendAsync(new { type = "req", id, method, @params }, ct);
+                return await ReceiveResponseByIdAsync(id, ct);
+            }
+
+            private async Task SendAsync(object obj, CancellationToken ct)
+            {
+                var json = JsonSerializer.Serialize(obj);
+                var bytes = Encoding.UTF8.GetBytes(json);
+                await _ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, ct);
+            }
+
+            private async Task<JsonElement> ReceiveResponseByIdAsync(string id, CancellationToken ct)
+            {
+                while (true)
+                {
+                    var frame = await ReceiveAsync(ct);
+                    if (frame.TryGetProperty("type", out var type) &&
+                        type.ValueKind == JsonValueKind.String &&
+                        type.GetString() == "res" &&
+                        frame.TryGetProperty("id", out var idEl) &&
+                        idEl.ValueKind == JsonValueKind.String &&
+                        idEl.GetString() == id)
+                    {
+                        return frame;
+                    }
+                }
+            }
+
+            private async Task<JsonElement> ReceiveAsync(CancellationToken ct)
+            {
+                var buffer = new byte[64 * 1024];
+                var sb = new StringBuilder();
+                while (true)
+                {
+                    var result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        throw new Exception("websocket closed");
+                    }
+
+                    sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                    if (result.EndOfMessage)
+                    {
+                        using var doc = JsonDocument.Parse(sb.ToString());
+                        return doc.RootElement.Clone();
+                    }
+                }
+            }
+
+            public void Dispose()
+            {
+                _ws.Dispose();
+            }
+        }
+    }
+}
