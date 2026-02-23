@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import WebSocket, { WebSocketServer } from "ws";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { isLoopbackAddress, isLoopbackHost } from "../gateway/net.js";
 import { rawDataToString } from "../infra/ws.js";
 import {
@@ -80,6 +81,8 @@ type ConnectedTarget = {
   targetId: string;
   targetInfo: TargetInfo;
 };
+
+const log = createSubsystemLogger("browser/relay");
 
 const RELAY_AUTH_HEADER = "x-openclaw-relay-token";
 
@@ -308,6 +311,8 @@ export async function ensureChromeExtensionRelayServer(opts: {
         return {};
       case "Target.setAutoAttach":
       case "Target.setDiscoverTargets":
+      case "Target.setRemoteLocations":
+      case "Target.detachFromTarget":
         return {};
       case "Target.getTargets":
         return {
@@ -704,6 +709,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
       }
 
       try {
+        log.debug(`cdp command: ${cmd.method}`, { id: cmd.id, sessionId: cmd.sessionId });
         const result = await routeCdpCommand(cmd);
 
         if (cmd.method === "Target.setAutoAttach" && !cmd.sessionId) {
@@ -725,10 +731,16 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
         sendResponseToCdp(ws, { id: cmd.id, sessionId: cmd.sessionId, result });
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("Not allowed")) {
+          log.warn(`cdp command ${cmd.method} rejected by extension: ${message}`);
+        } else {
+          log.error(`cdp command ${cmd.method} failed: ${message}`);
+        }
         sendResponseToCdp(ws, {
           id: cmd.id,
           sessionId: cmd.sessionId,
-          error: { message: err instanceof Error ? err.message : String(err) },
+          error: { message },
         });
       }
     });
