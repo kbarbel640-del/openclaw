@@ -26,6 +26,14 @@ final class ApertureService {
     /// Available models fetched from the Aperture `/v1/models` endpoint.
     private(set) var availableModels: [ApertureModel] = []
 
+    /// Shared session for Aperture probes/model fetches.
+    @ObservationIgnored
+    private let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = ApertureService.apiTimeoutInterval
+        return URLSession(configuration: configuration)
+    }()
+
     /// Providers discovered from Aperture model metadata.
     var discoveredProviders: [String] {
         let providers = Set(self.availableModels.map(\.provider))
@@ -64,11 +72,7 @@ final class ApertureService {
         }
 
         do {
-            let configuration = URLSessionConfiguration.default
-            configuration.timeoutIntervalForRequest = Self.apiTimeoutInterval
-            let session = URLSession(configuration: configuration)
-
-            let (_, _) = try await session.data(from: url)
+            let (_, _) = try await self.session.data(from: url)
             // Any HTTP response = reachable
             self.isReachable = true
             self.statusError = nil
@@ -93,11 +97,7 @@ final class ApertureService {
         }
 
         do {
-            let configuration = URLSessionConfiguration.default
-            configuration.timeoutIntervalForRequest = Self.apiTimeoutInterval
-            let session = URLSession(configuration: configuration)
-
-            let (data, _) = try await session.data(from: url)
+            let (data, _) = try await self.session.data(from: url)
             let response = try JSONDecoder().decode(ApertureModelsResponse.self, from: data)
             self.availableModels = response.data
                 .map { entry in
