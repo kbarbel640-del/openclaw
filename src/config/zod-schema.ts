@@ -229,6 +229,15 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        docker: z
+          .object({
+            /** Override the image repository (e.g. "ghcr.io/openclaw/openclaw"). */
+            image: z.string().optional(),
+            /** Override the Docker socket path (default: /var/run/docker.sock). */
+            socketPath: z.string().optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .optional(),
