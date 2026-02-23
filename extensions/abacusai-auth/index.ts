@@ -1,5 +1,5 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync, readdirSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
@@ -223,7 +223,6 @@ function tryRecoverApiKey(): string | null {
   // Fallback: try local Code Mode credentials
   return tryReadLocalCredential();
 }
-
 
 // ---------------------------------------------------------------------------
 // AbacusAI API helpers
@@ -490,7 +489,12 @@ function buildModelDefinition(modelId: string) {
 interface PluginPrompter {
   progress: (msg: string) => { update: (msg: string) => void; stop: (msg: string) => void };
   confirm: (opts: { message: string; initialValue: boolean }) => Promise<boolean>;
-  text: (opts: { message: string; placeholder?: string; initialValue?: string; validate?: (v: string) => string | undefined }) => Promise<string>;
+  text: (opts: {
+    message: string;
+    placeholder?: string;
+    initialValue?: string;
+    validate?: (v: string) => string | undefined;
+  }) => Promise<string>;
 }
 
 interface PluginAuthContext {
@@ -505,7 +509,9 @@ const abacusaiPlugin = {
   register(api: unknown) {
     const pluginApi = api as {
       registerProvider: (config: unknown) => void;
-      config?: { models?: { providers?: { abacusai?: { compat?: { supportsStrictMode?: boolean } } } } };
+      config?: {
+        models?: { providers?: { abacusai?: { compat?: { supportsStrictMode?: boolean } } } };
+      };
     };
 
     // Check if direct connection is configured (supportsStrictMode: false in compat)

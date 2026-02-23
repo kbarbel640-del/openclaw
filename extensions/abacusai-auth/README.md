@@ -98,12 +98,13 @@ openclaw send "Hello" --model abacusai/gemini-3-flash-preview
 ```
 
 **Why core compat options instead of a local proxy?** AbacusAI's RouteLLM is
-*mostly* OpenAI-compatible but has two schema requirements:
+_mostly_ OpenAI-compatible but has two schema requirements:
 
 1. Rejects the `strict` field in tool schemas → `supportsStrictMode: false`
 2. Requires `additionalProperties: false` → `requiresAdditionalPropertiesFalse: true`
 
 By using core `ModelCompatConfig` options, we:
+
 - Avoid the complexity of a local proxy
 - Enable the same fix for other providers with similar requirements
 - Let pi-ai handle the `strict` field natively (it already supports `supportsStrictMode`)
@@ -210,7 +211,7 @@ After login, the plugin writes the following to `~/.openclaw/openclaw.json`:
         "auth": "token",
         "compat": {
           "requiresAdditionalPropertiesFalse": true,
-          "supportsStrictMode": false
+          "supportsStrictMode": false,
         },
         "models": [
           {
@@ -221,13 +222,13 @@ After login, the plugin writes the following to `~/.openclaw/openclaw.json`:
             "input": ["text", "image"],
             "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
             "contextWindow": 200000,
-            "maxTokens": 8192
-          }
+            "maxTokens": 8192,
+          },
           // ... other models
-        ]
-      }
-    }
-  }
+        ],
+      },
+    },
+  },
 }
 ```
 
@@ -239,9 +240,9 @@ Credentials are stored separately in `~/.openclaw/agents/<agent>/agent/auth-prof
     "abacusai:<email-or-default>": {
       "type": "token",
       "provider": "abacusai",
-      "token": "<api-key>"
-    }
-  }
+      "token": "<api-key>",
+    },
+  },
 }
 ```
 
