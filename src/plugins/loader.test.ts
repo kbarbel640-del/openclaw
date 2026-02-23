@@ -489,6 +489,14 @@ describe("loadOpenClawPlugins", () => {
     const overridden = entries.find((entry) => entry.status === "disabled");
     expect(loaded?.origin).toBe("config");
     expect(overridden?.origin).toBe("bundled");
+    expect(
+      registry.diagnostics.some(
+        (entry) =>
+          entry.level === "warn" &&
+          entry.pluginId === "shadow" &&
+          entry.message.includes("duplicate plugin id"),
+      ),
+    ).toBe(false);
   });
   it("warns when plugins.allow is empty and non-bundled plugins are discoverable", () => {
     process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = "/nonexistent/bundled/plugins";

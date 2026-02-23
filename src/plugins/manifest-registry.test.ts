@@ -73,12 +73,58 @@ describe("loadPluginManifestRegistry", () => {
       createPluginCandidate({
         idHint: "test-plugin",
         rootDir: dirA,
-        origin: "bundled",
+        origin: "global",
       }),
       createPluginCandidate({
         idHint: "test-plugin",
         rootDir: dirB,
+        origin: "workspace",
+      }),
+    ];
+
+    expect(countDuplicateWarnings(loadRegistry(candidates))).toBe(1);
+  });
+
+  it("suppresses duplicate warning when collision includes bundled plugin disabled by default", () => {
+    const dirA = makeTempDir();
+    const dirB = makeTempDir();
+    const manifest = { id: "collision-plugin", configSchema: { type: "object" } };
+    writeManifest(dirA, manifest);
+    writeManifest(dirB, manifest);
+
+    const candidates: PluginCandidate[] = [
+      createPluginCandidate({
+        idHint: "collision-plugin",
+        rootDir: dirA,
         origin: "global",
+      }),
+      createPluginCandidate({
+        idHint: "collision-plugin",
+        rootDir: dirB,
+        origin: "bundled",
+      }),
+    ];
+
+    expect(countDuplicateWarnings(loadRegistry(candidates))).toBe(0);
+  });
+
+  it("keeps duplicate warning when bundled plugin is enabled by default", () => {
+    const dirA = makeTempDir();
+    const dirB = makeTempDir();
+    const manifest = { id: "device-pair", configSchema: { type: "object" } };
+    writeManifest(dirA, manifest);
+    writeManifest(dirB, manifest);
+
+    const candidates: PluginCandidate[] = [
+      createPluginCandidate({
+        idHint: "device-pair",
+        rootDir: dirA,
+        origin: "global",
+      }),
+      createPluginCandidate({
+        idHint: "device-pair",
+        rootDir: dirB,
+        origin: "bundled",
       }),
     ];
 

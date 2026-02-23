@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import type { OpenClawConfig } from "../config/config.js";
 import { resolveUserPath } from "../utils.js";
-import { normalizePluginsConfig, type NormalizedPluginsConfig } from "./config-state.js";
+import {
+  BUNDLED_ENABLED_BY_DEFAULT,
+  normalizePluginsConfig,
+  type NormalizedPluginsConfig,
+} from "./config-state.js";
 import { discoverOpenClawPlugins, type PluginCandidate } from "./discovery.js";
 import { loadPluginManifest, type PluginManifest } from "./manifest.js";
 import { safeRealpathSync } from "./path-safety.js";
@@ -131,6 +135,10 @@ function buildRecord(params: {
   };
 }
 
+function isBundledDisabledByDefault(candidate: PluginCandidate, pluginId: string): boolean {
+  return candidate.origin === "bundled" && !BUNDLED_ENABLED_BY_DEFAULT.has(pluginId);
+}
+
 export function loadPluginManifestRegistry(params: {
   config?: OpenClawConfig;
   workspaceDir?: string;
@@ -216,12 +224,16 @@ export function loadPluginManifestRegistry(params: {
         }
         continue;
       }
-      diagnostics.push({
-        level: "warn",
-        pluginId: manifest.id,
-        source: candidate.source,
-        message: `duplicate plugin id detected; later plugin may be overridden (${candidate.source})`,
-      });
+      const existingIsBundledDisabled = isBundledDisabledByDefault(existing.candidate, manifest.id);
+      const candidateIsBundledDisabled = isBundledDisabledByDefault(candidate, manifest.id);
+      if (!existingIsBundledDisabled && !candidateIsBundledDisabled) {
+        diagnostics.push({
+          level: "warn",
+          pluginId: manifest.id,
+          source: candidate.source,
+          message: `duplicate plugin id detected; later plugin may be overridden (${candidate.source})`,
+        });
+      }
     } else {
       seenIds.set(manifest.id, { candidate, recordIndex: records.length });
     }
