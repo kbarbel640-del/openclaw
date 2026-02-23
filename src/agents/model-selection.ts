@@ -1,8 +1,9 @@
 import type { OpenClawConfig } from "../config/config.js";
+import type { ModelCatalogEntry } from "./model-catalog.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveAgentConfig, resolveAgentModelPrimary } from "./agent-scope.js";
+import { isOAuthProvider } from "./auth-profiles/oauth.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
-import type { ModelCatalogEntry } from "./model-catalog.js";
 import { normalizeGoogleModelId } from "./models-config.providers.js";
 
 const log = createSubsystemLogger("model-selection");
@@ -412,6 +413,10 @@ export function buildAllowedModelSet(params: {
     } else if (configuredProviders[providerKey] != null) {
       // Explicitly configured providers should be allowlist-able even when
       // they don't exist in the curated model catalog.
+      allowedKeys.add(key);
+    } else if (isOAuthProvider(parsed.provider)) {
+      // Built-in OAuth providers (openai-codex, github-copilot, etc.) are allowed
+      // even when not explicitly configured in models.providers.
       allowedKeys.add(key);
     }
   }

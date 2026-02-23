@@ -6,6 +6,7 @@ import {
   resolveModelRefFromString,
   resolveConfiguredModelRef,
   buildModelAliasIndex,
+  buildAllowedModelSet,
   normalizeProviderId,
   modelKey,
 } from "./model-selection.js";
@@ -196,6 +197,84 @@ describe("model-selection", () => {
         defaultModel: "gpt-4",
       });
       expect(result).toEqual({ provider: "openai", model: "gpt-4" });
+    });
+  });
+
+  describe("buildAllowedModelSet", () => {
+    it("should allow OAuth provider models (openai-codex) when in allowlist", () => {
+      const cfg: Partial<OpenClawConfig> = {
+        agents: {
+          defaults: {
+            models: {
+              "openai-codex/gpt-4o": {},
+              "openai-codex/gpt-5.1": {},
+            },
+          },
+        },
+      };
+
+      const catalog = [{ provider: "anthropic", id: "claude-3-5-sonnet", type: "text" as const }];
+
+      const result = buildAllowedModelSet({
+        cfg: cfg as OpenClawConfig,
+        catalog,
+        defaultProvider: "anthropic",
+        defaultModel: "claude-3-5-sonnet",
+      });
+
+      expect(result.allowedKeys.has("openai-codex/gpt-4o")).toBe(true);
+      expect(result.allowedKeys.has("openai-codex/gpt-5.1")).toBe(true);
+      expect(result.allowAny).toBe(false);
+    });
+
+    it("should allow github-copilot provider models when in allowlist", () => {
+      const cfg: Partial<OpenClawConfig> = {
+        agents: {
+          defaults: {
+            models: {
+              "github-copilot/gpt-4o": {},
+            },
+          },
+        },
+      };
+
+      const catalog = [{ provider: "anthropic", id: "claude-3-5-sonnet", type: "text" as const }];
+
+      const result = buildAllowedModelSet({
+        cfg: cfg as OpenClawConfig,
+        catalog,
+        defaultProvider: "anthropic",
+        defaultModel: "claude-3-5-sonnet",
+      });
+
+      expect(result.allowedKeys.has("github-copilot/gpt-4o")).toBe(true);
+      expect(result.allowAny).toBe(false);
+    });
+
+    it("should not allow unknown providers", () => {
+      const cfg: Partial<OpenClawConfig> = {
+        agents: {
+          defaults: {
+            models: {
+              "fake-oauth-provider/model-x": {},
+            },
+          },
+        },
+      };
+
+      const catalog = [{ provider: "anthropic", id: "claude-3-5-sonnet", type: "text" as const }];
+
+      const result = buildAllowedModelSet({
+        cfg: cfg as OpenClawConfig,
+        catalog,
+        defaultProvider: "anthropic",
+        defaultModel: "claude-3-5-sonnet",
+      });
+
+      expect(result.allowedKeys.has("fake-oauth-provider/model-x")).toBe(false);
+      // Default model should still be allowed
+      expect(result.allowedKeys.has("anthropic/claude-3-5-sonnet")).toBe(true);
+      expect(result.allowAny).toBe(false);
     });
   });
 });
