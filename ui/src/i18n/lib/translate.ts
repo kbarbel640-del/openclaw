@@ -32,18 +32,14 @@ class I18nManager {
         this.locale = "en";
       }
     }
-  }
 
-  public getLocale(): Locale {
-    return this.locale;
-  }
-
-  public async setLocale(locale: Locale) {
-    if (this.locale === locale) {
-      return;
+    // If a non-English locale was determined, load its translations and notify
+    if (this.locale !== "en") {
+      void this.loadTranslationsAndNotify(this.locale);
     }
+  }
 
-    // Lazy load translations if needed
+  private async loadTranslationsAndNotify(locale: Locale) {
     if (!this.translations[locale]) {
       try {
         let module: Record<string, TranslationMap>;
@@ -62,10 +58,21 @@ class I18nManager {
         return;
       }
     }
+    this.notify();
+  }
+
+  public getLocale(): Locale {
+    return this.locale;
+  }
+
+  public async setLocale(locale: Locale) {
+    if (this.locale === locale) {
+      return;
+    }
 
     this.locale = locale;
     localStorage.setItem("openclaw.i18n.locale", locale);
-    this.notify();
+    await this.loadTranslationsAndNotify(locale);
   }
 
   public registerTranslation(locale: Locale, map: TranslationMap) {
