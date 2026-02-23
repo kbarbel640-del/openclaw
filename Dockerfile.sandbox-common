@@ -19,27 +19,34 @@ ENV HOMEBREW_CELLAR=${BREW_INSTALL_DIR}/Cellar
 ENV HOMEBREW_REPOSITORY=${BREW_INSTALL_DIR}/Homebrew
 ENV PATH=${BUN_INSTALL_DIR}/bin:${BREW_INSTALL_DIR}/bin:${BREW_INSTALL_DIR}/sbin:${PATH}
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ${PACKAGES} \
-  && rm -rf /var/lib/apt/lists/*
+# Install all APT packages in single layer with BuildKit cache mount
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends ${PACKAGES} && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN if [ "${INSTALL_PNPM}" = "1" ]; then npm install -g pnpm; fi
+# Install pnpm globally with npm cache mount
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    if [ "${INSTALL_PNPM}" = "1" ]; then npm install -g pnpm; fi
 
-RUN if [ "${INSTALL_BUN}" = "1" ]; then \
-  curl -fsSL https://bun.sh/install | bash; \
-  ln -sf "${BUN_INSTALL_DIR}/bin/bun" /usr/local/bin/bun; \
-fi
+# Install Bun with curl cache mount
+RUN --mount=type=cache,target=/root/.cache/curl,sharing=locked \
+    if [ "${INSTALL_BUN}" = "1" ]; then \
+      curl -fsSL https://bun.sh/install | bash && \
+      ln -sf "${BUN_INSTALL_DIR}/bin/bun" /usr/local/bin/bun; \
+    fi
 
+# Install Homebrew for linuxbrew user with proper permissions
+# Note: Homebrew installation is CPU-intensive; consider removing if not needed in production
 RUN if [ "${INSTALL_BREW}" = "1" ]; then \
-  if ! id -u linuxbrew >/dev/null 2>&1; then useradd -m -s /bin/bash linuxbrew; fi; \
-  mkdir -p "${BREW_INSTALL_DIR}"; \
-  chown -R linuxbrew:linuxbrew "$(dirname "${BREW_INSTALL_DIR}")"; \
-  su - linuxbrew -c "NONINTERACTIVE=1 CI=1 /bin/bash -c '$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)'"; \
-  if [ ! -e "${BREW_INSTALL_DIR}/Library" ]; then ln -s "${BREW_INSTALL_DIR}/Homebrew/Library" "${BREW_INSTALL_DIR}/Library"; fi; \
-  if [ ! -x "${BREW_INSTALL_DIR}/bin/brew" ]; then echo \"brew install failed\"; exit 1; fi; \
-  ln -sf "${BREW_INSTALL_DIR}/bin/brew" /usr/local/bin/brew; \
-fi
+      if ! id -u linuxbrew >/dev/null 2>&1; then useradd -m -s /bin/bash linuxbrew; fi && \
+      mkdir -p "${BREW_INSTALL_DIR}" && \
+      chown -R linuxbrew:linuxbrew "$(dirname "${BREW_INSTALL_DIR}")" && \
+      su - linuxbrew -c "NONINTERACTIVE=1 CI=1 /bin/bash -c '$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)'" && \
+      if [ ! -e "${BREW_INSTALL_DIR}/Library" ]; then ln -s "${BREW_INSTALL_DIR}/Homebrew/Library" "${BREW_INSTALL_DIR}/Library"; fi && \
+      if [ ! -x "${BREW_INSTALL_DIR}/bin/brew" ]; then echo "ERROR: brew install failed"; exit 1; fi && \
+      ln -sf "${BREW_INSTALL_DIR}/bin/brew" /usr/local/bin/brew; \
+    fi
 
-# Default is sandbox, but allow BASE_IMAGE overrides to select another final user.
 USER ${FINAL_USER}
-

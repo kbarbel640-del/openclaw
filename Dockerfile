@@ -1,14 +1,15 @@
 FROM node:22-bookworm@sha256:cd7bcd2e7a1e6f72052feb023c7f6b722205d3fcab7bbcbd2d1bfdab10b1e935
 
-# Install Bun (required for build scripts)
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
-
-RUN corepack enable
-
 WORKDIR /app
 RUN chown node:node /app
 
+# Install Bun (required for build scripts) - consolidated with corepack
+RUN --mount=type=cache,target=/root/.cache/curl \
+    curl -fsSL https://bun.sh/install | bash && \
+    corepack enable
+ENV PATH="/root/.bun/bin:${PATH}"
+
+# Install optional APT packages early (cached layer)
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
@@ -17,13 +18,18 @@ RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
+# Copy dependency files first (maximize layer reuse)
 COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+
+# Install dependencies with BuildKit cache mount for pnpm store
+USER node
+RUN --mount=type=cache,target=/home/node/.pnpm-store,uid=1000,gid=1000 \
+    pnpm install --frozen-lockfile
+
+# Copy workspace packages and patches
 COPY --chown=node:node ui/package.json ./ui/package.json
 COPY --chown=node:node patches ./patches
 COPY --chown=node:node scripts ./scripts
-
-USER node
-RUN pnpm install --frozen-lockfile
 
 # Optionally install Chromium and Xvfb for browser automation.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_BROWSER=1 ...
@@ -42,12 +48,16 @@ RUN if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
 
+# Copy source code and build application
 USER node
 COPY --chown=node:node . .
-RUN pnpm build
+RUN --mount=type=cache,target=/home/node/.pnpm-store,uid=1000,gid=1000 \
+    CI=true pnpm build
+
 # Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm ui:build
+RUN --mount=type=cache,target=/home/node/.pnpm-store,uid=1000,gid=1000 \
+    CI=true pnpm ui:build
 
 ENV NODE_ENV=production
 
