@@ -281,15 +281,6 @@ function createOpenRouterHeadersWrapper(baseStreamFn: StreamFn | undefined): Str
     });
 }
 
-/**
- * Create a streamFn wrapper that injects tool_stream=true for Z.AI providers.
- *
- * Z.AI's API supports the `tool_stream` parameter to enable real-time streaming
- * of tool call arguments and reasoning content. When enabled, the API returns
- * progressive tool_call deltas, allowing users to see tool execution in real-time.
- *
- * @see https://docs.z.ai/api-reference#streaming
- */
 /** Derive display name from Anthropic server tool type (e.g. web_search_20260209 -> web_search). */
 function serverToolTypeToName(type: AnthropicServerToolId): string {
   if (type.startsWith("web_search_")) {
@@ -393,16 +384,21 @@ function createPTCWrapper(baseStreamFn: StreamFn | undefined, ptcConfig: PTCConf
         if (payload && typeof payload === "object") {
           const p = payload as Record<string, unknown>;
 
-          // 1. Inject code_execution tool definition
+          // 1. Inject code_execution tool definition (or detect existing one from serverTools)
           const existingTools = Array.isArray(p.tools) ? p.tools : [];
-          const hasCodeExec = existingTools.some(
+          const existingCodeExec = existingTools.find(
             (t: unknown) =>
               typeof t === "object" &&
               t !== null &&
               typeof (t as Record<string, unknown>).type === "string" &&
               ((t as Record<string, unknown>).type as string).startsWith("code_execution_"),
           );
-          if (!hasCodeExec) {
+          // Use the existing code_execution version if serverTools already injected one,
+          // so allowed_callers always references the version present in the request.
+          const effectiveVersion = existingCodeExec
+            ? ((existingCodeExec as Record<string, unknown>).type as string)
+            : version;
+          if (!existingCodeExec) {
             p.tools = [...existingTools, codeExecDef];
           }
 
@@ -422,8 +418,8 @@ function createPTCWrapper(baseStreamFn: StreamFn | undefined, ptcConfig: PTCConf
               if (allowedTools && name && !allowedTools.has(name)) {
                 return tool;
               }
-              // Add allowed_callers
-              return { ...t, allowed_callers: [version] };
+              // Add allowed_callers using the version actually present in the request
+              return { ...t, allowed_callers: [effectiveVersion] };
             });
           }
         }
@@ -433,6 +429,15 @@ function createPTCWrapper(baseStreamFn: StreamFn | undefined, ptcConfig: PTCConf
   };
 }
 
+/**
+ * Create a streamFn wrapper that injects tool_stream=true for Z.AI providers.
+ *
+ * Z.AI's API supports the `tool_stream` parameter to enable real-time streaming
+ * of tool call arguments and reasoning content. When enabled, the API returns
+ * progressive tool_call deltas, allowing users to see tool execution in real-time.
+ *
+ * @see https://docs.z.ai/api-reference#streaming
+ */
 function createZaiToolStreamWrapper(
   baseStreamFn: StreamFn | undefined,
   enabled: boolean,
