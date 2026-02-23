@@ -155,7 +155,11 @@ function formatApprovalCommand(command: string): { inline: boolean; text: string
   return { inline: false, text: `${fence}\n${command}\n${fence}` };
 }
 
-function buildRequestMessage(request: ExecApprovalRequest, nowMs: number) {
+function buildRequestMessage(
+  request: ExecApprovalRequest,
+  nowMs: number,
+  channel?: string,
+): string {
   const lines: string[] = ["🔒 Exec approval required", `ID: ${request.id}`];
   const command = formatApprovalCommand(request.request.command);
   if (command.inline) {
@@ -181,7 +185,18 @@ function buildRequestMessage(request: ExecApprovalRequest, nowMs: number) {
   }
   const expiresIn = Math.max(0, Math.round((request.expiresAtMs - nowMs) / 1000));
   lines.push(`Expires in: ${expiresIn}s`);
-  lines.push("Reply with: /approve <id> allow-once|allow-always|deny");
+
+  // Telegram: add copyable approval commands (tap-to-copy in backticks)
+  const normalizedChannel = normalizeMessageChannel(channel) ?? channel;
+  if (normalizedChannel === "telegram") {
+    lines.push("");
+    lines.push(`✅ \`/approve ${request.id} allow-once\``);
+    lines.push(`♾️ \`/approve ${request.id} allow-always\``);
+    lines.push(`❌ \`/approve ${request.id} deny\``);
+  } else {
+    lines.push("Reply with: /approve <id> allow-once|allow-always|deny");
+  }
+
   return lines.join("\n");
 }
 
@@ -356,7 +371,7 @@ export function createExecApprovalForwarder(
       return false;
     }
 
-    const text = buildRequestMessage(request, nowMs());
+    const text = buildRequestMessage(request, nowMs(), filteredTargets[0]?.channel);
     void deliverToTargets({
       cfg,
       targets: filteredTargets,
