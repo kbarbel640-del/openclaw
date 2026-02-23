@@ -206,7 +206,7 @@ export function connectGateway(host: GatewayHost) {
       }
       host.lastError = `event gap detected (expected seq ${expected}, got ${received}); reloading`;
       host.lastErrorCode = null;
-      void refreshChat(host as unknown as Parameters<typeof refreshChat>[0]);
+      void refreshChat(host);
     },
   });
   host.client = client;
