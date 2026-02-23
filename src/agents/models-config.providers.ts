@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { ModelDefinitionConfig } from "../config/types.models.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
   DEFAULT_COPILOT_API_BASE_URL,
   resolveCopilotApiToken,
@@ -7,9 +8,23 @@ import {
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
 import {
+  buildBytePlusModelDefinition,
+  BYTEPLUS_BASE_URL,
+  BYTEPLUS_MODEL_CATALOG,
+  BYTEPLUS_CODING_BASE_URL,
+  BYTEPLUS_CODING_MODEL_CATALOG,
+} from "./byteplus-models.js";
+import {
   buildCloudflareAiGatewayModelDefinition,
   resolveCloudflareAiGatewayBaseUrl,
 } from "./cloudflare-ai-gateway.js";
+import {
+  buildDoubaoModelDefinition,
+  DOUBAO_BASE_URL,
+  DOUBAO_MODEL_CATALOG,
+  DOUBAO_CODING_BASE_URL,
+  DOUBAO_CODING_MODEL_CATALOG,
+} from "./doubao-models.js";
 import {
   discoverHuggingfaceModels,
   HUGGINGFACE_BASE_URL,
@@ -39,12 +54,12 @@ const MINIMAX_DEFAULT_VISION_MODEL_ID = "MiniMax-VL-01";
 const MINIMAX_DEFAULT_CONTEXT_WINDOW = 200000;
 const MINIMAX_DEFAULT_MAX_TOKENS = 8192;
 const MINIMAX_OAUTH_PLACEHOLDER = "minimax-oauth";
-// Pricing: MiniMax doesn't publish public rates. Override in models.json for accurate costs.
+// Pricing per 1M tokens (USD) — https://platform.minimaxi.com/document/Price
 const MINIMAX_API_COST = {
-  input: 15,
-  output: 60,
-  cacheRead: 2,
-  cacheWrite: 10,
+  input: 0.3,
+  output: 1.2,
+  cacheRead: 0.03,
+  cacheWrite: 0.12,
 };
 
 type ProviderModelConfig = NonNullable<ProviderConfig["models"]>[number];
@@ -96,6 +111,17 @@ const MOONSHOT_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const KIMI_CODING_BASE_URL = "https://api.kimi.com/coding/";
+const KIMI_CODING_DEFAULT_MODEL_ID = "k2p5";
+const KIMI_CODING_DEFAULT_CONTEXT_WINDOW = 262144;
+const KIMI_CODING_DEFAULT_MAX_TOKENS = 32768;
+const KIMI_CODING_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const NEBIUS_TOKEN_FACTORY_BASE_URL = "https://api.tokenfactory.nebius.com/v1";
 const NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_ID = "zai-org/GLM-4.7-FP8";
 const NEBIUS_TOKEN_FACTORY_DEFAULT_CONTEXT_WINDOW = 131072;
@@ -129,6 +155,17 @@ const OLLAMA_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_DEFAULT_MODEL_ID = "auto";
+const OPENROUTER_DEFAULT_CONTEXT_WINDOW = 200000;
+const OPENROUTER_DEFAULT_MAX_TOKENS = 8192;
+const OPENROUTER_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const VLLM_BASE_URL = "http://127.0.0.1:8000/v1";
 const VLLM_DEFAULT_CONTEXT_WINDOW = 128000;
 const VLLM_DEFAULT_MAX_TOKENS = 8192;
@@ -150,24 +187,6 @@ const QIANFAN_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
-type OpenAiModelEntry = {
-  id?: string;
-  created?: number | string;
-  object?: string;
-  owned_by?: string;
-};
-type OpenAiModelsResponse = { object?: string; data?: OpenAiModelEntry[] };
-
-type NebiusTokenFactoryModel = {
-  id: string;
-  name: string;
-  reasoning: boolean;
-  input: Array<"text" | "image">;
-  cost: ModelDefinitionConfig["cost"];
-  contextWindow: number;
-  maxTokens: number;
-};
-
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const NVIDIA_DEFAULT_MODEL_ID = "nvidia/llama-3.1-nemotron-70b-instruct";
 const NVIDIA_DEFAULT_CONTEXT_WINDOW = 131072;
@@ -178,6 +197,8 @@ const NVIDIA_DEFAULT_COST = {
   cacheRead: 0,
   cacheWrite: 0,
 };
+
+const log = createSubsystemLogger("agents/model-providers");
 
 interface OllamaModel {
   name: string;
@@ -198,6 +219,25 @@ type VllmModelsResponse = {
   data?: Array<{
     id?: string;
   }>;
+};
+
+type OpenAiModelEntry = {
+  id?: string;
+  created?: number | string;
+  object?: string;
+  owned_by?: string;
+};
+
+type OpenAiModelsResponse = { object?: string; data?: OpenAiModelEntry[] };
+
+type NebiusTokenFactoryModel = {
+  id: string;
+  name: string;
+  reasoning: boolean;
+  input: Array<"text" | "image">;
+  cost: ModelDefinitionConfig["cost"];
+  contextWindow: number;
+  maxTokens: number;
 };
 
 /**
@@ -228,12 +268,12 @@ async function discoverOllamaModels(baseUrl?: string): Promise<ModelDefinitionCo
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
-      console.warn(`Failed to discover Ollama models: ${response.status}`);
+      log.warn(`Failed to discover Ollama models: ${response.status}`);
       return [];
     }
     const data = (await response.json()) as OllamaTagsResponse;
     if (!data.models || data.models.length === 0) {
-      console.warn("No Ollama models found on local instance");
+      log.warn("No Ollama models found on local instance");
       return [];
     }
     return data.models.map((model) => {
@@ -251,7 +291,7 @@ async function discoverOllamaModels(baseUrl?: string): Promise<ModelDefinitionCo
       };
     });
   } catch (error) {
-    console.warn(`Failed to discover Ollama models: ${String(error)}`);
+    log.warn(`Failed to discover Ollama models: ${String(error)}`);
     return [];
   }
 }
@@ -275,13 +315,13 @@ async function discoverVllmModels(
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
-      console.warn(`Failed to discover vLLM models: ${response.status}`);
+      log.warn(`Failed to discover vLLM models: ${response.status}`);
       return [];
     }
     const data = (await response.json()) as VllmModelsResponse;
     const models = data.data ?? [];
     if (models.length === 0) {
-      console.warn("No vLLM models found on local instance");
+      log.warn("No vLLM models found on local instance");
       return [];
     }
 
@@ -304,7 +344,7 @@ async function discoverVllmModels(
         } satisfies ModelDefinitionConfig;
       });
   } catch (error) {
-    console.warn(`Failed to discover vLLM models: ${String(error)}`);
+    log.warn(`Failed to discover vLLM models: ${String(error)}`);
     return [];
   }
 }
@@ -512,6 +552,24 @@ function buildMoonshotProvider(): ProviderConfig {
   };
 }
 
+export function buildKimiCodingProvider(): ProviderConfig {
+  return {
+    baseUrl: KIMI_CODING_BASE_URL,
+    api: "anthropic-messages",
+    models: [
+      {
+        id: KIMI_CODING_DEFAULT_MODEL_ID,
+        name: "Kimi for Coding",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: KIMI_CODING_DEFAULT_COST,
+        contextWindow: KIMI_CODING_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: KIMI_CODING_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 function coerceNebiusTokenFactoryModel(entry: OpenAiModelEntry): NebiusTokenFactoryModel | null {
   const id = typeof entry.id === "string" ? entry.id.trim() : "";
   if (!id) {
@@ -533,22 +591,22 @@ async function discoverNebiusTokenFactoryModels(apiKey?: string): Promise<ModelD
     return [];
   }
   try {
-    const res = await fetch(`${NEBIUS_TOKEN_FACTORY_BASE_URL}/models`, {
+    const response = await fetch(`${NEBIUS_TOKEN_FACTORY_BASE_URL}/models`, {
       headers: { Authorization: `Bearer ${apiKey.trim()}` },
       signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) {
-      console.warn(`Failed to discover Nebius Token Factory models: ${res.status}`);
+    if (!response.ok) {
+      log.warn(`Failed to discover Nebius Token Factory models: ${response.status}`);
       return [];
     }
-    const payload = (await res.json()) as OpenAiModelsResponse;
+    const payload = (await response.json()) as OpenAiModelsResponse;
     const entries = Array.isArray(payload.data) ? payload.data : [];
     return entries
       .map(coerceNebiusTokenFactoryModel)
-      .filter((m): m is NebiusTokenFactoryModel => Boolean(m))
-      .map((m) => ({ ...m }) satisfies ModelDefinitionConfig);
-  } catch (err) {
-    console.warn(`Failed to discover Nebius Token Factory models: ${String(err)}`);
+      .filter((model): model is NebiusTokenFactoryModel => Boolean(model))
+      .map((model) => ({ ...model }) satisfies ModelDefinitionConfig);
+  } catch (error) {
+    log.warn(`Failed to discover Nebius Token Factory models: ${String(error)}`);
     return [];
   }
 }
@@ -568,8 +626,8 @@ function buildNebiusTokenFactoryDefaultModel(): ModelDefinitionConfig {
 async function buildNebiusTokenFactoryProvider(apiKey?: string): Promise<ProviderConfig> {
   const discovered = await discoverNebiusTokenFactoryModels(apiKey);
   const defaultModel = buildNebiusTokenFactoryDefaultModel();
-  const hasDefault = discovered.some((m) => m.id === defaultModel.id);
-  const models = hasDefault ? discovered : [defaultModel, ...discovered];
+  const hasDefaultModel = discovered.some((model) => model.id === defaultModel.id);
+  const models = hasDefaultModel ? discovered : [defaultModel, ...discovered];
   return {
     baseUrl: NEBIUS_TOKEN_FACTORY_BASE_URL,
     api: "openai-completions",
@@ -609,6 +667,38 @@ function buildSyntheticProvider(): ProviderConfig {
     baseUrl: SYNTHETIC_BASE_URL,
     api: "anthropic-messages",
     models: SYNTHETIC_MODEL_CATALOG.map(buildSyntheticModelDefinition),
+  };
+}
+
+function buildDoubaoProvider(): ProviderConfig {
+  return {
+    baseUrl: DOUBAO_BASE_URL,
+    api: "openai-completions",
+    models: DOUBAO_MODEL_CATALOG.map(buildDoubaoModelDefinition),
+  };
+}
+
+function buildDoubaoCodingProvider(): ProviderConfig {
+  return {
+    baseUrl: DOUBAO_CODING_BASE_URL,
+    api: "openai-completions",
+    models: DOUBAO_CODING_MODEL_CATALOG.map(buildDoubaoModelDefinition),
+  };
+}
+
+function buildBytePlusProvider(): ProviderConfig {
+  return {
+    baseUrl: BYTEPLUS_BASE_URL,
+    api: "openai-completions",
+    models: BYTEPLUS_MODEL_CATALOG.map(buildBytePlusModelDefinition),
+  };
+}
+
+function buildBytePlusCodingProvider(): ProviderConfig {
+  return {
+    baseUrl: BYTEPLUS_CODING_BASE_URL,
+    api: "openai-completions",
+    models: BYTEPLUS_CODING_MODEL_CATALOG.map(buildBytePlusModelDefinition),
   };
 }
 
@@ -675,6 +765,24 @@ function buildTogetherProvider(): ProviderConfig {
   };
 }
 
+function buildOpenrouterProvider(): ProviderConfig {
+  return {
+    baseUrl: OPENROUTER_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: OPENROUTER_DEFAULT_MODEL_ID,
+        name: "OpenRouter Auto",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: OPENROUTER_DEFAULT_COST,
+        contextWindow: OPENROUTER_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: OPENROUTER_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 async function buildVllmProvider(params?: {
   baseUrl?: string;
   apiKey?: string;
@@ -687,6 +795,7 @@ async function buildVllmProvider(params?: {
     models,
   };
 }
+
 export function buildQianfanProvider(): ProviderConfig {
   return {
     baseUrl: QIANFAN_BASE_URL,
@@ -798,6 +907,13 @@ export async function resolveImplicitProviders(params: {
     };
   }
 
+  const kimiCodingKey =
+    resolveEnvApiKeyVarName("kimi-coding") ??
+    resolveApiKeyFromProfiles({ provider: "kimi-coding", store: authStore });
+  if (kimiCodingKey) {
+    providers["kimi-coding"] = { ...buildKimiCodingProvider(), apiKey: kimiCodingKey };
+  }
+
   const syntheticKey =
     resolveEnvApiKeyVarName("synthetic") ??
     resolveApiKeyFromProfiles({ provider: "synthetic", store: authStore });
@@ -817,6 +933,28 @@ export async function resolveImplicitProviders(params: {
     providers["qwen-portal"] = {
       ...buildQwenPortalProvider(),
       apiKey: QWEN_PORTAL_OAUTH_PLACEHOLDER,
+    };
+  }
+
+  const volcengineKey =
+    resolveEnvApiKeyVarName("volcengine") ??
+    resolveApiKeyFromProfiles({ provider: "volcengine", store: authStore });
+  if (volcengineKey) {
+    providers.volcengine = { ...buildDoubaoProvider(), apiKey: volcengineKey };
+    providers["volcengine-plan"] = {
+      ...buildDoubaoCodingProvider(),
+      apiKey: volcengineKey,
+    };
+  }
+
+  const byteplusKey =
+    resolveEnvApiKeyVarName("byteplus") ??
+    resolveApiKeyFromProfiles({ provider: "byteplus", store: authStore });
+  if (byteplusKey) {
+    providers.byteplus = { ...buildBytePlusProvider(), apiKey: byteplusKey };
+    providers["byteplus-plan"] = {
+      ...buildBytePlusCodingProvider(),
+      apiKey: byteplusKey,
     };
   }
 
@@ -909,6 +1047,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "qianfan", store: authStore });
   if (qianfanKey) {
     providers.qianfan = { ...buildQianfanProvider(), apiKey: qianfanKey };
+  }
+
+  const openrouterKey =
+    resolveEnvApiKeyVarName("openrouter") ??
+    resolveApiKeyFromProfiles({ provider: "openrouter", store: authStore });
+  if (openrouterKey) {
+    providers.openrouter = { ...buildOpenrouterProvider(), apiKey: openrouterKey };
   }
 
   const nvidiaKey =

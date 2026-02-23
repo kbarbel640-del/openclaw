@@ -45,6 +45,7 @@ See [Venice AI](/providers/venice).
 - [Cloudflare AI Gateway](/providers/cloudflare-ai-gateway)
 - [Moonshot AI (Kimi + Kimi Coding)](/providers/moonshot)
 - [Nebius Token Factory (OpenAI-compatible)](/providers/nebius-token-factory)
+- [Mistral](/providers/mistral)
 - [OpenCode Zen](/providers/opencode)
 - [Amazon Bedrock](/providers/bedrock)
 - [Z.AI](/providers/zai)
