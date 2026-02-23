@@ -121,6 +121,8 @@ namespace OpenClaw.Node.Services
                 }
 
                 _ = BringWindowToTop(target);
+                _ = SetWindowPos(target, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+                _ = SetWindowPos(target, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
                 _ = SetActiveWindow(target);
                 _ = SetFocus(target);
                 _ = SetForegroundWindow(target);
@@ -130,11 +132,16 @@ namespace OpenClaw.Node.Services
                     return Task.FromResult(true);
                 }
 
-                // Last attempt: ALT keystroke nudge, then SetForegroundWindow again.
+                // Last attempts: ALT keystroke nudge and SwitchToThisWindow fallback.
                 keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
                 keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
                 _ = SetForegroundWindow(target);
+                if (GetForegroundWindow() == target)
+                {
+                    return Task.FromResult(true);
+                }
 
+                SwitchToThisWindow(target, true);
                 return Task.FromResult(GetForegroundWindow() == target);
             }
             finally
@@ -305,6 +312,10 @@ namespace OpenClaw.Node.Services
         private const int SW_SHOW = 5;
         private const byte VK_MENU = 0x12; // ALT
         private const uint KEYEVENTF_KEYUP = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private static readonly IntPtr HWND_TOPMOST = new(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new(-2);
 
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -331,6 +342,19 @@ namespace OpenClaw.Node.Services
 
         [DllImport("user32.dll")]
         private static extern bool BringWindowToTop(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(
+            IntPtr hWnd,
+            IntPtr hWndInsertAfter,
+            int X,
+            int Y,
+            int cx,
+            int cy,
+            uint uFlags);
+
+        [DllImport("user32.dll")]
+        private static extern void SwitchToThisWindow(IntPtr hWnd, bool fAltTab);
 
         [DllImport("user32.dll")]
         private static extern IntPtr SetFocus(IntPtr hWnd);
