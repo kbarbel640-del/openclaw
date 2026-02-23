@@ -539,6 +539,9 @@ export async function startGatewayServer(
 
   if (!minimalTestGateway) {
     void cron.start().catch((err) => logCron.error(`failed to start: ${String(err)}`));
+    void import("../cron/task-notifications.js")
+      .then(({ startTaskNotificationTimer }) => startTaskNotificationTimer())
+      .catch(() => {});
   }
 
   // Recover pending outbound deliveries from previous crash/restart.
