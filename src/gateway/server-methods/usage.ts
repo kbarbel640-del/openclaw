@@ -19,6 +19,7 @@ import type {
 import {
   loadCostUsageSummary,
   loadSessionCostSummary,
+  loadSessionHotspotAnalysis,
   loadSessionUsageTimeSeries,
   discoverAllSessions,
   type DiscoveredSession,
@@ -940,5 +941,47 @@ export const usageHandlers: GatewayRequestHandlers = {
     });
 
     respond(true, { logs: logs ?? [] }, undefined);
+  },
+  "sessions.usage.hotspots": async ({ respond, params }) => {
+    const key = typeof params?.key === "string" ? params.key.trim() : null;
+    if (!key) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "key is required for hotspots"),
+      );
+      return;
+    }
+
+    const topN =
+      typeof params?.topN === "number" && Number.isFinite(params.topN)
+        ? Math.min(Math.max(1, params.topN), 100)
+        : 10;
+
+    const resolved = resolveSessionUsageFileOrRespond(key, respond);
+    if (!resolved) {
+      return;
+    }
+    const { config, entry, agentId, sessionId, sessionFile } = resolved;
+
+    const analysis = await loadSessionHotspotAnalysis({
+      sessionId,
+      sessionEntry: entry,
+      sessionFile,
+      config,
+      agentId,
+      topN,
+    });
+
+    if (!analysis) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `No transcript found for session: ${key}`),
+      );
+      return;
+    }
+
+    respond(true, analysis, undefined);
   },
 };

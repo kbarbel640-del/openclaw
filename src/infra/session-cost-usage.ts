@@ -14,10 +14,13 @@ import { stripEnvelope, stripMessageIdHints } from "../shared/chat-envelope.js";
 import { countToolResults, extractToolCallNames } from "../utils/transcript-tools.js";
 import { estimateUsageCost, resolveModelCostConfig } from "../utils/usage-format.js";
 import type {
+  CacheEfficiency,
   CostBreakdown,
+  CostlyCall,
   CostUsageTotals,
   CostUsageSummary,
   DiscoveredSession,
+  OptimizationHint,
   ParsedTranscriptEntry,
   ParsedUsageEntry,
   SessionCostSummary,
@@ -25,6 +28,7 @@ import type {
   SessionDailyMessageCounts,
   SessionDailyModelUsage,
   SessionDailyUsage,
+  SessionHotspotAnalysis,
   SessionLatencyStats,
   SessionLogEntry,
   SessionMessageCounts,
@@ -32,18 +36,23 @@ import type {
   SessionToolUsage,
   SessionUsageTimePoint,
   SessionUsageTimeSeries,
+  ToolHotspot,
 } from "./session-cost-usage.types.js";
 
 export type {
+  CacheEfficiency,
+  CostlyCall,
   CostUsageDailyEntry,
   CostUsageSummary,
   CostUsageTotals,
   DiscoveredSession,
+  OptimizationHint,
   SessionCostSummary,
   SessionDailyLatency,
   SessionDailyMessageCounts,
   SessionDailyModelUsage,
   SessionDailyUsage,
+  SessionHotspotAnalysis,
   SessionLatencyStats,
   SessionLogEntry,
   SessionMessageCounts,
@@ -51,6 +60,7 @@ export type {
   SessionToolUsage,
   SessionUsageTimePoint,
   SessionUsageTimeSeries,
+  ToolHotspot,
 } from "./session-cost-usage.types.js";
 
 const emptyTotals = (): CostUsageTotals => ({
@@ -1013,4 +1023,246 @@ export async function loadSessionLogs(params: {
   }
 
   return sortedLogs;
+}
+
+/**
+ * Analyze a session transcript to identify token/cost hotspots, cache efficiency,
+ * costly calls, and optimization hints.
+ *
+ * Attribution model:
+ * - When an assistant message invokes tools, usage is attributed to those tool names.
+ * - When an assistant message follows tool results (pendingToolNames set), usage is
+ *   attributed to those pending tools (synthesis cost after tool execution).
+ * - Otherwise, usage is attributed to "direct_reply".
+ * - toolResult messages are used to count actual call executions per tool.
+ */
+export async function loadSessionHotspotAnalysis(params: {
+  sessionId?: string;
+  sessionEntry?: SessionEntry;
+  sessionFile?: string;
+  config?: OpenClawConfig;
+  agentId?: string;
+  topN?: number;
+}): Promise<SessionHotspotAnalysis | null> {
+  const sessionFile =
+    params.sessionFile ??
+    (params.sessionId
+      ? resolveSessionFilePath(params.sessionId, params.sessionEntry, {
+          agentId: params.agentId,
+        })
+      : undefined);
+  if (!sessionFile || !fs.existsSync(sessionFile)) {
+    return null;
+  }
+
+  const topN = params.topN ?? 10;
+
+  type ToolAccum = { callCount: number; inputTokens: number; outputTokens: number; totalCost: number };
+  const toolMap = new Map<string, ToolAccum>();
+
+  // Cache token totals
+  let totalCacheRead = 0;
+  let totalCacheWrite = 0;
+  let cacheReadCost = 0;
+  let cacheWriteCost = 0;
+  // For computing input cost per token to estimate savings
+  let totalInputTokens = 0;
+  let totalInputCost = 0;
+
+  const allCalls: CostlyCall[] = [];
+  const hourlyMap = new Map<string, { calls: number; tokens: number; cost: number }>();
+
+  // Tool names from the last tool-use assistant message, used to attribute the
+  // subsequent synthesis reply to the same tools.
+  let pendingToolNames: string[] = [];
+
+  for await (const parsed of readJsonlRecords(sessionFile)) {
+    const message = parsed.message as Record<string, unknown> | undefined;
+    if (!message) continue;
+
+    const role = message.role as string | undefined;
+
+    if (role === "toolResult") {
+      // Each toolResult = one completed tool call execution
+      const rawName = message.toolName ?? message.tool_name ?? message.name;
+      const toolName = typeof rawName === "string" && rawName.trim() ? rawName.trim() : undefined;
+      if (toolName) {
+        const existing = toolMap.get(toolName) ?? { callCount: 0, inputTokens: 0, outputTokens: 0, totalCost: 0 };
+        existing.callCount += 1;
+        toolMap.set(toolName, existing);
+      }
+      continue;
+    }
+
+    if (role !== "assistant") continue;
+
+    const entry = parseTranscriptEntry(parsed as Record<string, unknown>);
+    if (!entry?.usage) continue;
+
+    // Resolve cost if not stored in log
+    if (entry.costTotal === undefined) {
+      const costCfg = resolveModelCostConfig({
+        provider: entry.provider,
+        model: entry.model,
+        config: params.config,
+      });
+      entry.costTotal = estimateUsageCost({ usage: entry.usage, cost: costCfg });
+    }
+
+    const msgInputTokens =
+      (entry.usage.input ?? 0) + (entry.usage.cacheRead ?? 0) + (entry.usage.cacheWrite ?? 0);
+    const msgOutputTokens = entry.usage.output ?? 0;
+    const msgCacheRead = entry.usage.cacheRead ?? 0;
+    const msgCacheWrite = entry.usage.cacheWrite ?? 0;
+    const msgCost = entry.costBreakdown?.total ?? entry.costTotal ?? 0;
+    const ts = entry.timestamp?.getTime() ?? 0;
+
+    totalCacheRead += msgCacheRead;
+    totalCacheWrite += msgCacheWrite;
+    if (entry.costBreakdown) {
+      cacheReadCost += entry.costBreakdown.cacheRead ?? 0;
+      cacheWriteCost += entry.costBreakdown.cacheWrite ?? 0;
+      totalInputCost += entry.costBreakdown.input ?? 0;
+      totalInputTokens += entry.usage.input ?? 0;
+    }
+
+    // Determine tool attribution for this assistant message
+    let attributedTools: string[];
+    if (entry.toolNames.length > 0) {
+      // This message calls tools — attribute to those tools and save for the next reply
+      attributedTools = entry.toolNames;
+      pendingToolNames = entry.toolNames;
+    } else if (pendingToolNames.length > 0) {
+      // Synthesis reply after tool results — attribute to the preceding tool names
+      attributedTools = pendingToolNames;
+      pendingToolNames = [];
+    } else {
+      // Direct reply with no tool context
+      attributedTools = ["direct_reply"];
+    }
+
+    // direct_reply callCount is incremented here (no toolResult message to count it)
+    if (attributedTools.length === 1 && attributedTools[0] === "direct_reply") {
+      const existing = toolMap.get("direct_reply") ?? { callCount: 0, inputTokens: 0, outputTokens: 0, totalCost: 0 };
+      existing.callCount += 1;
+      toolMap.set("direct_reply", existing);
+    }
+
+    // Distribute tokens/cost equally across all attributed tools
+    const share = 1 / attributedTools.length;
+    for (const toolName of attributedTools) {
+      const existing = toolMap.get(toolName) ?? { callCount: 0, inputTokens: 0, outputTokens: 0, totalCost: 0 };
+      existing.inputTokens += Math.round(msgInputTokens * share);
+      existing.outputTokens += Math.round(msgOutputTokens * share);
+      existing.totalCost += msgCost * share;
+      toolMap.set(toolName, existing);
+    }
+
+    if (ts) {
+      allCalls.push({
+        timestamp: ts,
+        model: entry.model ?? "unknown",
+        type: entry.toolNames.length > 0 ? "tool_call" : "reply",
+        toolsContext: attributedTools,
+        inputTokens: msgInputTokens,
+        outputTokens: msgOutputTokens,
+        cacheWrite: msgCacheWrite,
+        totalCost: msgCost,
+      });
+
+      const d = new Date(ts);
+      const hourKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}T${String(d.getUTCHours()).padStart(2, "0")}`;
+      const bucket = hourlyMap.get(hourKey) ?? { calls: 0, tokens: 0, cost: 0 };
+      bucket.calls += 1;
+      bucket.tokens += msgInputTokens + msgOutputTokens;
+      bucket.cost += msgCost;
+      hourlyMap.set(hourKey, bucket);
+    }
+  }
+
+  const sessionTotalCost = Array.from(toolMap.values()).reduce((sum, t) => sum + t.totalCost, 0);
+
+  const toolHotspots: ToolHotspot[] = Array.from(toolMap.entries())
+    .map(([toolName, data]) => ({
+      toolName,
+      callCount: data.callCount,
+      inputTokens: data.inputTokens,
+      outputTokens: data.outputTokens,
+      totalCost: data.totalCost,
+      costPercentage: sessionTotalCost > 0 ? (data.totalCost / sessionTotalCost) * 100 : 0,
+    }))
+    .toSorted((a, b) => b.totalCost - a.totalCost);
+
+  const totalCacheTokens = totalCacheRead + totalCacheWrite;
+  const hitRate = totalCacheTokens > 0 ? totalCacheRead / totalCacheTokens : 0;
+  // Estimated savings = what cache reads would cost at full input price minus what they actually cost
+  const inputCostPerToken = totalInputTokens > 0 ? totalInputCost / totalInputTokens : 0;
+  const estimatedSavings = Math.max(
+    0,
+    inputCostPerToken > 0 ? totalCacheRead * inputCostPerToken - cacheReadCost : 0,
+  );
+
+  const cacheEfficiency: CacheEfficiency = {
+    hitRate,
+    totalCacheRead,
+    totalCacheWrite,
+    cacheReadCost,
+    cacheWriteCost,
+    estimatedSavings,
+  };
+
+  const costliestCalls = allCalls.toSorted((a, b) => b.totalCost - a.totalCost).slice(0, topN);
+
+  const optimizationHints: OptimizationHint[] = [];
+
+  // Hint: high cache write cost (suggest heartbeat)
+  const cacheWritePercent = sessionTotalCost > 0 ? (cacheWriteCost / sessionTotalCost) * 100 : 0;
+  if (cacheWritePercent > 30) {
+    optimizationHints.push({
+      severity: "warning",
+      message: `Cache write is ${Math.round(cacheWritePercent)}% of total cost — consider heartbeat to keep cache warm`,
+    });
+  }
+
+  // Hint: low cache hit rate (cache expiring)
+  if (hitRate < 0.5 && totalCacheTokens > 0) {
+    optimizationHints.push({
+      severity: "warning",
+      message: `Cache hit rate is ${Math.round(hitRate * 100)}% — cache may be expiring; check heartbeat interval`,
+    });
+  }
+
+  // Hint: verbose responses
+  const verboseCount = allCalls.filter((c) => c.outputTokens > 1000).length;
+  if (verboseCount > 0) {
+    optimizationHints.push({
+      severity: "info",
+      message: `${verboseCount} call${verboseCount !== 1 ? "s" : ""} with output > 1000 tokens`,
+    });
+  }
+
+  // Hint: high-frequency tool usage (up to 3 hints)
+  let hintCount = 0;
+  for (const hotspot of toolHotspots) {
+    if (hintCount >= 3) break;
+    if (hotspot.callCount > 5 && hotspot.toolName !== "direct_reply") {
+      optimizationHints.push({
+        severity: "info",
+        message: `"${hotspot.toolName}" called ${hotspot.callCount} times — high-frequency tool usage`,
+      });
+      hintCount += 1;
+    }
+  }
+
+  const hourlyBreakdown = Array.from(hourlyMap.entries())
+    .map(([hour, data]) => ({ hour, ...data }))
+    .toSorted((a, b) => a.hour.localeCompare(b.hour));
+
+  return {
+    toolHotspots,
+    cacheEfficiency,
+    costliestCalls,
+    optimizationHints,
+    hourlyBreakdown,
+  };
 }

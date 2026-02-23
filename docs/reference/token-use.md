@@ -54,12 +54,16 @@ Use these in chat:
   - Persists per session (stored as `responseUsage`).
   - OAuth auth **hides cost** (tokens only).
 - `/usage cost` → shows a local cost summary from OpenClaw session logs.
+- `/usage hotspots` → shows a **token hotspot analysis** for the current session: top
+  cost consumers by tool, cache efficiency, and optimization hints (see below).
 
 Other surfaces:
 
 - **TUI/Web TUI:** `/status` + `/usage` are supported.
 - **CLI:** `openclaw status --usage` and `openclaw channels list` show
   provider quota windows (not per-response costs).
+- **CLI:** `openclaw gateway usage-hotspots --key <session-key>` prints hotspot analysis
+  for any session.
 
 ## Cost estimation (when shown)
 
@@ -124,6 +128,40 @@ agents:
 ```
 
 This maps to Anthropic's `context-1m-2025-08-07` beta header.
+
+## Token hotspot analysis
+
+The hotspot analysis breaks down **which tools or scenarios drive the most cost** in a session.
+Run it with `/usage hotspots` in chat or `openclaw gateway usage-hotspots --key <session-key>` from
+the CLI.
+
+### What it reports
+
+| Section | Description |
+|---|---|
+| **Top Token Consumers** | Tools ranked by total attributed cost, with call count and percentage of session total |
+| **Cache Efficiency** | Hit rate (cacheRead / total cache tokens), read/write costs, and estimated savings vs. full input pricing |
+| **Optimization Hints** | Actionable warnings and info notes based on usage patterns |
+| **Hourly Breakdown** | Per-hour call/token/cost breakdown (available via RPC/CLI `--json`) |
+
+### Optimization hints
+
+| Condition | Severity | Hint |
+|---|---|---|
+| Cache write cost > 30% of total | warning | Consider heartbeat to keep cache warm |
+| Cache hit rate < 50% (and cache was used) | warning | Cache may be expiring; check heartbeat interval |
+| Any call with output > 1000 tokens | info | Potential verbose responses |
+| Any tool called more than 5 times | info | High-frequency tool usage |
+
+### Attribution model
+
+Each assistant reply is attributed to the tool(s) it calls (or previously returned results from).
+If a reply invokes tools, usage is split equally across those tools. If a reply follows earlier
+tool results, it is attributed to those tools as synthesis cost. Replies with no tool context
+are attributed to `direct_reply`.
+
+Call counts come from `toolResult` messages (one per completed tool execution), so the count
+reflects actual tool executions rather than model invocations.
 
 ## Tips for reducing token pressure
 

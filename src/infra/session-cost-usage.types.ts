@@ -165,3 +165,58 @@ export type SessionLogEntry = {
   tokens?: number;
   cost?: number;
 };
+
+export type ToolHotspot = {
+  toolName: string;
+  callCount: number;
+  /** Tokens attributed to this tool (input + cacheRead + cacheWrite) */
+  inputTokens: number;
+  outputTokens: number;
+  totalCost: number;
+  /** Percentage of session total cost */
+  costPercentage: number;
+};
+
+export type CacheEfficiency = {
+  /** cacheRead / (cacheRead + cacheWrite) */
+  hitRate: number;
+  totalCacheRead: number;
+  totalCacheWrite: number;
+  cacheReadCost: number;
+  cacheWriteCost: number;
+  /** What cache reads would cost at full input token price */
+  estimatedSavings: number;
+};
+
+export type CostlyCall = {
+  timestamp: number;
+  model: string;
+  type: "tool_call" | "reply";
+  /** Tools attributed to this call */
+  toolsContext: string[];
+  inputTokens: number;
+  outputTokens: number;
+  cacheWrite: number;
+  totalCost: number;
+};
+
+export type OptimizationHint = {
+  severity: "info" | "warning";
+  message: string;
+};
+
+export type SessionHotspotAnalysis = {
+  /** Top token consumers sorted by totalCost desc */
+  toolHotspots: ToolHotspot[];
+  cacheEfficiency: CacheEfficiency;
+  /** Top N calls by cost */
+  costliestCalls: CostlyCall[];
+  optimizationHints: OptimizationHint[];
+  hourlyBreakdown: Array<{
+    /** ISO hour prefix e.g. "2026-02-23T14" (UTC) */
+    hour: string;
+    calls: number;
+    tokens: number;
+    cost: number;
+  }>;
+};

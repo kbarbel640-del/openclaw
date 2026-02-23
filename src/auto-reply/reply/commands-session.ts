@@ -11,7 +11,11 @@ import {
 import { logVerbose } from "../../globals.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { scheduleGatewaySigusr1Restart, triggerOpenClawRestart } from "../../infra/restart.js";
-import { loadCostUsageSummary, loadSessionCostSummary } from "../../infra/session-cost-usage.js";
+import {
+  loadCostUsageSummary,
+  loadSessionCostSummary,
+  loadSessionHotspotAnalysis,
+} from "../../infra/session-cost-usage.js";
 import { formatTokenCount, formatUsd } from "../../utils/usage-format.js";
 import { parseActivationCommand } from "../group-activation.js";
 import { parseSendPolicyCommand } from "../send-policy.js";
@@ -267,10 +271,59 @@ export const handleUsageCommand: CommandHandler = async (params, allowTextComman
     };
   }
 
+  if (rawArgs.toLowerCase().startsWith("hotspot")) {
+    const analysis = await loadSessionHotspotAnalysis({
+      sessionId: params.sessionEntry?.sessionId,
+      sessionEntry: params.sessionEntry,
+      sessionFile: params.sessionEntry?.sessionFile,
+      config: params.cfg,
+      agentId: params.agentId,
+    });
+
+    if (!analysis) {
+      return {
+        shouldContinue: false,
+        reply: { text: "📊 No session data found for hotspot analysis." },
+      };
+    }
+
+    const lines: string[] = ["📊 Token Hotspot Analysis"];
+
+    if (analysis.toolHotspots.length > 0) {
+      lines.push("\n🔥 Top Token Consumers:");
+      for (const [i, h] of analysis.toolHotspots.slice(0, 5).entries()) {
+        const cost = formatUsd(h.totalCost) ?? "n/a";
+        lines.push(
+          `${i + 1}. ${h.toolName} (${h.callCount} calls) — ${cost} (${h.costPercentage.toFixed(1)}%)`,
+        );
+      }
+    }
+
+    const { cacheEfficiency: ce } = analysis;
+    const hitPct = (ce.hitRate * 100).toFixed(1);
+    const readCost = formatUsd(ce.cacheReadCost) ?? "n/a";
+    const writeCost = formatUsd(ce.cacheWriteCost) ?? "n/a";
+    lines.push(`\n💾 Cache Efficiency: ${hitPct}% hit rate`);
+    lines.push(`  Read: ${readCost} | Write: ${writeCost}`);
+
+    if (analysis.optimizationHints.length > 0) {
+      lines.push("\n💡 Hints:");
+      for (const hint of analysis.optimizationHints) {
+        const icon = hint.severity === "warning" ? "⚠️" : "ℹ️";
+        lines.push(`${icon} ${hint.message}`);
+      }
+    }
+
+    return {
+      shouldContinue: false,
+      reply: { text: lines.join("\n") },
+    };
+  }
+
   if (rawArgs && !requested) {
     return {
       shouldContinue: false,
-      reply: { text: "⚙️ Usage: /usage off|tokens|full|cost" },
+      reply: { text: "⚙️ Usage: /usage off|tokens|full|cost|hotspots" },
     };
   }
 

@@ -3,7 +3,10 @@ import { gatewayStatusCommand } from "../../commands/gateway-status.js";
 import { formatHealthChannelLines, type HealthSummary } from "../../commands/health.js";
 import { loadConfig } from "../../config/config.js";
 import { discoverGatewayBeacons } from "../../infra/bonjour-discovery.js";
-import type { CostUsageSummary } from "../../infra/session-cost-usage.js";
+import type {
+  CostUsageSummary,
+  SessionHotspotAnalysis,
+} from "../../infra/session-cost-usage.js";
 import { resolveWideAreaDiscoveryDomain } from "../../infra/widearea-dns.js";
 import { defaultRuntime } from "../../runtime.js";
 import { styleHealthChannelLine } from "../../terminal/health-style.js";
@@ -58,6 +61,39 @@ function resolveGatewayRpcOptions<T extends { token?: string; password?: string 
     token: opts.token ?? parentToken,
     password: opts.password ?? parentPassword,
   };
+}
+
+function renderHotspotAnalysis(analysis: SessionHotspotAnalysis, rich: boolean): string[] {
+  const lines: string[] = [colorize(rich, theme.heading, "Token Hotspot Analysis")];
+
+  if (analysis.toolHotspots.length > 0) {
+    lines.push(colorize(rich, theme.muted, "Top Token Consumers:"));
+    for (const [i, h] of analysis.toolHotspots.slice(0, 10).entries()) {
+      const cost = formatUsd(h.totalCost) ?? "n/a";
+      const pct = `${h.costPercentage.toFixed(1)}%`;
+      lines.push(`  ${i + 1}. ${h.toolName} (${h.callCount} calls) — ${cost} (${pct})`);
+    }
+  }
+
+  const { cacheEfficiency: ce } = analysis;
+  const hitPct = `${(ce.hitRate * 100).toFixed(1)}%`;
+  const readCost = formatUsd(ce.cacheReadCost) ?? "n/a";
+  const writeCost = formatUsd(ce.cacheWriteCost) ?? "n/a";
+  lines.push(colorize(rich, theme.muted, `Cache Efficiency: ${hitPct} hit rate`));
+  lines.push(`  Read: ${readCost} | Write: ${writeCost}`);
+  if (ce.estimatedSavings > 0) {
+    lines.push(`  Estimated savings: ${formatUsd(ce.estimatedSavings) ?? "n/a"}`);
+  }
+
+  if (analysis.optimizationHints.length > 0) {
+    lines.push(colorize(rich, theme.muted, "Hints:"));
+    for (const hint of analysis.optimizationHints) {
+      const prefix = hint.severity === "warning" ? "  ⚠" : "  i";
+      lines.push(`${prefix} ${hint.message}`);
+    }
+  }
+
+  return lines;
 }
 
 function renderCostUsageSummary(summary: CostUsageSummary, days: number, rich: boolean): string[] {
@@ -155,6 +191,33 @@ export function registerGatewayCli(program: Command) {
             defaultRuntime.log(line);
           }
         }, "Gateway usage cost failed");
+      }),
+  );
+
+  gatewayCallOpts(
+    gateway
+      .command("usage-hotspots")
+      .description("Analyze token/cost hotspots for a session")
+      .requiredOption("--key <key>", "Session key to analyze")
+      .option("--top <n>", "Number of costly calls to include", "10")
+      .action(async (opts, command) => {
+        await runGatewayCommand(async () => {
+          const rpcOpts = resolveGatewayRpcOptions(opts, command);
+          const topN = parseDaysOption(opts.top, 10);
+          const result = await callGatewayCli("sessions.usage.hotspots", rpcOpts, {
+            key: opts.key,
+            topN,
+          });
+          if (rpcOpts.json) {
+            defaultRuntime.log(JSON.stringify(result, null, 2));
+            return;
+          }
+          const rich = isRich();
+          const analysis = result as SessionHotspotAnalysis;
+          for (const line of renderHotspotAnalysis(analysis, rich)) {
+            defaultRuntime.log(line);
+          }
+        }, "Gateway usage hotspots failed");
       }),
   );
 
