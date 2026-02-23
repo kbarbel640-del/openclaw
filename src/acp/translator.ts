@@ -427,6 +427,20 @@ export class AcpGatewayAgent implements Agent {
     }
 
     if (state === "final") {
+      // Send the final message content to the client via sessionUpdate
+      if (messageData) {
+        const content = messageData.content as Array<{ type: string; text?: string }> | undefined;
+        if (content) {
+          const fullText = content.find((c) => c.type === "text")?.text ?? "";
+          await this.connection.sessionUpdate({
+            sessionId: pending.sessionId,
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: fullText },
+            },
+          });
+        }
+      }
       this.finishPrompt(pending.sessionId, pending, "end_turn");
       return;
     }
