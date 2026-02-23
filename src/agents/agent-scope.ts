@@ -144,14 +144,29 @@ export function resolveAgentSkillsFilter(
 
 export function resolveAgentModelPrimary(cfg: OpenClawConfig, agentId: string): string | undefined {
   const raw = resolveAgentConfig(cfg, agentId)?.model;
-  if (!raw) {
+  if (raw) {
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    } else {
+      const primary = raw.primary?.trim();
+      if (primary) {
+        return primary;
+      }
+    }
+  }
+
+  // Fallback to agents.defaults.model when agent has no model configured
+  const defaultModel = cfg.agents?.defaults?.model;
+  if (!defaultModel) {
     return undefined;
   }
-  if (typeof raw === "string") {
-    return raw.trim() || undefined;
+  if (typeof defaultModel === "string") {
+    return defaultModel.trim() || undefined;
   }
-  const primary = raw.primary?.trim();
-  return primary || undefined;
+  return defaultModel.primary?.trim() || undefined;
 }
 
 export function resolveAgentModelFallbacksOverride(

@@ -59,6 +59,38 @@ describe("resolveAgentConfig", () => {
     });
   });
 
+  it("falls back to agents.defaults.model when agent has no model configured", () => {
+    const cfgWithStringDefault: OpenClawConfig = {
+      agents: {
+        defaults: {
+          model: "anthropic/claude-sonnet-4",
+        },
+        list: [{ id: "main" }],
+      },
+    };
+    expect(resolveAgentModelPrimary(cfgWithStringDefault, "main")).toBe("anthropic/claude-sonnet-4");
+
+    const cfgWithObjectDefault: OpenClawConfig = {
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai/gpt-5.2",
+            fallbacks: ["anthropic/claude-sonnet-4"],
+          },
+        },
+        list: [{ id: "main" }],
+      },
+    };
+    expect(resolveAgentModelPrimary(cfgWithObjectDefault, "main")).toBe("openai/gpt-5.2");
+
+    const cfgNoDefaults: OpenClawConfig = {
+      agents: {
+        list: [{ id: "main" }],
+      },
+    };
+    expect(resolveAgentModelPrimary(cfgNoDefaults, "main")).toBeUndefined();
+  });
+
   it("supports per-agent model primary+fallbacks", () => {
     const cfg: OpenClawConfig = {
       agents: {
