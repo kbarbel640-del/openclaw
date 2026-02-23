@@ -38,6 +38,26 @@ import type { SpawnSubagentMode } from "./subagent-spawn.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
 import { sanitizeTextContent, extractAssistantText } from "./tools/sessions-helpers.js";
 
+/**
+ * Strip internal system framing from announce trigger messages before they
+ * reach the gateway delivery path.  Defence-in-depth: even when the agent
+ * processes the message normally, stripping ensures raw system text can never
+ * leak to the user-facing channel on timeout or failover.
+ */
+function stripSystemFraming(text: string): string {
+  return text
+    .replace(/^\[System Message\]\s*\[sessionId:[^\]]*\]\s*/gm, "")
+    .replace(/^Stats:\s+runtime\b.*$/gm, "")
+    .replace(
+      /^A completed (?:cron job|subagent task) is ready for user delivery\.\s*/gm,
+      "",
+    )
+    .replace(/Keep this internal context private[^.]*\./g, "")
+    .replace(/Reply ONLY:[^\n]*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const FAST_TEST_MODE = process.env.OPENCLAW_TEST_FAST === "1";
 const FAST_TEST_RETRY_INTERVAL_MS = 8;
 const FAST_TEST_REPLY_CHANGE_WAIT_MS = 20;
@@ -498,7 +518,7 @@ async function sendAnnounce(item: AnnounceQueueItem) {
     method: "agent",
     params: {
       sessionKey: item.sessionKey,
-      message: item.prompt,
+      message: stripSystemFraming(item.prompt),
       channel: requesterIsSubagent ? undefined : origin?.channel,
       accountId: requesterIsSubagent ? undefined : origin?.accountId,
       to: requesterIsSubagent ? undefined : origin?.to,
@@ -744,7 +764,7 @@ async function sendSubagentAnnounceDirectly(params: {
       method: "agent",
       params: {
         sessionKey: canonicalRequesterSessionKey,
-        message: params.triggerMessage,
+        message: stripSystemFraming(params.triggerMessage),
         deliver: !params.requesterIsSubagent,
         channel: params.requesterIsSubagent ? undefined : directOrigin?.channel,
         accountId: params.requesterIsSubagent ? undefined : directOrigin?.accountId,
