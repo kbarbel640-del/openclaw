@@ -30,6 +30,7 @@ export const ModelCompatSchema = z
     requiresThinkingAsText: z.boolean().optional(),
     requiresMistralToolIds: z.boolean().optional(),
     requiresAdditionalPropertiesFalse: z.boolean().optional(),
+    requiresCleanSchema: z.boolean().optional(),
   })
   .strict()
   .optional();

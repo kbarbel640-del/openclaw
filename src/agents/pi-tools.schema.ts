@@ -94,13 +94,16 @@ export function normalizeToolParameters(
     options?.modelProvider?.toLowerCase().includes("google") ||
     options?.modelProvider?.toLowerCase().includes("gemini");
   const isAnthropicProvider = options?.modelProvider?.toLowerCase().includes("anthropic");
+  const requiresCleanSchema = options?.compat?.requiresCleanSchema === true;
 
   // If schema already has type + properties (no top-level anyOf to merge),
   // clean it for Gemini compatibility (but only if using Gemini, not Anthropic)
+  // Also clean for providers that require clean schemas (e.g., AbacusAI RouteLLM)
+  const shouldCleanSchema = (isGeminiProvider && !isAnthropicProvider) || requiresCleanSchema;
   if ("type" in schema && "properties" in schema && !Array.isArray(schema.anyOf)) {
     return {
       ...tool,
-      parameters: isGeminiProvider && !isAnthropicProvider ? cleanSchemaForGemini(schema) : schema,
+      parameters: shouldCleanSchema ? cleanSchemaForGemini(schema) : schema,
     };
   }
 
@@ -115,10 +118,7 @@ export function normalizeToolParameters(
     const schemaWithType = { ...schema, type: "object" };
     return {
       ...tool,
-      parameters:
-        isGeminiProvider && !isAnthropicProvider
-          ? cleanSchemaForGemini(schemaWithType)
-          : schemaWithType,
+      parameters: shouldCleanSchema ? cleanSchemaForGemini(schemaWithType) : schemaWithType,
     };
   }
 
@@ -195,10 +195,7 @@ export function normalizeToolParameters(
     // - OpenAI rejects schemas without top-level `type: "object"`.
     // - Anthropic accepts proper JSON Schema with constraints.
     // Merging properties preserves useful enums like `action` while keeping schemas portable.
-    parameters:
-      isGeminiProvider && !isAnthropicProvider
-        ? cleanSchemaForGemini(flattenedSchema)
-        : flattenedSchema,
+    parameters: shouldCleanSchema ? cleanSchemaForGemini(flattenedSchema) : flattenedSchema,
   };
 }
 

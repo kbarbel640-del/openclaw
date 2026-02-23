@@ -1,0 +1,14 @@
+{
+  "name": "@openclaw/notebooklm-sync",
+  "version": "0.1.0",
+  "description": "Sync NotebookLM knowledge sources (web, PDF, Google Docs, YouTube) into OpenClaw memory",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

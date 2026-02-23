@@ -21,6 +21,8 @@ export type ModelCompatConfig = {
   requiresMistralToolIds?: boolean;
   /** If true, tool parameters will have additionalProperties: false instead of true. Required by some providers like AbacusAI RouteLLM. */
   requiresAdditionalPropertiesFalse?: boolean;
+  /** If true, tool schemas will be cleaned of unsupported keywords (patternProperties, $ref, etc). Required by some providers like AbacusAI RouteLLM. */
+  requiresCleanSchema?: boolean;
 };
 
 export type ModelProviderAuthMode = "api-key" | "aws-sdk" | "oauth" | "token";

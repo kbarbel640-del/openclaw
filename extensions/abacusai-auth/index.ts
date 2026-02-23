@@ -504,7 +504,7 @@ interface PluginAuthContext {
 const abacusaiPlugin = {
   id: "abacusai-auth",
   name: "AbacusAI Auth",
-  description: "AbacusAI RouteLLM provider plugin with local proxy for response normalization",
+  description: "AbacusAI RouteLLM provider plugin with direct connection and schema normalization",
   configSchema: emptyPluginConfigSchema(),
   register(api: unknown) {
     const pluginApi = api as {
@@ -514,20 +514,8 @@ const abacusaiPlugin = {
       };
     };
 
-    // Check if direct connection is configured (supportsStrictMode: false in compat)
-    // If so, skip proxy startup - the core code handles strict field removal
-    const providerCompat = pluginApi.config?.models?.providers?.abacusai?.compat;
-    const useDirectConnection = providerCompat?.supportsStrictMode === false;
-
-    // Try to start proxy on plugin load if we have stored credentials and not using direct connection
-    if (!useDirectConnection) {
-      const storedKey = tryRecoverApiKey();
-      if (storedKey) {
-        startProxy(storedKey).catch(() => {
-          // Proxy start failed, will retry on auth
-        });
-      }
-    }
+    // Direct connection mode - no proxy needed
+    // Core code handles schema cleaning via requiresCleanSchema compat option
 
     pluginApi.registerProvider({
       id: "abacusai",
@@ -610,10 +598,6 @@ const abacusaiPlugin = {
                 }
               }
 
-              // --- Start proxy for response normalization ---
-              spin.update("Starting local proxy…");
-              await startProxy(apiKey);
-
               // --- Model selection ---
               const modelInput = await ctx.prompter.text({
                 message: "Model IDs (comma-separated)",
@@ -626,7 +610,6 @@ const abacusaiPlugin = {
               const defaultModelRef = `abacusai/${defaultModelId}`;
 
               const profileId = `abacusai:${validation.email ?? "default"}`;
-              const proxyBaseUrl = `http://${PROXY_HOST}:${PROXY_PORT}`;
               spin.stop("AbacusAI configured");
 
               return {
@@ -645,13 +628,14 @@ const abacusaiPlugin = {
                   models: {
                     providers: {
                       abacusai: {
-                        baseUrl: proxyBaseUrl,
+                        baseUrl: ROUTELLM_BASE,
                         api: "openai-completions",
-                        apiKey: "abacusai-proxy",
-                        authHeader: false,
+                        auth: "token",
                         models: modelIds.map((id) => buildModelDefinition(id)),
                         compat: {
                           requiresAdditionalPropertiesFalse: true,
+                          supportsStrictMode: false,
+                          requiresCleanSchema: true,
                         },
                       },
                     },
@@ -664,7 +648,7 @@ const abacusaiPlugin = {
                 },
                 defaultModel: defaultModelRef,
                 notes: [
-                  "Local proxy normalizes RouteLLM responses for OpenAI SDK compatibility.",
+                  "Direct connection to AbacusAI RouteLLM with schema normalization.",
                   "Full OpenAI function-calling support is enabled.",
                   "Manage your API keys at https://abacus.ai/app/profile/apikey",
                 ],
