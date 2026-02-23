@@ -6,6 +6,7 @@ import {
   updateLocalConfig,
   rotateGatewayToken,
   type RotationDeps,
+  type SmClient,
 } from "./auto-rotation.js";
 
 // ===========================================================================
@@ -44,7 +45,7 @@ describe("storeNewSecretVersion", () => {
       addSecretVersion: vi.fn().mockResolvedValue([{ name: "projects/p/secrets/s/versions/2" }]),
     };
     const result = await storeNewSecretVersion(
-      mockClient as any,
+      mockClient as unknown as SmClient,
       "n30-agents",
       "openclaw-main-gateway-token",
       "newtoken123",
@@ -70,7 +71,7 @@ describe("updateRotationLabels", () => {
     const now = new Date("2026-02-15T14:30:00.000Z");
 
     await updateRotationLabels(
-      mockClient as any,
+      mockClient as unknown as SmClient,
       "n30-agents",
       "openclaw-main-gateway-token",
       30,
@@ -96,13 +97,13 @@ describe("updateLocalConfig", () => {
       gateway: { auth: { mode: "token", token: "oldtoken" } },
       other: "stuff",
     };
-    const result = updateLocalConfig(config, "newtoken");
+    const result = updateLocalConfig(config, "newtoken") as typeof config;
     expect(result.gateway.auth.token).toBe("newtoken");
     expect(result.other).toBe("stuff");
   });
 
   it("throws if config has no gateway.auth.token", () => {
-    expect(() => updateLocalConfig({} as any, "newtoken")).toThrow();
+    expect(() => updateLocalConfig({}, "newtoken")).toThrow();
   });
 });
 
@@ -112,7 +113,7 @@ describe("updateLocalConfig", () => {
 
 describe("rotateGatewayToken", () => {
   let deps: RotationDeps;
-  let writtenConfig: any;
+  let writtenConfig: unknown;
 
   beforeEach(() => {
     writtenConfig = null;
@@ -128,9 +129,9 @@ describe("rotateGatewayToken", () => {
       }),
       getClient: vi.fn().mockResolvedValue({
         addSecretVersion: vi.fn().mockResolvedValue([{ name: "projects/p/secrets/s/versions/5" }]),
-        accessSecretVersion: vi.fn().mockResolvedValue([
-          { payload: { data: Buffer.from("the-new-token") } },
-        ]),
+        accessSecretVersion: vi
+          .fn()
+          .mockResolvedValue([{ payload: { data: Buffer.from("the-new-token") } }]),
         getSecret: vi.fn().mockResolvedValue([{ labels: {} }]),
         updateSecret: vi.fn().mockResolvedValue([{}]),
       }),
@@ -145,22 +146,26 @@ describe("rotateGatewayToken", () => {
     expect(result.oldToken).toBe("oldtoken123");
     expect(result.newToken).toHaveLength(64); // 32 bytes hex
     expect(deps.writeConfig).toHaveBeenCalled();
-    expect(writtenConfig.gateway.auth.token).toBe(result.newToken);
+    const wc = writtenConfig as { gateway: { auth: { token: string } } };
+    expect(wc.gateway.auth.token).toBe(result.newToken);
   });
 
   it("verifies the new token is readable from GCP before updating config", async () => {
     const client = await deps.getClient();
     const callOrder: string[] = [];
-    (client.addSecretVersion as any).mockImplementation(() => {
+    vi.mocked(client.addSecretVersion).mockImplementation(() => {
       callOrder.push("add");
-      return [{ name: "ver/1" }];
+      return Promise.resolve([{ name: "ver/1" }]) as ReturnType<SmClient["addSecretVersion"]>;
     });
-    (client.accessSecretVersion as any).mockImplementation(() => {
+    vi.mocked(client.accessSecretVersion).mockImplementation(() => {
       callOrder.push("verify");
-      return [{ payload: { data: Buffer.from("x") } }];
+      return Promise.resolve([{ payload: { data: Buffer.from("x") } }]) as ReturnType<
+        SmClient["accessSecretVersion"]
+      >;
     });
-    (deps.writeConfig as any).mockImplementation(() => {
+    vi.mocked(deps.writeConfig).mockImplementation(() => {
       callOrder.push("write");
+      return Promise.resolve();
     });
 
     await rotateGatewayToken(deps);
@@ -169,7 +174,7 @@ describe("rotateGatewayToken", () => {
 
   it("does not update config if GCP verification fails", async () => {
     const client = await deps.getClient();
-    (client.accessSecretVersion as any).mockRejectedValue(new Error("GCP down"));
+    vi.mocked(client.accessSecretVersion).mockRejectedValue(new Error("GCP down"));
 
     const result = await rotateGatewayToken(deps);
     expect(result.success).toBe(false);
@@ -179,7 +184,7 @@ describe("rotateGatewayToken", () => {
 
   it("returns old token for rollback on failure", async () => {
     const client = await deps.getClient();
-    (client.accessSecretVersion as any).mockRejectedValue(new Error("fail"));
+    vi.mocked(client.accessSecretVersion).mockRejectedValue(new Error("fail"));
 
     const result = await rotateGatewayToken(deps);
     expect(result.oldToken).toBe("oldtoken123");

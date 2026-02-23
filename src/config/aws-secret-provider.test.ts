@@ -4,7 +4,7 @@
  * All tests use mocked SDK — no real AWS credentials needed.
  */
 
-import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { clearSecretCache, type SecretProvider } from "./secret-resolution.js";
 
 // ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ describe("AwsSecretProvider — getSecret", () => {
 
   it("throws on ResourceNotFoundException", async () => {
     const err = new Error("Secret not found");
-    (err as any).name = "ResourceNotFoundException";
+    (err as { name: string }).name = "ResourceNotFoundException";
     mockSend.mockRejectedValueOnce(err);
     const provider = new AwsSecretProvider({ region: "us-east-1" });
     await expect(provider.getSecret("missing")).rejects.toThrow(/not found/i);
@@ -120,7 +120,7 @@ describe("AwsSecretProvider — getSecret", () => {
 
   it("throws on AccessDeniedException", async () => {
     const err = new Error("Access denied");
-    (err as any).name = "AccessDeniedException";
+    (err as { name: string }).name = "AccessDeniedException";
     mockSend.mockRejectedValueOnce(err);
     const provider = new AwsSecretProvider({ region: "us-east-1" });
     await expect(provider.getSecret("forbidden")).rejects.toThrow(/permission denied/i);
@@ -128,7 +128,7 @@ describe("AwsSecretProvider — getSecret", () => {
 
   it("throws on DecryptionFailureException", async () => {
     const err = new Error("Cannot decrypt");
-    (err as any).name = "DecryptionFailureException";
+    (err as { name: string }).name = "DecryptionFailureException";
     mockSend.mockRejectedValueOnce(err);
     const provider = new AwsSecretProvider({ region: "us-east-1" });
     await expect(provider.getSecret("encrypted")).rejects.toThrow(/decrypt/i);
@@ -177,7 +177,7 @@ describe("AwsSecretProvider — setSecret", () => {
 
   it("falls back to create + put if ResourceNotFoundException on put", async () => {
     const err = new Error("not found");
-    (err as any).name = "ResourceNotFoundException";
+    (err as { name: string }).name = "ResourceNotFoundException";
     mockSend
       .mockRejectedValueOnce(err) // PutSecretValue fails — doesn't exist
       .mockResolvedValueOnce({}) // CreateSecret

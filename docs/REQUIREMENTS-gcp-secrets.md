@@ -31,6 +31,7 @@ OpenClaw stores all credentials (API keys, tokens, secrets) in plaintext files o
 ## 3. Scope
 
 ### In Scope
+
 - GCP Secret Manager as the first secrets provider
 - Bootstrapping: automated setup of GCP Secret Manager (enable APIs, create resources, configure IAM) when it doesn't exist
 - Secret references in OpenClaw config files, resolved at runtime
@@ -40,8 +41,9 @@ OpenClaw stores all credentials (API keys, tokens, secrets) in plaintext files o
 - Documentation
 
 ### Out of Scope (future work)
-- Other providers (AWS Secrets Manager, Azure Key Vault, HashiCorp Vault) — should follow the same pattern established here *(now in scope — see [multi-provider requirements](https://github.com/amor71/openclaw-secrets-providers/blob/main/REQUIREMENTS.md))*
-- Automatic secret rotation via provider-native mechanisms *(now in scope — see multi-provider requirements §11)*
+
+- Other providers (AWS Secrets Manager, Azure Key Vault, HashiCorp Vault) — should follow the same pattern established here _(now in scope — see [multi-provider requirements](https://github.com/amor71/openclaw-secrets-providers/blob/main/REQUIREMENTS.md))_
+- Automatic secret rotation via provider-native mechanisms _(now in scope — see multi-provider requirements §11)_
 - UI for managing secrets
 
 ## 4. Functional Requirements
@@ -119,12 +121,14 @@ Users must be able to:
 The system has two distinct access contexts with different requirements:
 
 ### Setup-time (bootstrapping, migration)
+
 - Performed once, by an administrator (human or privileged agent)
 - Requires elevated GCP permissions: enable APIs, create secrets, configure IAM
 - May require `gcloud` CLI or equivalent tooling on the host
 - This is an explicit, interactive action — not something agents do autonomously
 
 ### Runtime (agents fetching secrets)
+
 - Performed continuously, by agents during normal operation
 - Requires only read access to specific secrets the agent is authorized for
 - Must not require `gcloud` CLI — should work with standard application credentials (service account, compute metadata, workload identity)
@@ -151,13 +155,13 @@ Many secrets stored in the secrets manager are third-party API keys (e.g., Alpac
 
 Default rotation intervals should follow industry best practices (NIST SP 800-63B, cloud provider recommendations):
 
-| Secret Type | Rotation | Recommended Interval | Rationale |
-|-------------|----------|---------------------|-----------|
-| Self-managed tokens (gateway, internal auth) | Auto | **30 days** | High privilege, zero cost to rotate. Follows AWS default and NIST guidance for high-value credentials. |
-| Third-party API keys (OpenAI, Anthropic, Brave, etc.) | Manual | **90 days** | Requires human action in provider dashboard. 90 days balances security with operational burden. |
-| Database credentials | Auto/Dynamic | **30 days** (static) / **1 hour** (dynamic/Vault) | Per NIST and cloud provider defaults. Dynamic credentials should be short-lived. |
-| Email/SMTP passwords | Manual | **180 days** | Lower risk, higher friction to rotate. |
-| Broker API keys (Alpaca, etc.) | Manual | **180 days** | Financial API keys — rotate semi-annually, or immediately on suspected compromise. |
+| Secret Type                                           | Rotation     | Recommended Interval                              | Rationale                                                                                              |
+| ----------------------------------------------------- | ------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Self-managed tokens (gateway, internal auth)          | Auto         | **30 days**                                       | High privilege, zero cost to rotate. Follows AWS default and NIST guidance for high-value credentials. |
+| Third-party API keys (OpenAI, Anthropic, Brave, etc.) | Manual       | **90 days**                                       | Requires human action in provider dashboard. 90 days balances security with operational burden.        |
+| Database credentials                                  | Auto/Dynamic | **30 days** (static) / **1 hour** (dynamic/Vault) | Per NIST and cloud provider defaults. Dynamic credentials should be short-lived.                       |
+| Email/SMTP passwords                                  | Manual       | **180 days**                                      | Lower risk, higher friction to rotate.                                                                 |
+| Broker API keys (Alpaca, etc.)                        | Manual       | **180 days**                                      | Financial API keys — rotate semi-annually, or immediately on suspected compromise.                     |
 
 - These defaults must be configurable per secret — they are recommendations, not hard requirements
 - The system should apply the appropriate default interval based on secret type when no explicit interval is set
@@ -200,4 +204,4 @@ Default rotation intervals should follow industry best practices (NIST SP 800-63
 
 ---
 
-*This document describes WHAT the system must do. The HOW (architecture, interfaces, data flow, technology choices) will be covered in the Design document.*
+_This document describes WHAT the system must do. The HOW (architecture, interfaces, data flow, technology choices) will be covered in the Design document._

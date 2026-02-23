@@ -33,7 +33,6 @@ import { execFile } from "node:child_process";
 import { homedir, platform } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-
 import type { SecretProvider } from "./secret-resolution.js";
 
 const execFileAsync = promisify(execFile);
@@ -62,8 +61,7 @@ export class KeyringSecretProvider implements SecretProvider {
     this.account = config.account ?? "openclaw";
     this.os = platform();
     this.keychainPath =
-      config.keychainPath ??
-      path.join(homedir(), "Library", "Keychains", "openclaw.keychain-db");
+      config.keychainPath ?? path.join(homedir(), "Library", "Keychains", "openclaw.keychain-db");
     this.keychainPassword = config.keychainPassword ?? "";
   }
 
@@ -109,7 +107,9 @@ export class KeyringSecretProvider implements SecretProvider {
   // ---------------------------------------------------------------------------
 
   private async macEnsureUnlocked(): Promise<void> {
-    if (this.macUnlocked) return;
+    if (this.macUnlocked) {
+      return;
+    }
 
     const UNLOCK_TIMEOUT_MS = 10_000;
     const child = execFile("security", ["unlock-keychain", this.keychainPath], {
@@ -149,9 +149,9 @@ export class KeyringSecretProvider implements SecretProvider {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("could not be found") || msg.includes("SecKeychainSearchCopyNext")) {
-        throw new Error(`Secret "${name}" not found in macOS keychain`);
+        throw new Error(`Secret "${name}" not found in macOS keychain`, { cause: err });
       }
-      throw new Error(`Failed to retrieve secret "${name}" from keychain: ${msg}`);
+      throw new Error(`Failed to retrieve secret "${name}" from keychain: ${msg}`, { cause: err });
     }
   }
 
@@ -160,7 +160,9 @@ export class KeyringSecretProvider implements SecretProvider {
   // ---------------------------------------------------------------------------
 
   private async linuxEnsureSecretTool(): Promise<void> {
-    if (this.linuxChecked) return;
+    if (this.linuxChecked) {
+      return;
+    }
     try {
       await execFileAsync("which", ["secret-tool"]);
       this.linuxChecked = true;

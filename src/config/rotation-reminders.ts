@@ -52,7 +52,9 @@ function encodeTimestamp(d: Date): string {
 }
 
 function decodeTimestamp(s: string): Date | undefined {
-  if (!s) return undefined;
+  if (!s) {
+    return undefined;
+  }
   // 2026-01-01t00-00-00-000z → 2026-01-01T00:00:00.000Z
   // Pattern: YYYY-MM-DDtHH-MM-SS-mmmZ or YYYY-MM-DDtHH-MM-SSZ
   const restored = s
@@ -70,7 +72,8 @@ const VALID_ROTATION_TYPES = new Set<RotationType>(["auto", "manual", "dynamic"]
 
 export function parseRotationLabels(labels: Record<string, string>): RotationMetadata {
   const rawType = labels["rotation-type"] as RotationType | undefined;
-  const rotationType: RotationType = rawType && VALID_ROTATION_TYPES.has(rawType) ? rawType : "manual";
+  const rotationType: RotationType =
+    rawType && VALID_ROTATION_TYPES.has(rawType) ? rawType : "manual";
 
   const rawInterval = parseInt(labels["rotation-interval-days"] ?? "", 10);
   const rotationIntervalDays = isNaN(rawInterval) || rawInterval <= 0 ? 90 : rawInterval;
@@ -89,9 +92,15 @@ export function buildRotationLabels(meta: RotationMetadata): Record<string, stri
     "rotation-type": meta.rotationType,
     "rotation-interval-days": String(meta.rotationIntervalDays),
   };
-  if (meta.lastRotated) labels["last-rotated"] = encodeTimestamp(meta.lastRotated);
-  if (meta.expiresAt) labels["expires-at"] = encodeTimestamp(meta.expiresAt);
-  if (meta.snoozedUntil) labels["snoozed-until"] = encodeTimestamp(meta.snoozedUntil);
+  if (meta.lastRotated) {
+    labels["last-rotated"] = encodeTimestamp(meta.lastRotated);
+  }
+  if (meta.expiresAt) {
+    labels["expires-at"] = encodeTimestamp(meta.expiresAt);
+  }
+  if (meta.snoozedUntil) {
+    labels["snoozed-until"] = encodeTimestamp(meta.snoozedUntil);
+  }
   return labels;
 }
 
@@ -135,11 +144,15 @@ export function checkRotationStatus(
   const daysSinceRotation = (now.getTime() - meta.lastRotated.getTime()) / MS_PER_DAY;
   if (daysSinceRotation > meta.rotationIntervalDays) {
     const daysOverdue = Math.floor(daysSinceRotation - meta.rotationIntervalDays);
-    const nextReviewDate = new Date(meta.lastRotated.getTime() + meta.rotationIntervalDays * MS_PER_DAY);
+    const nextReviewDate = new Date(
+      meta.lastRotated.getTime() + meta.rotationIntervalDays * MS_PER_DAY,
+    );
     return { state: "review-due", daysOverdue, nextReviewDate };
   }
 
-  const nextReviewDate = new Date(meta.lastRotated.getTime() + meta.rotationIntervalDays * MS_PER_DAY);
+  const nextReviewDate = new Date(
+    meta.lastRotated.getTime() + meta.rotationIntervalDays * MS_PER_DAY,
+  );
   return { state: "ok", nextReviewDate };
 }
 
@@ -178,7 +191,10 @@ export function emitRotationEvents(
         listener("secret:expiring-soon", r.name, { daysUntilExpiry: r.status.daysUntilExpiry });
         break;
       case "expired":
-        listener("secret:expiring-soon", r.name, { daysUntilExpiry: r.status.daysUntilExpiry, expired: true });
+        listener("secret:expiring-soon", r.name, {
+          daysUntilExpiry: r.status.daysUntilExpiry,
+          expired: true,
+        });
         break;
     }
   }

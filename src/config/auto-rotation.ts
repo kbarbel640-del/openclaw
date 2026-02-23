@@ -21,18 +21,18 @@ import { readFile, writeFile } from "node:fs/promises";
 
 // Minimal GCP Secret Manager client interface (for testability)
 export interface SmClient {
-  addSecretVersion(req: {
+  addSecretVersion: (req: {
     parent: string;
     payload: { data: Buffer };
-  }): Promise<[{ name: string }]>;
-  accessSecretVersion(req: {
+  }) => Promise<[{ name: string }]>;
+  accessSecretVersion: (req: {
     name: string;
-  }): Promise<[{ payload?: { data?: Uint8Array | string } }]>;
-  getSecret(req: { name: string }): Promise<[{ labels?: Record<string, string> }]>;
-  updateSecret(req: {
+  }) => Promise<[{ payload?: { data?: Uint8Array | string } }]>;
+  getSecret: (req: { name: string }) => Promise<[{ labels?: Record<string, string> }]>;
+  updateSecret: (req: {
     secret: { name: string; labels: Record<string, string> };
     updateMask: { paths: string[] };
-  }): Promise<[unknown]>;
+  }) => Promise<[unknown]>;
 }
 
 export interface RotationDeps {
@@ -40,8 +40,8 @@ export interface RotationDeps {
   secretName: string;
   configPath: string;
   intervalDays?: number;
-  readConfig: (path: string) => Promise<any>;
-  writeConfig: (path: string, config: any) => Promise<void>;
+  readConfig: (path: string) => Promise<unknown>;
+  writeConfig: (path: string, config: unknown) => Promise<void>;
   getClient: () => Promise<SmClient>;
 }
 
@@ -113,16 +113,22 @@ export async function updateRotationLabels(
 // Local Config Update
 // ---------------------------------------------------------------------------
 
-export function updateLocalConfig(config: any, newToken: string): any {
-  if (!config?.gateway?.auth?.token) {
+export function updateLocalConfig(config: unknown, newToken: string): unknown {
+  const cfg = config as Record<string, unknown>;
+  if (!(cfg?.gateway as Record<string, unknown>)?.auth) {
+    throw new Error("Config does not contain gateway.auth.token");
+  }
+  const gateway = cfg.gateway as Record<string, unknown>;
+  const auth = gateway.auth as Record<string, unknown>;
+  if (!auth?.token) {
     throw new Error("Config does not contain gateway.auth.token");
   }
   return {
-    ...config,
+    ...cfg,
     gateway: {
-      ...config.gateway,
+      ...gateway,
       auth: {
-        ...config.gateway.auth,
+        ...auth,
         token: newToken,
       },
     },
@@ -133,12 +139,12 @@ export function updateLocalConfig(config: any, newToken: string): any {
 // Default file helpers
 // ---------------------------------------------------------------------------
 
-async function defaultReadConfig(path: string): Promise<any> {
+async function defaultReadConfig(path: string): Promise<unknown> {
   const raw = await readFile(path, "utf-8");
-  return JSON.parse(raw);
+  return JSON.parse(raw) as unknown;
 }
 
-async function defaultWriteConfig(path: string, config: any): Promise<void> {
+async function defaultWriteConfig(path: string, config: unknown): Promise<void> {
   await writeFile(path, JSON.stringify(config, null, 2) + "\n", "utf-8");
 }
 
@@ -166,7 +172,12 @@ export async function rotateGatewayToken(deps: RotationDeps): Promise<RotationRe
   const config = await readConfig(configPath);
   const oldToken = config?.gateway?.auth?.token;
   if (!oldToken) {
-    return { success: false, oldToken: "", newToken: "", error: "No gateway token found in config" };
+    return {
+      success: false,
+      oldToken: "",
+      newToken: "",
+      error: "No gateway token found in config",
+    };
   }
 
   // 2. Generate new token

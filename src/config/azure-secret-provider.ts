@@ -32,16 +32,16 @@ export interface AzureSecretConfig {
 
 /** Minimal SecretClient interface for mocking. */
 export interface AzureSecretClient {
-  getSecret(
+  getSecret: (
     name: string,
     options?: { version?: string },
-  ): Promise<{ value?: string; properties: { version?: string; tags?: Record<string, string> } }>;
-  setSecret(
+  ) => Promise<{ value?: string; properties: { version?: string; tags?: Record<string, string> } }>;
+  setSecret: (
     name: string,
     value: string,
     options?: { tags?: Record<string, string> },
-  ): Promise<{ properties: { version?: string } }>;
-  listPropertiesOfSecrets(): AsyncIterable<{ name: string }>;
+  ) => Promise<{ properties: { version?: string } }>;
+  listPropertiesOfSecrets: () => AsyncIterable<{ name: string }>;
 }
 
 /** Minimal credential interface. */

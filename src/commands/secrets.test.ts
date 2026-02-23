@@ -415,8 +415,22 @@ describe("openclaw secrets remind list", () => {
     try {
       const exitCode = await secretsRemindListCommand({
         _mockSecrets: [
-          { name: "my-api-key", labels: { "rotation-type": "manual", "rotation-interval-days": "90", "last-rotated": "2026-02-01t00-00-00-000z" } },
-          { name: "old-key", labels: { "rotation-type": "manual", "rotation-interval-days": "30", "last-rotated": "2025-12-01t00-00-00-000z" } },
+          {
+            name: "my-api-key",
+            labels: {
+              "rotation-type": "manual",
+              "rotation-interval-days": "90",
+              "last-rotated": "2026-02-01t00-00-00-000z",
+            },
+          },
+          {
+            name: "old-key",
+            labels: {
+              "rotation-type": "manual",
+              "rotation-interval-days": "30",
+              "last-rotated": "2025-12-01t00-00-00-000z",
+            },
+          },
         ],
       });
       expect(exitCode).toBe(0);
@@ -532,7 +546,10 @@ describe("openclaw secrets remind ack", () => {
     try {
       await secretsRemindAckCommand({
         secret: "my-key",
-        _mockGetLabels: async () => ({ "rotation-type": "manual", "snoozed-until": "2026-03-01t00-00-00-000z" }),
+        _mockGetLabels: async () => ({
+          "rotation-type": "manual",
+          "snoozed-until": "2026-03-01t00-00-00-000z",
+        }),
         _mockSetLabels: setLabels,
       });
       const labels = setLabels.mock.calls[0][1];

@@ -1,7 +1,6 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   type RotationMetadata,
-  type RotationStatus,
   parseRotationLabels,
   buildRotationLabels,
   checkRotationStatus,
@@ -194,8 +193,18 @@ describe("checkRotationStatus", () => {
 describe("checkAllSecrets", () => {
   it("returns status for each secret", () => {
     const secrets: SecretWithLabels[] = [
-      { name: "secret-a", labels: { "rotation-type": "manual", "rotation-interval-days": "30", "last-rotated": "2025-12-01t00-00-00z" } },
-      { name: "secret-b", labels: { "rotation-type": "manual", "last-rotated": "2026-02-10t00-00-00z" } },
+      {
+        name: "secret-a",
+        labels: {
+          "rotation-type": "manual",
+          "rotation-interval-days": "30",
+          "last-rotated": "2025-12-01t00-00-00z",
+        },
+      },
+      {
+        name: "secret-b",
+        labels: { "rotation-type": "manual", "last-rotated": "2026-02-10t00-00-00z" },
+      },
     ];
     const results = checkAllSecrets(secrets, new Date("2026-02-15T12:00:00Z"));
     expect(results).toHaveLength(2);
@@ -220,7 +229,11 @@ describe("emitRotationEvents", () => {
     const listener = (event: string, secret: string) => events.push({ event, secret });
 
     const results = [
-      { name: "overdue-key", metadata: {} as RotationMetadata, status: { state: "review-due" as const, daysOverdue: 10 } },
+      {
+        name: "overdue-key",
+        metadata: {} as RotationMetadata,
+        status: { state: "review-due" as const, daysOverdue: 10 },
+      },
     ];
     emitRotationEvents(results, listener);
     expect(events).toContainEqual({ event: "secret:review-due", secret: "overdue-key" });
@@ -231,7 +244,11 @@ describe("emitRotationEvents", () => {
     const listener = (event: string, secret: string) => events.push({ event, secret });
 
     const results = [
-      { name: "expiring-key", metadata: {} as RotationMetadata, status: { state: "expiring-soon" as const, daysUntilExpiry: 5 } },
+      {
+        name: "expiring-key",
+        metadata: {} as RotationMetadata,
+        status: { state: "expiring-soon" as const, daysUntilExpiry: 5 },
+      },
     ];
     emitRotationEvents(results, listener);
     expect(events).toContainEqual({ event: "secret:expiring-soon", secret: "expiring-key" });

@@ -35,7 +35,7 @@ export class EnvSecretProvider implements SecretProvider {
   }
 
   async listSecrets(): Promise<string[]> {
-    return Object.keys(this.env).sort();
+    return Object.keys(this.env).toSorted();
   }
 
   async testConnection(): Promise<{ ok: boolean; error?: string }> {

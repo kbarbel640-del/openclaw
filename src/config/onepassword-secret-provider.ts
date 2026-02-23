@@ -23,7 +23,6 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-
 import type { SecretProvider } from "./secret-resolution.js";
 
 const execFileAsync = promisify(execFile);
@@ -50,9 +49,7 @@ export class OnePasswordSecretProvider implements SecretProvider {
     await this.ensureOp();
 
     // Secret name can be a full op:// URI or just an item name
-    const uri = name.startsWith("op://")
-      ? name
-      : `op://${this.vault}/${name}/${this.field}`;
+    const uri = name.startsWith("op://") ? name : `op://${this.vault}/${name}/${this.field}`;
 
     try {
       const { stdout } = await execFileAsync("op", ["read", uri], {
@@ -62,9 +59,11 @@ export class OnePasswordSecretProvider implements SecretProvider {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("isn't an item") || msg.includes("could not be found")) {
-        throw new Error(`Secret "${name}" not found in 1Password vault "${this.vault}"`);
+        throw new Error(`Secret "${name}" not found in 1Password vault "${this.vault}"`, {
+          cause: err,
+        });
       }
-      throw new Error(`Failed to read secret "${name}" from 1Password: ${msg}`);
+      throw new Error(`Failed to read secret "${name}" from 1Password: ${msg}`, { cause: err });
     }
   }
 
@@ -84,7 +83,7 @@ export class OnePasswordSecretProvider implements SecretProvider {
         "json",
       ]);
       const items = JSON.parse(stdout) as Array<{ title: string }>;
-      return items.map((i) => i.title).sort();
+      return items.map((i) => i.title).toSorted();
     } catch {
       throw new Error(`Failed to list items in 1Password vault "${this.vault}"`);
     }
@@ -100,7 +99,9 @@ export class OnePasswordSecretProvider implements SecretProvider {
   }
 
   private async ensureOp(): Promise<void> {
-    if (this.opChecked) return;
+    if (this.opChecked) {
+      return;
+    }
     try {
       await execFileAsync("which", ["op"]);
       this.opChecked = true;
