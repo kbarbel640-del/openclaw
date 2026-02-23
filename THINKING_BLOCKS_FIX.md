@@ -30,31 +30,16 @@ Created comprehensive utilities to safely handle thinking blocks:
 - `safeFilterAssistantContent()` - Safely filters content while preserving thinking blocks
 - `validateThinkingBlocks()` - Validates thinking block structure
 
-### 2. Fixed `dropThinkingBlocks()`
+### 2. Preserved Existing `dropThinkingBlocks()` Behavior
 
 **File**: `src/agents/pi-embedded-runner/thinking.ts`
 
-**Before**: Function would completely strip thinking blocks from assistant messages
-**After**: Now preserves all thinking blocks unchanged. If a message ends up with only thinking blocks (no other content), the entire message is dropped rather than sending a malformed message.
+**No changes needed**: The `dropThinkingBlocks()` function is correctly used only for GitHub Copilot models (per transcript policy). For Anthropic models, this function is NOT called, so thinking blocks are naturally preserved.
 
-**Key change**:
+**Key insight**: The transcript policy controls when `dropThinkingBlocks()` is used:
 
-```typescript
-// OLD: Stripped thinking blocks entirely (lines 36-40)
-if (block && typeof block === "object" && (block as { type?: unknown }).type === "thinking") {
-  touched = true;
-  changed = true;
-  continue; // Skip adding thinking block
-}
-
-// NEW: Preserves thinking blocks unchanged
-const isThinkingBlock = /* check for thinking or redacted_thinking */;
-if (isThinkingBlock) {
-  // CRITICAL: Always preserve thinking blocks unchanged
-  nextContent.push(block);
-  continue;
-}
-```
+- `dropThinkingBlocks = true` for GitHub Copilot (drops thinking blocks as required)
+- `dropThinkingBlocks = false` for Anthropic (function not called, blocks preserved)
 
 ### 3. Added Compaction Warnings
 
@@ -127,9 +112,8 @@ Going forward, when modifying message transformation code:
 
 - `src/agents/thinking-block-guard.ts` - New guard utilities
 - `src/agents/thinking-block-guard.test.ts` - Test suite
-- `src/agents/pi-embedded-runner/thinking.ts` - Fixed dropThinkingBlocks to preserve blocks
-- `src/agents/pi-extensions/compaction-safeguard.ts` - Added warnings
-- `src/agents/session-transcript-repair.ts` - Added documentation
+- `src/agents/pi-extensions/compaction-safeguard.ts` - Added compaction warnings
+- `src/agents/session-transcript-repair.ts` - Added critical documentation
 
 ## References
 
