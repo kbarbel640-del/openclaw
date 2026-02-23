@@ -365,6 +365,7 @@ function computeNextProfileUsageStats(params: {
   now: number;
   reason: AuthProfileFailureReason;
   cfgResolved: ResolvedAuthCooldownConfig;
+  retryAfterMs?: number;
 }): ProfileUsageStats {
   const windowMs = params.cfgResolved.failureWindowMs;
   const windowExpired =
@@ -400,7 +401,17 @@ function computeNextProfileUsageStats(params: {
     });
     updatedStats.disabledReason = "billing";
   } else {
-    const backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);
+    let backoffMs: number;
+    if (
+      params.reason === "rate_limit" &&
+      typeof params.retryAfterMs === "number" &&
+      params.retryAfterMs > 0
+    ) {
+      const maxCooldownMs = 60 * 60 * 1000; // 1 hour cap
+      backoffMs = Math.min(params.retryAfterMs, maxCooldownMs);
+    } else {
+      backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);
+    }
     // Keep active cooldown windows immutable so retries within the window
     // cannot push recovery further out.
     updatedStats.cooldownUntil = keepActiveWindowOrRecompute({
@@ -421,10 +432,17 @@ export async function markAuthProfileFailure(params: {
   store: AuthProfileStore;
   profileId: string;
   reason: AuthProfileFailureReason;
+  retryAfterSeconds?: number;
   cfg?: OpenClawConfig;
   agentDir?: string;
 }): Promise<void> {
   const { store, profileId, reason, agentDir, cfg } = params;
+  const retryAfterMs =
+    reason === "rate_limit" &&
+    typeof params.retryAfterSeconds === "number" &&
+    params.retryAfterSeconds > 0
+      ? params.retryAfterSeconds * 1000
+      : undefined;
   const updated = await updateAuthProfileStoreWithLock({
     agentDir,
     updater: (freshStore) => {
@@ -447,6 +465,7 @@ export async function markAuthProfileFailure(params: {
         now,
         reason,
         cfgResolved,
+        retryAfterMs,
       });
       return true;
     },
@@ -473,6 +492,7 @@ export async function markAuthProfileFailure(params: {
     now,
     reason,
     cfgResolved,
+    retryAfterMs,
   });
   saveAuthProfileStore(store, agentDir);
 }
@@ -493,6 +513,30 @@ export async function markAuthProfileCooldown(params: {
     reason: "unknown",
     agentDir: params.agentDir,
   });
+}
+
+/**
+ * Parse Retry-After header value (seconds or HTTP-date) into seconds.
+ * Returns undefined if invalid or missing.
+ * Caps at 3600s (1 hour) and floors at 1s.
+ */
+export function parseRetryAfterSeconds(header: string | null | undefined): number | undefined {
+  if (!header?.trim()) {
+    return undefined;
+  }
+  const trimmed = header.trim();
+  // Try parsing as integer seconds first
+  const n = Number.parseInt(trimmed, 10);
+  if (Number.isFinite(n) && n > 0) {
+    return Math.min(3600, Math.max(1, n));
+  }
+  // Try parsing as HTTP-date (RFC 7231)
+  const date = new Date(trimmed).getTime();
+  if (Number.isFinite(date)) {
+    const sec = (date - Date.now()) / 1000;
+    return sec > 0 ? Math.min(3600, Math.max(1, Math.ceil(sec))) : undefined;
+  }
+  return undefined;
 }
 
 /**

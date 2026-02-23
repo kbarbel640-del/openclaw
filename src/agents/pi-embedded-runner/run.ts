@@ -516,8 +516,9 @@ export async function runEmbeddedPiAgent(
       const maybeMarkAuthProfileFailure = async (failure: {
         profileId?: string;
         reason?: Parameters<typeof markAuthProfileFailure>[0]["reason"] | null;
+        retryAfterSeconds?: number;
       }) => {
-        const { profileId, reason } = failure;
+        const { profileId, reason, retryAfterSeconds } = failure;
         if (!profileId || !reason || reason === "timeout") {
           return;
         }
@@ -525,6 +526,7 @@ export async function runEmbeddedPiAgent(
           store: authStore,
           profileId,
           reason,
+          retryAfterSeconds,
           cfg: params.config,
           agentDir,
         });
@@ -899,9 +901,13 @@ export async function runEmbeddedPiAgent(
               };
             }
             const promptFailoverReason = classifyFailoverReason(errorText);
+            // TODO: Extract Retry-After header from promptError when it's a 429 response.
+            // The pi-ai SDK currently doesn't expose HTTP headers in error messages.
+            // Once available, parse with: parseRetryAfterSeconds(response.headers.get('retry-after'))
             await maybeMarkAuthProfileFailure({
               profileId: lastProfileId,
               reason: promptFailoverReason,
+              // retryAfterSeconds: parseRetryAfterSeconds(response.headers.get('retry-after')),
             });
             if (
               isFailoverErrorMessage(errorText) &&
@@ -988,9 +994,13 @@ export async function runEmbeddedPiAgent(
               // Skip cooldown for timeouts: a timeout is model/network-specific,
               // not an auth issue. Marking the profile would poison fallback models
               // on the same provider (e.g. gpt-5.3 timeout blocks gpt-5.2).
+              // TODO: Extract Retry-After header from lastAssistant when reason is "rate_limit".
+              // The pi-ai SDK currently doesn't expose HTTP headers in AssistantMessage.
+              // Once available, parse with: parseRetryAfterSeconds(response.headers.get('retry-after'))
               await maybeMarkAuthProfileFailure({
                 profileId: lastProfileId,
                 reason,
+                // retryAfterSeconds: reason === "rate_limit" ? parseRetryAfterSeconds(...) : undefined,
               });
               if (timedOut && !isProbeSession) {
                 log.warn(`Profile ${lastProfileId} timed out. Trying next account...`);
