@@ -21,6 +21,7 @@ export type AuthChoice =
   | "kimi-code-api-key"
   | "synthetic-api-key"
   | "venice-api-key"
+  | "nebius-token-factory-api-key"
   | "together-api-key"
   | "huggingface-api-key"
   | "codex-cli"
@@ -68,6 +69,7 @@ export type AuthChoiceGroupId =
   | "minimax"
   | "synthetic"
   | "venice"
+  | "nebius-token-factory"
   | "mistral"
   | "qwen"
   | "together"
@@ -121,6 +123,7 @@ export type OnboardOptions = {
   minimaxApiKey?: string;
   syntheticApiKey?: string;
   veniceApiKey?: string;
+  nebiusTokenFactoryApiKey?: string;
   togetherApiKey?: string;
   huggingfaceApiKey?: string;
   opencodeZenApiKey?: string;

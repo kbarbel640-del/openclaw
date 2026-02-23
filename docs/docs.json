@@ -1070,6 +1070,7 @@
                   "providers/litellm",
                   "providers/bedrock",
                   "providers/vercel-ai-gateway",
+                  "providers/nebius-token-factory",
                   "providers/moonshot",
                   "providers/mistral",
                   "providers/minimax",

@@ -61,6 +61,7 @@ import {
   buildMistralModelDefinition,
   buildZaiModelDefinition,
   buildMoonshotModelDefinition,
+  buildNebiusTokenFactoryModelDefinition,
   buildXaiModelDefinition,
   MISTRAL_BASE_URL,
   MISTRAL_DEFAULT_MODEL_ID,
@@ -72,6 +73,9 @@ import {
   MOONSHOT_CN_BASE_URL,
   MOONSHOT_DEFAULT_MODEL_ID,
   MOONSHOT_DEFAULT_MODEL_REF,
+  NEBIUS_TOKEN_FACTORY_BASE_URL,
+  NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_ID,
+  NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_REF,
   ZAI_DEFAULT_MODEL_ID,
   resolveZaiBaseUrl,
   XAI_BASE_URL,
@@ -196,6 +200,29 @@ function applyMoonshotProviderConfigWithBaseUrl(
     defaultModel,
     defaultModelId: MOONSHOT_DEFAULT_MODEL_ID,
   });
+}
+
+export function applyNebiusTokenFactoryProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_REF] = {
+    ...models[NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_REF],
+    alias: models[NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_REF]?.alias ?? "Nebius Token Factory",
+  };
+
+  const defaultModel = buildNebiusTokenFactoryModelDefinition();
+  return applyProviderConfigWithDefaultModel(cfg, {
+    agentModels: models,
+    providerId: "nebius-token-factory",
+    api: "openai-completions",
+    baseUrl: NEBIUS_TOKEN_FACTORY_BASE_URL,
+    defaultModel,
+    defaultModelId: NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_ID,
+  });
+}
+
+export function applyNebiusTokenFactoryConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const next = applyNebiusTokenFactoryProviderConfig(cfg);
+  return applyAgentDefaultModelPrimary(next, NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_REF);
 }
 
 export function applyMoonshotConfig(cfg: OpenClawConfig): OpenClawConfig {

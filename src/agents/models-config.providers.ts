@@ -122,6 +122,17 @@ const KIMI_CODING_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const NEBIUS_TOKEN_FACTORY_BASE_URL = "https://api.tokenfactory.nebius.com/v1";
+const NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_ID = "zai-org/GLM-4.7-FP8";
+const NEBIUS_TOKEN_FACTORY_DEFAULT_CONTEXT_WINDOW = 131072;
+const NEBIUS_TOKEN_FACTORY_DEFAULT_MAX_TOKENS = 8192;
+const NEBIUS_TOKEN_FACTORY_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const QWEN_PORTAL_BASE_URL = "https://portal.qwen.ai/v1";
 const QWEN_PORTAL_OAUTH_PLACEHOLDER = "qwen-oauth";
 const QWEN_PORTAL_DEFAULT_CONTEXT_WINDOW = 128000;
@@ -208,6 +219,25 @@ type VllmModelsResponse = {
   data?: Array<{
     id?: string;
   }>;
+};
+
+type OpenAiModelEntry = {
+  id?: string;
+  created?: number | string;
+  object?: string;
+  owned_by?: string;
+};
+
+type OpenAiModelsResponse = { object?: string; data?: OpenAiModelEntry[] };
+
+type NebiusTokenFactoryModel = {
+  id: string;
+  name: string;
+  reasoning: boolean;
+  input: Array<"text" | "image">;
+  cost: ModelDefinitionConfig["cost"];
+  contextWindow: number;
+  maxTokens: number;
 };
 
 /**
@@ -540,6 +570,71 @@ export function buildKimiCodingProvider(): ProviderConfig {
   };
 }
 
+function coerceNebiusTokenFactoryModel(entry: OpenAiModelEntry): NebiusTokenFactoryModel | null {
+  const id = typeof entry.id === "string" ? entry.id.trim() : "";
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    name: id,
+    reasoning: false,
+    input: ["text"],
+    cost: NEBIUS_TOKEN_FACTORY_DEFAULT_COST,
+    contextWindow: NEBIUS_TOKEN_FACTORY_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: NEBIUS_TOKEN_FACTORY_DEFAULT_MAX_TOKENS,
+  };
+}
+
+async function discoverNebiusTokenFactoryModels(apiKey?: string): Promise<ModelDefinitionConfig[]> {
+  if (!apiKey || process.env.VITEST || process.env.NODE_ENV === "test") {
+    return [];
+  }
+  try {
+    const response = await fetch(`${NEBIUS_TOKEN_FACTORY_BASE_URL}/models`, {
+      headers: { Authorization: `Bearer ${apiKey.trim()}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) {
+      log.warn(`Failed to discover Nebius Token Factory models: ${response.status}`);
+      return [];
+    }
+    const payload = (await response.json()) as OpenAiModelsResponse;
+    const entries = Array.isArray(payload.data) ? payload.data : [];
+    return entries
+      .map(coerceNebiusTokenFactoryModel)
+      .filter((model): model is NebiusTokenFactoryModel => Boolean(model))
+      .map((model) => ({ ...model }) satisfies ModelDefinitionConfig);
+  } catch (error) {
+    log.warn(`Failed to discover Nebius Token Factory models: ${String(error)}`);
+    return [];
+  }
+}
+
+function buildNebiusTokenFactoryDefaultModel(): ModelDefinitionConfig {
+  return {
+    id: NEBIUS_TOKEN_FACTORY_DEFAULT_MODEL_ID,
+    name: "GLM 4.7 FP8",
+    reasoning: false,
+    input: ["text"],
+    cost: NEBIUS_TOKEN_FACTORY_DEFAULT_COST,
+    contextWindow: NEBIUS_TOKEN_FACTORY_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: NEBIUS_TOKEN_FACTORY_DEFAULT_MAX_TOKENS,
+  };
+}
+
+async function buildNebiusTokenFactoryProvider(apiKey?: string): Promise<ProviderConfig> {
+  const discovered = await discoverNebiusTokenFactoryModels(apiKey);
+  const defaultModel = buildNebiusTokenFactoryDefaultModel();
+  const hasDefaultModel = discovered.some((model) => model.id === defaultModel.id);
+  const models = hasDefaultModel ? discovered : [defaultModel, ...discovered];
+  return {
+    baseUrl: NEBIUS_TOKEN_FACTORY_BASE_URL,
+    api: "openai-completions",
+    models,
+  };
+}
+
 function buildQwenPortalProvider(): ProviderConfig {
   return {
     baseUrl: QWEN_PORTAL_BASE_URL,
@@ -793,6 +888,23 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "moonshot", store: authStore });
   if (moonshotKey) {
     providers.moonshot = { ...buildMoonshotProvider(), apiKey: moonshotKey };
+  }
+
+  const nebiusTokenFactoryEnv = resolveEnvApiKey("nebius-token-factory");
+  const nebiusTokenFactoryProfileKey = resolveApiKeyFromProfiles({
+    provider: "nebius-token-factory",
+    store: authStore,
+  });
+  const nebiusTokenFactoryDiscoveryKey =
+    nebiusTokenFactoryEnv?.apiKey ?? nebiusTokenFactoryProfileKey;
+  const nebiusTokenFactoryApiKeyRef =
+    nebiusTokenFactoryEnv?.source.match(/(?:env: |shell env: )([A-Z0-9_]+)/)?.[1] ??
+    nebiusTokenFactoryProfileKey;
+  if (nebiusTokenFactoryDiscoveryKey && nebiusTokenFactoryApiKeyRef) {
+    providers["nebius-token-factory"] = {
+      ...(await buildNebiusTokenFactoryProvider(nebiusTokenFactoryDiscoveryKey)),
+      apiKey: nebiusTokenFactoryApiKeyRef,
+    };
   }
 
   const kimiCodingKey =

@@ -440,6 +440,29 @@ describe("onboard (non-interactive): provider auth", () => {
     });
   }, 60_000);
 
+  it("infers Nebius Token Factory auth choice from --nebius-token-factory-api-key and sets defaults", async () => {
+    await withOnboardEnv("openclaw-onboard-nebius-infer-", async (env) => {
+      const cfg = await runOnboardingAndReadConfig(env, {
+        nebiusTokenFactoryApiKey: "nebius-test-key",
+      });
+
+      expect(cfg.auth?.profiles?.["nebius-token-factory:default"]?.provider).toBe(
+        "nebius-token-factory",
+      );
+      expect(cfg.auth?.profiles?.["nebius-token-factory:default"]?.mode).toBe("api_key");
+      expect(cfg.agents?.defaults?.model?.primary).toBe("nebius-token-factory/zai-org/GLM-4.7-FP8");
+      expect(cfg.models?.providers?.["nebius-token-factory"]?.baseUrl).toBe(
+        "https://api.tokenfactory.nebius.com/v1",
+      );
+      expect(cfg.models?.providers?.["nebius-token-factory"]?.api).toBe("openai-completions");
+      await expectApiKeyProfile({
+        profileId: "nebius-token-factory:default",
+        provider: "nebius-token-factory",
+        key: "nebius-test-key",
+      });
+    });
+  }, 60_000);
+
   it("infers QIANFAN auth choice from --qianfan-api-key and sets default model", async () => {
     await withOnboardEnv("openclaw-onboard-qianfan-infer-", async (env) => {
       const cfg = await runOnboardingAndReadConfig(env, {
