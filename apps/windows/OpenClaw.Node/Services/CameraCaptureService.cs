@@ -43,7 +43,7 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
                 return devices;
             }
 
-            var ffmpeg = ResolveBundledFfmpegPath();
+            var ffmpeg = await ResolveFfmpegPathAsync();
             if (!string.IsNullOrWhiteSpace(ffmpeg))
             {
                 var (fallbackDevices, ffErr) = await TryListDevicesWithFfmpegAsync(ffmpeg);
@@ -91,7 +91,7 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             }
 
             // Optional shipped fallback: bundled ffmpeg binary (no user install required).
-            var ffmpeg = ResolveBundledFfmpegPath();
+            var ffmpeg = await ResolveFfmpegPathAsync();
             if (!string.IsNullOrWhiteSpace(ffmpeg))
             {
                 var (ffBytes, ffErr) = await TryCaptureWithFfmpegAsync(ffmpeg, facing, maxWidth, quality, deviceId);
@@ -252,11 +252,13 @@ try {
             }
         }
 
-        private static string? ResolveBundledFfmpegPath()
+        private static async Task<string?> ResolveFfmpegPathAsync()
         {
+            // 1) explicit override
             var env = Environment.GetEnvironmentVariable("OPENCLAW_FFMPEG_PATH");
             if (!string.IsNullOrWhiteSpace(env) && File.Exists(env)) return env;
 
+            // 2) bundled locations (what we ship)
             var baseDir = AppContext.BaseDirectory;
             var candidates = new[]
             {
@@ -275,7 +277,33 @@ try {
                 catch { }
             }
 
+            // 3) runtime resolution for dev environments (Get-Command often works even when `where` doesn't)
+            var cmd = await TryResolveFfmpegViaGetCommandAsync();
+            if (!string.IsNullOrWhiteSpace(cmd) && File.Exists(cmd))
+            {
+                return cmd;
+            }
+
             return null;
+        }
+
+        private static async Task<string?> TryResolveFfmpegViaGetCommandAsync()
+        {
+            var script = @"
+$ErrorActionPreference='Stop'
+try {
+  $c = Get-Command ffmpeg -ErrorAction Stop
+  if($c -and $c.Path){ $c.Path; exit 0 }
+  exit 1
+} catch {
+  exit 1
+}
+";
+
+            var res = await RunPowerShellAsync(script, null);
+            if (res.ExitCode != 0) return null;
+            var path = (res.StdOut ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(path) ? null : path;
         }
 
         private static async Task<(CameraDeviceInfo[] Devices, string? Error)> TryListDevicesWithFfmpegAsync(string ffmpegPath)
