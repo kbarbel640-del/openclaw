@@ -1,6 +1,8 @@
 import path from "node:path";
 import { cancel, confirm, isCancel, multiselect } from "@clack/prompts";
 import { isNixMode } from "../config/config.js";
+import { MAC_APP_LAUNCH_AGENT_LABEL } from "../daemon/constants.js";
+import { bootoutLaunchAgentByLabel } from "../daemon/launchd.js";
 import { resolveGatewayService } from "../daemon/service.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { stylePromptHint, stylePromptMessage, stylePromptTitle } from "../terminal/prompt-style.js";
@@ -86,10 +88,34 @@ async function removeMacApp(runtime: RuntimeEnv, dryRun?: boolean) {
   if (process.platform !== "darwin") {
     return;
   }
+  const home = resolveHomeDir();
+  const plistPath = home
+    ? path.join(home, "Library", "LaunchAgents", `${MAC_APP_LAUNCH_AGENT_LABEL}.plist`)
+    : null;
+
+  if (!dryRun && plistPath) {
+    // Best-effort: unregister the mac app LaunchAgent so macOS stops trying to
+    // relaunch the removed app at login. Errors are ignored — agent may not be loaded.
+    try {
+      await bootoutLaunchAgentByLabel(
+        MAC_APP_LAUNCH_AGENT_LABEL,
+        process.env as Record<string, string | undefined>,
+      );
+    } catch {
+      // ignore
+    }
+  }
+
   await removePath("/Applications/OpenClaw.app", runtime, {
     dryRun,
     label: "/Applications/OpenClaw.app",
   });
+  if (plistPath) {
+    await removePath(plistPath, runtime, {
+      dryRun,
+      label: plistPath,
+    });
+  }
 }
 
 export async function uninstallCommand(runtime: RuntimeEnv, opts: UninstallOptions) {
