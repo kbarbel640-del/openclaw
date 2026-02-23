@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import type { GatewayServiceRuntime } from "../../daemon/service-runtime.js";
 import type { GatewayService } from "../../daemon/service.js";
 import {
@@ -20,6 +21,49 @@ export type GatewayRestartSnapshot = {
   healthy: boolean;
   staleGatewayPids: number[];
 };
+
+/**
+ * Read the parent PID of a process from /proc on Linux.
+ * Returns `null` on non-Linux platforms or if the read fails.
+ */
+export async function readParentPid(pid: number): Promise<number | null> {
+  if (process.platform !== "linux") {
+    return null;
+  }
+  try {
+    const status = await fs.readFile(`/proc/${pid}/status`, "utf8");
+    for (const line of status.split("\n")) {
+      if (line.startsWith("PPid:")) {
+        const ppid = Number.parseInt(line.slice("PPid:".length).trim(), 10);
+        return Number.isFinite(ppid) && ppid > 0 ? ppid : null;
+      }
+    }
+  } catch {
+    // Process may have exited or /proc unavailable.
+  }
+  return null;
+}
+
+/**
+ * Check whether `descendantPid` is a child/grandchild of `ancestorPid`.
+ * Walks the PPid chain up to a small cap to avoid infinite loops.
+ */
+async function isDescendantOfPid(descendantPid: number, ancestorPid: number): Promise<boolean> {
+  let current: number | null = descendantPid;
+  let hops = 0;
+  while (current != null && current > 0 && hops < 32) {
+    const ppid = await readParentPid(current);
+    if (ppid === ancestorPid) {
+      return true;
+    }
+    if (ppid == null || ppid === current) {
+      return false;
+    }
+    current = ppid;
+    hops += 1;
+  }
+  return false;
+}
 
 export async function inspectGatewayRestart(params: {
   service: GatewayService;
@@ -54,18 +98,54 @@ export async function inspectGatewayRestart(params: {
         )
       : [];
   const running = runtime.status === "running";
-  const ownsPort =
-    runtime.pid != null
-      ? portUsage.listeners.some((listener) => listener.pid === runtime.pid)
-      : gatewayListeners.length > 0 ||
-        (portUsage.status === "busy" && portUsage.listeners.length === 0);
+
+  // Check if the runtime PID directly owns the port, or if a child process
+  // of the runtime PID owns it (e.g. Node.js worker/child that binds the port).
+  let ownsPort: boolean;
+  if (runtime.pid != null) {
+    const directMatch = portUsage.listeners.some((listener) => listener.pid === runtime.pid);
+    if (directMatch) {
+      ownsPort = true;
+    } else {
+      const childChecks = await Promise.all(
+        gatewayListeners
+          .filter((listener) => listener.pid != null && listener.pid !== runtime.pid)
+          .map(async (listener) => isDescendantOfPid(listener.pid!, runtime.pid!)),
+      );
+      ownsPort = childChecks.some(Boolean);
+    }
+  } else {
+    ownsPort =
+      gatewayListeners.length > 0 ||
+      (portUsage.status === "busy" && portUsage.listeners.length === 0);
+  }
+
   const healthy = running && ownsPort;
+
+  // Build the set of child PIDs of the runtime process so we don't mark them
+  // as stale — they are legitimate children of the current gateway.
+  const childPidSet = new Set<number>();
+  if (runtime.pid != null && running) {
+    const results = await Promise.all(
+      gatewayListeners
+        .map((listener) => listener.pid)
+        .filter((pid): pid is number => Number.isFinite(pid) && pid !== runtime.pid)
+        .map(async (pid) => ({ pid, isChild: await isDescendantOfPid(pid, runtime.pid!) })),
+    );
+    for (const { pid, isChild } of results) {
+      if (isChild) {
+        childPidSet.add(pid);
+      }
+    }
+  }
+
   const staleGatewayPids = Array.from(
     new Set(
       gatewayListeners
         .map((listener) => listener.pid)
         .filter((pid): pid is number => Number.isFinite(pid))
-        .filter((pid) => runtime.pid == null || pid !== runtime.pid || !running),
+        .filter((pid) => runtime.pid == null || pid !== runtime.pid || !running)
+        .filter((pid) => !childPidSet.has(pid)),
     ),
   );
 
