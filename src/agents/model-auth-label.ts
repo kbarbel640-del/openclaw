@@ -15,8 +15,11 @@ function formatApiKeySnippet(apiKey: string): string {
   }
   const edge = compact.length >= 12 ? 6 : 4;
   const head = compact.slice(0, edge);
+  if (compact.length <= edge * 2) {
+    return `${head}****`;
+  }
   const tail = compact.slice(-edge);
-  return `${head}…${tail}`;
+  return `${head}****…${tail}`;
 }
 
 export function resolveModelAuthLabel(params: {

@@ -382,6 +382,9 @@ describe("trigger handling", () => {
       );
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       expect(text).toContain("api-key");
+      expect(text).toContain("****");
+      expect(text).toContain("sk-t");
+      expect(text).not.toContain("1234567890abcdef");
       expect(text).toMatch(/\u2026|\.{3}/);
       expect(text).toContain("sk-tes");
       expect(text).toContain("abcdef");
