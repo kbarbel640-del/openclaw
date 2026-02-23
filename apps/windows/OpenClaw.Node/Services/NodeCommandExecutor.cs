@@ -21,6 +21,10 @@ namespace OpenClaw.Node.Services
                     "screen.record" => await HandleScreenRecordAsync(request),
                     "camera.list" => await HandleCameraListAsync(request),
                     "camera.snap" => await HandleCameraSnapAsync(request),
+                    "window.list" => await HandleWindowListAsync(request),
+                    "window.focus" => await HandleWindowFocusAsync(request),
+                    "input.type" => await HandleInputTypeAsync(request),
+                    "input.key" => await HandleInputKeyAsync(request),
                     _ => new BridgeInvokeResponse
                     {
                         Id = request.Id,
@@ -421,6 +425,193 @@ namespace OpenClaw.Node.Services
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = $"Camera snap failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleWindowListAsync(BridgeInvokeRequest request)
+        {
+            try
+            {
+                var svc = new AutomationService();
+                var windows = await svc.ListWindowsAsync();
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { windows })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Window list failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleWindowFocusAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            var handle = root != null && root.Value.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number
+                ? h.GetInt64()
+                : (long?)null;
+            var titleContains = root != null && root.Value.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String
+                ? t.GetString()
+                : null;
+
+            if ((!handle.HasValue || handle.Value == 0) && string.IsNullOrWhiteSpace(titleContains))
+            {
+                return Invalid(request.Id, "window.focus requires params.handle or params.titleContains");
+            }
+
+            try
+            {
+                var svc = new AutomationService();
+                var focused = await svc.FocusWindowAsync(handle, titleContains);
+                if (!focused)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "Unable to focus requested window"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Window focus failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleInputTypeAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            var text = root != null && root.Value.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String
+                ? t.GetString()
+                : null;
+
+            if (string.IsNullOrEmpty(text))
+            {
+                return Invalid(request.Id, "input.type requires params.text");
+            }
+
+            try
+            {
+                var svc = new AutomationService();
+                var ok = await svc.TypeTextAsync(text);
+                if (!ok)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "Typing input failed"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Typing input failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleInputKeyAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            var key = root != null && root.Value.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String
+                ? k.GetString()
+                : null;
+
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return Invalid(request.Id, "input.key requires params.key");
+            }
+
+            try
+            {
+                var svc = new AutomationService();
+                var ok = await svc.SendKeyAsync(key);
+                if (!ok)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "Sending key input failed"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Sending key input failed: {ex.Message}"
                     }
                 };
             }

@@ -13,12 +13,12 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Real Gateway handshake working against local gateway (`hello-ok` confirmed)
 - ✅ Core frame protocol aligned to gateway `req/res/event` flow
 - ✅ Method routing scaffold implemented
-- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.list`, `screen.record`, `camera.list`, `camera.snap`)
+- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.list`, `screen.record`, `camera.list`, `camera.snap`, `window.list`, `window.focus`, `input.type`, `input.key`)
 - ✅ Pairing pending state can be populated from gateway events (`device.pair.requested`, `node.pair.requested`)
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (46 total)
+- ✅ Tests passing (51 total)
 
 ---
 
@@ -67,7 +67,12 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] Added graceful fallback path (placeholder frame) when native camera stack/device capture unavailable
   - [ ] Validate on real Windows host with physical cameras and tune device-selection heuristics
 - **Automation (`Automation/`)**
-  - [ ] Windows UIAutomation + SendInput bridge
+  - [x] MVP command set wired (`window.list`, `window.focus`, `input.type`, `input.key`)
+  - [x] `window.list` returns `{ windows: [{ handle, title, process, isFocused }] }`
+  - [x] `window.focus` supports `handle` or `titleContains`
+  - [x] `input.type` text injection path (PowerShell + SendKeys)
+  - [x] `input.key` key combo path (e.g., `ctrl+v`, `enter`, `alt+f4`)
+  - [ ] Replace SendKeys MVP path with lower-level SendInput/UIAutomation primitives for reliability
 - **Shell execution**
   - [x] `System.Diagnostics.Process` command executor with allowlist
 
@@ -108,4 +113,5 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added stricter `camera.list`/device-field shape assertions (unit + real gateway when devices are present)
 - ✅ Added `screen.list` command coverage (unit + service-shape + opt-in real gateway response-shape path when a node is available)
 - ✅ Added opt-in real gateway `screen.record` coverage using explicit `screenIndex` from `screen.list` when available
+- ✅ Added automation MVP coverage (`window.list`, `window.focus`, `input.type`, `input.key`) with unit validation + opt-in real gateway `window.list` response-shape path
 - ✅ Added opt-in real gateway `camera.snap` coverage using explicit `deviceId` from `camera.list` when available

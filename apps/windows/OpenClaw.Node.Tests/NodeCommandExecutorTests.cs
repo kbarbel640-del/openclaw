@@ -298,6 +298,62 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task WindowList_ShouldReturnWindowsArray()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest { Id = "window-list-1", Command = "window.list" };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.True(res.Ok);
+            Assert.NotNull(res.PayloadJSON);
+
+            using var doc = JsonDocument.Parse(res.PayloadJSON!);
+            var root = doc.RootElement;
+            Assert.True(root.TryGetProperty("windows", out var windows));
+            Assert.Equal(JsonValueKind.Array, windows.ValueKind);
+        }
+
+        [Fact]
+        public async Task WindowFocus_MissingTarget_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest { Id = "window-focus-1", Command = "window.focus", ParamsJSON = "{}" };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task InputType_MissingText_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest { Id = "input-type-1", Command = "input.type", ParamsJSON = "{}" };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task InputKey_MissingKey_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest { Id = "input-key-1", Command = "input.key", ParamsJSON = "{}" };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
         public async Task UnknownCommand_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();

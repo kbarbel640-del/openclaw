@@ -39,7 +39,7 @@ namespace OpenClaw.Node.Tests
                     { "instanceId", Guid.NewGuid().ToString("N") },
                     { "deviceFamily", "Windows" }
                 },
-                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "screen.list", "screen.record", "camera.list", "camera.snap" },
+                Commands = new System.Collections.Generic.List<string> { "system.notify", "system.which", "system.run", "screen.list", "screen.record", "camera.list", "camera.snap", "window.list", "window.focus", "input.type", "input.key" },
                 Scopes = new System.Collections.Generic.List<string>(),
             };
 
@@ -293,6 +293,50 @@ namespace OpenClaw.Node.Tests
                     Assert.True(d.TryGetProperty("deviceType", out var deviceType), JsonSerializer.Serialize(d));
                     Assert.Equal(JsonValueKind.String, deviceType.ValueKind);
                 }
+            }
+            else
+            {
+                Assert.True(invoke.TryGetProperty("error", out var err), JsonSerializer.Serialize(invoke));
+                Assert.True(err.TryGetProperty("code", out _), JsonSerializer.Serialize(invoke));
+            }
+        }
+
+        [Fact]
+        public async Task RealGateway_WindowListCommand_ReturnsResponseShape_WhenNodeAvailable()
+        {
+            if (!string.Equals(Environment.GetEnvironmentVariable("RUN_REAL_GATEWAY_INTEGRATION"), "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var cfg = LoadGatewayConfig();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var client = new RealGatewayRpcClient();
+
+            await client.ConnectAsOperatorAsync(cfg.Url, cfg.Token, cts.Token);
+            var nodeId = await ResolveFirstConnectedNodeIdAsync(client, cts.Token);
+            if (string.IsNullOrWhiteSpace(nodeId)) return;
+
+            var invoke = await client.RequestAsync(
+                "node.invoke",
+                new
+                {
+                    nodeId,
+                    command = "window.list",
+                    @params = new { },
+                    timeoutMs = 15000,
+                    idempotencyKey = "itest-window-list"
+                },
+                cts.Token);
+
+            Assert.Equal("res", invoke.GetProperty("type").GetString());
+            Assert.True(invoke.TryGetProperty("ok", out var invokeOk));
+
+            if (invokeOk.GetBoolean())
+            {
+                Assert.True(invoke.TryGetProperty("payload", out var p), JsonSerializer.Serialize(invoke));
+                Assert.True(p.TryGetProperty("windows", out var windows), JsonSerializer.Serialize(invoke));
+                Assert.Equal(JsonValueKind.Array, windows.ValueKind);
             }
             else
             {
