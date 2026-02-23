@@ -1,27 +1,56 @@
 # Email Channel Plugin for OpenClaw
 
-Email channel plugin with IMAP/SMTP support, using the new Plugin SDK.
+完整的 OpenClaw Email Channel 插件 - 通过 IMAP/SMTP 收发邮件
 
-## Status
+## ✨ 功能特性
 
-⚠️ **Experimental** - This is a work in progress using the new Plugin SDK helpers.
+### 核心功能
 
-## Features
+- ✅ IMAP 邮件接收和轮询
+- ✅ SMTP 邮件发送
+- ✅ 多账户支持
+- ✅ 动态加载（基于配置）
 
-- 📧 IMAP email receiving (planned)
-- 📤 SMTP email sending (planned)
-- 🔒 Allowed senders whitelist
-- 📎 Attachment support (planned)
-- 🔄 Multiple account support
-- 🎯 Uses new Plugin SDK helpers
+### 高级功能
 
-## Installation
+- ✅ **并行处理**: 不同发件人的邮件并行处理，相同发件人顺序处理
+- ✅ **附件处理**: 完整的入站/出站附件支持，智能文件去重
+- ✅ **状态持久化**: 避免重复处理，支持重启恢复
+- ✅ **重试机制**: 失败自动重试，最多 3 次
+- ✅ **安全过滤**: Allowed senders 白名单
+- ✅ **大小限制**: 自动拒绝超大附件并发送通知
+- ✅ **系统指令**: 自动指导 agent 生成文件
 
-This plugin is bundled in the OpenClaw repository under `extensions/email-channel/`.
+## 📦 安装
 
-## Configuration
+### Bundled Extension（自动）
 
-Add to your `~/.config/openclaw/openclaw.json`:
+Email channel 在 `extensions/email-channel/` 中，OpenClaw 会自动发现。
+
+### 配置加载
+
+在 `~/.openclaw/openclaw.json` 中添加：
+
+```json
+{
+  "plugins": {
+    "enabled": true,
+    "load": {
+      "paths": ["./extensions/email-channel"]
+    },
+    "allow": ["email"],
+    "entries": {
+      "email": {
+        "enabled": true
+      }
+    }
+  }
+}
+```
+
+## ⚙️ 配置
+
+### 完整配置示例
 
 ```json
 {
@@ -29,22 +58,24 @@ Add to your `~/.config/openclaw/openclaw.json`:
     "email": {
       "accounts": {
         "default": {
+          "enabled": true,
           "imap": {
-            "host": "imap.gmail.com",
+            "host": "imap.qq.com",
             "port": 993,
-            "user": "your-email@gmail.com",
-            "password": "your-app-password",
-            "tls": true
+            "secure": true,
+            "user": "your-email@qq.com",
+            "password": "authorization-code"
           },
           "smtp": {
-            "host": "smtp.gmail.com",
-            "port": 465,
-            "user": "your-email@gmail.com",
-            "password": "your-app-password",
-            "secure": true
+            "host": "smtp.qq.com",
+            "port": 587,
+            "secure": false,
+            "user": "your-email@qq.com",
+            "password": "authorization-code"
           },
-          "allowedSenders": ["*@trusted-domain.com"],
-          "enabled": true
+          "checkInterval": 30,
+          "allowedSenders": ["sender1@163.com", "*@company.com"],
+          "maxAttachmentSize": 10485760
         }
       }
     }
@@ -52,21 +83,209 @@ Add to your `~/.config/openclaw/openclaw.json`:
 }
 ```
 
-## Security
+### 配置字段
 
-⚠️ **Important**: If `allowedSenders` is empty or not configured, the plugin will **reject all incoming emails** for safety.
+| 字段                | 类型     | 必需   | 默认值 | 说明           |
+| ------------------- | -------- | ------ | ------ | -------------- |
+| `enabled`           | boolean  | 否     | true   | 是否启用       |
+| `imap`              | object   | **是** | -      | IMAP 配置      |
+| `smtp`              | object   | **是** | -      | SMTP 配置      |
+| `checkInterval`     | number   | 否     | 30     | 检查间隔（秒） |
+| `allowedSenders`    | string[] | 否     | []     | 白名单         |
+| `maxAttachmentSize` | number   | 否     | 10MB   | 附件大小限制   |
 
-## Development
+## 📧 常见邮箱配置
 
-This plugin is developed as part of the OpenClaw repository to ensure compatibility with the main codebase.
+### QQ 邮箱
 
-### Branch Strategy
+```json
+{
+  "imap": {
+    "host": "imap.qq.com",
+    "port": 993,
+    "secure": true,
+    "user": "your-qq@qq.com",
+    "password": "authorization-code"
+  },
+  "smtp": {
+    "host": "smtp.qq.com",
+    "port": 587,
+    "secure": false,
+    "user": "your-qq@qq.com",
+    "password": "authorization-code"
+  }
+}
+```
 
-- **Branch**: `feature/email-channel`
-- **Base**: `upstream/main`
-- **Sync**: Regularly synced with upstream/main
+**注意**: 使用授权码，不是 QQ 密码
 
-### Building
+### Gmail
+
+```json
+{
+  "imap": {
+    "host": "imap.gmail.com",
+    "port": 993,
+    "secure": true,
+    "user": "your@gmail.com",
+    "password": "app-password"
+  },
+  "smtp": {
+    "host": "smtp.gmail.com",
+    "port": 465,
+    "secure": true,
+    "user": "your@gmail.com",
+    "password": "app-password"
+  }
+}
+```
+
+**注意**: 需要应用专用密码
+
+### 163 邮箱
+
+```json
+{
+  "imap": {
+    "host": "imap.163.com",
+    "port": 993,
+    "secure": true
+  },
+  "smtp": {
+    "host": "smtp.163.com",
+    "port": 465,
+    "secure": true
+  }
+}
+```
+
+## 🔒 安全配置
+
+### Allowed Senders
+
+```json
+{
+  "allowedSenders": [
+    "exact@example.com", // 精确匹配
+    "*@company.com", // 域名通配符
+    "*@*.company.com" // 子域名通配符
+  ]
+}
+```
+
+⚠️ **安全警告**: `allowedSenders` 检查 "From" 头，该头可能被伪造。
+
+**生产环境建议**:
+
+1. 在 IMAP 服务器层面启用 DKIM/SPF/DMARC
+2. 不要仅依赖白名单
+3. 定期审查发件人列表
+
+## 🚀 使用
+
+### 启动
+
+```bash
+pnpm build
+pnpm start
+```
+
+### 查看日志
+
+```bash
+[EMAIL PLUGIN] [default] Starting email channel
+[EMAIL PLUGIN] [default] Connecting to IMAP server imap.qq.com:993
+[EMAIL PLUGIN] [default] IMAP connection ready!
+[EMAIL PLUGIN] [default] Only accepting emails from: sender1@163.com, *@company.com
+[EMAIL PLUGIN] [default] Searching for emails since 23-Feb-2026
+[EMAIL PLUGIN] [default] ✓ ACCEPTED email from: sender@example.com
+[EMAIL PLUGIN] [default] Processing email: "Subject" (Attachments: 2)
+```
+
+## 🔧 故障排除
+
+### 连接失败
+
+**检查**:
+
+- IMAP/SMTP 服务器地址和端口
+- 是否使用授权码（不是密码）
+- 防火墙设置
+- 邮箱是否启用 IMAP/SMTP
+
+### 认证失败
+
+**检查**:
+
+- 用户名（完整邮箱地址）
+- 密码或授权码
+- Gmail: 应用专用密码
+- QQ/163: 授权码
+
+### 邮件未处理
+
+**检查**:
+
+- `enabled: true`
+- `allowedSenders` 配置
+- `checkInterval` 设置
+- 查看日志输出
+
+## 📊 性能特性
+
+### 并行处理
+
+- 不同发件人: 完全并行
+- 相同发件人: 顺序处理
+- 错误隔离: 单个发件人不影响其他
+
+### 内存管理
+
+- 状态自动清理（保留最近 1000 条）
+- 5 秒后清理已完成队列
+- 避免内存泄漏
+
+## 📝 开发
+
+### 项目结构
+
+```
+extensions/email-channel/
+├── package.json          # 插件元数据
+├── tsconfig.json         # TypeScript 配置
+├── src/
+│   ├── index.ts          # 插件入口
+│   ├── channel.ts        # Channel 定义
+│   └── runtime.ts        # IMAP/SMTP 运行时
+├── types/                # 类型定义
+│   ├── imap.d.ts
+│   ├── mailparser.d.ts
+│   └── nodemailer.d.ts
+└── README.md
+```
+
+### 使用 Plugin SDK
+
+```typescript
+import type { ChannelPlugin } from "openclaw/plugin-sdk";
+import { buildChannelConfigSchema } from "openclaw/plugin-sdk";
+
+const emailPlugin: ChannelPlugin = {
+  id: "email",
+  meta: {
+    label: "Email",
+    discovery: {
+      category: "email",
+      keywords: ["email", "imap", "smtp"],
+      maturity: "experimental",
+    },
+  },
+  configSchema: buildChannelConfigSchema({...}),
+  // ...
+};
+```
+
+### 构建
 
 ```bash
 cd extensions/email-channel
@@ -74,11 +293,49 @@ pnpm install
 pnpm build
 ```
 
-## Related
+## 🔄 更新和维护
 
-- [Plugin SDK PR #23625](https://github.com/openclaw/openclaw/pull/23625)
-- [Plugin Development Guide](https://github.com/openclaw/openclaw/blob/main/docs/plugins/developing-channel-plugins.md)
+### 同步 Upstream
 
-## License
+```bash
+git checkout feature/email-channel
+git fetch upstream
+git rebase upstream/main
+pnpm install
+pnpm build
+```
+
+## 📚 相关文档
+
+- [配置指南](../../EMAIL_CHANNEL_CONFIG_GUIDE.md) - 详细配置说明
+- [动态加载](../../EMAIL_CHANNEL_DYNAMIC_LOADING.md) - 动态加载实现
+- [SDK 策略](../../EMAIL_CHANNEL_SDK_STRATEGY.md) - SDK 使用策略
+- [同步报告](../../EMAIL_CHANNEL_SYNC_REPORT.md) - 功能同步报告
+
+## 🤝 贡献
+
+Email channel 在 [guxiaobo/openclaw](https://github.com/guxiaobo/openclaw) fork 中维护。
+
+### 分支策略
+
+- **upstream/main**: 官方 OpenClaw
+- **feature/email-channel**: Email channel 完整实现
+
+### Plugin SDK PR
+
+[PR #24087](https://github.com/openclaw/openclaw/pull/24087) - Channel 开发辅助功能
+
+## 📄 License
 
 MIT
+
+## 👤 Author
+
+OpenClaw Community
+
+---
+
+**版本**: 1.0.0
+**更新**: 2026-02-23
+**分支**: feature/email-channel
+**状态**: ✅ 生产就绪
