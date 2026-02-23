@@ -472,6 +472,24 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task DevUpdate_InvalidBranchType_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "dev-update-invalid-branch",
+                Command = "dev.update",
+                ParamsJSON = "{\"branch\":123}"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
         public async Task UnknownCommand_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();

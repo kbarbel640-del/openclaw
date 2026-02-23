@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
 using OpenClaw.Node.Protocol;
@@ -17,6 +18,7 @@ namespace OpenClaw.Node.Services
                     "system.notify" => HandleSystemNotify(request),
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
+                    "dev.update" => await HandleDevUpdateAsync(request),
                     "screen.list" => await HandleScreenListAsync(request),
                     "screen.record" => await HandleScreenRecordAsync(request),
                     "camera.list" => await HandleCameraListAsync(request),
@@ -191,6 +193,157 @@ namespace OpenClaw.Node.Services
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = $"system.run failed with exit code {result.ExitCode}"
                     }
+            };
+        }
+
+        private async Task<BridgeInvokeResponse> HandleDevUpdateAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            var repoPath = root != null && root.Value.TryGetProperty("repoPath", out var rp) && rp.ValueKind == JsonValueKind.String
+                ? (rp.GetString() ?? string.Empty).Trim()
+                : string.Empty;
+            if (string.IsNullOrWhiteSpace(repoPath))
+            {
+                repoPath = Environment.GetEnvironmentVariable("OPENCLAW_DEV_REPO") ?? Directory.GetCurrentDirectory();
+            }
+
+            if (root != null && root.Value.TryGetProperty("branch", out var branchEl) && branchEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "dev.update params.branch must be a string when provided");
+            }
+
+            var branch = root != null && root.Value.TryGetProperty("branch", out var b) && b.ValueKind == JsonValueKind.String
+                ? (b.GetString() ?? "windows_companion_app").Trim()
+                : "windows_companion_app";
+
+            if (root != null && root.Value.TryGetProperty("build", out var buildEl) &&
+                buildEl.ValueKind != JsonValueKind.True && buildEl.ValueKind != JsonValueKind.False)
+            {
+                return Invalid(request.Id, "dev.update params.build must be boolean when provided");
+            }
+
+            var doBuild = root != null && root.Value.TryGetProperty("build", out var db) &&
+                          (db.ValueKind == JsonValueKind.True || db.ValueKind == JsonValueKind.False)
+                ? db.GetBoolean()
+                : true;
+
+            if (!Directory.Exists(repoPath))
+            {
+                return Invalid(request.Id, $"dev.update repoPath not found: {repoPath}");
+            }
+
+            var steps = new System.Collections.Generic.List<object>();
+
+            async Task<ProcessResult> RunStep(string name, string fileName, params string[] args)
+            {
+                var r = await RunProcessAsync(fileName, args, repoPath);
+                steps.Add(new
+                {
+                    name,
+                    exitCode = r.ExitCode,
+                    stdout = r.StdOut,
+                    stderr = r.StdErr
+                });
+                return r;
+            }
+
+            var probe = await RunStep("git-probe", "git", "rev-parse", "--is-inside-work-tree");
+            if (probe.ExitCode != 0)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = false, repoPath, branch, steps }),
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.InvalidRequest,
+                        Message = "dev.update repoPath is not a git repository"
+                    }
+                };
+            }
+
+            var fetch = await RunStep("git-fetch", "git", "fetch", "origin", branch);
+            if (fetch.ExitCode != 0)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = false, repoPath, branch, steps }),
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = "dev.update git fetch failed"
+                    }
+                };
+            }
+
+            var checkout = await RunStep("git-checkout", "git", "checkout", branch);
+            if (checkout.ExitCode != 0)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = false, repoPath, branch, steps }),
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = "dev.update git checkout failed"
+                    }
+                };
+            }
+
+            var pull = await RunStep("git-pull", "git", "pull", "--ff-only", "origin", branch);
+            if (pull.ExitCode != 0)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = false, repoPath, branch, steps }),
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = "dev.update git pull failed"
+                    }
+                };
+            }
+
+            if (doBuild)
+            {
+                var build = await RunStep("dotnet-build", "dotnet", "build", "apps/windows/OpenClaw.Node/OpenClaw.Node.csproj", "-p:Platform=x64");
+                if (build.ExitCode != 0)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        PayloadJSON = JsonSerializer.Serialize(new { ok = false, repoPath, branch, steps }),
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "dev.update build failed"
+                        }
+                    };
+                }
+            }
+
+            var payload = new
+            {
+                ok = true,
+                repoPath,
+                branch,
+                built = doBuild,
+                steps
+            };
+
+            return new BridgeInvokeResponse
+            {
+                Id = request.Id,
+                Ok = true,
+                PayloadJSON = JsonSerializer.Serialize(payload)
             };
         }
 
@@ -965,7 +1118,7 @@ namespace OpenClaw.Node.Services
             return doc.RootElement.Clone();
         }
 
-        private static async Task<ProcessResult> RunProcessAsync(string fileName, params string[] args)
+        private static async Task<ProcessResult> RunProcessAsync(string fileName, string[] args, string? workingDirectory = null)
         {
             var psi = new ProcessStartInfo
             {
@@ -975,6 +1128,11 @@ namespace OpenClaw.Node.Services
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+
+            if (!string.IsNullOrWhiteSpace(workingDirectory))
+            {
+                psi.WorkingDirectory = workingDirectory;
+            }
 
             foreach (var arg in args) psi.ArgumentList.Add(arg);
 
@@ -991,6 +1149,9 @@ namespace OpenClaw.Node.Services
                 StdErr = await stdErrTask,
             };
         }
+
+        private static Task<ProcessResult> RunProcessAsync(string fileName, params string[] args)
+            => RunProcessAsync(fileName, args, null);
 
         private class ProcessResult
         {
