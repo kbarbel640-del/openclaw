@@ -50,9 +50,28 @@ function normalizeMode(mode?: ExecApprovalForwardingConfig["mode"]) {
   return mode ?? DEFAULT_MODE;
 }
 
+/**
+ * Check whether a regex pattern is safe from catastrophic backtracking (ReDoS).
+ * Rejects overly long patterns and patterns with nested quantifiers.
+ */
+export function isSafeRegexPattern(pattern: string): boolean {
+  if (pattern.length > 200) {
+    return false;
+  }
+  // Reject nested quantifiers: a quantifier (+, *, ?, {n,}) applied to a group that itself contains a quantifier
+  // Includes non-greedy quantifiers like (a+?)+ or (a*?)* which can still cause ReDoS
+  if (/([+*?}])\s*\)\s*[+*{?]/.test(pattern)) {
+    return false;
+  }
+  return true;
+}
+
 function matchSessionFilter(sessionKey: string, patterns: string[]): boolean {
   return patterns.some((pattern) => {
     try {
+      if (!isSafeRegexPattern(pattern)) {
+        return sessionKey.includes(pattern);
+      }
       return sessionKey.includes(pattern) || new RegExp(pattern).test(sessionKey);
     } catch {
       return sessionKey.includes(pattern);

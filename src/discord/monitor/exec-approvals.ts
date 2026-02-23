@@ -16,6 +16,7 @@ import type { DiscordExecApprovalConfig } from "../../config/types.discord.js";
 import { buildGatewayConnectionDetails } from "../../gateway/call.js";
 import { GatewayClient } from "../../gateway/client.js";
 import type { EventFrame } from "../../gateway/protocol/index.js";
+import { isSafeRegexPattern } from "../../infra/exec-approval-forwarder.js";
 import type {
   ExecApprovalDecision,
   ExecApprovalRequest,
@@ -365,6 +366,9 @@ export class DiscordExecApprovalHandler {
       }
       const matches = config.sessionFilter.some((p) => {
         try {
+          if (!isSafeRegexPattern(p)) {
+            return session.includes(p);
+          }
           return session.includes(p) || new RegExp(p).test(session);
         } catch {
           return session.includes(p);
