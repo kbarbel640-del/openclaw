@@ -64,13 +64,13 @@ This project is intended to run next to OpenClaw Gateway and be controlled by Op
 
 ### Node invoke commands
 
-- System/dev:
+- System:
   - `system.run`
   - `system.which`
   - `system.notify`
-  - `screen.capture`
 - Screen/camera:
   - `screen.list`
+  - `screen.capture`
   - `screen.record`
   - `camera.list`
   - `camera.snap`
