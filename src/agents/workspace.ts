@@ -169,6 +169,47 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+function formatDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateUtc(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resolveDailyMemoryDateStamps(now: Date = new Date()): string[] {
+  const localYesterday = new Date(now.getTime());
+  localYesterday.setDate(localYesterday.getDate() - 1);
+
+  const utcYesterday = new Date(now.getTime());
+  utcYesterday.setUTCDate(utcYesterday.getUTCDate() - 1);
+
+  return Array.from(
+    new Set([
+      formatDateLocal(now),
+      formatDateLocal(localYesterday),
+      formatDateUtc(now),
+      formatDateUtc(utcYesterday),
+    ]),
+  );
+}
+
+async function ensureDailyMemoryFiles(dir: string): Promise<void> {
+  const memoryDir = path.join(dir, "memory");
+  await fs.mkdir(memoryDir, { recursive: true });
+
+  for (const dateStamp of resolveDailyMemoryDateStamps()) {
+    const dailyFilePath = path.join(memoryDir, `${dateStamp}.md`);
+    await writeFileIfMissing(dailyFilePath, "");
+  }
+}
+
 function resolveWorkspaceStatePath(dir: string): string {
   return path.join(dir, WORKSPACE_STATE_DIRNAME, WORKSPACE_STATE_FILENAME);
 }
@@ -341,6 +382,7 @@ export async function ensureAgentWorkspace(params?: {
   await writeFileIfMissing(identityPath, identityTemplate);
   await writeFileIfMissing(userPath, userTemplate);
   await writeFileIfMissing(heartbeatPath, heartbeatTemplate);
+  await ensureDailyMemoryFiles(dir);
 
   let state = await readWorkspaceOnboardingState(statePath);
   let stateDirty = false;
