@@ -44,6 +44,8 @@ export type ResolvedBrowserProfile = {
   cdpIsLoopback: boolean;
   color: string;
   driver: "openclaw" | "extension";
+  /** Per-profile headless override. undefined = use global setting. */
+  headless: boolean | undefined;
 };
 
 function normalizeHexColor(raw: string | undefined) {
@@ -293,6 +295,7 @@ export function resolveProfile(
     cdpIsLoopback: isLoopbackHost(cdpHost),
     color: profile.color,
     driver,
+    headless: profile.headless,
   };
 }
 

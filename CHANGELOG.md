@@ -4,6 +4,10 @@ Docs: https://docs.openclaw.ai
 
 ## Unreleased
 
+### Changes
+
+- Browser/Profiles: add per-profile `headless` override so individual profiles can run headed (or headless) independently of the global `browser.headless` setting. Useful for profiles that require a visible window (e.g. login setup) while keeping the rest headless.
+
 ## 2026.2.23 (Unreleased)
 
 ### Changes
