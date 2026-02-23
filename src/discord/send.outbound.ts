@@ -35,6 +35,7 @@ import {
   type DiscordSendEmbeds,
 } from "./send.shared.js";
 import type { DiscordSendResult } from "./send.types.js";
+import { convertTablesToEmbeds } from "./table-to-embed.js";
 import {
   ensureOggOpus,
   getVoiceMessageMetadata,
@@ -142,10 +143,27 @@ export async function sendMessageDiscord(
     accountId: accountInfo.accountId,
   });
   const chunkMode = resolveChunkMode(cfg, "discord", accountInfo.accountId);
-  const textWithTables = convertMarkdownTables(text ?? "", tableMode);
+
+  // Process tables: convert to embeds if tableMode is "embed"
+  let textWithTables: string;
+  let autoEmbeds: unknown[] = [];
+  if (tableMode === "embed") {
+    const result = convertTablesToEmbeds(text ?? "");
+    textWithTables = result.text;
+    autoEmbeds = result.embeds;
+  } else {
+    textWithTables = convertMarkdownTables(text ?? "", tableMode);
+  }
+
   const { token, rest, request } = createDiscordClient(opts, cfg);
   const recipient = await parseAndResolveRecipient(to, opts.accountId);
   const { channelId } = await resolveChannelId(rest, recipient, request);
+
+  // Combine auto-generated embeds with user-provided embeds (max 10 for Discord)
+  const combinedEmbeds = [
+    ...(autoEmbeds as import("discord-api-types/v10").APIEmbed[]),
+    ...(opts.embeds ?? []),
+  ].slice(0, 10) as import("./send.shared.js").DiscordSendEmbeds;
 
   // Forum/Media channels reject POST /messages; auto-create a thread post instead.
   const channelType = await resolveDiscordChannelType(rest, channelId);
@@ -162,7 +180,7 @@ export async function sendMessageDiscord(
       text: starterContent,
       isFirst: true,
     });
-    const starterEmbeds = resolveDiscordSendEmbeds({ embeds: opts.embeds, isFirst: true });
+    const starterEmbeds = resolveDiscordSendEmbeds({ embeds: combinedEmbeds, isFirst: true });
     const silentFlags = opts.silent ? 1 << 12 : undefined;
     const starterPayload: MessagePayloadObject = buildDiscordMessagePayload({
       text: starterContent,
@@ -269,7 +287,7 @@ export async function sendMessageDiscord(
         request,
         accountInfo.config.maxLinesPerMessage,
         opts.components,
-        opts.embeds,
+        combinedEmbeds,
         chunkMode,
         opts.silent,
       );
@@ -282,7 +300,7 @@ export async function sendMessageDiscord(
         request,
         accountInfo.config.maxLinesPerMessage,
         opts.components,
-        opts.embeds,
+        combinedEmbeds,
         chunkMode,
         opts.silent,
       );
