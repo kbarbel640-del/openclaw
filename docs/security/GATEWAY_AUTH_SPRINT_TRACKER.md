@@ -53,17 +53,17 @@
 | 12    | 12.4 | Update CHANGELOG                                            | done        | —   | docs-writer       | 2026-02-23 | CHANGELOG updated ✓   |
 | 13    | 13.1 | Full test suite pass                                        | done        | —   | test-engineer     | 2026-02-23 | 1,076 tests pass ✓    |
 | 13    | 13.2 | Manual verification checklist                               | not-started | —   | human             | —          | Depends: 13.1         |
-| 13    | 13.3 | Security audit `--strict` verification                      | blocked     | —   | test-engineer     | 2026-02-23 | --strict not impl.    |
+| 13    | 13.3 | Security audit `--strict` verification                      | done        | —   | test-engineer     | 2026-02-23 | --strict impl. ✓      |
 
 ---
 
 ## Summary
 
 - **Total Tasks**: 30
-- **Done**: 28
+- **Done**: 29
 - **In Progress**: 0
-- **Blocked**: 1 (Task 13.3: --strict flag not implemented)
-- **Remaining**: 2 (13.2 manual, 13.3 blocked)
+- **Blocked**: 0
+- **Remaining**: 1 (13.2 manual verification)
 
 ---
 
@@ -71,7 +71,7 @@
 
 | Date       | Sprint   | Action      | Details                                       |
 | ---------- | -------- | ----------- | --------------------------------------------- |
-| 2026-02-23 | Sprint 9 | Partial     | Phase 13.1 verified ✓, 13.3 blocked (no flag) |
+| 2026-02-23 | Sprint 9 | Completed   | Phase 13 (13.1 + 13.3) ✓; 13.2 manual remains |
 | 2026-02-23 | Sprint 8 | Completed   | Phase 12 + Task 6.2 (Documentation rewrite) ✓ |
 | 2026-02-23 | Sprint 7 | Completed   | Phase 11 (E2E security tests) ✓               |
 | 2026-02-23 | Sprint 6 | Completed   | Phase 10 (Security audit tool) ✓              |
