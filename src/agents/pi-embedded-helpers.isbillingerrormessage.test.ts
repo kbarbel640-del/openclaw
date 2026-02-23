@@ -50,6 +50,20 @@ describe("isBillingErrorMessage", () => {
       expect(isBillingErrorMessage(sample)).toBe(true);
     }
   });
+  it("matches subscription / feature-unavailability errors", () => {
+    const samples = [
+      "The long context beta is not yet available for this subscription",
+      "This feature is not available for your plan",
+      "Model is not yet available for this subscription tier",
+      "Beta feature is not available on your plan",
+      "This model is not available for your subscription",
+      "Feature is not enabled for this plan",
+      "The feature is not supported for your tier",
+    ];
+    for (const sample of samples) {
+      expect(isBillingErrorMessage(sample)).toBe(true);
+    }
+  });
   it("does not false-positive on issue IDs or text containing 402", () => {
     const falsePositives = [
       "Fixed issue CHE-402 in the latest release",
@@ -435,6 +449,15 @@ describe("classifyFailoverReason", () => {
         '{"error":{"code":503,"message":"The model is overloaded. Please try later","status":"UNAVAILABLE"}}',
       ),
     ).toBe("rate_limit");
+  });
+  it("classifies subscription/feature-unavailability errors as billing", () => {
+    expect(
+      classifyFailoverReason("The long context beta is not yet available for this subscription"),
+    ).toBe("billing");
+    expect(classifyFailoverReason("This feature is not available for your plan")).toBe("billing");
+    expect(classifyFailoverReason("Model is not available for this subscription tier")).toBe(
+      "billing",
+    );
   });
   it("classifies JSON api_error internal server failures as timeout", () => {
     expect(
