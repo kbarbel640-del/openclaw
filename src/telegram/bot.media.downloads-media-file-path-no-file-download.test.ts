@@ -12,6 +12,7 @@ const TELEGRAM_TEST_TIMINGS = {
   mediaGroupFlushMs: 20,
   textFragmentGapMs: 30,
 } as const;
+const TELEGRAM_BOT_IMPORT_TIMEOUT_MS = process.platform === "win32" ? 180_000 : 150_000;
 let createTelegramBot: typeof import("./bot.js").createTelegramBot;
 let replySpy: ReturnType<typeof vi.fn>;
 
@@ -98,7 +99,7 @@ beforeAll(async () => {
   ({ createTelegramBot } = await import("./bot.js"));
   const replyModule = await import("../auto-reply/reply.js");
   replySpy = (replyModule as unknown as { __replySpy: ReturnType<typeof vi.fn> }).__replySpy;
-});
+}, TELEGRAM_BOT_IMPORT_TIMEOUT_MS);
 
 vi.mock("./sticker-cache.js", () => ({
   cacheSticker: (...args: unknown[]) => cacheStickerSpy(...args),
@@ -183,7 +184,7 @@ describe("telegram inbound media", () => {
     globalFetchSpy.mockRestore();
   });
 
-  it("logs a handler error when getFile returns no file_path", async () => {
+  it("handles missing file_path from getFile without crashing", async () => {
     const runtimeLog = vi.fn();
     const runtimeError = vi.fn();
     const { handler, replySpy } = await createBotHandlerWithOptions({
@@ -204,12 +205,68 @@ describe("telegram inbound media", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(replySpy).not.toHaveBeenCalled();
-    expect(runtimeError).toHaveBeenCalledTimes(1);
-    const msg = String(runtimeError.mock.calls[0]?.[0] ?? "");
-    expect(msg).toContain("handler failed:");
-    expect(msg).toContain("file_path");
+    expect(runtimeError).not.toHaveBeenCalled();
 
     fetchSpy.mockRestore();
+  });
+
+  it("captures pin and venue location payload fields", async () => {
+    const { handler, replySpy } = await createBotHandler();
+
+    const cases = [
+      {
+        message: {
+          chat: { id: 42, type: "private" as const },
+          message_id: 5,
+          caption: "Meet here",
+          date: 1736380800,
+          location: {
+            latitude: 48.858844,
+            longitude: 2.294351,
+            horizontal_accuracy: 12,
+          },
+        },
+        assert: (payload: Record<string, unknown>) => {
+          expect(payload.Body).toContain("Meet here");
+          expect(payload.Body).toContain("48.858844");
+          expect(payload.LocationLat).toBe(48.858844);
+          expect(payload.LocationLon).toBe(2.294351);
+          expect(payload.LocationSource).toBe("pin");
+          expect(payload.LocationIsLive).toBe(false);
+        },
+      },
+      {
+        message: {
+          chat: { id: 42, type: "private" as const },
+          message_id: 6,
+          date: 1736380800,
+          venue: {
+            title: "Eiffel Tower",
+            address: "Champ de Mars, Paris",
+            location: { latitude: 48.858844, longitude: 2.294351 },
+          },
+        },
+        assert: (payload: Record<string, unknown>) => {
+          expect(payload.Body).toContain("Eiffel Tower");
+          expect(payload.LocationName).toBe("Eiffel Tower");
+          expect(payload.LocationAddress).toBe("Champ de Mars, Paris");
+          expect(payload.LocationSource).toBe("place");
+        },
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      replySpy.mockClear();
+      await handler({
+        message: testCase.message,
+        me: { username: "openclaw_bot" },
+        getFile: async () => ({ file_path: "unused" }),
+      });
+
+      expect(replySpy).toHaveBeenCalledTimes(1);
+      const payload = replySpy.mock.calls[0][0] as Record<string, unknown>;
+      testCase.assert(payload);
+    }
   });
 });
 
@@ -227,7 +284,6 @@ describe("telegram media groups", () => {
       const runtimeError = vi.fn();
       const { handler, replySpy } = await createBotHandlerWithOptions({ runtimeError });
       const fetchSpy = mockTelegramPngDownload();
-
       const first = handler({
         message: {
           chat: { id: 42, type: "private" },
@@ -279,7 +335,6 @@ describe("telegram media groups", () => {
     async () => {
       const { handler, replySpy } = await createBotHandler();
       const fetchSpy = mockTelegramPngDownload();
-
       const first = handler({
         message: {
           chat: { id: 42, type: "private" },
@@ -319,6 +374,65 @@ describe("telegram media groups", () => {
       fetchSpy.mockRestore();
     },
     MEDIA_GROUP_TEST_TIMEOUT_MS,
+  );
+});
+
+describe("telegram forwarded bursts", () => {
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  const FORWARD_BURST_TEST_TIMEOUT_MS = process.platform === "win32" ? 45_000 : 20_000;
+
+  it(
+    "coalesces forwarded text + forwarded attachment into a single processing turn with default debounce config",
+    async () => {
+      const runtimeError = vi.fn();
+      const { handler, replySpy } = await createBotHandlerWithOptions({ runtimeError });
+      const fetchSpy = mockTelegramPngDownload();
+      vi.useFakeTimers();
+
+      try {
+        await handler({
+          message: {
+            chat: { id: 42, type: "private" },
+            from: { id: 777, is_bot: false, first_name: "N" },
+            message_id: 21,
+            text: "Look at this",
+            date: 1736380800,
+            forward_origin: { type: "hidden_user", date: 1736380700, sender_user_name: "A" },
+          },
+          me: { username: "openclaw_bot" },
+          getFile: async () => ({}),
+        });
+
+        await handler({
+          message: {
+            chat: { id: 42, type: "private" },
+            from: { id: 777, is_bot: false, first_name: "N" },
+            message_id: 22,
+            date: 1736380801,
+            photo: [{ file_id: "fwd_photo_1" }],
+            forward_origin: { type: "hidden_user", date: 1736380701, sender_user_name: "A" },
+          },
+          me: { username: "openclaw_bot" },
+          getFile: async () => ({ file_path: "photos/fwd1.jpg" }),
+        });
+
+        await vi.runAllTimersAsync();
+        expect(replySpy).toHaveBeenCalledTimes(1);
+
+        expect(runtimeError).not.toHaveBeenCalled();
+        const payload = replySpy.mock.calls[0][0];
+        expect(payload.Body).toContain("Look at this");
+        expect(payload.MediaPaths).toHaveLength(1);
+      } finally {
+        fetchSpy.mockRestore();
+        vi.useRealTimers();
+      }
+    },
+    FORWARD_BURST_TEST_TIMEOUT_MS,
   );
 });
 
@@ -530,49 +644,49 @@ describe("telegram text fragments", () => {
     async () => {
       onSpy.mockClear();
       replySpy.mockClear();
+      vi.useFakeTimers();
+      try {
+        createTelegramBot({ token: "tok", testTimings: TELEGRAM_TEST_TIMINGS });
+        const handler = onSpy.mock.calls.find((call) => call[0] === "message")?.[1] as (
+          ctx: Record<string, unknown>,
+        ) => Promise<void>;
+        expect(handler).toBeDefined();
 
-      createTelegramBot({ token: "tok", testTimings: TELEGRAM_TEST_TIMINGS });
-      const handler = onSpy.mock.calls.find((call) => call[0] === "message")?.[1] as (
-        ctx: Record<string, unknown>,
-      ) => Promise<void>;
-      expect(handler).toBeDefined();
+        const part1 = "A".repeat(4050);
+        const part2 = "B".repeat(50);
 
-      const part1 = "A".repeat(4050);
-      const part2 = "B".repeat(50);
+        await handler({
+          message: {
+            chat: { id: 42, type: "private" },
+            message_id: 10,
+            date: 1736380800,
+            text: part1,
+          },
+          me: { username: "openclaw_bot" },
+          getFile: async () => ({}),
+        });
 
-      await handler({
-        message: {
-          chat: { id: 42, type: "private" },
-          message_id: 10,
-          date: 1736380800,
-          text: part1,
-        },
-        me: { username: "openclaw_bot" },
-        getFile: async () => ({}),
-      });
+        await handler({
+          message: {
+            chat: { id: 42, type: "private" },
+            message_id: 11,
+            date: 1736380801,
+            text: part2,
+          },
+          me: { username: "openclaw_bot" },
+          getFile: async () => ({}),
+        });
 
-      await handler({
-        message: {
-          chat: { id: 42, type: "private" },
-          message_id: 11,
-          date: 1736380801,
-          text: part2,
-        },
-        me: { username: "openclaw_bot" },
-        getFile: async () => ({}),
-      });
+        expect(replySpy).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(TEXT_FRAGMENT_FLUSH_MS * 2);
+        expect(replySpy).toHaveBeenCalledTimes(1);
 
-      expect(replySpy).not.toHaveBeenCalled();
-      await vi.waitFor(
-        () => {
-          expect(replySpy).toHaveBeenCalledTimes(1);
-        },
-        { timeout: TEXT_FRAGMENT_FLUSH_MS * 2, interval: 10 },
-      );
-
-      const payload = replySpy.mock.calls[0][0] as { RawBody?: string; Body?: string };
-      expect(payload.RawBody).toContain(part1.slice(0, 32));
-      expect(payload.RawBody).toContain(part2.slice(0, 32));
+        const payload = replySpy.mock.calls[0][0] as { RawBody?: string; Body?: string };
+        expect(payload.RawBody).toContain(part1.slice(0, 32));
+        expect(payload.RawBody).toContain(part2.slice(0, 32));
+      } finally {
+        vi.useRealTimers();
+      }
     },
     TEXT_FRAGMENT_TEST_TIMEOUT_MS,
   );

@@ -3,25 +3,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { withTempHome } from "../../test/helpers/temp-home.js";
 import { loadAndMaybeMigrateDoctorConfig } from "./doctor-config-flow.js";
-
-async function runDoctorConfigWithInput(params: {
-  config: Record<string, unknown>;
-  repair?: boolean;
-}) {
-  return withTempHome(async (home) => {
-    const configDir = path.join(home, ".openclaw");
-    await fs.mkdir(configDir, { recursive: true });
-    await fs.writeFile(
-      path.join(configDir, "openclaw.json"),
-      JSON.stringify(params.config, null, 2),
-      "utf-8",
-    );
-    return loadAndMaybeMigrateDoctorConfig({
-      options: { nonInteractive: true, repair: params.repair },
-      confirm: async () => false,
-    });
-  });
-}
+import { runDoctorConfigWithInput } from "./doctor-config-flow.test-utils.js";
 
 function expectGoogleChatDmAllowFromRepaired(cfg: unknown) {
   const typed = cfg as {
@@ -36,6 +18,27 @@ function expectGoogleChatDmAllowFromRepaired(cfg: unknown) {
   expect(typed.channels.googlechat.allowFrom).toBeUndefined();
 }
 
+type DiscordGuildRule = {
+  users: string[];
+  roles: string[];
+  channels: Record<string, { users: string[]; roles: string[] }>;
+};
+
+type DiscordAccountRule = {
+  allowFrom: string[];
+  dm: { allowFrom: string[]; groupChannels: string[] };
+  execApprovals: { approvers: string[] };
+  guilds: Record<string, DiscordGuildRule>;
+};
+
+type RepairedDiscordPolicy = {
+  allowFrom: string[];
+  dm: { allowFrom: string[]; groupChannels: string[] };
+  execApprovals: { approvers: string[] };
+  guilds: Record<string, DiscordGuildRule>;
+  accounts: Record<string, DiscordAccountRule>;
+};
+
 describe("doctor config flow", () => {
   it("preserves invalid config for doctor repairs", async () => {
     const result = await runDoctorConfigWithInput({
@@ -43,6 +46,7 @@ describe("doctor config flow", () => {
         gateway: { auth: { mode: "token", token: 123 } },
         agents: { list: [{ id: "pi" }] },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     expect((result.cfg as Record<string, unknown>).gateway).toEqual({
@@ -58,6 +62,7 @@ describe("doctor config flow", () => {
         gateway: { auth: { mode: "token", token: "ok", extra: true } },
         agents: { list: [{ id: "pi" }] },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     const cfg = result.cfg as Record<string, unknown>;
@@ -88,6 +93,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     const cfg = result.cfg as {
@@ -145,6 +151,7 @@ describe("doctor config flow", () => {
             },
           },
         },
+        run: loadAndMaybeMigrateDoctorConfig,
       });
 
       const cfg = result.cfg as unknown as {
@@ -223,37 +230,7 @@ describe("doctor config flow", () => {
       });
 
       const cfg = result.cfg as unknown as {
-        channels: {
-          discord: {
-            allowFrom: string[];
-            dm: { allowFrom: string[]; groupChannels: string[] };
-            execApprovals: { approvers: string[] };
-            guilds: Record<
-              string,
-              {
-                users: string[];
-                roles: string[];
-                channels: Record<string, { users: string[]; roles: string[] }>;
-              }
-            >;
-            accounts: Record<
-              string,
-              {
-                allowFrom: string[];
-                dm: { allowFrom: string[]; groupChannels: string[] };
-                execApprovals: { approvers: string[] };
-                guilds: Record<
-                  string,
-                  {
-                    users: string[];
-                    roles: string[];
-                    channels: Record<string, { users: string[]; roles: string[] }>;
-                  }
-                >;
-              }
-            >;
-          };
-        };
+        channels: { discord: RepairedDiscordPolicy };
       };
 
       expect(cfg.channels.discord.allowFrom).toEqual(["123"]);
@@ -291,6 +268,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     const cfg = result.cfg as unknown as {
@@ -313,6 +291,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     const cfg = result.cfg as unknown as {
@@ -334,6 +313,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     const cfg = result.cfg as unknown as {
@@ -362,6 +342,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     const cfg = result.cfg as unknown as {
@@ -386,6 +367,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     const cfg = result.cfg as unknown as {
@@ -394,6 +376,49 @@ describe("doctor config flow", () => {
       };
     };
     expect(cfg.channels.discord.accounts.work.allowFrom).toEqual(["*"]);
+  });
+
+  it("migrates legacy toolsBySender keys to typed id entries on repair", async () => {
+    const result = await runDoctorConfigWithInput({
+      repair: true,
+      config: {
+        channels: {
+          whatsapp: {
+            groups: {
+              "123@g.us": {
+                toolsBySender: {
+                  owner: { allow: ["exec"] },
+                  alice: { deny: ["exec"] },
+                  "id:owner": { deny: ["exec"] },
+                  "username:@ops-bot": { allow: ["fs.read"] },
+                  "*": { deny: ["exec"] },
+                },
+              },
+            },
+          },
+        },
+      },
+      run: loadAndMaybeMigrateDoctorConfig,
+    });
+
+    const cfg = result.cfg as unknown as {
+      channels: {
+        whatsapp: {
+          groups: {
+            "123@g.us": {
+              toolsBySender: Record<string, { allow?: string[]; deny?: string[] }>;
+            };
+          };
+        };
+      };
+    };
+    const toolsBySender = cfg.channels.whatsapp.groups["123@g.us"].toolsBySender;
+    expect(toolsBySender.owner).toBeUndefined();
+    expect(toolsBySender.alice).toBeUndefined();
+    expect(toolsBySender["id:owner"]).toEqual({ deny: ["exec"] });
+    expect(toolsBySender["id:alice"]).toEqual({ deny: ["exec"] });
+    expect(toolsBySender["username:@ops-bot"]).toEqual({ allow: ["fs.read"] });
+    expect(toolsBySender["*"]).toEqual({ deny: ["exec"] });
   });
 
   it("repairs googlechat dm.policy open by setting dm.allowFrom on repair", async () => {
@@ -408,6 +433,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     expectGoogleChatDmAllowFromRepaired(result.cfg);
@@ -429,6 +455,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     const cfg = result.cfg as unknown as {
@@ -464,6 +491,7 @@ describe("doctor config flow", () => {
           },
         },
       },
+      run: loadAndMaybeMigrateDoctorConfig,
     });
 
     expectGoogleChatDmAllowFromRepaired(result.cfg);

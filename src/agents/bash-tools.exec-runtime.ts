@@ -492,6 +492,23 @@ export async function runExecProcess(opts: {
       const aggregated = session.aggregated.trim();
       if (status === "completed") {
         const exitCode = exit.exitCode ?? 0;
+        // Treat critical exit codes as failures rather than successful completions.
+        // This ensures cron jobs and error counters properly track these as errors.
+        const isCriticalError =
+          exitCode === 126 || // Command found but not executable
+          exitCode === 127; // Command not found
+        if (isCriticalError) {
+          const reason = exitCode === 127 ? "Command not found" : "Command not executable";
+          return {
+            status: "failed",
+            exitCode,
+            exitSignal: exit.exitSignal,
+            durationMs,
+            aggregated,
+            timedOut: false,
+            reason: aggregated ? `${aggregated}\n\n${reason}` : reason,
+          };
+        }
         const exitMsg = exitCode !== 0 ? `\n\n(Command exited with code ${exitCode})` : "";
         return {
           status: "completed",

@@ -8,7 +8,6 @@ import { MINIMAX_API_BASE_URL, MINIMAX_CN_API_BASE_URL } from "./onboard-auth.js
 import {
   createThrowingRuntime,
   readJsonFile,
-  runNonInteractiveOnboardingWithDefaults,
   type NonInteractiveRuntime,
 } from "./onboard-non-interactive.test-helpers.js";
 import { OPENAI_DEFAULT_MODEL } from "./openai-model-default.js";
@@ -27,6 +26,15 @@ vi.mock("./onboard-helpers.js", async (importOriginal) => {
     ensureWorkspaceAndSessions: ensureWorkspaceAndSessionsMock,
   };
 });
+
+const { runNonInteractiveOnboarding } = await import("./onboard-non-interactive.js");
+
+const NON_INTERACTIVE_DEFAULT_OPTIONS = {
+  nonInteractive: true,
+  skipHealth: true,
+  skipChannels: true,
+  json: true,
+} as const;
 
 let ensureAuthProfileStore: typeof import("../agents/auth-profiles.js").ensureAuthProfileStore;
 let upsertAuthProfile: typeof import("../agents/auth-profiles.js").upsertAuthProfile;
@@ -93,6 +101,19 @@ async function withOnboardEnv(
   } finally {
     await removeDirWithRetry(tempHome);
   }
+}
+
+async function runNonInteractiveOnboardingWithDefaults(
+  runtime: NonInteractiveRuntime,
+  options: Record<string, unknown>,
+): Promise<void> {
+  await runNonInteractiveOnboarding(
+    {
+      ...NON_INTERACTIVE_DEFAULT_OPTIONS,
+      ...options,
+    },
+    runtime,
+  );
 }
 
 async function runOnboardingAndReadConfig(
@@ -229,6 +250,23 @@ describe("onboard (non-interactive): provider auth", () => {
       expect(cfg.auth?.profiles?.["xai:default"]?.mode).toBe("api_key");
       expect(cfg.agents?.defaults?.model?.primary).toBe("xai/grok-4");
       await expectApiKeyProfile({ profileId: "xai:default", provider: "xai", key: "xai-test-key" });
+    });
+  }, 60_000);
+
+  it("infers Mistral auth choice from --mistral-api-key and sets default model", async () => {
+    await withOnboardEnv("openclaw-onboard-mistral-infer-", async (env) => {
+      const cfg = await runOnboardingAndReadConfig(env, {
+        mistralApiKey: "mistral-test-key",
+      });
+
+      expect(cfg.auth?.profiles?.["mistral:default"]?.provider).toBe("mistral");
+      expect(cfg.auth?.profiles?.["mistral:default"]?.mode).toBe("api_key");
+      expect(cfg.agents?.defaults?.model?.primary).toBe("mistral/mistral-large-latest");
+      await expectApiKeyProfile({
+        profileId: "mistral:default",
+        provider: "mistral",
+        key: "mistral-test-key",
+      });
     });
   }, 60_000);
 
