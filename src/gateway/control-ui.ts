@@ -11,7 +11,7 @@ import {
   CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
   type ControlUiBootstrapConfig,
 } from "./control-ui-contract.js";
-import { buildControlUiCspHeader } from "./control-ui-csp.js";
+import { type ControlUiCspOptions, buildControlUiCspHeader } from "./control-ui-csp.js";
 import {
   buildControlUiAvatarUrl,
   CONTROL_UI_AVATAR_PREFIX,
@@ -96,9 +96,28 @@ type ControlUiAvatarMeta = {
   avatarUrl: string | null;
 };
 
-function applyControlUiSecurityHeaders(res: ServerResponse) {
+function resolveControlUiCspOptions(config?: OpenClawConfig): ControlUiCspOptions | undefined {
+  const csp = config?.gateway?.controlUi?.csp;
+  if (!csp) {
+    return undefined;
+  }
+  return {
+    extraSources: {
+      scriptSrc: csp.scriptSrcExtra,
+      styleSrc: csp.styleSrcExtra,
+      imgSrc: csp.imgSrcExtra,
+      fontSrc: csp.fontSrcExtra,
+      connectSrc: csp.connectSrcExtra,
+    },
+  };
+}
+
+function applyControlUiSecurityHeaders(res: ServerResponse, config?: OpenClawConfig) {
   res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Content-Security-Policy", buildControlUiCspHeader());
+  res.setHeader(
+    "Content-Security-Policy",
+    buildControlUiCspHeader(resolveControlUiCspOptions(config)),
+  );
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
 }
@@ -117,7 +136,11 @@ function isValidAgentId(agentId: string): boolean {
 export function handleControlUiAvatarRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  opts: { basePath?: string; resolveAvatar: (agentId: string) => ControlUiAvatarResolution },
+  opts: {
+    basePath?: string;
+    config?: OpenClawConfig;
+    resolveAvatar: (agentId: string) => ControlUiAvatarResolution;
+  },
 ): boolean {
   const urlRaw = req.url;
   if (!urlRaw) {
@@ -137,7 +160,7 @@ export function handleControlUiAvatarRequest(
     return false;
   }
 
-  applyControlUiSecurityHeaders(res);
+  applyControlUiSecurityHeaders(res, opts.config);
 
   const agentIdParts = pathname.slice(pathWithBase.length).split("/").filter(Boolean);
   const agentId = agentIdParts[0] ?? "";
@@ -297,7 +320,7 @@ export function handleControlUiHttpRequest(
 
   if (!basePath) {
     if (pathname === "/ui" || pathname.startsWith("/ui/")) {
-      applyControlUiSecurityHeaders(res);
+      applyControlUiSecurityHeaders(res, opts?.config);
       respondNotFound(res);
       return true;
     }
@@ -305,7 +328,7 @@ export function handleControlUiHttpRequest(
 
   if (basePath) {
     if (pathname === basePath) {
-      applyControlUiSecurityHeaders(res);
+      applyControlUiSecurityHeaders(res, opts?.config);
       res.statusCode = 302;
       res.setHeader("Location", `${basePath}/${url.search}`);
       res.end();
@@ -316,7 +339,7 @@ export function handleControlUiHttpRequest(
     }
   }
 
-  applyControlUiSecurityHeaders(res);
+  applyControlUiSecurityHeaders(res, opts?.config);
 
   const bootstrapConfigPath = basePath
     ? `${basePath}${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`

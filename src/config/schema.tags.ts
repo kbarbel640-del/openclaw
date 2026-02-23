@@ -43,6 +43,12 @@ const TAG_OVERRIDES: Record<string, ConfigTag[]> = {
   "gateway.auth.password": ["security", "auth", "access", "network"],
   "gateway.controlUi.dangerouslyDisableDeviceAuth": ["security", "access", "network", "advanced"],
   "gateway.controlUi.allowInsecureAuth": ["security", "access", "network", "advanced"],
+  "gateway.controlUi.csp": ["security", "network", "advanced"],
+  "gateway.controlUi.csp.scriptSrcExtra": ["security", "network", "advanced"],
+  "gateway.controlUi.csp.styleSrcExtra": ["security", "network", "advanced"],
+  "gateway.controlUi.csp.imgSrcExtra": ["security", "network"],
+  "gateway.controlUi.csp.fontSrcExtra": ["security", "network"],
+  "gateway.controlUi.csp.connectSrcExtra": ["security", "network"],
   "tools.exec.applyPatch.workspaceOnly": ["tools", "security", "access", "advanced"],
 };
 
