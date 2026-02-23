@@ -107,7 +107,7 @@ install_deps() {
     if command -v pnpm >/dev/null 2>&1; then
         pnpm install --frozen-lockfile 2>&1 | tail -5 || pnpm install 2>&1 | tail -5
     else
-        npm install 2>&1 | tail -5
+        npm install --legacy-peer-deps 2>&1 | tail -5
     fi
     log_success "Dependencies installed."
 }
