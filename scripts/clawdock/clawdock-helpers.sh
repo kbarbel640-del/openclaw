@@ -177,14 +177,24 @@ _clawdock_docker_build() {
   local image_name
   image_name=$(_clawdock_read_env_image)
   local apt_packages=""
+  local install_browser=""
   if [[ -f "${CLAWDOCK_DIR}/.env" ]]; then
     local raw_apt
     raw_apt=$(sed -n 's/^OPENCLAW_DOCKER_APT_PACKAGES=//p' "${CLAWDOCK_DIR}/.env" | head -n 1)
     apt_packages=$(_clawdock_trim_quotes "$raw_apt")
+    local raw_browser
+    raw_browser=$(sed -n 's/^OPENCLAW_INSTALL_BROWSER=//p' "${CLAWDOCK_DIR}/.env" | head -n 1)
+    install_browser=$(_clawdock_trim_quotes "$raw_browser")
   fi
   echo "🔨 Building Docker image: ${image_name} ..."
+  local build_args=(
+    --build-arg "OPENCLAW_DOCKER_APT_PACKAGES=${apt_packages}"
+  )
+  if [[ -n "$install_browser" ]]; then
+    build_args+=(--build-arg "OPENCLAW_INSTALL_BROWSER=${install_browser}")
+  fi
   docker build \
-    --build-arg "OPENCLAW_DOCKER_APT_PACKAGES=${apt_packages}" \
+    "${build_args[@]}" \
     -t "$image_name" \
     -f "${CLAWDOCK_DIR}/Dockerfile" \
     "${CLAWDOCK_DIR}"
@@ -212,7 +222,56 @@ clawdock-status() {
 }
 
 clawdock-config() {
-  cd ~/.openclaw
+  local config_dir="${HOME}/.openclaw"
+  echo -e "\n${_CLR_BOLD}${_CLR_CYAN}📦 OpenClaw Configuration${_CLR_RESET}\n"
+
+  echo -e "${_CLR_BOLD}Config directory:${_CLR_RESET} ${_CLR_CYAN}${config_dir}${_CLR_RESET}"
+  echo ""
+
+  # Show openclaw.json
+  if [[ -f "${config_dir}/openclaw.json" ]]; then
+    echo -e "${_CLR_BOLD}${config_dir}/openclaw.json${_CLR_RESET}"
+    echo -e "${_CLR_DIM}$(cat "${config_dir}/openclaw.json")${_CLR_RESET}"
+  else
+    echo -e "${_CLR_YELLOW}No openclaw.json found${_CLR_RESET}"
+  fi
+  echo ""
+
+  # Show .env (mask secret values)
+  if [[ -f "${config_dir}/.env" ]]; then
+    echo -e "${_CLR_BOLD}${config_dir}/.env${_CLR_RESET}"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ ^[[:space:]]*# ]] || [[ -z "$line" ]]; then
+        echo -e "${_CLR_DIM}${line}${_CLR_RESET}"
+      elif [[ "$line" =~ ^([^=]+)=(.+)$ ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local val="${BASH_REMATCH[2]}"
+        echo -e "${_CLR_CYAN}${key}${_CLR_RESET}=${_CLR_DIM}${val:0:8}...${_CLR_RESET}"
+      else
+        echo -e "${_CLR_DIM}${line}${_CLR_RESET}"
+      fi
+    done < "${config_dir}/.env"
+  else
+    echo -e "${_CLR_YELLOW}No .env found${_CLR_RESET}"
+  fi
+  echo ""
+
+  # Show project .env if available
+  if [[ -n "$CLAWDOCK_DIR" && -f "${CLAWDOCK_DIR}/.env" ]]; then
+    echo -e "${_CLR_BOLD}${CLAWDOCK_DIR}/.env${_CLR_RESET}"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ ^[[:space:]]*# ]] || [[ -z "$line" ]]; then
+        echo -e "${_CLR_DIM}${line}${_CLR_RESET}"
+      elif [[ "$line" =~ ^([^=]+)=(.+)$ ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local val="${BASH_REMATCH[2]}"
+        echo -e "${_CLR_CYAN}${key}${_CLR_RESET}=${_CLR_DIM}${val:0:8}...${_CLR_RESET}"
+      else
+        echo -e "${_CLR_DIM}${line}${_CLR_RESET}"
+      fi
+    done < "${CLAWDOCK_DIR}/.env"
+  fi
+  echo ""
 }
 
 # Container Access
@@ -249,10 +308,19 @@ clawdock-update() {
 
   echo ""
   echo "⏳ Waiting for gateway to start..."
-  sleep 5
-
-  echo "✅ Update complete!"
-  echo -e "   Verify: $(_cmd clawdock-cli status)"
+  local attempts=0
+  local max_attempts=12
+  while (( attempts < max_attempts )); do
+    if _clawdock_compose exec openclaw-gateway node dist/index.js health &>/dev/null; then
+      echo "✅ Update complete!"
+      echo -e "   Verify: $(_cmd clawdock-cli status)"
+      return 0
+    fi
+    sleep 2
+    (( attempts++ ))
+  done
+  echo "⚠️  Gateway did not respond after ${max_attempts} attempts"
+  echo -e "   Check logs: $(_cmd clawdock-logs)"
 }
 
 clawdock-rebuild() {
@@ -317,10 +385,19 @@ clawdock-fix-token() {
   _clawdock_compose restart openclaw-gateway 2>&1 | _clawdock_filter_warnings
 
   echo "⏳ Waiting for gateway to start..."
-  sleep 5
-
-  echo "✅ Configuration complete!"
-  echo -e "   Try: $(_cmd clawdock-devices)"
+  local attempts=0
+  local max_attempts=12
+  while (( attempts < max_attempts )); do
+    if _clawdock_compose exec openclaw-gateway node dist/index.js health &>/dev/null; then
+      echo "✅ Configuration complete!"
+      echo -e "   Try: $(_cmd clawdock-devices)"
+      return 0
+    fi
+    sleep 2
+    (( attempts++ ))
+  done
+  echo "⚠️  Gateway did not respond after ${max_attempts} attempts"
+  echo -e "   Check logs: $(_cmd clawdock-logs)"
 }
 
 # Open dashboard in browser
@@ -433,7 +510,7 @@ clawdock-help() {
   echo ""
 
   echo -e "${_CLR_BOLD}${_CLR_MAGENTA}📦 Configuration${_CLR_RESET}"
-  echo -e "  $(_cmd clawdock-config)            ${_CLR_DIM}Open config directory (~/.openclaw)${_CLR_RESET}"
+  echo -e "  $(_cmd clawdock-config)            ${_CLR_DIM}Show all config files (masked secrets)${_CLR_RESET}"
   echo -e "  ${_CLR_CYAN}~/.openclaw/.env${_CLR_RESET}           ${_CLR_DIM}Secrets (API keys, bot tokens)${_CLR_RESET}"
   echo -e "  ${_CLR_CYAN}~/.openclaw/openclaw.json${_CLR_RESET}  ${_CLR_DIM}Behavior (models, channels, policies)${_CLR_RESET}"
   echo ""

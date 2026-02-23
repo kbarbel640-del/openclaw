@@ -9,7 +9,8 @@ Inspired by Simon Willison's [Running OpenClaw in Docker](https://til.simonwilli
   - [Basic Docker Operations](#basic-docker-operations)
   - [Container Access](#container-access)
   - [Web UI \& Devices](#web-ui--devices)
-  - [Setup \& Maintenance](#setup--maintenance)
+  - [Setup \& Configuration](#setup--configuration)
+  - [Maintenance](#maintenance)
 - [Configuration \& Secrets](#configuration--secrets)
   - [Docker Files](#docker-files)
   - [Config Files](#config-files)
@@ -91,11 +92,11 @@ clawdock-approve <request-id>
 
 ### Container Access
 
-| Command                   | Description                                    |
-| ------------------------- | ---------------------------------------------- |
-| `clawdock-shell`          | Interactive shell inside the gateway container |
-| `clawdock-cli <command>`  | Run OpenClaw CLI commands                      |
-| `clawdock-exec <command>` | Execute arbitrary commands in the container    |
+| Command                   | Description                                               |
+| ------------------------- | --------------------------------------------------------- |
+| `clawdock-shell`          | Shell into docker container (openclaw alias ready)        |
+| `clawdock-cli <command>`  | Run CLI in docker container (e.g., `clawdock-cli status`) |
+| `clawdock-exec <command>` | Execute command in docker container                       |
 
 ### Web UI & Devices
 
@@ -105,15 +106,21 @@ clawdock-approve <request-id>
 | `clawdock-devices`      | List device pairing requests               |
 | `clawdock-approve <id>` | Approve a device pairing request           |
 
-### Setup & Maintenance
+### Setup & Configuration
 
-| Command              | Description                                           |
-| -------------------- | ----------------------------------------------------- |
-| `clawdock-fix-token` | Configure gateway authentication token (run once)     |
-| `clawdock-token`     | Display the gateway authentication token              |
-| `clawdock-update`    | Pull latest, rebuild image, and restart (one command) |
-| `clawdock-rebuild`   | Rebuild the Docker image only                         |
-| `clawdock-clean`     | Remove all containers and volumes (destructive!)      |
+| Command              | Description                                       |
+| -------------------- | ------------------------------------------------- |
+| `clawdock-fix-token` | Configure gateway authentication token (run once) |
+| `clawdock-token`     | Show gateway auth token                           |
+| `clawdock-config`    | Show all config files (masked secrets)            |
+
+### Maintenance
+
+| Command            | Description                                             |
+| ------------------ | ------------------------------------------------------- |
+| `clawdock-update`  | Pull, rebuild, and restart docker container             |
+| `clawdock-rebuild` | Rebuild Docker image only                               |
+| `clawdock-clean`   | Remove all docker containers and volumes (destructive!) |
 
 > Config files and secrets: see [Configuration & Secrets](#configuration--secrets).
 
