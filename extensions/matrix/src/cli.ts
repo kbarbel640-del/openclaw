@@ -141,11 +141,9 @@ export function registerMatrixCli(params: {
         }
         process.exitCode = 1;
       } finally {
-        try {
-          client?.stop();
-        } catch {
-          // ignore stop errors
-        }
+        // Don't call client.stop() — the Rust crypto SDK's tokio runtime panics
+        // during teardown via napi. The CLI process exits immediately after this
+        // so OS-level cleanup is sufficient.
       }
     });
 }
