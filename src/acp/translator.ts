@@ -427,18 +427,23 @@ export class AcpGatewayAgent implements Agent {
     }
 
     if (state === "final") {
-      // Send the final message content to the client via sessionUpdate
+      // Send any remaining message content that wasn't sent via delta events
       if (messageData) {
         const content = messageData.content as Array<{ type: string; text?: string }> | undefined;
         if (content) {
           const fullText = content.find((c) => c.type === "text")?.text ?? "";
-          await this.connection.sessionUpdate({
-            sessionId: pending.sessionId,
-            update: {
-              sessionUpdate: "agent_message_chunk",
-              content: { type: "text", text: fullText },
-            },
-          });
+          const sentSoFar = pending.sentTextLength ?? 0;
+          // Only send the remaining portion that wasn't sent via delta
+          if (fullText.length > sentSoFar) {
+            const remainingText = fullText.slice(sentSoFar);
+            await this.connection.sessionUpdate({
+              sessionId: pending.sessionId,
+              update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: remainingText },
+              },
+            });
+          }
         }
       }
       this.finishPrompt(pending.sessionId, pending, "end_turn");
