@@ -58,8 +58,7 @@ function AgentActivityIndicator({ activity }: { activity: AgentActivity }) {
     retrieving: { icon: Database, label: "Retrieving" },
     reasoning: { icon: Workflow, label: "Reasoning" },
   };
-  const { icon: Icon, label } =
-    config[activity.status as keyof typeof config] ?? config.thinking;
+  const { icon: Icon, label } = config[activity.status as keyof typeof config] ?? config.thinking;
   return (
     <div className="flex items-center gap-2 px-3 py-2">
       <Icon className="w-4 h-4 text-[var(--accent-purple)] animate-pulse" />
@@ -76,17 +75,12 @@ export function FloatingChat() {
   const routerState = useRouterState();
   const pageCtx = getPageContext(routerState.location.pathname);
 
-  const {
-    messages,
-    status,
-    activeAgent,
-    setActiveAgent,
-    sendMessage,
-    isSending,
-    agentActivity,
-  } = useChat("default", {
-    onAction: dispatchAction,
-  });
+  const { messages, status, activeAgent, setActiveAgent, sendMessage, agentActivity } = useChat(
+    "default",
+    {
+      onAction: dispatchAction,
+    },
+  );
 
   const [input, setInput] = useState("");
   const [showResponsePanel, setShowResponsePanel] = useState(false);
@@ -129,9 +123,7 @@ export function FloatingChat() {
 
   // Determine if the unified panel should be visible
   const showPanel =
-    agentActivity.status !== null ||
-    latestAgentMessage?.streaming ||
-    showResponsePanel;
+    agentActivity.status !== null || latestAgentMessage?.streaming || showResponsePanel;
 
   function handleSend(text?: string) {
     const msg = text || input;
@@ -169,21 +161,18 @@ export function FloatingChat() {
               <ScrollArea className="max-h-[40vh]">
                 <div ref={responseScrollRef}>
                   {/* Show latest agent response */}
-                  {latestAgentMessage && (
-                    <ChatMessage message={latestAgentMessage} />
-                  )}
+                  {latestAgentMessage && <ChatMessage message={latestAgentMessage} />}
                   {/* Show activity indicator when processing */}
-                  {agentActivity.status && (
-                    <AgentActivityIndicator activity={agentActivity} />
-                  )}
+                  {agentActivity.status && <AgentActivityIndicator activity={agentActivity} />}
                 </div>
               </ScrollArea>
             </div>
           )}
 
           {/* Spacer between sections */}
-          {(agentActivity.status || latestAgentMessage) &&
-            suggestions.length > 0 && <div className="h-[30px]" />}
+          {(agentActivity.status || latestAgentMessage) && suggestions.length > 0 && (
+            <div className="h-[30px]" />
+          )}
 
           {/* Suggestions Section (pinned bottom) */}
           {suggestions.length > 0 && (
