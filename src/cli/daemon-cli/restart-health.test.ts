@@ -15,9 +15,7 @@ const mockedReadFileSync = vi.mocked(readFileSync);
 
 describe("isDescendantOf", () => {
   it("returns true when child is a direct child of ancestor", () => {
-    mockedReadFileSync.mockReturnValueOnce(
-      "Name:\topenclaw-gateway\nPPid:\t100\n",
-    );
+    mockedReadFileSync.mockReturnValueOnce("Name:\topenclaw-gateway\nPPid:\t100\n");
     expect(isDescendantOf(200, 100)).toBe(true);
   });
 
@@ -29,12 +27,8 @@ describe("isDescendantOf", () => {
   });
 
   it("returns false when child is not a descendant", () => {
-    mockedReadFileSync.mockReturnValueOnce(
-      "Name:\tunrelated\nPPid:\t999\n",
-    );
-    mockedReadFileSync.mockReturnValueOnce(
-      "Name:\tinit\nPPid:\t0\n",
-    );
+    mockedReadFileSync.mockReturnValueOnce("Name:\tunrelated\nPPid:\t999\n");
+    mockedReadFileSync.mockReturnValueOnce("Name:\tinit\nPPid:\t0\n");
     expect(isDescendantOf(200, 100)).toBe(false);
   });
 
