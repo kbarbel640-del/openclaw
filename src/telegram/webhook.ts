@@ -34,6 +34,9 @@ export async function startTelegramWebhook(opts: {
   abortSignal?: AbortSignal;
   healthPath?: string;
   publicUrl?: string;
+  /** Called once the HTTP server is listening and the webhook is registered.
+   *  Useful in tests that need access to the server object before blocking. */
+  onReady?: (server: ReturnType<typeof createServer>, stop: () => void) => void;
 }) {
   const path = opts.path ?? "/telegram-webhook";
   const healthPath = opts.healthPath ?? "/healthz";
@@ -153,5 +156,20 @@ export async function startTelegramWebhook(opts: {
     opts.abortSignal.addEventListener("abort", shutdown, { once: true });
   }
 
-  return { server, bot, stop: shutdown };
+  // Notify callers (e.g. tests) that the server is ready before we block.
+  opts.onReady?.(server, shutdown);
+
+  // Block until the server closes so the caller's lifecycle (e.g. monitor.ts)
+  // stays alive while the webhook is running. Without this, the function
+  // returns immediately after server.listen() resolves; the gateway then
+  // interprets the provider as stopped, schedules a restart 5 s later, and
+  // crashes with EADDRINUSE because the original port is still bound.
+  await new Promise<void>((resolve) => {
+    server.on("close", resolve);
+    // Guard against the race where abortSignal fires before the close listener
+    // is registered (e.g. very fast shutdown during tests).
+    if (opts.abortSignal?.aborted) {
+      shutdown();
+    }
+  });
 }
