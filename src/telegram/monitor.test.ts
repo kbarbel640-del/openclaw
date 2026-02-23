@@ -23,9 +23,14 @@ const api = {
   setWebhook: vi.fn(),
   deleteWebhook: vi.fn(),
 };
+type RunnerHandle = {
+  task: () => Promise<void>;
+  stop: ReturnType<typeof vi.fn>;
+  isRunning: () => boolean;
+};
 const { initSpy, runSpy, loadConfig } = vi.hoisted(() => ({
   initSpy: vi.fn(async () => undefined),
-  runSpy: vi.fn(() => ({
+  runSpy: vi.fn<() => RunnerHandle>(() => ({
     task: () => Promise.resolve(),
     stop: vi.fn(),
     isRunning: (): boolean => false,
