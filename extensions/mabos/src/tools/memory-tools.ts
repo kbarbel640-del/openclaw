@@ -326,6 +326,25 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
           tags: params.tags,
         });
 
+        // Trigger native memory index sync so new entries are immediately searchable
+        try {
+          const { getMemorySearchManager } =
+            await import("../../../../src/memory/search-manager.js");
+          const { manager } = await getMemorySearchManager({
+            cfg: (api as any).config,
+            agentId: params.agent_id,
+          });
+          if (manager?.sync) {
+            // Fire-and-forget — don't block the tool response
+            void (manager.sync as (opts: { reason: string }) => Promise<void>)({
+              reason: "mabos-memory-store",
+            }).catch(() => {});
+          }
+        } catch {
+          // Native memory sync unavailable — files are still written,
+          // native system will pick them up on next scheduled sync
+        }
+
         // Write-through to TypeDB (best-effort)
         try {
           const client = getTypeDBClient();

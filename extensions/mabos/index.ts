@@ -11,6 +11,9 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { resolveGatewayAuth, type ResolvedGatewayAuth } from "../../src/gateway/auth.js";
+import { authorizeGatewayBearerRequestOrReply } from "../../src/gateway/http-auth-helpers.js";
+import { onAgentEvent, type AgentEventPayload } from "../../src/infra/agent-events.js";
 import { createBdiTools } from "./src/tools/bdi-tools.js";
 import { createBusinessTools } from "./src/tools/business-tools.js";
 import { createCbrTools } from "./src/tools/cbr-tools.js";
@@ -75,6 +78,21 @@ export default function register(api: OpenClawPluginApi) {
 
   // ── 2. BDI Background Service ─────────────────────────────────
   const workspaceDir = resolveWorkspaceDir(api);
+
+  // Resolve gateway auth for MABOS HTTP routes
+  const gatewayAuthConfig = (api as any).config?.gateway?.auth ?? {};
+  const resolvedAuth: ResolvedGatewayAuth = resolveGatewayAuth({
+    authConfig: gatewayAuthConfig,
+  });
+
+  async function requireAuth(
+    req: import("node:http").IncomingMessage,
+    res: import("node:http").ServerResponse,
+  ): Promise<boolean> {
+    // Skip auth if gateway is in "none" mode
+    if (resolvedAuth.mode === "none") return true;
+    return authorizeGatewayBearerRequestOrReply({ req, res, auth: resolvedAuth });
+  }
   const bdiIntervalMinutes = getPluginConfig(api).bdiCycleIntervalMinutes ?? 30;
 
   // Dynamic import to avoid bundling issues — the bdi-runtime
@@ -375,6 +393,7 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/status",
     handler: async (_req, res) => {
+      if (!(await requireAuth(_req, res))) return;
       try {
         const { getAgentsSummary } = (await import(
           /* webpackIgnore: true */ BDI_RUNTIME_PATH
@@ -428,6 +447,7 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/decisions",
     handler: async (_req, res) => {
+      if (!(await requireAuth(_req, res))) return;
       // Try TypeDB first
       try {
         const { queryDecisionsFromTypeDB } = await import("./src/knowledge/typedb-dashboard.js");
@@ -491,6 +511,7 @@ export default function register(api: OpenClawPluginApi) {
     api.registerHttpHandler(async (req, res) => {
       const url = new URL(req.url || "/", "http://localhost");
       if (regex.test(url.pathname)) {
+        if (!(await requireAuth(req, res))) return true;
         await handler(req, res);
         return true;
       }
@@ -686,6 +707,7 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/businesses",
     handler: async (_req, res) => {
+      if (!(await requireAuth(_req, res))) return;
       try {
         const { readdir, stat: fsStat } = await import("node:fs/promises");
         const { join } = await import("node:path");
@@ -747,6 +769,7 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/contractors",
     handler: async (_req, res) => {
+      if (!(await requireAuth(_req, res))) return;
       try {
         const { join } = await import("node:path");
         const contractorsPath = join(workspaceDir, "contractors.json");
@@ -766,6 +789,7 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/onboard",
     handler: async (req, res) => {
+      if (!(await requireAuth(req, res))) return;
       if (req.method !== "POST") {
         res.statusCode = 405;
         res.setHeader("Content-Type", "application/json");
@@ -1199,6 +1223,7 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/chat",
     handler: async (req, res) => {
+      if (!(await requireAuth(req, res))) return;
       if (req.method !== "POST") {
         res.statusCode = 405;
         res.setHeader("Content-Type", "application/json");
@@ -1288,6 +1313,7 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/chat/events",
     handler: async (req, res) => {
+      if (!(await requireAuth(req, res))) return;
       const { readFile, writeFile } = await import("node:fs/promises");
       const { join } = await import("node:path");
 
@@ -1318,7 +1344,80 @@ export default function register(api: OpenClawPluginApi) {
       }
       sseClients.get(clientKey)!.add(res);
 
-      // Poll outbox for agent responses
+      // Heartbeat every 30s to keep connection alive
+      const heartbeat = setInterval(() => {
+        res.write(`: heartbeat\n\n`);
+      }, 30000);
+
+      let closed = false;
+
+      // Subscribe to agent event bus — forward matching events to SSE
+      const unsubscribe = onAgentEvent((evt: AgentEventPayload) => {
+        if (closed) return;
+
+        // Match events by sessionKey containing the agentId
+        // SessionKey format: "{channel}:{accountId}:{chatId}"
+        // Also match by checking if the event's data references this agent
+        const matchesAgent =
+          evt.sessionKey?.includes(agentId) || (evt.data as any)?.agentId === agentId;
+
+        if (!matchesAgent) return;
+
+        try {
+          if (evt.stream === "assistant") {
+            const text =
+              typeof evt.data?.text === "string"
+                ? evt.data.text
+                : typeof evt.data?.delta === "string"
+                  ? evt.data.delta
+                  : null;
+            if (text) {
+              res.write(
+                `data: ${JSON.stringify({
+                  type: "stream_token",
+                  token: text,
+                  agentId,
+                  agentName: agentId,
+                  id: evt.runId,
+                })}\n\n`,
+              );
+            }
+          } else if (evt.stream === "lifecycle") {
+            const phase = evt.data?.phase;
+            if (phase === "end") {
+              res.write(`data: ${JSON.stringify({ type: "stream_end", agentId })}\n\n`);
+            } else if (phase === "error") {
+              res.write(
+                `data: ${JSON.stringify({
+                  type: "agent_response",
+                  agentId,
+                  agentName: agentId,
+                  content: `Error: ${evt.data?.error || "Unknown error"}`,
+                  id: evt.runId,
+                })}\n\n`,
+              );
+            }
+          } else if (evt.stream === "tool") {
+            // Forward MABOS tool events for transparency
+            const toolName = evt.data?.name || evt.data?.toolName;
+            if (toolName && String(toolName).startsWith("mabos_")) {
+              res.write(
+                `data: ${JSON.stringify({
+                  type: "agent_response",
+                  agentId,
+                  agentName: agentId,
+                  content: `[Using tool: ${toolName}]`,
+                  id: evt.runId,
+                })}\n\n`,
+              );
+            }
+          }
+        } catch {
+          // Write failed — connection probably closing
+        }
+      });
+
+      // Also keep outbox polling as fallback for non-event-bus messages
       const outboxPath = join(
         workspaceDir,
         "businesses",
@@ -1328,6 +1427,7 @@ export default function register(api: OpenClawPluginApi) {
         "outbox.json",
       );
       const pollInterval = setInterval(async () => {
+        if (closed) return;
         try {
           const raw = await readFile(outboxPath, "utf-8");
           const outbox: any[] = JSON.parse(raw);
@@ -1343,7 +1443,6 @@ export default function register(api: OpenClawPluginApi) {
               };
               res.write(`data: ${JSON.stringify(event)}\n\n`);
             }
-            // Clear the outbox after sending
             await writeFile(outboxPath, "[]", "utf-8");
           }
         } catch {
@@ -1351,14 +1450,11 @@ export default function register(api: OpenClawPluginApi) {
         }
       }, 2000);
 
-      // Heartbeat every 30s to keep connection alive
-      const heartbeat = setInterval(() => {
-        res.write(`: heartbeat\n\n`);
-      }, 30000);
-
       req.on("close", () => {
+        closed = true;
         clearInterval(heartbeat);
         clearInterval(pollInterval);
+        unsubscribe();
         sseClients.get(clientKey)?.delete(res);
         if (sseClients.get(clientKey)?.size === 0) {
           sseClients.delete(clientKey);
@@ -1921,6 +2017,7 @@ export default function register(api: OpenClawPluginApi) {
   api.registerHttpRoute({
     path: "/mabos/api/bdi/cycle",
     handler: async (req, res) => {
+      if (!(await requireAuth(req, res))) return;
       if (req.method !== "POST") {
         res.statusCode = 405;
         res.setHeader("Content-Type", "application/json");
