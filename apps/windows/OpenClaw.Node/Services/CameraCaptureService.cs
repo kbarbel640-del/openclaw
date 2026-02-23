@@ -38,10 +38,11 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             }
 
             // 2) ffmpeg fallback device enumeration.
-            if (!await CommandExistsAsync("ffmpeg")) return Array.Empty<CameraDeviceInfo>();
+            var ffmpeg = await ResolveFfmpegExecutableAsync();
+            if (ffmpeg == null) return Array.Empty<CameraDeviceInfo>();
 
             var result = await RunProcessAsync(
-                "ffmpeg",
+                ffmpeg,
                 "-hide_banner",
                 "-f", "dshow",
                 "-list_devices", "true",
@@ -99,7 +100,8 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
                 return (PlaceholderJpegBase64, 1, 1);
             }
 
-            if (!await CommandExistsAsync("ffmpeg"))
+            var ffmpeg = await ResolveFfmpegExecutableAsync();
+            if (ffmpeg == null)
             {
                 return (PlaceholderJpegBase64, 1, 1);
             }
@@ -129,7 +131,7 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
 
                 args.Add(tempFile);
 
-                var result = await RunProcessAsync("ffmpeg", args.ToArray());
+                var result = await RunProcessAsync(ffmpeg, args.ToArray());
                 if (result.ExitCode != 0 || !File.Exists(tempFile))
                 {
                     return (PlaceholderJpegBase64, 1, 1);
@@ -376,16 +378,57 @@ $reader.ReadBytes($bytes)
             return (0, 0);
         }
 
-        private static async Task<bool> CommandExistsAsync(string command)
+        private static async Task<string?> ResolveFfmpegExecutableAsync()
+        {
+            // 1) explicit override
+            var envPath = Environment.GetEnvironmentVariable("OPENCLAW_FFMPEG_PATH");
+            if (!string.IsNullOrWhiteSpace(envPath) && File.Exists(envPath))
+            {
+                return envPath;
+            }
+
+            // 2) plain PATH lookup by invocation
+            if (await IsWorkingFfmpegAsync("ffmpeg"))
+            {
+                return "ffmpeg";
+            }
+
+            // 3) winget install location fallback
+            try
+            {
+                var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                var wingetRoot = Path.Combine(localAppData, "Microsoft", "WinGet", "Packages");
+                if (Directory.Exists(wingetRoot))
+                {
+                    var candidates = Directory
+                        .EnumerateFiles(wingetRoot, "ffmpeg.exe", SearchOption.AllDirectories)
+                        .Where(p => p.Contains("Gyan.FFmpeg", StringComparison.OrdinalIgnoreCase) ||
+                                    p.Contains("ffmpeg", StringComparison.OrdinalIgnoreCase))
+                        .OrderByDescending(p => p.Length)
+                        .Take(20)
+                        .ToArray();
+
+                    foreach (var c in candidates)
+                    {
+                        if (await IsWorkingFfmpegAsync(c)) return c;
+                    }
+                }
+            }
+            catch
+            {
+                // ignore discovery failures
+            }
+
+            return null;
+        }
+
+        private static async Task<bool> IsWorkingFfmpegAsync(string executable)
         {
             try
             {
-                var res = await RunProcessAsync(command, "-version");
-                if (res.ExitCode == 0) return true;
-
+                var res = await RunProcessAsync(executable, "-version");
                 var text = (res.StdOut ?? string.Empty) + "\n" + (res.StdErr ?? string.Empty);
-                if (text.Contains("ffmpeg version", StringComparison.OrdinalIgnoreCase)) return true;
-                return false;
+                return res.ExitCode == 0 || text.Contains("ffmpeg version", StringComparison.OrdinalIgnoreCase);
             }
             catch
             {
