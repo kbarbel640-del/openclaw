@@ -46,6 +46,10 @@ function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 function asOptionalString(value: unknown): string | undefined {
   const text = asTrimmedString(value);
   return text || undefined;
@@ -494,8 +498,8 @@ export class AcpxRuntime implements AcpRuntime {
     const type = asTrimmedString(parsed.type);
     switch (type) {
       case "text": {
-        const content = asTrimmedString(parsed.content);
-        if (!content) {
+        const content = asString(parsed.content);
+        if (content == null || content.length === 0) {
           return null;
         }
         return {
@@ -505,8 +509,8 @@ export class AcpxRuntime implements AcpRuntime {
         };
       }
       case "thought": {
-        const content = asTrimmedString(parsed.content);
-        if (!content) {
+        const content = asString(parsed.content);
+        if (content == null || content.length === 0) {
           return null;
         }
         return {

@@ -71,10 +71,10 @@ async function sendDiscordChunkWithFallback(params: {
   username?: string;
   avatarUrl?: string;
 }) {
-  const text = params.text.trim();
-  if (!text) {
+  if (!params.text.trim()) {
     return;
   }
+  const text = params.text;
   const binding = params.binding;
   if (binding?.webhookId && binding?.webhookToken) {
     try {

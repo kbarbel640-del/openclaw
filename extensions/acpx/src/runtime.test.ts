@@ -93,6 +93,46 @@ if (command === "prompt") {
     process.exit(1);
   }
 
+  if (stdinText.includes("split-spacing")) {
+    process.stdout.write(JSON.stringify({
+      eventVersion: 1,
+      sessionId,
+      requestId: "req-1",
+      seq: 0,
+      stream: "prompt",
+      type: "text",
+      content: "alpha",
+    }) + "\n");
+    process.stdout.write(JSON.stringify({
+      eventVersion: 1,
+      sessionId,
+      requestId: "req-1",
+      seq: 1,
+      stream: "prompt",
+      type: "text",
+      content: " beta",
+    }) + "\n");
+    process.stdout.write(JSON.stringify({
+      eventVersion: 1,
+      sessionId,
+      requestId: "req-1",
+      seq: 2,
+      stream: "prompt",
+      type: "text",
+      content: " gamma",
+    }) + "\n");
+    process.stdout.write(JSON.stringify({
+      eventVersion: 1,
+      sessionId,
+      requestId: "req-1",
+      seq: 3,
+      stream: "prompt",
+      type: "done",
+      stopReason: "end_turn",
+    }) + "\n");
+    process.exit(0);
+  }
+
   process.stdout.write(JSON.stringify({
     eventVersion: 1,
     sessionId,
@@ -254,6 +294,30 @@ describe("AcpxRuntime", () => {
     expect(promptArgs).toContain("--ttl");
     expect(promptArgs).toContain("180");
     expect(promptArgs).toContain("--approve-all");
+  });
+
+  it("preserves leading spaces across streamed text deltas", async () => {
+    const { runtime } = await createMockRuntime();
+    const handle = await runtime.ensureSession({
+      sessionKey: "agent:codex:acp:space",
+      agent: "codex",
+      mode: "persistent",
+    });
+
+    const textDeltas: string[] = [];
+    for await (const event of runtime.runTurn({
+      handle,
+      text: "split-spacing",
+      mode: "prompt",
+      requestId: "req-space",
+    })) {
+      if (event.type === "text_delta" && event.stream === "output") {
+        textDeltas.push(event.text);
+      }
+    }
+
+    expect(textDeltas).toEqual(["alpha", " beta", " gamma"]);
+    expect(textDeltas.join("")).toBe("alpha beta gamma");
   });
 
   it("maps acpx error events into ACP runtime error events", async () => {
