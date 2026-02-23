@@ -228,6 +228,42 @@ namespace OpenClaw.Node.Services
             return Task.FromResult(true);
         }
 
+        public Task<bool> ScrollAsync(int deltaY, int? x = null, int? y = null)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return Task.FromResult(false);
+            }
+
+            if (deltaY == 0)
+            {
+                return Task.FromResult(false);
+            }
+
+            if (x.HasValue || y.HasValue)
+            {
+                if (!x.HasValue || !y.HasValue)
+                {
+                    return Task.FromResult(false);
+                }
+
+                var screenWidth = GetSystemMetrics(SM_CXSCREEN);
+                var screenHeight = GetSystemMetrics(SM_CYSCREEN);
+                if (x.Value < 0 || y.Value < 0 || x.Value >= screenWidth || y.Value >= screenHeight)
+                {
+                    return Task.FromResult(false);
+                }
+
+                if (!SetCursorPos(x.Value, y.Value))
+                {
+                    return Task.FromResult(false);
+                }
+            }
+
+            mouse_event(MOUSEEVENTF_WHEEL, 0, 0, unchecked((uint)deltaY), UIntPtr.Zero);
+            return Task.FromResult(true);
+        }
+
         private static async Task<bool> RunSendKeysScriptAsync(string body)
         {
             var script = $"Add-Type -AssemblyName System.Windows.Forms; {body}";
@@ -365,6 +401,7 @@ namespace OpenClaw.Node.Services
         private const uint MOUSEEVENTF_LEFTUP = 0x0004;
         private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
         private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+        private const uint MOUSEEVENTF_WHEEL = 0x0800;
         private const int SM_CXSCREEN = 0;
         private const int SM_CYSCREEN = 1;
         private const int SM_SWAPBUTTON = 23;

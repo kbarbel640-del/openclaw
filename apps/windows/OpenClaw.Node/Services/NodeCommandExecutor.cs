@@ -26,6 +26,7 @@ namespace OpenClaw.Node.Services
                     "input.type" => await HandleInputTypeAsync(request),
                     "input.key" => await HandleInputKeyAsync(request),
                     "input.click" => await HandleInputClickAsync(request),
+                    "input.scroll" => await HandleInputScrollAsync(request),
                     _ => new BridgeInvokeResponse
                     {
                         Id = request.Id,
@@ -690,6 +691,93 @@ namespace OpenClaw.Node.Services
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = $"Mouse click failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleInputScrollAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            if (root == null)
+            {
+                return Invalid(request.Id, "input.scroll requires params.deltaY");
+            }
+
+            if (!root.Value.TryGetProperty("deltaY", out var deltaEl) || deltaEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "input.scroll requires numeric params.deltaY");
+            }
+
+            var deltaY = deltaEl.GetInt32();
+            if (deltaY == 0)
+            {
+                return Invalid(request.Id, "input.scroll params.deltaY must be non-zero");
+            }
+
+            int? x = null;
+            int? y = null;
+
+            if (root.Value.TryGetProperty("x", out var xEl))
+            {
+                if (xEl.ValueKind != JsonValueKind.Number)
+                {
+                    return Invalid(request.Id, "input.scroll params.x must be numeric when provided");
+                }
+
+                x = xEl.GetInt32();
+            }
+
+            if (root.Value.TryGetProperty("y", out var yEl))
+            {
+                if (yEl.ValueKind != JsonValueKind.Number)
+                {
+                    return Invalid(request.Id, "input.scroll params.y must be numeric when provided");
+                }
+
+                y = yEl.GetInt32();
+            }
+
+            if (x.HasValue ^ y.HasValue)
+            {
+                return Invalid(request.Id, "input.scroll requires both params.x and params.y when targeting coordinates");
+            }
+
+            try
+            {
+                var svc = new AutomationService();
+                var ok = await svc.ScrollAsync(deltaY, x, y);
+                if (!ok)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "Mouse scroll failed"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, deltaY, x, y })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Mouse scroll failed: {ex.Message}"
                     }
                 };
             }

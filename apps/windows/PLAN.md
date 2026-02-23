@@ -13,12 +13,12 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Real Gateway handshake working against local gateway (`hello-ok` confirmed)
 - ✅ Core frame protocol aligned to gateway `req/res/event` flow
 - ✅ Method routing scaffold implemented
-- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.list`, `screen.record`, `camera.list`, `camera.snap`, `window.list`, `window.focus`, `input.type`, `input.key`, `input.click`)
+- ✅ `node.invoke.request` receive + `node.invoke.result` send implemented with command executor (`system.run`, `system.which`, `system.notify`, `screen.list`, `screen.record`, `camera.list`, `camera.snap`, `window.list`, `window.focus`, `input.type`, `input.key`, `input.click`, `input.scroll`)
 - ✅ Pairing pending state can be populated from gateway events (`device.pair.requested`, `node.pair.requested`)
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (54 total) (including device-auth connect assertions + node.invoke.result request-path assertion)
+- ✅ Tests passing (56 total) (including device-auth connect assertions + node.invoke.result request-path assertion)
 
 ---
 
@@ -67,7 +67,7 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] Added graceful fallback path (placeholder frame) when native camera stack/device capture unavailable
   - [ ] Validate on real Windows host with physical cameras and tune device-selection heuristics
 - **Automation (`Automation/`)**
-  - [x] MVP command set wired (`window.list`, `window.focus`, `input.type`, `input.key`, `input.click`)
+  - [x] MVP command set wired (`window.list`, `window.focus`, `input.type`, `input.key`, `input.click`, `input.scroll`)
   - [x] `window.list` returns `{ windows: [{ handle, title, process, isFocused }] }`
   - [x] `window.focus` supports `handle` or `titleContains`
   - [x] `input.type` text injection path (PowerShell + SendKeys)
