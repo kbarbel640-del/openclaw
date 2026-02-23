@@ -161,7 +161,7 @@ describe("applyJobPatch", () => {
     });
 
     expect(() => applyJobPatch(job, { enabled: true })).toThrow(
-      'Invalid Telegram delivery target "-10012345/6789". Use colon (:) as delimiter for topics, not slash. Valid formats: -1001234567890, -1001234567890:123, -1001234567890:topic:123, @username, https://t.me/username',
+      'Invalid Telegram delivery target "-10012345/6789". Use a numeric chat ID or resolvable username/t.me target (examples: 123456789, -1001234567890, @mychannel, t.me/mychannel, -1001234567890:123).',
     );
   });
 
@@ -229,6 +229,16 @@ describe("applyJobPatch", () => {
       mode: "announce",
       channel: "telegram",
       to: "@mybot",
+    });
+
+    expect(() => applyJobPatch(job, { enabled: true })).not.toThrow();
+  });
+
+  it("accepts Telegram delivery with bare username", () => {
+    const job = createIsolatedAgentTurnJob("job-telegram-bare-username", {
+      mode: "announce",
+      channel: "telegram",
+      to: "mybot",
     });
 
     expect(() => applyJobPatch(job, { enabled: true })).not.toThrow();
