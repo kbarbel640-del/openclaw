@@ -105,6 +105,7 @@ export const AgentDefaultsSchema = z
           })
           .strict()
           .optional(),
+        structuredSummary: z.boolean().optional(),
       })
       .strict()
       .optional(),
