@@ -1032,34 +1032,37 @@ export async function textToSpeechTelephony(params: {
       }
 
       const output = TELEPHONY_OUTPUT.openai;
-      const audioBuffer =
-        provider === "openai"
-          ? await (() => {
-              const apiKey = resolveTtsApiKey(config, provider);
-              if (!apiKey) {
-                throw new Error("no API key");
-              }
-              return openaiTTS({
-                text: params.text,
-                apiKey,
-                model: config.openai.model,
-                voice: config.openai.voice,
-                responseFormat: output.format,
-                timeoutMs: config.timeoutMs,
-              });
-            })()
-          : await qwen3FastapiTTS({
-              text: params.text,
-              baseUrl: config.qwen3Fastapi.baseUrl ?? "",
-              apiKey: resolveTtsApiKey(config, provider),
-              model: config.qwen3Fastapi.model,
-              voice: config.qwen3Fastapi.voice,
-              instructions: config.qwen3Fastapi.instructions,
-              language: config.qwen3Fastapi.language,
-              stream: config.qwen3Fastapi.stream,
-              responseFormat: config.qwen3Fastapi.responseFormat ?? output.format,
-              timeoutMs: config.timeoutMs,
-            });
+      let audioBuffer: Uint8Array;
+
+      if (provider === "openai") {
+        const apiKey = resolveTtsApiKey(config, provider);
+        if (!apiKey) {
+          throw new Error("no API key");
+        }
+        audioBuffer = await openaiTTS({
+          text: params.text,
+          apiKey,
+          model: config.openai.model,
+          voice: config.openai.voice,
+          responseFormat: output.format,
+          timeoutMs: config.timeoutMs,
+        });
+      } else if (provider === "qwen3-fastapi") {
+        audioBuffer = await qwen3FastapiTTS({
+          text: params.text,
+          baseUrl: config.qwen3Fastapi.baseUrl ?? "",
+          apiKey: resolveTtsApiKey(config, provider),
+          model: config.qwen3Fastapi.model,
+          voice: config.qwen3Fastapi.voice,
+          instructions: config.qwen3Fastapi.instructions,
+          language: config.qwen3Fastapi.language,
+          stream: config.qwen3Fastapi.stream,
+          responseFormat: config.qwen3Fastapi.responseFormat ?? output.format,
+          timeoutMs: config.timeoutMs,
+        });
+      } else {
+        throw new Error("unsupported telephony provider");
+      }
 
       return {
         success: true,
