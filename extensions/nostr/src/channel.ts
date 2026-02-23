@@ -223,7 +223,7 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             channel: "nostr",
             accountId: account.accountId,
             peer: {
-              kind: "user",
+              kind: "direct",
               id: senderPubkey,
             },
           });
