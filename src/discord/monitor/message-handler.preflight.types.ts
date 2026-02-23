@@ -82,6 +82,7 @@ export type DiscordMessagePreflightContext = {
   effectiveWasMentioned: boolean;
   canDetectMention: boolean;
 
+  preflightTranscript?: string;
   historyEntry?: HistoryEntry;
   threadBindings: ThreadBindingManager;
 };

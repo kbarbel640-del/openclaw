@@ -9,6 +9,7 @@ import {
 const sendMocks = vi.hoisted(() => ({
   reactMessageDiscord: vi.fn(async () => {}),
   removeReactionDiscord: vi.fn(async () => {}),
+  sendMessageDiscord: vi.fn(async () => ({ messageId: "msg-1", channelId: "c1" })),
 }));
 function createMockDraftStream() {
   return {
@@ -52,6 +53,7 @@ const resolveStorePath = vi.fn(() => "/tmp/openclaw-discord-process-test-session
 vi.mock("../send.js", () => ({
   reactMessageDiscord: sendMocks.reactMessageDiscord,
   removeReactionDiscord: sendMocks.removeReactionDiscord,
+  sendMessageDiscord: sendMocks.sendMessageDiscord,
 }));
 
 vi.mock("../send.messages.js", () => ({
@@ -107,6 +109,7 @@ beforeEach(() => {
   vi.useRealTimers();
   sendMocks.reactMessageDiscord.mockClear();
   sendMocks.removeReactionDiscord.mockClear();
+  sendMocks.sendMessageDiscord.mockClear();
   editMessageDiscord.mockClear();
   deliverDiscordReply.mockClear();
   createDiscordDraftStream.mockClear();
@@ -416,11 +419,19 @@ describe("processDiscordMessage draft streaming", () => {
     expect(deliverDiscordReply).not.toHaveBeenCalled();
   });
 
-  it("falls back to standard send when final needs multiple chunks", async () => {
+  it("edits preview to first chunk and sends rest when final needs multiple chunks", async () => {
     await runSingleChunkFinalScenario({ streamMode: "partial", maxLinesPerMessage: 1 });
 
-    expect(editMessageDiscord).not.toHaveBeenCalled();
-    expect(deliverDiscordReply).toHaveBeenCalledTimes(1);
+    // Preview is edited to first chunk instead of being deleted
+    expect(editMessageDiscord).toHaveBeenCalledWith(
+      "c1",
+      "preview-1",
+      { content: "Hello" },
+      { rest: {} },
+    );
+    // Remaining chunks sent via sendMessageDiscord
+    expect(sendMocks.sendMessageDiscord).toHaveBeenCalledTimes(1);
+    expect(deliverDiscordReply).not.toHaveBeenCalled();
   });
 
   it("streams block previews using draft chunking", async () => {

@@ -1,10 +1,12 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import {
+  jsonResult,
   readNumberParam,
   readStringArrayParam,
   readStringParam,
 } from "../../../../agents/tools/common.js";
 import { handleDiscordAction } from "../../../../agents/tools/discord-actions.js";
+import { listPresences } from "../../../../discord/monitor/presence-cache.js";
 import { resolveDiscordChannelId } from "../../../../discord/targets.js";
 import type { ChannelMessageActionContext } from "../../types.js";
 import { tryHandleDiscordMessageActionGuildAdmin } from "./handle-action.guild-admin.js";
@@ -278,6 +280,25 @@ export async function handleDiscordMessageAction(
       cfg,
       actionOptions,
     );
+  }
+
+  if (action === "list-presence") {
+    const statusFilter = readStringParam(params, "status") ?? undefined;
+    const limit = readNumberParam(params, "limit") ?? 50;
+    const entries = listPresences(accountId ?? undefined, {
+      status: statusFilter,
+      limit,
+    });
+    const result = entries.map((entry) => ({
+      userId: entry.userId,
+      status: entry.data.status ?? "offline",
+      activities: entry.data.activities?.map((a) => ({
+        name: a.name,
+        type: a.type,
+        state: a.state,
+      })),
+    }));
+    return jsonResult(result);
   }
 
   const adminResult = await tryHandleDiscordMessageActionGuildAdmin({
