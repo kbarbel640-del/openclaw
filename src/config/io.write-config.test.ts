@@ -174,17 +174,33 @@ describe("config io write", () => {
 
   it("normalizes legacy channels.whatsapp.enabled during writes", async () => {
     await withTempHome("openclaw-config-io-", async (home) => {
-      const { configPath, io, snapshot } = await writeConfigAndCreateIo({
-        home,
-        initialConfig: {
-          channels: {
-            whatsapp: {
-              dmPolicy: "pairing",
-              allowFrom: ["+15555550123"],
+      const configPath = path.join(home, ".openclaw", "openclaw.json");
+      await fs.mkdir(path.dirname(configPath), { recursive: true });
+      await fs.writeFile(
+        configPath,
+        JSON.stringify(
+          {
+            channels: {
+              whatsapp: {
+                dmPolicy: "pairing",
+                allowFrom: ["+15555550123"],
+              },
             },
           },
-        },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      const io = createConfigIO({
+        env: {} as NodeJS.ProcessEnv,
+        homedir: () => home,
+        logger: silentLogger,
       });
+
+      const snapshot = await io.readConfigFileSnapshot();
+      expect(snapshot.valid).toBe(true);
 
       const next = structuredClone(snapshot.config) as Record<string, unknown>;
       const channels =
