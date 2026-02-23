@@ -205,7 +205,7 @@ export const dispatchTelegramMessage = async ({
   const splitTextIntoLaneSegments = (text?: string): SplitLaneSegment[] => {
     const split = splitTelegramReasoningText(text);
     const segments: SplitLaneSegment[] = [];
-    if (split.reasoningText) {
+    if (split.reasoningText && resolvedReasoningLevel !== "off") {
       segments.push({ lane: "reasoning", text: split.reasoningText });
     }
     if (split.answerText) {
