@@ -141,6 +141,30 @@ class NodeRuntime(context: Context) {
     getOperatorCanvasHostUrl = { operatorSession.currentCanvasHostUrl() },
   )
 
+  private val deviceStatusHandler: DeviceStatusHandler = DeviceStatusHandler(
+    appContext = appContext,
+  )
+
+  private val photoLibraryHandler: PhotoLibraryHandler = PhotoLibraryHandler(
+    appContext = appContext,
+    json = json,
+  )
+
+  private val motionHandler: MotionHandler = MotionHandler(
+    appContext = appContext,
+    json = json,
+  )
+
+  private val contactsHandler: ContactsHandler = ContactsHandler(
+    appContext = appContext,
+    json = json,
+  )
+
+  private val calendarHandler: CalendarHandler = CalendarHandler(
+    appContext = appContext,
+    json = json,
+  )
+
   private val connectionManager: ConnectionManager = ConnectionManager(
     prefs = prefs,
     cameraEnabled = { cameraEnabled.value },
@@ -149,6 +173,7 @@ class NodeRuntime(context: Context) {
     smsAvailable = { sms.canSendSms() },
     hasRecordAudioPermission = { hasRecordAudioPermission() },
     manualTls = { manualTls.value },
+    photosEnabled = { photosEnabled.value },
   )
 
   private val invokeDispatcher: InvokeDispatcher = InvokeDispatcher(
@@ -158,11 +183,17 @@ class NodeRuntime(context: Context) {
     screenHandler = screenHandler,
     smsHandler = smsHandlerImpl,
     a2uiHandler = a2uiHandler,
+    deviceStatusHandler = deviceStatusHandler,
+    photoLibraryHandler = photoLibraryHandler,
+    motionHandler = motionHandler,
+    contactsHandler = contactsHandler,
+    calendarHandler = calendarHandler,
     debugHandler = debugHandler,
     appUpdateHandler = appUpdateHandler,
     isForeground = { _isForeground.value },
     cameraEnabled = { cameraEnabled.value },
     locationEnabled = { locationMode.value != LocationMode.Off },
+    photosEnabled = { photosEnabled.value },
   )
 
   private lateinit var gatewayEventHandler: GatewayEventHandler
@@ -334,6 +365,7 @@ class NodeRuntime(context: Context) {
   val instanceId: StateFlow<String> = prefs.instanceId
   val displayName: StateFlow<String> = prefs.displayName
   val cameraEnabled: StateFlow<Boolean> = prefs.cameraEnabled
+  val photosEnabled: StateFlow<Boolean> = prefs.photosEnabled
   val locationMode: StateFlow<LocationMode> = prefs.locationMode
   val locationPreciseEnabled: StateFlow<Boolean> = prefs.locationPreciseEnabled
   val preventSleep: StateFlow<Boolean> = prefs.preventSleep
@@ -480,6 +512,10 @@ class NodeRuntime(context: Context) {
 
   fun setCameraEnabled(value: Boolean) {
     prefs.setCameraEnabled(value)
+  }
+
+  fun setPhotosEnabled(value: Boolean) {
+    prefs.setPhotosEnabled(value)
   }
 
   fun setLocationMode(mode: LocationMode) {

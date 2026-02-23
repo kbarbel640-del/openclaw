@@ -59,6 +59,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Android/Invoke: add iOS invoke command parity — device status/info, contacts search/add, calendar events/add, photos latest, and motion pedometer; per-handler runtime permission checks and a `photosEnabled` privacy toggle mirroring `cameraEnabled`. (#24239)
 - Control UI/Agents: make the Tools panel data-driven from runtime `tools.catalog`, add per-tool provenance labels (`core` / `plugin:<id>` + optional marker), and keep a static fallback list when the runtime catalog is unavailable.
 - Web Search/Gemini: add grounded Gemini provider support with provider auto-detection and config/docs updates. (#13075, #13074) Thanks @akoscz.
 - Control UI/Cron: add full web cron edit parity (including clone and richer validation/help text), plus all-jobs run history with pagination/search/sort/multi-filter controls and improved cron page layout for cleaner scheduling and failure triage workflows.
