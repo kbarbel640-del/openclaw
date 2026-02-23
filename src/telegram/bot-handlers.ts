@@ -1,5 +1,11 @@
 import type { Message, ReactionTypeEmoji } from "@grammyjs/types";
-import { resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { resolveAgentDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import {
+  ensureAuthProfileStore,
+  isProfileInCooldown,
+  listProfilesForProvider,
+  resolveAuthProfileOrder,
+} from "../agents/auth-profiles.js";
 import { hasControlCommand } from "../auto-reply/command-detection.js";
 import {
   createInboundDebouncer,
@@ -53,6 +59,7 @@ import {
   calculateTotalPages,
   getModelsPageSize,
   parseModelCallbackData,
+  type ButtonRow,
   type ProviderInfo,
 } from "./model-buttons.js";
 import { buildInlineKeyboard } from "./send.js";
@@ -182,13 +189,39 @@ export const registerTelegramHandlers = ({
     },
   });
 
-  const resolveTelegramSessionModel = (params: {
+  const PROFILE_BUTTONS_PER_ROW = 3;
+  const PROFILE_SELECT_CALLBACK_RE = /^mdl_psel_([a-z0-9_-]+)_(\d+)$/i;
+
+  const parseModelRef = (modelRef?: string): { provider: string; model: string } | undefined => {
+    const value = modelRef?.trim();
+    if (!value) {
+      return undefined;
+    }
+    const slash = value.indexOf("/");
+    if (slash <= 0 || slash >= value.length - 1) {
+      return undefined;
+    }
+    return {
+      provider: value.slice(0, slash),
+      model: value.slice(slash + 1),
+    };
+  };
+
+  const formatProfileButtonLabel = (profileId: string, provider: string): string => {
+    const providerPrefix = `${provider}:`;
+    if (profileId.startsWith(providerPrefix)) {
+      return profileId.slice(providerPrefix.length);
+    }
+    return profileId;
+  };
+
+  const resolveTelegramSessionState = (params: {
     chatId: number | string;
     isGroup: boolean;
     isForum: boolean;
     messageThreadId?: number;
     resolvedThreadId?: number;
-  }): string | undefined => {
+  }): { agentId: string; currentModel?: string; authProfileOverride?: string } => {
     const resolvedThreadId =
       params.resolvedThreadId ??
       resolveTelegramForumThreadId({
@@ -229,17 +262,73 @@ export const registerTelegramHandlers = ({
       sessionKey,
     });
     if (storedOverride) {
-      return storedOverride.provider
-        ? `${storedOverride.provider}/${storedOverride.model}`
-        : storedOverride.model;
+      return {
+        agentId: route.agentId,
+        currentModel: storedOverride.provider
+          ? `${storedOverride.provider}/${storedOverride.model}`
+          : storedOverride.model,
+        authProfileOverride: entry?.authProfileOverride?.trim(),
+      };
     }
     const provider = entry?.modelProvider?.trim();
     const model = entry?.model?.trim();
-    if (provider && model) {
-      return `${provider}/${model}`;
-    }
     const modelCfg = cfg.agents?.defaults?.model;
-    return typeof modelCfg === "string" ? modelCfg : modelCfg?.primary;
+    const fallbackModel = typeof modelCfg === "string" ? modelCfg : modelCfg?.primary;
+    return {
+      agentId: route.agentId,
+      currentModel: provider && model ? `${provider}/${model}` : fallbackModel,
+      authProfileOverride: entry?.authProfileOverride?.trim(),
+    };
+  };
+
+  const resolveProviderProfiles = (params: { provider: string; agentId: string }) => {
+    const agentDir = resolveAgentDir(cfg, params.agentId);
+    const store = ensureAuthProfileStore(agentDir, { allowKeychainPrompt: false });
+    const ordered = resolveAuthProfileOrder({
+      cfg,
+      store,
+      provider: params.provider,
+    });
+    const fallback = listProfilesForProvider(store, params.provider);
+    const profileIds = (ordered.length > 0 ? ordered : fallback).filter(Boolean);
+    return { store, profileIds };
+  };
+
+  const buildProfileSwitchRows = (params: {
+    provider: string;
+    profileIds: string[];
+    store: ReturnType<typeof ensureAuthProfileStore>;
+    activeProfileId?: string;
+  }): ButtonRow[] => {
+    if (params.profileIds.length === 0) {
+      return [];
+    }
+
+    const rows: ButtonRow[] = [];
+    let currentRow: ButtonRow = [];
+
+    for (const [index, profileId] of params.profileIds.entries()) {
+      const base = formatProfileButtonLabel(profileId, params.provider);
+      const isActive = params.activeProfileId === profileId;
+      const inCooldown = isProfileInCooldown(params.store, profileId);
+      const suffix = `${isActive ? " ✓" : ""}${inCooldown ? " ⏳" : ""}`;
+
+      currentRow.push({
+        text: `@${base}${suffix}`,
+        callback_data: `mdl_psel_${params.provider}_${index}`,
+      });
+
+      if (currentRow.length >= PROFILE_BUTTONS_PER_ROW) {
+        rows.push(currentRow);
+        currentRow = [];
+      }
+    }
+
+    if (currentRow.length > 0) {
+      rows.push(currentRow);
+    }
+
+    return rows;
   };
 
   const processMediaGroup = async (entry: MediaGroupEntry) => {
@@ -871,6 +960,56 @@ export const registerTelegramHandlers = ({
         return;
       }
 
+      const profileSelectMatch = data.match(PROFILE_SELECT_CALLBACK_RE);
+      if (profileSelectMatch) {
+        const provider = profileSelectMatch[1]?.trim().toLowerCase();
+        const index = Number.parseInt(profileSelectMatch[2] ?? "-1", 10);
+        if (!provider || Number.isNaN(index) || index < 0) {
+          return;
+        }
+
+        const modelData = await buildModelsProviderData(cfg);
+        const modelSet = modelData.byProvider.get(provider);
+        if (!modelSet || modelSet.size === 0) {
+          return;
+        }
+
+        const sessionState = resolveTelegramSessionState({
+          chatId,
+          isGroup,
+          isForum,
+          messageThreadId,
+          resolvedThreadId,
+        });
+        const { profileIds } = resolveProviderProfiles({
+          provider,
+          agentId: sessionState.agentId,
+        });
+        const profileId = profileIds[index];
+        if (!profileId) {
+          return;
+        }
+
+        const models = [...modelSet].toSorted();
+        const currentRef = parseModelRef(sessionState.currentModel);
+        const targetModel =
+          currentRef && currentRef.provider === provider ? currentRef.model : models[0];
+        if (!targetModel) {
+          return;
+        }
+
+        const syntheticMessage = buildSyntheticTextMessage({
+          base: callbackMessage,
+          from: callback.from,
+          text: `/model ${provider}/${targetModel}@${profileId}`,
+        });
+        await processMessage(buildSyntheticContext(ctx, syntheticMessage), [], storeAllowFrom, {
+          forceWasMentioned: true,
+          messageIdOverride: callback.id,
+        });
+        return;
+      }
+
       // Model selection callback handler (mdl_prov, mdl_list_*, mdl_sel_*, mdl_back)
       const modelCallback = parseModelCallbackData(data);
       if (modelCallback) {
@@ -932,16 +1071,26 @@ export const registerTelegramHandlers = ({
           const totalPages = calculateTotalPages(models.length, pageSize);
           const safePage = Math.max(1, Math.min(page, totalPages));
 
-          // Resolve current model from session (prefer overrides)
-          const currentModel = resolveTelegramSessionModel({
+          const sessionState = resolveTelegramSessionState({
             chatId,
             isGroup,
             isForum,
             messageThreadId,
             resolvedThreadId,
           });
+          const currentModel = sessionState.currentModel;
+          const { store, profileIds } = resolveProviderProfiles({
+            provider,
+            agentId: sessionState.agentId,
+          });
+          const profileRows = buildProfileSwitchRows({
+            provider,
+            profileIds,
+            store,
+            activeProfileId: sessionState.authProfileOverride,
+          });
 
-          const buttons = buildModelsKeyboard({
+          const modelRows = buildModelsKeyboard({
             provider,
             models,
             currentModel,
@@ -949,7 +1098,11 @@ export const registerTelegramHandlers = ({
             totalPages,
             pageSize,
           });
-          const text = `Models (${provider}) — ${models.length} available`;
+          const buttons = profileRows.length > 0 ? [...profileRows, ...modelRows] : modelRows;
+          const text =
+            profileRows.length > 0
+              ? `Models (${provider}) — ${models.length} available\nAccounts: tap @profile buttons to switch`
+              : `Models (${provider}) — ${models.length} available`;
           await editMessageWithButtons(text, buttons);
           return;
         }
