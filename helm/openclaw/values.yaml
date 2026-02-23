@@ -1,0 +1,206 @@
+# Default values for openclaw Helm chart
+
+# Global settings
+global:
+  # Image registry
+  image:
+    registry: ghcr.io
+    repository: openclaw/openclaw
+    tag: "main"
+    pullPolicy: IfNotPresent
+
+# Namespace configuration
+namespace:
+  create: true
+  name: openclaw
+
+# OpenClaw Gateway Configuration
+gateway:
+  enabled: true
+  
+  # Deployment configuration
+  replicaCount: 3
+  
+  # Image settings
+  image:
+    registry: ghcr.io
+    repository: openclaw/openclaw
+    tag: "main"
+    pullPolicy: IfNotPresent
+  
+  # Resource limits
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 18789
+    bridgePort: 18790
+  
+  # Ingress configuration
+  ingress:
+    enabled: false
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    hosts:
+      - host: openclaw.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: openclaw-tls
+        hosts:
+          - openclaw.example.com
+  
+  # Health check configuration
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: gateway
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: gateway
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 2
+  
+  # Pod disruption budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+  
+  # Horizontal Pod Autoscaler
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# CLI Configuration (optional)
+cli:
+  enabled: false
+  
+  replicaCount: 1
+  
+  image:
+    registry: ghcr.io
+    repository: openclaw/openclaw
+    tag: "main"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Storage configuration
+storage:
+  config:
+    enabled: true
+    size: 10Gi
+    storageClassName: "standard"
+  
+  workspace:
+    enabled: true
+    size: 50Gi
+    storageClassName: "standard"
+
+# ConfigMap values
+configMap:
+  TERM: "xterm-256color"
+  NODE_ENV: "production"
+  OPENCLAW_GATEWAY_BIND: "0.0.0.0"
+  OPENCLAW_GATEWAY_PORT: "18789"
+  OPENCLAW_BRIDGE_PORT: "18790"
+  LOG_LEVEL: "info"
+
+# Secret values (MUST be overridden in production)
+secrets:
+  OPENCLAW_GATEWAY_TOKEN: "change-me-to-secure-token"
+  OPENCLAW_GATEWAY_PASSWORD: "change-me-to-secure-password"
+  CLAUDE_AI_SESSION_KEY: ""
+  CLAUDE_WEB_SESSION_KEY: ""
+  CLAUDE_WEB_COOKIE: ""
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Container security context
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+      - ALL
+
+# RBAC configuration
+rbac:
+  create: true
+
+# ServiceAccount
+serviceAccount:
+  create: true
+  name: openclaw
+
+# Node affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - openclaw-gateway
+          topologyKey: kubernetes.io/hostname
+
+# Tolerations
+tolerations: []
+
+# Node selector
+nodeSelector: {}
+
+# Monitoring (Prometheus)
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+
+# Network policies
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "18789"
+  prometheus.io/path: "/metrics"

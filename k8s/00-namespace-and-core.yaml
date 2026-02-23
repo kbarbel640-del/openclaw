@@ -1,0 +1,384 @@
+---
+# Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openclaw
+  labels:
+    name: openclaw
+
+---
+# ConfigMap for OpenClaw configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-config
+  namespace: openclaw
+data:
+  TERM: "xterm-256color"
+  NODE_ENV: "production"
+  OPENCLAW_GATEWAY_BIND: "0.0.0.0"
+  OPENCLAW_GATEWAY_PORT: "18789"
+  OPENCLAW_BRIDGE_PORT: "18790"
+  # Log levels and optional settings
+  LOG_LEVEL: "info"
+
+---
+# Secret for sensitive data (API keys, tokens, credentials)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openclaw-secrets
+  namespace: openclaw
+type: Opaque
+stringData:
+  OPENCLAW_GATEWAY_TOKEN: "change-me-to-secure-token"
+  OPENCLAW_GATEWAY_PASSWORD: "change-me-to-secure-password"
+  CLAUDE_AI_SESSION_KEY: ""
+  CLAUDE_WEB_SESSION_KEY: ""
+  CLAUDE_WEB_COOKIE: ""
+
+---
+# PersistentVolumeClaim for configuration and workspace
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openclaw-config-pvc
+  namespace: openclaw
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard  # Change to your preferred storage class
+
+---
+# PersistentVolumeClaim for workspace data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openclaw-workspace-pvc
+  namespace: openclaw
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard  # Change to your preferred storage class
+
+---
+# ServiceAccount for RBAC
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openclaw
+  namespace: openclaw
+
+---
+# Role for OpenClaw (minimal permissions)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openclaw
+  namespace: openclaw
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+
+---
+# RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openclaw
+  namespace: openclaw
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openclaw
+subjects:
+  - kind: ServiceAccount
+    name: openclaw
+    namespace: openclaw
+
+---
+# OpenClaw Gateway Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openclaw-gateway
+  namespace: openclaw
+  labels:
+    app: openclaw-gateway
+    component: gateway
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: openclaw-gateway
+      component: gateway
+  template:
+    metadata:
+      labels:
+        app: openclaw-gateway
+        component: gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "18789"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: openclaw
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      containers:
+      - name: openclaw-gateway
+        image: ghcr.io/openclaw/openclaw:main
+        imagePullPolicy: IfNotPresent
+        
+        # Security context for container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+        
+        # Ports
+        ports:
+        - name: gateway
+          containerPort: 18789
+          protocol: TCP
+        - name: bridge
+          containerPort: 18790
+          protocol: TCP
+        
+        # Environment variables
+        envFrom:
+        - configMapRef:
+            name: openclaw-config
+        - secretRef:
+            name: openclaw-secrets
+        
+        env:
+        - name: HOME
+          value: /home/node
+        - name: OPENCLAW_CONFIG_DIR
+          value: /home/node/.openclaw
+        - name: OPENCLAW_WORKSPACE_DIR
+          value: /home/node/.openclaw/workspace
+        
+        # Volume mounts
+        volumeMounts:
+        - name: config
+          mountPath: /home/node/.openclaw
+        - name: workspace
+          mountPath: /home/node/.openclaw/workspace
+        - name: tmp
+          mountPath: /tmp
+        
+        # Resource limits and requests
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: gateway
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: gateway
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 2
+        
+        # Startup probe (for slow-starting containers)
+        startupProbe:
+          httpGet:
+            path: /health
+            port: gateway
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 12
+        
+        # Command and args
+        command:
+        - "node"
+        - "dist/index.js"
+        args:
+        - "gateway"
+        - "--bind"
+        - "0.0.0.0"
+        - "--port"
+        - "18789"
+      
+      # Volume definitions
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: openclaw-config-pvc
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: openclaw-workspace-pvc
+      - name: tmp
+        emptyDir: {}
+      
+      # Node affinity (optional)
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - openclaw-gateway
+              topologyKey: kubernetes.io/hostname
+
+---
+# OpenClaw Gateway Service (ClusterIP - internal)
+apiVersion: v1
+kind: Service
+metadata:
+  name: openclaw-gateway
+  namespace: openclaw
+  labels:
+    app: openclaw-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: openclaw-gateway
+    component: gateway
+  ports:
+  - name: gateway
+    port: 18789
+    targetPort: gateway
+    protocol: TCP
+  - name: bridge
+    port: 18790
+    targetPort: bridge
+    protocol: TCP
+
+---
+# OpenClaw Gateway Service (LoadBalancer - external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: openclaw-gateway-lb
+  namespace: openclaw
+  labels:
+    app: openclaw-gateway
+spec:
+  type: LoadBalancer
+  selector:
+    app: openclaw-gateway
+    component: gateway
+  ports:
+  - name: gateway
+    port: 18789
+    targetPort: gateway
+    protocol: TCP
+    nodePort: 30789
+  - name: bridge
+    port: 18790
+    targetPort: bridge
+    protocol: TCP
+    nodePort: 30790
+  sessionAffinity: ClientIP  # Sticky sessions
+
+---
+# HorizontalPodAutoscaler for Gateway
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: openclaw-gateway-hpa
+  namespace: openclaw
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: openclaw-gateway
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Max
+
+---
+# PodDisruptionBudget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: openclaw-gateway-pdb
+  namespace: openclaw
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: openclaw-gateway
+      component: gateway

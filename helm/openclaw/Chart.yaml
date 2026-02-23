@@ -1,0 +1,26 @@
+apiVersion: v2
+name: openclaw
+description: OpenClaw - Multi-channel AI gateway
+type: application
+version: 2026.2.23
+appVersion: "2026.2.23"
+
+keywords:
+  - openclaw
+  - gateway
+  - ai
+  - messaging
+  - kubernetes
+
+maintainers:
+  - name: OpenClaw Team
+    email: team@openclaw.dev
+
+sources:
+  - https://github.com/openclaw/openclaw
+
+home: https://github.com/openclaw/openclaw
+
+icon: https://raw.githubusercontent.com/openclaw/openclaw/main/README-header.png
+
+dependencies: []

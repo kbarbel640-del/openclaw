@@ -1,0 +1,227 @@
+---
+# StatefulSet for CLI (optional, if you need persistent CLI sessions)
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openclaw-cli
+  namespace: openclaw
+  labels:
+    app: openclaw-cli
+    component: cli
+spec:
+  serviceName: openclaw-cli
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openclaw-cli
+      component: cli
+  template:
+    metadata:
+      labels:
+        app: openclaw-cli
+        component: cli
+    spec:
+      serviceAccountName: openclaw
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      containers:
+      - name: openclaw-cli
+        image: ghcr.io/openclaw/openclaw:main
+        imagePullPolicy: IfNotPresent
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+        
+        envFrom:
+        - configMapRef:
+            name: openclaw-config
+        - secretRef:
+            name: openclaw-secrets
+        
+        env:
+        - name: HOME
+          value: /home/node
+        - name: BROWSER
+          value: "echo"
+        - name: OPENCLAW_CONFIG_DIR
+          value: /home/node/.openclaw
+        - name: OPENCLAW_WORKSPACE_DIR
+          value: /home/node/.openclaw/workspace
+        
+        volumeMounts:
+        - name: config
+          mountPath: /home/node/.openclaw
+        - name: workspace
+          mountPath: /home/node/.openclaw/workspace
+        - name: tmp
+          mountPath: /tmp
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        
+        stdin: true
+        tty: true
+      
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: openclaw-config-pvc
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: openclaw-workspace-pvc
+      - name: tmp
+        emptyDir: {}
+
+---
+# Job for one-time tasks or migrations
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openclaw-init
+  namespace: openclaw
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: openclaw
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      containers:
+      - name: openclaw-init
+        image: ghcr.io/openclaw/openclaw:main
+        imagePullPolicy: IfNotPresent
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+              - ALL
+        
+        envFrom:
+        - configMapRef:
+            name: openclaw-config
+        - secretRef:
+            name: openclaw-secrets
+        
+        env:
+        - name: HOME
+          value: /home/node
+        - name: OPENCLAW_CONFIG_DIR
+          value: /home/node/.openclaw
+        - name: OPENCLAW_WORKSPACE_DIR
+          value: /home/node/.openclaw/workspace
+        
+        volumeMounts:
+        - name: config
+          mountPath: /home/node/.openclaw
+        - name: workspace
+          mountPath: /home/node/.openclaw/workspace
+        
+        command:
+        - "sh"
+        - "-c"
+        - |
+          echo "Initializing OpenClaw environment..."
+          # Add initialization commands here
+          echo "Initialization complete"
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: openclaw-config-pvc
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: openclaw-workspace-pvc
+      
+      restartPolicy: Never
+
+---
+# CronJob for cleanup or maintenance tasks
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: openclaw-cleanup
+  namespace: openclaw
+spec:
+  schedule: "0 2 * * *"  # Run daily at 2 AM
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          serviceAccountName: openclaw
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+          
+          containers:
+          - name: cleanup
+            image: ghcr.io/openclaw/openclaw:main
+            imagePullPolicy: IfNotPresent
+            
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              runAsNonRoot: true
+              runAsUser: 1000
+              capabilities:
+                drop:
+                  - ALL
+            
+            command:
+            - "sh"
+            - "-c"
+            - |
+              echo "Starting cleanup job..."
+              # Add cleanup commands here (remove old logs, temp files, etc.)
+              find /home/node/.openclaw -name "*.log" -mtime +30 -delete
+              echo "Cleanup complete"
+            
+            volumeMounts:
+            - name: workspace
+              mountPath: /home/node/.openclaw/workspace
+            
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 250m
+                memory: 256Mi
+          
+          volumes:
+          - name: workspace
+            persistentVolumeClaim:
+              claimName: openclaw-workspace-pvc
+          
+          restartPolicy: OnFailure

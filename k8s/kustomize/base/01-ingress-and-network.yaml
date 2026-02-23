@@ -1,0 +1,185 @@
+---
+# Ingress for OpenClaw Gateway (requires ingress controller)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openclaw-gateway-ingress
+  namespace: openclaw
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - openclaw.example.com
+    secretName: openclaw-gateway-tls
+  rules:
+  - host: openclaw.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: openclaw-gateway
+            port:
+              number: 18789
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: openclaw-gateway
+            port:
+              number: 18789
+
+---
+# Network Policy for OpenClaw (ingress and egress control)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: openclaw-network-policy
+  namespace: openclaw
+spec:
+  podSelector:
+    matchLabels:
+      app: openclaw-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - namespaceSelector:
+        matchLabels:
+          name: openclaw
+    ports:
+    - protocol: TCP
+      port: 18789
+    - protocol: TCP
+      port: 18790
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow external HTTPS
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow external HTTP
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 80
+  # Allow communication within cluster
+  - to:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 18789
+    - protocol: TCP
+      port: 18790
+
+---
+# Certificate Issuer (if using cert-manager)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+
+---
+# Certificate (if using cert-manager)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: openclaw-gateway-cert
+  namespace: openclaw
+spec:
+  secretName: openclaw-gateway-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - openclaw.example.com
+  - "*.openclaw.example.com"
+
+---
+# ServiceMonitor for Prometheus (if using prometheus operator)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: openclaw-gateway
+  namespace: openclaw
+  labels:
+    app: openclaw-gateway
+spec:
+  selector:
+    matchLabels:
+      app: openclaw-gateway
+  endpoints:
+  - port: gateway
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+
+---
+# PrometheusRule for alerting
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: openclaw-gateway-alerts
+  namespace: openclaw
+spec:
+  groups:
+  - name: openclaw.rules
+    interval: 30s
+    rules:
+    - alert: OpenClawGatewayDown
+      expr: up{job="openclaw-gateway"} == 0
+      for: 2m
+      annotations:
+        summary: "OpenClaw Gateway is down"
+        description: "OpenClaw Gateway pod {{ $labels.pod }} in {{ $labels.namespace }} is down"
+    
+    - alert: OpenClawGatewayHighMemory
+      expr: container_memory_usage_bytes{pod=~"openclaw-gateway-.*"} / 1024 / 1024 > 1500
+      for: 5m
+      annotations:
+        summary: "OpenClaw Gateway high memory usage"
+        description: "Memory usage is {{ $value }}MB (threshold: 1500MB)"
+    
+    - alert: OpenClawGatewayHighCPU
+      expr: rate(container_cpu_usage_seconds_total{pod=~"openclaw-gateway-.*"}[5m]) > 0.8
+      for: 5m
+      annotations:
+        summary: "OpenClaw Gateway high CPU usage"
+        description: "CPU usage is {{ $value }}% (threshold: 80%)"
+    
+    - alert: OpenClawGatewayRestartCount
+      expr: rate(kube_pod_container_status_restarts_total{pod=~"openclaw-gateway-.*"}[15m]) > 0.1
+      for: 5m
+      annotations:
+        summary: "OpenClaw Gateway frequent restarts"
+        description: "Pod is restarting frequently"
