@@ -9,6 +9,7 @@ import type {
   CanvasHostConfig,
   DiscoveryConfig,
   GatewayConfig,
+  SecurityConfig,
   TalkConfig,
   VaultConfig,
 } from "./types.gateway.js";
@@ -110,6 +111,7 @@ export type OpenClawConfig = {
   gateway?: GatewayConfig;
   vault?: VaultConfig;
   memory?: MemoryConfig;
+  security?: SecurityConfig;
 };
 
 export type ConfigValidationIssue = {
