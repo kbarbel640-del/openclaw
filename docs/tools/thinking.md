@@ -20,6 +20,7 @@ title: "Thinking Levels"
   - `highest`, `max` map to `high`.
 - Provider notes:
   - Z.AI (`zai/*`) only supports binary thinking (`on`/`off`). Any non-`off` level is treated as `on` (mapped to `low`).
+  - OpenRouter payloads must use a single reasoning control format per request. Do not send both `reasoning.effort` and `reasoning_effort`.
 
 ## Resolution order
 

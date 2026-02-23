@@ -1,19 +1,25 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import {
   addAllowlistEntry,
   type ExecAsk,
+  type ExecAllowlistEntry,
   type ExecSecurity,
   buildSafeBinsShellCommand,
   buildSafeShellCommand,
   evaluateShellAllowlist,
   maxAsk,
   minSecurity,
+  resolveAllowlistCandidatePath,
+  matchAllowlist,
   recordAllowlistUse,
   requiresExecApproval,
   resolveAllowAlwaysPatterns,
   resolveExecApprovals,
 } from "../infra/exec-approvals.js";
+import type { CommandResolution } from "../infra/exec-command-resolution.js";
 import type { SafeBinProfile } from "../infra/exec-safe-bin-policy.js";
 import { markBackgrounded, tail } from "./bash-process-registry.js";
 import { requestExecApprovalDecisionForHost } from "./bash-tools.exec-approval-request.js";
@@ -26,6 +32,124 @@ import {
   runExecProcess,
 } from "./bash-tools.exec-runtime.js";
 import type { ExecToolDetails } from "./bash-tools.exec-types.js";
+
+type PendingGatewayApproval = {
+  id: string;
+  expiresAtMs: number;
+};
+
+const pendingGatewayApprovals = new Map<string, PendingGatewayApproval>();
+const gatewayApprovalRequestWindowMs = DEFAULT_APPROVAL_TIMEOUT_MS;
+const TRACE_FLAG = "OPENCLAW_EXEC_ALLOWLIST_TRACE";
+const execAllowlistTracePath = (() => {
+  const home = process.env.HOME ?? process.env.USERPROFILE;
+  return home ? path.join(home, ".openclaw", "derived", "exec-allowlist-trace.jsonl") : null;
+})();
+
+function approvalRequestKey(params: {
+  agentId?: string;
+  sessionKey?: string;
+  workdir: string;
+  command: string;
+  hostSecurity: ExecSecurity;
+  hostAsk: ExecAsk;
+}): string {
+  return JSON.stringify({
+    agentId: params.agentId ?? "",
+    sessionKey: params.sessionKey ?? "",
+    workdir: params.workdir,
+    commandHash: crypto.createHash("sha256").update(params.command).digest("hex"),
+    hostSecurity: params.hostSecurity,
+    hostAsk: params.hostAsk,
+  });
+}
+
+function findAllowlistMissDetails(params: {
+  analysisOk: boolean;
+  allowlistSatisfied: boolean;
+  segments: ReadonlyArray<{
+    argv: string[];
+    resolution: CommandResolution | null;
+  }>;
+  segmentSatisfiedBy: ReadonlyArray<"allowlist" | "safeBins" | "skills" | null>;
+}): string | null {
+  if (!params.analysisOk) {
+    return "Allowlist analysis failed (unsupported shell syntax).";
+  }
+  if (params.allowlistSatisfied) {
+    return null;
+  }
+  for (let i = 0; i < params.segments.length; i += 1) {
+    if (params.segmentSatisfiedBy[i]) {
+      continue;
+    }
+    const segment = params.segments[i];
+    const resolution = segment.resolution;
+    const argv0 = segment.argv[0] ?? "";
+    const resolvedPath = resolution?.resolvedPath ?? "<unresolved>";
+    const rawExecutable = resolution?.rawExecutable ?? argv0;
+    return `Allowlist miss at segment ${i + 1}: argv0=${argv0 || "<empty>"} resolvedPath=${resolvedPath} rawExecutable=${rawExecutable}.`;
+  }
+  return "Allowlist miss: no segment satisfied allowlist evaluation.";
+}
+
+function appendExecAllowlistTrace(entry: Record<string, unknown>) {
+  if (!execAllowlistTracePath) {
+    return;
+  }
+  try {
+    const dir = path.dirname(execAllowlistTracePath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(execAllowlistTracePath, `${JSON.stringify(entry)}\n`);
+  } catch {
+    // best-effort trace only
+  }
+}
+
+function isExecAllowlistTraceEnabled(): boolean {
+  const value = (process.env[TRACE_FLAG] ?? "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function buildSegmentTrace(params: {
+  allowlist: ReadonlyArray<ExecAllowlistEntry>;
+  segments: ReadonlyArray<{
+    argv: string[];
+    resolution: CommandResolution | null;
+  }>;
+  segmentSatisfiedBy: ReadonlyArray<"allowlist" | "safeBins" | "skills" | null>;
+  cwd: string;
+}): Array<Record<string, unknown>> {
+  return params.segments.map((segment, idx) => {
+    const by = params.segmentSatisfiedBy[idx] ?? null;
+    const candidatePath = resolveAllowlistCandidatePath(segment.resolution, params.cwd);
+    const candidateResolution =
+      candidatePath && segment.resolution
+        ? { ...segment.resolution, resolvedPath: candidatePath }
+        : segment.resolution;
+    const allowlistMatch = matchAllowlist([...params.allowlist], candidateResolution);
+    let reason = "allowlist-no-pattern-match";
+    if (by === "allowlist") {
+      reason = "allowlist-matched";
+    } else if (by === "safeBins") {
+      reason = "safe-bin-accepted";
+    } else if (by === "skills") {
+      reason = "skill-bin-accepted";
+    }
+    return {
+      idx,
+      argv: segment.argv,
+      argv0: segment.argv[0] ?? null,
+      rawExecutable: segment.resolution?.rawExecutable ?? null,
+      resolvedPath: segment.resolution?.resolvedPath ?? null,
+      candidatePath: candidatePath ?? null,
+      matchedBy: by,
+      matchedPattern: allowlistMatch?.pattern ?? null,
+      matchedPatternId: allowlistMatch?.id ?? null,
+      reason,
+    };
+  });
+}
 
 export type ProcessGatewayAllowlistParams = {
   command: string;
@@ -79,6 +203,15 @@ export async function processGatewayAllowlist(
   });
   const allowlistMatches = allowlistEval.allowlistMatches;
   const analysisOk = allowlistEval.analysisOk;
+  const traceEnabled = isExecAllowlistTraceEnabled();
+  const segmentTrace = traceEnabled
+    ? buildSegmentTrace({
+        allowlist: approvals.allowlist,
+        segments: allowlistEval.segments,
+        segmentSatisfiedBy: allowlistEval.segmentSatisfiedBy,
+        cwd: params.workdir,
+      })
+    : [];
   const allowlistSatisfied =
     hostSecurity === "allowlist" && analysisOk ? allowlistEval.allowlistSatisfied : false;
   const recordMatchedAllowlistUse = (resolvedPath?: string) => {
@@ -113,15 +246,78 @@ export async function processGatewayAllowlist(
   }
 
   if (requiresAsk) {
+    const nowMs = Date.now();
+    const missDetails = findAllowlistMissDetails({
+      analysisOk,
+      allowlistSatisfied,
+      segments: allowlistEval.segments,
+      segmentSatisfiedBy: allowlistEval.segmentSatisfiedBy,
+    });
+    const requestKey = approvalRequestKey({
+      agentId: params.agentId,
+      sessionKey: params.sessionKey,
+      workdir: params.workdir,
+      command: params.command,
+      hostSecurity,
+      hostAsk,
+    });
+    const existingPending = pendingGatewayApprovals.get(requestKey);
+    if (existingPending && existingPending.expiresAtMs > nowMs) {
+      const existingSlug = createApprovalSlug(existingPending.id);
+      const warningText = params.warnings.length ? `${params.warnings.join("\n")}\n\n` : "";
+      const detailText = missDetails ? ` ${missDetails}` : "";
+      return {
+        pendingResult: {
+          content: [
+            {
+              type: "text",
+              text:
+                `${warningText}Approval required (id ${existingPending.id}, short ${existingSlug}).` +
+                `${detailText} Approve to run; updates will arrive after completion.`,
+            },
+          ],
+          details: {
+            status: "approval-pending",
+            approvalId: existingPending.id,
+            approvalSlug: existingSlug,
+            expiresAtMs: existingPending.expiresAtMs,
+            host: "gateway",
+            command: params.command,
+            cwd: params.workdir,
+          },
+        },
+      };
+    }
+
     const approvalId = crypto.randomUUID();
     const approvalSlug = createApprovalSlug(approvalId);
-    const expiresAtMs = Date.now() + DEFAULT_APPROVAL_TIMEOUT_MS;
+    const expiresAtMs = nowMs + gatewayApprovalRequestWindowMs;
     const contextKey = `exec:${approvalId}`;
     const resolvedPath = allowlistEval.segments[0]?.resolution?.resolvedPath;
     const noticeSeconds = Math.max(1, Math.round(params.approvalRunningNoticeMs / 1000));
     const effectiveTimeout =
       typeof params.timeoutSec === "number" ? params.timeoutSec : params.defaultTimeoutSec;
     const warningText = params.warnings.length ? `${params.warnings.join("\n")}\n\n` : "";
+    pendingGatewayApprovals.set(requestKey, { id: approvalId, expiresAtMs });
+    if (traceEnabled) {
+      appendExecAllowlistTrace({
+        ts: new Date(nowMs).toISOString(),
+        event: "approval-required",
+        approvalId,
+        approvalSlug,
+        approvalTtlMs: gatewayApprovalRequestWindowMs,
+        agentId: params.agentId ?? "main",
+        sessionKey: params.sessionKey ?? null,
+        hostSecurity,
+        hostAsk,
+        analysisOk,
+        allowlistSatisfied,
+        missDetails,
+        commandHash: crypto.createHash("sha256").update(params.command).digest("hex"),
+        workdir: params.workdir,
+        segments: segmentTrace,
+      });
+    }
 
     void (async () => {
       let decision: string | null = null;
@@ -145,6 +341,9 @@ export async function processGatewayAllowlist(
             contextKey,
           },
         );
+        if (pendingGatewayApprovals.get(requestKey)?.id === approvalId) {
+          pendingGatewayApprovals.delete(requestKey);
+        }
         return;
       }
 
@@ -196,6 +395,9 @@ export async function processGatewayAllowlist(
             contextKey,
           },
         );
+        if (pendingGatewayApprovals.get(requestKey)?.id === approvalId) {
+          pendingGatewayApprovals.delete(requestKey);
+        }
         return;
       }
 
@@ -227,6 +429,9 @@ export async function processGatewayAllowlist(
             contextKey,
           },
         );
+        if (pendingGatewayApprovals.get(requestKey)?.id === approvalId) {
+          pendingGatewayApprovals.delete(requestKey);
+        }
         return;
       }
 
@@ -242,27 +447,39 @@ export async function processGatewayAllowlist(
         }, params.approvalRunningNoticeMs);
       }
 
-      const outcome = await run.promise;
-      if (runningTimer) {
-        clearTimeout(runningTimer);
+      try {
+        const outcome = await run.promise;
+        if (runningTimer) {
+          clearTimeout(runningTimer);
+          runningTimer = null;
+        }
+        const output = normalizeNotifyOutput(
+          tail(outcome.aggregated || "", DEFAULT_NOTIFY_TAIL_CHARS),
+        );
+        const exitLabel = outcome.timedOut ? "timeout" : `code ${outcome.exitCode ?? "?"}`;
+        const summary = output
+          ? `Exec finished (gateway id=${approvalId}, session=${run.session.id}, ${exitLabel})\n${output}`
+          : `Exec finished (gateway id=${approvalId}, session=${run.session.id}, ${exitLabel})`;
+        emitExecSystemEvent(summary, { sessionKey: params.notifySessionKey, contextKey });
+      } finally {
+        if (runningTimer) {
+          clearTimeout(runningTimer);
+        }
+        if (pendingGatewayApprovals.get(requestKey)?.id === approvalId) {
+          pendingGatewayApprovals.delete(requestKey);
+        }
       }
-      const output = normalizeNotifyOutput(
-        tail(outcome.aggregated || "", DEFAULT_NOTIFY_TAIL_CHARS),
-      );
-      const exitLabel = outcome.timedOut ? "timeout" : `code ${outcome.exitCode ?? "?"}`;
-      const summary = output
-        ? `Exec finished (gateway id=${approvalId}, session=${run.session.id}, ${exitLabel})\n${output}`
-        : `Exec finished (gateway id=${approvalId}, session=${run.session.id}, ${exitLabel})`;
-      emitExecSystemEvent(summary, { sessionKey: params.notifySessionKey, contextKey });
     })();
 
+    const detailText = missDetails ? ` ${missDetails}` : "";
     return {
       pendingResult: {
         content: [
           {
             type: "text",
             text:
-              `${warningText}Approval required (id ${approvalSlug}). ` +
+              `${warningText}Approval required (id ${approvalId}, short ${approvalSlug}).` +
+              `${detailText} ` +
               "Approve to run; updates will arrive after completion.",
           },
         ],
@@ -277,6 +494,24 @@ export async function processGatewayAllowlist(
         },
       },
     };
+  }
+
+  if (traceEnabled) {
+    appendExecAllowlistTrace({
+      ts: new Date().toISOString(),
+      event: "allowlist-evaluated",
+      agentId: params.agentId ?? "main",
+      sessionKey: params.sessionKey ?? null,
+      hostSecurity,
+      hostAsk,
+      requiresAsk,
+      analysisOk,
+      allowlistSatisfied,
+      commandHash: crypto.createHash("sha256").update(params.command).digest("hex"),
+      workdir: params.workdir,
+      matchedPatterns: allowlistMatches.map((m) => ({ id: m.id ?? null, pattern: m.pattern })),
+      segments: segmentTrace,
+    });
   }
 
   if (hostSecurity === "allowlist" && (!analysisOk || !allowlistSatisfied)) {

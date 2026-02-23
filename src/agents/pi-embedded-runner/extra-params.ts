@@ -384,11 +384,15 @@ function createOpenRouterWrapper(
           delete payloadObj.reasoning_effort;
 
           const existingReasoning = payloadObj.reasoning;
+          const hasReasoningEffort =
+            payloadObj.reasoning_effort !== undefined || payloadObj.reasoningEffort !== undefined;
 
           // OpenRouter treats reasoning.effort and reasoning.max_tokens as
           // alternative controls. If max_tokens is already present, do not
           // inject effort and do not overwrite caller-supplied reasoning.
+          // Also skip when the payload already uses reasoning_effort.
           if (
+            !hasReasoningEffort &&
             existingReasoning &&
             typeof existingReasoning === "object" &&
             !Array.isArray(existingReasoning)
@@ -397,7 +401,7 @@ function createOpenRouterWrapper(
             if (!("max_tokens" in reasoningObj) && !("effort" in reasoningObj)) {
               reasoningObj.effort = mapThinkingLevelToOpenRouterReasoningEffort(thinkingLevel);
             }
-          } else if (!existingReasoning) {
+          } else if (!hasReasoningEffort && !existingReasoning) {
             payloadObj.reasoning = {
               effort: mapThinkingLevelToOpenRouterReasoningEffort(thinkingLevel),
             };

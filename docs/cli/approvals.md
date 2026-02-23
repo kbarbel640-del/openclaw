@@ -48,3 +48,61 @@ openclaw approvals allowlist remove "~/Projects/**/bin/rg"
 - `--agent` defaults to `"*"`, which applies to all agents.
 - The node host must advertise `system.execApprovals.get/set` (macOS app or headless node host).
 - Approvals files are stored per host at `~/.openclaw/exec-approvals.json`.
+
+## Operator workflow
+
+Use `openclaw approvals` to set policy and allowlists, then resolve runtime approval prompts
+from chat using `/approve <id> allow-once|allow-always|deny`.
+
+If your team uses a separate chat policy token (for example `GO <LEDGER_ID>`), treat it as
+intent approval only. It does not replace `/approve <id> ...` for gateway exec requests.
+
+## Forward approval prompts to Telegram
+
+```bash
+openclaw config set approvals.exec.enabled true
+openclaw config set approvals.exec.mode both
+openclaw config set approvals.exec.targets '[{"channel":"telegram","to":"123456789"}]'
+openclaw gateway restart
+```
+
+Then approve in Telegram:
+
+```text
+/approve <id> allow-once
+```
+
+Use the full `ID: ...` from the approval prompt. Unique prefixes can work only when unambiguous.
+
+## Common operator pitfalls
+
+- Approving with a workflow token (for example `GO <LEDGER_ID>`) instead of `/approve <id> ...`.
+- Approving with a gateway/system id instead of the approval prompt id.
+- Approving in a different chat/thread than where the prompt was delivered.
+- Approving a stale id after it expired.
+- Triggering multiple exec requests in parallel and mixing up ids.
+- Using a short id prefix that matches multiple pending approvals (`ambiguous approval id prefix`).
+- Reusing an old id after a fresh retry generated a new pending request (`unknown approval id`).
+
+## Token source of truth
+
+If `/approve` fails with `unauthorized: device token mismatch`, check token source drift first.
+
+Most commonly, the gateway service has `OPENCLAW_GATEWAY_TOKEN` injected via systemd drop-ins,
+while config uses a different `gateway.auth.token`. In this state, approval commands can fail
+even when gateway health appears normal.
+
+Quick checks:
+
+```bash
+openclaw config get gateway.auth.token
+systemctl --user show openclaw-gateway -p Environment -p DropInPaths --no-pager
+```
+
+If values differ, keep a single source of truth (recommended: `gateway.auth.token` in config)
+and disable extra token-forcing drop-ins, then reload + restart:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart openclaw-gateway
+```
