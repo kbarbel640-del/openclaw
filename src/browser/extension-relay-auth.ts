@@ -5,7 +5,7 @@ const RELAY_TOKEN_CONTEXT = "openclaw-extension-relay-v1";
 const DEFAULT_RELAY_PROBE_TIMEOUT_MS = 500;
 const OPENCLAW_RELAY_BROWSER = "OpenClaw/extension-relay";
 
-function resolveGatewayAuthToken(): string | null {
+export function resolveGatewayAuthToken(): string | null {
   const envToken =
     process.env.OPENCLAW_GATEWAY_TOKEN?.trim() || process.env.CLAWDBOT_GATEWAY_TOKEN?.trim();
   if (envToken) {

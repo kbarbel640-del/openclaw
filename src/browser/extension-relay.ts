@@ -7,6 +7,7 @@ import { isLoopbackAddress, isLoopbackHost } from "../gateway/net.js";
 import { rawDataToString } from "../infra/ws.js";
 import {
   probeAuthenticatedOpenClawRelay,
+  resolveGatewayAuthToken,
   resolveRelayAuthTokenForPort,
 } from "./extension-relay-auth.js";
 
@@ -219,6 +220,22 @@ export async function ensureChromeExtensionRelayServer(opts: {
   }
 
   const relayAuthToken = resolveRelayAuthTokenForPort(info.port);
+  const gatewayAuthToken = resolveGatewayAuthToken();
+
+  const isAuthorizedRelayToken = (token: string | undefined): boolean => {
+    if (!token) {
+      return false;
+    }
+    if (token === relayAuthToken) {
+      return true;
+    }
+    // Backward compatibility: extension options/UI and docs historically
+    // instructed users to provide the raw gateway token.
+    if (gatewayAuthToken && token === gatewayAuthToken) {
+      return true;
+    }
+    return false;
+  };
 
   let extensionWs: WebSocket | null = null;
   const cdpClients = new Set<WebSocket>();
@@ -366,7 +383,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     if (path.startsWith("/json")) {
       const token = getHeader(req, RELAY_AUTH_HEADER);
-      if (!token || token !== relayAuthToken) {
+      if (!isAuthorizedRelayToken(token)) {
         res.writeHead(401);
         res.end("Unauthorized");
         return;
@@ -489,7 +506,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     if (pathname === "/extension") {
       const token = getRelayAuthTokenFromRequest(req, url);
-      if (!token || token !== relayAuthToken) {
+      if (!isAuthorizedRelayToken(token)) {
         rejectUpgrade(socket, 401, "Unauthorized");
         return;
       }
@@ -514,7 +531,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     if (pathname === "/cdp") {
       const token = getRelayAuthTokenFromRequest(req, url);
-      if (!token || token !== relayAuthToken) {
+      if (!isAuthorizedRelayToken(token)) {
         rejectUpgrade(socket, 401, "Unauthorized");
         return;
       }
