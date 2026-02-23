@@ -442,4 +442,74 @@ example
     expect(lastPoint?.cumulativeTokens).toBe(165);
     expect(lastPoint?.cumulativeCost).toBeCloseTo(0.055, 8);
   });
+
+  it("reports deletedSessionCount when archived transcript files exist", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-cost-deleted-"));
+    const sessionsDir = path.join(root, "agents", "main", "sessions");
+    await fs.mkdir(sessionsDir, { recursive: true });
+
+    const now = new Date();
+    // Active session file
+    const activeFile = path.join(sessionsDir, "sess-active.jsonl");
+    await fs.writeFile(
+      activeFile,
+      JSON.stringify({
+        type: "message",
+        timestamp: now.toISOString(),
+        message: {
+          role: "assistant",
+          provider: "openai",
+          model: "gpt-5.2",
+          usage: { input: 10, output: 20, totalTokens: 30, cost: { total: 0.03 } },
+        },
+      }),
+      "utf-8",
+    );
+
+    // Archived/deleted session files
+    await fs.writeFile(
+      path.join(sessionsDir, "sess-old.jsonl.deleted.2026-02-20T10-00-00.000Z"),
+      "",
+      "utf-8",
+    );
+    await fs.writeFile(
+      path.join(sessionsDir, "sess-cron.jsonl.deleted.2026-02-21T12-00-00.000Z"),
+      "",
+      "utf-8",
+    );
+
+    await withStateDir(root, async () => {
+      const summary = await loadCostUsageSummary({ days: 30 });
+      expect(summary.deletedSessionCount).toBe(2);
+      expect(summary.totals.totalTokens).toBe(30);
+    });
+  });
+
+  it("omits deletedSessionCount when no archived transcripts exist", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-cost-nodelete-"));
+    const sessionsDir = path.join(root, "agents", "main", "sessions");
+    await fs.mkdir(sessionsDir, { recursive: true });
+
+    const now = new Date();
+    const activeFile = path.join(sessionsDir, "sess-active.jsonl");
+    await fs.writeFile(
+      activeFile,
+      JSON.stringify({
+        type: "message",
+        timestamp: now.toISOString(),
+        message: {
+          role: "assistant",
+          provider: "openai",
+          model: "gpt-5.2",
+          usage: { input: 5, output: 5, totalTokens: 10, cost: { total: 0.01 } },
+        },
+      }),
+      "utf-8",
+    );
+
+    await withStateDir(root, async () => {
+      const summary = await loadCostUsageSummary({ days: 30 });
+      expect(summary.deletedSessionCount).toBeUndefined();
+    });
+  });
 });

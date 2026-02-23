@@ -261,9 +261,17 @@ export const handleUsageCommand: CommandHandler = async (params, allowTextComman
     const last30Suffix = last30Missing > 0 ? " (partial)" : "";
     const last30Line = `Last 30d ${last30Cost ?? "n/a"}${last30Suffix}`;
 
+    const deletedCount = summary.deletedSessionCount ?? 0;
+    const deletedWarning =
+      deletedCount > 0
+        ? `\nNote: ${deletedCount} deleted session${deletedCount === 1 ? "" : "s"} excluded from this total.`
+        : "";
+
     return {
       shouldContinue: false,
-      reply: { text: `💸 Usage cost\n${sessionLine}\n${todayLine}\n${last30Line}` },
+      reply: {
+        text: `💸 Usage cost\n${sessionLine}\n${todayLine}\n${last30Line}${deletedWarning}`,
+      },
     };
   }
 

@@ -56,6 +56,8 @@ export type CostUsageSummary = {
   days: number;
   daily: CostUsageDailyEntry[];
   totals: CostUsageTotals;
+  /** Number of deleted/archived session transcript files detected in the sessions directory. */
+  deletedSessionCount?: number;
 };
 
 export type SessionDailyUsage = {

@@ -315,6 +315,12 @@ export async function loadCostUsageSummary(params?: {
 
   const sessionsDir = resolveSessionTranscriptsDirForAgent(params?.agentId);
   const entries = await fs.promises.readdir(sessionsDir, { withFileTypes: true }).catch(() => []);
+
+  // Count archived/deleted session transcripts so callers can warn about incomplete data.
+  const deletedSessionCount = entries.filter(
+    (entry) => entry.isFile() && /\.jsonl\.deleted\./.test(entry.name),
+  ).length;
+
   const files = (
     await Promise.all(
       entries
@@ -375,6 +381,7 @@ export async function loadCostUsageSummary(params?: {
     days,
     daily,
     totals,
+    deletedSessionCount: deletedSessionCount > 0 ? deletedSessionCount : undefined,
   };
 }
 
