@@ -1,0 +1,33 @@
+{
+  "name": "@openclaw/sms",
+  "version": "2026.2.20",
+  "private": true,
+  "description": "OpenClaw SMS channel plugin (Aliyun + Tencent Cloud)",
+  "type": "module",
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "sms",
+      "label": "SMS",
+      "selectionLabel": "SMS (Aliyun/Tencent)",
+      "docsPath": "/channels/sms",
+      "docsLabel": "sms",
+      "blurb": "Mainland-friendly SMS via Aliyun or Tencent Cloud.",
+      "order": 110,
+      "quickstartAllowFrom": false
+    },
+    "install": {
+      "npmSpec": "@openclaw/sms",
+      "localPath": "extensions/sms",
+      "defaultChoice": "npm"
+    }
+  }
+}
