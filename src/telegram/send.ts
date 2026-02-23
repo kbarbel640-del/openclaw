@@ -405,11 +405,11 @@ async function withTelegramThreadFallback<T>(
     }
     const retriedParams = removeMessageThreadIdParam(params);
     const result = await attempt(retriedParams, `${label}-threadless`);
-    
+
     // If retry succeeded, clear the stale thread ID from session cache
     // to prevent future requests from using the same stale thread ID
-    await clearStaleThreadIdFromSession({ chatId: params?.chat_id });
-    
+    await clearStaleThreadIdFromSession({ chatId: params?.chat_id as string | number | undefined });
+
     return result;
   }
 }

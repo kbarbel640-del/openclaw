@@ -10,7 +10,7 @@ import { clearStaleThreadIdFromSession } from "./src/telegram/session-cache.js";
 
 async function testThreadIdCacheFix() {
   console.log("Testing Telegram thread ID cache fix...");
-  
+
   // Simulate clearing a stale thread ID
   try {
     await clearStaleThreadIdFromSession({ chatId: "5442165164" });
