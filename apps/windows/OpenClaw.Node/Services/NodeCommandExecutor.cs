@@ -406,6 +406,10 @@ namespace OpenClaw.Node.Services
 
                 if (OperatingSystem.IsWindows() && width <= 1 && height <= 1)
                 {
+                    var reason = string.IsNullOrWhiteSpace(svc.LastError) ?
+                        "Camera capture unavailable. Check Windows Settings > Privacy & security > Camera, enable 'Camera access' and 'Let desktop apps access your camera'." :
+                        $"Camera capture unavailable: {svc.LastError}. Check Windows Settings > Privacy & security > Camera and enable desktop app camera access.";
+
                     return new BridgeInvokeResponse
                     {
                         Id = request.Id,
@@ -413,7 +417,7 @@ namespace OpenClaw.Node.Services
                         Error = new OpenClawNodeError
                         {
                             Code = OpenClawNodeErrorCode.Unavailable,
-                            Message = "Camera capture unavailable. Check Windows Settings > Privacy & security > Camera, enable 'Camera access' and 'Let desktop apps access your camera'. If using ffmpeg fallback, ensure ffmpeg is installed and on PATH."
+                            Message = reason
                         }
                     };
                 }
