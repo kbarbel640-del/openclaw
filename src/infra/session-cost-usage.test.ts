@@ -110,6 +110,55 @@ describe("session cost usage", () => {
     });
   });
 
+  it("includes archived deleted session transcripts in cost totals", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-cost-deleted-"));
+    const sessionsDir = path.join(root, "agents", "main", "sessions");
+    await fs.mkdir(sessionsDir, { recursive: true });
+
+    const activeFile = path.join(sessionsDir, "sess-active.jsonl");
+    const deletedFile = path.join(
+      sessionsDir,
+      `sess-deleted.jsonl.deleted.${new Date().toISOString().replaceAll(":", "-")}`,
+    );
+
+    const now = new Date().toISOString();
+    await fs.writeFile(
+      activeFile,
+      JSON.stringify({
+        type: "message",
+        timestamp: now,
+        message: {
+          role: "assistant",
+          provider: "openai",
+          model: "gpt-5.2",
+          usage: { input: 10, output: 10, totalTokens: 20, cost: { total: 0.02 } },
+        },
+      }),
+      "utf-8",
+    );
+
+    await fs.writeFile(
+      deletedFile,
+      JSON.stringify({
+        type: "message",
+        timestamp: now,
+        message: {
+          role: "assistant",
+          provider: "openai",
+          model: "gpt-5.2",
+          usage: { input: 15, output: 15, totalTokens: 30, cost: { total: 0.03 } },
+        },
+      }),
+      "utf-8",
+    );
+
+    await withStateDir(root, async () => {
+      const summary = await loadCostUsageSummary({ days: 30 });
+      expect(summary.totals.totalTokens).toBe(50);
+      expect(summary.totals.totalCost).toBeCloseTo(0.05, 5);
+    });
+  });
+
   it("summarizes a single session file", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-cost-session-"));
     const sessionFile = path.join(root, "session.jsonl");

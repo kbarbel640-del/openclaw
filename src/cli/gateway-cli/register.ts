@@ -83,6 +83,10 @@ function renderCostUsageSummary(summary: CostUsageSummary, days: number, rich: b
     );
   }
 
+  lines.push(
+    `${colorize(rich, theme.muted, "Note:")} based on local transcript files (includes archived deletes when present).`,
+  );
+
   return lines;
 }
 

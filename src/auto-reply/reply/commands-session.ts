@@ -263,7 +263,11 @@ export const handleUsageCommand: CommandHandler = async (params, allowTextComman
 
     return {
       shouldContinue: false,
-      reply: { text: `💸 Usage cost\n${sessionLine}\n${todayLine}\n${last30Line}` },
+      reply: {
+        text:
+          `💸 Usage cost\n${sessionLine}\n${todayLine}\n${last30Line}\n` +
+          "ℹ️ Based on locally available transcripts (including archived deletes when present).",
+      },
     };
   }
 
