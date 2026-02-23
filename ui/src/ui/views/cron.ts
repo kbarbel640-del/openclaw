@@ -1307,10 +1307,27 @@ function renderJob(job: CronJob, props: CronProps) {
 }
 
 function renderJobPayload(job: CronJob) {
-  if (job.payload.kind === "systemEvent") {
+  const payload = (job as unknown as { payload?: unknown }).payload;
+  if (!payload || typeof payload !== "object") {
+    return html`
+      <div class="cron-job-detail">
+        <span class="cron-job-detail-label">Payload</span>
+        <span class="muted cron-job-detail-value">Invalid payload</span>
+      </div>
+    `;
+  }
+
+  const normalizedPayload = payload as {
+    kind?: unknown;
+    text?: unknown;
+    message?: unknown;
+  };
+
+  if (normalizedPayload.kind === "systemEvent") {
+    const systemText = typeof normalizedPayload.text === "string" ? normalizedPayload.text : "";
     return html`<div class="cron-job-detail">
       <span class="cron-job-detail-label">System</span>
-      <span class="muted cron-job-detail-value">${job.payload.text}</span>
+      <span class="muted cron-job-detail-value">${systemText || "Invalid payload"}</span>
     </div>`;
   }
 
@@ -1327,7 +1344,13 @@ function renderJobPayload(job: CronJob) {
   return html`
     <div class="cron-job-detail">
       <span class="cron-job-detail-label">Prompt</span>
-      <span class="muted cron-job-detail-value">${job.payload.message}</span>
+      <span class="muted cron-job-detail-value">
+        ${
+          typeof normalizedPayload.message === "string" && normalizedPayload.message.trim()
+            ? normalizedPayload.message
+            : "Invalid payload"
+        }
+      </span>
     </div>
     ${
       delivery

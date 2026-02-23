@@ -132,6 +132,32 @@ describe("cron view", () => {
     expect(onLoadRuns).toHaveBeenCalledWith("job-1");
   });
 
+  it("renders jobs even when a payload is malformed", () => {
+    const container = document.createElement("div");
+    const malformedJob = {
+      ...createJob("job-malformed"),
+      name: "Malformed job",
+      payload: undefined,
+    } as unknown as CronJob;
+    const validJob = {
+      ...createJob("job-valid"),
+      name: "Valid job",
+    };
+
+    render(
+      renderCron(
+        createProps({
+          jobs: [malformedJob, validJob],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Malformed job");
+    expect(container.textContent).toContain("Valid job");
+    expect(container.textContent).toContain("Invalid payload");
+  });
+
   it("marks the selected job and keeps History button to a single call", () => {
     const container = document.createElement("div");
     const onLoadRuns = vi.fn();
