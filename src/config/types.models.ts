@@ -19,6 +19,8 @@ export type ModelCompatConfig = {
   requiresAssistantAfterToolResult?: boolean;
   requiresThinkingAsText?: boolean;
   requiresMistralToolIds?: boolean;
+  /** If true, tool parameters will have additionalProperties: false instead of true. Required by some providers like AbacusAI RouteLLM. */
+  requiresAdditionalPropertiesFalse?: boolean;
 };
 
 export type ModelProviderAuthMode = "api-key" | "aws-sdk" | "oauth" | "token";
@@ -49,6 +51,8 @@ export type ModelProviderConfig = {
   headers?: Record<string, string>;
   authHeader?: boolean;
   models: ModelDefinitionConfig[];
+  /** Provider-level compat settings applied to all models unless overridden. */
+  compat?: ModelCompatConfig;
 };
 
 export type BedrockDiscoveryConfig = {

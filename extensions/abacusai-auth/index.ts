@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
@@ -12,28 +12,67 @@ const ABACUS_API = "https://api.abacus.ai/api/v0";
 const ROUTELLM_BASE = "https://routellm.abacus.ai/v1";
 const DEFAULT_CONTEXT_WINDOW = 200_000;
 const DEFAULT_MAX_TOKENS = 8192;
-const PROXY_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
-const PROXY_START_TIMEOUT_MS = 10_000;
-const MAX_BODY_BYTES = 10 * 1024 * 1024; // 10 MB safety limit for request bodies
+
+// Proxy configuration
+const PROXY_PORT = 18790;
+const PROXY_HOST = "127.0.0.1";
 
 // Models available on AbacusAI RouteLLM endpoint (OpenAI-compatible, with
 // function calling support). Verified 2026-02.
 const DEFAULT_MODEL_IDS = [
+  // Google Gemini
   "gemini-3-flash-preview",
   "gemini-3-pro-preview",
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  // OpenAI GPT
   "gpt-5.2",
+  "gpt-5.2-codex",
   "gpt-5.1",
+  "gpt-5.1-codex",
+  "gpt-5.1-codex-max",
+  "gpt-5",
+  "gpt-5-codex",
   "gpt-5-mini",
+  "gpt-5-nano",
+  // OpenAI o-series (reasoning)
+  "o3-pro",
+  "o3",
+  "o3-mini",
+  "o4-mini",
+  // Anthropic Claude
   "claude-sonnet-4-5-20250929",
   "claude-opus-4-6",
+  "claude-opus-4-5-20251101",
+  "claude-sonnet-4-20250514",
   "claude-haiku-4-5-20251001",
+  // DeepSeek
   "deepseek-ai/DeepSeek-V3.2",
+  "deepseek-ai/DeepSeek-V3.1-Terminus",
   "deepseek-ai/DeepSeek-R1",
-  "kimi-k2.5",
-  "qwen3-max",
+  // xAI Grok
+  "grok-4-0709",
   "grok-4-1-fast-non-reasoning",
+  "grok-4-fast-non-reasoning",
+  "grok-code-fast-1",
+  // Meta Llama
+  "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+  "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+  "llama-3.3-70b-versatile",
+  // Qwen
+  "qwen3-max",
+  "Qwen/Qwen3-235B-A22B-Instruct-2507",
+  "Qwen/Qwen3-32B",
+  "qwen/qwen3-coder-480b-a35b-instruct",
+  // Moonshot Kimi
+  "kimi-k2.5",
+  "kimi-k2-turbo-preview",
+  // Z.AI GLM
+  "zai-org/glm-4.7",
+  "zai-org/glm-4.6",
+  // Other
+  "openai/gpt-oss-120b",
+  // AbacusAI auto-router
   "route-llm",
 ];
 
@@ -185,74 +224,6 @@ function tryRecoverApiKey(): string | null {
   return tryReadLocalCredential();
 }
 
-function updateConfigBaseUrl(newBaseUrl: string): void {
-  const stateDir = resolveOpenClawStateDir();
-  const configPath = join(stateDir, "openclaw.json");
-  try {
-    const raw = JSON.parse(readFileSync(configPath, "utf8"));
-    if (raw?.models?.providers?.abacusai) {
-      const current = raw.models.providers.abacusai.baseUrl;
-      if (current === newBaseUrl) {
-        return;
-      }
-      raw.models.providers.abacusai.baseUrl = newBaseUrl;
-      writeFileSync(configPath, JSON.stringify(raw, null, 2), "utf8");
-    }
-  } catch {
-    // config not found or unwritable — non-fatal
-  }
-}
-
-async function ensureProxy(): Promise<boolean> {
-  // Fast path: proxy already running and healthy
-  if (proxyState.server?.listening) {
-    resetIdleTimer();
-    return true;
-  }
-
-  // Clean up stale server (e.g. server exists but stopped listening)
-  if (proxyState.server) {
-    await stopProxy();
-  }
-
-  const apiKey = tryRecoverApiKey();
-  if (!apiKey) {
-    console.error(
-      "[abacusai] No API key found. Run `openclaw models auth login --provider abacusai` to configure.",
-    );
-    return false;
-  }
-
-  // Validate API key before starting proxy — catch expired/revoked keys early
-  const validation = await validateApiKey(apiKey);
-  if (!validation.valid) {
-    console.error(
-      `[abacusai] API key validation failed: ${validation.error ?? "unknown error"}. ` +
-        `Run \`openclaw models auth login --provider abacusai\` to re-authenticate.`,
-    );
-    return false;
-  }
-
-  try {
-    // Race proxy startup against a timeout to prevent indefinite hangs
-    const port = await Promise.race([
-      startProxy(apiKey),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Proxy startup timed out")), PROXY_START_TIMEOUT_MS),
-      ),
-    ]);
-    const newBaseUrl = `http://127.0.0.1:${port}/v1`;
-    updateConfigBaseUrl(newBaseUrl);
-    return true;
-  } catch (err) {
-    console.error(
-      `[abacusai] Proxy startup failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    // Clean up any partially started server
-    await stopProxy();
-    return false;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // AbacusAI API helpers
@@ -284,84 +255,57 @@ async function validateApiKey(
 }
 
 // ---------------------------------------------------------------------------
-// Embedded RouteLLM forwarding proxy
-//
-// Transparently forwards OpenAI-compatible requests to AbacusAI's RouteLLM
-// endpoint, applying minimal fixups:
-//   1. Injects the Authorization header with the user's API key.
-//   2. Strips the `strict` field from tool schemas (RouteLLM rejects it).
-// This preserves full OpenAI function-calling support for the Agent.
+// Local proxy for RouteLLM response normalization
 // ---------------------------------------------------------------------------
+// RouteLLM responses are missing `id` and `object` fields that OpenAI SDK expects.
+// This proxy adds those fields to ensure compatibility.
 
-type ProxyState = {
-  server: ReturnType<typeof createServer> | null;
-  port: number;
-  apiKey: string;
-  idleTimer: ReturnType<typeof setTimeout> | null;
-};
-
-const proxyState: ProxyState = {
-  server: null,
-  port: 0,
-  apiKey: "",
-  idleTimer: null,
-};
-
-function resetIdleTimer() {
-  if (proxyState.idleTimer) {
-    clearTimeout(proxyState.idleTimer);
-  }
-  proxyState.idleTimer = setTimeout(() => stopProxy(), PROXY_IDLE_TIMEOUT_MS);
-}
-
-function stopProxy(): Promise<void> {
-  return new Promise((resolve) => {
-    if (proxyState.idleTimer) {
-      clearTimeout(proxyState.idleTimer);
-      proxyState.idleTimer = null;
-    }
-    const server = proxyState.server;
-    if (!server) {
-      resolve();
-      return;
-    }
-    proxyState.server = null;
-    proxyState.port = 0;
-    // Force-close all open connections to prevent process hang
-    server.closeAllConnections?.();
-    server.close(() => resolve());
-    // Safety: resolve after 2s even if close callback never fires
-    setTimeout(resolve, 2000);
-  });
-}
+let proxyServer: ReturnType<typeof createServer> | null = null;
+let proxyApiKey = "";
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    let totalBytes = 0;
-    req.on("data", (c: Buffer) => {
-      totalBytes += c.length;
-      if (totalBytes > MAX_BODY_BYTES) {
-        req.destroy(new Error(`Request body exceeds ${MAX_BODY_BYTES} bytes`));
-        return;
-      }
-      chunks.push(c);
-    });
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
 
-function sendJsonResponse(res: ServerResponse, status: number, body: unknown) {
-  const json = JSON.stringify(body);
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    "Content-Length": Buffer.byteLength(json),
-  });
-  res.end(json);
+function sendJsonResponse(res: ServerResponse, status: number, data: unknown) {
+  const body = JSON.stringify(data);
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(body);
 }
 
-/** Strip `strict` from tool schemas — RouteLLM rejects this OpenAI-specific field. */
+function generateChunkId(): string {
+  return `chatcmpl-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Normalize SSE chunk to add missing id and object fields
+ */
+function normalizeSseChunk(line: string, chunkId: string): string {
+  if (!line.startsWith("data: ") || line === "data: [DONE]") {
+    return line;
+  }
+  try {
+    const json = JSON.parse(line.slice(6)) as Record<string, unknown>;
+    if (!("id" in json)) {
+      json.id = chunkId;
+    }
+    if (!("object" in json)) {
+      json.object = "chat.completion.chunk";
+    }
+    return `data: ${JSON.stringify(json)}`;
+  } catch {
+    return line;
+  }
+}
+
+/**
+ * Strip `strict` field from tools - RouteLLM doesn't support it
+ */
 function stripStrictFromTools(tools: unknown[]): unknown[] {
   return tools.map((t) => {
     if (!t || typeof t !== "object") {
@@ -370,313 +314,143 @@ function stripStrictFromTools(tools: unknown[]): unknown[] {
     const copy = { ...(t as Record<string, unknown>) };
     delete copy.strict;
     if (copy.function && typeof copy.function === "object") {
-      copy.function = { ...(copy.function as Record<string, unknown>) };
-      delete (copy.function as Record<string, unknown>).strict;
+      const fn = { ...(copy.function as Record<string, unknown>) };
+      delete fn.strict;
+      copy.function = fn;
     }
     return copy;
   });
-}
-
-/**
- * Normalize finish_reason from provider-specific values to OpenAI standard.
- * RouteLLM returns Anthropic-style values for Claude models (tool_use,
- * stop_sequence, end_turn) which pi-agent does not recognize.
- */
-const FINISH_REASON_MAP: Record<string, string> = {
-  tool_use: "tool_calls",
-  stop_sequence: "stop",
-  end_turn: "stop",
-};
-
-function normalizeFinishReason(reason: unknown): string | null {
-  if (reason === null || reason === undefined) {
-    return null;
-  }
-  const s = String(reason);
-  return FINISH_REASON_MAP[s] ?? s;
-}
-
-/** Normalize a single SSE chunk's choices[].finish_reason and strip native_finish_reason. */
-function normalizeChunk(parsed: Record<string, unknown>): Record<string, unknown> {
-  const choices = parsed.choices;
-  if (!Array.isArray(choices)) {
-    return parsed;
-  }
-  parsed.choices = choices.map((c: Record<string, unknown>) => {
-    const copy = { ...c };
-    if ("finish_reason" in copy) {
-      copy.finish_reason = normalizeFinishReason(copy.finish_reason);
-    }
-    delete copy.native_finish_reason;
-    return copy;
-  });
-  return parsed;
-}
-
-/**
- * Normalize a single SSE event payload string. If it's JSON, normalize
- * finish_reason and strip native_finish_reason. Otherwise return as-is.
- */
-function normalizeSsePayload(payload: string): string {
-  const trimmed = payload.trim();
-  if (!trimmed.startsWith("{")) {
-    return payload;
-  }
-  try {
-    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-    return JSON.stringify(normalizeChunk(parsed));
-  } catch {
-    return payload;
-  }
-}
-
-/**
- * Creates an SSE normalizer that handles RouteLLM's streaming format.
- *
- * RouteLLM may send SSE events in two ways:
- *   1. Standard: `data: {...}\n\ndata: {...}\n\n` (newline-delimited)
- *   2. Non-standard: each `data: {...}` as a separate TCP chunk with NO
- *      trailing newlines between them.
- *
- * Strategy: buffer incoming text. Extract complete events by looking for
- * balanced JSON objects after `data: ` prefixes. Emit each as a properly
- * framed SSE event (`data: ...\n\n`).
- */
-function createSseNormalizer() {
-  let buf = "";
-
-  function emitEvent(raw: string): string {
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      return "";
-    }
-    if (trimmed === "data: [DONE]") {
-      return "data: [DONE]\n\n";
-    }
-    if (trimmed.startsWith("data: ")) {
-      return `data: ${normalizeSsePayload(trimmed.slice(6))}\n\n`;
-    }
-    return "";
-  }
-
-  function drainComplete(): string {
-    let out = "";
-    // Split on `data: ` boundaries. Each occurrence starts a new event.
-    // We look for `data: ` at the start or after whitespace/newlines.
-    for (;;) {
-      // Find the start of a data event
-      const match = buf.match(/^[\s\n]*(data: )/);
-      if (!match) {
-        // No data prefix found — discard non-event whitespace
-        buf = buf.replace(/^[\s\n]+/, "");
-        break;
-      }
-      const prefixEnd = match.index! + match[0].length;
-      const afterPrefix = buf.slice(prefixEnd);
-
-      // Special case: [DONE]
-      if (afterPrefix.startsWith("[DONE]")) {
-        out += "data: [DONE]\n\n";
-        buf = buf.slice(prefixEnd + 6).replace(/^[\s\n]+/, "");
-        continue;
-      }
-
-      // Find the end of the JSON object by counting braces
-      if (!afterPrefix.startsWith("{")) {
-        // Not JSON — might be incomplete, keep buffering
-        break;
-      }
-      let depth = 0;
-      let inStr = false;
-      let escaped = false;
-      let jsonEnd = -1;
-      for (let i = 0; i < afterPrefix.length; i++) {
-        const ch = afterPrefix[i];
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (ch === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (ch === '"') {
-          inStr = !inStr;
-          continue;
-        }
-        if (inStr) {
-          continue;
-        }
-        if (ch === "{") {
-          depth++;
-        } else if (ch === "}") {
-          depth--;
-          if (depth === 0) {
-            jsonEnd = i;
-            break;
-          }
-        }
-      }
-      if (jsonEnd < 0) {
-        // Incomplete JSON — keep buffering
-        break;
-      }
-      const jsonStr = afterPrefix.slice(0, jsonEnd + 1);
-      out += `data: ${normalizeSsePayload(jsonStr)}\n\n`;
-      buf = buf.slice(prefixEnd + jsonEnd + 1).replace(/^[\s\n]+/, "");
-    }
-    return out;
-  }
-
-  return {
-    feed(chunk: string): string {
-      buf += chunk;
-      return drainComplete();
-    },
-    flush(): string {
-      const out = drainComplete();
-      // Emit anything remaining as a final event
-      const remaining = emitEvent(buf);
-      buf = "";
-      return out + remaining;
-    },
-  };
 }
 
 async function handleProxyRequest(req: IncomingMessage, res: ServerResponse) {
-  resetIdleTimer();
-
-  // No CORS headers: the proxy is loopback-only (127.0.0.1) and called
-  // exclusively by the local OpenClaw gateway, never by browsers.
-  if (req.method === "OPTIONS") {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
-
-  // Build upstream URL: strip leading /v1 since ROUTELLM_BASE already ends with /v1
-  const path = (req.url ?? "/").replace(/^\/v1/, "");
+  const path = req.url ?? "/";
   const target = `${ROUTELLM_BASE}${path}`;
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${proxyState.apiKey}`,
+    Authorization: `Bearer ${proxyApiKey}`,
     "Content-Type": "application/json",
   };
 
-  try {
-    let body: string | undefined;
-    if (req.method === "POST") {
-      const raw = await readBody(req);
-      const parsed = JSON.parse(raw.toString()) as Record<string, unknown>;
-      if (Array.isArray(parsed.tools)) {
-        parsed.tools = stripStrictFromTools(parsed.tools);
-      }
-      body = JSON.stringify(parsed);
+  let body: string | undefined;
+  if (req.method === "POST") {
+    const raw = await readBody(req);
+    const parsed = JSON.parse(raw.toString()) as Record<string, unknown>;
+    // Strip `strict` field from tools - RouteLLM doesn't support it
+    if (Array.isArray(parsed.tools)) {
+      parsed.tools = stripStrictFromTools(parsed.tools);
     }
+    body = JSON.stringify(parsed);
+  }
 
-    const upstream = await fetch(target, {
-      method: req.method ?? "GET",
-      headers: body ? headers : { Authorization: headers.Authorization },
-      body: body ?? undefined,
-      signal: AbortSignal.timeout(180_000),
+  const upstream = await fetch(target, {
+    method: req.method ?? "GET",
+    headers: body ? headers : { Authorization: headers.Authorization },
+    body: body ?? undefined,
+    signal: AbortSignal.timeout(180_000),
+  });
+
+  // Detect expired/revoked API key at runtime
+  if (upstream.status === 401 || upstream.status === 403) {
+    const errBody = await upstream.text().catch(() => "");
+    console.error(
+      `[abacusai] Upstream returned ${upstream.status} — API key may be expired or revoked.`,
+    );
+    sendJsonResponse(res, upstream.status, {
+      error: {
+        message: `AbacusAI API key expired or invalid (HTTP ${upstream.status}).`,
+        type: "auth_expired",
+        upstream_body: errBody.slice(0, 500),
+      },
     });
+    return;
+  }
 
-    // Detect expired/revoked API key at runtime
-    if (upstream.status === 401 || upstream.status === 403) {
-      const errBody = await upstream.text().catch(() => "");
-      console.error(
-        `[abacusai] Upstream returned ${upstream.status} — API key may be expired or revoked. ` +
-          `Run \`openclaw models auth login --provider abacusai\` to re-authenticate.`,
-      );
-      sendJsonResponse(res, upstream.status, {
-        error: {
-          message:
-            `AbacusAI API key expired or invalid (HTTP ${upstream.status}). ` +
-            `Run \`openclaw models auth login --provider abacusai\` to re-authenticate.`,
-          type: "auth_expired",
-          upstream_body: errBody.slice(0, 500),
-        },
-      });
-      return;
-    }
+  const ct = upstream.headers.get("content-type") ?? "application/json";
+  const chunkId = generateChunkId();
 
-    const ct = upstream.headers.get("content-type") ?? "application/json";
+  // Stream SSE response with normalization
+  if (ct.includes("text/event-stream") && upstream.body) {
+    res.writeHead(upstream.status, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+    const reader = (upstream.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-    if (ct.includes("text/event-stream") && upstream.body) {
-      res.writeHead(upstream.status, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-        "Access-Control-Allow-Origin": "*",
-      });
-      const reader = (upstream.body as ReadableStream<Uint8Array>).getReader();
-      const decoder = new TextDecoder();
-      const normalizer = createSseNormalizer();
-      const pump = async () => {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) {
-            const tail = normalizer.flush();
-            if (tail) {
-              res.write(tail);
-            }
-            res.end();
-            return;
+    const pump = async () => {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) {
+          // Process any remaining buffer
+          if (buffer.trim()) {
+            const normalized = normalizeSseChunk(buffer.trim(), chunkId);
+            res.write(normalized + "\n\n");
           }
-          const raw = decoder.decode(value, { stream: true });
-          res.write(normalizer.feed(raw));
+          res.end();
+          return;
         }
-      };
-      pump().catch(() => res.end());
-    } else {
-      const data = await upstream.text();
-      // Normalize finish_reason in non-streaming JSON responses too
-      let normalized = data;
-      if (ct.includes("application/json")) {
-        try {
-          const parsed = JSON.parse(data) as Record<string, unknown>;
-          normalized = JSON.stringify(normalizeChunk(parsed));
-        } catch {
-          /* pass through as-is */
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.trim()) {
+            const normalized = normalizeSseChunk(line, chunkId);
+            res.write(normalized + "\n");
+          } else {
+            res.write("\n");
+          }
         }
       }
-      res.writeHead(upstream.status, {
-        "Content-Type": ct,
-        "Access-Control-Allow-Origin": "*",
-      });
-      res.end(normalized);
+    };
+    pump().catch(() => res.end());
+  } else {
+    // Non-streaming response - add id and object fields
+    const data = await upstream.text();
+    try {
+      const json = JSON.parse(data) as Record<string, unknown>;
+      if (!("id" in json)) {
+        json.id = chunkId;
+      }
+      if (!("object" in json)) {
+        json.object = "chat.completion";
+      }
+      res.writeHead(upstream.status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(json));
+    } catch {
+      res.writeHead(upstream.status, { "Content-Type": ct });
+      res.end(data);
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    sendJsonResponse(res, 502, {
-      error: { message: `AbacusAI proxy error: ${message}`, type: "api_error" },
-    });
   }
 }
 
-async function startProxy(apiKey: string): Promise<number> {
-  if (proxyState.server) {
-    return proxyState.port;
-  }
-
-  proxyState.apiKey = apiKey;
-
+function startProxy(apiKey: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const server = createServer((req, res) => {
+    if (proxyServer) {
+      proxyApiKey = apiKey;
+      resolve();
+      return;
+    }
+    proxyApiKey = apiKey;
+    proxyServer = createServer((req, res) => {
       handleProxyRequest(req, res).catch((err) => {
-        if (!res.headersSent) {
-          sendJsonResponse(res, 500, { error: { message: String(err), type: "api_error" } });
-        }
+        console.error("[abacusai] proxy error:", err);
+        sendJsonResponse(res, 500, { error: { message: String(err) } });
       });
     });
-    server.listen(0, "127.0.0.1", () => {
-      const addr = server.address();
-      const port = typeof addr === "object" && addr ? addr.port : 0;
-      proxyState.server = server;
-      proxyState.port = port;
-      resetIdleTimer();
-      resolve(port);
+    proxyServer.listen(PROXY_PORT, PROXY_HOST, () => {
+      console.log(`[abacusai] proxy listening on http://${PROXY_HOST}:${PROXY_PORT}`);
+      resolve();
     });
-    server.on("error", reject);
+    proxyServer.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        // Port already in use, assume proxy is already running
+        proxyServer = null;
+        resolve();
+      } else {
+        reject(err);
+      }
+    });
   });
 }
 
@@ -712,47 +486,44 @@ function buildModelDefinition(modelId: string) {
 // Plugin
 // ---------------------------------------------------------------------------
 
+// Type definitions for plugin API
+interface PluginPrompter {
+  progress: (msg: string) => { update: (msg: string) => void; stop: (msg: string) => void };
+  confirm: (opts: { message: string; initialValue: boolean }) => Promise<boolean>;
+  text: (opts: { message: string; placeholder?: string; initialValue?: string; validate?: (v: string) => string | undefined }) => Promise<string>;
+}
+
+interface PluginAuthContext {
+  prompter: PluginPrompter;
+}
+
 const abacusaiPlugin = {
   id: "abacusai-auth",
   name: "AbacusAI Auth",
-  description: "AbacusAI provider plugin with embedded OpenAI-compatible proxy",
+  description: "AbacusAI RouteLLM provider plugin with local proxy for response normalization",
   configSchema: emptyPluginConfigSchema(),
-  register(api) {
-    // Helper: check if abacusai provider is configured with a local proxy URL
-    function isAbacusaiProxyConfigured(): boolean {
-      const cfg = api.config;
-      const abacusCfg = cfg?.models?.providers?.abacusai as { baseUrl?: string } | undefined;
-      if (!abacusCfg?.baseUrl) {
-        return false;
-      }
-      return abacusCfg.baseUrl.includes("127.0.0.1");
-    }
+  register(api: unknown) {
+    const pluginApi = api as {
+      registerProvider: (config: unknown) => void;
+      config?: { models?: { providers?: { abacusai?: { compat?: { supportsStrictMode?: boolean } } } } };
+    };
 
-    // Eagerly start the proxy when the plugin is loaded (i.e. when the
-    // gateway starts and loads plugins). Fire-and-forget so we don't block
-    // plugin registration.
-    if (isAbacusaiProxyConfigured()) {
-      ensureProxy()
-        .then((ok) => {
-          if (ok) {
-            api.logger.info(`AbacusAI RouteLLM proxy started on port ${proxyState.port}`);
-          }
-        })
-        .catch((err) => {
-          api.logger.error(`AbacusAI proxy auto-start failed: ${String(err)}`);
+    // Check if direct connection is configured (supportsStrictMode: false in compat)
+    // If so, skip proxy startup - the core code handles strict field removal
+    const providerCompat = pluginApi.config?.models?.providers?.abacusai?.compat;
+    const useDirectConnection = providerCompat?.supportsStrictMode === false;
+
+    // Try to start proxy on plugin load if we have stored credentials and not using direct connection
+    if (!useDirectConnection) {
+      const storedKey = tryRecoverApiKey();
+      if (storedKey) {
+        startProxy(storedKey).catch(() => {
+          // Proxy start failed, will retry on auth
         });
+      }
     }
 
-    // Safety net: also check before each agent call in case the proxy was
-    // stopped by idle timeout or an unexpected error after initial start.
-    api.on("before_agent_start", async () => {
-      if (!isAbacusaiProxyConfigured()) {
-        return;
-      }
-      await ensureProxy();
-    });
-
-    api.registerProvider({
+    pluginApi.registerProvider({
       id: "abacusai",
       label: "AbacusAI",
       docsPath: "/providers/models",
@@ -764,7 +535,7 @@ const abacusaiPlugin = {
           label: "AbacusAI API key",
           hint: "Enter your AbacusAI API key or auto-detect from Code Mode",
           kind: "custom",
-          run: async (ctx) => {
+          run: async (ctx: PluginAuthContext) => {
             const spin = ctx.prompter.progress("Setting up AbacusAI…");
 
             try {
@@ -801,7 +572,7 @@ const abacusaiPlugin = {
                 const input = await ctx.prompter.text({
                   message: "AbacusAI API key",
                   placeholder: "Paste your API key from https://abacus.ai/app/profile/apikey",
-                  validate: (value) => {
+                  validate: (value: string) => {
                     const t = value.trim();
                     if (!t) {
                       return "API key is required";
@@ -833,24 +604,23 @@ const abacusaiPlugin = {
                 }
               }
 
+              // --- Start proxy for response normalization ---
+              spin.update("Starting local proxy…");
+              await startProxy(apiKey);
+
               // --- Model selection ---
               const modelInput = await ctx.prompter.text({
                 message: "Model IDs (comma-separated)",
                 initialValue: DEFAULT_MODEL_IDS.join(", "),
-                validate: (v) =>
+                validate: (v: string) =>
                   parseModelIds(v).length > 0 ? undefined : "Enter at least one model id",
               });
               const modelIds = parseModelIds(modelInput);
               const defaultModelId = modelIds[0] ?? DEFAULT_MODEL_IDS[0];
               const defaultModelRef = `abacusai/${defaultModelId}`;
 
-              // Write a placeholder baseUrl — the proxy will be started
-              // automatically by the before_agent_start hook when the gateway
-              // runs. We do NOT start the proxy here because the HTTP server
-              // would keep the CLI process alive after login completes.
-              const proxyBaseUrl = `http://127.0.0.1:0/v1`;
-
               const profileId = `abacusai:${validation.email ?? "default"}`;
+              const proxyBaseUrl = `http://${PROXY_HOST}:${PROXY_PORT}`;
               spin.stop("AbacusAI configured");
 
               return {
@@ -858,9 +628,9 @@ const abacusaiPlugin = {
                   {
                     profileId,
                     credential: {
-                      type: "token",
+                      type: "api_key",
                       provider: "abacusai",
-                      token: apiKey,
+                      key: apiKey,
                       ...(validation.email ? { email: validation.email } : {}),
                     },
                   },
@@ -870,10 +640,13 @@ const abacusaiPlugin = {
                     providers: {
                       abacusai: {
                         baseUrl: proxyBaseUrl,
-                        apiKey: "abacusai-proxy",
                         api: "openai-completions",
+                        apiKey: "abacusai-proxy",
                         authHeader: false,
                         models: modelIds.map((id) => buildModelDefinition(id)),
+                        compat: {
+                          requiresAdditionalPropertiesFalse: true,
+                        },
                       },
                     },
                   },
@@ -885,8 +658,7 @@ const abacusaiPlugin = {
                 },
                 defaultModel: defaultModelRef,
                 notes: [
-                  "AbacusAI RouteLLM proxy will start automatically when the gateway runs.",
-                  "The proxy forwards to RouteLLM with strict-field stripping for tool compatibility.",
+                  "Local proxy normalizes RouteLLM responses for OpenAI SDK compatibility.",
                   "Full OpenAI function-calling support is enabled.",
                   "Manage your API keys at https://abacus.ai/app/profile/apikey",
                 ],

@@ -45,7 +45,11 @@ import {
   wrapToolWorkspaceRootGuardWithOptions,
   wrapToolParamNormalization,
 } from "./pi-tools.read.js";
-import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
+import {
+  cleanToolSchemaForGemini,
+  normalizeToolParameters,
+  type NormalizeToolOptions,
+} from "./pi-tools.schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
 import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
@@ -512,9 +516,15 @@ export function createOpenClawCodingTools(options?: {
   // Always normalize tool JSON Schemas before handing them to pi-agent/pi-ai.
   // Without this, some providers (notably OpenAI) will reject root-level union schemas.
   // Provider-specific cleaning: Gemini needs constraint keywords stripped, but Anthropic expects them.
-  const normalized = subagentFiltered.map((tool) =>
-    normalizeToolParameters(tool, { modelProvider: options?.modelProvider }),
-  );
+  // Get provider-level compat settings for tool schema normalization
+  const providerCompat = options?.modelProvider
+    ? options.config?.models?.providers?.[options.modelProvider]?.compat
+    : undefined;
+  const normalizeOpts: NormalizeToolOptions = {
+    modelProvider: options?.modelProvider,
+    compat: providerCompat,
+  };
+  const normalized = subagentFiltered.map((tool) => normalizeToolParameters(tool, normalizeOpts));
   const withHooks = normalized.map((tool) =>
     wrapToolWithBeforeToolCallHook(tool, {
       agentId,

@@ -1,5 +1,13 @@
+import type { ModelCompatConfig } from "../config/types.models.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import { cleanSchemaForGemini } from "./schema/clean-for-gemini.js";
+
+export type NormalizeToolOptions = {
+  /** Model provider name for provider-specific quirks. */
+  modelProvider?: string;
+  /** Model/provider compat settings. */
+  compat?: ModelCompatConfig;
+};
 
 function extractEnumValues(schema: unknown): unknown[] | undefined {
   if (!schema || typeof schema !== "object") {
@@ -64,7 +72,7 @@ function mergePropertySchemas(existing: unknown, incoming: unknown): unknown {
 
 export function normalizeToolParameters(
   tool: AnyAgentTool,
-  options?: { modelProvider?: string },
+  options?: NormalizeToolOptions,
 ): AnyAgentTool {
   const schema =
     tool.parameters && typeof tool.parameters === "object"
@@ -174,7 +182,12 @@ export function normalizeToolParameters(
     properties:
       Object.keys(mergedProperties).length > 0 ? mergedProperties : (schema.properties ?? {}),
     ...(mergedRequired && mergedRequired.length > 0 ? { required: mergedRequired } : {}),
-    additionalProperties: "additionalProperties" in schema ? schema.additionalProperties : true,
+    additionalProperties:
+      "additionalProperties" in schema
+        ? schema.additionalProperties
+        : options?.compat?.requiresAdditionalPropertiesFalse
+          ? false
+          : true,
   };
 
   return {

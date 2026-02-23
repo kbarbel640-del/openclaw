@@ -8,6 +8,7 @@ export const ModelApiSchema = z.union([
   z.literal("openai-responses"),
   z.literal("anthropic-messages"),
   z.literal("google-generative-ai"),
+  z.literal("google-gemini-cli"),
   z.literal("github-copilot"),
   z.literal("bedrock-converse-stream"),
   z.literal("ollama"),
@@ -28,6 +29,7 @@ export const ModelCompatSchema = z
     requiresAssistantAfterToolResult: z.boolean().optional(),
     requiresThinkingAsText: z.boolean().optional(),
     requiresMistralToolIds: z.boolean().optional(),
+    requiresAdditionalPropertiesFalse: z.boolean().optional(),
   })
   .strict()
   .optional();
@@ -57,7 +59,7 @@ export const ModelDefinitionSchema = z
 
 export const ModelProviderSchema = z
   .object({
-    baseUrl: z.string().min(1),
+    baseUrl: z.string().min(1).optional(),
     apiKey: z.string().optional().register(sensitive),
     auth: z
       .union([z.literal("api-key"), z.literal("aws-sdk"), z.literal("oauth"), z.literal("token")])
@@ -66,6 +68,7 @@ export const ModelProviderSchema = z
     headers: z.record(z.string(), z.string()).optional(),
     authHeader: z.boolean().optional(),
     models: z.array(ModelDefinitionSchema),
+    compat: ModelCompatSchema,
   })
   .strict();
 
