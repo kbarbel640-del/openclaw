@@ -1,10 +1,9 @@
-import JSON5 from "json5";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import type { OpenClawConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
+import JSON5 from "json5";
 import { loadDotEnv } from "../infra/dotenv.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import {
@@ -39,6 +38,7 @@ import { applyMergePatch } from "./merge-patch.js";
 import { normalizeConfigPaths } from "./normalize-paths.js";
 import { resolveConfigPath, resolveDefaultConfigCandidates, resolveStateDir } from "./paths.js";
 import { applyConfigOverrides } from "./runtime-overrides.js";
+import type { OpenClawConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
 import {
   validateConfigObjectRawWithPlugins,
   validateConfigObjectWithPlugins,
@@ -128,6 +128,56 @@ function hashConfigRaw(raw: string | null): string {
     .digest("hex");
 }
 
+function isWritePlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasOwnObjectKey(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function normalizeLegacyWhatsAppEnabledForWrite(value: unknown): unknown {
+  if (!isWritePlainObject(value)) {
+    return value;
+  }
+  const channels = value.channels;
+  if (!isWritePlainObject(channels)) {
+    return value;
+  }
+  const whatsapp = channels.whatsapp;
+  if (!isWritePlainObject(whatsapp)) {
+    return value;
+  }
+  if (!hasOwnObjectKey(whatsapp, "enabled")) {
+    return value;
+  }
+
+  const nextWhatsApp: Record<string, unknown> = { ...whatsapp };
+  const legacyEnabled = nextWhatsApp.enabled;
+  delete nextWhatsApp.enabled;
+
+  if (typeof legacyEnabled === "boolean") {
+    const accounts = isWritePlainObject(nextWhatsApp.accounts)
+      ? ({ ...nextWhatsApp.accounts } as Record<string, unknown>)
+      : {};
+    const defaultAccount = isWritePlainObject(accounts.default)
+      ? ({ ...accounts.default } as Record<string, unknown>)
+      : {};
+    if (!hasOwnObjectKey(defaultAccount, "enabled")) {
+      defaultAccount.enabled = legacyEnabled;
+    }
+    accounts.default = defaultAccount;
+    nextWhatsApp.accounts = accounts;
+  }
+
+  return {
+    ...value,
+    channels: {
+      ...channels,
+      whatsapp: nextWhatsApp,
+    },
+  };
+}
 export function resolveConfigSnapshotHash(snapshot: {
   hash?: string;
   raw?: string | null;
@@ -842,6 +892,8 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         envRefMap = null;
       }
     }
+
+    persistCandidate = normalizeLegacyWhatsAppEnabledForWrite(persistCandidate);
 
     const validated = validateConfigObjectRawWithPlugins(persistCandidate);
     if (!validated.ok) {

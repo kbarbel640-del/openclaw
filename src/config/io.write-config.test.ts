@@ -172,6 +172,55 @@ describe("config io write", () => {
     });
   });
 
+  it("normalizes legacy channels.whatsapp.enabled during writes", async () => {
+    await withTempHome("openclaw-config-io-", async (home) => {
+      const { configPath, io, snapshot } = await writeConfigAndCreateIo({
+        home,
+        initialConfig: {
+          channels: {
+            whatsapp: {
+              dmPolicy: "pairing",
+              allowFrom: ["+15555550123"],
+            },
+          },
+        },
+      });
+
+      const next = structuredClone(snapshot.config) as Record<string, unknown>;
+      const channels =
+        next.channels && typeof next.channels === "object"
+          ? (next.channels as Record<string, unknown>)
+          : {};
+      const whatsapp =
+        channels.whatsapp && typeof channels.whatsapp === "object"
+          ? (channels.whatsapp as Record<string, unknown>)
+          : {};
+      channels.whatsapp = {
+        ...whatsapp,
+        enabled: false,
+      };
+      next.channels = channels;
+
+      await io.writeConfigFile(next);
+
+      const persisted = JSON.parse(await fs.readFile(configPath, "utf-8")) as {
+        channels?: {
+          whatsapp?: {
+            enabled?: boolean;
+            accounts?: {
+              default?: {
+                enabled?: boolean;
+              };
+            };
+          };
+        };
+      };
+
+      expect(persisted.channels?.whatsapp?.enabled).toBeUndefined();
+      expect(persisted.channels?.whatsapp?.accounts?.default?.enabled).toBe(false);
+    });
+  });
+
   it("keeps env refs in arrays when appending entries", async () => {
     await withTempHome("openclaw-config-io-", async (home) => {
       const configPath = path.join(home, ".openclaw", "openclaw.json");
