@@ -31,6 +31,7 @@
    - `window.focus` (Automation MVP: focus by `handle` or `titleContains`)
    - `input.type` (Automation MVP: type text into focused window)
    - `input.key` (Automation MVP: send key/combo into focused window)
+   - `input.click` (Automation MVP: mouse click at `{ x, y }` with `button=left|right` + optional `doubleClick`)
 6. Gateway URL/token resolution works from:
    - CLI args: `--gateway-url`, `--gateway-token`
    - env: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`
@@ -46,7 +47,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **52 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **54 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash

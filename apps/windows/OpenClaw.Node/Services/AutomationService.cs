@@ -181,6 +181,45 @@ namespace OpenClaw.Node.Services
             return await RunSendKeysScriptAsync($"[System.Windows.Forms.SendKeys]::SendWait('{sendKeysToken}')");
         }
 
+        public Task<bool> ClickAsync(int x, int y, string button = "left", bool doubleClick = false)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return Task.FromResult(false);
+            }
+
+            var normalizedButton = (button ?? "left").Trim().ToLowerInvariant();
+            if (normalizedButton != "left" && normalizedButton != "right")
+            {
+                return Task.FromResult(false);
+            }
+
+            var screenWidth = GetSystemMetrics(SM_CXSCREEN);
+            var screenHeight = GetSystemMetrics(SM_CYSCREEN);
+            if (x < 0 || y < 0 || x >= screenWidth || y >= screenHeight)
+            {
+                return Task.FromResult(false);
+            }
+
+            if (!SetCursorPos(x, y))
+            {
+                return Task.FromResult(false);
+            }
+
+            var down = normalizedButton == "right" ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
+            var up = normalizedButton == "right" ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
+
+            mouse_event(down, 0, 0, 0, UIntPtr.Zero);
+            mouse_event(up, 0, 0, 0, UIntPtr.Zero);
+            if (doubleClick)
+            {
+                mouse_event(down, 0, 0, 0, UIntPtr.Zero);
+                mouse_event(up, 0, 0, 0, UIntPtr.Zero);
+            }
+
+            return Task.FromResult(true);
+        }
+
         private static async Task<bool> RunSendKeysScriptAsync(string body)
         {
             var script = $"Add-Type -AssemblyName System.Windows.Forms; {body}";
@@ -314,6 +353,12 @@ namespace OpenClaw.Node.Services
         private const uint KEYEVENTF_KEYUP = 0x0002;
         private const uint SWP_NOSIZE = 0x0001;
         private const uint SWP_NOMOVE = 0x0002;
+        private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+        private const uint MOUSEEVENTF_LEFTUP = 0x0004;
+        private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+        private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+        private const int SM_CXSCREEN = 0;
+        private const int SM_CYSCREEN = 1;
         private static readonly IntPtr HWND_TOPMOST = new(-1);
         private static readonly IntPtr HWND_NOTOPMOST = new(-2);
 
@@ -373,6 +418,17 @@ namespace OpenClaw.Node.Services
 
         [DllImport("user32.dll")]
         private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetCursorPos(int X, int Y);
+
+        [DllImport("user32.dll")]
+        private static extern int GetSystemMetrics(int nIndex);
+
+#pragma warning disable SYSLIB0003
+        [DllImport("user32.dll")]
+        private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+#pragma warning restore SYSLIB0003
 
 #pragma warning disable SYSLIB0003
         [DllImport("user32.dll")]

@@ -25,6 +25,7 @@ namespace OpenClaw.Node.Services
                     "window.focus" => await HandleWindowFocusAsync(request),
                     "input.type" => await HandleInputTypeAsync(request),
                     "input.key" => await HandleInputKeyAsync(request),
+                    "input.click" => await HandleInputClickAsync(request),
                     _ => new BridgeInvokeResponse
                     {
                         Id = request.Id,
@@ -612,6 +613,81 @@ namespace OpenClaw.Node.Services
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = $"Sending key input failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private async Task<BridgeInvokeResponse> HandleInputClickAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+            if (root == null)
+            {
+                return Invalid(request.Id, "input.click requires params.x and params.y");
+            }
+
+            if (!root.Value.TryGetProperty("x", out var xEl) || xEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "input.click requires numeric params.x");
+            }
+
+            if (!root.Value.TryGetProperty("y", out var yEl) || yEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "input.click requires numeric params.y");
+            }
+
+            var x = xEl.GetInt32();
+            var y = yEl.GetInt32();
+            var button = root.Value.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
+                ? (bEl.GetString() ?? "left")
+                : "left";
+
+            if (!string.Equals(button, "left", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(button, "right", StringComparison.OrdinalIgnoreCase))
+            {
+                return Invalid(request.Id, "input.click params.button must be 'left' or 'right'");
+            }
+
+            var doubleClick = root.Value.TryGetProperty("doubleClick", out var dEl) &&
+                              (dEl.ValueKind == JsonValueKind.True || dEl.ValueKind == JsonValueKind.False)
+                ? dEl.GetBoolean()
+                : false;
+
+            try
+            {
+                var svc = new AutomationService();
+                var ok = await svc.ClickAsync(x, y, button.ToLowerInvariant(), doubleClick);
+                if (!ok)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "Mouse click failed"
+                        }
+                    };
+                }
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, x, y, button = button.ToLowerInvariant(), doubleClick })
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"Mouse click failed: {ex.Message}"
                     }
                 };
             }
