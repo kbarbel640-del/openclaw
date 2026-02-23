@@ -326,8 +326,15 @@ export async function createAcpClient(opts: AcpClientOptions = {}): Promise<AcpC
   const serverArgs = buildServerArgs(opts);
 
   const entryPath = resolveSelfEntryPath();
-  const serverCommand = opts.serverCommand ?? (entryPath ? process.execPath : "openclaw");
+  let serverCommand = opts.serverCommand ?? (entryPath ? process.execPath : "openclaw");
   const effectiveArgs = opts.serverCommand || !entryPath ? serverArgs : [entryPath, ...serverArgs];
+
+  // On Windows, npm-installed binaries are .cmd wrappers that spawn() cannot
+  // resolve without shell mode. Append the extension explicitly so we avoid
+  // enabling `shell: true` (which introduces command-injection risk).
+  if (process.platform === "win32" && serverCommand === "openclaw") {
+    serverCommand = "openclaw.cmd";
+  }
 
   log(`spawning: ${serverCommand} ${effectiveArgs.join(" ")}`);
 
