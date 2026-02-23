@@ -19,15 +19,16 @@ namespace OpenClaw.Node
             Console.WriteLine("OpenClaw Node for Windows starting...");
 
             var configPath = GetOpenClawConfigPath();
+            var trayEnabled = HasArg(args, "--tray");
             string url = ResolveGatewayUrl(args);
             string token = ResolveGatewayToken(args);
-            if (string.IsNullOrWhiteSpace(token))
+            var hasGatewayToken = !string.IsNullOrWhiteSpace(token);
+
+            if (!hasGatewayToken && !trayEnabled)
             {
-                Console.WriteLine("[FATAL] Missing gateway token. Set OPENCLAW_GATEWAY_TOKEN or pass --gateway-token <token>.");
+                Console.WriteLine("[FATAL] Missing gateway token. Set OPENCLAW_GATEWAY_TOKEN, pass --gateway-token <token>, or run with --tray and open config.");
                 return;
             }
-
-            var trayEnabled = HasArg(args, "--tray");
 
             var connectParams = new ConnectParams
             {
@@ -177,6 +178,14 @@ namespace OpenClaw.Node
                     }
                 }
 
+                if (!hasGatewayToken)
+                {
+                    SetTray(NodeRuntimeState.Disconnected, "Waiting for gateway token (Open Config)");
+                    Console.WriteLine("[WARN] Missing gateway token. Tray mode running; use Open Config to set gateway.auth.token, then Restart Node.");
+                    await WaitUntilCanceledAsync(cts.Token);
+                    return;
+                }
+
                 discovery.Start(cts.Token);
                 ipc.Start(cts.Token);
                 var runTask = connection.StartAsync(cts.Token);
@@ -203,6 +212,18 @@ namespace OpenClaw.Node
                 {
                     TryScheduleSelfRestart();
                 }
+            }
+        }
+
+        private static async Task WaitUntilCanceledAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (TaskCanceledException)
+            {
+                // expected
             }
         }
 
