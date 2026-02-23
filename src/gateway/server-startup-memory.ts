@@ -8,6 +8,10 @@ export async function startGatewayMemoryBackend(params: {
   cfg: OpenClawConfig;
   log: { info?: (msg: string) => void; warn: (msg: string) => void };
 }): Promise<void> {
+  if (params.cfg.memory?.backend === "external") {
+    params.log.info?.("memory backend is external; skipping local memory initialization");
+    return;
+  }
   const agentIds = listAgentIds(params.cfg);
   for (const agentId of agentIds) {
     if (!resolveMemorySearchConfig(params.cfg, agentId)) {
