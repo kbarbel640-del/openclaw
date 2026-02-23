@@ -31,6 +31,8 @@ export type DiscordDmConfig = {
 export type DiscordGuildChannelConfig = {
   allow?: boolean;
   requireMention?: boolean;
+  /** Per-channel max concurrent conversation runs (1–10). */
+  maxConcurrentPerConversation?: number;
   /** Optional tool policy overrides for this channel. */
   tools?: GroupToolPolicyConfig;
   toolsBySender?: GroupToolPolicyBySenderConfig;
@@ -53,6 +55,8 @@ export type DiscordReactionNotificationMode = "off" | "own" | "all" | "allowlist
 export type DiscordGuildEntry = {
   slug?: string;
   requireMention?: boolean;
+  /** Per-guild max concurrent conversation runs (1–10). */
+  maxConcurrentPerConversation?: number;
   /** Optional tool policy overrides for this guild (used when channel override is missing). */
   tools?: GroupToolPolicyConfig;
   toolsBySender?: GroupToolPolicyBySenderConfig;
@@ -171,6 +175,8 @@ export type DiscordAccountConfig = {
   name?: string;
   /** Optional provider capability tags used for agent/runtime guidance. */
   capabilities?: string[];
+  /** Per-provider max concurrent conversation runs (1–10). */
+  maxConcurrentPerConversation?: number;
   /** Markdown formatting overrides (tables). */
   markdown?: MarkdownConfig;
   /** Override native command registration for Discord (bool or "auto"). */

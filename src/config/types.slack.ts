@@ -27,6 +27,8 @@ export type SlackDmConfig = {
 export type SlackChannelConfig = {
   /** If false, disable the bot in this channel. (Alias for allow: false.) */
   enabled?: boolean;
+  /** Per-channel max concurrent conversation runs (1–10). */
+  maxConcurrentPerConversation?: number;
   /** Legacy channel allow toggle; prefer enabled. */
   allow?: boolean;
   /** Require mentioning the bot to trigger replies. */
@@ -82,6 +84,8 @@ export type SlackThreadConfig = {
 export type SlackAccountConfig = {
   /** Optional display name for this account (used in CLI/UI lists). */
   name?: string;
+  /** Per-provider max concurrent conversation runs (1–10). */
+  maxConcurrentPerConversation?: number;
   /** Slack connection mode (socket|http). Default: socket. */
   mode?: "socket" | "http";
   /** Slack signing secret (required for HTTP mode). */

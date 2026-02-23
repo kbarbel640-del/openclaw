@@ -55,6 +55,8 @@ export type TelegramAccountConfig = {
   name?: string;
   /** Optional provider capability tags used for agent/runtime guidance. */
   capabilities?: TelegramCapabilitiesConfig;
+  /** Per-provider max concurrent conversation runs (1–10). */
+  maxConcurrentPerConversation?: number;
   /** Markdown formatting overrides (tables). */
   markdown?: MarkdownConfig;
   /** Override native command registration for Telegram (bool or "auto"). */
@@ -189,6 +191,8 @@ export type TelegramGroupConfig = {
   requireMention?: boolean;
   /** Per-group override for group message policy (open|disabled|allowlist). */
   groupPolicy?: GroupPolicy;
+  /** Per-group max concurrent conversation runs (1–10). */
+  maxConcurrentPerConversation?: number;
   /** Optional tool policy overrides for this group. */
   tools?: GroupToolPolicyConfig;
   toolsBySender?: GroupToolPolicyBySenderConfig;

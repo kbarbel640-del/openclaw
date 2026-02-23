@@ -4,3 +4,5 @@ export const enum CommandLane {
   Subagent = "subagent",
   Nested = "nested",
 }
+
+export const CONV_LANE_PREFIX = "conv:";
