@@ -318,6 +318,91 @@ describe("sanitizeSessionHistory", () => {
     expect(result[0]?.role).toBe("assistant");
   });
 
+  it("drops orphan toolResult entries for openai-codex history", async () => {
+    const messages = [
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call_live|fc_live", name: "read", arguments: {} }],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "call_live|fc_live",
+        toolName: "read",
+        content: [{ type: "text", text: "ok" }],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "call_orphan",
+        toolName: "read",
+        content: [{ type: "text", text: "stale" }],
+      },
+      { role: "user", content: "continue" },
+    ] as unknown as AgentMessage[];
+
+    const result = await sanitizeSessionHistory({
+      messages,
+      modelApi: "openai-codex-responses",
+      provider: "openai",
+      sessionManager: mockSessionManager,
+      sessionId: TEST_SESSION_ID,
+    });
+
+    expect(result.map((msg) => msg.role)).toEqual(["assistant", "toolResult", "user"]);
+    expect(
+      result.some(
+        (msg) =>
+          msg.role === "toolResult" &&
+          (msg as { toolCallId?: string }).toolCallId === "call_orphan",
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps bare call toolResult ids when assistant uses call|fc on openai", async () => {
+    const messages = [
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call_live|fc_live", name: "read", arguments: {} }],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "call_live",
+        toolName: "read",
+        content: [{ type: "text", text: "ok" }],
+      },
+    ] as unknown as AgentMessage[];
+
+    const result = await sanitizeSessionHistory({
+      messages,
+      modelApi: "openai-responses",
+      provider: "openai",
+      sessionManager: mockSessionManager,
+      sessionId: TEST_SESSION_ID,
+    });
+
+    expect(result).toHaveLength(2);
+    expect((result[1] as { toolCallId?: string }).toolCallId).toBe("call_live");
+  });
+
+  it("still does not synthesize missing tool results for openai-codex", async () => {
+    const messages = [
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call_missing", name: "read", arguments: {} }],
+      },
+    ] as unknown as AgentMessage[];
+
+    const result = await sanitizeSessionHistory({
+      messages,
+      modelApi: "openai-codex-responses",
+      provider: "openai",
+      sessionManager: mockSessionManager,
+      sessionId: TEST_SESSION_ID,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.role).toBe("assistant");
+  });
+
   it("drops malformed tool calls missing input or arguments", async () => {
     const messages = [
       {
