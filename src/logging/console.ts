@@ -8,12 +8,13 @@ import { type LogLevel, normalizeLogLevel } from "./levels.js";
 import { getLogger, type LoggerSettings } from "./logger.js";
 import { resolveNodeRequireFromMeta } from "./node-require.js";
 import { loggingState } from "./state.js";
-import { formatLocalIsoWithOffset } from "./timestamps.js";
+import { formatConsoleTimestamp } from "./timestamps.js";
 
 export type ConsoleStyle = "pretty" | "compact" | "json";
 type ConsoleSettings = {
   level: LogLevel;
   style: ConsoleStyle;
+  timezone?: string;
 };
 export type ConsoleLoggerSettings = ConsoleSettings;
 
@@ -75,14 +76,15 @@ function resolveConsoleSettings(): ConsoleSettings {
   const envLevel = resolveEnvLogLevelOverride();
   const level = envLevel ?? normalizeConsoleLevel(cfg?.consoleLevel);
   const style = normalizeConsoleStyle(cfg?.consoleStyle);
-  return { level, style };
+  const timezone = cfg?.timezone;
+  return { level, style, timezone };
 }
 
 function consoleSettingsChanged(a: ConsoleSettings | null, b: ConsoleSettings) {
   if (!a) {
     return true;
   }
-  return a.level !== b.level || a.style !== b.style;
+  return a.level !== b.level || a.style !== b.style || a.timezone !== b.timezone;
 }
 
 export function getConsoleSettings(): ConsoleLoggerSettings {
@@ -152,17 +154,6 @@ function shouldSuppressConsoleMessage(message: string): boolean {
 function isEpipeError(err: unknown): boolean {
   const code = (err as { code?: string })?.code;
   return code === "EPIPE" || code === "EIO";
-}
-
-export function formatConsoleTimestamp(style: ConsoleStyle): string {
-  const now = new Date();
-  if (style === "pretty") {
-    const h = String(now.getHours()).padStart(2, "0");
-    const m = String(now.getMinutes()).padStart(2, "0");
-    const s = String(now.getSeconds()).padStart(2, "0");
-    return `${h}:${m}:${s}`;
-  }
-  return formatLocalIsoWithOffset(now);
 }
 
 function hasTimestampPrefix(value: string): boolean {
@@ -249,7 +240,7 @@ export function enableConsoleCapture(): void {
         !hasTimestampPrefix(trimmed) &&
         !isJsonPayload(trimmed);
       const timestamp = shouldPrefixTimestamp
-        ? formatConsoleTimestamp(getConsoleSettings().style)
+        ? formatConsoleTimestamp(getConsoleSettings().style, getConsoleSettings().timezone)
         : "";
       try {
         const resolvedLogger = getLoggerLazy();
