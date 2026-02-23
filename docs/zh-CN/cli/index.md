@@ -310,7 +310,7 @@ openclaw [--dev] [--profile <name>] <command>
 - `--non-interactive`
 - `--mode <local|remote>`
 - `--flow <quickstart|advanced|manual>`（manual 是 advanced 的别名）
-- `--auth-choice <setup-token|token|chutes|openai-codex|openai-api-key|openrouter-api-key|ai-gateway-api-key|moonshot-api-key|kimi-code-api-key|synthetic-api-key|venice-api-key|gemini-api-key|zai-api-key|apiKey|minimax-api|minimax-api-lightning|opencode-zen|skip>`
+- `--auth-choice <setup-token|token|chutes|openai-codex|openai-api-key|openrouter-api-key|ai-gateway-api-key|moonshot-api-key|kimi-code-api-key|stepfun-api-key|stepfun-cn|synthetic-api-key|venice-api-key|gemini-api-key|zai-api-key|apiKey|minimax-api|minimax-api-lightning|opencode-zen|skip>`
 - `--token-provider <id>`（非交互式；与 `--auth-choice token` 配合使用）
 - `--token <token>`（非交互式；与 `--auth-choice token` 配合使用）
 - `--token-profile-id <id>`（非交互式；默认：`<provider>:manual`）
@@ -321,6 +321,7 @@ openclaw [--dev] [--profile <name>] <command>
 - `--ai-gateway-api-key <key>`
 - `--moonshot-api-key <key>`
 - `--kimi-code-api-key <key>`
+- `--stepfun-api-key <key>`
 - `--gemini-api-key <key>`
 - `--zai-api-key <key>`
 - `--minimax-api-key <key>`

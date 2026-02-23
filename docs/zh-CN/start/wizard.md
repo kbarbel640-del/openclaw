@@ -53,7 +53,7 @@ openclaw configure
 
 **本地模式（默认）**引导你完成：
 
-- 模型/认证（OpenAI Code (Codex) 订阅 OAuth、Anthropic API 密钥（推荐）或 setup-token（粘贴），以及 MiniMax/GLM/Moonshot/AI Gateway 选项）
+- 模型/认证（OpenAI Code (Codex) 订阅 OAuth、Anthropic API 密钥（推荐）或 setup-token（粘贴），以及 MiniMax/GLM/Moonshot/StepFun/AI Gateway 选项）
 - 工作区位置 + 引导文件
 - Gateway 网关设置（端口/绑定/认证/tailscale）
 - 提供商（Telegram、WhatsApp、Discord、Google Chat、Mattermost（插件）、Signal）
@@ -102,6 +102,8 @@ openclaw agents add <name>
    - **Moonshot（Kimi K2）**：自动写入配置。
    - **Kimi Coding**：自动写入配置。
    - 更多详情：[Moonshot AI（Kimi + Kimi Coding）](/providers/moonshot)
+   - **StepFun（Step 3.5 Flash）**：自动写入配置。
+   - 更多详情：[StepFun](/providers/stepfun)
    - **跳过**：尚未配置认证。
    - 从检测到的选项中选择默认模型（或手动输入提供商/模型）。
    - 向导运行模型检查，如果配置的模型未知或缺少认证则发出警告。
@@ -244,6 +246,17 @@ openclaw onboard --non-interactive \
   --mode local \
   --auth-choice moonshot-api-key \
   --moonshot-api-key "$MOONSHOT_API_KEY" \
+  --gateway-port 18789 \
+  --gateway-bind loopback
+```
+
+StepFun 示例：
+
+```bash
+openclaw onboard --non-interactive \
+  --mode local \
+  --auth-choice stepfun-api-key \
+  --stepfun-api-key "$STEPFUN_API_KEY" \
   --gateway-port 18789 \
   --gateway-bind loopback
 ```

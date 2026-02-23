@@ -47,6 +47,7 @@ Venice 是我们推荐的 Venice AI 设置，用于隐私优先的推理，并�
 - [OpenRouter](/providers/openrouter)
 - [Vercel AI Gateway](/providers/vercel-ai-gateway)
 - [Moonshot AI（Kimi + Kimi Coding）](/providers/moonshot)
+- [StepFun](/providers/stepfun)
 - [OpenCode Zen](/providers/opencode)
 - [Amazon Bedrock](/providers/bedrock)
 - [Z.AI](/providers/zai)
