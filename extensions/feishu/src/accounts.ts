@@ -1,4 +1,5 @@
 import type { ClawdbotConfig } from "openclaw/plugin-sdk";
+import type { OpenClawPluginToolContext } from "openclaw/plugin-sdk";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";
 import type {
   FeishuConfig,
@@ -141,4 +142,21 @@ export function listEnabledFeishuAccounts(cfg: ClawdbotConfig): ResolvedFeishuAc
   return listFeishuAccountIds(cfg)
     .map((accountId) => resolveFeishuAccount({ cfg, accountId }))
     .filter((account) => account.enabled && account.configured);
+}
+
+/**
+ * Resolve Feishu account for a tool call context.
+ * Prefer account bound to current agent; fallback to first configured account.
+ */
+export function resolveFeishuAccountForToolContext(
+  accounts: ResolvedFeishuAccount[],
+  ctx: OpenClawPluginToolContext,
+): ResolvedFeishuAccount {
+  if (ctx.agentAccountId) {
+    const matched = accounts.find((account) => account.accountId === ctx.agentAccountId);
+    if (matched) {
+      return matched;
+    }
+  }
+  return accounts[0];
 }
