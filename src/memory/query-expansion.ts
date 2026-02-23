@@ -96,7 +96,6 @@ const STOP_WORDS_EN = new Set([
   "earlier",
   "later",
   "recently",
-  "before",
   "ago",
   "just",
   "now",
@@ -216,6 +215,118 @@ const STOP_WORDS_ZH = new Set([
   "告诉",
 ]);
 
+const STOP_WORDS_KO = new Set([
+  // Pronouns and determiners
+  "나",
+  "내",
+  "저",
+  "제",
+  "우리",
+  "너",
+  "네",
+  "당신",
+  "그녀",
+  "이것",
+  "그것",
+  "저것",
+  "이거",
+  "그거",
+  "저거",
+  // Particles and endings
+  "은",
+  "는",
+  "이",
+  "가",
+  "을",
+  "를",
+  "에",
+  "에서",
+  "에게",
+  "한테",
+  "의",
+  "와",
+  "과",
+  "도",
+  "만",
+  "로",
+  "으로",
+  "까지",
+  "부터",
+  "보다",
+  // Common verbs and helpers
+  "이다",
+  "있다",
+  "없다",
+  "하다",
+  "되다",
+  "아니다",
+  "같다",
+  "찾다",
+  "말하다",
+  "알다",
+  // Vague and question words
+  "뭐",
+  "무엇",
+  "어디",
+  "언제",
+  "왜",
+  "어떻게",
+  "어떤",
+  "어느",
+  "누구",
+  "것",
+  "거",
+  "사항",
+  "내용",
+  // Polite/request words and vague time
+  "좀",
+  "제발",
+  "부탁",
+  "부탁해",
+  "도와줘",
+  "어제",
+  "오늘",
+  "내일",
+  "지금",
+  "방금",
+  "최근",
+]);
+
+// Match longest particle first so "으로" strips before "로".
+const KO_PARTICLES_BY_LENGTH = [
+  "께서는",
+  "에게서",
+  "한테서",
+  "으로는",
+  "에서는",
+  "에게는",
+  "한테는",
+  "으로",
+  "에서",
+  "에게",
+  "한테",
+  "까지",
+  "부터",
+  "보다",
+  "처럼",
+  "같이",
+  "로",
+  "은",
+  "는",
+  "이",
+  "가",
+  "을",
+  "를",
+  "에",
+  "의",
+  "와",
+  "과",
+  "도",
+  "만",
+  "나",
+  "이나",
+].toSorted((a, b) => b.length - a.length);
+
 /**
  * Check if a token looks like a meaningful keyword.
  * Returns false for short tokens, numbers-only, etc.
@@ -271,6 +382,21 @@ function tokenize(text: string): string[] {
   return tokens;
 }
 
+function stripKoreanParticle(token: string): string {
+  for (const particle of KO_PARTICLES_BY_LENGTH) {
+    if (!token.endsWith(particle) || token.length <= particle.length) {
+      continue;
+    }
+    const stripped = token.slice(0, -particle.length);
+    // Keep at least two Hangul syllables to avoid noisy one-letter stems.
+    if (/^[\uac00-\ud7a3]{2,}$/.test(stripped)) {
+      return stripped;
+    }
+  }
+
+  return token;
+}
+
 /**
  * Extract keywords from a conversational query for FTS search.
  *
@@ -285,20 +411,45 @@ export function extractKeywords(query: string): string[] {
   const seen = new Set<string>();
 
   for (const token of tokens) {
-    // Skip stop words
-    if (STOP_WORDS_EN.has(token) || STOP_WORDS_ZH.has(token)) {
-      continue;
+    const candidates = [token];
+    if (/^[\uac00-\ud7a3]+$/.test(token)) {
+      const stripped = stripKoreanParticle(token);
+      if (stripped !== token) {
+        candidates.push(stripped);
+      }
     }
-    // Skip invalid keywords
-    if (!isValidKeyword(token)) {
-      continue;
+
+    for (const candidate of candidates) {
+      // Skip stop words
+      if (
+        STOP_WORDS_EN.has(candidate) ||
+        STOP_WORDS_ZH.has(candidate) ||
+        STOP_WORDS_KO.has(candidate)
+      ) {
+        continue;
+      }
+      // Skip invalid keywords
+      if (!isValidKeyword(candidate)) {
+        continue;
+      }
+      // Skip duplicates
+      if (seen.has(candidate)) {
+        continue;
+      }
+      seen.add(candidate);
+      keywords.push(candidate);
     }
-    // Skip duplicates
-    if (seen.has(token)) {
-      continue;
+
+    // If we added a stripped version, we usually want to remove the original if it was just a particle-heavy version.
+    // In extractKeywords, we currently keep both. If the test expects "회의에서" to be GONE,
+    // we should make sure the original is removed if it matched a particle.
+    if (candidates.length > 1 && candidates[0] !== candidates[1]) {
+      const originalIdx = keywords.indexOf(candidates[0]);
+      if (originalIdx !== -1) {
+        keywords.splice(originalIdx, 1);
+        seen.delete(candidates[0]);
+      }
     }
-    seen.add(token);
-    keywords.push(token);
   }
 
   return keywords;

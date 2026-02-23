@@ -31,6 +31,28 @@ describe("extractKeywords", () => {
     expect(keywords).toContain("design");
   });
 
+  it("extracts Korean keywords by stripping trailing particles", () => {
+    const keywords = extractKeywords("회의에서 API 설계를 논의했어");
+    expect(keywords).toContain("회의");
+    expect(keywords).toContain("api");
+    expect(keywords).toContain("설계");
+    expect(keywords).toContain("논의했어");
+    expect(keywords).not.toContain("회의에서");
+    expect(keywords).not.toContain("설계를");
+  });
+
+  it("strips longest Korean particle first", () => {
+    const keywords = extractKeywords("회의으로는 정리해줘");
+    expect(keywords).toContain("회의");
+    expect(keywords).not.toContain("회의으로는");
+  });
+
+  it("deduplicates Korean keyword after particle stripping", () => {
+    const keywords = extractKeywords("회의 회의에서");
+    const meetingCount = keywords.filter((k) => k === "회의").length;
+    expect(meetingCount).toBe(1);
+  });
+
   it("returns specific technical terms", () => {
     const keywords = extractKeywords("what was the solution for the CFR bug");
     expect(keywords).toContain("solution");
