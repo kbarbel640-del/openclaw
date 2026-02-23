@@ -19,6 +19,7 @@ namespace OpenClaw.Node.Services
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
                     "dev.update" => await HandleDevUpdateAsync(request),
+                    "dev.restart" => await HandleDevRestartAsync(request),
                     "screen.list" => await HandleScreenListAsync(request),
                     "screen.record" => await HandleScreenRecordAsync(request),
                     "camera.list" => await HandleCameraListAsync(request),
@@ -345,6 +346,108 @@ namespace OpenClaw.Node.Services
                 Ok = true,
                 PayloadJSON = JsonSerializer.Serialize(payload)
             };
+        }
+
+        private async Task<BridgeInvokeResponse> HandleDevRestartAsync(BridgeInvokeRequest request)
+        {
+            var root = ParseParams(request.ParamsJSON);
+
+            if (root != null && root.Value.TryGetProperty("delayMs", out var dEl) && dEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "dev.restart params.delayMs must be a number when provided");
+            }
+
+            var delayMs = root != null && root.Value.TryGetProperty("delayMs", out var d) && d.ValueKind == JsonValueKind.Number
+                ? d.GetInt32()
+                : 1500;
+            delayMs = Math.Clamp(delayMs, 250, 15000);
+
+            var processPath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = "dev.restart unavailable: unable to resolve current process path"
+                    }
+                };
+            }
+
+            var args = Environment.GetCommandLineArgs();
+            var argBuilder = new System.Text.StringBuilder();
+            for (var i = 1; i < args.Length; i++)
+            {
+                if (argBuilder.Length > 0) argBuilder.Append(' ');
+                argBuilder.Append(QuoteForCmd(args[i]));
+            }
+
+            var currentPid = Environment.ProcessId;
+            var seconds = Math.Max(1, (int)Math.Ceiling(delayMs / 1000.0));
+            var cmd = $"/c timeout /t {seconds} /nobreak >nul && start \"\" {QuoteForCmd(processPath)} {argBuilder} && taskkill /PID {currentPid} /F";
+
+            try
+            {
+                using var proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = cmd,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+
+                if (proc == null)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "dev.restart failed to schedule restart process"
+                        }
+                    };
+                }
+
+                var payload = new
+                {
+                    ok = true,
+                    scheduled = true,
+                    delayMs,
+                    processPath,
+                    pid = currentPid
+                };
+
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = true,
+                    PayloadJSON = JsonSerializer.Serialize(payload)
+                };
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"dev.restart scheduling failed: {ex.Message}"
+                    }
+                };
+            }
+        }
+
+        private static string QuoteForCmd(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "\"\"";
+            return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
 
         

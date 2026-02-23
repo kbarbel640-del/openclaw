@@ -490,6 +490,24 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task DevRestart_InvalidDelayType_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "dev-restart-invalid-delay",
+                Command = "dev.restart",
+                ParamsJSON = "{\"delayMs\":\"soon\"}"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
         public async Task UnknownCommand_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();

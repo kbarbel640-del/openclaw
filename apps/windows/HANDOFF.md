@@ -24,6 +24,7 @@
    - `system.which`
    - `system.notify`
    - `dev.update` (development helper: pull latest branch + optional build in repo path)
+   - `dev.restart` (development helper: schedule process self-restart with optional delay)
    - `screen.list` (Phase 2: returns display metadata list `{ index, id, name }`)
    - `screen.record` (Phase 2 timed MP4 path: returns base64 mp4 with recording metadata)
    - `camera.list` (Phase 2: returns device metadata list `{ id, name, position, deviceType }`)
@@ -57,7 +58,7 @@
 
 ## Tests
 - Project: `OpenClaw.Node.Tests`
-- Current total: **67 passing** (plus real-gateway integration suite passing with device-auth handshake)
+- Current total: **68 passing** (plus real-gateway integration suite passing with device-auth handshake)
 
 Run:
 ```bash
