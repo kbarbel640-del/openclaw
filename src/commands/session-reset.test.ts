@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeEnv } from "../runtime.js";
+import type { GatewayConnectionOptions } from "../tui/gateway-chat.js";
 
-const resolveGatewayConnection = vi.fn(() => ({
+const resolveGatewayConnection = vi.fn((_opts: GatewayConnectionOptions) => ({
   url: "ws://127.0.0.1:18789",
   token: "token",
   password: undefined,
@@ -13,7 +14,7 @@ const stop = vi.fn();
 const clientCtor = vi.fn();
 
 vi.mock("../tui/gateway-chat.js", () => ({
-  resolveGatewayConnection: (...args: unknown[]) => resolveGatewayConnection(...args),
+  resolveGatewayConnection: (opts: GatewayConnectionOptions) => resolveGatewayConnection(opts),
   GatewayChatClient: class {
     constructor(opts: unknown) {
       clientCtor(opts);
@@ -27,11 +28,11 @@ vi.mock("../tui/gateway-chat.js", () => ({
 
 import { sessionResetCommand } from "./session-reset.js";
 
-const runtime: RuntimeEnv = {
+const runtime = {
   log: vi.fn(),
   error: vi.fn(),
   exit: vi.fn(),
-};
+} satisfies RuntimeEnv;
 
 describe("sessionResetCommand", () => {
   beforeEach(() => {
