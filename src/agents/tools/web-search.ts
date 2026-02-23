@@ -1,9 +1,9 @@
 import { Type } from "@sinclair/typebox";
-import { formatCliCommand } from "../../cli/command-format.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { AnyAgentTool } from "./common.js";
+import { formatCliCommand } from "../../cli/command-format.js";
 import { wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
-import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 import {
   CacheEntry,
@@ -58,7 +58,8 @@ const WebSearchSchema = Type.Object({
   ),
   ui_lang: Type.Optional(
     Type.String({
-      description: "ISO language code for UI elements.",
+      description:
+        "Locale code for UI elements (Brave only). Must be a language-COUNTRY locale, e.g., 'en-US', 'de-DE', 'fr-FR'. Plain language codes like 'en' are not accepted.",
     }),
   ),
   freshness: Type.Optional(
@@ -674,7 +675,8 @@ async function runWebSearch(params: {
   if (params.search_lang) {
     url.searchParams.set("search_lang", params.search_lang);
   }
-  if (params.ui_lang) {
+  // Brave requires a full locale code (e.g., 'en-US'); plain language codes ('en') are rejected.
+  if (params.ui_lang && /^[a-z]{2}-[A-Z]{2}$/.test(params.ui_lang)) {
     url.searchParams.set("ui_lang", params.ui_lang);
   }
   if (params.freshness) {
