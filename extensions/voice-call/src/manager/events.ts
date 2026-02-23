@@ -138,6 +138,20 @@ export function processEvent(ctx: EventContext, event: NormalizedEvent): void {
       to: event.to || ctx.config.fromNumber || "unknown",
     });
 
+    // Telnyx Call Control API v2 requires an explicit answer action before the
+    // audio channel is connected. Providers that auto-answer via webhook
+    // response (e.g., Twilio TwiML) don't implement answerCall — skip for those.
+    if (ctx.provider?.answerCall) {
+      const providerCallId = event.providerCallId;
+      const callId = call.callId;
+      void ctx.provider
+        .answerCall({ callId, providerCallId })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(`[voice-call] Failed to answer inbound call ${providerCallId}:`, message);
+        });
+    }
+
     // Normalize event to internal ID for downstream consumers.
     event.callId = call.callId;
   }

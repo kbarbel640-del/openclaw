@@ -208,6 +208,11 @@ export type InitiateCallResult = {
   status: "initiated" | "queued";
 };
 
+export type AnswerCallInput = {
+  callId: CallId;
+  providerCallId: ProviderCallId;
+};
+
 export type HangupCallInput = {
   callId: CallId;
   providerCallId: ProviderCallId;

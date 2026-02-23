@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { TelnyxConfig } from "../config.js";
 import type {
+  AnswerCallInput,
   EndReason,
   HangupCallInput,
   InitiateCallInput,
@@ -138,8 +139,24 @@ export class TelnyxProvider implements VoiceCallProvider {
     };
 
     switch (data.event_type) {
-      case "call.initiated":
-        return { ...baseEvent, type: "call.initiated" };
+      case "call.initiated": {
+        // Telnyx sends direction as "incoming" for inbound calls.
+        // Normalize to the canonical "inbound"/"outbound" used internally.
+        const rawDirection = data.payload?.direction;
+        const direction: "inbound" | "outbound" | undefined =
+          rawDirection === "incoming" || rawDirection === "inbound"
+            ? "inbound"
+            : rawDirection === "outbound"
+              ? "outbound"
+              : undefined;
+        return {
+          ...baseEvent,
+          type: "call.initiated",
+          direction,
+          from: data.payload?.from,
+          to: data.payload?.to,
+        };
+      }
 
       case "call.ringing":
         return { ...baseEvent, type: "call.ringing" };
@@ -243,6 +260,22 @@ export class TelnyxProvider implements VoiceCallProvider {
   }
 
   /**
+   * Answer an inbound call via Telnyx Call Control API.
+   *
+   * Must be called on call.initiated for inbound calls. Telnyx will not
+   * connect the audio channel until this action is sent — without it the
+   * call stays in "parked/ringing" state until it times out, which causes
+   * the caller to hear a busy tone.
+   *
+   * @see https://developers.telnyx.com/docs/api/v2/call-control/Call-Commands#answer
+   */
+  async answerCall(input: AnswerCallInput): Promise<void> {
+    await this.apiRequest(`/calls/${input.providerCallId}/actions/answer`, {
+      command_id: crypto.randomUUID(),
+    });
+  }
+
+  /**
    * Hang up a call via Telnyx API.
    */
   async hangupCall(input: HangupCallInput): Promise<void> {
@@ -297,6 +330,9 @@ interface TelnyxEvent {
   payload?: {
     call_control_id?: string;
     client_state?: string;
+    direction?: "inbound" | "outbound" | "incoming";
+    from?: string;
+    to?: string;
     text?: string;
     transcription?: string;
     is_final?: boolean;

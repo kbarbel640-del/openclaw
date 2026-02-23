@@ -1,4 +1,5 @@
 import type {
+  AnswerCallInput,
   HangupCallInput,
   InitiateCallInput,
   InitiateCallResult,
@@ -43,6 +44,15 @@ export interface VoiceCallProvider {
    * @returns Provider call ID and status
    */
   initiateCall(input: InitiateCallInput): Promise<InitiateCallResult>;
+
+  /**
+   * Answer an inbound call.
+   *
+   * Required by providers that use explicit answer actions (e.g., Telnyx
+   * Call Control API v2). Not needed for providers that auto-answer via
+   * webhook response (e.g., Twilio TwiML) — leave unimplemented for those.
+   */
+  answerCall?(input: AnswerCallInput): Promise<void>;
 
   /**
    * Hang up an active call.
