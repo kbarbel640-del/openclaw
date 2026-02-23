@@ -426,9 +426,11 @@ export const OpenClawSchema = z
               .object({
                 scriptSrcExtra: z.array(z.string()).optional(),
                 styleSrcExtra: z.array(z.string()).optional(),
+                styleSrcElemExtra: z.array(z.string()).optional(),
                 imgSrcExtra: z.array(z.string()).optional(),
                 fontSrcExtra: z.array(z.string()).optional(),
                 connectSrcExtra: z.array(z.string()).optional(),
+                workerSrcExtra: z.array(z.string()).optional(),
               })
               .strict()
               .optional(),

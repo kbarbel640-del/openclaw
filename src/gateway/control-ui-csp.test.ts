@@ -16,6 +16,8 @@ describe("buildControlUiCspHeader", () => {
         imgSrc: ["https://cdn.example.com", "https://*.images.example.com"],
         fontSrc: ["https://fonts.gstatic.com"],
         connectSrc: ["wss://ws.example.com"],
+        styleSrcElem: ["https://fonts.googleapis.com"],
+        workerSrc: ["https://worker.example.com"],
       },
     });
     expect(csp).toContain(
@@ -23,6 +25,8 @@ describe("buildControlUiCspHeader", () => {
     );
     expect(csp).toContain("font-src 'self' https://fonts.gstatic.com");
     expect(csp).toContain("connect-src 'self' ws: wss: wss://ws.example.com");
+    expect(csp).toContain("style-src-elem 'self' https://fonts.googleapis.com");
+    expect(csp).toContain("worker-src 'self' blob: https://worker.example.com");
   });
 
   it("ignores malformed and duplicate extra sources", () => {

@@ -105,9 +105,11 @@ function resolveControlUiCspOptions(config?: OpenClawConfig): ControlUiCspOption
     extraSources: {
       scriptSrc: csp.scriptSrcExtra,
       styleSrc: csp.styleSrcExtra,
+      styleSrcElem: csp.styleSrcElemExtra,
       imgSrc: csp.imgSrcExtra,
       fontSrc: csp.fontSrcExtra,
       connectSrc: csp.connectSrcExtra,
+      workerSrc: csp.workerSrcExtra,
     },
   };
 }

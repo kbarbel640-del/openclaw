@@ -46,9 +46,11 @@ const TAG_OVERRIDES: Record<string, ConfigTag[]> = {
   "gateway.controlUi.csp": ["security", "network", "advanced"],
   "gateway.controlUi.csp.scriptSrcExtra": ["security", "network", "advanced"],
   "gateway.controlUi.csp.styleSrcExtra": ["security", "network", "advanced"],
+  "gateway.controlUi.csp.styleSrcElemExtra": ["security", "network"],
   "gateway.controlUi.csp.imgSrcExtra": ["security", "network"],
   "gateway.controlUi.csp.fontSrcExtra": ["security", "network"],
   "gateway.controlUi.csp.connectSrcExtra": ["security", "network"],
+  "gateway.controlUi.csp.workerSrcExtra": ["security", "network"],
   "tools.exec.applyPatch.workspaceOnly": ["tools", "security", "access", "advanced"],
 };
 

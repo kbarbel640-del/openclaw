@@ -1,9 +1,11 @@
 export type ControlUiCspExtraSources = {
   scriptSrc?: string[];
   styleSrc?: string[];
+  styleSrcElem?: string[];
   imgSrc?: string[];
   fontSrc?: string[];
   connectSrc?: string[];
+  workerSrc?: string[];
 };
 
 export type ControlUiCspOptions = {
@@ -15,9 +17,11 @@ type ControlUiCspDirective = keyof ControlUiCspExtraSources;
 const BASE_DIRECTIVES: Record<ControlUiCspDirective, string[]> = {
   scriptSrc: ["'self'"],
   styleSrc: ["'self'", "'unsafe-inline'"],
+  styleSrcElem: ["'self'"],
   imgSrc: ["'self'", "data:", "https:"],
   fontSrc: ["'self'"],
   connectSrc: ["'self'", "ws:", "wss:"],
+  workerSrc: ["'self'", "blob:"],
 };
 
 const SAFE_KEYWORDS = new Set(["'self'", "'none'"]);

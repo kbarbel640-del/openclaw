@@ -138,6 +138,8 @@ describe("handleControlUiHttpRequest", () => {
                   csp: {
                     imgSrcExtra: ["https://cdn.example.com"],
                     fontSrcExtra: ["https://fonts.gstatic.com"],
+                    styleSrcElemExtra: ["https://fonts.googleapis.com"],
+                    workerSrcExtra: ["https://worker.example.com"],
                   },
                 },
               },
@@ -149,6 +151,8 @@ describe("handleControlUiHttpRequest", () => {
         expect(typeof csp).toBe("string");
         expect(String(csp)).toContain("img-src 'self' data: https: https://cdn.example.com");
         expect(String(csp)).toContain("font-src 'self' https://fonts.gstatic.com");
+        expect(String(csp)).toContain("style-src-elem 'self' https://fonts.googleapis.com");
+        expect(String(csp)).toContain("worker-src 'self' blob: https://worker.example.com");
       },
     });
   });

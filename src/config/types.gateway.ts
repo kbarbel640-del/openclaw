@@ -87,12 +87,16 @@ export type GatewayControlUiCspConfig = {
   scriptSrcExtra?: string[];
   /** Extra `style-src` sources (safe tokens/origins only). */
   styleSrcExtra?: string[];
+  /** Extra `style-src-elem` sources (safe tokens/origins only). */
+  styleSrcElemExtra?: string[];
   /** Extra `img-src` sources (safe tokens/origins only). */
   imgSrcExtra?: string[];
   /** Extra `font-src` sources (safe tokens/origins only). */
   fontSrcExtra?: string[];
   /** Extra `connect-src` sources (safe tokens/origins only). */
   connectSrcExtra?: string[];
+  /** Extra `worker-src` sources (safe tokens/origins only). */
+  workerSrcExtra?: string[];
 };
 
 export type GatewayAuthMode = "none" | "token" | "password" | "trusted-proxy";

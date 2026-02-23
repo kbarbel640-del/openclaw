@@ -311,6 +311,10 @@ export const FIELD_HELP: Record<string, string> = {
     "Extra `font-src` sources to allow (for example https://fonts.gstatic.com). Values are validated and appended to defaults.",
   "gateway.controlUi.csp.connectSrcExtra":
     "Extra `connect-src` sources to allow (for example https://api.example.com or wss://ws.example.com). Values are validated and appended to defaults.",
+  "gateway.controlUi.csp.styleSrcElemExtra":
+    'Extra `style-src-elem` sources for <link rel="stylesheet"> and @import. Values are validated and appended to defaults.',
+  "gateway.controlUi.csp.workerSrcExtra":
+    "Extra `worker-src` sources for workers, service workers, and shared workers. Values are validated and appended to defaults.",
   "gateway.http.endpoints.chatCompletions.enabled":
     "Enable the OpenAI-compatible `POST /v1/chat/completions` endpoint (default: false).",
   "gateway.reload.mode":
