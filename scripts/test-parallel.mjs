@@ -12,6 +12,8 @@ const unitIsolatedFilesRaw = [
   "src/plugins/tools.optional.test.ts",
   "src/agents/session-tool-result-guard.tool-result-persist-hook.test.ts",
   "src/security/fix.test.ts",
+  // Runtime source guard scans are sensitive to filesystem contention.
+  "src/security/temp-path-guard.test.ts",
   "src/security/audit.test.ts",
   "src/utils.test.ts",
   "src/auto-reply/tool-meta.test.ts",
@@ -27,10 +29,38 @@ const unitIsolatedFilesRaw = [
   "src/browser/server.agent-contract-form-layout-act-commands.test.ts",
   "src/browser/server.skips-default-maxchars-explicitly-set-zero.test.ts",
   "src/browser/server.auth-token-gates-http.test.ts",
-  "src/browser/server-context.remote-tab-ops.test.ts",
-  "src/browser/server-context.ensure-tab-available.prefers-last-target.test.ts",
+  // Keep this high-variance heavy file off the unit-fast critical path.
+  "src/auto-reply/reply.block-streaming.test.ts",
+  // Archive extraction/fixture-heavy suite; keep off unit-fast critical path.
+  "src/hooks/install.test.ts",
+  // Download/extraction safety cases can spike under unit-fast contention.
+  "src/agents/skills-install.download.test.ts",
+  // Heavy runner/exec/archive suites are stable but contend on shared resources under vmForks.
+  "src/agents/pi-embedded-runner.test.ts",
+  "src/agents/bash-tools.test.ts",
+  "src/agents/openclaw-tools.subagents.sessions-spawn.lifecycle.test.ts",
+  "src/agents/bash-tools.exec.background-abort.test.ts",
+  "src/agents/subagent-announce.format.test.ts",
+  "src/infra/archive.test.ts",
+  "src/cli/daemon-cli.coverage.test.ts",
+  // Model normalization test imports config/model discovery stack; keep off unit-fast critical path.
+  "src/agents/models-config.normalizes-gemini-3-ids-preview-google-providers.test.ts",
+  // Auth profile rotation suite is retry-heavy and high-variance under vmForks contention.
+  "src/agents/pi-embedded-runner.run-embedded-pi-agent.auth-profile-rotation.test.ts",
+  // Heavy trigger command scenarios; keep off unit-fast critical path to reduce contention noise.
+  "src/auto-reply/reply.triggers.trigger-handling.filters-usage-summary-current-model-provider.test.ts",
+  "src/auto-reply/reply.triggers.trigger-handling.targets-active-session-native-stop.test.ts",
+  "src/auto-reply/reply.triggers.group-intro-prompts.test.ts",
+  "src/auto-reply/reply.triggers.trigger-handling.handles-inline-commands-strips-it-before-agent.test.ts",
+  "src/web/auto-reply.web-auto-reply.compresses-common-formats-jpeg-cap.test.ts",
+  // Setup-heavy bot bootstrap suite.
+  "src/telegram/bot.create-telegram-bot.test.ts",
+  // Medium-heavy bot behavior suite; move off unit-fast critical path.
+  "src/telegram/bot.test.ts",
+  // Slack slash registration tests are setup-heavy and can bottleneck unit-fast.
+  "src/slack/monitor/slash.test.ts",
   // Uses process-level unhandledRejection listeners; keep it off vmForks to avoid cross-file leakage.
-  "src/imessage/monitor.skips-group-messages-without-mention-by-default.test.ts",
+  "src/imessage/monitor.shutdown.unhandled-rejection.test.ts",
 ];
 const unitIsolatedFiles = unitIsolatedFilesRaw.filter((file) => fs.existsSync(file));
 
@@ -116,6 +146,14 @@ const silentArgs =
 const rawPassthroughArgs = process.argv.slice(2);
 const passthroughArgs =
   rawPassthroughArgs[0] === "--" ? rawPassthroughArgs.slice(1) : rawPassthroughArgs;
+const rawTestProfile = process.env.OPENCLAW_TEST_PROFILE?.trim().toLowerCase();
+const testProfile =
+  rawTestProfile === "low" ||
+  rawTestProfile === "max" ||
+  rawTestProfile === "normal" ||
+  rawTestProfile === "serial"
+    ? rawTestProfile
+    : "normal";
 const overrideWorkers = Number.parseInt(process.env.OPENCLAW_TEST_WORKERS ?? "", 10);
 const resolvedOverride =
   Number.isFinite(overrideWorkers) && overrideWorkers > 0 ? overrideWorkers : null;
@@ -124,14 +162,52 @@ const resolvedOverride =
 const keepGatewaySerial =
   isWindowsCi ||
   process.env.OPENCLAW_TEST_SERIAL_GATEWAY === "1" ||
+  testProfile === "serial" ||
   (isCI && process.env.OPENCLAW_TEST_PARALLEL_GATEWAY !== "1");
 const parallelRuns = keepGatewaySerial ? runs.filter((entry) => entry.name !== "gateway") : runs;
 const serialRuns = keepGatewaySerial ? runs.filter((entry) => entry.name === "gateway") : [];
-const localWorkers = Math.max(4, Math.min(16, os.cpus().length));
-const defaultUnitWorkers = localWorkers;
-// Local perf: extensions tend to be the critical path under parallel vitest runs; give them more headroom.
-const defaultExtensionsWorkers = Math.max(1, Math.min(6, Math.floor(localWorkers / 2)));
-const defaultGatewayWorkers = Math.max(1, Math.min(2, Math.floor(localWorkers / 4)));
+const hostCpuCount = os.cpus().length;
+const baseLocalWorkers = Math.max(4, Math.min(16, hostCpuCount));
+const loadAwareDisabledRaw = process.env.OPENCLAW_TEST_LOAD_AWARE?.trim().toLowerCase();
+const loadAwareDisabled = loadAwareDisabledRaw === "0" || loadAwareDisabledRaw === "false";
+const loadRatio =
+  !isCI && !loadAwareDisabled && process.platform !== "win32" && hostCpuCount > 0
+    ? os.loadavg()[0] / hostCpuCount
+    : 0;
+// Keep the fast-path unchanged on normal load; only throttle under extreme host pressure.
+const extremeLoadScale = loadRatio >= 1.1 ? 0.75 : loadRatio >= 1 ? 0.85 : 1;
+const localWorkers = Math.max(4, Math.min(16, Math.floor(baseLocalWorkers * extremeLoadScale)));
+const defaultWorkerBudget =
+  testProfile === "low"
+    ? {
+        unit: 2,
+        unitIsolated: 1,
+        extensions: 1,
+        gateway: 1,
+      }
+    : testProfile === "serial"
+      ? {
+          unit: 1,
+          unitIsolated: 1,
+          extensions: 1,
+          gateway: 1,
+        }
+      : testProfile === "max"
+        ? {
+            unit: localWorkers,
+            unitIsolated: Math.min(4, localWorkers),
+            extensions: Math.max(1, Math.min(6, Math.floor(localWorkers / 2))),
+            gateway: Math.max(1, Math.min(2, Math.floor(localWorkers / 4))),
+          }
+        : {
+            // Local `pnpm test` runs multiple vitest groups concurrently;
+            // bias workers toward unit-fast (wall-clock bottleneck) while
+            // keeping unit-isolated low enough that both groups finish closer together.
+            unit: Math.max(4, Math.min(14, Math.floor((localWorkers * 7) / 8))),
+            unitIsolated: Math.max(1, Math.min(2, Math.floor(localWorkers / 6) || 1)),
+            extensions: Math.max(1, Math.min(4, Math.floor(localWorkers / 4))),
+            gateway: Math.max(2, Math.min(4, Math.floor(localWorkers / 3))),
+          };
 
 // Keep worker counts predictable for local runs; trim macOS CI workers to avoid worker crashes/OOM.
 // In CI on linux/windows, prefer Vitest defaults to avoid cross-test interference from lower worker counts.
@@ -146,16 +222,15 @@ const maxWorkersForRun = (name) => {
     return 1;
   }
   if (name === "unit-isolated") {
-    // Local: allow a bit of parallelism while keeping this run stable.
-    return Math.min(4, localWorkers);
+    return defaultWorkerBudget.unitIsolated;
   }
   if (name === "extensions") {
-    return defaultExtensionsWorkers;
+    return defaultWorkerBudget.extensions;
   }
   if (name === "gateway") {
-    return defaultGatewayWorkers;
+    return defaultWorkerBudget.gateway;
   }
-  return defaultUnitWorkers;
+  return defaultWorkerBudget.unit;
 };
 
 const WARNING_SUPPRESSION_FLAGS = [
