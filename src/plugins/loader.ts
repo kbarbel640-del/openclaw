@@ -7,6 +7,8 @@ import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { isPathInsideWithRealpath } from "../security/scan-paths.js";
 import { resolveUserPath } from "../utils.js";
+import { createCapabilityEnforcer, type CapabilityEnforcementMode } from "./capability-enforcer.js";
+import { loadCapabilityManifest } from "./capability-manifest.js";
 import { clearPluginCommands } from "./commands.js";
 import {
   applyTestPluginDefaults,
@@ -644,6 +646,53 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
         message: record.error,
       });
       continue;
+    }
+
+    // -- Capability manifest loading (Phase 1: default "warn") --
+    const enforcementMode: CapabilityEnforcementMode =
+      (cfg.security?.pluginCapabilities?.enforcement as CapabilityEnforcementMode) ?? "warn";
+    const requireManifest = cfg.security?.pluginCapabilities?.requireManifest === true;
+    const allowUnmanifested = new Set(cfg.security?.pluginCapabilities?.allowUnmanifested ?? []);
+
+    let capManifest: ReturnType<typeof loadCapabilityManifest> = null;
+    try {
+      capManifest = loadCapabilityManifest(candidate.rootDir, pluginId);
+    } catch (capErr) {
+      registry.diagnostics.push({
+        level: "warn",
+        pluginId: record.id,
+        source: record.source,
+        message: `capability manifest error: ${String(capErr)}`,
+      });
+    }
+
+    if (!capManifest && requireManifest && !allowUnmanifested.has(pluginId)) {
+      if (enforcementMode === "enforce") {
+        record.status = "error";
+        record.error =
+          "no capability manifest (required by security.pluginCapabilities.requireManifest)";
+        registry.plugins.push(record);
+        seenIds.set(pluginId, candidate.origin);
+        registry.diagnostics.push({
+          level: "error",
+          pluginId: record.id,
+          source: record.source,
+          message: record.error,
+        });
+        continue;
+      }
+      logger.warn(
+        `[plugins] ${pluginId}: no capability manifest (requireManifest=true but enforcement is "${enforcementMode}")`,
+      );
+    }
+
+    if (capManifest && enforcementMode !== "off") {
+      const enforcer = createCapabilityEnforcer({
+        manifest: capManifest,
+        mode: enforcementMode,
+        logger,
+      });
+      record.capabilityEnforcer = enforcer;
     }
 
     const api = createApi(record, {

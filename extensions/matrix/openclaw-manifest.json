@@ -1,0 +1,37 @@
+{
+  "manifestVersion": 1,
+  "pluginId": "matrix",
+  "capabilities": {
+    "gatewayMethods": [],
+    "httpRoutes": [],
+    "config": {
+      "reads": ["channels.matrix"],
+      "writes": []
+    },
+    "filesystem": {
+      "stateDir": true,
+      "credentialsDir": true
+    },
+    "network": {
+      "outbound": true
+    },
+    "runtime": {
+      "runCommands": false,
+      "spawnProcesses": false,
+      "timers": true
+    },
+    "channels": {
+      "channelIds": ["matrix"],
+      "inbound": true,
+      "outbound": true
+    }
+  },
+  "permissions": {
+    "summary": "Matrix channel integration (inbound + outbound messaging via matrix-js-sdk)",
+    "details": [
+      "Connect to Matrix homeserver for messaging",
+      "Read Matrix channel configuration",
+      "Store Matrix credentials and sync state"
+    ]
+  }
+}
