@@ -18,7 +18,7 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Config loading added (args/env/`~/.openclaw/openclaw.json`)
 - ✅ Phase 2 started with first end-to-end media slice
 - ✅ `screen.record` upgraded to timed MP4 recording path (base64 mp4 payload with duration/fps/audio metadata)
-- ✅ Tests passing (39 total)
+- ✅ Tests passing (41 total)
 
 ---
 
@@ -100,6 +100,6 @@ Build a native Windows application that replicates the functionality of the Open
 - ✅ Added opt-in real gateway integration coverage for `camera.snap` response-shape path when a connected node is available
 - ✅ Added opt-in real gateway integration coverage for `screen.record` response-shape path when a connected node is available
 - ✅ Added `camera.snap` parameter validation coverage (facing/format/quality invalid-request paths)
-- ✅ Added `screen.record` parameter validation coverage (duration/fps/includeAudio invalid-request paths)
+- ✅ Added `screen.record` parameter validation coverage (duration/fps/includeAudio/screenIndex/type invalid-request paths)
 - ✅ Added `camera.list` command coverage (unit + opt-in real gateway response-shape path when a node is available)
 - ✅ Added opt-in real gateway `camera.snap` coverage using explicit `deviceId` from `camera.list` when available

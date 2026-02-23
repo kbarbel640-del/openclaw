@@ -159,6 +159,42 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task ScreenRecord_InvalidScreenIndex_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "screen-invalid-index",
+                Command = "screen.record",
+                ParamsJSON = JsonSerializer.Serialize(new { screenIndex = -1 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
+        public async Task ScreenRecord_InvalidDurationType_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "screen-invalid-duration-type",
+                Command = "screen.record",
+                ParamsJSON = "{\"durationMs\":\"1000\"}"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+        }
+
+        [Fact]
         public async Task CameraSnap_InvalidFacing_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
