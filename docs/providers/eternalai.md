@@ -69,8 +69,8 @@ openclaw chat --model openrouter/z-ai/glm-4.7-flash "Hello, are you working?"
 
 Available models:
 
-| Model ID                         | Name          | Context (tokens) |
-| -------------------------------- | ------------- | ---------------- |
+| Model ID                        | Name          | Context (tokens) |
+| ------------------------------- | ------------- | ---------------- |
 | `openrouter/z-ai/glm-4.7-flash` | GLM 4.7 Flash | 131k             |
 | `openrouter/z-ai/glm-4.7`       | GLM 4.7       | 131k             |
 

@@ -131,20 +131,20 @@ export async function discoverEternalAIModels(): Promise<ModelDefinitionConfig[]
       } else {
         // Create definition for newly discovered models not in catalog
         const isReasoning =
-          apiModel.model_spec.capabilities.supportsReasoning ||
+          Boolean(apiModel.model_spec?.capabilities?.supportsReasoning) ||
           apiModel.id.toLowerCase().includes("thinking") ||
           apiModel.id.toLowerCase().includes("reason") ||
           apiModel.id.toLowerCase().includes("r1");
 
-        const hasVision = apiModel.model_spec.capabilities.supportsVision;
+        const hasVision = Boolean(apiModel.model_spec?.capabilities?.supportsVision);
 
         models.push({
           id: apiModel.id,
-          name: apiModel.model_spec.name || apiModel.id,
+          name: apiModel.model_spec?.name || apiModel.id,
           reasoning: isReasoning,
           input: hasVision ? ["text", "image"] : ["text"],
           cost: ETERNALAI_DEFAULT_COST,
-          contextWindow: apiModel.model_spec.availableContextTokens || 128000,
+          contextWindow: apiModel.model_spec?.availableContextTokens || 128000,
           maxTokens: 8192,
         });
       }
