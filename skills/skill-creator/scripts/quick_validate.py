@@ -6,13 +6,14 @@ Quick validation script for skills - minimal version
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
 MAX_SKILL_NAME_LENGTH = 64
 
 
-def _extract_frontmatter(content: str) -> str | None:
+def _extract_frontmatter(content: str) -> Optional[str]:
     lines = content.splitlines()
     if not lines or lines[0].strip() != "---":
         return None
