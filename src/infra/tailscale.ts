@@ -33,11 +33,7 @@ export async function findTailscaleBinary(): Promise<string | null> {
       return false;
     }
     try {
-      // Use Promise.race with runExec to implement timeout
-      await Promise.race([
-        runExec(path, ["--version"], { timeoutMs: 3000 }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
-      ]);
+      await runExec(path, ["--version"], { timeoutMs: 3000 });
       return true;
     } catch {
       return false;
@@ -242,6 +238,7 @@ type TailscaleWhoisCacheEntry = {
   expiresAt: number;
 };
 
+const MAX_WHOIS_CACHE_SIZE = 256;
 const whoisCache = new Map<string, TailscaleWhoisCacheEntry>();
 
 function extractExecErrorText(err: unknown) {
@@ -462,8 +459,34 @@ function readCachedWhois(ip: string, now: number): TailscaleWhoisIdentity | null
   return cached.value;
 }
 
+function pruneExpiredWhoisEntries(now: number) {
+  for (const [key, entry] of whoisCache) {
+    if (entry.expiresAt <= now) {
+      whoisCache.delete(key);
+    }
+  }
+}
+
+function evictOldestWhoisEntries(targetSize: number) {
+  if (whoisCache.size <= targetSize) {
+    return;
+  }
+  const sorted = [...whoisCache.entries()].toSorted((a, b) => a[1].expiresAt - b[1].expiresAt);
+  const toRemove = sorted.length - targetSize;
+  for (let i = 0; i < toRemove; i++) {
+    whoisCache.delete(sorted[i][0]);
+  }
+}
+
 function writeCachedWhois(ip: string, value: TailscaleWhoisIdentity | null, ttlMs: number) {
-  whoisCache.set(ip, { value, expiresAt: Date.now() + ttlMs });
+  const now = Date.now();
+  if (whoisCache.size >= MAX_WHOIS_CACHE_SIZE && !whoisCache.has(ip)) {
+    pruneExpiredWhoisEntries(now);
+    if (whoisCache.size >= MAX_WHOIS_CACHE_SIZE) {
+      evictOldestWhoisEntries(Math.floor(MAX_WHOIS_CACHE_SIZE * 0.75));
+    }
+  }
+  whoisCache.set(ip, { value, expiresAt: now + ttlMs });
 }
 
 export async function readTailscaleWhoisIdentity(
