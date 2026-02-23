@@ -438,7 +438,10 @@ async function resolveMemoryBootstrapEntries(
   return deduped;
 }
 
-export async function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]> {
+export async function loadWorkspaceBootstrapFiles(
+  dir: string,
+  options?: { skipMemoryFiles?: boolean },
+): Promise<WorkspaceBootstrapFile[]> {
   const resolvedDir = resolveUserPath(dir);
 
   const entries: Array<{
@@ -475,7 +478,9 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
     },
   ];
 
-  entries.push(...(await resolveMemoryBootstrapEntries(resolvedDir)));
+  if (!options?.skipMemoryFiles) {
+    entries.push(...(await resolveMemoryBootstrapEntries(resolvedDir)));
+  }
 
   const result: WorkspaceBootstrapFile[] = [];
   for (const entry of entries) {

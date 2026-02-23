@@ -49,8 +49,9 @@ export async function resolveBootstrapFilesForRun(params: {
   warn?: (message: string) => void;
 }): Promise<WorkspaceBootstrapFile[]> {
   const sessionKey = params.sessionKey ?? params.sessionId;
+  const skipMemoryFiles = params.config?.memory?.backend === "external";
   const bootstrapFiles = filterBootstrapFilesForSession(
-    await loadWorkspaceBootstrapFiles(params.workspaceDir),
+    await loadWorkspaceBootstrapFiles(params.workspaceDir, { skipMemoryFiles }),
     sessionKey,
   );
 

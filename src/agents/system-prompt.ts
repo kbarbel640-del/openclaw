@@ -1,7 +1,7 @@
 import { createHmac, createHash } from "node:crypto";
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
 import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
-import type { MemoryCitationsMode } from "../config/types.memory.js";
+import type { MemoryBackend, MemoryCitationsMode } from "../config/types.memory.js";
 import { listDeliverableMessageChannels } from "../utils/message-channel.js";
 import type { ResolvedTimeFormat } from "./date-time.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
@@ -44,8 +44,12 @@ function buildMemorySection(params: {
   isMinimal: boolean;
   availableTools: Set<string>;
   citationsMode?: MemoryCitationsMode;
+  memoryBackend?: MemoryBackend;
 }) {
   if (params.isMinimal) {
+    return [];
+  }
+  if (params.memoryBackend === "external") {
     return [];
   }
   if (!params.availableTools.has("memory_search") && !params.availableTools.has("memory_get")) {
@@ -249,6 +253,7 @@ export function buildAgentSystemPrompt(params: {
     channel: string;
   };
   memoryCitationsMode?: MemoryCitationsMode;
+  memoryBackend?: MemoryBackend;
 }) {
   const coreToolSummaries: Record<string, string> = {
     read: "Read file contents",
@@ -414,6 +419,7 @@ export function buildAgentSystemPrompt(params: {
     isMinimal,
     availableTools,
     citationsMode: params.memoryCitationsMode,
+    memoryBackend: params.memoryBackend,
   });
   const docsSection = buildDocsSection({
     docsPath: params.docsPath,

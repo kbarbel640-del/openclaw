@@ -31,6 +31,10 @@ function resolveMemoryToolContext(options: { config?: OpenClawConfig; agentSessi
     sessionKey: options.agentSessionKey,
     config: cfg,
   });
+  const backendConfig = resolveMemoryBackendConfig({ cfg, agentId });
+  if (backendConfig.backend === "external") {
+    return null; // memory tools provided by external extension
+  }
   if (!resolveMemorySearchConfig(cfg, agentId)) {
     return null;
   }

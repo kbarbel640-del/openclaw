@@ -22,6 +22,9 @@ export async function getMemorySearchManager(params: {
   purpose?: "default" | "status";
 }): Promise<MemorySearchManagerResult> {
   const resolved = resolveMemoryBackendConfig(params);
+  if (resolved.backend === "external") {
+    return { manager: null };
+  }
   if (resolved.backend === "qmd" && resolved.qmd) {
     const statusOnly = params.purpose === "status";
     const cacheKey = buildQmdCacheKey(params.agentId, resolved.qmd);

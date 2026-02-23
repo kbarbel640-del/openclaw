@@ -510,6 +510,7 @@ export async function compactEmbeddedPiSessionDirect(
       userTimeFormat,
       contextFiles,
       memoryCitationsMode: params.config?.memory?.citations,
+      memoryBackend: params.config?.memory?.backend,
     });
     const systemPromptOverride = createSystemPromptOverride(appendPrompt);
 
