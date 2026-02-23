@@ -371,6 +371,8 @@ export type PluginHookBeforeContextSendEvent = {
 
 export type PluginHookBeforeContextSendResult = {
   messages?: AgentMessage[];
+  modelOverride?: string;
+  providerOverride?: string;
 };
 
 // before_agent_start hook (legacy compatibility: combines both phases)

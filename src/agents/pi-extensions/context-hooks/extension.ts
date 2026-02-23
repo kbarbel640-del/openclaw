@@ -22,6 +22,11 @@ export default function contextHooksExtension(api: ExtensionAPI): void {
       runtime.hookCtx,
     );
 
+    if (result?.modelOverride) {
+      runtime.pendingModelOverride = result.modelOverride;
+      runtime.pendingProviderOverride = result.providerOverride;
+    }
+
     if (!result?.messages) {
       return undefined;
     }

@@ -1053,41 +1053,84 @@ export async function runEmbeddedAttempt(
         });
 
         if (!routerResult.installed) {
-          // Fall back to static per-turn routing from plugin hooks.
-          if (promptBuildResult?.modelOverride) {
-            const { resolveModel } = await import("../model.js");
-            const routedProvider = promptBuildResult.providerOverride ?? params.provider;
-            const routedResult = resolveModel(
-              routedProvider,
-              promptBuildResult.modelOverride,
-              agentDir,
-              params.config,
-            );
-            if (routedResult.model) {
-              const routedModel = routedResult.model;
-              const originalStreamFn = activeSession.agent.streamFn;
-              activeSession.agent.streamFn = (_model, ...rest) =>
-                originalStreamFn(routedModel, ...rest);
+          // When the dynamic router is not installed, we may still need a streamFn
+          // wrapper for: (a) static per-turn model override from before_prompt_build,
+          // and/or (b) per-call plugin overrides from before_context_send.
+          const hasContextSendHooks = hookRunner?.hasHooks("before_context_send") ?? false;
+          const hasStaticOverride = !!promptBuildResult?.modelOverride;
 
-              // Update context-hooks runtime so before_context_send sees the routed model.
-              const { getContextHooksRuntime } =
-                await import("../../pi-extensions/context-hooks/runtime.js");
+          if (hasStaticOverride || hasContextSendHooks) {
+            const { resolveModel } = await import("../model.js");
+            const { getContextHooksRuntime } =
+              await import("../../pi-extensions/context-hooks/runtime.js");
+
+            // Resolve static per-turn model (if any).
+            let staticModel: typeof params.model | undefined;
+            if (hasStaticOverride && promptBuildResult) {
+              const routedProvider = promptBuildResult.providerOverride ?? params.provider;
+              const routedResult = resolveModel(
+                routedProvider,
+                promptBuildResult.modelOverride!,
+                agentDir,
+                params.config,
+              );
+              if (routedResult.model) {
+                staticModel = routedResult.model;
+
+                // Update context-hooks runtime so before_context_send sees the routed model.
+                const contextHooksRuntime = getContextHooksRuntime(sessionManager);
+                if (contextHooksRuntime) {
+                  contextHooksRuntime.modelId = promptBuildResult.modelOverride!;
+                  contextHooksRuntime.provider = routedProvider;
+                  contextHooksRuntime.contextWindowTokens =
+                    routedResult.model.contextWindow ??
+                    routedResult.model.maxTokens ??
+                    DEFAULT_CONTEXT_TOKENS;
+                }
+
+                log.debug(
+                  `hooks: model routed from ${params.provider}/${params.modelId} to ${routedProvider}/${promptBuildResult.modelOverride}`,
+                );
+              } else {
+                log.warn(
+                  `hooks: modelOverride "${promptBuildResult.modelOverride}" could not be resolved, using original model`,
+                );
+              }
+            }
+
+            // Install a unified wrapper that handles both per-call plugin overrides
+            // and the static per-turn override.
+            const originalStreamFn = activeSession.agent.streamFn;
+            activeSession.agent.streamFn = (_model, context, options) => {
               const contextHooksRuntime = getContextHooksRuntime(sessionManager);
-              if (contextHooksRuntime) {
-                contextHooksRuntime.modelId = promptBuildResult.modelOverride;
-                contextHooksRuntime.provider = routedProvider;
-                contextHooksRuntime.contextWindowTokens =
-                  routedModel.contextWindow ?? routedModel.maxTokens ?? DEFAULT_CONTEXT_TOKENS;
+              if (contextHooksRuntime?.pendingModelOverride) {
+                const overrideModelId = contextHooksRuntime.pendingModelOverride;
+                const overrideProvider =
+                  contextHooksRuntime.pendingProviderOverride ?? params.provider;
+                contextHooksRuntime.pendingModelOverride = undefined;
+                contextHooksRuntime.pendingProviderOverride = undefined;
+
+                const overrideResult = resolveModel(
+                  overrideProvider,
+                  overrideModelId,
+                  agentDir,
+                  params.config,
+                );
+                if (overrideResult.model) {
+                  contextHooksRuntime.modelId = overrideResult.model.id;
+                  contextHooksRuntime.provider = overrideResult.model.provider;
+                  contextHooksRuntime.contextWindowTokens =
+                    overrideResult.model.contextWindow ?? DEFAULT_CONTEXT_TOKENS;
+                  return originalStreamFn(overrideResult.model, context, options);
+                }
+                log.warn(
+                  `hooks: per-call modelOverride "${overrideModelId}" could not be resolved, using fallback model`,
+                );
               }
 
-              log.debug(
-                `hooks: model routed from ${params.provider}/${params.modelId} to ${routedProvider}/${promptBuildResult.modelOverride}`,
-              );
-            } else {
-              log.warn(
-                `hooks: modelOverride "${promptBuildResult.modelOverride}" could not be resolved, using original model`,
-              );
-            }
+              // Fall back to static per-turn model or original model.
+              return originalStreamFn(staticModel ?? _model, context, options);
+            };
           }
         }
 

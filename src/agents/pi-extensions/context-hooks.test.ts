@@ -275,4 +275,94 @@ describe("context-hooks", () => {
     const result = runContextHandler(handler, messages, sessionManager);
     expect(result).toBeUndefined();
   });
+
+  it("plugin modelOverride stored as pendingModelOverride on runtime", () => {
+    const handler = createContextHandler();
+    const sessionManager = {};
+
+    const hookRunner = createMockHookRunner({
+      hasHooks: (name) => name === "before_context_send",
+      runBeforeContextSend: () => {
+        return {
+          messages: undefined,
+          modelOverride: "claude-opus-4-6",
+          providerOverride: "anthropic",
+        };
+      },
+    });
+
+    setContextHooksRuntime(sessionManager, {
+      hookRunner,
+      hookCtx: defaultHookCtx,
+      modelId: "gpt-4",
+      provider: "openai",
+      contextWindowTokens: 128000,
+    });
+
+    const messages: AgentMessage[] = [makeUser("hello")];
+
+    runContextHandler(handler, messages, sessionManager);
+
+    const runtime = getContextHooksRuntime(sessionManager);
+    expect(runtime).not.toBeNull();
+    expect(runtime!.pendingModelOverride).toBe("claude-opus-4-6");
+    expect(runtime!.pendingProviderOverride).toBe("anthropic");
+  });
+
+  it("no pending override when hook returns only messages", () => {
+    const handler = createContextHandler();
+    const sessionManager = {};
+
+    const hookRunner = createMockHookRunner({
+      hasHooks: (name) => name === "before_context_send",
+      runBeforeContextSend: (event) => {
+        return { messages: event.messages };
+      },
+    });
+
+    setContextHooksRuntime(sessionManager, {
+      hookRunner,
+      hookCtx: defaultHookCtx,
+      modelId: "gpt-4",
+      provider: "openai",
+      contextWindowTokens: 128000,
+    });
+
+    const messages: AgentMessage[] = [makeUser("hello")];
+
+    runContextHandler(handler, messages, sessionManager);
+
+    const runtime = getContextHooksRuntime(sessionManager);
+    expect(runtime).not.toBeNull();
+    expect(runtime!.pendingModelOverride).toBeUndefined();
+    expect(runtime!.pendingProviderOverride).toBeUndefined();
+  });
+
+  it("pendingProviderOverride stored alongside model override", () => {
+    const handler = createContextHandler();
+    const sessionManager = {};
+
+    const hookRunner = createMockHookRunner({
+      hasHooks: (name) => name === "before_context_send",
+      runBeforeContextSend: () => {
+        return { modelOverride: "gpt-5", providerOverride: "openai" };
+      },
+    });
+
+    setContextHooksRuntime(sessionManager, {
+      hookRunner,
+      hookCtx: defaultHookCtx,
+      modelId: "claude-sonnet-4-6",
+      provider: "anthropic",
+      contextWindowTokens: 200000,
+    });
+
+    const messages: AgentMessage[] = [makeUser("hello")];
+
+    runContextHandler(handler, messages, sessionManager);
+
+    const runtime = getContextHooksRuntime(sessionManager);
+    expect(runtime!.pendingModelOverride).toBe("gpt-5");
+    expect(runtime!.pendingProviderOverride).toBe("openai");
+  });
 });

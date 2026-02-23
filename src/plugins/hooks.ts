@@ -612,6 +612,8 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     logger?.debug?.(`[hooks] running before_context_send (${hooks.length} handlers)`);
 
     let currentMessages = event.messages;
+    let modelOverride: string | undefined;
+    let providerOverride: string | undefined;
 
     for (const hook of hooks) {
       try {
@@ -634,9 +636,17 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
           throw new Error(msg);
         }
 
-        const next = (out as PluginHookBeforeContextSendResult | undefined)?.messages;
+        const result = out as PluginHookBeforeContextSendResult | undefined;
+
+        const next = result?.messages;
         if (next) {
           currentMessages = next;
+        }
+
+        // First-defined-wins: higher-priority hooks run first.
+        if (!modelOverride && result?.modelOverride) {
+          modelOverride = result.modelOverride;
+          providerOverride = result.providerOverride;
         }
       } catch (err) {
         const msg = `[hooks] before_context_send handler from ${hook.pluginId} failed: ${String(err)}`;
@@ -648,7 +658,7 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
       }
     }
 
-    return { messages: currentMessages };
+    return { messages: currentMessages, modelOverride, providerOverride };
   }
 
   // =========================================================================

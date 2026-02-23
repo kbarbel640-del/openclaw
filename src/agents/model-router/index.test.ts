@@ -7,7 +7,13 @@ vi.mock("../pi-embedded-runner/model.js", () => ({
 }));
 
 // Mock getContextHooksRuntime.
-const mockContextHooksRuntime = {
+const mockContextHooksRuntime: {
+  modelId: string;
+  provider: string;
+  contextWindowTokens: number;
+  pendingModelOverride?: string;
+  pendingProviderOverride?: string;
+} = {
   modelId: "",
   provider: "",
   contextWindowTokens: 200000,
@@ -61,6 +67,8 @@ describe("installDynamicModelRouter", () => {
     mockContextHooksRuntime.modelId = "";
     mockContextHooksRuntime.provider = "";
     mockContextHooksRuntime.contextWindowTokens = 200000;
+    mockContextHooksRuntime.pendingModelOverride = undefined;
+    mockContextHooksRuntime.pendingProviderOverride = undefined;
   });
 
   afterEach(() => {
@@ -254,6 +262,100 @@ describe("installDynamicModelRouter", () => {
     activeSession.agent.streamFn(midModel, { messages });
     // Should fall back to mid because cheap window is too small.
     expect(mockContextHooksRuntime.modelId).toBe("claude-sonnet-4-6");
+  });
+
+  describe("plugin per-call override", () => {
+    let session: ReturnType<typeof makeSession>;
+
+    beforeEach(async () => {
+      process.env.OC_ROUTER_ENABLED = "true";
+      mockResolveModel.mockImplementation((_provider: string, modelId: string) => {
+        if (modelId === "claude-haiku-4-5") {
+          return { model: cheapModel };
+        }
+        if (modelId === "claude-sonnet-4-6") {
+          return { model: midModel };
+        }
+        if (modelId === "claude-opus-4-6") {
+          return { model: complexModel };
+        }
+        return { model: midModel };
+      });
+
+      session = makeSession();
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      await installDynamicModelRouter({
+        activeSession: session.activeSession,
+        sessionManager: session.sessionManager,
+        provider: "anthropic",
+        modelId: "claude-sonnet-4-6",
+      });
+      consoleSpy.mockRestore();
+    });
+
+    it("plugin override takes precedence over complexity routing", () => {
+      // Set a pending override on the runtime.
+      mockContextHooksRuntime.pendingModelOverride = "claude-opus-4-6";
+      mockContextHooksRuntime.pendingProviderOverride = "anthropic";
+
+      // Simple message that would normally route to cheap tier.
+      const messages = [{ role: "user", content: "hello" }];
+      session.activeSession.agent.streamFn(midModel, { messages });
+
+      // Should use the plugin override, not the cheap model.
+      expect(mockContextHooksRuntime.modelId).toBe("claude-opus-4-6");
+    });
+
+    it("pending override cleared after consumption", () => {
+      mockContextHooksRuntime.pendingModelOverride = "claude-opus-4-6";
+      mockContextHooksRuntime.pendingProviderOverride = "anthropic";
+
+      const messages = [{ role: "user", content: "hello" }];
+      session.activeSession.agent.streamFn(midModel, { messages });
+
+      expect(mockContextHooksRuntime.pendingModelOverride).toBeUndefined();
+      expect(mockContextHooksRuntime.pendingProviderOverride).toBeUndefined();
+    });
+
+    it("falls through to complexity routing when no pending override", () => {
+      // No pending override set.
+      const messages = [{ role: "user", content: "hello" }];
+      session.activeSession.agent.streamFn(midModel, { messages });
+
+      // Simple message → cheap model via complexity routing.
+      expect(mockContextHooksRuntime.modelId).toBe("claude-haiku-4-5");
+    });
+
+    it("invalid model override falls through gracefully", () => {
+      mockResolveModel.mockImplementation((_provider: string, modelId: string) => {
+        if (modelId === "nonexistent-model") {
+          return { error: "not found" };
+        }
+        if (modelId === "claude-haiku-4-5") {
+          return { model: cheapModel };
+        }
+        if (modelId === "claude-sonnet-4-6") {
+          return { model: midModel };
+        }
+        if (modelId === "claude-opus-4-6") {
+          return { model: complexModel };
+        }
+        return { model: midModel };
+      });
+
+      mockContextHooksRuntime.pendingModelOverride = "nonexistent-model";
+      mockContextHooksRuntime.pendingProviderOverride = "anthropic";
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const messages = [{ role: "user", content: "hello" }];
+      session.activeSession.agent.streamFn(midModel, { messages });
+      warnSpy.mockRestore();
+
+      // Should fall through to complexity routing (simple → cheap).
+      expect(mockContextHooksRuntime.modelId).toBe("claude-haiku-4-5");
+      // Override should still be cleared.
+      expect(mockContextHooksRuntime.pendingModelOverride).toBeUndefined();
+    });
   });
 
   it("falls back to session model when a tier fails to resolve", async () => {

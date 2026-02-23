@@ -80,6 +80,31 @@ export async function installDynamicModelRouter(params: {
     context: { messages: Array<{ role?: string }> },
     options?: unknown,
   ) => {
+    // Plugin per-call override takes precedence over complexity routing.
+    const contextHooksRuntimeForOverride = getContextHooksRuntime(sessionManager);
+    if (contextHooksRuntimeForOverride?.pendingModelOverride) {
+      const overrideModelId = contextHooksRuntimeForOverride.pendingModelOverride;
+      const overrideProvider =
+        contextHooksRuntimeForOverride.pendingProviderOverride ?? params.provider;
+      // Clear pending override before resolution.
+      contextHooksRuntimeForOverride.pendingModelOverride = undefined;
+      contextHooksRuntimeForOverride.pendingProviderOverride = undefined;
+
+      const overrideResult = resolveModel(overrideProvider, overrideModelId, agentDir, config);
+      if (overrideResult.model) {
+        contextHooksRuntimeForOverride.modelId = overrideResult.model.id;
+        contextHooksRuntimeForOverride.provider = overrideResult.model.provider;
+        contextHooksRuntimeForOverride.contextWindowTokens =
+          overrideResult.model.contextWindow ?? DEFAULT_CONTEXT_TOKENS;
+        return originalStreamFn(overrideResult.model, context, options);
+      }
+      // Resolution failed — fall through to complexity routing.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `model-router: plugin modelOverride "${overrideModelId}" could not be resolved, falling through to complexity routing`,
+      );
+    }
+
     const msgs = context.messages;
     const lastMsg = msgs[msgs.length - 1];
     const isToolContinuation = lastMsg?.role === "toolResult";

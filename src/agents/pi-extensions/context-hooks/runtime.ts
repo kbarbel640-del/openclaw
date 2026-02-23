@@ -8,6 +8,8 @@ export type ContextHooksRuntimeValue = {
   modelId: string;
   provider: string;
   contextWindowTokens: number;
+  pendingModelOverride?: string;
+  pendingProviderOverride?: string;
 };
 
 const registry = createSessionManagerRuntimeRegistry<ContextHooksRuntimeValue>();
