@@ -7,6 +7,7 @@ import {
   resolveStateDir,
 } from "../config/config.js";
 import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
+import { pickPrimaryTailnetIPv4 } from "../infra/tailnet.js";
 import { loadGatewayTlsRuntime } from "../infra/tls/gateway.js";
 import {
   GATEWAY_CLIENT_MODES,
@@ -118,8 +119,12 @@ export function buildGatewayConnectionDetails(
   const localPort = resolveGatewayPort(config);
   const bindMode = config.gateway?.bind ?? "loopback";
   const scheme = tlsEnabled ? "wss" : "ws";
-  // Self-connections should always target loopback; bind mode only controls listener exposure.
-  const localUrl = `${scheme}://127.0.0.1:${localPort}`;
+  // When bind=tailnet the server only listens on the Tailscale IP, not loopback.
+  // Self-connections must target the address the server is actually listening on.
+  const tailnetIPv4 = bindMode === "tailnet" ? pickPrimaryTailnetIPv4() : undefined;
+  const localUrl = tailnetIPv4
+    ? `${scheme}://${tailnetIPv4}:${localPort}`
+    : `${scheme}://127.0.0.1:${localPort}`;
   const urlOverride =
     typeof options.url === "string" && options.url.trim().length > 0
       ? options.url.trim()

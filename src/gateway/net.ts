@@ -1,6 +1,6 @@
 import net from "node:net";
 import os from "node:os";
-import { pickPrimaryTailnetIPv4, pickPrimaryTailnetIPv6 } from "../infra/tailnet.js";
+import { isTailnetIPv4, pickPrimaryTailnetIPv4, pickPrimaryTailnetIPv6 } from "../infra/tailnet.js";
 import {
   isCanonicalDottedDecimalIPv4,
   isIpInCidr,
@@ -373,6 +373,7 @@ export function isSecureWebSocketUrl(url: string): boolean {
     return false;
   }
 
-  // ws:// is only secure for loopback addresses
-  return isLoopbackHost(parsed.hostname);
+  // ws:// is secure for loopback addresses and Tailscale CGNAT IPs (100.64.0.0/10),
+  // since Tailscale traffic is already encrypted end-to-end via WireGuard.
+  return isLoopbackHost(parsed.hostname) || isTailnetIPv4(parsed.hostname);
 }
