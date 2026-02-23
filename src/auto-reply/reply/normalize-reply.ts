@@ -1,6 +1,7 @@
 import { sanitizeUserFacingText } from "../../agents/pi-embedded-helpers.js";
 import { stripHeartbeatToken } from "../heartbeat.js";
 import { HEARTBEAT_TOKEN, isSilentReplyText, SILENT_REPLY_TOKEN } from "../tokens.js";
+import { stripReasoningTagsFromText } from "../../shared/text/reasoning-tags.js";
 import type { ReplyPayload } from "../types.js";
 import { hasLineDirectives, parseLineDirectives } from "./line-directives.js";
 import {
@@ -62,6 +63,9 @@ export function normalizeReplyPayload(
   }
 
   if (text) {
+    // Strip reasoning/thinking tags (e.g., <thinking>, <thought>, <think>, <final>)
+    // before sanitization to prevent internal model reasoning from leaking to users
+    text = stripReasoningTagsFromText(text, { mode: "preserve", trim: "start" });
     text = sanitizeUserFacingText(text, { errorContext: Boolean(payload.isError) });
   }
   if (!text?.trim() && !hasMedia && !hasChannelData) {
