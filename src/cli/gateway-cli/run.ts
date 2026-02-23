@@ -48,6 +48,7 @@ type GatewayRunOpts = {
   compact?: boolean;
   rawStream?: boolean;
   rawStreamPath?: unknown;
+  skipDevicePairing?: boolean;
   dev?: boolean;
   reset?: boolean;
 };
@@ -68,6 +69,7 @@ const GATEWAY_RUN_VALUE_KEYS = [
 const GATEWAY_RUN_BOOLEAN_KEYS = [
   "tailscaleResetOnExit",
   "allowUnconfigured",
+  "skipDevicePairing",
   "dev",
   "reset",
   "force",
@@ -240,11 +242,12 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
 
   const miskeys = extractGatewayMiskeys(snapshot?.parsed);
   const authOverride =
-    authMode || passwordRaw || tokenRaw || authModeRaw
+    authMode || passwordRaw || tokenRaw || authModeRaw || opts.skipDevicePairing
       ? {
           ...(authMode ? { mode: authMode } : {}),
           ...(tokenRaw ? { token: tokenRaw } : {}),
           ...(passwordRaw ? { password: passwordRaw } : {}),
+          ...(opts.skipDevicePairing ? { skipDevicePairing: true as const } : {}),
         }
       : undefined;
   const resolvedAuth = resolveGatewayAuth({
@@ -374,6 +377,11 @@ export function addGatewayRunCommand(cmd: Command): Command {
     .option(
       "--allow-unconfigured",
       "Allow gateway start without gateway.mode=local in config",
+      false,
+    )
+    .option(
+      "--skip-device-pairing",
+      "Skip device pairing for token/password-authenticated connections",
       false,
     )
     .option("--dev", "Create a dev config + workspace if missing (no BOOTSTRAP.md)", false)
