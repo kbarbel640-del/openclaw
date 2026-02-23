@@ -364,6 +364,21 @@ export async function ensureChromeExtensionRelayServer(opts: {
     const url = new URL(req.url ?? "/", info.baseUrl);
     const path = url.pathname;
 
+    // CORS support for the Chrome extension options page which sends
+    // cross-origin requests from chrome-extension:// to the relay (#23842).
+    // Attach CORS headers to every response so the browser accepts them.
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", `${RELAY_AUTH_HEADER}, content-type`);
+
+    // Preflight requests never carry custom headers, so they must be answered
+    // before the auth check — otherwise they always get 401.
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, { "Access-Control-Max-Age": "86400" });
+      res.end();
+      return;
+    }
+
     if (path.startsWith("/json")) {
       const token = getHeader(req, RELAY_AUTH_HEADER);
       if (!token || token !== relayAuthToken) {
