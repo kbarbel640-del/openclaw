@@ -1131,8 +1131,8 @@ export async function runEmbeddedAttempt(
           }
 
           if (hookRunner?.hasHooks("llm_input")) {
-            hookRunner
-              .runLlmInput(
+            try {
+              const llmInputResult = await hookRunner.runLlmInput(
                 {
                   runId: params.runId,
                   sessionId: params.sessionId,
@@ -1150,10 +1150,13 @@ export async function runEmbeddedAttempt(
                   workspaceDir: params.workspaceDir,
                   messageProvider: params.messageProvider ?? undefined,
                 },
-              )
-              .catch((err) => {
-                log.warn(`llm_input hook failed: ${String(err)}`);
-              });
+              );
+              if (llmInputResult?.prependContext) {
+                effectivePrompt = llmInputResult.prependContext + "\n\n" + effectivePrompt;
+              }
+            } catch (err) {
+              log.warn(`llm_input hook failed: ${String(err)}`);
+            }
           }
 
           // Only pass images option if there are actually images to pass

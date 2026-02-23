@@ -19,6 +19,7 @@ import type {
   PluginHookBeforePromptBuildResult,
   PluginHookBeforeCompactionEvent,
   PluginHookLlmInputEvent,
+  PluginHookLlmInputResult,
   PluginHookLlmOutputEvent,
   PluginHookBeforeResetEvent,
   PluginHookBeforeToolCallEvent,
@@ -61,6 +62,7 @@ export type {
   PluginHookBeforePromptBuildEvent,
   PluginHookBeforePromptBuildResult,
   PluginHookLlmInputEvent,
+  PluginHookLlmInputResult,
   PluginHookLlmOutputEvent,
   PluginHookAgentEndEvent,
   PluginHookBeforeCompactionEvent,
@@ -323,11 +325,22 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
 
   /**
    * Run llm_input hook.
-   * Allows plugins to observe the exact input payload sent to the LLM.
-   * Runs in parallel (fire-and-forget).
+   * Allows plugins to observe the LLM input and optionally inject context.
+   * When a handler returns `{ prependContext }`, the text is prepended to the prompt.
+   * Multiple handlers' prependContext values are concatenated.
    */
-  async function runLlmInput(event: PluginHookLlmInputEvent, ctx: PluginHookAgentContext) {
-    return runVoidHook("llm_input", event, ctx);
+  async function runLlmInput(
+    event: PluginHookLlmInputEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<PluginHookLlmInputResult | undefined> {
+    return runModifyingHook<"llm_input", PluginHookLlmInputResult>(
+      "llm_input",
+      event,
+      ctx,
+      (accumulated, next) => ({
+        prependContext: [accumulated?.prependContext, next?.prependContext].filter(Boolean).join("\n\n"),
+      }),
+    );
   }
 
   /**

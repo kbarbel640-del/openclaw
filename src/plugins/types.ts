@@ -378,6 +378,11 @@ export type PluginHookLlmInputEvent = {
   imagesCount: number;
 };
 
+export type PluginHookLlmInputResult = {
+  /** Text to prepend to the prompt before sending to the LLM. */
+  prependContext?: string;
+};
+
 // llm_output hook
 export type PluginHookLlmOutputEvent = {
   runId: string;
@@ -671,7 +676,7 @@ export type PluginHookHandlerMap = {
     event: PluginHookBeforeAgentStartEvent,
     ctx: PluginHookAgentContext,
   ) => Promise<PluginHookBeforeAgentStartResult | void> | PluginHookBeforeAgentStartResult | void;
-  llm_input: (event: PluginHookLlmInputEvent, ctx: PluginHookAgentContext) => Promise<void> | void;
+  llm_input: (event: PluginHookLlmInputEvent, ctx: PluginHookAgentContext) => Promise<PluginHookLlmInputResult | void> | PluginHookLlmInputResult | void;
   llm_output: (
     event: PluginHookLlmOutputEvent,
     ctx: PluginHookAgentContext,

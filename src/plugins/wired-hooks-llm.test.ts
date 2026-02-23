@@ -31,6 +31,31 @@ describe("llm hook runner methods", () => {
     );
   });
 
+  it("runLlmInput returns prependContext from handler", async () => {
+    const handler = vi.fn().mockResolvedValue({ prependContext: "memory context here" });
+    const registry = createMockPluginRegistry([{ hookName: "llm_input", handler }]);
+    const runner = createHookRunner(registry);
+
+    const result = await runner.runLlmInput(
+      {
+        runId: "run-1",
+        sessionId: "session-1",
+        provider: "openai",
+        model: "gpt-5",
+        systemPrompt: "be helpful",
+        prompt: "hello",
+        historyMessages: [],
+        imagesCount: 0,
+      },
+      {
+        agentId: "main",
+        sessionId: "session-1",
+      },
+    );
+
+    expect(result).toEqual({ prependContext: "memory context here" });
+  });
+
   it("runLlmOutput invokes registered llm_output hooks", async () => {
     const handler = vi.fn();
     const registry = createMockPluginRegistry([{ hookName: "llm_output", handler }]);
