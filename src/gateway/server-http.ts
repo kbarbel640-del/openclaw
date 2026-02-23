@@ -19,6 +19,7 @@ import { loadConfig } from "../config/config.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
+import { handleTelegramHttpRequest } from "../telegram/http/index.js";
 import {
   AUTH_RATE_LIMIT_SCOPE_HOOK_AUTH,
   createAuthRateLimiter,
@@ -481,6 +482,9 @@ export function createGatewayHttpServer(opts: {
         return;
       }
       if (await handleSlackHttpRequest(req, res)) {
+        return;
+      }
+      if (await handleTelegramHttpRequest(req, res)) {
         return;
       }
       if (handlePluginRequest) {

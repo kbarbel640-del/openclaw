@@ -162,21 +162,11 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         port: opts.webhookPort,
         secret: opts.webhookSecret ?? account.config.webhookSecret,
         host: opts.webhookHost ?? account.config.webhookHost,
-        runtime: opts.runtime as RuntimeEnv,
+        runtime: opts.runtime,
         fetch: proxyFetch,
         abortSignal: opts.abortSignal,
         publicUrl: opts.webhookUrl,
       });
-      const abortSignal = opts.abortSignal;
-      if (abortSignal && !abortSignal.aborted) {
-        await new Promise<void>((resolve) => {
-          const onAbort = () => {
-            abortSignal.removeEventListener("abort", onAbort);
-            resolve();
-          };
-          abortSignal.addEventListener("abort", onAbort, { once: true });
-        });
-      }
       return;
     }
 
