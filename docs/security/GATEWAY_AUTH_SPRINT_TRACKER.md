@@ -43,8 +43,8 @@
 | 8     | 8.2  | Update `authorizeGatewayConnect` local bypass               | done        | —   | auth-hardening    | 2026-02-23 | localDirect removed  |
 | 9     | 9.1  | Hooks token startup validation                              | done        | —   | onboarding-wizard | 2026-02-20 | Hooks secured        |
 | 9     | 9.2  | Hooks token security requirement                            | done        | —   | onboarding-wizard | 2026-02-20 | Hooks secured        |
-| 10    | 10.1 | Critical severity audit checks                              | not-started | —   | security-audit    | —          | Depends: Phases 1-9  |
-| 10    | 10.2 | `--strict` flag for security audit                          | not-started | —   | security-audit    | —          | Depends: 10.1        |
+| 10    | 10.1 | Critical severity audit checks                              | done        | —   | security-audit    | 2026-02-23 | Doctor updated ✓     |
+| 10    | 10.2 | `--strict` flag for security audit                          | done        | —   | security-audit    | 2026-02-23 | --strict added ✓     |
 | 11    | 11.1 | Mandatory auth E2E tests                                    | not-started | —   | test-engineer     | —          | Depends: Phases 3-8  |
 | 11    | 11.2 | Update existing auth tests                                  | not-started | —   | test-engineer     | —          | Depends: 11.1        |
 | 12    | 12.1 | Rewrite gateway security docs                               | not-started | —   | docs-writer       | —          | Depends: Phases 1-11 |
@@ -60,10 +60,10 @@
 ## Summary
 
 - **Total Tasks**: 30
-- **Done**: 18
+- **Done**: 20
 - **In Progress**: 0
 - **Blocked**: 0
-- **Remaining**: 12
+- **Remaining**: 10
 
 ---
 
@@ -71,6 +71,7 @@
 
 | Date       | Sprint   | Action      | Details                                    |
 | ---------- | -------- | ----------- | ------------------------------------------ |
+| 2026-02-23 | Sprint 6 | Completed   | Phase 10 (Security audit tool) ✓           |
 | 2026-02-23 | Sprint 5 | Completed   | Phases 7-8 (Rate limiter + local bypass) ✓ |
 | 2026-02-20 | Sprint 4 | Completed   | Phases 4-6 (Control/Canvas/Plugin auth) ✓  |
 | 2026-02-20 | Sprint 3 | Completed   | Phases 2 & 9 (onboarding + hooks) ✓        |
