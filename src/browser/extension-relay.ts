@@ -715,26 +715,12 @@ export async function ensureChromeExtensionRelayServer(opts: {
             ensureTargetEventsForClient(ws, "discover");
           }
         }
-        if (cmd.method === "Target.attachToTarget") {
-          const params = (cmd.params ?? {}) as { targetId?: string };
-          const targetId = typeof params.targetId === "string" ? params.targetId : undefined;
-          if (targetId) {
-            const target = Array.from(connectedTargets.values()).find(
-              (t) => t.targetId === targetId,
-            );
-            if (target) {
-              ws.send(
-                JSON.stringify({
-                  method: "Target.attachedToTarget",
-                  params: {
-                    sessionId: target.sessionId,
-                    targetInfo: { ...target.targetInfo, attached: true },
-                    waitingForDebugger: false,
-                  },
-                } satisfies CdpEvent),
-              );
-            }
-          }
+        if (cmd.method === "Target.attachToTarget" || cmd.method === "Target.attachToBrowserTarget") {
+          // Playwright expects a sessionId in the response. We don't need to send a manual
+          // Target.attachedToTarget event here because connected targets are already reported
+          // as attached:true in Target.getTargets, and additional attachments are handled
+          // by the main extension message broadcast loop. Sending it here manually causes
+          // "Error: Duplicate target" in playwright-core.
         }
 
         sendResponseToCdp(ws, { id: cmd.id, sessionId: cmd.sessionId, result });
