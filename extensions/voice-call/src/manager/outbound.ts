@@ -51,6 +51,57 @@ type EndCallContext = Pick<
   | "maxDurationTimers"
 >;
 
+type ConnectedCallContext = Pick<CallManagerContext, "activeCalls" | "provider">;
+
+type ConnectedCallLookup =
+  | { kind: "error"; error: string }
+  | { kind: "ended"; call: CallRecord }
+  | {
+      kind: "ok";
+      call: CallRecord;
+      providerCallId: string;
+      provider: NonNullable<ConnectedCallContext["provider"]>;
+    };
+
+type ConnectedCallResolution =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      call: CallRecord;
+      providerCallId: string;
+      provider: NonNullable<ConnectedCallContext["provider"]>;
+    };
+
+function lookupConnectedCall(ctx: ConnectedCallContext, callId: CallId): ConnectedCallLookup {
+  const call = ctx.activeCalls.get(callId);
+  if (!call) {
+    return { kind: "error", error: "Call not found" };
+  }
+  if (!ctx.provider || !call.providerCallId) {
+    return { kind: "error", error: "Call not connected" };
+  }
+  if (TerminalStates.has(call.state)) {
+    return { kind: "ended", call };
+  }
+  return { kind: "ok", call, providerCallId: call.providerCallId, provider: ctx.provider };
+}
+
+function requireConnectedCall(ctx: ConnectedCallContext, callId: CallId): ConnectedCallResolution {
+  const lookup = lookupConnectedCall(ctx, callId);
+  if (lookup.kind === "error") {
+    return { ok: false, error: lookup.error };
+  }
+  if (lookup.kind === "ended") {
+    return { ok: false, error: "Call has ended" };
+  }
+  return {
+    ok: true,
+    call: lookup.call,
+    providerCallId: lookup.providerCallId,
+    provider: lookup.provider,
+  };
+}
+
 export async function initiateCall(
   ctx: InitiateContext,
   to: string,
@@ -149,16 +200,12 @@ export async function speak(
   callId: CallId,
   text: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const call = ctx.activeCalls.get(callId);
-  if (!call) {
-    return { success: false, error: "Call not found" };
+  const connected = requireConnectedCall(ctx, callId);
+  if (!connected.ok) {
+    return { success: false, error: connected.error };
   }
-  if (!ctx.provider || !call.providerCallId) {
-    return { success: false, error: "Call not connected" };
-  }
-  if (TerminalStates.has(call.state)) {
-    return { success: false, error: "Call has ended" };
-  }
+  const { call, providerCallId, provider } = connected;
+
   try {
     transitionState(call, "speaking");
     persistCallRecord(ctx.storePath, call);
@@ -232,16 +279,12 @@ export async function continueCall(
   callId: CallId,
   prompt: string,
 ): Promise<{ success: boolean; transcript?: string; error?: string }> {
-  const call = ctx.activeCalls.get(callId);
-  if (!call) {
-    return { success: false, error: "Call not found" };
+  const connected = requireConnectedCall(ctx, callId);
+  if (!connected.ok) {
+    return { success: false, error: connected.error };
   }
-  if (!ctx.provider || !call.providerCallId) {
-    return { success: false, error: "Call not connected" };
-  }
-  if (TerminalStates.has(call.state)) {
-    return { success: false, error: "Call has ended" };
-  }
+  const { call, providerCallId, provider } = connected;
+
   if (ctx.activeTurnCalls.has(callId) || ctx.transcriptWaiters.has(callId)) {
     return { success: false, error: "Already waiting for transcript" };
   }
