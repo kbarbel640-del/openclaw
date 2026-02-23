@@ -348,6 +348,14 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        criticLoop: z
+          .object({
+            enabled: z.boolean().optional(),
+            minScore: z.number().min(0).max(1).optional(),
+            defaultSpec: z.string().optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .superRefine((val, ctx) => {

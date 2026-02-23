@@ -176,6 +176,8 @@ Common `agentTurn` fields:
 - `message`: required text prompt.
 - `model` / `thinking`: optional overrides (see below).
 - `timeoutSeconds`: optional timeout override.
+- `criticSpec`: optional evaluation spec used by the critic loop gate.
+- `criticThreshold`: optional pass threshold override (`0..1`) for the critic loop gate.
 
 Delivery config:
 
@@ -368,6 +370,11 @@ Notes:
       maxBytes: "2mb", // default 2_000_000 bytes
       keepLines: 2000, // default 2000
     },
+    criticLoop: {
+      enabled: false, // default false (feature flag)
+      minScore: 0.7, // default threshold (0..1)
+      defaultSpec: "Include risks, rollback, and verification steps", // optional
+    },
   },
 }
 ```
@@ -470,6 +477,10 @@ Tune for high-volume cron usage (example):
   },
 }
 ```
+
+Critic loop kill switch (when enabled in config):
+
+- `OPENCLAW_CRITIC_LOOP_DISABLED=1` disables critic scoring + gating globally.
 
 ## CLI quickstart
 
