@@ -24,6 +24,9 @@ export function enablePluginInConfig(cfg: OpenClawConfig, pluginId: string): Plu
       existing && typeof existing === "object" && !Array.isArray(existing)
         ? (existing as Record<string, unknown>)
         : {};
+    // Write to channels.[id].enabled for channel-specific config (e.g. token validation).
+    // Also write to plugins.entries.[id].enabled so resolveEnableState (which reads only
+    // from normalizePluginsConfig → plugins.entries) correctly reports the plugin as enabled.
     let next: OpenClawConfig = {
       ...cfg,
       channels: {
@@ -31,6 +34,16 @@ export function enablePluginInConfig(cfg: OpenClawConfig, pluginId: string): Plu
         [builtInChannelId]: {
           ...existingRecord,
           enabled: true,
+        },
+      },
+      plugins: {
+        ...cfg.plugins,
+        entries: {
+          ...cfg.plugins?.entries,
+          [resolvedId]: {
+            ...(cfg.plugins?.entries?.[resolvedId] as Record<string, unknown> | undefined),
+            enabled: true,
+          },
         },
       },
     };
