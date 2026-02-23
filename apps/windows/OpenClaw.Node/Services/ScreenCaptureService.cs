@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using ScreenRecorderLib;
 
@@ -62,6 +63,7 @@ namespace OpenClaw.Node.Services
 
             var outputPath = Path.Combine(Path.GetTempPath(), $"openclaw_screen_record_{Guid.NewGuid():N}.mp4");
             var completion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
             var options = RecorderOptions.Default;
             options.VideoEncoderOptions.Framerate = fps;
@@ -90,8 +92,30 @@ namespace OpenClaw.Node.Services
 
             recorder.OnRecordingComplete += (_, args) => completion.TrySetResult(args.FilePath);
             recorder.OnRecordingFailed += (_, args) => completion.TrySetException(new Exception(args.Error));
+            recorder.OnStatusChanged += (_, args) =>
+            {
+                if (args.Status == RecorderStatus.Recording)
+                {
+                    started.TrySetResult();
+                }
+            };
 
             recorder.Record(outputPath);
+
+            // Duration should count from the moment recording actually starts,
+            // not from when Record(...) is requested.
+            using (var startTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            {
+                try
+                {
+                    await started.Task.WaitAsync(startTimeout.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Fallback: if start status wasn't observed, continue anyway.
+                }
+            }
+
             await Task.Delay(durationMs);
             recorder.Stop();
 
