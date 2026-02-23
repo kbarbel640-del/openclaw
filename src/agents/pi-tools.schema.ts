@@ -185,9 +185,7 @@ export function normalizeToolParameters(
     additionalProperties:
       "additionalProperties" in schema
         ? schema.additionalProperties
-        : options?.compat?.requiresAdditionalPropertiesFalse
-          ? false
-          : true,
+        : !options?.compat?.requiresAdditionalPropertiesFalse,
   };
 
   return {
