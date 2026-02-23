@@ -4,7 +4,8 @@ param(
   [string]$Configuration = "Debug",
   [int]$PollMs = 1500,
   [string]$PauseFile = ".node-watchdog.pause",
-  [string]$LogFile = ""
+  [string]$LogFile = "",
+  [bool]$EnableTray = $true
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +46,7 @@ Write-Log "Watchdog starting"
 Write-Log "RepoPath=$repoPathFull"
 Write-Log "ExePath=$exePath"
 Write-Log "PauseFile=$pausePath"
+Write-Log "EnableTray=$EnableTray"
 
 while ($true) {
   try {
@@ -79,8 +81,13 @@ while ($true) {
     }
 
     Write-Log "Starting OpenClaw.Node"
-    $proc = Start-Process -FilePath $exePath -ArgumentList @("--gateway-url", $gatewayUrl, "--gateway-token", $token) -PassThru
-    Write-Log "Started PID=$($proc.Id)"
+    $args = @("--gateway-url", $gatewayUrl, "--gateway-token", $token)
+    if ($EnableTray) {
+      $args += "--tray"
+    }
+
+    $proc = Start-Process -FilePath $exePath -ArgumentList $args -PassThru
+    Write-Log "Started PID=$($proc.Id) Args=$($args -join ' ')"
   }
   catch {
     Write-Log "Watchdog loop error: $($_.Exception.Message)"
