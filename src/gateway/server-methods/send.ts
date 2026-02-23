@@ -177,11 +177,13 @@ export const sendHandlers: GatewayRequestHandlers = {
 
     const work = (async (): Promise<InflightResult> => {
       try {
+        const derivedAgentId = resolveSessionAgentId({ config: cfg });
         const resolved = resolveOutboundTarget({
           channel: outboundChannel,
           to,
           cfg,
           accountId,
+          agentId: derivedAgentId,
           mode: "explicit",
         });
         if (!resolved.ok) {
@@ -206,7 +208,6 @@ export const sendHandlers: GatewayRequestHandlers = {
           typeof request.sessionKey === "string" && request.sessionKey.trim()
             ? request.sessionKey.trim().toLowerCase()
             : undefined;
-        const derivedAgentId = resolveSessionAgentId({ config: cfg });
         // If callers omit sessionKey, derive a target session key from the outbound route.
         const derivedRoute = !providedSessionKey
           ? await resolveOutboundSessionRoute({
@@ -386,6 +387,7 @@ export const sendHandlers: GatewayRequestHandlers = {
         ? request.accountId.trim()
         : undefined;
     try {
+      const derivedAgentId = resolveSessionAgentId({ config: cfg });
       const plugin = getChannelPlugin(channel);
       const outbound = plugin?.outbound;
       if (!outbound?.sendPoll) {
@@ -401,6 +403,7 @@ export const sendHandlers: GatewayRequestHandlers = {
         to,
         cfg,
         accountId,
+        agentId: derivedAgentId,
         mode: "explicit",
       });
       if (!resolved.ok) {

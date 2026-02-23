@@ -60,6 +60,30 @@ export function listBoundAccountIds(cfg: OpenClawConfig, channelId: string): str
   return Array.from(ids).toSorted((a, b) => a.localeCompare(b));
 }
 
+export function resolveBoundAccountId(
+  cfg: OpenClawConfig,
+  agentId: string,
+  channelId: string,
+): string | null {
+  const normalizedChannel = normalizeBindingChannelId(channelId);
+  if (!normalizedChannel) {
+    return null;
+  }
+  const normalizedAgentId = normalizeAgentId(agentId);
+  for (const binding of listBindings(cfg)) {
+    const resolved = resolveNormalizedBindingMatch(binding);
+    if (
+      !resolved ||
+      resolved.channelId !== normalizedChannel ||
+      resolved.agentId !== normalizedAgentId
+    ) {
+      continue;
+    }
+    return resolved.accountId;
+  }
+  return null;
+}
+
 export function resolveDefaultAgentBoundAccountId(
   cfg: OpenClawConfig,
   channelId: string,

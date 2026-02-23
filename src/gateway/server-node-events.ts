@@ -223,16 +223,17 @@ async function sendReceiptAck(params: {
   to: string;
   text: string;
 }) {
+  const agentId = resolveSessionAgentId({ sessionKey: params.sessionKey, config: params.cfg });
   const resolved = resolveOutboundTarget({
     channel: params.channel,
     to: params.to,
     cfg: params.cfg,
+    agentId,
     mode: "explicit",
   });
   if (!resolved.ok) {
     throw new Error(String(resolved.error));
   }
-  const agentId = resolveSessionAgentId({ sessionKey: params.sessionKey, config: params.cfg });
   await deliverOutboundPayloads({
     cfg: params.cfg,
     channel: params.channel,
