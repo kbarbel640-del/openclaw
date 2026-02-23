@@ -146,6 +146,19 @@ describe("buildModelsKeyboard", () => {
     expect(result[1]?.[0]?.text).toBe("claude-opus-4");
   });
 
+  it("uses friendly label for antigravity Gemini 3.1 Pro model ids", () => {
+    const result = buildModelsKeyboard({
+      provider: "google-antigravity",
+      models: ["gemini-3-pro-high", "gemini-3-pro-low"],
+      currentModel: "google-antigravity/gemini-3-pro-high",
+      currentPage: 1,
+      totalPages: 1,
+    });
+    expect(result[0]?.[0]?.text).toBe("Gemini 3.1 Pro ✓");
+    expect(result[0]?.[0]?.callback_data).toBe("mdl_sel_google-antigravity/gemini-3-pro-high");
+    expect(result[1]?.[0]?.text).toBe("Gemini 3.1 Pro (Low)");
+  });
+
   it("shows pagination when multiple pages", () => {
     const result = buildModelsKeyboard({
       provider: "anthropic",

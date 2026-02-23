@@ -32,6 +32,10 @@ export type ModelsKeyboardParams = {
 
 const MODELS_PAGE_SIZE = 8;
 const MAX_CALLBACK_DATA_BYTES = 64;
+const MODEL_BUTTON_LABELS: Record<string, string> = {
+  "gemini-3-pro-high": "Gemini 3.1 Pro",
+  "gemini-3-pro-low": "Gemini 3.1 Pro (Low)",
+};
 
 /**
  * Parse a model callback_data string into a structured object.
@@ -140,7 +144,7 @@ export function buildModelsKeyboard(params: ModelsKeyboardParams): ButtonRow[] {
     }
 
     const isCurrentModel = model === currentModelId;
-    const displayText = truncateModelId(model, 38);
+    const displayText = truncateModelId(resolveModelButtonLabel(model), 38);
     const text = isCurrentModel ? `${displayText} ✓` : displayText;
 
     rows.push([
@@ -199,6 +203,10 @@ function truncateModelId(modelId: string, maxLen: number): string {
   }
   // Show last part with ellipsis prefix
   return `…${modelId.slice(-(maxLen - 1))}`;
+}
+
+function resolveModelButtonLabel(modelId: string): string {
+  return MODEL_BUTTON_LABELS[modelId] ?? modelId;
 }
 
 /**
