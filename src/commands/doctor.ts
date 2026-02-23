@@ -281,6 +281,26 @@ export async function doctorCommand(
     healthOk,
   });
 
+  // Run security audit if --strict is enabled
+  let hasBlockingSecurityIssues = false;
+  if (options.strict) {
+    const { runSecurityAudit } = await import("../security/audit.js");
+    const auditReport = await runSecurityAudit({
+      config: cfg,
+      deep: Boolean(options.deep),
+      includeFilesystem: true,
+      includeChannelSecurity: true,
+    });
+    const criticalCount = auditReport.summary.critical;
+    if (criticalCount > 0) {
+      hasBlockingSecurityIssues = true;
+      runtime.error(
+        `\nStrict mode: ${criticalCount} critical security ${criticalCount === 1 ? "issue" : "issues"} found.`,
+      );
+      runtime.error(`Run \`${formatCliCommand("openclaw security audit --deep")}\` for details.`);
+    }
+  }
+
   const shouldWriteConfig = prompter.shouldRepair || configResult.shouldWriteConfig;
   if (shouldWriteConfig) {
     cfg = applyWizardMetadata(cfg, { command: "doctor", mode: resolveMode(cfg) });
@@ -312,4 +332,9 @@ export async function doctorCommand(
   }
 
   outro("Doctor complete.");
+
+  // Exit with non-zero code in strict mode if critical issues found
+  if (options.strict && hasBlockingSecurityIssues) {
+    runtime.exit(1);
+  }
 }

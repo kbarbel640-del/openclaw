@@ -184,4 +184,7 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
   const lines = warnings.length > 0 ? warnings : ["- No channel security warnings detected."];
   lines.push(auditHint);
   note(lines.join("\n"), "Security");
+
+  // Return count of warnings for strict mode enforcement
+  return { warningCount: warnings.length };
 }
