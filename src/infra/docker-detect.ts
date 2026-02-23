@@ -35,9 +35,7 @@ async function fileExists(p: string): Promise<boolean> {
  * 2. Presence of `/.dockerenv`
  * 3. `/proc/1/cgroup` containing "docker" or "containerd"
  */
-export async function detectIsDocker(
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<boolean> {
+export async function detectIsDocker(env: NodeJS.ProcessEnv = process.env): Promise<boolean> {
   // Explicit env override
   const explicit = env.OPENCLAW_DOCKER;
   if (explicit === "1" || explicit === "true") {
@@ -68,9 +66,7 @@ export async function detectIsDocker(
 /**
  * Check whether the Docker socket is available at the given path.
  */
-export async function detectDockerSocket(
-  socketPath?: string,
-): Promise<boolean> {
+export async function detectDockerSocket(socketPath?: string): Promise<boolean> {
   const target = socketPath ?? DEFAULT_DOCKER_SOCKET;
   try {
     const stat = await fs.stat(target);
@@ -97,17 +93,17 @@ export function parseImageRef(image: string): { repo: string; tag: string | null
   if (digestIdx >= 0) {
     return { repo: trimmed.slice(0, digestIdx), tag: null };
   }
-  // Find the last colon that is part of the tag (not the port)
-  const lastColon = trimmed.lastIndexOf(":");
-  if (lastColon < 0) {
+  // Find the last colon that appears after the last slash.
+  // This correctly distinguishes port separators (before any slash)
+  // from tag separators (always after the image name, which follows the last slash).
+  const lastSlash = trimmed.lastIndexOf("/");
+  const searchFrom = lastSlash >= 0 ? lastSlash + 1 : 0;
+  const colonIdx = trimmed.indexOf(":", searchFrom);
+  if (colonIdx < 0) {
     return { repo: trimmed, tag: null };
   }
-  const afterColon = trimmed.slice(lastColon + 1);
-  // If the part after colon contains a slash, it's likely a port/path, not a tag
-  if (afterColon.includes("/")) {
-    return { repo: trimmed, tag: null };
-  }
-  return { repo: trimmed.slice(0, lastColon), tag: afterColon || null };
+  const tag = trimmed.slice(colonIdx + 1);
+  return { repo: trimmed.slice(0, colonIdx), tag: tag || null };
 }
 
 /**

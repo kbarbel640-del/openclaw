@@ -71,11 +71,13 @@ const AUTO_STABLE_JITTER_HOURS_DEFAULT = 12;
 const AUTO_BETA_CHECK_INTERVAL_HOURS_DEFAULT = 1;
 
 /**
- * Marker file written when a Docker update is available.
+ * Default marker file path written when a Docker update is available.
  * External orchestrators (Watchtower, custom scripts, compose wrappers)
  * can watch this file to trigger image pulls and container recreation.
+ *
+ * Override via config: `update.docker.markerPath`
  */
-export const DOCKER_UPDATE_MARKER_PATH = "/tmp/openclaw-update-available";
+export const DEFAULT_DOCKER_UPDATE_MARKER_PATH = "/tmp/openclaw-docker-update-available";
 
 export type DockerUpdateMarker = {
   version: string;
@@ -91,6 +93,7 @@ async function writeDockerUpdateMarker(params: {
   tag: string | null;
   imageRepo: string | null;
   channel: string;
+  markerPath: string;
 }): Promise<void> {
   const marker: DockerUpdateMarker = {
     version: params.version,
@@ -102,12 +105,12 @@ async function writeDockerUpdateMarker(params: {
     channel: params.channel,
     detectedAt: new Date().toISOString(),
   };
-  await fs.writeFile(DOCKER_UPDATE_MARKER_PATH, JSON.stringify(marker, null, 2), "utf-8");
+  await fs.writeFile(params.markerPath, JSON.stringify(marker, null, 2), "utf-8");
 }
 
-async function removeDockerUpdateMarker(): Promise<void> {
+async function removeDockerUpdateMarker(markerPath: string): Promise<void> {
   try {
-    await fs.unlink(DOCKER_UPDATE_MARKER_PATH);
+    await fs.unlink(markerPath);
   } catch {
     // Marker may not exist — that's fine.
   }
@@ -412,6 +415,8 @@ export async function runGatewayUpdateCheck(params: {
   if (status.installKind === "docker" && status.dockerEnv) {
     // Docker installs: check the container registry instead of npm
     const channel = normalizeUpdateChannel(params.cfg.update?.channel) ?? DEFAULT_PACKAGE_CHANNEL;
+    const markerPath =
+      params.cfg.update?.docker?.markerPath?.trim() || DEFAULT_DOCKER_UPDATE_MARKER_PATH;
     const dockerStatus = await fetchDockerRegistryStatus({
       channel,
       dockerEnv: status.dockerEnv,
@@ -464,10 +469,11 @@ export async function runGatewayUpdateCheck(params: {
           tag: dockerStatus.latestTag,
           imageRepo: dockerStatus.imageRepo,
           channel,
+          markerPath,
         });
         params.log.info("docker update marker written", {
           version: dockerStatus.latestVersion,
-          markerPath: DOCKER_UPDATE_MARKER_PATH,
+          markerPath,
         });
       }
     } else {
@@ -479,7 +485,7 @@ export async function runGatewayUpdateCheck(params: {
         onUpdateAvailableChange: params.onUpdateAvailableChange,
       });
       // Clean up stale marker if we're now up to date
-      await removeDockerUpdateMarker();
+      await removeDockerUpdateMarker(markerPath);
     }
 
     await writeState(statePath, nextState);

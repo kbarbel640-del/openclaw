@@ -1,7 +1,4 @@
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   detectDockerEnvironment,
   detectDockerSocket,
@@ -46,6 +43,27 @@ describe("parseImageRef", () => {
     expect(parseImageRef("ghcr.io/openclaw/openclaw:1.0.0-beta.1")).toEqual({
       repo: "ghcr.io/openclaw/openclaw",
       tag: "1.0.0-beta.1",
+    });
+  });
+
+  it("handles registry with port and tag", () => {
+    expect(parseImageRef("registry.example.com:5000/repo:tag")).toEqual({
+      repo: "registry.example.com:5000/repo",
+      tag: "tag",
+    });
+  });
+
+  it("handles registry with port and no tag", () => {
+    expect(parseImageRef("registry.example.com:5000/org/repo")).toEqual({
+      repo: "registry.example.com:5000/org/repo",
+      tag: null,
+    });
+  });
+
+  it("handles registry with port, nested path, and tag", () => {
+    expect(parseImageRef("myregistry.io:443/org/suborg/image:v2.0.0")).toEqual({
+      repo: "myregistry.io:443/org/suborg/image",
+      tag: "v2.0.0",
     });
   });
 });
