@@ -622,7 +622,6 @@ async function runSearxngSearch(params: {
   count: number;
   baseUrl: string;
   timeoutSeconds: number;
-  country?: string;
   search_lang?: string;
 }): Promise<{
   results: Array<{
@@ -764,7 +763,6 @@ async function runWebSearch(params: {
       count: params.count,
       baseUrl: params.searxngBaseUrl ?? DEFAULT_SEARXNG_BASE_URL,
       timeoutSeconds: params.timeoutSeconds,
-      country: params.country,
       search_lang: params.search_lang,
     });
 
