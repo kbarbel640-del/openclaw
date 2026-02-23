@@ -209,12 +209,18 @@ function formatConsoleLine(opts: {
   const displayMessage = stripRedundantSubsystemPrefixForConsole(opts.message, displaySubsystem);
   const time = (() => {
     if (opts.style === "pretty") {
-      return color.gray((() => {
-        const d = new Date();
-        return String(d.getHours()).padStart(2, "0") + ":" +
-               String(d.getMinutes()).padStart(2, "0") + ":" +
-               String(d.getSeconds()).padStart(2, "0");
-      })());
+      return color.gray(
+        (() => {
+          const d = new Date();
+          return (
+            String(d.getHours()).padStart(2, "0") +
+            ":" +
+            String(d.getMinutes()).padStart(2, "0") +
+            ":" +
+            String(d.getSeconds()).padStart(2, "0")
+          );
+        })(),
+      );
     }
     if (loggingState.consoleTimestampPrefix) {
       return color.gray(new Date().toISOString());
