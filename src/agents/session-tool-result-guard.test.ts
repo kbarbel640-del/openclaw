@@ -1,8 +1,8 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { SessionManager } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import { SessionManager } from "@mariozechner/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   installSessionToolResultGuard,
@@ -186,7 +186,6 @@ describe("redactEntryForPersistence", () => {
     expect(result).toBe(entry);
   });
 });
-
 
 describe("installSessionToolResultGuard", () => {
   it("inserts synthetic toolResult before non-tool message when pending", () => {
