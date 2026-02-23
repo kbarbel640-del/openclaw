@@ -74,7 +74,9 @@ function isAndroidTermux(): boolean {
 
 function resolveAndroidService(): GatewayService {
   const noop = (op: string) => async (args: { stdout: NodeJS.WritableStream }) => {
-    args.stdout.write(`[android-termux] Service '${op}' skipped — use tmux to manage the gateway.\n`);
+    args.stdout.write(
+      `[android-termux] Service '${op}' skipped — use tmux to manage the gateway.\n`,
+    );
   };
   return {
     label: "tmux (android-termux)",
