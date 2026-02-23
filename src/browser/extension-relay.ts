@@ -273,11 +273,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
     ws.send(JSON.stringify(res));
   };
 
-  const ensureTargetEventsForClient = (_ws: WebSocket, _mode: "autoAttach" | "discover") => {
-    // Manual event emission for discovery/autoAttach often conflicts with Playwright's 
-    // internal state tracking in the extension relay context. 
-    // We disable this to prevent "Duplicate target" and "Unknown body id" crashes.
-    /*
+  const ensureTargetEventsForClient = (ws: WebSocket, mode: "autoAttach" | "discover") => {
     for (const target of connectedTargets.values()) {
       if (mode === "autoAttach") {
         ws.send(
@@ -299,7 +295,6 @@ export async function ensureChromeExtensionRelayServer(opts: {
         );
       }
     }
-    */
   };
 
   const routeCdpCommand = async (cmd: CdpCommand): Promise<unknown> => {
@@ -323,7 +318,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
         return {
           targetInfos: Array.from(connectedTargets.values()).map((t) => ({
             ...t.targetInfo,
-            attached: false,
+            attached: true,
           })),
         };
       case "Target.getTargetInfo": {
