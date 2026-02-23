@@ -482,7 +482,15 @@ export async function runExecProcess(opts: {
     .then((exit): ExecProcessOutcome => {
       const durationMs = Date.now() - startedAt;
       const isNormalExit = exit.reason === "exit";
-      const status: "completed" | "failed" = isNormalExit ? "completed" : "failed";
+      const exitCode = exit.exitCode ?? 0;
+      const criticalExitFailureReason =
+        isNormalExit && exitCode === 127
+          ? "Command not found"
+          : isNormalExit && exitCode === 126
+            ? "Command not executable"
+            : null;
+      const status: "completed" | "failed" =
+        isNormalExit && !criticalExitFailureReason ? "completed" : "failed";
 
       markExited(session, exit.exitCode, exit.exitSignal, status);
       maybeNotifyOnExit(session, status);
@@ -491,7 +499,6 @@ export async function runExecProcess(opts: {
       }
       const aggregated = session.aggregated.trim();
       if (status === "completed") {
-        const exitCode = exit.exitCode ?? 0;
         const exitMsg = exitCode !== 0 ? `\n\n(Command exited with code ${exitCode})` : "";
         return {
           status: "completed",
@@ -500,6 +507,19 @@ export async function runExecProcess(opts: {
           durationMs,
           aggregated: aggregated + exitMsg,
           timedOut: false,
+        };
+      }
+      if (criticalExitFailureReason) {
+        return {
+          status: "failed",
+          exitCode,
+          exitSignal: exit.exitSignal,
+          durationMs,
+          aggregated,
+          timedOut: false,
+          reason: aggregated
+            ? `${aggregated}\n\n${criticalExitFailureReason}`
+            : criticalExitFailureReason,
         };
       }
       const reason =

@@ -503,6 +503,37 @@ describe("exec exit codes", () => {
     expect(text).toContain(OUTPUT_NOPE);
     expect(text).toContain(OUTPUT_EXIT_CODE_1);
   });
+
+  it("treats command-not-found exits as failures", async () => {
+    await expect(
+      execTool.execute("call-missing", {
+        command: "__openclaw_missing_binary_24587__",
+      }),
+    ).rejects.toThrow(/command not found|not recognized/i);
+  });
+
+  it("marks background command-not-found sessions as failed", async () => {
+    const tool = createTestExecTool({
+      allowBackground: true,
+      backgroundMs: 0,
+      notifyOnExit: true,
+      sessionKey: "agent:main:main",
+    });
+    const result = await tool.execute("call-bg-missing", {
+      command: "__openclaw_missing_binary_bg_24587__",
+      background: true,
+    });
+    expect(result.details.status).toBe("running");
+    const sessionId = (result.details as { sessionId: string }).sessionId;
+    const status = await waitForCompletion(sessionId);
+    expect(status).toBe("failed");
+    await expect
+      .poll(
+        () => peekSystemEvents("agent:main:main").some((event) => event.includes("Exec failed")),
+        { timeout: isWin ? 12_000 : 5_000, interval: POLL_INTERVAL_MS },
+      )
+      .toBe(true);
+  });
 });
 
 describe("exec notifyOnExit", () => {
