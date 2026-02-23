@@ -8,7 +8,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:  # pragma: no cover - exercised in CI where PyYAML is absent
+    yaml = None
 
 MAX_SKILL_NAME_LENGTH = 64
 
@@ -21,6 +24,41 @@ def _extract_frontmatter(content: str) -> Optional[str]:
         if lines[i].strip() == "---":
             return "\n".join(lines[1:i])
     return None
+
+
+def _parse_frontmatter(frontmatter_text: str):
+    if yaml is not None:
+        try:
+            parsed = yaml.safe_load(frontmatter_text)
+        except yaml.YAMLError as e:
+            return None, f"Invalid YAML in frontmatter: {e}"
+        if not isinstance(parsed, dict):
+            return None, "Frontmatter must be a YAML dictionary"
+        return parsed, None
+
+    # Fallback parser for environments without PyYAML. This keeps validation
+    # available in minimal CI setups by reading top-level `key: value` pairs.
+    parsed = {}
+    for raw_line in frontmatter_text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if raw_line[0].isspace():
+            # Nested values (lists/maps) are skipped in fallback mode.
+            continue
+        if ":" not in raw_line:
+            return None, "Invalid frontmatter format"
+        key, value = raw_line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            return None, "Invalid frontmatter format"
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        parsed[key] = value
+    if not isinstance(parsed, dict):
+        return None, "Frontmatter must be a YAML dictionary"
+    return parsed, None
 
 
 def validate_skill(skill_path):
@@ -39,12 +77,9 @@ def validate_skill(skill_path):
     frontmatter_text = _extract_frontmatter(content)
     if frontmatter_text is None:
         return False, "Invalid frontmatter format"
-    try:
-        frontmatter = yaml.safe_load(frontmatter_text)
-        if not isinstance(frontmatter, dict):
-            return False, "Frontmatter must be a YAML dictionary"
-    except yaml.YAMLError as e:
-        return False, f"Invalid YAML in frontmatter: {e}"
+    frontmatter, parse_error = _parse_frontmatter(frontmatter_text)
+    if parse_error is not None:
+        return False, parse_error
 
     allowed_properties = {"name", "description", "license", "allowed-tools", "metadata"}
 
