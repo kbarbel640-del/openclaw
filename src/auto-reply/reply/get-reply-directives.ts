@@ -400,7 +400,12 @@ export async function resolveReplyDirectives(params: {
     resolvedThinkLevel ?? (await modelState.resolveDefaultThinkingLevel());
   const thinkingActive = effectiveThinkingForReasoning !== "off";
   if (!reasoningExplicitlySet && resolvedReasoningLevel === "off" && !thinkingActive) {
-    resolvedReasoningLevel = await modelState.resolveDefaultReasoningLevel();
+    const channelReasoning = opts?.channelReasoningLevel;
+    if (channelReasoning === "off" || channelReasoning === "on" || channelReasoning === "stream") {
+      resolvedReasoningLevel = channelReasoning;
+    } else {
+      resolvedReasoningLevel = await modelState.resolveDefaultReasoningLevel();
+    }
   }
 
   let contextTokens = resolveContextTokens({

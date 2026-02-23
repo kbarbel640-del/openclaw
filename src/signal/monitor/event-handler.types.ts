@@ -73,6 +73,7 @@ export type SignalEventHandlerDeps = {
   baseUrl: string;
   account?: string;
   accountId: string;
+  reasoningLevel?: "off" | "on" | "stream";
   blockStreaming?: boolean;
   historyLimit: number;
   groupHistories: Map<string, HistoryEntry[]>;

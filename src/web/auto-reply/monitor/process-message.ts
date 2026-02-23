@@ -140,6 +140,10 @@ export async function processMessage(params: {
   suppressGroupHistoryClear?: boolean;
 }) {
   const conversationId = params.msg.conversationId ?? params.msg.from;
+  const accountConfig = resolveWhatsAppAccount({
+    cfg: params.cfg,
+    accountId: params.route.accountId,
+  });
   const storePath = resolveStorePath(params.cfg.session?.store, {
     agentId: params.route.agentId,
   });
@@ -417,6 +421,7 @@ export async function processMessage(params: {
       onReplyStart: params.msg.sendComposing,
     },
     replyOptions: {
+      channelReasoningLevel: accountConfig.reasoningLevel,
       disableBlockStreaming:
         typeof params.cfg.channels?.whatsapp?.blockStreaming === "boolean"
           ? !params.cfg.channels.whatsapp.blockStreaming

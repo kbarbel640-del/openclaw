@@ -32,6 +32,7 @@ export type ChannelModelByChannelConfig = Record<string, Record<string, string>>
  */
 export type ExtensionChannelConfig = {
   enabled?: boolean;
+  reasoningLevel?: "off" | "on" | "stream";
   allowFrom?: string | string[];
   /** Default delivery target for CLI --deliver when no explicit --reply-to is provided. */
   defaultTo?: string;

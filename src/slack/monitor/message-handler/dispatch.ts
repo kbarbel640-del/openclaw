@@ -378,6 +378,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     replyOptions: {
       ...replyOptions,
       skillFilter: prepared.channelConfig?.skills,
+      channelReasoningLevel: account.config.reasoningLevel,
       hasRepliedRef,
       disableBlockStreaming: useStreaming
         ? true

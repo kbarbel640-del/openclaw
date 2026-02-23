@@ -40,12 +40,14 @@ const connectNodeClient = async (params: {
   onEvent?: (evt: { event?: string; payload?: unknown }) => void;
 }) => {
   const token = process.env.OPENCLAW_GATEWAY_TOKEN;
+  const password = process.env.OPENCLAW_GATEWAY_PASSWORD;
   if (!token) {
     throw new Error("OPENCLAW_GATEWAY_TOKEN is required for node test clients");
   }
   return await connectGatewayClient({
     url: `ws://127.0.0.1:${params.port}`,
     token,
+    password,
     role: "node",
     clientName: GATEWAY_CLIENT_NAMES.NODE_HOST,
     clientVersion: "1.0.0",

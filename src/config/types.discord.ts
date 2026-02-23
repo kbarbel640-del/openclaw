@@ -177,6 +177,7 @@ export type DiscordAccountConfig = {
   commands?: ProviderCommandsConfig;
   /** Allow channel-initiated config writes (default: true). */
   configWrites?: boolean;
+  reasoningLevel?: "off" | "on" | "stream";
   /** If false, do not start this Discord account. Default: true. */
   enabled?: boolean;
   token?: string;

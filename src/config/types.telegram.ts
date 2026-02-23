@@ -63,6 +63,7 @@ export type TelegramAccountConfig = {
   customCommands?: TelegramCustomCommand[];
   /** Allow channel-initiated config writes (default: true). */
   configWrites?: boolean;
+  reasoningLevel?: "off" | "on" | "stream";
   /**
    * Controls how Telegram direct chats (DMs) are handled:
    * - "pairing" (default): unknown senders get a pairing code; owner must approve

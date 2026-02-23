@@ -26,6 +26,7 @@ export async function getFreeGatewayPort(): Promise<number> {
 export async function connectGatewayClient(params: {
   url: string;
   token?: string;
+  password?: string;
   clientName?: GatewayClientName;
   clientDisplayName?: string;
   clientVersion?: string;
@@ -59,6 +60,7 @@ export async function connectGatewayClient(params: {
     const client = new GatewayClient({
       url: params.url,
       token: params.token,
+      password: params.password,
       connectDelayMs: params.connectDelayMs ?? 0,
       clientName: params.clientName ?? GATEWAY_CLIENT_NAMES.TEST,
       clientDisplayName: params.clientDisplayName ?? "vitest",

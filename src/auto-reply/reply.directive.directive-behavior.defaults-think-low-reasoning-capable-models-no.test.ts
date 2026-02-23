@@ -303,6 +303,150 @@ describe("directive behavior", () => {
       expect(call?.reasoningLevel).toBe("on");
     });
   });
+  it("uses channel reasoningLevel off before model auto-default", async () => {
+    await withTempHome(async (home) => {
+      mockEmbeddedTextResult("done");
+      vi.mocked(loadModelCatalog).mockResolvedValueOnce([
+        {
+          id: "claude-opus-4-5",
+          name: "Opus 4.5",
+          provider: "anthropic",
+          reasoning: true,
+        },
+      ]);
+
+      await getReplyFromConfig(
+        {
+          Body: "hello",
+          From: "+1004",
+          To: "+2000",
+          Provider: "whatsapp",
+          Surface: "whatsapp",
+        },
+        {},
+        makeWhatsAppDirectiveConfig(
+          home,
+          {
+            model: { primary: "anthropic/claude-opus-4-5" },
+            thinkingDefault: "off",
+          },
+          {
+            channels: {
+              whatsapp: {
+                reasoningLevel: "off",
+              },
+            },
+          },
+        ),
+      );
+
+      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
+      const call = vi.mocked(runEmbeddedPiAgent).mock.calls[0]?.[0];
+      expect(call?.reasoningLevel).toBe("off");
+    });
+  });
+  it("uses channel reasoningLevel on for non-reasoning models", async () => {
+    await withTempHome(async (home) => {
+      mockEmbeddedTextResult("done");
+      vi.mocked(loadModelCatalog).mockResolvedValueOnce([
+        {
+          id: "gpt-4.1-mini",
+          name: "GPT-4.1 Mini",
+          provider: "openai",
+          reasoning: false,
+        },
+      ]);
+
+      await getReplyFromConfig(
+        {
+          Body: "hello",
+          From: "+1004",
+          To: "+2000",
+          Provider: "whatsapp",
+          Surface: "whatsapp",
+        },
+        {},
+        makeWhatsAppDirectiveConfig(
+          home,
+          {
+            model: { primary: "openai/gpt-4.1-mini" },
+            thinkingDefault: "off",
+          },
+          {
+            channels: {
+              whatsapp: {
+                reasoningLevel: "on",
+              },
+            },
+          },
+        ),
+      );
+
+      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
+      const call = vi.mocked(runEmbeddedPiAgent).mock.calls[0]?.[0];
+      expect(call?.reasoningLevel).toBe("on");
+    });
+  });
+  it("prefers session reasoningLevel over channel reasoningLevel", async () => {
+    await withTempHome(async (home) => {
+      const storePath = sessionStorePath(home);
+      mockEmbeddedTextResult("done");
+      vi.mocked(loadModelCatalog).mockResolvedValue([
+        {
+          id: "claude-opus-4-5",
+          name: "Opus 4.5",
+          provider: "anthropic",
+          reasoning: true,
+        },
+      ]);
+
+      const config = makeWhatsAppDirectiveConfig(
+        home,
+        {
+          model: { primary: "anthropic/claude-opus-4-5" },
+          thinkingDefault: "off",
+        },
+        {
+          channels: {
+            whatsapp: {
+              reasoningLevel: "on",
+            },
+          },
+          session: { store: storePath },
+        },
+      );
+
+      const offRes = await getReplyFromConfig(
+        {
+          Body: "/reasoning off",
+          From: "+1004",
+          To: "+2000",
+          Provider: "whatsapp",
+          Surface: "whatsapp",
+          CommandAuthorized: true,
+        },
+        {},
+        config,
+      );
+      expect(replyText(offRes)).toContain("Reasoning visibility disabled.");
+
+      await getReplyFromConfig(
+        {
+          Body: "hello",
+          From: "+1004",
+          To: "+2000",
+          Provider: "whatsapp",
+          Surface: "whatsapp",
+        },
+        {},
+        config,
+      );
+
+      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
+      const call = vi.mocked(runEmbeddedPiAgent).mock.calls[0]?.[0];
+      expect(call?.reasoningLevel).toBe("off");
+    });
+  });
   it("passes elevated defaults when sender is approved", async () => {
     await withTempHome(async (home) => {
       mockEmbeddedTextResult("done");

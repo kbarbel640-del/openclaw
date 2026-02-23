@@ -4,6 +4,7 @@ export type SignalReactionNotificationMode = "off" | "own" | "all" | "allowlist"
 export type SignalReactionLevel = "off" | "ack" | "minimal" | "extensive";
 
 export type SignalAccountConfig = CommonChannelMessagingConfig & {
+  reasoningLevel?: "off" | "on" | "stream";
   /** Optional explicit E.164 account for signal-cli. */
   account?: string;
   /** Optional full base URL for signal-cli HTTP daemon. */

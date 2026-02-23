@@ -246,6 +246,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       dispatcher,
       replyOptions: {
         ...replyOptions,
+        channelReasoningLevel: deps.reasoningLevel,
         disableBlockStreaming:
           typeof deps.blockStreaming === "boolean" ? !deps.blockStreaming : undefined,
         onModelSelected,
