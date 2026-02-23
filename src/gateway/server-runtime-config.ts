@@ -35,6 +35,15 @@ export type GatewayRuntimeConfig = {
   canvasHostEnabled: boolean;
 };
 
+function parseEnvBoolean(value: string | undefined): boolean | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return undefined;
+}
+
 export async function resolveGatewayRuntimeConfig(params: {
   cfg: ReturnType<typeof loadConfig>;
   port: number;
@@ -72,12 +81,18 @@ export async function resolveGatewayRuntimeConfig(params: {
   }
   const controlUiEnabled =
     params.controlUiEnabled ?? params.cfg.gateway?.controlUi?.enabled ?? true;
+  const chatCompletionsFromEnv = parseEnvBoolean(
+    process.env.OPENCLAW_GATEWAY_HTTP_CHAT_COMPLETIONS_ENABLED,
+  );
   const openAiChatCompletionsEnabled =
     params.openAiChatCompletionsEnabled ??
     params.cfg.gateway?.http?.endpoints?.chatCompletions?.enabled ??
+    chatCompletionsFromEnv ??
     false;
   const openResponsesConfig = params.cfg.gateway?.http?.endpoints?.responses;
-  const openResponsesEnabled = params.openResponsesEnabled ?? openResponsesConfig?.enabled ?? false;
+  const responsesFromEnv = parseEnvBoolean(process.env.OPENCLAW_GATEWAY_HTTP_RESPONSES_ENABLED);
+  const openResponsesEnabled =
+    params.openResponsesEnabled ?? openResponsesConfig?.enabled ?? responsesFromEnv ?? false;
   const controlUiBasePath = normalizeControlUiBasePath(params.cfg.gateway?.controlUi?.basePath);
   const controlUiRootRaw = params.cfg.gateway?.controlUi?.root;
   const controlUiRoot =
