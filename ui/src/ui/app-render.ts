@@ -136,6 +136,11 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
 }
 
 export function renderApp(state: AppViewState) {
+  const openClawVersion =
+    (typeof state.hello?.server?.version === "string" && state.hello.server.version.trim()) ||
+    state.updateAvailable?.currentVersion ||
+    t("common.na");
+  const versionStatusClass = state.updateAvailable ? "warn" : "ok";
   const presenceCount = state.presenceEntries.length;
   const sessionsCount = state.sessionsResult?.count ?? null;
   const cronNext = state.cronStatus?.nextWakeAtMs ?? null;
@@ -231,6 +236,11 @@ export function renderApp(state: AppViewState) {
           </div>
         </div>
         <div class="topbar-status">
+          <div class="pill">
+            <span class="statusDot ${versionStatusClass}"></span>
+            <span>${t("common.version")}</span>
+            <span class="mono">${openClawVersion}</span>
+          </div>
           <div class="pill">
             <span class="statusDot ${state.connected ? "ok" : ""}"></span>
             <span>${t("common.health")}</span>
