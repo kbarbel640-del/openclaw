@@ -313,6 +313,7 @@ class GatewaySession(
       }
       val payloadJson = res.payloadJson ?: throw IllegalStateException("connect failed: missing payload")
       val obj = json.parseToJsonElement(payloadJson).asObjectOrNull() ?: throw IllegalStateException("connect failed")
+      validateConnectHelloProtocol(obj)
       val serverName = obj["server"].asObjectOrNull()?.get("host").asStringOrNull()
       val authObj = obj["auth"].asObjectOrNull()
       val deviceToken = authObj?.get("deviceToken").asStringOrNull()
@@ -692,6 +693,23 @@ private fun JsonElement?.asLongOrNull(): Long? =
     is JsonPrimitive -> content.toLongOrNull()
     else -> null
   }
+
+internal fun validateConnectHelloProtocol(payload: JsonObject, expectedProtocol: Int = GATEWAY_PROTOCOL_VERSION) {
+  val rawProtocol = payload["protocol"]
+    ?: throw IllegalStateException("connect failed: hello-ok missing protocol")
+  val primitive = rawProtocol as? JsonPrimitive
+    ?: throw IllegalStateException("connect failed: hello-ok protocol is not numeric")
+  if (primitive.isString) {
+    throw IllegalStateException("connect failed: hello-ok protocol is not numeric")
+  }
+  val actual = primitive.content.toIntOrNull()
+    ?: throw IllegalStateException("connect failed: hello-ok protocol is not numeric")
+  if (actual != expectedProtocol) {
+    throw IllegalStateException(
+      "connect failed: hello-ok protocol mismatch (expected=$expectedProtocol actual=$actual)",
+    )
+  }
+}
 
 private fun parseJsonOrNull(payload: String): JsonElement? {
   val trimmed = payload.trim()

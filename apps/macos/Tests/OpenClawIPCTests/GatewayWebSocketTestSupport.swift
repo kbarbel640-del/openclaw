@@ -33,7 +33,7 @@ enum GatewayWebSocketTestSupport {
           "ok": true,
           "payload": {
             "type": "hello-ok",
-            "protocol": 2,
+            "protocol": 3,
             "server": { "version": "test", "connId": "test" },
             "features": { "methods": [], "events": [] },
             "snapshot": {

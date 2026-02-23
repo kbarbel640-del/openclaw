@@ -127,6 +127,20 @@ private enum ConnectChallengeError: Error {
     case timeout
 }
 
+private enum ConnectHandshakeError: LocalizedError {
+    case invalidHelloType(expected: String, actual: String)
+    case protocolMismatch(expected: Int, actual: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case let .invalidHelloType(expected, actual):
+            return "gateway handshake invalid type: expected=\(expected) actual=\(actual)"
+        case let .protocolMismatch(expected, actual):
+            return "gateway handshake protocol mismatch: expected=\(expected) actual=\(actual)"
+        }
+    }
+}
+
 public actor GatewayChannelActor {
     private let logger = Logger(subsystem: "ai.openclaw", category: "gateway")
     private var task: WebSocketTaskBox?
@@ -432,7 +446,7 @@ public actor GatewayChannelActor {
             let response = try await self.waitForConnectResponse(reqId: reqId)
             try await self.handleConnectResponse(response, identity: identity, role: role)
         } catch {
-            if canFallbackToShared {
+            if canFallbackToShared, !(error is ConnectHandshakeError) {
                 if let identity {
                     DeviceAuthStore.clearToken(deviceId: identity.deviceId, role: role)
                 }
@@ -458,6 +472,7 @@ public actor GatewayChannelActor {
         }
         let payloadData = try self.encoder.encode(payload)
         let ok = try decoder.decode(HelloOk.self, from: payloadData)
+        try self.validateConnectHello(ok)
         if let tick = ok.policy["tickIntervalMs"]?.value as? Double {
             self.tickIntervalMs = tick
         } else if let tick = ok.policy["tickIntervalMs"]?.value as? Int {
@@ -484,6 +499,18 @@ public actor GatewayChannelActor {
         }
         if let pushHandler = self.pushHandler {
             Task { await pushHandler(.snapshot(ok)) }
+        }
+    }
+
+    private func validateConnectHello(_ ok: HelloOk) throws {
+        let expectedType = "hello-ok"
+        guard ok.type == expectedType else {
+            throw ConnectHandshakeError.invalidHelloType(expected: expectedType, actual: ok.type)
+        }
+        guard ok._protocol == GATEWAY_PROTOCOL_VERSION else {
+            throw ConnectHandshakeError.protocolMismatch(
+                expected: GATEWAY_PROTOCOL_VERSION,
+                actual: ok._protocol)
         }
     }
 

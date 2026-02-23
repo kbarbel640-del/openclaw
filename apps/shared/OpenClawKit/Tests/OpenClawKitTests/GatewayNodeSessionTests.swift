@@ -34,11 +34,21 @@ private extension NSLock {
 
 private final class FakeGatewayWebSocketTask: WebSocketTasking, @unchecked Sendable {
     private let lock = NSLock()
+    private let connectOkType: String
+    private let connectOkProtocol: Int
     private var _state: URLSessionTask.State = .suspended
     private var connectRequestId: String?
     private var receivePhase = 0
     private var pendingReceiveHandler:
         (@Sendable (Result<URLSessionWebSocketTask.Message, Error>) -> Void)?
+
+    init(
+        connectOkType: String = "hello-ok",
+        connectOkProtocol: Int = GATEWAY_PROTOCOL_VERSION)
+    {
+        self.connectOkType = connectOkType
+        self.connectOkProtocol = connectOkProtocol
+    }
 
     var state: URLSessionTask.State {
         get { self.lock.withLock { self._state } }
@@ -91,11 +101,11 @@ private final class FakeGatewayWebSocketTask: WebSocketTasking, @unchecked Senda
         for _ in 0..<50 {
             let id = self.lock.withLock { self.connectRequestId }
             if let id {
-                return .data(Self.connectOkData(id: id))
+                return .data(self.connectOkData(id: id))
             }
             try await Task.sleep(nanoseconds: 1_000_000)
         }
-        return .data(Self.connectOkData(id: "connect"))
+        return .data(self.connectOkData(id: "connect"))
     }
 
     func receive(
@@ -124,15 +134,15 @@ private final class FakeGatewayWebSocketTask: WebSocketTasking, @unchecked Senda
         return Data(json.utf8)
     }
 
-    private static func connectOkData(id: String) -> Data {
+    private func connectOkData(id: String) -> Data {
         let json = """
         {
           "type": "res",
           "id": "\(id)",
           "ok": true,
           "payload": {
-            "type": "hello-ok",
-            "protocol": 2,
+            "type": "\(self.connectOkType)",
+            "protocol": \(self.connectOkProtocol),
             "server": { "version": "test", "connId": "test" },
             "features": { "methods": [], "events": [] },
             "snapshot": {
@@ -151,8 +161,18 @@ private final class FakeGatewayWebSocketTask: WebSocketTasking, @unchecked Senda
 
 private final class FakeGatewayWebSocketSession: WebSocketSessioning, @unchecked Sendable {
     private let lock = NSLock()
+    private let connectOkType: String
+    private let connectOkProtocol: Int
     private var tasks: [FakeGatewayWebSocketTask] = []
     private var makeCount = 0
+
+    init(
+        connectOkType: String = "hello-ok",
+        connectOkProtocol: Int = GATEWAY_PROTOCOL_VERSION)
+    {
+        self.connectOkType = connectOkType
+        self.connectOkProtocol = connectOkProtocol
+    }
 
     func snapshotMakeCount() -> Int {
         self.lock.withLock { self.makeCount }
@@ -166,7 +186,9 @@ private final class FakeGatewayWebSocketSession: WebSocketSessioning, @unchecked
         _ = url
         return self.lock.withLock {
             self.makeCount += 1
-            let task = FakeGatewayWebSocketTask()
+            let task = FakeGatewayWebSocketTask(
+                connectOkType: self.connectOkType,
+                connectOkProtocol: self.connectOkProtocol)
             self.tasks.append(task)
             return WebSocketTaskBox(task: task)
         }
@@ -177,6 +199,26 @@ private actor SeqGapProbe {
     private var saw = false
     func mark() { self.saw = true }
     func value() -> Bool { self.saw }
+}
+
+private func withTemporaryOpenClawStateDir<T>(
+    _ body: @escaping @Sendable (URL) async throws -> T) async throws -> T
+{
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("openclawkit-tests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let envKey = "OPENCLAW_STATE_DIR"
+    let original = ProcessInfo.processInfo.environment[envKey]
+    setenv(envKey, dir.path, 1)
+    defer {
+        if let original {
+            setenv(envKey, original, 1)
+        } else {
+            unsetenv(envKey)
+        }
+        try? FileManager.default.removeItem(at: dir)
+    }
+    return try await body(dir)
 }
 
 struct GatewayNodeSessionTests {
@@ -280,5 +322,126 @@ struct GatewayNodeSessionTests {
 
         listenTask.cancel()
         await gateway.disconnect()
+    }
+
+    @Test
+    func connectFailsOnProtocolMismatch() async throws {
+        let session = FakeGatewayWebSocketSession(connectOkProtocol: GATEWAY_PROTOCOL_VERSION - 1)
+        let gateway = GatewayNodeSession()
+        let options = GatewayConnectOptions(
+            role: "operator",
+            scopes: ["operator.read"],
+            caps: [],
+            commands: [],
+            permissions: [:],
+            clientId: "openclaw-ios-test",
+            clientMode: "ui",
+            clientDisplayName: "iOS Test",
+            includeDeviceIdentity: false)
+
+        do {
+            try await gateway.connect(
+                url: URL(string: "ws://example.invalid")!,
+                token: nil,
+                password: nil,
+                connectOptions: options,
+                sessionBox: WebSocketSessionBox(session: session),
+                onConnected: {},
+                onDisconnected: { _ in },
+                onInvoke: { req in
+                    BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: nil, error: nil)
+                })
+            Issue.record("expected connect failure for protocol mismatch")
+        } catch {
+            let description = error.localizedDescription
+            #expect(description.contains("protocol mismatch"))
+            #expect(description.contains("expected=\(GATEWAY_PROTOCOL_VERSION)"))
+            #expect(description.contains("actual=\(GATEWAY_PROTOCOL_VERSION - 1)"))
+        }
+
+        await gateway.disconnect()
+    }
+
+    @Test
+    func connectFailsOnInvalidHelloType() async throws {
+        let session = FakeGatewayWebSocketSession(connectOkType: "hello")
+        let gateway = GatewayNodeSession()
+        let options = GatewayConnectOptions(
+            role: "operator",
+            scopes: ["operator.read"],
+            caps: [],
+            commands: [],
+            permissions: [:],
+            clientId: "openclaw-ios-test",
+            clientMode: "ui",
+            clientDisplayName: "iOS Test",
+            includeDeviceIdentity: false)
+
+        do {
+            try await gateway.connect(
+                url: URL(string: "ws://example.invalid")!,
+                token: nil,
+                password: nil,
+                connectOptions: options,
+                sessionBox: WebSocketSessionBox(session: session),
+                onConnected: {},
+                onDisconnected: { _ in },
+                onInvoke: { req in
+                    BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: nil, error: nil)
+                })
+            Issue.record("expected connect failure for invalid hello type")
+        } catch {
+            let description = error.localizedDescription
+            #expect(description.contains("invalid type"))
+            #expect(description.contains("expected=hello-ok"))
+            #expect(description.contains("actual=hello"))
+        }
+
+        await gateway.disconnect()
+    }
+
+    @Test
+    func protocolMismatchDoesNotClearStoredDeviceToken() async throws {
+        try await withTemporaryOpenClawStateDir { _ in
+            let identity = DeviceIdentityStore.loadOrCreate()
+            _ = DeviceAuthStore.storeToken(
+                deviceId: identity.deviceId,
+                role: "operator",
+                token: "device-token")
+
+            let session = FakeGatewayWebSocketSession(connectOkProtocol: GATEWAY_PROTOCOL_VERSION - 1)
+            let gateway = GatewayNodeSession()
+            let options = GatewayConnectOptions(
+                role: "operator",
+                scopes: ["operator.admin"],
+                caps: [],
+                commands: [],
+                permissions: [:],
+                clientId: "openclaw-ios-test",
+                clientMode: "ui",
+                clientDisplayName: "iOS Test",
+                includeDeviceIdentity: true)
+
+            do {
+                try await gateway.connect(
+                    url: URL(string: "ws://example.invalid")!,
+                    token: "shared-token",
+                    password: nil,
+                    connectOptions: options,
+                    sessionBox: WebSocketSessionBox(session: session),
+                    onConnected: {},
+                    onDisconnected: { _ in },
+                    onInvoke: { req in
+                        BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: nil, error: nil)
+                    })
+                Issue.record("expected connect failure for protocol mismatch")
+            } catch {
+                #expect(error.localizedDescription.contains("protocol mismatch"))
+            }
+
+            let stillStored = DeviceAuthStore.loadToken(deviceId: identity.deviceId, role: "operator")
+            #expect(stillStored?.token == "device-token")
+            await gateway.disconnect()
+        }
     }
 }
