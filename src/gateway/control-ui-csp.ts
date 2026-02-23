@@ -35,7 +35,11 @@ function normalizeCspSourceToken(token: string): string | null {
   if (SAFE_KEYWORDS.has(trimmed) || SAFE_SCHEMES.has(trimmed)) {
     return trimmed;
   }
-  if (/^(https?|wss?):\/\/\*\.[a-z0-9.-]+(?::\d+)?$/i.test(trimmed)) {
+  if (
+    /^(https?|wss?):\/\/\*\.[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(?::\d+)?$/i.test(
+      trimmed,
+    )
+  ) {
     return trimmed;
   }
   try {
