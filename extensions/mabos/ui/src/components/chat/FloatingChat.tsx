@@ -1,10 +1,22 @@
 import { useRouterState } from "@tanstack/react-router";
-import { SendHorizontal, History, Sparkles, X, Minus } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import {
+  SendHorizontal,
+  History,
+  Sparkles,
+  X,
+  Minus,
+  Brain,
+  Search,
+  ScanSearch,
+  Database,
+  Workflow,
+} from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChatState } from "@/contexts/ChatContext";
 import { useChat } from "@/hooks/useChat";
+import type { AgentActivity } from "@/hooks/useChat";
 import { useChatActionDispatcher } from "@/lib/chat-actions";
 import { getPageContext } from "@/lib/page-context";
 import { AgentSelector } from "./AgentSelector";
@@ -38,20 +50,71 @@ function getSuggestions(pathname: string): string[] {
   return pageSuggestions[relative] || pageSuggestions["/"] || [];
 }
 
+function AgentActivityIndicator({ activity }: { activity: AgentActivity }) {
+  const config = {
+    thinking: { icon: Brain, label: "Thinking" },
+    analyzing: { icon: ScanSearch, label: "Analyzing" },
+    searching: { icon: Search, label: "Searching" },
+    retrieving: { icon: Database, label: "Retrieving" },
+    reasoning: { icon: Workflow, label: "Reasoning" },
+  };
+  const { icon: Icon, label } =
+    config[activity.status as keyof typeof config] ?? config.thinking;
+  return (
+    <div className="flex items-center gap-2 px-3 py-2">
+      <Icon className="w-4 h-4 text-[var(--accent-purple)] animate-pulse" />
+      <span className="text-xs text-[var(--text-muted)] animate-pulse">
+        {activity.label || label}...
+      </span>
+    </div>
+  );
+}
+
 export function FloatingChat() {
   const { isMinimized, minimizeChat, setLastActiveAgent } = useChatState();
   const { dispatchAction } = useChatActionDispatcher();
   const routerState = useRouterState();
   const pageCtx = getPageContext(routerState.location.pathname);
 
-  const { messages, status, activeAgent, setActiveAgent, sendMessage } = useChat("default", {
+  const {
+    messages,
+    status,
+    activeAgent,
+    setActiveAgent,
+    sendMessage,
+    isSending,
+    agentActivity,
+  } = useChat("default", {
     onAction: dispatchAction,
   });
 
   const [input, setInput] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showResponsePanel, setShowResponsePanel] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const responseScrollRef = useRef<HTMLDivElement>(null);
   const suggestions = getSuggestions(routerState.location.pathname);
+
+  // Derive latest agent message
+  const latestAgentMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "agent") return messages[i];
+    }
+    return null;
+  }, [messages]);
+
+  // Auto-open panel when agent activity starts
+  useEffect(() => {
+    if (agentActivity.status !== null) {
+      setShowResponsePanel(true);
+    }
+  }, [agentActivity.status]);
+
+  // Auto-scroll response area when content changes
+  useEffect(() => {
+    if (responseScrollRef.current) {
+      responseScrollRef.current.scrollTop = responseScrollRef.current.scrollHeight;
+    }
+  }, [latestAgentMessage?.content, agentActivity.status]);
 
   // Sync activeAgent to ChatContext for collapsed button
   useEffect(() => {
@@ -64,12 +127,17 @@ export function FloatingChat() {
     disconnected: "bg-[var(--accent-red)]",
   }[status];
 
+  // Determine if the unified panel should be visible
+  const showPanel =
+    agentActivity.status !== null ||
+    latestAgentMessage?.streaming ||
+    showResponsePanel;
+
   function handleSend(text?: string) {
     const msg = text || input;
     if (!msg.trim()) return;
     sendMessage(msg, { page: pageCtx.pageId, capabilities: pageCtx.capabilities });
     setInput("");
-    setShowSuggestions(false);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -89,34 +157,61 @@ export function FloatingChat() {
 
   return (
     <div className="fixed bottom-[40px] left-1/2 -translate-x-1/2 z-[30] w-[calc(100vw-48px)] md:max-w-[800px] max-[480px]:max-w-[calc(100%-24px)] max-[480px]:bottom-[20px]">
-      {/* Suggestion popup */}
-      {showSuggestions && suggestions.length > 0 && (
+      {/* Unified Response + Suggestions Panel */}
+      {showPanel && (
         <div
-          className="mb-2 p-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-mabos)] backdrop-blur-sm"
+          className="mb-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-mabos)] backdrop-blur-sm overflow-hidden"
           style={{ boxShadow: "0 0 40px rgba(0, 0, 0, 0.15)" }}
         >
-          <div className="flex items-center justify-between px-2 mb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Suggestions
-            </span>
-            <button
-              onClick={() => setShowSuggestions(false)}
-              className="p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                onClick={() => handleSuggestionClick(s)}
-                className="px-3 py-1.5 text-xs rounded-full bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          {/* Agent Response Section */}
+          {(agentActivity.status || latestAgentMessage) && (
+            <div className="px-3 pt-3">
+              <ScrollArea className="max-h-[40vh]">
+                <div ref={responseScrollRef}>
+                  {/* Show latest agent response */}
+                  {latestAgentMessage && (
+                    <ChatMessage message={latestAgentMessage} />
+                  )}
+                  {/* Show activity indicator when processing */}
+                  {agentActivity.status && (
+                    <AgentActivityIndicator activity={agentActivity} />
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+
+          {/* Spacer between sections */}
+          {(agentActivity.status || latestAgentMessage) &&
+            suggestions.length > 0 && <div className="h-[30px]" />}
+
+          {/* Suggestions Section (pinned bottom) */}
+          {suggestions.length > 0 && (
+            <div className="p-2 border-t border-[var(--border-mabos)]">
+              <div className="flex items-center justify-between px-2 mb-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Suggestions
+                </span>
+                <button
+                  onClick={() => setShowResponsePanel(false)}
+                  className="p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => handleSuggestionClick(s)}
+                    className="px-3 py-1.5 text-xs rounded-full bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -168,7 +263,7 @@ export function FloatingChat() {
 
           {/* Suggestions toggle */}
           <button
-            onClick={() => setShowSuggestions((s) => !s)}
+            onClick={() => setShowResponsePanel((s) => !s)}
             className="p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--accent-purple)] hover:bg-[var(--bg-hover)] transition-colors shrink-0"
             aria-label="Show suggestions"
           >
@@ -190,7 +285,7 @@ export function FloatingChat() {
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onFocus={() => setShowSuggestions(true)}
+          onFocus={() => setShowResponsePanel(true)}
           onKeyDown={handleKeyDown}
           placeholder="Message your agents..."
           className="flex-1 min-h-0 w-full resize-none px-3 py-2 pr-14 text-sm bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
