@@ -62,6 +62,7 @@
 ## Current caveats
 - Node now connects using node identity (`client.id = node-host`, role/mode = node).
 - Basic command execution exists (`system.run`, `system.which`, `system.notify`) and Phase 2 now includes `screen.record` timed MP4 recording via `ScreenRecorderLib` plus `camera.snap` via native WinRT capture/list (PowerShell bridge) with optional bundled ffmpeg fallback if packaged.
+- `screen.record` tuning now supports `captureApi` (best-effort), `lowLatency`, and resilient fallback attempts (hardware-on -> hardware-off -> desktop-duplication low-latency) to improve reliability across hosts/drivers.
 - Real-host camera validation is complete for current hardware (single USB webcam): `camera.snap` works in generic and explicit `deviceId` modes; `facing=front/back` may map to the same physical camera semantics on single-camera hosts; `maxWidth` and `quality` controls are verified.
 - Camera path no longer depends on `MediaFoundation.Net`; this removes the `NU1701` framework-compat warning path for `net8.0` builds.
 - Build/test currently require x64 platform selection when running commands from CLI in this environment (e.g. `-p:Platform=x64`) because `ScreenRecorderLib` does not support AnyCPU.

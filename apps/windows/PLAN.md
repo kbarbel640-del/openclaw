@@ -56,9 +56,9 @@ Build a native Windows application that replicates the functionality of the Open
   - [x] Timed recording parameters handled: `durationMs`, `fps`, `includeAudio`, `screenIndex`
   - [x] Returns OpenClaw-compatible payload shapes:
     - `screen.list` -> `{ displays: [{ index, id, name }] }`
-    - `screen.record` -> `{ format: "mp4", base64, durationMs, fps, screenIndex, hasAudio }`
+    - `screen.record` -> `{ format: "mp4", base64, durationMs, fps, screenIndex, hasAudio, captureApi, hardwareEncoding, lowLatency }`
   - [x] Initial MP4 recording implementation uses `ScreenRecorderLib` (Windows Media Foundation-backed)
-  - [ ] Evaluate/iterate native implementation details (WGC vs Desktop Duplication behavior tuning)
+  - [x] Evaluate/iterate native implementation details (WGC vs Desktop Duplication behavior tuning) with capture-api selection + resilient fallback attempts (hardware-on -> hardware-off -> desktop-duplication low-latency)
 - **Camera (`Media/`)**
   - [x] `camera.list` bridge command wired in `NodeCommandExecutor` with device metadata payload
   - [x] `camera.snap` bridge command wired in `NodeCommandExecutor`
