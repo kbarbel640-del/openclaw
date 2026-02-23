@@ -24,6 +24,11 @@ export function enablePluginInConfig(cfg: OpenClawConfig, pluginId: string): Plu
       existing && typeof existing === "object" && !Array.isArray(existing)
         ? (existing as Record<string, unknown>)
         : {};
+    const existingEntry = cfg.plugins?.entries?.[builtInChannelId];
+    const hasDisabledEntry =
+      existingEntry &&
+      typeof existingEntry === "object" &&
+      (existingEntry as Record<string, unknown>).enabled === false;
     let next: OpenClawConfig = {
       ...cfg,
       channels: {
@@ -34,6 +39,21 @@ export function enablePluginInConfig(cfg: OpenClawConfig, pluginId: string): Plu
         },
       },
     };
+    if (hasDisabledEntry) {
+      next = {
+        ...next,
+        plugins: {
+          ...next.plugins,
+          entries: {
+            ...next.plugins?.entries,
+            [builtInChannelId]: {
+              ...(existingEntry as Record<string, unknown>),
+              enabled: true,
+            },
+          },
+        },
+      };
+    }
     next = ensurePluginAllowlisted(next, resolvedId);
     return { config: next, enabled: true };
   }
