@@ -995,7 +995,7 @@ describe("applyAuthChoice", () => {
       mode: "api_key",
     });
     expect(resolveAgentModelPrimaryValue(result.config.agents?.defaults?.model)).toBe(
-      "vercel-ai-gateway/claude-opus-4.6",
+      "vercel-ai-gateway/anthropic/claude-opus-4.6",
     );
 
     expect((await readAuthProfile("vercel-ai-gateway:default"))?.key).toBe("gateway-test-key");
