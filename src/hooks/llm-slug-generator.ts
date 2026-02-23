@@ -10,6 +10,7 @@ import {
   resolveAgentWorkspaceDir,
   resolveAgentDir,
 } from "../agents/agent-scope.js";
+import { resolveDefaultModelForAgent } from "../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -29,6 +30,7 @@ export async function generateSlugViaLLM(params: {
     const agentId = resolveDefaultAgentId(params.cfg);
     const workspaceDir = resolveAgentWorkspaceDir(params.cfg, agentId);
     const agentDir = resolveAgentDir(params.cfg, agentId);
+    const { provider, model } = resolveDefaultModelForAgent({ cfg: params.cfg, agentId });
 
     // Create a temporary session file for this one-off LLM call
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-slug-"));
@@ -49,6 +51,8 @@ Reply with ONLY the slug, nothing else. Examples: "vendor-pitch", "api-design", 
       workspaceDir,
       agentDir,
       config: params.cfg,
+      provider,
+      model,
       prompt,
       timeoutMs: 15_000, // 15 second timeout
       runId: `slug-gen-${Date.now()}`,
