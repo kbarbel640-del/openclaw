@@ -37,6 +37,7 @@ export const ttsHandlers: GatewayRequestHandlers = {
         fallbackProviders,
         prefsPath,
         hasOpenAIKey: Boolean(resolveTtsApiKey(config, "openai")),
+        hasQwen3FastapiConfig: isTtsProviderConfigured(config, "qwen3-fastapi"),
         hasElevenLabsKey: Boolean(resolveTtsApiKey(config, "elevenlabs")),
         edgeEnabled: isTtsProviderConfigured(config, "edge"),
       });
@@ -100,13 +101,18 @@ export const ttsHandlers: GatewayRequestHandlers = {
   },
   "tts.setProvider": async ({ params, respond }) => {
     const provider = typeof params.provider === "string" ? params.provider.trim() : "";
-    if (provider !== "openai" && provider !== "elevenlabs" && provider !== "edge") {
+    if (
+      provider !== "openai" &&
+      provider !== "qwen3-fastapi" &&
+      provider !== "elevenlabs" &&
+      provider !== "edge"
+    ) {
       respond(
         false,
         undefined,
         errorShape(
           ErrorCodes.INVALID_REQUEST,
-          "Invalid provider. Use openai, elevenlabs, or edge.",
+          "Invalid provider. Use openai, qwen3-fastapi, elevenlabs, or edge.",
         ),
       );
       return;
@@ -134,6 +140,12 @@ export const ttsHandlers: GatewayRequestHandlers = {
             configured: Boolean(resolveTtsApiKey(config, "openai")),
             models: [...OPENAI_TTS_MODELS],
             voices: [...OPENAI_TTS_VOICES],
+          },
+          {
+            id: "qwen3-fastapi",
+            name: "Qwen3 FastAPI",
+            configured: isTtsProviderConfigured(config, "qwen3-fastapi"),
+            models: config.qwen3Fastapi.model.trim() ? [config.qwen3Fastapi.model] : [],
           },
           {
             id: "elevenlabs",

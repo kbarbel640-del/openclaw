@@ -176,6 +176,30 @@ describe("gateway.channelHealthCheckMinutes", () => {
   });
 });
 
+describe("messages.tts qwen3-fastapi instructions/stream fields", () => {
+  it("accepts qwen3Fastapi instructions + stream defaults and model override gates", () => {
+    const res = validateConfigObject({
+      messages: {
+        tts: {
+          qwen3Fastapi: {
+            baseUrl: "http://127.0.0.1:8000/v1",
+            model: "Qwen/Qwen3-TTS-0.6B",
+            voice: "Chelsie",
+            instructions: "energetic",
+            stream: true,
+          },
+          modelOverrides: {
+            allowInstructions: true,
+            allowStream: true,
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
+});
+
 describe("cron webhook schema", () => {
   it("accepts cron.webhookToken and legacy cron.webhook", () => {
     const res = OpenClawSchema.safeParse({

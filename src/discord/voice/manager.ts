@@ -95,6 +95,10 @@ function mergeTtsConfig(base: TtsConfig, override?: TtsConfig): TtsConfig {
       ...base.openai,
       ...override.openai,
     },
+    qwen3Fastapi: {
+      ...base.qwen3Fastapi,
+      ...override.qwen3Fastapi,
+    },
     edge: {
       ...base.edge,
       ...override.edge,

@@ -56,6 +56,7 @@ function ttsUsage(): ReplyPayload {
       `**Providers:**\n` +
       `• edge — Free, fast (default)\n` +
       `• openai — High quality (requires API key)\n` +
+      `• qwen3-fastapi — Self-hosted Qwen3 TTS via FastAPI\n` +
       `• elevenlabs — Premium voices (requires API key)\n\n` +
       `**Text Limit (default: 1500, max: 4096):**\n` +
       `When text exceeds the limit:\n` +
@@ -160,6 +161,7 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
     const currentProvider = getTtsProvider(config, prefsPath);
     if (!args.trim()) {
       const hasOpenAI = Boolean(resolveTtsApiKey(config, "openai"));
+      const hasQwen3Fastapi = isTtsProviderConfigured(config, "qwen3-fastapi");
       const hasElevenLabs = Boolean(resolveTtsApiKey(config, "elevenlabs"));
       const hasEdge = isTtsProviderConfigured(config, "edge");
       return {
@@ -169,15 +171,21 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
             `🎙️ TTS provider\n` +
             `Primary: ${currentProvider}\n` +
             `OpenAI key: ${hasOpenAI ? "✅" : "❌"}\n` +
+            `Qwen3 FastAPI: ${hasQwen3Fastapi ? "✅" : "❌"}\n` +
             `ElevenLabs key: ${hasElevenLabs ? "✅" : "❌"}\n` +
             `Edge enabled: ${hasEdge ? "✅" : "❌"}\n` +
-            `Usage: /tts provider openai | elevenlabs | edge`,
+            `Usage: /tts provider openai | qwen3-fastapi | elevenlabs | edge`,
         },
       };
     }
 
     const requested = args.trim().toLowerCase();
-    if (requested !== "openai" && requested !== "elevenlabs" && requested !== "edge") {
+    if (
+      requested !== "openai" &&
+      requested !== "qwen3-fastapi" &&
+      requested !== "elevenlabs" &&
+      requested !== "edge"
+    ) {
       return { shouldContinue: false, reply: ttsUsage() };
     }
 
