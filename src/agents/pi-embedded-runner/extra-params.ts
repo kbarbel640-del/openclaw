@@ -395,6 +395,12 @@ function createOpenRouterWrapper(
               effort: mapThinkingLevelToOpenRouterReasoningEffort(thinkingLevel),
             };
           }
+
+          // Remove conflicting top-level reasoning_effort field injected by pi-ai.
+          // OpenRouter rejects requests with both reasoning and reasoning_effort.
+          if ("reasoning_effort" in payloadObj) {
+            delete payloadObj.reasoning_effort;
+          }
         }
         onPayload?.(payload);
       },
