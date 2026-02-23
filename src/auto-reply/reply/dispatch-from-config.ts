@@ -444,6 +444,8 @@ export async function dispatchReplyFromConfig(params: {
         cfg,
         shouldSendToolSummaries,
         deliver: deliverAcpPayload,
+        provider: ctx.Surface ?? ctx.Provider,
+        accountId: ctx.AccountId,
       });
 
       try {

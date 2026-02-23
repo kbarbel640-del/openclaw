@@ -33,14 +33,19 @@ Goal:
 Scope:
 
 - Touch ACP path only
+- Reuse main/subagent streaming components directly
 - Do not change main/subagent behavior
 
 Plan:
 
-1. Replace ACP projector ad-hoc buffering behavior with the same coalescing semantics used by regular block streaming.
-2. Preserve raw delta text from ACP (no trim/whitespace normalization in streaming path).
-3. Reuse existing reply dispatcher and Discord delivery path exactly as today.
-4. Keep ACP-specific config surface compatible, but align defaults with existing block coalescer behavior.
+1. Replace ACP projector buffering internals with the same block streaming components used in main/subagent flow:
+   - `createBlockReplyCoalescer` via `createBlockReplyPipeline`
+   - `resolveBlockStreamingChunking`
+   - `resolveBlockStreamingCoalescing`
+2. Keep ACP text ingestion separate only at runtime-event mapping level (`text_delta` intake), then hand off block shaping to the shared pipeline.
+3. Preserve raw delta text from ACP (no trim/whitespace normalization in streaming path).
+4. Reuse existing reply dispatcher and Discord delivery path exactly as today.
+5. Keep ACP-specific config compatible, but make shared block-streaming config the primary behavior source for ACP block buffering.
 
 Expected result:
 
@@ -57,7 +62,7 @@ Pros:
 
 Cons:
 
-- Still leaves separate ACP ingress logic in core
+- Still leaves separate ACP ingress/dispatch branch in core
 - Some future divergence risk remains
 
 ## Holy grail (long-term architecture)
@@ -98,15 +103,16 @@ Cons:
 
 ## Side-by-side comparison
 
-| Dimension                        | Fix now (ACP-only) | Holy grail (unified pipeline) |
-| -------------------------------- | ------------------ | ----------------------------- |
-| Blast radius                     | Low                | Medium to high                |
-| Time to ship                     | Short              | Long                          |
-| User-facing ACP fix              | Immediate          | Included                      |
-| Risk of regressions              | Low                | Medium                        |
-| Long-term maintenance            | Medium             | Low                           |
-| Architecture elegance            | Medium             | High                          |
-| Need to touch main/subagent path | No                 | Yes (internals)               |
+| Dimension                                       | Fix now (ACP-only) | Holy grail (unified pipeline) |
+| ----------------------------------------------- | ------------------ | ----------------------------- |
+| Blast radius                                    | Low                | Medium to high                |
+| Time to ship                                    | Short              | Long                          |
+| User-facing ACP fix                             | Immediate          | Included                      |
+| Risk of regressions                             | Low                | Medium                        |
+| Long-term maintenance                           | Medium             | Low                           |
+| Architecture elegance                           | Medium             | High                          |
+| Reuses main/subagent block streaming components | Yes                | Yes                           |
+| Changes main/subagent behavior                  | No                 | Potentially during migration  |
 
 ## Recommended sequence
 
@@ -119,7 +125,7 @@ Cons:
 
 Fix now checklist:
 
-- ACP streaming path uses production coalescing semantics
+- ACP uses shared block streaming components (`BlockReplyPipeline`/`BlockReplyCoalescer`) for block text delivery
 - ACP spacing preserved end to end
 - Discord thread replies are readable and not token-fragmented
 - No duplicate outputs in parent plus thread

@@ -46,6 +46,37 @@ describe("createAcpReplyProjector", () => {
     ]);
   });
 
+  it("buffers tiny token deltas and flushes once at turn end", async () => {
+    const deliveries: Array<{ kind: string; text?: string }> = [];
+    const projector = createAcpReplyProjector({
+      cfg: createCfg({
+        acp: {
+          enabled: true,
+          stream: {
+            batchMs: 0,
+            maxChunkChars: 256,
+          },
+        },
+      }),
+      shouldSendToolSummaries: true,
+      provider: "discord",
+      deliver: async (kind, payload) => {
+        deliveries.push({ kind, text: payload.text });
+        return true;
+      },
+    });
+
+    await projector.onEvent({ type: "text_delta", text: "What" });
+    await projector.onEvent({ type: "text_delta", text: " do" });
+    await projector.onEvent({ type: "text_delta", text: " you want to work on?" });
+
+    expect(deliveries).toEqual([]);
+
+    await projector.flush(true);
+
+    expect(deliveries).toEqual([{ kind: "block", text: "What do you want to work on?" }]);
+  });
+
   it("filters thought stream text and suppresses tool summaries when disabled", async () => {
     const deliver = vi.fn(async () => true);
     const projector = createAcpReplyProjector({

@@ -1,6 +1,10 @@
 import type { AcpRuntimeEvent } from "../../acp/runtime/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ReplyPayload } from "../types.js";
+import {
+  resolveBlockStreamingChunking,
+  resolveBlockStreamingCoalescing,
+} from "./block-streaming.js";
 import type { ReplyDispatchKind } from "./reply-dispatcher.js";
 
 const DEFAULT_ACP_STREAM_BATCH_MS = 350;
@@ -38,6 +42,25 @@ function resolveAcpStreamMaxChunkChars(cfg: OpenClawConfig): number {
   });
 }
 
+function resolveAcpStreamMinChunkChars(params: {
+  cfg: OpenClawConfig;
+  provider?: string;
+  accountId?: string;
+  maxChunkChars: number;
+}): number {
+  const chunking = resolveBlockStreamingChunking(params.cfg, params.provider, params.accountId);
+  const coalescing = resolveBlockStreamingCoalescing(
+    params.cfg,
+    params.provider,
+    params.accountId,
+    chunking,
+  );
+  return clampPositiveInteger(coalescing?.minChars, params.maxChunkChars, {
+    min: 1,
+    max: params.maxChunkChars,
+  });
+}
+
 export type AcpReplyProjector = {
   onEvent: (event: AcpRuntimeEvent) => Promise<void>;
   flush: (force?: boolean) => Promise<void>;
@@ -47,15 +70,26 @@ export function createAcpReplyProjector(params: {
   cfg: OpenClawConfig;
   shouldSendToolSummaries: boolean;
   deliver: (kind: ReplyDispatchKind, payload: ReplyPayload) => Promise<boolean>;
+  provider?: string;
+  accountId?: string;
 }): AcpReplyProjector {
   const batchMs = resolveAcpStreamBatchMs(params.cfg);
   const maxChunkChars = resolveAcpStreamMaxChunkChars(params.cfg);
+  const minChunkChars = resolveAcpStreamMinChunkChars({
+    cfg: params.cfg,
+    provider: params.provider,
+    accountId: params.accountId,
+    maxChunkChars,
+  });
   let streamBuffer = "";
   let lastFlushAt = 0;
 
   const flush = async (force = false): Promise<void> => {
     while (streamBuffer.length > 0) {
       const now = Date.now();
+      if (!force && streamBuffer.length < minChunkChars) {
+        return;
+      }
       if (!force && streamBuffer.length < maxChunkChars && now - lastFlushAt < batchMs) {
         return;
       }
