@@ -644,8 +644,6 @@ describe("Agent-specific tool filtering", () => {
 
     const result = await execTool!.execute("call-implicit-sandbox-default", {
       command: "echo done",
-      // CI on slower Windows runners can surface an in-flight status with very low yieldMs.
-      yieldMs: 1000,
     });
     const details = result?.details as { status?: string } | undefined;
     expect(details?.status).toBe("completed");

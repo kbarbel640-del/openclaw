@@ -152,6 +152,72 @@ describe("config io write", () => {
     });
   });
 
+  it("does not mutate caller config when unsetPaths is applied on existing files", async () => {
+    await withTempHome("openclaw-config-io-", async (home) => {
+      const { configPath, io, snapshot } = await writeConfigAndCreateIo({
+        home,
+        initialConfig: {
+          gateway: { mode: "local" },
+          commands: { ownerDisplay: "hash" },
+        },
+      });
+
+      const input = structuredClone(snapshot.config) as Record<string, unknown>;
+      await io.writeConfigFile(input, { unsetPaths: [["commands", "ownerDisplay"]] });
+
+      expect((input.commands as Record<string, unknown>).ownerDisplay).toBe("hash");
+      const persisted = JSON.parse(await fs.readFile(configPath, "utf-8")) as {
+        commands?: Record<string, unknown>;
+      };
+      expect(persisted.commands ?? {}).not.toHaveProperty("ownerDisplay");
+    });
+  });
+
+  it("keeps caller arrays immutable when unsetting array entries", async () => {
+    await withTempHome("openclaw-config-io-", async (home) => {
+      const { configPath, io, snapshot } = await writeConfigAndCreateIo({
+        home,
+        initialConfig: {
+          gateway: { mode: "local" },
+          tools: { alsoAllow: ["exec", "fetch", "read"] },
+        },
+      });
+
+      const input = structuredClone(snapshot.config) as Record<string, unknown>;
+      await io.writeConfigFile(input, { unsetPaths: [["tools", "alsoAllow", "1"]] });
+
+      expect((input.tools as { alsoAllow: string[] }).alsoAllow).toEqual(["exec", "fetch", "read"]);
+      const persisted = JSON.parse(await fs.readFile(configPath, "utf-8")) as {
+        tools?: { alsoAllow?: string[] };
+      };
+      expect(persisted.tools?.alsoAllow).toEqual(["exec", "read"]);
+    });
+  });
+
+  it("treats missing unset paths as no-op without mutating caller config", async () => {
+    await withTempHome("openclaw-config-io-", async (home) => {
+      const { configPath, io } = await writeConfigAndCreateIo({
+        home,
+        initialConfig: {
+          gateway: { mode: "local" },
+          commands: { ownerDisplay: "hash" },
+        },
+      });
+
+      const input: Record<string, unknown> = {
+        gateway: { mode: "local" },
+        commands: { ownerDisplay: "hash" },
+      };
+      await io.writeConfigFile(input, { unsetPaths: [["commands", "missingKey"]] });
+
+      expect((input.commands as Record<string, unknown>).ownerDisplay).toBe("hash");
+      const persisted = JSON.parse(await fs.readFile(configPath, "utf-8")) as {
+        commands?: Record<string, unknown>;
+      };
+      expect(persisted.commands?.ownerDisplay).toBe("hash");
+    });
+  });
+
   it("preserves env var references when writing", async () => {
     await withTempHome("openclaw-config-io-", async (home) => {
       const { configPath, io, snapshot } = await writeConfigAndCreateIo({
