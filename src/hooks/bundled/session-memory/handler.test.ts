@@ -40,12 +40,13 @@ function createMockSessionContent(
     .join("\n");
 }
 
-async function runNewWithPreviousSessionEntry(params: {
+async function runMemorySaveWithPreviousSessionEntry(params: {
   tempDir: string;
   previousSessionEntry: { sessionId: string; sessionFile?: string };
   cfg?: OpenClawConfig;
+  action?: "new" | "reset";
 }): Promise<{ files: string[]; memoryContent: string }> {
-  const event = createHookEvent("command", "new", "agent:main:main", {
+  const event = createHookEvent("command", params.action ?? "new", "agent:main:main", {
     cfg:
       params.cfg ??
       ({
@@ -83,7 +84,7 @@ async function runNewWithPreviousSession(params: {
       agents: { defaults: { workspace: tempDir } },
     } satisfies OpenClawConfig);
 
-  const { files, memoryContent } = await runNewWithPreviousSessionEntry({
+  const { files, memoryContent } = await runMemorySaveWithPreviousSessionEntry({
     tempDir,
     cfg,
     previousSessionEntry: {
@@ -126,7 +127,7 @@ describe("session-memory hook", () => {
     await expect(fs.access(memoryDir)).rejects.toThrow();
   });
 
-  it("skips commands other than new", async () => {
+  it("skips commands other than new/reset", async () => {
     const tempDir = await makeTempWorkspace("openclaw-session-memory-");
 
     const event = createHookEvent("command", "help", "agent:main:main", {
@@ -138,6 +139,36 @@ describe("session-memory hook", () => {
     // Memory directory should not be created for other commands
     const memoryDir = path.join(tempDir, "memory");
     await expect(fs.access(memoryDir)).rejects.toThrow();
+  });
+
+  it("creates memory file with session content on /reset command", async () => {
+    const sessionContent = createMockSessionContent([
+      { role: "user", content: "Old context" },
+      { role: "assistant", content: "Saved before reset" },
+    ]);
+
+    const tempDir = await makeTempWorkspace("openclaw-session-memory-");
+    const sessionsDir = path.join(tempDir, "sessions");
+    await fs.mkdir(sessionsDir, { recursive: true });
+
+    const sessionFile = await writeWorkspaceFile({
+      dir: sessionsDir,
+      name: "test-session.jsonl",
+      content: sessionContent,
+    });
+
+    const { files, memoryContent } = await runMemorySaveWithPreviousSessionEntry({
+      tempDir,
+      action: "reset",
+      previousSessionEntry: {
+        sessionId: "test-123",
+        sessionFile,
+      },
+    });
+
+    expect(files.length).toBe(1);
+    expect(memoryContent).toContain("user: Old context");
+    expect(memoryContent).toContain("assistant: Saved before reset");
   });
 
   it("creates memory file with session content on /new command", async () => {
@@ -292,7 +323,7 @@ describe("session-memory hook", () => {
       content: resetContent,
     });
 
-    const { memoryContent } = await runNewWithPreviousSessionEntry({
+    const { memoryContent } = await runMemorySaveWithPreviousSessionEntry({
       tempDir,
       previousSessionEntry: {
         sessionId: "test-123",
@@ -319,7 +350,7 @@ describe("session-memory hook", () => {
       ]),
     });
 
-    const { files, memoryContent } = await runNewWithPreviousSessionEntry({
+    const { files, memoryContent } = await runMemorySaveWithPreviousSessionEntry({
       tempDir,
       cfg: makeSessionMemoryConfig(tempDir),
       previousSessionEntry: {
@@ -353,7 +384,7 @@ describe("session-memory hook", () => {
       ]),
     });
 
-    const { files, memoryContent } = await runNewWithPreviousSessionEntry({
+    const { files, memoryContent } = await runMemorySaveWithPreviousSessionEntry({
       tempDir,
       cfg: makeSessionMemoryConfig(tempDir),
       previousSessionEntry: {
@@ -394,7 +425,7 @@ describe("session-memory hook", () => {
       ]),
     });
 
-    const { memoryContent } = await runNewWithPreviousSessionEntry({
+    const { memoryContent } = await runMemorySaveWithPreviousSessionEntry({
       tempDir,
       previousSessionEntry: {
         sessionId: "test-123",

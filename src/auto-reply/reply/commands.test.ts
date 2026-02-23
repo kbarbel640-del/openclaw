@@ -11,6 +11,7 @@ import {
 import type { OpenClawConfig } from "../../config/config.js";
 import { updateSessionStore } from "../../config/sessions.js";
 import * as internalHooks from "../../hooks/internal-hooks.js";
+import * as globalHookRunner from "../../plugins/hook-runner-global.js";
 import { clearPluginCommands, registerPluginCommand } from "../../plugins/commands.js";
 import type { MsgContext } from "../templating.js";
 import { resetBashChatCommandForTests } from "./bash-command.js";
@@ -839,6 +840,59 @@ describe("handleCommands hooks", () => {
 
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ type: "command", action: "new" }));
     spy.mockRestore();
+  });
+
+  it("runs before_reset against previous session metadata", async () => {
+    const cfg = {
+      commands: { text: true },
+      channels: { whatsapp: { allowFrom: ["*"] } },
+      agents: { list: [{ id: "ops" }] },
+    } as OpenClawConfig;
+    const params = buildParams("/reset keep notes", cfg);
+    params.sessionKey = "agent:ops:main";
+    params.previousSessionEntry = { sessionId: "old-session-id", updatedAt: Date.now() };
+
+    const runBeforeReset = vi.fn().mockResolvedValue(undefined);
+    const hookRunnerSpy = vi
+      .spyOn(globalHookRunner, "getGlobalHookRunner")
+      .mockReturnValue({
+        hasHooks: () => true,
+        runBeforeReset,
+      } as unknown as ReturnType<typeof globalHookRunner.getGlobalHookRunner>);
+
+    await handleCommands(params);
+
+    expect(runBeforeReset).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "reset" }),
+      expect.objectContaining({
+        sessionId: "old-session-id",
+        sessionKey: "agent:ops:main",
+        agentId: "ops",
+      }),
+    );
+    hookRunnerSpy.mockRestore();
+  });
+
+  it("skips before_reset when previous session pointer is unavailable", async () => {
+    const cfg = {
+      commands: { text: true },
+      channels: { whatsapp: { allowFrom: ["*"] } },
+    } as OpenClawConfig;
+    const params = buildParams("/new", cfg);
+    params.previousSessionEntry = undefined;
+
+    const runBeforeReset = vi.fn().mockResolvedValue(undefined);
+    const hookRunnerSpy = vi
+      .spyOn(globalHookRunner, "getGlobalHookRunner")
+      .mockReturnValue({
+        hasHooks: () => true,
+        runBeforeReset,
+      } as unknown as ReturnType<typeof globalHookRunner.getGlobalHookRunner>);
+
+    await handleCommands(params);
+
+    expect(runBeforeReset).not.toHaveBeenCalled();
+    hookRunnerSpy.mockRestore();
   });
 });
 

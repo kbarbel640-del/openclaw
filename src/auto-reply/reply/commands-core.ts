@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { logVerbose } from "../../globals.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
@@ -114,8 +115,11 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
     if (hookRunner?.hasHooks("before_reset")) {
       const prevEntry = params.previousSessionEntry;
       const sessionFile = prevEntry?.sessionFile;
-      // Fire-and-forget: read old session messages and run hook
-      void (async () => {
+      if (!prevEntry?.sessionId && !sessionFile) {
+        // Guardrail: before_reset must operate on pre-reset session state only.
+        // Without an old session pointer, plugins might read the newly-reset transcript.
+        logVerbose("before_reset: skipped because previous session pointer is unavailable");
+      } else {
         try {
           const messages: unknown[] = [];
           if (sessionFile) {
@@ -139,7 +143,10 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
           await hookRunner.runBeforeReset(
             { sessionFile, messages, reason: commandAction },
             {
-              agentId: params.sessionKey?.split(":")[0] ?? "main",
+              agentId: resolveSessionAgentId({
+                sessionKey: params.sessionKey,
+                config: params.cfg,
+              }),
               sessionKey: params.sessionKey,
               sessionId: prevEntry?.sessionId,
               workspaceDir: params.workspaceDir,
@@ -148,7 +155,7 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
         } catch (err: unknown) {
           logVerbose(`before_reset hook failed: ${String(err)}`);
         }
-      })();
+      }
     }
   }
 

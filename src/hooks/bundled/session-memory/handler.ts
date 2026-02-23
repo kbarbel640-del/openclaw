@@ -167,11 +167,11 @@ async function findPreviousSessionFile(params: {
 }
 
 /**
- * Save session context to memory when /new command is triggered
+ * Save session context to memory when /new or /reset command is triggered
  */
 const saveSessionToMemory: HookHandler = async (event) => {
-  // Only trigger on 'new' command
-  if (event.type !== "command" || event.action !== "new") {
+  // Only trigger on session reset commands.
+  if (event.type !== "command" || (event.action !== "new" && event.action !== "reset")) {
     return;
   }
 
