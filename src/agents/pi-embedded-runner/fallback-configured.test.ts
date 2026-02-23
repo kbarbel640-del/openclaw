@@ -63,4 +63,17 @@ describe("pi-embedded-runner: isModelFallbackConfiguredForAgent", () => {
 
     expect(isModelFallbackConfiguredForAgent(cfg, "fina")).toBe(false);
   });
+
+  it("returns false when neither defaults nor agent have fallbacks", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          model: { primary: "anthropic/claude-sonnet-4-6" },
+        },
+        list: [{ id: "fina", model: { primary: "anthropic/claude-sonnet-4-6" } }],
+      },
+    } as OpenClawConfig;
+
+    expect(isModelFallbackConfiguredForAgent(cfg, "fina")).toBe(false);
+  });
 });
