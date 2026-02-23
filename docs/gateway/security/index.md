@@ -178,6 +178,126 @@ If more than one person can DM your bot:
 
 If you run `--deep`, OpenClaw also attempts a best-effort live Gateway probe.
 
+## Zero Trust Hardening
+
+OpenClaw ships several defense-in-depth features under the unified `security` config namespace. Each can be enabled independently.
+
+### Credential encryption at rest (Vault)
+
+Stored credentials (`~/.openclaw/credentials/`) can be encrypted with AES-256-GCM. The data encryption key (DEK) is derived from one of two sources:
+
+- **OS keychain** (macOS Keychain, Windows Credential Manager, or libsecret on Linux) — preferred; no passphrase prompt.
+- **Passphrase-based KDF** — PBKDF2 derivation as a fallback when no keychain is available.
+
+Enable via config:
+
+```json5
+{
+  security: {
+    vault: {
+      enabled: true,
+      autoEncrypt: true, // encrypt on write
+      autoDecrypt: true, // decrypt on read
+    },
+  },
+}
+```
+
+CLI helpers:
+
+```bash
+openclaw security vault encrypt   # encrypt all credential files
+openclaw security vault decrypt   # decrypt back to plaintext
+openclaw security vault status    # show encryption status
+```
+
+Addresses threat **T-ACCESS-003** (token theft from plaintext config files).
+
+### Per-sender message rate limiting
+
+A sliding-window rate limiter at the message dispatch layer prevents abuse and cost exhaustion from any single sender:
+
+```json5
+{
+  security: {
+    messageRateLimit: {
+      enabled: true,
+      maxMessagesPerMinute: 20,
+      maxMessagesPerHour: 200,
+      burstLimit: 5,
+      cooldownMs: 60000,
+      throttleResponse: "notify-once",
+    },
+  },
+}
+```
+
+Exempt specific senders via `exemptSenders`. A companion cost budget (`security.costBudget`) can cap daily spend per sender.
+
+Addresses threat **T-IMPACT-002** (resource exhaustion / DoS).
+
+### Configuration integrity verification
+
+SHA-256 hash verification detects unauthorized modifications to `openclaw.json` and other config files:
+
+```json5
+{
+  security: {
+    configIntegrity: {
+      enabled: true,
+      warnOnly: false, // true = log warning; false = block startup
+    },
+  },
+}
+```
+
+CLI helpers:
+
+```bash
+openclaw security integrity snapshot  # baseline current config hashes
+openclaw security integrity verify    # check for tampering
+```
+
+Addresses threat **T-PERSIST-003** (agent configuration tampering).
+
+### Plugin capability manifests
+
+Plugins can declare their required capabilities in an `openclaw-manifest.json` file. The Gateway validates declared capabilities against actual usage at load time:
+
+```json
+{
+  "manifestVersion": 1,
+  "pluginId": "msteams",
+  "capabilities": {
+    "gatewayMethods": [
+      { "method": "handleInboundMessage", "description": "Process Teams messages" }
+    ],
+    "network": { "outbound": true, "hosts": ["graph.microsoft.com"] }
+  },
+  "permissions": {
+    "config": { "reads": ["channels.msteams"] },
+    "filesystem": { "reads": ["~/.openclaw/credentials/msteams/"] }
+  }
+}
+```
+
+Enforcement modes:
+
+```json5
+{
+  security: {
+    pluginCapabilities: {
+      enforcement: "warn", // "warn" | "enforce" | "off"
+      requireManifest: false, // true = block plugins without manifests
+    },
+  },
+}
+```
+
+`openclaw security audit` flags plugins missing manifests or exceeding declared capabilities.
+
+Addresses threat **T-PERSIST-001** (malicious skill/plugin installation).
+
 ## Credential storage map
 
 Use this when auditing access or deciding what to back up:

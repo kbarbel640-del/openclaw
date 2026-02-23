@@ -1,5 +1,5 @@
-import { normalizeChannelId } from "../channels/plugins/index.js";
 import type { ChannelId } from "../channels/plugins/types.js";
+import { normalizeChatChannelId } from "../channels/registry.js";
 import { isPlainObject } from "../infra/plain-object.js";
 import type { CommandsConfig, NativeCommandsSetting } from "./types.js";
 
@@ -8,7 +8,9 @@ export type CommandFlagKey = {
 }[keyof CommandsConfig];
 
 function resolveAutoDefault(providerId?: ChannelId): boolean {
-  const id = normalizeChannelId(providerId);
+  // Use static channel list; avoid plugin-registry-dependent normalizeChannelId
+  // so this works before the plugin registry is initialized.
+  const id = normalizeChatChannelId(providerId);
   if (!id) {
     return false;
   }
