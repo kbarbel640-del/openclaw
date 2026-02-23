@@ -1,0 +1,63 @@
+#!/bin/sh
+# Pre-commit scan: block commits containing references to internal projects,
+# secrets, private IPs, or internal URLs. Runs on staged content only.
+#
+# Install: ln -sf ../../git-hooks/pre-commit-scan .git/hooks/pre-commit
+# Or chain from an existing pre-commit hook.
+
+set -e
+
+# --- Blocked patterns (case-insensitive) ---
+# Internal project names, architecture terms, and extension names.
+# Each pattern is a grep -iE regex. Pipe-delimited for a single pass.
+BLOCKED_TERMS='shadow.?brain|brain.?worker|brain.?context|universal.?message.?logger|global.?workspace.?theory|\bgwt\b|mem0.?extension|/data/monday|/data/wednesday|/data/saturday|\binjector\b'
+
+# Private network IPs and internal hostnames
+BLOCKED_NETWORK='192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+'
+
+# Potential secrets (API keys, tokens, passwords in assignments)
+BLOCKED_SECRETS='(api[_-]?key|api[_-]?secret|auth[_-]?token|password|secret[_-]?key)\s*[:=]\s*["\x27][A-Za-z0-9+/=_-]{16,}'
+
+# --- Scan staged diff ---
+DIFF=$(git diff --cached --diff-filter=ACMR -U0 -- '*.ts' '*.tsx' '*.js' '*.json' '*.md' '*.yaml' '*.yml' '*.toml' '*.env' '*.sh' 2>/dev/null || true)
+
+if [ -z "$DIFF" ]; then
+  exit 0
+fi
+
+# Check for blocked terms (skip lines that are comments or in test fixtures)
+MATCHES=$(echo "$DIFF" | grep -inE "^\+" | grep -ivE "^\+\+\+" | grep -iE "$BLOCKED_TERMS" || true)
+if [ -n "$MATCHES" ]; then
+  echo ""
+  echo "ERROR: Blocked internal project reference found in staged changes:"
+  echo "$MATCHES" | head -10
+  echo ""
+  echo "These terms must NEVER appear in commits that may reach public repos."
+  echo "Remove the reference or add to .git-scan-allowlist if it's a false positive."
+  echo "To bypass (emergency only): git commit --no-verify"
+  exit 1
+fi
+
+# Check for private network addresses
+NET_MATCHES=$(echo "$DIFF" | grep -nE "^\+" | grep -vE "^\+\+\+" | grep -E "$BLOCKED_NETWORK" || true)
+if [ -n "$NET_MATCHES" ]; then
+  echo ""
+  echo "ERROR: Private network address found in staged changes:"
+  echo "$NET_MATCHES" | head -5
+  echo ""
+  echo "To bypass (emergency only): git commit --no-verify"
+  exit 1
+fi
+
+# Check for potential hardcoded secrets
+SECRET_MATCHES=$(echo "$DIFF" | grep -nE "^\+" | grep -vE "^\+\+\+" | grep -iE "$BLOCKED_SECRETS" || true)
+if [ -n "$SECRET_MATCHES" ]; then
+  echo ""
+  echo "WARNING: Possible hardcoded secret found in staged changes:"
+  echo "$SECRET_MATCHES" | head -5
+  echo ""
+  echo "To bypass (emergency only): git commit --no-verify"
+  exit 1
+fi
+
+exit 0

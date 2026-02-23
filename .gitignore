@@ -87,6 +87,7 @@ USER.md
 
 # local tooling
 .serena/
+.omc/
 
 # Agent credentials and memory (NEVER COMMIT)
 /memory/
