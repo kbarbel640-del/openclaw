@@ -311,6 +311,19 @@ export async function monitorLineProvider(
 
   abortSignal?.addEventListener("abort", stopHandler);
 
+  // Keep the monitor promise pending until the abort signal fires.
+  // Without this the promise resolves immediately, causing the gateway
+  // to think the channel stopped and triggering an infinite restart loop.
+  if (abortSignal && !abortSignal.aborted) {
+    await new Promise<void>((resolve) => {
+      const onAbort = () => {
+        abortSignal.removeEventListener("abort", onAbort);
+        resolve();
+      };
+      abortSignal.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
   return {
     account: bot.account,
     handleWebhook: bot.handleWebhook,
