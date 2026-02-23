@@ -72,7 +72,7 @@ type VoiceSessionEntry = {
   stop: () => void;
 };
 
-function mergeTtsConfig(base: TtsConfig, override?: TtsConfig): TtsConfig {
+export function mergeTtsConfig(base: TtsConfig, override?: TtsConfig): TtsConfig {
   if (!override) {
     return base;
   }
@@ -94,6 +94,10 @@ function mergeTtsConfig(base: TtsConfig, override?: TtsConfig): TtsConfig {
     openai: {
       ...base.openai,
       ...override.openai,
+    },
+    qwen3Fastapi: {
+      ...base.qwen3Fastapi,
+      ...override.qwen3Fastapi,
     },
     edge: {
       ...base.edge,
