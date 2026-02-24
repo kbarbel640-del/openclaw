@@ -173,7 +173,9 @@ export async function checkInboundAccessControl(params: {
       const allowed =
         dmHasWildcard ||
         (normalizedAllowFrom.length > 0 && normalizedAllowFrom.includes(candidate));
-      if (!allowed) {
+      // Same-phone (owner) messages always allowed through to agent even if not in allowFrom.
+      const effectiveAllowed = allowed || isSamePhone;
+      if (!effectiveAllowed) {
         if (dmPolicy === "pairing") {
           // Only send pairing reply to the owner (same number as linked account).
           if (isSamePhone) {
