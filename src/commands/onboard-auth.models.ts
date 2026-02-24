@@ -251,9 +251,7 @@ const CLAWPANE_MODEL_CATALOG = {
 
 type ClawpaneCatalogId = keyof typeof CLAWPANE_MODEL_CATALOG;
 
-export const CLAWPANE_MODEL_IDS = Object.keys(
-  CLAWPANE_MODEL_CATALOG,
-) as ClawpaneCatalogId[];
+export const CLAWPANE_MODEL_IDS = Object.keys(CLAWPANE_MODEL_CATALOG) as ClawpaneCatalogId[];
 
 export function buildClawpaneModelDefinition(
   id: string = CLAWPANE_DEFAULT_MODEL_ID,

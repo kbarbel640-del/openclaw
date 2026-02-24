@@ -38,12 +38,12 @@ openclaw onboard --non-interactive \
 
 Clawpane exposes four routing presets as model IDs:
 
-| Model ID           | Strategy                                  |
-| ------------------ | ----------------------------------------- |
-| `clawpane/auto`    | Balanced — cost, latency, and quality     |
-| `clawpane/fast`    | Latency-first — lowest response time      |
-| `clawpane/economy` | Cost-first — most affordable routing      |
-| `clawpane/quality` | Quality-first — best output quality       |
+| Model ID           | Strategy                              |
+| ------------------ | ------------------------------------- |
+| `clawpane/auto`    | Balanced — cost, latency, and quality |
+| `clawpane/fast`    | Latency-first — lowest response time  |
+| `clawpane/economy` | Cost-first — most affordable routing  |
+| `clawpane/quality` | Quality-first — best output quality   |
 
 Set the active preset as your default model:
 

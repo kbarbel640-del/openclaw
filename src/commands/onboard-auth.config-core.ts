@@ -543,9 +543,7 @@ export function applyAuthProfileConfig(
 }
 
 export function applyClawpaneProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
-  const clawpaneModels = CLAWPANE_MODEL_IDS.map((id) =>
-    buildClawpaneModelDefinition(id),
-  );
+  const clawpaneModels = CLAWPANE_MODEL_IDS.map((id) => buildClawpaneModelDefinition(id));
   return applyProviderConfigWithModelCatalog(cfg, {
     agentModels: { ...cfg.agents?.defaults?.models },
     providerId: "clawpane",
