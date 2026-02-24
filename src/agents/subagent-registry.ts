@@ -949,7 +949,7 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
       return;
     }
     let mutated = false;
-    if (typeof wait.startedAt === "number") {
+    if (typeof wait.startedAt === "number" && !entry.startedAt) {
       entry.startedAt = wait.startedAt;
       mutated = true;
     }
