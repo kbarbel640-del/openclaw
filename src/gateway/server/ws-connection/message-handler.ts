@@ -611,11 +611,16 @@ export function attachGatewayWsMessageHandler(params: {
               silent: isLocalClient && (reason === "not-paired" || reason === "scope-upgrade"),
             });
             const context = buildRequestContext();
-            if (pairing.request.silent === true) {
+            const shouldAutoApproveRepair =
+              reason === "not-paired" && pairing.request.isRepair === true && sharedAuthOk;
+            const shouldTryAutoApprove = pairing.request.silent === true || shouldAutoApproveRepair;
+            let autoApproved = false;
+            if (shouldTryAutoApprove) {
               const approved = await approveDevicePairing(pairing.request.requestId);
               if (approved) {
+                autoApproved = true;
                 logGateway.info(
-                  `device pairing auto-approved device=${approved.device.deviceId} role=${approved.device.role ?? "unknown"}`,
+                  `device pairing auto-approved mode=${shouldAutoApproveRepair ? "repair" : "silent"} device=${approved.device.deviceId} role=${approved.device.role ?? "unknown"}`,
                 );
                 context.broadcast(
                   "device.pair.resolved",
@@ -628,10 +633,11 @@ export function attachGatewayWsMessageHandler(params: {
                   { dropIfSlow: true },
                 );
               }
-            } else if (pairing.created) {
+            }
+            if (!autoApproved && pairing.created && pairing.request.silent !== true) {
               context.broadcast("device.pair.requested", pairing.request, { dropIfSlow: true });
             }
-            if (pairing.request.silent !== true) {
+            if (!autoApproved && pairing.request.silent !== true) {
               setHandshakeState("failed");
               setCloseCause("pairing-required", {
                 deviceId: device.id,
