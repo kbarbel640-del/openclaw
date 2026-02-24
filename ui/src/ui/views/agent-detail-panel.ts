@@ -222,25 +222,9 @@ export function renderAgentDetailPanel(props: AgentDetailPanelProps) {
       <div class="agent-detail-footer">
         <div class="agent-detail-footer__meta">
           ${agent?.id ? html`<code>${agent.id}</code>` : nothing}
-          ${(() => {
-            const files = props.filesList?.files;
-            if (!files || files.length === 0) {
-              return nothing;
-            }
-            const latest = files.reduce(
-              (max: number | undefined, f: { updatedAtMs?: number }) =>
-                f.updatedAtMs && f.updatedAtMs > (max ?? 0) ? f.updatedAtMs : max,
-              0 as number | undefined,
-            );
-            if (!latest) {
-              return nothing;
-            }
-            const date = new Date(latest);
-            return html` &middot; <span title="${date.toISOString()}">Modified ${date.toLocaleDateString()}</span>`;
-          })()}
+          ${renderLastModified(props)}
         </div>
         <div class="agent-detail-footer__actions">
-          }
           ${
             isEdit
               ? html`
@@ -369,4 +353,20 @@ function renderConfigSection(props: AgentDetailPanelProps) {
       <div class="value">${commitment}</div>
     </div>
   `;
+}
+
+function renderLastModified(props: AgentDetailPanelProps) {
+  const files = props.filesList?.files;
+  if (!files || files.length === 0) {
+    return nothing;
+  }
+  const latest = files.reduce(
+    (max, f) => (f.updatedAtMs && f.updatedAtMs > max ? f.updatedAtMs : max),
+    0,
+  );
+  if (!latest) {
+    return nothing;
+  }
+  const date = new Date(latest);
+  return html` &middot; <span title="${date.toISOString()}">Modified ${date.toLocaleDateString()}</span>`;
 }
