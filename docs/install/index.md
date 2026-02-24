@@ -143,6 +143,9 @@ For VPS/cloud hosts, avoid third-party "1-click" marketplace images when possibl
 ## Other install methods
 
 <CardGroup cols={2}>
+  <Card title="Windows (PowerShell)" href="/install/windows" icon="terminal">
+    Deploy on Windows and use PowerShell commands to start.
+  </Card>
   <Card title="Docker" href="/install/docker" icon="container">
     Containerized or headless deployments.
   </Card>

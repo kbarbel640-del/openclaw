@@ -24,6 +24,12 @@
         "wouldMove":  true
     },
     {
+        "src":  ".restructure-backup-20260223-164423",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
         "src":  ".vscode",
         "target":  "other",
         "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
@@ -42,6 +48,18 @@
         "wouldMove":  false
     },
     {
+        "src":  "ci-configs",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "config",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
         "src":  "docs",
         "target":  "keep",
         "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
@@ -58,6 +76,24 @@
         "target":  "keep",
         "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
         "wouldMove":  false
+    },
+    {
+        "src":  "infra",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "meta-docs",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "other",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
     },
     {
         "src":  "packages",
@@ -369,6 +405,12 @@
         "src":  "render.yaml",
         "target":  "ci-configs",
         "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "restructure-plan.json",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
         "wouldMove":  true
     },
     {

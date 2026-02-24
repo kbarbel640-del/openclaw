@@ -17,33 +17,48 @@ import { formatHelpExamples } from "../help-format.js";
 import { collectOption } from "./helpers.js";
 
 export function registerAgentCommands(program: Command, args: { agentChannelOptions: string }) {
-  program
+  const agentOptions = (cmd: Command) =>
+    cmd
+      .option("-t, --to <number>", "Recipient number in E.164 used to derive the session key")
+      .option("--session-id <id>", "Use an explicit session id")
+      .option("--agent <id>", "Agent id (overrides routing bindings)")
+      .option("--thinking <level>", "Thinking level: off | minimal | low | medium | high")
+      .option("--verbose <on|off>", "Persist agent verbose level for the session")
+      .option(
+        "--channel <channel>",
+        `Delivery channel: ${args.agentChannelOptions} (omit to use the main session channel)`,
+      )
+      .option("--reply-to <target>", "Delivery target override (separate from session routing)")
+      .option("--reply-channel <channel>", "Delivery channel override (separate from routing)")
+      .option("--reply-account <id>", "Delivery account id override")
+      .option(
+        "--local",
+        "Run the embedded agent locally (requires model provider API keys in your shell)",
+        false,
+      )
+      .option("--deliver", "Send the agent's reply back to the selected channel", false)
+      .option("--json", "Output result as JSON", false)
+      .option(
+        "--timeout <seconds>",
+        "Override agent command timeout (seconds, default 600 or config value)",
+      );
+
+  const runAgentAction = async (opts: { message?: string; [key: string]: unknown }) => {
+    const verboseLevel = typeof opts.verbose === "string" ? opts.verbose.toLowerCase() : "";
+    setVerbose(verboseLevel === "on");
+    const deps = createDefaultDeps();
+    await runCommandWithRuntime(defaultRuntime, async () => {
+      await agentCliCommand(opts, defaultRuntime, deps);
+    });
+  };
+
+  const agentCmd = program
     .command("agent")
     .description("Run an agent turn via the Gateway (use --local for embedded)")
-    .requiredOption("-m, --message <text>", "Message body for the agent")
-    .option("-t, --to <number>", "Recipient number in E.164 used to derive the session key")
-    .option("--session-id <id>", "Use an explicit session id")
-    .option("--agent <id>", "Agent id (overrides routing bindings)")
-    .option("--thinking <level>", "Thinking level: off | minimal | low | medium | high")
-    .option("--verbose <on|off>", "Persist agent verbose level for the session")
-    .option(
-      "--channel <channel>",
-      `Delivery channel: ${args.agentChannelOptions} (omit to use the main session channel)`,
-    )
-    .option("--reply-to <target>", "Delivery target override (separate from session routing)")
-    .option("--reply-channel <channel>", "Delivery channel override (separate from routing)")
-    .option("--reply-account <id>", "Delivery account id override")
-    .option(
-      "--local",
-      "Run the embedded agent locally (requires model provider API keys in your shell)",
-      false,
-    )
-    .option("--deliver", "Send the agent's reply back to the selected channel", false)
-    .option("--json", "Output result as JSON", false)
-    .option(
-      "--timeout <seconds>",
-      "Override agent command timeout (seconds, default 600 or config value)",
-    )
+    .requiredOption("-m, --message <text>", "Message body for the agent");
+
+  agentOptions(agentCmd);
+  agentCmd
     .addHelpText(
       "after",
       () =>
@@ -69,15 +84,26 @@ ${formatHelpExamples([
 
 ${theme.muted("Docs:")} ${formatDocsLink("/cli/agent", "docs.openclaw.ai/cli/agent")}`,
     )
-    .action(async (opts) => {
-      const verboseLevel = typeof opts.verbose === "string" ? opts.verbose.toLowerCase() : "";
-      setVerbose(verboseLevel === "on");
-      // Build default deps (keeps parity with other commands; future-proofing).
-      const deps = createDefaultDeps();
-      await runCommandWithRuntime(defaultRuntime, async () => {
-        await agentCliCommand(opts, defaultRuntime, deps);
-      });
+    .action(runAgentAction);
+
+  const cipherCmd = program
+    .command("cipher <message>")
+    .description('Run an agent turn with message as first argument (e.g. cipher "hello")')
+    .addHelpText(
+      "after",
+      () =>
+        `
+${theme.heading("Examples:")}
+${formatHelpExamples([
+  ['openclaw cipher "What is the weather?"', "Single message."],
+  ['openclaw cipher "Summarize logs" --thinking high', "With thinking level."],
+])}`,
+    )
+    .action(async (message: string, opts: { [key: string]: unknown }) => {
+      await runAgentAction({ ...opts, message });
     });
+
+  agentOptions(cipherCmd);
 
   const agents = program
     .command("agents")

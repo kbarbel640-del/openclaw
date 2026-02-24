@@ -91,6 +91,31 @@ describe("registerAgentCommands", () => {
     );
   });
 
+  it("runs cipher command with message as positional and forwards to agent", async () => {
+    await runCli(["cipher", "hello world"]);
+
+    expect(agentCliCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "hello world",
+      }),
+      runtime,
+      { deps: true },
+    );
+  });
+
+  it("runs cipher with optional flags", async () => {
+    await runCli(["cipher", "Summarize logs", "--thinking", "high"]);
+
+    expect(agentCliCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "Summarize logs",
+        thinking: "high",
+      }),
+      runtime,
+      { deps: true },
+    );
+  });
+
   it("runs agents add and computes hasFlags based on explicit options", async () => {
     await runCli(["agents", "add", "alpha"]);
     expect(agentsAddCommandMock).toHaveBeenNthCalledWith(

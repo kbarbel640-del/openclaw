@@ -58,4 +58,4 @@ Write-Host "Summary:`n"
 $plan | Group-Object -Property target | ForEach-Object { $count = ($_.Group | Where-Object { $_.wouldMove } | Measure-Object).Count; Write-Host ("{0,-12} : {1}" -f $_.Name, $count) }
 
 Write-Host "`nNext steps: review 'restructure-plan.json' and decide whether to generate/make the moves."
-Write-Host "To create executable move script, run: `n  PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-restructure.ps1 -Root <repo-root>"
+Write-Host "To create executable move script, run: `n  PowerShell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-restructure.ps1 -Root <repo-root>`
