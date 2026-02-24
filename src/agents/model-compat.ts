@@ -30,8 +30,6 @@ function normalizeAnthropicBaseUrl(baseUrl: string): string {
 }
 export function normalizeModelCompat(model: Model<Api>): Model<Api> {
   const baseUrl = model.baseUrl ?? "";
-  const providerKey = model.provider?.trim().toLowerCase() ?? "";
-  const isOpenAiCompletions = isOpenAiCompletionsModel(model);
 
   // Normalise anthropic-messages baseUrl: strip trailing /v1 that users may
   // have included in their config. pi-ai appends /v1/messages itself.
@@ -41,28 +39,14 @@ export function normalizeModelCompat(model: Model<Api>): Model<Api> {
       return { ...model, baseUrl: normalised } as Model<"anthropic-messages">;
     }
   }
-  const isZai = providerKey === "zai" || baseUrl.includes("api.z.ai");
+
+  const isZai = model.provider === "zai" || baseUrl.includes("api.z.ai");
   const isMoonshot =
-    providerKey === "moonshot" ||
+    model.provider === "moonshot" ||
     baseUrl.includes("moonshot.ai") ||
     baseUrl.includes("moonshot.cn");
-  const isDashScope = providerKey === "dashscope" || isDashScopeCompatibleEndpoint(baseUrl);
-
-  // Qwen OpenAI-compatible endpoints (DashScope / Qwen Portal) use
-  // `enable_thinking` instead of `reasoning_effort`.
-  //
-  // pi-ai exposes this via `compat.thinkingFormat = "qwen"`.
-  const isQwenCompat =
-    isOpenAiCompletions &&
-    (providerKey === "qwen-portal" || isDashScope || baseUrl.includes("portal.qwen.ai"));
-  if (isQwenCompat) {
-    const compat = model.compat ?? undefined;
-    if (!compat?.thinkingFormat) {
-      model.compat = compat ? { ...compat, thinkingFormat: "qwen" } : { thinkingFormat: "qwen" };
-    }
-  }
-
-  if (!isOpenAiCompletions || (!isZai && !isMoonshot && !isDashScope)) {
+  const isDashScope = model.provider === "dashscope" || isDashScopeCompatibleEndpoint(baseUrl);
+  if ((!isZai && !isMoonshot && !isDashScope) || !isOpenAiCompletionsModel(model)) {
     return model;
   }
 

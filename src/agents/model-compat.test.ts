@@ -5,8 +5,6 @@ import { normalizeModelCompat } from "./model-compat.js";
 import { resolveForwardCompatModel } from "./model-forward-compat.js";
 import type { ModelRegistry } from "./pi-model-discovery.js";
 
-type ThinkingCompat = { thinkingFormat?: "openai" | "zai" | "qwen" };
-
 const baseModel = (): Model<Api> =>
   ({
     id: "glm-4.7",
@@ -103,9 +101,6 @@ describe("normalizeModelCompat — Anthropic baseUrl", () => {
 });
 
 describe("normalizeModelCompat", () => {
-  const thinkingFormatOf = (model: Model<Api>) =>
-    (model.compat as ThinkingCompat | undefined)?.thinkingFormat;
-
   it("forces supportsDeveloperRole off for z.ai models", () => {
     const model = baseModel();
     delete (model as { compat?: unknown }).compat;
@@ -165,41 +160,6 @@ describe("normalizeModelCompat", () => {
     expect(
       (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
     ).toBe(false);
-  });
-
-  it("forces thinkingFormat=qwen for DashScope OpenAI-compat endpoints", () => {
-    const model = {
-      ...baseModel(),
-      provider: "dashscope",
-      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    };
-    delete (model as { compat?: unknown }).compat;
-    const normalized = normalizeModelCompat(model);
-    expect(thinkingFormatOf(normalized)).toBe("qwen");
-  });
-
-  it("forces thinkingFormat=qwen for Qwen Portal OpenAI-compat endpoints", () => {
-    const model = {
-      ...baseModel(),
-      provider: "qwen-portal",
-      baseUrl: "https://portal.qwen.ai/v1",
-    };
-    delete (model as { compat?: unknown }).compat;
-    const normalized = normalizeModelCompat(model);
-    expect(thinkingFormatOf(normalized)).toBe("qwen");
-  });
-
-  it("does not override explicit thinkingFormat for Qwen endpoints", () => {
-    const model = {
-      ...baseModel(),
-      provider: "dashscope",
-      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      compat: {
-        thinkingFormat: "openai",
-      },
-    };
-    const normalized = normalizeModelCompat(model);
-    expect(thinkingFormatOf(normalized)).toBe("openai");
   });
 
   it("leaves non-zai models untouched", () => {
