@@ -58,6 +58,49 @@ describe("CronService", () => {
 
       expect(enqueueSystemEvent).not.toHaveBeenCalled();
       expect(requestHeartbeatNow).not.toHaveBeenCalled();
+      expect(
+        noopLogger.warn.mock.calls.some(
+          ([obj, msg]) =>
+            msg === "cron: payload validation rejected" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).action === "add" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).payloadKind ===
+              "systemEvent" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).event ===
+              "payload_validation_rejected",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("logs a warning when update rejects whitespace-only payload message", async () => {
+    await withCronService(true, async ({ cron }) => {
+      const atMs = Date.parse("2025-12-13T00:00:01.000Z");
+      const job = await cron.add({
+        name: "update payload reject",
+        enabled: true,
+        schedule: { kind: "at", at: new Date(atMs).toISOString() },
+        sessionTarget: "isolated",
+        wakeMode: "now",
+        payload: { kind: "agentTurn", message: "hello" },
+      });
+
+      await expect(
+        cron.update(job.id, {
+          payload: { kind: "agentTurn", message: "   " },
+        }),
+      ).rejects.toThrow('cron.update payload.kind="agentTurn" requires non-empty message');
+      expect(
+        noopLogger.warn.mock.calls.some(
+          ([obj, msg]) =>
+            msg === "cron: payload validation rejected" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).action ===
+              "update" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).payloadKind ===
+              "agentTurn" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).event ===
+              "payload_validation_rejected",
+        ),
+      ).toBe(true);
     });
   });
 

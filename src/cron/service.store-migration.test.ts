@@ -149,6 +149,61 @@ describe("CronService store migrations", () => {
     await store.cleanup();
   });
 
+  it("infers payload from legacy top-level text without quarantining valid jobs", async () => {
+    const store = await makeStorePath();
+    await fs.mkdir(path.dirname(store.storePath), { recursive: true });
+    await fs.writeFile(
+      store.storePath,
+      JSON.stringify(
+        {
+          version: 1,
+          jobs: [
+            {
+              id: "legacy-top-level-text",
+              name: "legacy top level text",
+              enabled: true,
+              createdAtMs: Date.parse("2026-02-01T12:00:00.000Z"),
+              updatedAtMs: Date.parse("2026-02-05T12:00:00.000Z"),
+              schedule: { kind: "cron", expr: "0 23 * * *", tz: "UTC" },
+              sessionTarget: "main",
+              wakeMode: "next-heartbeat",
+              text: "  legacy inferred payload  ",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const cron = await createStartedCron(store.storePath).start();
+
+    const jobs = await cron.list({ includeDisabled: true });
+    const job = jobs.find((entry) => entry.id === "legacy-top-level-text");
+    expect(job).toBeDefined();
+    expect(job?.enabled).toBe(true);
+    expect(job?.state.lastStatus).toBeUndefined();
+    expect(job?.state.lastError).toBeUndefined();
+    expect(job?.payload.kind).toBe("systemEvent");
+    if (job?.payload.kind === "systemEvent") {
+      expect(job.payload.text).toBe("legacy inferred payload");
+    }
+
+    const persisted = JSON.parse(await fs.readFile(store.storePath, "utf-8")) as {
+      jobs: Array<Record<string, unknown>>;
+    };
+    const persistedJob = persisted.jobs.find((entry) => entry.id === "legacy-top-level-text");
+    expect(persistedJob).toBeDefined();
+    expect(persistedJob?.text).toBeUndefined();
+    expect((persistedJob?.payload as { kind?: string; text?: string } | undefined)?.kind).toBe(
+      "systemEvent",
+    );
+
+    cron.stop();
+    await store.cleanup();
+  });
+
   it("disables persisted jobs with missing payloads and records a skip error", async () => {
     const store = await makeStorePath();
     await fs.mkdir(path.dirname(store.storePath), { recursive: true });

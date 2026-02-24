@@ -25,6 +25,7 @@ import {
 type CronJobsEnabledFilter = "all" | "enabled" | "disabled";
 type CronJobsSortBy = "nextRunAtMs" | "updatedAtMs" | "name";
 type CronSortDir = "asc" | "desc";
+const PAYLOAD_VALIDATION_ERROR_PREFIX = /^cron\.(add|update) payload\.kind=/;
 
 export type CronListPageOptions = {
   includeDisabled?: boolean;
@@ -71,6 +72,28 @@ function mergeManualRunSnapshotAfterReload(params: {
   reloaded.enabled = params.snapshot.enabled;
   reloaded.updatedAtMs = params.snapshot.updatedAtMs;
   reloaded.state = params.snapshot.state;
+}
+
+function maybeLogPayloadValidationRejected(params: {
+  state: CronServiceState;
+  action: "add" | "update";
+  payloadKind?: string;
+  err: unknown;
+}) {
+  const message = params.err instanceof Error ? params.err.message : String(params.err);
+  if (!PAYLOAD_VALIDATION_ERROR_PREFIX.test(message)) {
+    return;
+  }
+  params.state.deps.log.warn(
+    {
+      action: params.action,
+      payloadKind: params.payloadKind,
+      error: message,
+      event: "payload_validation_rejected",
+      count: 1,
+    },
+    "cron: payload validation rejected",
+  );
 }
 
 async function ensureLoadedForRead(state: CronServiceState) {
@@ -230,7 +253,18 @@ export async function add(state: CronServiceState, input: CronJobCreate) {
   return await locked(state, async () => {
     warnIfDisabled(state, "add");
     await ensureLoaded(state);
-    const job = createJob(state, input);
+    let job: CronJob;
+    try {
+      job = createJob(state, input);
+    } catch (err) {
+      maybeLogPayloadValidationRejected({
+        state,
+        action: "add",
+        payloadKind: input.payload.kind,
+        err,
+      });
+      throw err;
+    }
     state.store?.jobs.push(job);
 
     // Defensive: recompute all next-run times to ensure consistency
@@ -266,7 +300,17 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
     await ensureLoaded(state, { skipRecompute: true });
     const job = findJobOrThrow(state, id);
     const now = state.deps.nowMs();
-    applyJobPatch(job, patch);
+    try {
+      applyJobPatch(job, patch);
+    } catch (err) {
+      maybeLogPayloadValidationRejected({
+        state,
+        action: "update",
+        payloadKind: patch.payload?.kind,
+        err,
+      });
+      throw err;
+    }
     if (job.schedule.kind === "every") {
       const anchor = job.schedule.anchorMs;
       if (typeof anchor !== "number" || !Number.isFinite(anchor)) {

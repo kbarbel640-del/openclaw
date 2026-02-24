@@ -282,6 +282,70 @@ describe("payload validation", () => {
     ).toThrow('cron.update payload.kind="agentTurn" requires non-empty message');
   });
 
+  it("accepts and trims multiline systemEvent payloads with surrounding whitespace", () => {
+    const now = Date.now();
+    const state = createMockState(now);
+
+    const job = createJob(state, {
+      name: "multiline-systemevent",
+      enabled: true,
+      schedule: { kind: "every", everyMs: 60_000 },
+      sessionTarget: "main",
+      wakeMode: "now",
+      payload: { kind: "systemEvent", text: " \nfirst line\nsecond line\n " },
+    });
+
+    expect(job.payload.kind).toBe("systemEvent");
+    if (job.payload.kind === "systemEvent") {
+      expect(job.payload.text).toBe("first line\nsecond line");
+    }
+  });
+
+  it("accepts and trims unicode agentTurn payloads", () => {
+    const now = Date.now();
+    const state = createMockState(now);
+
+    const job = createJob(state, {
+      name: "unicode-agentturn",
+      enabled: true,
+      schedule: { kind: "every", everyMs: 60_000 },
+      sessionTarget: "isolated",
+      wakeMode: "now",
+      payload: { kind: "agentTurn", message: "  ✅ مرحبا  " },
+    });
+
+    expect(job.payload.kind).toBe("agentTurn");
+    if (job.payload.kind === "agentTurn") {
+      expect(job.payload.message).toBe("✅ مرحبا");
+    }
+  });
+
+  it("accepts mixed whitespace+content payload patch and trims on update", () => {
+    const now = Date.now();
+    const job: CronJob = {
+      id: "job-mixed-whitespace-update",
+      name: "job-mixed-whitespace-update",
+      enabled: true,
+      createdAtMs: now,
+      updatedAtMs: now,
+      schedule: { kind: "every", everyMs: 60_000 },
+      sessionTarget: "isolated",
+      wakeMode: "now",
+      payload: { kind: "agentTurn", message: "hello" },
+      state: {},
+    };
+
+    expect(() =>
+      applyJobPatch(job, {
+        payload: { kind: "agentTurn", message: " \tupdated message\n " },
+      }),
+    ).not.toThrow();
+    expect(job.payload.kind).toBe("agentTurn");
+    if (job.payload.kind === "agentTurn") {
+      expect(job.payload.message).toBe("updated message");
+    }
+  });
+
   it("allows non-payload updates when existing payload is malformed", () => {
     const now = Date.now();
     const job = {
