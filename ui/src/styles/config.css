@@ -839,6 +839,11 @@
   background: white;
 }
 
+.cfg-input--masked {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
+
 .cfg-input--sm {
   padding: 9px 12px;
   font-size: 13px;
