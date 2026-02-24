@@ -50,6 +50,7 @@ export function registerCronEditCommand(cron: Command) {
       .option("--model <model>", "Model override for agent jobs")
       .option("--timeout-seconds <n>", "Timeout seconds for agent jobs")
       .option("--announce", "Announce summary to a chat (subagent-style)")
+      .option("--direct", "Send raw output directly to channel (preserves formatting)")
       .option("--deliver", "Deprecated (use --announce). Announces a summary to a chat.")
       .option("--no-deliver", "Disable announce delivery")
       .option("--channel <channel>", `Delivery channel (${getCronChannelOptions()})`)
@@ -71,8 +72,11 @@ export function registerCronEditCommand(cron: Command) {
               "Isolated jobs cannot use --system-event; use --message or --session main.",
             );
           }
-          if (opts.announce && typeof opts.deliver === "boolean") {
-            throw new Error("Choose --announce or --no-deliver (not multiple).");
+          if (
+            [opts.announce, opts.direct, typeof opts.deliver === "boolean"].filter(Boolean).length >
+            1
+          ) {
+            throw new Error("Choose one of --announce, --direct, or --no-deliver.");
           }
           const staggerRaw = typeof opts.stagger === "string" ? opts.stagger.trim() : "";
           const useExact = Boolean(opts.exact);
@@ -196,7 +200,8 @@ export function registerCronEditCommand(cron: Command) {
             ? Number.parseInt(String(opts.timeoutSeconds), 10)
             : undefined;
           const hasTimeoutSeconds = Boolean(timeoutSeconds && Number.isFinite(timeoutSeconds));
-          const hasDeliveryModeFlag = opts.announce || typeof opts.deliver === "boolean";
+          const hasDeliveryModeFlag =
+            opts.announce || opts.direct || typeof opts.deliver === "boolean";
           const hasDeliveryTarget = typeof opts.channel === "string" || typeof opts.to === "string";
           const hasBestEffort = typeof opts.bestEffortDeliver === "boolean";
           const hasAgentTurnPatch =
@@ -225,8 +230,9 @@ export function registerCronEditCommand(cron: Command) {
           }
 
           if (hasDeliveryModeFlag || hasDeliveryTarget || hasBestEffort) {
-            const deliveryMode =
-              opts.announce || opts.deliver === true
+            const deliveryMode = opts.direct
+              ? "direct"
+              : opts.announce || opts.deliver === true
                 ? "announce"
                 : opts.deliver === false
                   ? "none"
