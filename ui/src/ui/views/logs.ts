@@ -116,14 +116,14 @@ export function renderLogs(props: LogsProps) {
       </div>
 
 
-      <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px;">
-        <button class="btn small" style="min-width: 90px;" @click=${handleSelectAll} ?disabled=${allLevelsSelected(props.levelFilters)}>
+      <div class="row" style="margin-top: 12px; flex-wrap: wrap; gap: 8px; align-items: center;">
+        <button class="btn small" @click=${handleSelectAll} ?disabled=${allLevelsSelected(props.levelFilters)}>
           Select All
         </button>
-        <button class="btn small" style="min-width: 90px;" @click=${handleDeselectAll} ?disabled=${noLevelsSelected(props.levelFilters)}>
+        <button class="btn small" @click=${handleDeselectAll} ?disabled=${noLevelsSelected(props.levelFilters)}>
           Deselect All
         </button>
-        <div class="chip-row" style="flex: 1;">
+        <div class="chip-row" style="display: flex; flex-wrap: wrap; gap: 8px; min-width: 0;">
           ${LEVELS.map(
             (level) => html`
               <label class="chip log-chip ${level}">
