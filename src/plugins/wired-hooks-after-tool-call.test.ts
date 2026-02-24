@@ -54,6 +54,7 @@ function createToolHandlerCtx(params: {
     shouldEmitToolOutput: () => false,
     emitToolSummary: vi.fn(),
     emitToolOutput: vi.fn(),
+    checkSafeguards: vi.fn().mockReturnValue(true),
     trimMessagingToolSent: vi.fn(),
   };
 }
