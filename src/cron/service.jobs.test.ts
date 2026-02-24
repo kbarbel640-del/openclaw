@@ -281,6 +281,29 @@ describe("payload validation", () => {
       }),
     ).toThrow('cron.update payload.kind="agentTurn" requires non-empty message');
   });
+
+  it("allows non-payload updates when existing payload is malformed", () => {
+    const now = Date.now();
+    const job = {
+      id: "job-malformed-existing-payload",
+      name: "job-malformed-existing-payload",
+      enabled: true,
+      createdAtMs: now,
+      updatedAtMs: now,
+      schedule: { kind: "every", everyMs: 60_000 },
+      sessionTarget: "isolated",
+      wakeMode: "now",
+      payload: { kind: "agentTurn", message: "   " },
+      state: {},
+    } as unknown as CronJob;
+
+    expect(() =>
+      applyJobPatch(job, {
+        enabled: false,
+      }),
+    ).not.toThrow();
+    expect(job.enabled).toBe(false);
+  });
 });
 
 describe("cron stagger defaults", () => {

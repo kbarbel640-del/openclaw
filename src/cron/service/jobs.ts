@@ -453,6 +453,7 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   }
   if (patch.payload) {
     job.payload = mergeCronPayload(job.payload, patch.payload);
+    job.payload = normalizePayloadOrThrow(job.payload, "cron.update");
   }
   if (!patch.delivery && patch.payload?.kind === "agentTurn") {
     // Back-compat: legacy clients still update delivery via payload fields.
@@ -468,7 +469,6 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   if (patch.delivery) {
     job.delivery = mergeCronDelivery(job.delivery, patch.delivery);
   }
-  job.payload = normalizePayloadOrThrow(job.payload, "cron.update");
   if (job.sessionTarget === "main" && job.delivery?.mode !== "webhook") {
     job.delivery = undefined;
   }
