@@ -473,7 +473,7 @@ function mergeCronPayload(existing: CronPayload, patch: CronPayloadPatch): CronP
   // When kind is omitted, treat it as a partial patch against the existing payload kind.
   const effectiveKind = patch.kind ?? existing.kind;
 
-  if (effectiveKind !== existing.kind) {
+  if (patch.kind && effectiveKind !== existing.kind) {
     return buildPayloadFromPatch(patch as CronPayloadPatch & { kind: string });
   }
 
