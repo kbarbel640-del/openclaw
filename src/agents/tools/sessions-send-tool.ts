@@ -3,6 +3,13 @@ import { Type } from "@sinclair/typebox";
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import { normalizeAgentId, resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
+import { consumeAuthorizationGrant } from "../../security/authorization-grants.js";
+import {
+  classifyHighRiskAuthorizationMessage,
+  extractAuthorizationGrantToken,
+  stripAuthorizationGrantTokenMarker,
+} from "../../security/high-risk-authorization.js";
+import type { InputProvenance } from "../../sessions/input-provenance.js";
 import { SESSION_LABEL_MAX_LENGTH } from "../../sessions/session-label.js";
 import {
   type GatewayMessageChannel,
@@ -32,10 +39,16 @@ const SessionsSendToolSchema = Type.Object({
   timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
 });
 
+function isUntrustedAuthorizationSource(provenance?: InputProvenance): boolean {
+  return provenance?.kind === "inter_session" || provenance?.kind === "internal_system";
+}
+
 export function createSessionsSendTool(opts?: {
   agentSessionKey?: string;
   agentChannel?: GatewayMessageChannel;
   sandboxed?: boolean;
+  requestInputProvenance?: InputProvenance;
+  senderIsOwner?: boolean;
 }): AnyAgentTool {
   return {
     label: "Session Send",
@@ -46,6 +59,36 @@ export function createSessionsSendTool(opts?: {
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const message = readStringParam(params, "message", { required: true });
+      const authDirective = classifyHighRiskAuthorizationMessage(message);
+      if (
+        authDirective.isHighRiskAuthorization &&
+        isUntrustedAuthorizationSource(opts?.requestInputProvenance)
+      ) {
+        return jsonResult({
+          runId: crypto.randomUUID(),
+          status: "forbidden",
+          error:
+            "Authorization-style relays require direct user input in this session; inter-session/system messages cannot authorize high-risk actions.",
+        });
+      }
+      if (
+        authDirective.isHighRiskAuthorization &&
+        opts?.requestInputProvenance?.kind !== "external_user"
+      ) {
+        return jsonResult({
+          runId: crypto.randomUUID(),
+          status: "forbidden",
+          error:
+            "Authorization-style relays are fail-closed: this run lacks external_user provenance.",
+        });
+      }
+      if (authDirective.isHighRiskAuthorization && opts?.senderIsOwner !== true) {
+        return jsonResult({
+          runId: crypto.randomUUID(),
+          status: "forbidden",
+          error: "Authorization-style relays are restricted to owner senders.",
+        });
+      }
       const cfg = loadConfig();
       const { mainKey, alias, effectiveRequesterKey, restrictToSpawned } =
         resolveSandboxedSessionToolContext({
@@ -213,6 +256,40 @@ export function createSessionsSendTool(opts?: {
           sessionKey: displayKey,
         });
       }
+      let outboundMessage = message;
+      if (authDirective.isHighRiskAuthorization) {
+        const grantToken = extractAuthorizationGrantToken(message);
+        if (!grantToken) {
+          return jsonResult({
+            runId: crypto.randomUUID(),
+            status: "forbidden",
+            error:
+              "Authorization relay missing AUTHZ_TOKEN marker. Issue a sessions_authorize grant first.",
+          });
+        }
+        const grant = consumeAuthorizationGrant({
+          token: grantToken,
+          requiredAction: authDirective.action ?? "high_risk_relay",
+          requesterSessionKey: effectiveRequesterKey,
+          targetSessionKey: resolvedKey,
+          requiredProvenanceKind: "external_user",
+        });
+        if (!grant.ok) {
+          return jsonResult({
+            runId: crypto.randomUUID(),
+            status: "forbidden",
+            error: grant.error ?? `Authorization grant rejected (${grant.status}).`,
+          });
+        }
+        outboundMessage = stripAuthorizationGrantTokenMarker(message);
+        if (!outboundMessage.trim()) {
+          return jsonResult({
+            runId: crypto.randomUUID(),
+            status: "error",
+            error: "Authorization relay message is empty after removing AUTHZ_TOKEN marker.",
+          });
+        }
+      }
 
       const agentMessageContext = buildAgentToAgentMessageContext({
         requesterSessionKey: opts?.agentSessionKey,
@@ -220,7 +297,7 @@ export function createSessionsSendTool(opts?: {
         targetSessionKey: displayKey,
       });
       const sendParams = {
-        message,
+        message: outboundMessage,
         sessionKey: resolvedKey,
         idempotencyKey,
         deliver: false,
@@ -242,7 +319,7 @@ export function createSessionsSendTool(opts?: {
         void runSessionsSendA2AFlow({
           targetSessionKey: resolvedKey,
           displayKey,
-          message,
+          message: outboundMessage,
           announceTimeoutMs,
           maxPingPongTurns,
           requesterSessionKey,
