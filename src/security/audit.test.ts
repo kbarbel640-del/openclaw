@@ -1501,7 +1501,7 @@ describe("security audit", () => {
   });
 
   it("marks Discord name-based allowlists as break-glass when dangerous matching is enabled", async () => {
-    await withStateDir("discord-name-based-break-glass", async () => {
+    await withChannelSecurityStateDir(async () => {
       const cfg: OpenClawConfig = {
         channels: {
           discord: {
