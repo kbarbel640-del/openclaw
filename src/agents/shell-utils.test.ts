@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { captureEnv } from "../test-utils/env.js";
-import { getShellConfig, resolveShellFromPath } from "./shell-utils.js";
+import { getShellConfig, resolvePowerShellPath, resolveShellFromPath } from "./shell-utils.js";
 
 const isWin = process.platform === "win32";
 
@@ -113,3 +113,81 @@ describe("resolveShellFromPath", () => {
     expect(resolveShellFromPath("bash")).toBeUndefined();
   });
 });
+
+if (isWin) {
+  describe("resolvePowerShellPath", () => {
+    let envSnapshot: ReturnType<typeof captureEnv>;
+    const tempDirs: string[] = [];
+
+    beforeEach(() => {
+      envSnapshot = captureEnv([
+        "ProgramFiles",
+        "PROGRAMFILES",
+        "ProgramW6432",
+        "SystemRoot",
+        "WINDIR",
+        "PATH",
+      ]);
+    });
+
+    afterEach(() => {
+      envSnapshot.restore();
+      for (const dir of tempDirs.splice(0)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("prefers PowerShell 7 over PS 5.1 when installed in ProgramFiles", () => {
+      const tempBase = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-pfiles-"));
+      tempDirs.push(tempBase);
+      const pwsh7Dir = path.join(tempBase, "PowerShell", "7");
+      fs.mkdirSync(pwsh7Dir, { recursive: true });
+      const pwsh7Path = path.join(pwsh7Dir, "pwsh.exe");
+      fs.writeFileSync(pwsh7Path, "");
+
+      process.env.ProgramFiles = tempBase;
+      delete process.env.ProgramW6432;
+      process.env.PATH = "";
+
+      expect(resolvePowerShellPath()).toBe(pwsh7Path);
+    });
+
+    it("falls back to PS 5.1 when PowerShell 7 is not present", () => {
+      const tempPf = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-pfiles-"));
+      tempDirs.push(tempPf);
+      // No pwsh.exe in ProgramFiles
+      process.env.ProgramFiles = tempPf;
+      delete process.env.ProgramW6432;
+      process.env.PATH = "";
+
+      const sysRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-sysroot-"));
+      tempDirs.push(sysRoot);
+      const ps51Dir = path.join(sysRoot, "System32", "WindowsPowerShell", "v1.0");
+      fs.mkdirSync(ps51Dir, { recursive: true });
+      const ps51Path = path.join(ps51Dir, "powershell.exe");
+      fs.writeFileSync(ps51Path, "");
+      process.env.SystemRoot = sysRoot;
+      delete process.env.WINDIR;
+
+      expect(resolvePowerShellPath()).toBe(ps51Path);
+    });
+
+    it("finds pwsh via PATH when not in standard install location", () => {
+      const tempPf = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-pfiles-"));
+      tempDirs.push(tempPf);
+      process.env.ProgramFiles = tempPf;
+      delete process.env.ProgramW6432;
+
+      const binDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-bin-"));
+      tempDirs.push(binDir);
+      const pwshPath = path.join(binDir, "pwsh");
+      fs.writeFileSync(pwshPath, "");
+      // On Windows, accessSync with X_OK passes for all files; simulate via PATH
+      process.env.PATH = binDir;
+      delete process.env.SystemRoot;
+      delete process.env.WINDIR;
+
+      expect(resolvePowerShellPath()).toBe(pwshPath);
+    });
+  });
+}

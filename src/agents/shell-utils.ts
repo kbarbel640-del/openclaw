@@ -2,7 +2,36 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-function resolvePowerShellPath(): string {
+export function resolvePowerShellPath(): string {
+  // Prefer PowerShell 7 (pwsh.exe) over PS 5.1 (powershell.exe).
+  // PS 7 supports the && pipeline chain operator and has better overall
+  // compatibility. PS 5.1 does not support &&, causing exec commands like
+  // "cd /path && ls" to fail silently on Windows.
+
+  // 1. Check the default ProgramFiles installation path for PS 7.
+  const programFiles = process.env.ProgramFiles || process.env.PROGRAMFILES || "C:\\Program Files";
+  const pwsh7 = path.join(programFiles, "PowerShell", "7", "pwsh.exe");
+  if (fs.existsSync(pwsh7)) {
+    return pwsh7;
+  }
+
+  // 2. On ARM64 / WoW64 hosts the 64-bit program files may differ.
+  const programW6432 = process.env.ProgramW6432;
+  if (programW6432 && programW6432 !== programFiles) {
+    const pwsh7Alt = path.join(programW6432, "PowerShell", "7", "pwsh.exe");
+    if (fs.existsSync(pwsh7Alt)) {
+      return pwsh7Alt;
+    }
+  }
+
+  // 3. Fall back to a PATH lookup for pwsh (handles custom install locations,
+  //    scoop, winget, etc.).
+  const pwshInPath = resolveShellFromPath("pwsh");
+  if (pwshInPath) {
+    return pwshInPath;
+  }
+
+  // 4. Fall back to PowerShell 5.1.
   const systemRoot = process.env.SystemRoot || process.env.WINDIR;
   if (systemRoot) {
     const candidate = path.join(
