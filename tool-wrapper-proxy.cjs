@@ -32,6 +32,11 @@ const {
   CircuitBreaker,
   HybridIntentClassifier
 } = require('./p1-improvements.cjs');
+const {
+  initializeLastDevProject,
+  getLastDevProject,
+  setLastDevProject
+} = require('./lib/openclaw-p0.2-last-dev-project.js');
 
 const UPSTREAM_HOST = 'localhost';
 const UPSTREAM_PORT = 3456;
@@ -203,32 +208,33 @@ const DEV_ACTION_WORDS = [
 
 // Last dev-mode project (for follow-up messages without project keyword)
 // v10.3: Persisted to /tmp/mac-agentd/last-dev-project.json
+// P0.2: lastDevProject 使用 Redis + session 檔案持久化
+// (由 openclaw-p0.2-last-dev-project.js 管理，此處只做 wrapper)
 let lastDevProject = null;
-const LAST_PROJECT_FILE = '/tmp/mac-agentd/last-dev-project.json';
 
-function saveLastProject(dir) {
+async function saveLastProject(dir) {
   lastDevProject = dir;
   try {
-    const dirPath = path.dirname(LAST_PROJECT_FILE);
-    if (!fs.existsSync(dirPath)) {fs.mkdirSync(dirPath, { recursive: true });}
-    fs.writeFileSync(LAST_PROJECT_FILE, JSON.stringify({ dir, ts: Date.now() }));
+    await setLastDevProject(dir);
   } catch (e) {
     console.error(`[wrapper] save lastProject error: ${e.message}`);
   }
 }
 
-function loadLastProject() {
+async function loadLastProject() {
   try {
-    const data = JSON.parse(fs.readFileSync(LAST_PROJECT_FILE, 'utf8'));
-    if (Date.now() - data.ts < 3600000) { // 1 hour expiry
-      lastDevProject = data.dir;
-      console.log(`[wrapper] restored lastDevProject: ${data.dir}`);
+    const project = await getLastDevProject();
+    if (project) {
+      lastDevProject = project;
+      console.log(`[wrapper] restored lastDevProject: ${project}`);
     }
-  } catch (_) {}
+  } catch (e) {
+    console.error(`[wrapper] load lastProject error: ${e.message}`);
+  }
 }
 
-// Load on startup
-loadLastProject();
+// P0.2 初始化：容器啟動時 async 調用
+// (稍後在 server 啟動前執行)
 
 
 // ─── Financial Agent Routing ──────────────────────────────────
@@ -2715,7 +2721,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
           console.log(`[wrapper] #${reqId} EXEC: "${cmd}"`);
           const cmdDevIntent = detectDevIntent(cmd);
           if (cmdDevIntent && isAllowedPath(cmdDevIntent.projectDir)) {
-            saveLastProject(cmdDevIntent.projectDir);
+            void saveLastProject(cmdDevIntent.projectDir);
             metrics.devMode++;
             try {
               const output = await executeDevCommand(cmd, cmdDevIntent.projectDir, null);
@@ -2759,7 +2765,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       skillContext = formatDevError('timeout', '請求過於頻繁', '等待幾分鐘後再試 (上限: 10次/5分鐘)');
     } else {
       console.log(`[wrapper] #${reqId} DEV TOOL LOOP: triggering`);
-      saveLastProject(userText);
+      void saveLastProject(userText);
       metrics.devMode++;
 
       // Intercept git push intent — route directly to session-bridge (deterministic)
@@ -3625,18 +3631,31 @@ server.on('error', (err) => {
   }
 });
 
-server.listen(LISTEN_PORT, '0.0.0.0', () => {
-  console.log(`[wrapper] Tool wrapper proxy v${VERSION} listening on :${LISTEN_PORT}`);
-  console.log(`[wrapper] Upstream: localhost:${UPSTREAM_PORT}`);
-  console.log(`[wrapper] Skill API: localhost:${SKILL_API_PORT}`);
-  console.log(`[wrapper] Mem0 API: localhost:${MEM0_PORT}`);
-  console.log(`[wrapper] Skills: ${SKILL_ROUTES.map(r => r.name).join(', ')}`);
-  console.log(`[wrapper] CLI tools: ${CLI_ROUTES.map(r => r.name).join(', ')}`);
-  console.log(`[wrapper] Dev mode v10.3: ${DEV_ACTION_WORDS.length} action words, ${PROJECT_ROUTES.length} projects`);
-  console.log(`[wrapper] Dev tools: ${DEV_TOOLS}`);
-  console.log(`[wrapper] Dev timeout: ${DEV_TIMEOUT_MS / 1000}s, max output: ${DEV_MAX_OUTPUT} chars`);
-  console.log(`[wrapper] Rate limits: dev=${rateLimits.dev.max}/5min, skill=${rateLimits.skill.max}/min`);
-  console.log(`[wrapper] Ollama: ${ollamaRouter.OLLAMA_MODEL} at localhost:11434 (timeout: ${ollamaRouter.OLLAMA_TIMEOUT / 1000}s)`);
-  console.log(`[wrapper] Mode: streaming + smart-intent + CLI + dev-mode + mem0 + ollama-first routing`);
-  console.log(`[wrapper] Endpoints: /health, /metrics, /metrics/model-usage, /metrics/failover, /api/agents/list, /api/agents/route, /api/intent/classify, /api/intent/stats, /api/websearch, /api/websearch/stats, /api/spec/*, /api/wake-event`);
-});
+// P0.2: 初始化 lastDevProject 後再啟動 server
+void (async () => {
+  try {
+    const restoredProject = await initializeLastDevProject();
+    if (restoredProject) {
+      lastDevProject = restoredProject;
+      console.log(`[wrapper] P0.2: Restored lastDevProject from Redis/session: ${restoredProject}`);
+    }
+  } catch (e) {
+    console.error(`[wrapper] P0.2: Initialization error: ${e.message}`);
+  }
+
+  server.listen(LISTEN_PORT, '0.0.0.0', () => {
+    console.log(`[wrapper] Tool wrapper proxy v${VERSION} listening on :${LISTEN_PORT}`);
+    console.log(`[wrapper] Upstream: localhost:${UPSTREAM_PORT}`);
+    console.log(`[wrapper] Skill API: localhost:${SKILL_API_PORT}`);
+    console.log(`[wrapper] Mem0 API: localhost:${MEM0_PORT}`);
+    console.log(`[wrapper] Skills: ${SKILL_ROUTES.map(r => r.name).join(', ')}`);
+    console.log(`[wrapper] CLI tools: ${CLI_ROUTES.map(r => r.name).join(', ')}`);
+    console.log(`[wrapper] Dev mode v10.3: ${DEV_ACTION_WORDS.length} action words, ${PROJECT_ROUTES.length} projects`);
+    console.log(`[wrapper] Dev tools: ${DEV_TOOLS}`);
+    console.log(`[wrapper] Dev timeout: ${DEV_TIMEOUT_MS / 1000}s, max output: ${DEV_MAX_OUTPUT} chars`);
+    console.log(`[wrapper] Rate limits: dev=${rateLimits.dev.max}/5min, skill=${rateLimits.skill.max}/min`);
+    console.log(`[wrapper] Ollama: ${ollamaRouter.OLLAMA_MODEL} at localhost:11434 (timeout: ${ollamaRouter.OLLAMA_TIMEOUT / 1000}s)`);
+    console.log(`[wrapper] Mode: streaming + smart-intent + CLI + dev-mode + mem0 + ollama-first routing + P0.2`);
+    console.log(`[wrapper] Endpoints: /health, /metrics, /metrics/model-usage, /metrics/failover, /api/agents/list, /api/agents/route, /api/intent/classify, /api/intent/stats, /api/websearch, /api/websearch/stats, /api/spec/*, /api/wake-event`);
+  });
+})();
