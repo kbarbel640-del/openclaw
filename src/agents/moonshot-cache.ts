@@ -258,19 +258,17 @@ export function createMoonshotCacheWrapper(
   baseStreamFn: StreamFn,
   config: MoonshotCacheConfig,
   modelId: string,
+  sessionKey: string,
 ): StreamFn {
   const ttl = config.ttl ?? 3600;
   const resetTtl = config.resetTtl ?? ttl;
 
   return (model, context, options) => {
     const apiKey = options?.apiKey;
-    const sessionKey = (options as Record<string, unknown> | undefined)?.sessionKey as
-      | string
-      | undefined;
 
-    // Skip caching if we don't have required params
-    if (!apiKey || typeof apiKey !== "string" || !sessionKey) {
-      log.debug(`[moonshot-cache] Skipping cache: missing apiKey or sessionKey`);
+    // Skip caching if we don't have apiKey
+    if (!apiKey || typeof apiKey !== "string") {
+      log.debug(`[moonshot-cache] Skipping cache: missing apiKey`);
       return baseStreamFn(model, context, options);
     }
 

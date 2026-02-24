@@ -741,6 +741,7 @@ export async function runEmbeddedAttempt(
         params.streamParams,
         params.thinkLevel,
         sessionAgentId,
+        params.sessionKey,
       );
 
       if (cacheTrace) {

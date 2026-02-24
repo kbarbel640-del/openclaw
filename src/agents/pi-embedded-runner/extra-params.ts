@@ -520,6 +520,7 @@ export function applyExtraParamsToAgent(
   extraParamsOverride?: Record<string, unknown>,
   thinkingLevel?: ThinkLevel,
   agentId?: string,
+  sessionKey?: string,
 ): void {
   const extraParams = resolveExtraParams({
     cfg,
@@ -580,7 +581,7 @@ export function applyExtraParamsToAgent(
   // Enable Moonshot (Kimi) context caching via /v1/caching API.
   // Caches system prompt + tools to reduce token usage on subsequent requests.
   // Enabled via params.contextCache.enabled: true
-  if (provider === "moonshot") {
+  if (provider === "moonshot" && sessionKey) {
     const moonshotCacheConfig = resolveMoonshotCacheConfig(merged);
     if (isMoonshotCacheEnabled(provider, moonshotCacheConfig)) {
       log.debug(`enabling Moonshot context caching for ${provider}/${modelId}`);
@@ -588,6 +589,7 @@ export function applyExtraParamsToAgent(
         agent.streamFn ?? streamSimple,
         moonshotCacheConfig!,
         modelId,
+        sessionKey,
       );
     }
   }
