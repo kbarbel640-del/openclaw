@@ -49,4 +49,3 @@ Use this format when adding entries:
   npm: `serial-adapter`
   repo: `https://github.com/DD-Ching/serial-adapter`
   install: `openclaw plugins install serial-adapter`
-
