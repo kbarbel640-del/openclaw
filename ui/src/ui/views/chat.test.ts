@@ -198,11 +198,8 @@ describe("chat view", () => {
       container,
     );
 
-    // Stop button renders an icon (SVG) — find by title attribute instead of text.
-    const stopButton = Array.from(container.querySelectorAll("button")).find(
-      (btn) => btn.title === "Stop" || btn.classList.contains("chat-send-btn--stop"),
-    );
-    expect(stopButton).not.toBeUndefined();
+    const stopButton = container.querySelector<HTMLButtonElement>('button[title="Stop"]');
+    expect(stopButton).not.toBeNull();
     stopButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onAbort).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain("New session");
