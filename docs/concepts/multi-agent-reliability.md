@@ -60,7 +60,7 @@ For code agents specifically, require `git diff` output or test results as part 
 
 ### Premature termination (MAST FM-3.1)
 
-A subagent hits a context limit, encounters an error, or just stops before finishing. With OpenClaw's [subagent lifecycle hooks](/tools/hooks), you can detect this automatically.
+A subagent hits a context limit, encounters an error, or just stops before finishing. With OpenClaw's [subagent lifecycle hooks](/automation/hooks), you can detect this automatically.
 
 **Pattern: exhaustion alerts**
 
@@ -190,4 +190,4 @@ After implementing these patterns:
 - Cemri, M. et al. (2025). "Why Do Multi-Agent LLM Systems Fail?" [arXiv:2503.13657](https://arxiv.org/abs/2503.13657)
 - [MAST Dataset](https://huggingface.co/datasets/mcemri/MAD) (1,600+ annotated multi-agent traces)
 - [OpenClaw Multi-Agent Routing](/concepts/multi-agent) (agent setup and bindings)
-- [OpenClaw Hooks](/tools/hooks) (lifecycle events for subagent tracking)
+- [OpenClaw Hooks](/automation/hooks) (lifecycle events for subagent tracking)
