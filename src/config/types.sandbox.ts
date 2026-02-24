@@ -44,6 +44,16 @@ export type SandboxDockerSettings = {
   binds?: string[];
   /** Docker runtime to use (e.g., nvidia, sysbox-runc, io.containerd.runc.v2). */
   runtime?: string;
+  /**
+   * Dangerous override: allow bind mounts that target reserved container paths
+   * like /workspace or /agent.
+   */
+  dangerouslyAllowReservedContainerTargets?: boolean;
+  /**
+   * Dangerous override: allow bind mount sources outside runtime allowlisted roots
+   * (workspace + agent workspace roots).
+   */
+  dangerouslyAllowExternalBindSources?: boolean;
 };
 
 export type SandboxBrowserSettings = {

@@ -125,6 +125,8 @@ export const SandboxDockerSchema = z
     extraHosts: z.array(z.string()).optional(),
     binds: z.array(z.string()).optional(),
     runtime: z.string().optional(),
+    dangerouslyAllowReservedContainerTargets: z.boolean().optional(),
+    dangerouslyAllowExternalBindSources: z.boolean().optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -240,7 +242,15 @@ export const ToolPolicySchema = ToolPolicyBaseSchema.superRefine((value, ctx) =>
 export const ToolsWebSearchSchema = z
   .object({
     enabled: z.boolean().optional(),
-    provider: z.union([z.literal("brave"), z.literal("perplexity"), z.literal("grok")]).optional(),
+    provider: z
+      .union([
+        z.literal("brave"),
+        z.literal("perplexity"),
+        z.literal("grok"),
+        z.literal("gemini"),
+        z.literal("kimi"),
+      ])
+      .optional(),
     apiKey: z.string().optional().register(sensitive),
     maxResults: z.number().int().positive().optional(),
     timeoutSeconds: z.number().int().positive().optional(),
@@ -258,6 +268,21 @@ export const ToolsWebSearchSchema = z
         apiKey: z.string().optional().register(sensitive),
         model: z.string().optional(),
         inlineCitations: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+    gemini: z
+      .object({
+        apiKey: z.string().optional().register(sensitive),
+        model: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    kimi: z
+      .object({
+        apiKey: z.string().optional().register(sensitive),
+        baseUrl: z.string().optional(),
+        model: z.string().optional(),
       })
       .strict()
       .optional(),

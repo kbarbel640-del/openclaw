@@ -51,6 +51,58 @@ describe("normalizeModelCompat", () => {
     ).toBe(false);
   });
 
+  it("forces supportsDeveloperRole off for moonshot models", () => {
+    const model = {
+      ...baseModel(),
+      provider: "moonshot",
+      baseUrl: "https://api.moonshot.ai/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect(
+      (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
+    ).toBe(false);
+  });
+
+  it("forces supportsDeveloperRole off for custom moonshot-compatible endpoints", () => {
+    const model = {
+      ...baseModel(),
+      provider: "custom-kimi",
+      baseUrl: "https://api.moonshot.cn/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect(
+      (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
+    ).toBe(false);
+  });
+
+  it("forces supportsDeveloperRole off for DashScope provider ids", () => {
+    const model = {
+      ...baseModel(),
+      provider: "dashscope",
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect(
+      (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
+    ).toBe(false);
+  });
+
+  it("forces supportsDeveloperRole off for DashScope-compatible endpoints", () => {
+    const model = {
+      ...baseModel(),
+      provider: "custom-qwen",
+      baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect(
+      (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
+    ).toBe(false);
+  });
+
   it("leaves non-zai models untouched", () => {
     const model = {
       ...baseModel(),
