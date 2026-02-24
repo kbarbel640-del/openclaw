@@ -5,6 +5,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import { shouldLogVerbose } from "../globals.js";
 import { logDebug } from "../logger.js";
 import { listBindings } from "./bindings.js";
+import { classifyIntent, getBestMatch } from "./intent-classifier.js";
 import {
   buildAgentMainSessionKey,
   buildAgentPeerSessionKey,
@@ -34,6 +35,8 @@ export type ResolveAgentRouteInput = {
   teamId?: string | null;
   /** Discord member role IDs — used for role-based agent routing. */
   memberRoleIds?: string[];
+  /** Optional message for intent-based routing. */
+  message?: string | null;
 };
 
 export type ResolvedAgentRoute = {
@@ -53,6 +56,7 @@ export type ResolvedAgentRoute = {
     | "binding.team"
     | "binding.account"
     | "binding.channel"
+    | "binding.intent"
     | "default";
 };
 
@@ -428,6 +432,35 @@ export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentR
         logDebug(`[routing] match: matchedBy=${tier.matchedBy} agentId=${matched.binding.agentId}`);
       }
       return choose(matched.binding.agentId, tier.matchedBy);
+    }
+  }
+
+  // Intent-based routing: if message provided, classify intent and find matching agent
+  if (input.message) {
+    const trimmedMessage = input.message.trim();
+    if (trimmedMessage) {
+      if (shouldLogDebug) {
+        logDebug(`[routing] attempting intent-based routing for message: "${trimmedMessage}"`);
+      }
+      const classification = classifyIntent({
+        cfg: input.cfg,
+        message: trimmedMessage,
+        channel,
+      });
+      const bestMatch = getBestMatch(classification);
+      if (bestMatch && bestMatch.confidence > 0.5) {
+        if (shouldLogDebug) {
+          logDebug(
+            `[routing] match: matchedBy=binding.intent agentId=${bestMatch.agentId} confidence=${bestMatch.confidence} reason=${bestMatch.matchReason}`,
+          );
+        }
+        return choose(bestMatch.agentId, "binding.intent");
+      }
+      if (shouldLogDebug) {
+        logDebug(
+          `[routing] no intent match above threshold (bestMatch: ${bestMatch ? `${bestMatch.agentId}:${bestMatch.confidence}` : "none"})`,
+        );
+      }
     }
   }
 

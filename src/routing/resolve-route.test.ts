@@ -679,3 +679,248 @@ describe("role-based agent routing", () => {
     });
   });
 });
+
+describe("intent-based agent routing", () => {
+  test("intent-based routing matches agent with keyword", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "coding-agent",
+            workspace: "~/openclaw-coding",
+            orchestration: {
+              intents: {
+                enabled: true,
+                keywords: ["code", "debug", "fix bug"],
+              },
+            },
+          },
+        ],
+      },
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "telegram",
+      accountId: null,
+      peer: { kind: "direct", id: "+15551234567" },
+      message: "help me fix this bug in my code",
+    });
+    expect(route.agentId).toBe("coding-agent");
+    expect(route.matchedBy).toBe("binding.intent");
+  });
+
+  test("intent-based routing matches agent with category", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "research-agent",
+            workspace: "~/openclaw-research",
+            orchestration: {
+              intents: {
+                enabled: true,
+                categories: ["research", "analysis"],
+              },
+            },
+          },
+        ],
+      },
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "whatsapp",
+      accountId: null,
+      peer: { kind: "direct", id: "+15551234567" },
+      message: "can you research this topic for me",
+    });
+    expect(route.agentId).toBe("research-agent");
+    expect(route.matchedBy).toBe("binding.intent");
+  });
+
+  test("intent-based routing falls back to default when no match", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "coding-agent",
+            workspace: "~/openclaw-coding",
+            orchestration: {
+              intents: {
+                enabled: true,
+                keywords: ["code", "debug"],
+              },
+            },
+          },
+        ],
+      },
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "telegram",
+      accountId: null,
+      peer: { kind: "direct", id: "+15551234567" },
+      message: "what is the weather today",
+    });
+    expect(route.agentId).toBe("main");
+    expect(route.matchedBy).toBe("default");
+  });
+
+  test("intent-based routing requires confidence above threshold", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "coding-agent",
+            workspace: "~/openclaw-coding",
+            orchestration: {
+              intents: {
+                enabled: true,
+                categories: ["coding"],
+              },
+            },
+          },
+        ],
+      },
+    };
+    // Category match has confidence 0.7, but message doesn't contain the category
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "telegram",
+      accountId: null,
+      peer: { kind: "direct", id: "+15551234567" },
+      message: "hello there",
+    });
+    expect(route.agentId).toBe("main");
+    expect(route.matchedBy).toBe("default");
+  });
+
+  test("explicit binding beats intent-based routing", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "coding-agent",
+            workspace: "~/openclaw-coding",
+            orchestration: {
+              intents: {
+                enabled: true,
+                keywords: ["code"],
+              },
+            },
+          },
+        ],
+      },
+      bindings: [
+        {
+          agentId: "personal-agent",
+          match: {
+            channel: "whatsapp",
+            accountId: "biz",
+          },
+        },
+      ],
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "whatsapp",
+      accountId: "biz",
+      peer: { kind: "direct", id: "+15551234567" },
+      message: "help me with this code",
+    });
+    expect(route.agentId).toBe("personal-agent");
+    expect(route.matchedBy).toBe("binding.account");
+  });
+
+  test("intent-based routing works without message", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "coding-agent",
+            workspace: "~/openclaw-coding",
+            orchestration: {
+              intents: {
+                enabled: true,
+                keywords: ["code"],
+              },
+            },
+          },
+        ],
+      },
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "telegram",
+      accountId: null,
+      peer: { kind: "direct", id: "+15551234567" },
+    });
+    expect(route.agentId).toBe("main");
+    expect(route.matchedBy).toBe("default");
+  });
+
+  test("intent-based routing handles multiple agents", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "coding-agent",
+            workspace: "~/openclaw-coding",
+            orchestration: {
+              intents: {
+                enabled: true,
+                keywords: ["code", "debug", "fix"],
+              },
+            },
+          },
+          {
+            id: "research-agent",
+            workspace: "~/openclaw-research",
+            orchestration: {
+              intents: {
+                enabled: true,
+                keywords: ["research", "analyze"],
+              },
+            },
+          },
+        ],
+      },
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "discord",
+      accountId: null,
+      peer: { kind: "direct", id: "123456789" },
+      message: "please research this for me",
+    });
+    expect(route.agentId).toBe("research-agent");
+    expect(route.matchedBy).toBe("binding.intent");
+  });
+
+  test("intent-based routing with empty message falls back to default", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "coding-agent",
+            workspace: "~/openclaw-coding",
+            orchestration: {
+              intents: {
+                enabled: true,
+                keywords: ["code"],
+              },
+            },
+          },
+        ],
+      },
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "telegram",
+      accountId: null,
+      peer: { kind: "direct", id: "+15551234567" },
+      message: "   ",
+    });
+    expect(route.agentId).toBe("main");
+    expect(route.matchedBy).toBe("default");
+  });
+});
