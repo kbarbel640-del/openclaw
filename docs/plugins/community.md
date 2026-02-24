@@ -42,3 +42,12 @@ Use this format when adding entries:
   npm: `@scope/package`
   repo: `https://github.com/org/repo`
   install: `openclaw plugins install @scope/package`
+
+
+## Community plugin candidates
+
+- **Serial Adapter** — Serial telemetry/control adapter for OpenClaw with split telemetry/control channels, safety guardrails, and low-rate observer bridge support.
+  npm: `serial-adapter`
+  repo: `https://github.com/DD-Ching/serial-adapter`
+  install: `openclaw plugins install serial-adapter`
+
