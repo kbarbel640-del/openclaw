@@ -885,7 +885,7 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
       timeoutMs,
       progress,
       stepIndex: 0,
-      totalSteps: 1,
+      totalSteps: 2,
     });
     steps.push(updateStep);
 
@@ -900,8 +900,8 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
           cwd: pkgRoot,
           timeoutMs,
           progress,
-          stepIndex: 0,
-          totalSteps: 1,
+          stepIndex: 1,
+          totalSteps: 2,
         });
         steps.push(fallbackStep);
         finalStep = fallbackStep;
