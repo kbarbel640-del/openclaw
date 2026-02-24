@@ -16,6 +16,8 @@ jobs:
 
       - name: Merge upstream main
         run: |
+          git config user.email "ci@openclaw-jj-fork.ai"
+          git config user.name "CI"
           git remote add upstream https://github.com/openclaw/openclaw.git
           git fetch upstream main
           git merge upstream/main --no-edit
