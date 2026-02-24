@@ -665,7 +665,19 @@ export function resolveSessionModelRef(
       // provider the user has no credentials for.
       return { provider: runtimeProvider, model: runtimeModel };
     }
-    const parsedRuntime = parseModelRef(runtimeModel, provider || DEFAULT_PROVIDER);
+    // Legacy session entries may have model recorded without modelProvider.
+    // When runtimeModel has no "/" prefix, parseModelRef would use the fallback
+    // provider — but using `resolved.provider` (from config default_model) is wrong
+    // because the default model may belong to a completely different provider.
+    // Example: config default_model = "google-gemini-cli/gemini-3-pro-preview" but
+    // session model = "claude-sonnet-4-6" → would wrongly resolve to
+    // { provider: "google-gemini-cli", model: "claude-sonnet-4-6" }.
+    // Fix: use DEFAULT_PROVIDER as the fallback for unprefixed model names so we
+    // don't cross-contaminate the provider from an unrelated config default.
+    const fallbackProvider = runtimeModel.includes("/")
+      ? provider || DEFAULT_PROVIDER
+      : DEFAULT_PROVIDER;
+    const parsedRuntime = parseModelRef(runtimeModel, fallbackProvider);
     if (parsedRuntime) {
       provider = parsedRuntime.provider;
       model = parsedRuntime.model;

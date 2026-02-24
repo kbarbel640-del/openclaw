@@ -339,6 +339,52 @@ describe("resolveSessionModelRef", () => {
 
     expect(resolved).toEqual({ provider: "openai-codex", model: "gpt-5.3-codex" });
   });
+
+  test("does not inherit config default provider for legacy session without modelProvider", () => {
+    // Regression: when config default_model is "google-gemini-cli/gemini-3-pro-preview"
+    // and a legacy session entry has model="claude-sonnet-4-6" but modelProvider is
+    // undefined, the TUI footer should NOT show "google-gemini-cli/claude-sonnet-4-6".
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "google-gemini-cli/gemini-3-pro-preview" },
+        },
+      },
+    } as OpenClawConfig;
+
+    const resolved = resolveSessionModelRef(cfg, {
+      sessionId: "legacy-session",
+      updatedAt: Date.now(),
+      model: "claude-sonnet-4-6",
+      modelProvider: undefined,
+    });
+
+    // The provider must NOT be "google-gemini-cli" — it should fall back to
+    // the system default provider, not the config-resolved provider.
+    expect(resolved.provider).not.toBe("google-gemini-cli");
+    expect(resolved.model).toBe("claude-sonnet-4-6");
+  });
+
+  test("preserves provider from slash-prefixed model when modelProvider is missing", () => {
+    // When model string contains a provider prefix (e.g. "anthropic/claude-sonnet-4-6")
+    // parseModelRef should extract it correctly even without modelProvider set.
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "google-gemini-cli/gemini-3-pro-preview" },
+        },
+      },
+    } as OpenClawConfig;
+
+    const resolved = resolveSessionModelRef(cfg, {
+      sessionId: "slash-model",
+      updatedAt: Date.now(),
+      model: "anthropic/claude-sonnet-4-6",
+      modelProvider: undefined,
+    });
+
+    expect(resolved).toEqual({ provider: "anthropic", model: "claude-sonnet-4-6" });
+  });
 });
 
 describe("deriveSessionTitle", () => {
