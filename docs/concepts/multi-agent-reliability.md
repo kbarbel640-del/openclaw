@@ -74,7 +74,7 @@ When a subagent's pickup state reaches EXHAUSTED:
 3. Suggest re-spawning with a narrower scope
 ```
 
-OpenClaw's built-in `subagent:complete`, `subagent:timeout`, and `subagent:killed` events (see [#24925](https://github.com/openclaw/openclaw/pull/24925)) provide the signals. Custom hooks can layer retry and escalation logic on top.
+OpenClaw's `subagent:complete`, `subagent:timeout`, and `subagent:killed` events ([#24925](https://github.com/openclaw/openclaw/pull/24925), in review) will provide these signals natively. Until that lands, custom [hooks](/automation/hooks) can track subagent lifecycle and layer retry and escalation logic on top.
 
 ### Silent information loss (MAST FM-2.4)
 
@@ -129,7 +129,7 @@ If the task doesn't specify these, ask before starting.
 
 ### Long-running agents
 
-Pipeline agents that process large datasets or run multi-step workflows risk context overflow (FM-1.4) and derailment (FM-2.3).
+Pipeline agents that process large datasets or run multi-step workflows risk loss of conversation history (FM-1.4) and derailment (FM-2.3).
 
 ```markdown
 ## Context overflow protocol
@@ -158,7 +158,7 @@ Write operations (transfers, swaps, trades): require explicit confirmation
 before execution. State the exact operation, amount, and destination first.
 ```
 
-## Identity drift (MAST FM-1.2)
+## Disobey role specification (MAST FM-1.2)
 
 When agents restart or models switch mid-session, they can lose their persona. This is rare (1.5% in MAST data) but high-impact when it happens, as it breaks the separation between agents.
 
