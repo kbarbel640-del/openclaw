@@ -99,12 +99,7 @@ export const whatsappCallPlugin: ChannelPlugin<ResolvedWhatsAppCallAccount> = {
         accountId,
         name,
       }),
-    validateInput: ({ input }) => {
-      if (!input.token && !input.accessToken && !input.url) {
-        return "WhatsApp Call requires configuration via the setup wizard (openclaw channels add --channel whatsappcall).";
-      }
-      return null;
-    },
+    validateInput: () => null,
     applyAccountConfig: ({ cfg, accountId, input }) => {
       const named = applyAccountNameToChannelSection({
         cfg,
