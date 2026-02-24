@@ -195,6 +195,69 @@ export function sanitizeToolUseResultPairing(messages: AgentMessage[]): AgentMes
   return repairToolUseResultPairing(messages).messages;
 }
 
+/**
+ * Truncate tool names exceeding the API limit (200 chars) on both toolResult
+ * messages and assistant toolCall/toolUse/functionCall blocks.  This is a
+ * read-time safety net: the persistence guard already prevents new oversized
+ * names, but sessions corrupted before the guard was deployed still need repair.
+ */
+export function sanitizeToolNameLengths(messages: AgentMessage[]): AgentMessage[] {
+  let changed = false;
+  const out: AgentMessage[] = [];
+
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object") {
+      out.push(msg);
+      continue;
+    }
+
+    if (msg.role === "toolResult") {
+      const toolName = (msg as { toolName?: unknown }).toolName;
+      if (typeof toolName === "string" && toolName.length > TOOL_RESULT_NAME_MAX_CHARS) {
+        changed = true;
+        out.push({
+          ...(msg as unknown as Record<string, unknown>),
+          toolName: toolName.slice(0, TOOL_RESULT_NAME_MAX_CHARS),
+        } as AgentMessage);
+        continue;
+      }
+      out.push(msg);
+      continue;
+    }
+
+    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      let blockChanged = false;
+      const nextContent = msg.content.map((block: unknown) => {
+        if (!block || typeof block !== "object") {
+          return block;
+        }
+        const rec = block as { type?: unknown; name?: unknown };
+        if (
+          (rec.type === "toolCall" || rec.type === "toolUse" || rec.type === "functionCall") &&
+          typeof rec.name === "string" &&
+          rec.name.length > TOOL_RESULT_NAME_MAX_CHARS
+        ) {
+          blockChanged = true;
+          return {
+            ...(block as Record<string, unknown>),
+            name: rec.name.slice(0, TOOL_RESULT_NAME_MAX_CHARS),
+          };
+        }
+        return block;
+      });
+      if (blockChanged) {
+        changed = true;
+        out.push({ ...msg, content: nextContent } as AgentMessage);
+        continue;
+      }
+    }
+
+    out.push(msg);
+  }
+
+  return changed ? out : messages;
+}
+
 export type ToolUseRepairReport = {
   messages: AgentMessage[];
   added: Array<Extract<AgentMessage, { role: "toolResult" }>>;
