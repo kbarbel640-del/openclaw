@@ -202,7 +202,7 @@ function hashToolOutcome(
     // Canonicalize to semantic "still running" so no-progress retries can be detected.
     const canonicalText = text
       .replace(/\(session [^,]+,\s*pid [^)]+\)/g, "(session <id>, pid <pid>)")
-      .replace(/session [a-z0-9-]+/gi, "session <id>")
+      .replace(/session [a-zA-Z0-9-]+/g, "session <id>")
       .replace(/pid \d+/gi, "pid <pid>");
     return `exec_running:${digestStable({
       status: details.status,
