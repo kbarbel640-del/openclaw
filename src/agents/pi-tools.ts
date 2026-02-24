@@ -426,13 +426,17 @@ export function createOpenClawCodingTools(options?: {
         ? [
             workspaceOnly
               ? wrapToolWorkspaceRootGuardWithOptions(
-                  patchEditToolDocumentation(createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! })),
+                  patchEditToolDocumentation(
+                    createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+                  ),
                   sandboxRoot,
                   {
                     containerWorkdir: sandbox.containerWorkdir,
                   },
                 )
-              : patchEditToolDocumentation(createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! })),
+              : patchEditToolDocumentation(
+                  createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+                ),
             workspaceOnly
               ? wrapToolWorkspaceRootGuardWithOptions(
                   createSandboxedWriteTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
