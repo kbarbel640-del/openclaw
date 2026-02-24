@@ -47,6 +47,7 @@ node openclaw.mjs config set gateway.http.endpoints.chatCompletions.enabled true
 # Headless server — disable control UI and device auth.
 node openclaw.mjs config set gateway.controlUi.enabled false
 node openclaw.mjs config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+node openclaw.mjs config set gateway.auth.skipDevicePairing true
 
 # CORS origins (if provided).
 if [ -n "${ALLOWED_ORIGINS:-}" ]; then

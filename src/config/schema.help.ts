@@ -36,6 +36,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Allow Control UI auth over insecure HTTP (token-only; not recommended).",
   "gateway.controlUi.dangerouslyDisableDeviceAuth":
     "DANGEROUS. Disable Control UI device identity checks (token/password only).",
+  "gateway.auth.skipDevicePairing":
+    "Skip device pairing for token/password-authenticated connections. Backend services retain declared scopes without a paired device.",
   "gateway.http.endpoints.chatCompletions.enabled":
     "Enable the OpenAI-compatible `POST /v1/chat/completions` endpoint (default: false).",
   "gateway.reload.mode": 'Hot reload strategy for config changes ("hybrid" recommended).',

@@ -88,7 +88,7 @@ describe("gateway auth", () => {
 
   it("does not throw when req is missing socket", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: false },
+      auth: { mode: "token", token: "secret", allowTailscale: false, skipDevicePairing: false },
       connectAuth: { token: "secret" },
       // Regression: avoid crashing on req.socket.remoteAddress when callers pass a non-IncomingMessage.
       req: {} as never,
@@ -98,14 +98,14 @@ describe("gateway auth", () => {
 
   it("reports missing and mismatched token reasons", async () => {
     const missing = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: false },
+      auth: { mode: "token", token: "secret", allowTailscale: false, skipDevicePairing: false },
       connectAuth: null,
     });
     expect(missing.ok).toBe(false);
     expect(missing.reason).toBe("token_missing");
 
     const mismatch = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: false },
+      auth: { mode: "token", token: "secret", allowTailscale: false, skipDevicePairing: false },
       connectAuth: { token: "wrong" },
     });
     expect(mismatch.ok).toBe(false);
@@ -114,7 +114,7 @@ describe("gateway auth", () => {
 
   it("reports missing token config reason", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", allowTailscale: false },
+      auth: { mode: "token", allowTailscale: false, skipDevicePairing: false },
       connectAuth: { token: "anything" },
     });
     expect(res.ok).toBe(false);
@@ -123,7 +123,7 @@ describe("gateway auth", () => {
 
   it("allows explicit auth mode none", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "none", allowTailscale: false },
+      auth: { mode: "none", allowTailscale: false, skipDevicePairing: false },
       connectAuth: null,
     });
     expect(res.ok).toBe(true);
@@ -151,14 +151,24 @@ describe("gateway auth", () => {
 
   it("reports missing and mismatched password reasons", async () => {
     const missing = await authorizeGatewayConnect({
-      auth: { mode: "password", password: "secret", allowTailscale: false },
+      auth: {
+        mode: "password",
+        password: "secret",
+        allowTailscale: false,
+        skipDevicePairing: false,
+      },
       connectAuth: null,
     });
     expect(missing.ok).toBe(false);
     expect(missing.reason).toBe("password_missing");
 
     const mismatch = await authorizeGatewayConnect({
-      auth: { mode: "password", password: "secret", allowTailscale: false },
+      auth: {
+        mode: "password",
+        password: "secret",
+        allowTailscale: false,
+        skipDevicePairing: false,
+      },
       connectAuth: { password: "wrong" },
     });
     expect(mismatch.ok).toBe(false);
@@ -167,7 +177,7 @@ describe("gateway auth", () => {
 
   it("reports missing password config reason", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "password", allowTailscale: false },
+      auth: { mode: "password", allowTailscale: false, skipDevicePairing: false },
       connectAuth: { password: "secret" },
     });
     expect(res.ok).toBe(false);
@@ -176,7 +186,7 @@ describe("gateway auth", () => {
 
   it("treats local tailscale serve hostnames as direct", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: true },
+      auth: { mode: "token", token: "secret", allowTailscale: true, skipDevicePairing: false },
       connectAuth: { token: "secret" },
       req: {
         socket: { remoteAddress: "127.0.0.1" },
@@ -190,7 +200,7 @@ describe("gateway auth", () => {
 
   it("allows tailscale identity to satisfy token mode auth", async () => {
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: true },
+      auth: { mode: "token", token: "secret", allowTailscale: true, skipDevicePairing: false },
       connectAuth: null,
       tailscaleWhois: async () => ({ login: "peter", name: "Peter" }),
       req: {
@@ -214,7 +224,7 @@ describe("gateway auth", () => {
   it("uses proxy-aware request client IP by default for rate-limit checks", async () => {
     const limiter = createLimiterSpy();
     const res = await authorizeGatewayConnect({
-      auth: { mode: "token", token: "secret", allowTailscale: false },
+      auth: { mode: "token", token: "secret", allowTailscale: false, skipDevicePairing: false },
       connectAuth: { token: "wrong" },
       req: {
         socket: { remoteAddress: "127.0.0.1" },
@@ -233,7 +243,12 @@ describe("gateway auth", () => {
   it("passes custom rate-limit scope to limiter operations", async () => {
     const limiter = createLimiterSpy();
     const res = await authorizeGatewayConnect({
-      auth: { mode: "password", password: "secret", allowTailscale: false },
+      auth: {
+        mode: "password",
+        password: "secret",
+        allowTailscale: false,
+        skipDevicePairing: false,
+      },
       connectAuth: { password: "wrong" },
       rateLimiter: limiter,
       rateLimitScope: "custom-scope",
@@ -264,6 +279,7 @@ describe("trusted-proxy auth", () => {
       auth: options?.auth ?? {
         mode: "trusted-proxy",
         allowTailscale: false,
+        skipDevicePairing: false,
         trustedProxy: trustedProxyConfig,
       },
       connectAuth: null,
@@ -331,6 +347,7 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        skipDevicePairing: false,
         trustedProxy: {
           userHeader: "x-forwarded-user",
           allowUsers: ["admin@example.com", "nick@example.com"],
@@ -350,6 +367,7 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        skipDevicePairing: false,
         trustedProxy: {
           userHeader: "x-forwarded-user",
           allowUsers: ["admin@example.com", "nick@example.com"],
@@ -382,6 +400,7 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        skipDevicePairing: false,
       },
       headers: {
         "x-forwarded-user": "nick@example.com",
@@ -397,6 +416,7 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        skipDevicePairing: false,
         trustedProxy: {
           userHeader: "x-pomerium-claim-email",
           requiredHeaders: ["x-pomerium-jwt-assertion"],
@@ -420,6 +440,7 @@ describe("trusted-proxy auth", () => {
       auth: {
         mode: "trusted-proxy",
         allowTailscale: false,
+        skipDevicePairing: false,
         trustedProxy: {
           userHeader: "x-forwarded-user",
         },
