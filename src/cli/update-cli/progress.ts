@@ -28,6 +28,7 @@ const STEP_LABELS: Record<string, string> = {
   "openclaw doctor": "Running doctor checks",
   "git rev-parse HEAD (after)": "Verifying update",
   "global update": "Updating via package manager",
+  "global update (omit optional)": "Retrying update without optional deps",
   "global install": "Installing global package",
 };
 
