@@ -128,7 +128,7 @@ const AGENT_ROUTING_LOG = path.join(process.env.HOME || '/root', '.claude', 'log
 // ─── Token Usage Tracking (Rex-AI Dashboard) ─────────────────────
 
 function trackTokenUsage(model, provider, usage, durationMs) {
-  if (!usage) return;
+  if (!usage) {return;}
   const payload = {
     model: model || "unknown",
     provider: provider || "anthropic",
@@ -163,7 +163,7 @@ const rateLimits = {
 
 function checkRateLimit(type) {
   const limit = rateLimits[type];
-  if (!limit) return true;
+  if (!limit) {return true;}
   const now = Date.now();
   limit.hits = limit.hits.filter(t => now - t < limit.windowMs);
   if (limit.hits.length >= limit.max) {
@@ -210,7 +210,7 @@ function saveLastProject(dir) {
   lastDevProject = dir;
   try {
     const dirPath = path.dirname(LAST_PROJECT_FILE);
-    if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+    if (!fs.existsSync(dirPath)) {fs.mkdirSync(dirPath, { recursive: true });}
     fs.writeFileSync(LAST_PROJECT_FILE, JSON.stringify({ dir, ts: Date.now() }));
   } catch (e) {
     console.error(`[wrapper] save lastProject error: ${e.message}`);
@@ -246,7 +246,7 @@ const COMMON_STOCKS = {
 function detectStockSymbol(userText) {
   const lowerText = userText.toLowerCase();
   for (const [code, name] of Object.entries(COMMON_STOCKS)) {
-    if (lowerText.includes(code) || lowerText.includes(name)) return code;
+    if (lowerText.includes(code) || lowerText.includes(name)) {return code;}
   }
   return null;
 }
@@ -279,12 +279,12 @@ const FINANCIAL_KEYWORDS = [
 ];
 
 function detectFinancialIntent(userText) {
-  if (!userText) return null;
+  if (!userText) {return null;}
   const lowerText = userText.toLowerCase();
   let matchCount = 0;
   for (const kw of FINANCIAL_KEYWORDS) {
-    if (lowerText.includes(kw.toLowerCase())) matchCount++;
-    if (matchCount >= 2) return { type: 'financial', keywords: [kw] };
+    if (lowerText.includes(kw.toLowerCase())) {matchCount++;}
+    if (matchCount >= 2) {return { type: 'financial', keywords: [kw] };}
   }
   return null;
 }
@@ -370,10 +370,10 @@ const SKILL_ROUTES = [
           // Gmail: convert natural language to Gmail search syntax
           if (mode === 'gmail.list') {
             let gmailQuery = 'is:unread';
-            if (lower.includes('已讀') || lower.includes('read')) gmailQuery = 'is:read';
-            if (lower.includes('starred') || lower.includes('星號') || lower.includes('重要')) gmailQuery += ' is:starred';
-            if (lower.includes('今天') || lower.includes('today')) gmailQuery += ' newer_than:1d';
-            if (lower.includes('這週') || lower.includes('this week')) gmailQuery += ' newer_than:7d';
+            if (lower.includes('已讀') || lower.includes('read')) {gmailQuery = 'is:read';}
+            if (lower.includes('starred') || lower.includes('星號') || lower.includes('重要')) {gmailQuery += ' is:starred';}
+            if (lower.includes('今天') || lower.includes('today')) {gmailQuery += ' newer_than:1d';}
+            if (lower.includes('這週') || lower.includes('this week')) {gmailQuery += ' newer_than:7d';}
             return { mode, query: gmailQuery, max_results: 5 };
           }
           return { mode, query: text, max_results: 5 };
@@ -442,10 +442,10 @@ const SKILL_ROUTES = [
     keywords: ['rex', 'dashboard', '儀表板', 'rex-ai', '服務狀態', '專案狀態', 'backlog', '待辦'],
     buildParams: (text) => {
       const lower = text.toLowerCase();
-      if (lower.includes('backlog') || lower.includes('待辦')) return { mode: 'backlog' };
-      if (lower.includes('worklog') || lower.includes('工作記錄')) return { mode: 'worklog' };
-      if (lower.includes('alert') || lower.includes('警報')) return { mode: 'alerts' };
-      if (lower.includes('摘要') || lower.includes('summary')) return { mode: 'summary' };
+      if (lower.includes('backlog') || lower.includes('待辦')) {return { mode: 'backlog' };}
+      if (lower.includes('worklog') || lower.includes('工作記錄')) {return { mode: 'worklog' };}
+      if (lower.includes('alert') || lower.includes('警報')) {return { mode: 'alerts' };}
+      if (lower.includes('摘要') || lower.includes('summary')) {return { mode: 'summary' };}
       return { mode: 'status' };
     }
   }
@@ -618,21 +618,21 @@ const CLI_ROUTES = [
 
       if (num && (lower.includes('pr') || lower.includes('pull'))) {
         const args = ['gh', 'pr', 'view', num, '--json', 'title,state,body,reviews,url'];
-        if (repo) args.push('-R', repo);
+        if (repo) {args.push('-R', repo);}
         return args;
       }
       if (num && lower.includes('issue')) {
         const args = ['gh', 'issue', 'view', num, '--json', 'title,state,body,comments,url'];
-        if (repo) args.push('-R', repo);
+        if (repo) {args.push('-R', repo);}
         return args;
       }
       if (lower.includes('issue')) {
         const args = ['gh', 'issue', 'list', '--limit', '10', '--json', 'number,title,state,updatedAt'];
-        if (repo) args.push('-R', repo);
+        if (repo) {args.push('-R', repo);}
         return args;
       }
       const args = ['gh', 'pr', 'list', '--limit', '10', '--json', 'number,title,state,updatedAt'];
-      if (repo) args.push('-R', repo);
+      if (repo) {args.push('-R', repo);}
       return args;
     }
   }
@@ -670,7 +670,7 @@ const OLLAMA_SYSTEM_PROMPT = `你是 Rex 的 Telegram 助理。用繁體中文�
 風格: 直接、不用 emoji、不問「需要更多幫助嗎」`;
 
 function prepareOllamaMessages(messages, memoryContext) {
-  if (!messages || !messages.length) return messages;
+  if (!messages || !messages.length) {return messages;}
   let msgs = messages
     .filter(m => m.role !== 'system')
     .map(m => ({ ...m, content: normalizeContent(m.content) }));
@@ -706,10 +706,10 @@ function mem0Request(path, method, body) {
       },
       // /memory/add needs more time for embedding + pgvector write
       timeout: (() => {
-        if (path.includes('/add_batch')) return 30000;  // 批量 30s
-        if (path.includes('/add')) return 15000;        // 單筆 15s
-        if (path.includes('/delete')) return 5000;       // DELETE 5s
-        if (path.includes('/update')) return 10000;      // UPDATE 10s
+        if (path.includes('/add_batch')) {return 30000;}  // 批量 30s
+        if (path.includes('/add')) {return 15000;}        // 單筆 15s
+        if (path.includes('/delete')) {return 5000;}       // DELETE 5s
+        if (path.includes('/update')) {return 10000;}      // UPDATE 10s
         return 5000;                                      // 其他 (search) 5s
       })(),
     };
@@ -727,7 +727,7 @@ function mem0Request(path, method, body) {
     });
     req.on('error', e => reject(e));
     req.on('timeout', () => { req.destroy(); reject(new Error('mem0 timeout')); });
-    if (data) req.write(data);
+    if (data) {req.write(data);}
     req.end();
   });
 }
@@ -737,7 +737,7 @@ async function fetchMemories(query, userId = 'rex', limit = 5) {
     const result = await mem0Request('/memory/search', 'POST', { query, user_id: userId, limit });
     metrics.memorySearches++;
     const memories = result?.memories || [];
-    if (memories.length === 0) return null;
+    if (memories.length === 0) {return null;}
     const formatted = memories
       .map(m => `- ${m.memory || m.text || JSON.stringify(m)}`)
       .join('\n');
@@ -752,12 +752,12 @@ async function fetchMemories(query, userId = 'rex', limit = 5) {
 
 function storeMemory(userText, assistantText, userId = 'rex') {
   // Fire-and-forget: send full conversation to mem0 for LLM-based extraction
-  if (!userText || !assistantText) return;
+  if (!userText || !assistantText) {return;}
   // Skip very short or trivial exchanges
-  if (userText.length < 10 && assistantText.length < 20) return;
+  if (userText.length < 10 && assistantText.length < 20) {return;}
   // Skip greetings and trivial messages
   const trivial = /^(你好|嗨|hi|hello|hey|ok|好的|謝謝|thanks|bye|掰|test|測試)[\s!！.。?？]*$/i;
-  if (trivial.test(userText.trim())) return;
+  if (trivial.test(userText.trim())) {return;}
 
   const messages = [
     { role: 'user', content: userText.slice(0, 2000) },
@@ -780,7 +780,7 @@ function storeMemory(userText, assistantText, userId = 'rex') {
 // ─── Utility Functions ─────────────────────────────────────────
 
 function normalizeContent(content) {
-  if (typeof content === 'string') return content;
+  if (typeof content === 'string') {return content;}
   if (Array.isArray(content)) {
     return content
       .filter(c => c.type === 'text' || typeof c === 'string')
@@ -819,9 +819,9 @@ function extractSenderFromText(text) {
     if (lower.includes(kw.toLowerCase())) {
       // Determine action from text
       let action = 'trash';  // default: auto-delete
-      if (lower.includes('標記已讀') || lower.includes('mark read')) action = 'read';
-      if (lower.includes('封存') || lower.includes('archive')) action = 'archive';
-      if (lower.includes('星號') || lower.includes('star')) action = 'star';
+      if (lower.includes('標記已讀') || lower.includes('mark read')) {action = 'read';}
+      if (lower.includes('封存') || lower.includes('archive')) {action = 'archive';}
+      if (lower.includes('星號') || lower.includes('star')) {action = 'star';}
       return { address: info.address, action, name: info.name };
     }
   }
@@ -830,8 +830,8 @@ function extractSenderFromText(text) {
   const emailMatch = text.match(/[\w.-]+@[\w.-]+\.\w+/);
   if (emailMatch) {
     let action = 'trash';
-    if (lower.includes('標記已讀') || lower.includes('mark read')) action = 'read';
-    if (lower.includes('封存') || lower.includes('archive')) action = 'archive';
+    if (lower.includes('標記已讀') || lower.includes('mark read')) {action = 'read';}
+    if (lower.includes('封存') || lower.includes('archive')) {action = 'archive';}
     return { address: emailMatch[0], action };
   }
 
@@ -933,7 +933,7 @@ async function handleGmailUnsubscribe(reqId, userText, wantsStream, res) {
 // ─── Skill Intent Detection ────────────────────────────────────
 
 function detectSkillIntent(text) {
-  if (!text) return null;
+  if (!text) {return null;}
   const lower = text.toLowerCase();
 
   // Priority override: gmail/calendar operations beat web_search
@@ -944,7 +944,7 @@ function detectSkillIntent(text) {
     "filter", "block sender", "unsubscribe"];
   if (gmailActionWords.some(kw => lower.includes(kw))) {
     const gws = SKILL_ROUTES.find(r => r.name === "google_workspace");
-    if (gws) return { skillName: gws.name, params: gws.buildParams(text) };
+    if (gws) {return { skillName: gws.name, params: gws.buildParams(text) };}
   }
 
   for (const route of SKILL_ROUTES) {
@@ -961,7 +961,7 @@ function detectSkillIntent(text) {
 // ─── CLI Tool Detection ───────────────────────────────────────
 
 function detectCliIntent(text) {
-  if (!text) return null;
+  if (!text) {return null;}
   const lower = text.toLowerCase();
 
   for (const route of CLI_ROUTES) {
@@ -1076,12 +1076,12 @@ async function handleSystemCommand(type) {
           localGet('/api/websearch/stats').catch(() => null),
         ]);
         const lines = ['[OpenClaw Dashboard]', ''];
-        if (h) lines.push(`Proxy: ${h.status} v${h.version} (${h.uptime_human})`);
-        if (m) lines.push(`Requests: ${m.requests} | Errors: ${m.errors} | Ollama: ${m.ollamaRouted}`);
-        if (f) lines.push(`Model: ${f.activeModel} ${f.isFailover ? '(FAILOVER)' : ''}`);
-        if (a) lines.push(`Agents: ${a.agents.length} configured`);
-        if (i) lines.push(`Intent: ${i.classification.total_calls} calls, cache ${i.cache.hit_rate}`);
-        if (w) lines.push(`Search: ${w.quota.monthly_usage}/${w.quota.monthly_limit} quota used`);
+        if (h) {lines.push(`Proxy: ${h.status} v${h.version} (${h.uptime_human})`);}
+        if (m) {lines.push(`Requests: ${m.requests} | Errors: ${m.errors} | Ollama: ${m.ollamaRouted}`);}
+        if (f) {lines.push(`Model: ${f.activeModel} ${f.isFailover ? '(FAILOVER)' : ''}`);}
+        if (a) {lines.push(`Agents: ${a.agents.length} configured`);}
+        if (i) {lines.push(`Intent: ${i.classification.total_calls} calls, cache ${i.cache.hit_rate}`);}
+        if (w) {lines.push(`Search: ${w.quota.monthly_usage}/${w.quota.monthly_limit} quota used`);}
         return lines.join('\n');
       }
       default:
@@ -1095,9 +1095,13 @@ async function handleSystemCommand(type) {
 // ─── CLI Command Executor ─────────────────────────────────────
 
 function runCliCommand(cmd) {
+  // P1.11: Circuit breaker check
+  if (circuitBreaker.isCircuitOpen('cli')) {
+    return Promise.reject(new Error('[CIRCUIT OPEN] CLI tools temporarily disabled'));
+  }
+
   return new Promise((resolve, reject) => {
     const [bin, ...args] = cmd;
-    // gh commands need a git repo as cwd when no -R flag is provided
     const needsRepo = bin === 'gh' && !args.includes('-R');
     const cwd = needsRepo
       ? '/Users/rexmacmini/Project/active_projects/taiwan-stock-mvp'
@@ -1109,8 +1113,10 @@ function runCliCommand(cmd) {
       env: { ...process.env, PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin' }
     }, (err, stdout, stderr) => {
       if (err) {
+        circuitBreaker.recordFailure('cli');
         reject(new Error(stderr || err.message));
       } else {
+        circuitBreaker.recordSuccess('cli');
         resolve(stdout.trim());
       }
     });
@@ -1120,6 +1126,11 @@ function runCliCommand(cmd) {
 // ─── Generic Skill API Caller ──────────────────────────────────
 
 function callSkill(skillName, params) {
+  // P1.11: Circuit breaker check
+  if (circuitBreaker.isCircuitOpen('skill_api')) {
+    return Promise.reject(new Error('[CIRCUIT OPEN] Skill API temporarily unavailable'));
+  }
+
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       skill_name: skillName,
@@ -1143,15 +1154,24 @@ function callSkill(skillName, params) {
       res.on('data', c => data += c);
       res.on('end', () => {
         try {
+          circuitBreaker.recordSuccess('skill_api');
           resolve(JSON.parse(data));
         } catch (e) {
+          circuitBreaker.recordFailure('skill_api');
           reject(new Error(`Parse error: ${e.message}`));
         }
       });
     });
-    req.on('error', (e) => reject(new Error(`Skill API unreachable: ${e.message}`)));
-    req.on('timeout', () => { req.destroy(); reject(new Error('Skill timeout (15s)')); });
-    if (method !== 'GET') req.write(body);
+    req.on('error', (e) => {
+      circuitBreaker.recordFailure('skill_api');
+      reject(new Error(`Skill API unreachable: ${e.message}`));
+    });
+    req.on('timeout', () => {
+      circuitBreaker.recordFailure('skill_api');
+      req.destroy();
+      reject(new Error('Skill timeout (15s)'));
+    });
+    if (method !== 'GET') {req.write(body);}
     req.end();
   });
 }
@@ -1167,9 +1187,9 @@ function formatSkillResult(skillName, result) {
     if (result?.result?.data && Array.isArray(result.result.data)) {
       const items = result.result.data.map((r, i) => {
         const parts = [];
-        if (r.title) parts.push(r.title);
-        if (r.url) parts.push(r.url);
-        if (r.snippet || r.description) parts.push(r.snippet || r.description);
+        if (r.title) {parts.push(r.title);}
+        if (r.url) {parts.push(r.url);}
+        if (r.snippet || r.description) {parts.push(r.snippet || r.description);}
         return `${i + 1}. ${parts.join('\n   ')}`;
       });
       return `[${skillName} 結果]\n${items.join('\n\n')}`;
@@ -1290,8 +1310,8 @@ function logDevWork(project, prompt, durationSec, success) {
   const status = success ? '' : ' [failed]';
   const cmd = `${process.env.HOME || '/Users/rexmacmini'}/.claude/scripts/wt-log.sh "${project}" "code" "dev-mode: ${desc}${status}" ${Math.max(1, Math.round(durationSec / 60))} "auto" null null null 5000`;
   execFile('/bin/bash', ['-c', cmd], { timeout: 5000 }, (err) => {
-    if (err) console.error(`[wrapper] wt-log error: ${err.message}`);
-    else console.log(`[wrapper] wt-log: ${project}/code dev-mode recorded`);
+    if (err) {console.error(`[wrapper] wt-log error: ${err.message}`);}
+    else {console.log(`[wrapper] wt-log: ${project}/code dev-mode recorded`);}
   });
 }
 
@@ -1299,7 +1319,7 @@ function logDevWork(project, prompt, durationSec, success) {
 
 function formatDevError(category, message, hint) {
   let out = `[${category}] ${message}`;
-  if (hint) out += `\n提示: ${hint}`;
+  if (hint) {out += `\n提示: ${hint}`;}
   return out;
 }
 
@@ -1530,7 +1550,7 @@ const AGENTD_TOOLS = [
 
 // P1.3: Runtime Tool Injection — extract tool names and descriptions from AGENTD_TOOLS
 function buildAvailableToolsList() {
-  if (!AGENTD_TOOLS || !Array.isArray(AGENTD_TOOLS)) return '（無可用工具）';
+  if (!AGENTD_TOOLS || !Array.isArray(AGENTD_TOOLS)) {return '（無可用工具）';}
   return AGENTD_TOOLS
     .map(t => {
       if (t.type === 'function' && t.function) {
@@ -1549,20 +1569,20 @@ const AVAILABLE_TOOLS_LIST = buildAvailableToolsList();
 // ─── Dev Tool Loop Helper Functions ───────────────────────────────────
 
 function shouldInjectDevTools(userText) {
-  if (!userText) return false;
+  if (!userText) {return false;}
   const lower = userText.toLowerCase();
   
   // Has project keyword → true
   const hasProjectKw = PROJECT_ROUTES.some(r => r.keywords.some(kw => lower.includes(kw)));
-  if (hasProjectKw) return true;
+  if (hasProjectKw) {return true;}
   
   // Has lastDevProject → true (follow-up)
-  if (lastDevProject) return true;
+  if (lastDevProject) {return true;}
   
   // Has docker/system keyword → true
   const devKeywords = ['docker', '容器', 'log', 'git', 'commit', 'push', 'test', '部署', 'deploy', '檔案', '讀取', '列出', 'restart', 'status', 'diff', 'ssh'];
   const hasDevKw = devKeywords.some(kw => lower.includes(kw));
-  if (hasDevKw && DEV_ACTION_WORDS.some(w => lower.includes(w))) return true;
+  if (hasDevKw && DEV_ACTION_WORDS.some(w => lower.includes(w))) {return true;}
   
   return false;
 }
@@ -1611,12 +1631,12 @@ const CONTAINER_ALIASES = {
 };
 
 function resolveContainer(name) {
-  if (!name) return name;
+  if (!name) {return name;}
   return CONTAINER_ALIASES[name.toLowerCase()] || name;
 }
 
 function resolveProject(target) {
-  if (!target) return '/Users/rexmacmini/openclaw';
+  if (!target) {return '/Users/rexmacmini/openclaw';}
   const lower = target.toLowerCase();
   for (const route of PROJECT_ROUTES) {
     if (route.keywords.some(kw => lower.includes(kw))) {
@@ -1670,7 +1690,7 @@ function callAgentd(endpoint, params, timeout, method) {
     });
     req.on('error', (e) => reject(new Error(`agentd unreachable: ${e.message}`)));
     req.on('timeout', () => { req.destroy(); reject(new Error('agentd timeout')); });
-    if (httpMethod !== 'GET') req.write(body);
+    if (httpMethod !== 'GET') {req.write(body);}
     req.end();
   });
 }
@@ -1708,7 +1728,7 @@ function callSessionBridgeAPI(method, path, body) {
     });
     req.on('error', e => reject(new Error(`session-bridge unreachable: ${e.message}`)));
     req.on('timeout', () => { req.destroy(); reject(new Error('session-bridge timeout')); });
-    if (method !== 'GET') req.write(postBody);
+    if (method !== 'GET') {req.write(postBody);}
     req.end();
   });
 }
@@ -1762,8 +1782,8 @@ async function callSessionBridge(task, project) {
       }
     } catch (err) {
       // Session might have ended
-      if (err.message.includes('not found') || err.message.includes('unreachable')) break;
-      if (attempts >= maxAttempts) throw err;
+      if (err.message.includes('not found') || err.message.includes('unreachable')) {break;}
+      if (attempts >= maxAttempts) {throw err;}
     }
   }
 
@@ -1823,7 +1843,7 @@ setInterval(async () => {
       console.error(`[wrapper] agentd health check FAILED (${agentdFailCount} consecutive failures)`);
     }
   } else {
-    if (!agentdHealthy) console.log('[wrapper] agentd recovered');
+    if (!agentdHealthy) {console.log('[wrapper] agentd recovered');}
     agentdHealthy = true;
     agentdFailCount = 0;
   }
@@ -1843,17 +1863,17 @@ function formatAgentdResult(endpoint, result) {
   if (result.hostname && result.claude_code_version) {
     return `Mac mini (${result.hostname}) 系統資訊:\n- Claude Code: ${result.claude_code_version}\n- Node.js: ${result.node_version}\n- Platform: ${result.platform}/${result.arch}\n- Ollama 模型: ${result.ollama_models}\n- Docker 容器:\n${result.docker_containers}\n- 系統運行: ${result.system_uptime_hours} 小時\n- agentd 運行: ${result.agentd_uptime_seconds} 秒`;
   }
-  if (result.error) return formatDevError('agentd', result.error);
-  if (result.log) return result.log;
-  if (result.status !== undefined && typeof result.status === 'string') return result.status || '(clean)';
-  if (result.diff !== undefined) return result.diff || '(no changes)';
-  if (result.content !== undefined) return result.content;
-  if (result.containers) return result.containers;
-  if (result.logs) return result.logs;
-  if (result.output) return result.output;
-  if (result.added) return `Added: ${result.added.join(', ')}`;
-  if (result.artifact) return `Test output saved to ${result.artifact}\n${result.summary || ''}`;
-  if (Array.isArray(result)) return result.map(e => `${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n');
+  if (result.error) {return formatDevError('agentd', result.error);}
+  if (result.log) {return result.log;}
+  if (result.status !== undefined && typeof result.status === 'string') {return result.status || '(clean)';}
+  if (result.diff !== undefined) {return result.diff || '(no changes)';}
+  if (result.content !== undefined) {return result.content;}
+  if (result.containers) {return result.containers;}
+  if (result.logs) {return result.logs;}
+  if (result.output) {return result.output;}
+  if (result.added) {return `Added: ${result.added.join(', ')}`;}
+  if (result.artifact) {return `Test output saved to ${result.artifact}\n${result.summary || ''}`;}
+  if (Array.isArray(result)) {return result.map(e => `${e.type === 'dir' ? '📁' : '📄'} ${e.name}`).join('\n');}
   return JSON.stringify(result, null, 2);
 }
 
@@ -1958,7 +1978,7 @@ const PROGRESS_KEYWORDS = [
 ];
 
 function detectProgressIntent(text) {
-  if (!text) return false;
+  if (!text) {return false;}
   const lower = text.toLowerCase();
   return PROGRESS_KEYWORDS.some(kw => lower.includes(kw));
 }
@@ -1989,7 +2009,7 @@ function fetchWorkProgress() {
     execFile('/bin/bash', ['-c', 'ps aux | grep "[c]laude" | grep -v wrapper'], {
       timeout: 3000,
     }, (err, stdout) => {
-      if (err || !stdout.trim()) return resolve([]);
+      if (err || !stdout.trim()) {return resolve([]);}
       const lines = stdout.trim().split('\n').map(line => {
         const parts = line.split(/\s+/);
         const pid = parts[1];
@@ -2042,7 +2062,7 @@ function formatProgressResponse(wtData, procs) {
 // ─── Message Injection ─────────────────────────────────────────
 
 function injectBotSystemPrompt(messages, skillContext, memoryContext) {
-  if (!messages || !messages.length) return messages;
+  if (!messages || !messages.length) {return messages;}
   messages = [...messages];
   messages = messages.filter(m => m.role !== 'system');
   messages = messages.map(m => ({
@@ -2122,8 +2142,8 @@ function streamPassthrough(reqId, body, res, skillContext, memoryContext, userTe
 
       for (const line of lines) {
         if (!line.startsWith('data: ')) {
-          if (line.trim()) res.write(line + '\n');
-          else res.write('\n');
+          if (line.trim()) {res.write(line + '\n');}
+          else {res.write('\n');}
           continue;
         }
 
@@ -2140,11 +2160,11 @@ function streamPassthrough(reqId, body, res, skillContext, memoryContext, userTe
           }
           if (parsed.choices?.[0]?.delta?.tool_calls) {
             delete parsed.choices[0].delta.tool_calls;
-            if (!parsed.choices[0].delta.content) continue;
+            if (!parsed.choices[0].delta.content) {continue;}
           }
           // Collect assistant text for memory
           const deltaContent = parsed.choices?.[0]?.delta?.content;
-          if (deltaContent) assistantText += deltaContent;
+          if (deltaContent) {assistantText += deltaContent;}
 
           res.write(`data: ${JSON.stringify(parsed)}\n\n`);
           chunkCount++;
@@ -2155,7 +2175,7 @@ function streamPassthrough(reqId, body, res, skillContext, memoryContext, userTe
     });
 
     upRes.on('end', () => {
-      if (buffer.trim()) res.write(buffer + '\n');
+      if (buffer.trim()) {res.write(buffer + '\n');}
       const totalTime = Date.now() - startTime;
       console.log(`[wrapper] #${reqId} done: ${totalTime}ms total, ${chunkCount} chunks`);
       res.end();
@@ -2170,7 +2190,7 @@ function streamPassthrough(reqId, body, res, skillContext, memoryContext, userTe
   upReq.on('error', (e) => {
     console.error(`[wrapper] #${reqId} stream error: ${e.message}`);
     metrics.errors++;
-    if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' });
+    if (!res.headersSent) {res.writeHead(502, { 'Content-Type': 'application/json' });}
     res.end(JSON.stringify({
       error: { message: `上游服務不可達，請稍後再試。(${e.code || e.message})` }
     }));
@@ -2180,7 +2200,7 @@ function streamPassthrough(reqId, body, res, skillContext, memoryContext, userTe
     upReq.destroy();
     console.error(`[wrapper] #${reqId} stream timeout`);
     metrics.errors++;
-    if (!res.headersSent) res.writeHead(504, { 'Content-Type': 'application/json' });
+    if (!res.headersSent) {res.writeHead(504, { 'Content-Type': 'application/json' });}
     res.end(JSON.stringify({
       error: { message: '上游服務回應超時 (120s)，請稍後再試。' }
     }));
@@ -2304,7 +2324,7 @@ function proxyPassThrough(req, res) {
 
 // ─── Main Handler ──────────────────────────────────────────────
 
-async function executeAgentdToolCall(toolName, toolArgs) {
+async function executeAgentdToolCallInner(toolName, toolArgs) {
   switch (toolName) {
     case 'git_log':
       return callAgentd('/git/log', { repo: resolveProject(toolArgs.project) });
@@ -2358,6 +2378,28 @@ async function executeAgentdToolCall(toolName, toolArgs) {
 
     default:
       throw new Error(`Unknown tool: ${toolName}`);
+  }
+}
+
+async function executeAgentdToolCall(toolName, toolArgs) {
+  // P1.11: Circuit breaker
+  if (circuitBreaker.isCircuitOpen(toolName)) {
+    throw new Error(`[CIRCUIT OPEN] ${toolName} temporarily disabled`);
+  }
+  
+  // P1.10: Concurrency limit (CPU vs IO)
+  const CPU_TOOLS = ['bash_execute', 'docker_control', 'privileged_task', 'git_push'];
+  const limiter = CPU_TOOLS.includes(toolName) ? cpuLimit : ioLimit;
+
+  try {
+    const result = await limiter(() =>
+      withTimeout(() => executeAgentdToolCallInner(toolName, toolArgs), 30000, toolName)
+    );
+    circuitBreaker.recordSuccess(toolName);
+    return result;
+  } catch (err) {
+    circuitBreaker.recordFailure(toolName);
+    throw err;
   }
 }
 
@@ -2500,8 +2542,8 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
           timeout: 3000,
         };
         const req = http.request(opts, (res) => {
-          if (res.statusCode === 200) resolve(true);
-          else resolve(false);
+          if (res.statusCode === 200) {resolve(true);}
+          else {resolve(false);}
         });
         req.on('error', () => resolve(false));
         req.on('timeout', () => { req.destroy(); resolve(false); });
@@ -2529,7 +2571,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   }
 
   const msgs = parsed.messages || [];
-  const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user');
+  const lastUserMsg = [...msgs].toReversed().find(m => m.role === 'user');
   let userText = lastUserMsg ? normalizeContent(lastUserMsg.content) : '';
 
   // Strip OpenClaw metadata prefix early — all downstream routing uses clean text
@@ -2578,8 +2620,8 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       analysis += `📊 最新收盤: ${indicators.latest_close.toFixed(2)} 元\n`;
       analysis += `📈 指標: MA5=${(indicators.ma_5||0).toFixed(2)}, MA20=${(indicators.ma_20||0).toFixed(2)}, RSI=${(indicators.rsi_14||0).toFixed(2)}, MACD=${(indicators.macd||0).toFixed(2)}\n`;
       analysis += `📊 趨勢: ${indicators.trend_signal || 'N/A'}\n`;
-      if (indicators.rsi_14 && indicators.rsi_14 > 70) analysis += `⚠️ RSI>70 超買\n`;
-      else if (indicators.rsi_14 && indicators.rsi_14 < 30) analysis += `🔥 RSI<30 超賣\n`;
+      if (indicators.rsi_14 && indicators.rsi_14 > 70) {analysis += `⚠️ RSI>70 超買\n`;}
+      else if (indicators.rsi_14 && indicators.rsi_14 < 30) {analysis += `🔥 RSI<30 超賣\n`;}
       analysis += `\n⚠️ 免責聲明: 本分析僅供參考，非投資建議。`;
       skillContext = `[台股分析]\n${analysis}`;
       return sendDirectResponse(reqId, skillContext, wantsStream, res);
@@ -2631,24 +2673,24 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   const isConfirm = !hasProjectKeyword && actualUserText.length <= 10 && CONFIRM_WORDS.some(w => lowerActual.includes(w));
   const wantsAll = lowerActual.includes('全部') || lowerActual.includes('all') || lowerActual.includes('都');
 
-  if (isConfirm) console.log(`[wrapper] #${reqId} confirm-check: actual="${actualUserText}" isConfirm=true wantsAll=${wantsAll}`);
+  if (isConfirm) {console.log(`[wrapper] #${reqId} confirm-check: actual="${actualUserText}" isConfirm=true wantsAll=${wantsAll}`);}
   if (isConfirm && msgs.length >= 2) {
     // Extract all 👉 commands from conversation history
     const suggestions = [];
-    for (const m of [...msgs].reverse()) {
-      if (m.role !== 'assistant') continue;
+    for (const m of [...msgs].toReversed()) {
+      if (m.role !== 'assistant') {continue;}
       const text = normalizeContent(m.content);
       // Match 👉 only at start of line (actual suggestions, not inline text)
       const matches = text.match(/^👉\s*(.+)/gm);
       if (matches) {
         for (const match of matches) {
           const cmd = match.replace(/^👉\s*/, '').trim();
-          if (cmd.length >= 3) suggestions.push(cmd); // skip empty/tiny matches
+          if (cmd.length >= 3) {suggestions.push(cmd);} // skip empty/tiny matches
         }
         break; // use the most recent assistant message with 👉
       }
     }
-    if (suggestions.length > 0) console.log(`[wrapper] #${reqId} follow-up: found ${suggestions.length} suggestions`);
+    if (suggestions.length > 0) {console.log(`[wrapper] #${reqId} follow-up: found ${suggestions.length} suggestions`);}
 
     if (suggestions.length > 0) {
       if (wantsAll) {
@@ -2687,9 +2729,9 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     const recentMsgs = msgs.slice(-6);
     const contextParts = [];
     for (const m of recentMsgs) {
-      if (m === lastUserMsg) continue;
+      if (m === lastUserMsg) {continue;}
       const text = normalizeContent(m.content);
-      if (text) contextParts.push(`[${m.role}]: ${text.slice(0, 500)}`);
+      if (text) {contextParts.push(`[${m.role}]: ${text.slice(0, 500)}`);}
     }
     if (contextParts.length > 0) {
       conversationContext = contextParts.join('\n');
@@ -2724,7 +2766,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
           console.log(`[wrapper] #${reqId} GIT PUSH INTERCEPT: keyword=${matchedKeyword} repo=${repo}`);
           try {
             let remote = 'origin';
-            if (/fork/i.test(userText)) remote = 'fork';
+            if (/fork/i.test(userText)) {remote = 'fork';}
             const branch = 'main';
             const result = await callSessionBridge(
               `cd ${repo} && git push ${remote} ${branch}`,
@@ -3285,6 +3327,8 @@ function handleWakeEvent(req, res) {
 const server = http.createServer((req, res) => {
   // P1.5: Initialize request metadata for structured timing
   initRequestMetadata(req);
+  // P2.1: Log structured timing on response finish
+  res.on('finish', () => logStructuredTiming(req, res));
 
   // Health endpoint
   if (req.url === '/health' && req.method === 'GET') {
