@@ -259,6 +259,7 @@ Triggered when messages are received or sent:
 
 - **`message`**: All message events (general listener)
 - **`message:received`**: When an inbound message is received from any channel
+- **`message:before`** (modifying): Fires just before the agent prompt is sent. Handlers can return `prependContext` and/or `systemPrompt` to modify the agent's input.
 - **`message:sent`**: When an outbound message is successfully sent
 
 #### Message Event Context
@@ -287,6 +288,15 @@ Message events include rich context about the message:
   }
 }
 
+// message:before context
+{
+  prompt: string,         // The effective prompt about to be sent
+  messages: AgentMessage[], // Current conversation history
+  agentId?: string,       // Resolved agent ID
+  sessionId?: string,     // Session identifier
+  commandSource?: string, // Message provider/channel
+}
+
 // message:sent context
 {
   to: string,             // Recipient identifier
@@ -299,6 +309,19 @@ Message events include rich context about the message:
   messageId?: string,     // Message ID returned by the provider
 }
 ```
+
+#### Return Values (`message:before` only)
+
+Handlers registered for `message:before` can return an `InternalHookResult`:
+
+```typescript
+interface InternalHookResult {
+  prependContext?: string; // Prepended to the prompt
+  systemPrompt?: string; // Overrides the system prompt
+}
+```
+
+Multiple handlers are merged: `prependContext` values are concatenated with `\n\n`, and the last non-undefined `systemPrompt` wins. Returning `undefined` or `void` is a no-op.
 
 #### Example: Message Logger Hook
 
