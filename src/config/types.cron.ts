@@ -25,6 +25,14 @@ export type CronConfig = {
    */
   sessionRetention?: string | false;
   /**
+   * Run-log pruning controls for `cron/runs/<jobId>.jsonl`.
+   * Defaults: `maxBytes=2_000_000`, `keepLines=2000`.
+   */
+  runLog?: {
+    maxBytes?: number | string;
+    keepLines?: number;
+  };
+  /**
    * Optional deterministic critic-loop gate for isolated executor outputs.
    * Disabled by default.
    */
