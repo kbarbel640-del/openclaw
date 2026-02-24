@@ -58,7 +58,7 @@ async function writeStoredModelOverride(cfg: ReturnType<typeof makeCfg>): Promis
 }
 
 describe("trigger handling", () => {
-  it("includes the error cause when the embedded agent throws", async () => {
+  it("returns a concise model/provider failure message when the embedded agent throws", async () => {
     await withTempHome(async (home) => {
       const runEmbeddedPiAgentMock = getRunEmbeddedPiAgentMock();
       runEmbeddedPiAgentMock.mockRejectedValue(new Error("sandbox is not defined."));
@@ -67,7 +67,7 @@ describe("trigger handling", () => {
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       expect(text).toBe(
-        "⚠️ Agent failed before reply: sandbox is not defined.\nLogs: openclaw logs --follow",
+        "⚠️ Agent could not reply due to a model/provider issue. Please retry in 1-2 minutes. If this keeps happening, run /status.",
       );
       expect(runEmbeddedPiAgentMock).toHaveBeenCalledOnce();
     });
