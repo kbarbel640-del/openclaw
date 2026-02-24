@@ -5,7 +5,7 @@
  * - MOONSHOT_API_KEY environment variable
  *
  * Run locally with:
- *   MOONSHOT_API_KEY=sk-xxx pnpm test src/agents/moonshot-cache.e2e.test.ts
+ *   MOONSHOT_API_KEY=sk-xxx pnpm test test/moonshot-cache.e2e.test.ts
  *
  * Tests are skipped in CI when API key is not available.
  */
@@ -15,7 +15,7 @@ import {
   clearAllCaches,
   createMoonshotCacheWrapper,
   getOrCreateCache,
-} from "../../src/agents/moonshot-cache.js";
+} from "../src/agents/moonshot-cache.js";
 
 const MOONSHOT_API_KEY = process.env.MOONSHOT_API_KEY;
 const BASE_URL = "https://api.moonshot.cn/v1";
