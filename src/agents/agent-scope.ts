@@ -183,7 +183,13 @@ export function resolveAgentEffectiveModelPrimary(
   );
 }
 
-// Backward-compatible alias. Prefer explicit/effective helpers at new call sites.
+/**
+ * @deprecated Use {@link resolveAgentExplicitModelPrimary} when you only need the
+ * agent-level override, or {@link resolveAgentEffectiveModelPrimary} when you need
+ * the full resolution chain (agent override → global defaults). This alias only
+ * performs explicit lookups, which silently ignores `agents.defaults.model` and
+ * can cause unexpected fallback to hardcoded DEFAULT_MODEL (see #25191).
+ */
 export function resolveAgentModelPrimary(cfg: OpenClawConfig, agentId: string): string | undefined {
   return resolveAgentExplicitModelPrimary(cfg, agentId);
 }
