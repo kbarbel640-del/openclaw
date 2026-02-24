@@ -42,3 +42,10 @@ Use this format when adding entries:
   npm: `@scope/package`
   repo: `https://github.com/org/repo`
   install: `openclaw plugins install @scope/package`
+
+## Listed plugins
+
+- **Sentinel** — Real-time endpoint security monitoring powered by osquery. Detects SSH logins, sudo commands, screen sharing, user account changes, unsigned binaries, privilege escalation, and file integrity changes. Alerts via any OpenClaw channel.
+  npm: `openclaw-sentinel`
+  repo: `https://github.com/sunil-sadasivan/openclaw-sentinel`
+  install: `openclaw plugins install openclaw-sentinel`
