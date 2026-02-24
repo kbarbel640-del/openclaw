@@ -230,6 +230,7 @@ export class OpenClawApp extends LitElement {
     activeSection: null,
     avatarPreview: null,
   };
+  @state() agentDetailOpenSections: Set<string> = new Set();
   @state() agentFilesLoading = false;
   @state() agentFilesError: string | null = null;
   @state() agentFilesList: AgentsFilesListResult | null = null;

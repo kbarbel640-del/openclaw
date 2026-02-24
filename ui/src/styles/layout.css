@@ -44,6 +44,14 @@
   grid-template-columns: 60px minmax(0, 1fr);
 }
 
+.shell--detail-panel-open {
+  grid-template-columns: var(--shell-nav-width) minmax(0, 1fr) 420px;
+}
+
+.shell--nav-collapsed.shell--detail-panel-open {
+  grid-template-columns: 60px minmax(0, 1fr) 420px;
+}
+
 .shell--chat-focus {
   grid-template-columns: 0px minmax(0, 1fr);
 }

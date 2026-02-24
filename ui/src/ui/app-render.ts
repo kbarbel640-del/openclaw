@@ -13,6 +13,7 @@ import {
   renderThemeToggle,
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
+import { triggerAvatarPicker, readFileAsDataUrl } from "./controllers/agent-avatar.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
@@ -63,6 +64,7 @@ import {
 import "./components/dashboard-header.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
+import { renderAgentDetailPanel } from "./views/agent-detail-panel.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
@@ -177,7 +179,7 @@ export function renderApp(state: AppViewState) {
       },
     })}
     <div
-      class="shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""}"
+      class="shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""} ${state.agentDetailPanel.open && !state.agentDetailPanel.expanded ? "shell--detail-panel-open" : ""}"
       style="--shell-nav-width: ${state.settings.navWidth}px"
     >
       <header class="topbar">
@@ -1219,6 +1221,72 @@ export function renderApp(state: AppViewState) {
             : nothing
         }
       </main>
+      ${renderAgentDetailPanel({
+        panelState: state.agentDetailPanel,
+        agent: (() => {
+          const agentId = state.agentDetailPanel.agentId;
+          if (!agentId || !state.agentsList) {
+            return null;
+          }
+          return state.agentsList.agents.find((a) => a.id === agentId) ?? null;
+        })(),
+        agentIdentity: (() => {
+          const agentId = state.agentDetailPanel.agentId;
+          return agentId ? (state.agentIdentityById[agentId] ?? null) : null;
+        })(),
+        filesList: state.agentFilesList,
+        fileContents: state.agentFileContents,
+        fileDrafts: state.agentFileDrafts,
+        fileSaving: state.agentFileSaving,
+        filesLoading: state.agentFilesLoading,
+        configForm: state.configForm,
+        defaultId: state.agentsList?.defaultId ?? null,
+        openSections: state.agentDetailOpenSections,
+        onClose: () => {
+          state.agentDetailPanel = { ...state.agentDetailPanel, open: false, expanded: false };
+        },
+        onToggleExpand: () => {
+          state.agentDetailPanel = {
+            ...state.agentDetailPanel,
+            expanded: !state.agentDetailPanel.expanded,
+          };
+        },
+        onModeChange: (mode) => {
+          state.agentDetailPanel = { ...state.agentDetailPanel, mode };
+        },
+        onToggleSection: (id) => {
+          const next = new Set(state.agentDetailOpenSections);
+          if (next.has(id)) {
+            next.delete(id);
+          } else {
+            next.add(id);
+          }
+          state.agentDetailOpenSections = next;
+        },
+        onAvatarClick: async () => {
+          const file = await triggerAvatarPicker();
+          if (!file) {
+            return;
+          }
+          const dataUrl = await readFileAsDataUrl(file);
+          state.agentDetailPanel = { ...state.agentDetailPanel, avatarPreview: dataUrl };
+        },
+        onFileDraftChange: (name, content) => {
+          state.agentFileDrafts = { ...state.agentFileDrafts, [name]: content };
+        },
+        onFileSave: (name) => {
+          const agentId = state.agentDetailPanel.agentId;
+          if (!agentId) {
+            return;
+          }
+          const content = state.agentFileDrafts[name] ?? state.agentFileContents[name] ?? "";
+          void saveAgentFile(state, agentId, name, content);
+        },
+        onFileReset: (name) => {
+          const base = state.agentFileContents[name] ?? "";
+          state.agentFileDrafts = { ...state.agentFileDrafts, [name]: base };
+        },
+      })}
       ${renderExecApprovalPrompt(state)}
       ${renderGatewayUrlConfirmation(state)}
       ${nothing}
