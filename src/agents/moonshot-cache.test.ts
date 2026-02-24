@@ -237,7 +237,7 @@ describe("moonshot-cache", () => {
       );
 
       // Call the wrapper
-      // Cast to satisfy StreamFn's Model type - only provider and baseUrl are used
+      // Cast to satisfy StreamFn types - only provider/baseUrl and messages are used
       const model = { provider: "moonshot", baseUrl: "https://api.moonshot.cn/v1" } as Parameters<
         typeof wrapper
       >[0];
@@ -246,7 +246,7 @@ describe("moonshot-cache", () => {
           { role: "system", content: "You are helpful." },
           { role: "user", content: "Hello" },
         ],
-      };
+      } as unknown as Parameters<typeof wrapper>[1];
       const options = { apiKey: "sk-test" };
 
       await wrapper(model, context, options);
@@ -284,7 +284,7 @@ describe("moonshot-cache", () => {
       const model = { provider: "moonshot" } as Parameters<typeof wrapper>[0];
       const context = {
         messages: [{ role: "system", content: "System" }],
-      };
+      } as unknown as Parameters<typeof wrapper>[1];
 
       // No apiKey provided
       await wrapper(model, context, {});
@@ -321,7 +321,7 @@ describe("moonshot-cache", () => {
           { role: "system", content: "System" },
           { role: "user", content: "Hello" },
         ],
-      };
+      } as unknown as Parameters<typeof wrapper>[1];
 
       // Should not throw
       await wrapper({ provider: "moonshot" } as Parameters<typeof wrapper>[0], context, {
