@@ -5,9 +5,10 @@ No LLM needed. Pure code.
 import os
 import subprocess
 import ast
+import re
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Literal, Optional
 
 
 @dataclass
@@ -31,6 +32,51 @@ class VerificationResult:
         else:
             self.summary = f"ALL {len(self.checks)} CHECKS PASSED"
         return self
+
+
+VALID_POINTER_PATTERN = re.compile(
+    r"\[Source:\s*(https?://\S+|User Prompt|Task [^\]]+|Report [^\]]+|Output [^\]]+|Research [^\]]+|Analysis [^\]]+)\]"
+    r"|\[Context:\s*[^\]]+\]"
+    r"|\[InternalDoc:\s*[^\]]+\]",
+    re.IGNORECASE,
+)
+
+
+def classify_pointer(pointer: str) -> Literal["external", "internal", "dependency", "none"]:
+    """Classify source pointers for research gating and transparency."""
+    if not pointer:
+        return "none"
+    value = pointer.strip()
+    if not VALID_POINTER_PATTERN.search(value):
+        return "none"
+
+    lower = value.lower()
+    if "http://" in lower or "https://" in lower:
+        return "external"
+    if lower.startswith("[context:") or lower.startswith("[internaldoc:") or "user prompt" in lower:
+        return "internal"
+    if any(token in lower for token in ("[source: task ", "[source: report ", "[source: output ")):
+        return "dependency"
+    return "internal"
+
+
+def count_sources(output: str) -> dict[str, int]:
+    """Count source pointers by category."""
+    counts = {
+        "external_sources_count": 0,
+        "internal_sources_count": 0,
+        "dependency_sources_count": 0,
+    }
+    for match in VALID_POINTER_PATTERN.finditer(output):
+        pointer = match.group(0)
+        pointer_type = classify_pointer(pointer)
+        if pointer_type == "external":
+            counts["external_sources_count"] += 1
+        elif pointer_type == "internal":
+            counts["internal_sources_count"] += 1
+        elif pointer_type == "dependency":
+            counts["dependency_sources_count"] += 1
+    return counts
 
 
 def verify_files_exist(files: list[str], base_dir: str = ".") -> VerificationResult:
@@ -202,6 +248,32 @@ def run_non_coding_verification(output: str, contract) -> VerificationResult:
                 needs_council=False,
                 layer_failed="grounding",
                 details=g_result.summary,
+            )
+
+    # v7.2 Research Gate Fix: track external/internal sources separately.
+    if contract.task_type == "research":
+        source_counts = count_sources(output)
+        external_min = profile.get("min_external_sources", 1)
+        internal_min = profile.get("min_internal_sources", 0)
+        if source_counts["external_sources_count"] < external_min:
+            return VerificationResult(
+                passed=False,
+                needs_council=False,
+                layer_failed="grounding",
+                details=(
+                    f"Research Gate: external sources too low "
+                    f"({source_counts['external_sources_count']} < {external_min})"
+                ),
+            )
+        if source_counts["internal_sources_count"] < internal_min:
+            return VerificationResult(
+                passed=False,
+                needs_council=False,
+                layer_failed="grounding",
+                details=(
+                    f"Research Gate: internal sources too low "
+                    f"({source_counts['internal_sources_count']} < {internal_min})"
+                ),
             )
 
     return VerificationResult(

@@ -1,7 +1,9 @@
 from governed_agents.council import (
     generate_reviewer_prompt, aggregate_votes, CouncilVerdict,
+    run_council, Claim, check_claim_context, compute_context_score,
+    _check_numeric_match, _context_match,
 )
-from governed_agents.contract import TaskContract
+from governed_agents.contract import TaskContract, ContextEntry
 from governed_agents.orchestrator import GovernedOrchestrator
 
 
@@ -64,3 +66,59 @@ def test_generate_council_tasks_count():
     assert len(prompts) == 3
     assert "[Reviewer 1/3]" in prompts[0]
     assert "[Reviewer 3/3]" in prompts[2]
+
+
+def test_run_council_prompt_premise_supported():
+    context = [
+        ContextEntry(
+            message_id="m1",
+            timestamp="2026-02-24T00:00:00Z",
+            content="Revenue was 50 million in Q4 and risks include market slowdown.",
+            source_type="user_message",
+        )
+    ]
+    output = "Revenue was 50 million in Q4 [Context: user message]\nBecause this is stable, we proceed.\nRisk: market slowdown."
+    verdict = run_council(task_id="t1", agent_output=output, user_provided_context=context)
+    assert verdict.context_fact_score == 1.0
+    assert verdict.claims_supported_by_prompt >= 1
+
+
+def test_numeric_mismatch_contradicts_prompt_k4():
+    assert _check_numeric_match("Revenue is 53M", "Revenue is 50M", tolerance=0.05) is False
+    claim = Claim(claim_id="c1", text="Revenue is 53M", rank=1, claim_type="PROMPT_PREMISE")
+    context = [
+        ContextEntry(
+            message_id="m1",
+            timestamp="2026-02-24T00:00:00Z",
+            content="Revenue is 50M.",
+            source_type="user_message",
+        )
+    ]
+    verdict = _context_match(claim, context)
+    assert verdict.verdict == "CONTRADICTS_PROMPT"
+
+
+def test_context_error_returns_infra_fail_k5(monkeypatch):
+    def _boom(_claim, _context):
+        raise TimeoutError("simulated timeout")
+
+    monkeypatch.setattr("governed_agents.council._context_match", _boom)
+    claim = Claim(claim_id="c2", text="Claim text", rank=1, claim_type="PROMPT_PREMISE")
+    verdict = check_claim_context(claim, [])
+    assert verdict.verdict == "INFRA_FAIL"
+
+
+def test_compute_context_score_excludes_infra_fail():
+    verdicts = [
+        type("V", (), {"verdict": "SUPPORTED_BY_PROMPT"})(),
+        type("V", (), {"verdict": "INFRA_FAIL"})(),
+    ]
+    score = compute_context_score(verdicts)
+    assert score == 1.0
+
+
+def test_task_contract_context_string_migration():
+    contract = TaskContract(objective="x", user_provided_context="legacy context")
+    assert isinstance(contract.user_provided_context, list)
+    assert len(contract.user_provided_context) == 1
+    assert contract.user_provided_context[0].content == "legacy context"
