@@ -226,8 +226,9 @@ export async function runGreetingPromptForBareNewOrReset(params: {
   );
   const text = Array.isArray(res) ? res[0]?.text : res?.text;
   expect(text).toBe("hello");
-  expect(getRunEmbeddedPiAgentMock()).toHaveBeenCalledOnce();
-  const prompt = getRunEmbeddedPiAgentMock().mock.calls[0]?.[0]?.prompt ?? "";
+  // Pre-reset memory flush may call the agent before the greeting, so expect at least one call.
+  expect(getRunEmbeddedPiAgentMock()).toHaveBeenCalled();
+  const prompt = getRunEmbeddedPiAgentMock().mock.calls.at(-1)?.[0]?.prompt ?? "";
   expect(prompt).toContain("A new session was started via /new or /reset");
 }
 
