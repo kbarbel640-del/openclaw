@@ -6,8 +6,9 @@
  * - Linux: App indicator / system tray
  */
 
-import { Tray, Menu, nativeImage, app } from "electron";
+import { Tray, Menu, nativeImage, app, dialog } from "electron";
 import type { WindowManager } from "./window-manager.js";
+import type { ContainerManager } from "./docker/container-manager.js";
 import { APP_NAME } from "../shared/constants.js";
 import type { EnvironmentHealth } from "../shared/ipc-types.js";
 
@@ -43,7 +44,10 @@ export class TrayManager {
   private tray: Tray | null = null;
   private currentHealth: EnvironmentHealth = "unknown";
 
-  constructor(private readonly windowManager: WindowManager) {}
+  constructor(
+    private readonly windowManager: WindowManager,
+    private readonly containers: ContainerManager,
+  ) {}
 
   create(): void {
     const icon = createStatusIcon(this.currentHealth);
@@ -88,14 +92,20 @@ export class TrayManager {
         label: "Start Environment",
         enabled: this.currentHealth === "stopped",
         click: () => {
-          // TODO: Wire to container manager
+          this.containers.startEnvironment().catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            dialog.showErrorBox("Start Environment", `Failed to start: ${msg}`);
+          });
         },
       },
       {
         label: "Stop Environment",
-        enabled: this.currentHealth !== "stopped",
+        enabled: this.currentHealth !== "stopped" && this.currentHealth !== "unknown",
         click: () => {
-          // TODO: Wire to container manager
+          this.containers.stopEnvironment().catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            dialog.showErrorBox("Stop Environment", `Failed to stop: ${msg}`);
+          });
         },
       },
       { type: "separator" },

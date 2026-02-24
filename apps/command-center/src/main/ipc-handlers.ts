@@ -159,11 +159,48 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     return {};
   });
 
+  ipcMain.handle(IPC_CHANNELS.CONFIG_SET, async (_event, token: unknown, section: unknown, values: unknown) => {
+    // Config writes require elevation; forwarded to config-ipc in Phase 4.
+    // For now, validate auth and return a not-yet-implemented signal.
+    requireElevatedSession(token, sessionManager);
+    if (typeof section !== "string") { throw new Error("Invalid section"); }
+    void values; // will be consumed in Phase 4
+    return { ok: false, reason: "Config write not yet implemented" };
+  });
+
   // ─── Skills (placeholder) ──────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.SKILLS_LIST, async (_event, token: unknown) => {
     requireSession(token, sessionManager);
     // Will be populated in Phase 5
+    return [];
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SKILLS_INSTALL, async (_event, token: unknown, name: unknown) => {
+    requireElevatedSession(token, sessionManager);
+    if (typeof name !== "string" || !name) { throw new Error("Invalid skill name"); }
+    // Skill installation pipeline implemented in Phase 5
+    throw new Error(`Skill installation not yet implemented: ${name}`);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SKILLS_SCAN, async (_event, token: unknown, skillPath: unknown) => {
+    requireSession(token, sessionManager);
+    if (typeof skillPath !== "string") { throw new Error("Invalid path"); }
+    // Skill scanner implemented in Phase 5
+    return { approved: false, findings: ["Scanner not yet implemented"] };
+  });
+
+  // ─── Backup (placeholder) ─────────────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.BACKUP_CREATE, async (_event, token: unknown) => {
+    requireElevatedSession(token, sessionManager);
+    // Backup pipeline implemented in Phase 7
+    throw new Error("Backup creation not yet implemented");
+  });
+
+  ipcMain.handle(IPC_CHANNELS.BACKUP_HISTORY, async (_event, token: unknown) => {
+    requireSession(token, sessionManager);
+    // Will be populated in Phase 7
     return [];
   });
 }

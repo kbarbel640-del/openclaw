@@ -92,7 +92,7 @@ export function LoginPage({ onAuthenticated, onFirstRun }: LoginPageProps) {
     setStep("loading");
     setError(null);
     try {
-      const result = await occc.verifyTotp(totpCode) as unknown as { session: AuthSession; token: string } | null;
+      const result = await occc.verifyTotp(pendingNonce, totpCode) as unknown as { session: AuthSession; token: string } | null;
       if (!result) {
         setError("Invalid authentication code. Try again.");
         setStep("totp");

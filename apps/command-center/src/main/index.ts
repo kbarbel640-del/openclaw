@@ -94,7 +94,7 @@ void app.whenReady().then(async () => {
   await windowManager.createMainWindow();
 
   // Create system tray
-  trayManager = new TrayManager(windowManager);
+  trayManager = new TrayManager(windowManager, containerManager);
   trayManager.create();
 
   console.log(`[${APP_NAME}] Ready.`);

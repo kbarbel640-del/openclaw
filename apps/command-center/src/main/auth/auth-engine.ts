@@ -364,7 +364,11 @@ export class AuthEngine {
   }
 
   /** Self-service password change (verifies current password first). */
-  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<MutationResult> {
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<MutationResult & { newToken?: string }> {
     const valid = await this.store.verifyPassword(userId, currentPassword);
     if (!valid) {
       return { ok: false, reason: "Current password is incorrect" };
@@ -372,6 +376,14 @@ export class AuthEngine {
     const result = await this.store.resetPassword(userId, newPassword);
     if (result.ok) {
       this.store.auditLog({ event: "password_changed", userId, method: "self-service", success: true });
+      // Invalidate all existing sessions so old tokens can no longer be used
+      this.sessions.invalidateAllForUser(userId);
+      // Re-issue a fresh session so the caller stays logged in
+      const user = this.store.getUserById(userId);
+      if (user) {
+        const { token: newToken } = this.sessions.createSession(userId, user.role);
+        return { ok: true, newToken };
+      }
     }
     return result;
   }

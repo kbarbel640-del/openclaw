@@ -3,6 +3,7 @@
  */
 
 import { ipcMain } from "electron";
+import { IPC_CHANNELS } from "../../shared/ipc-types.js";
 import { SystemValidator } from "./system-validator.js";
 import { DockerInstaller } from "./docker-installer.js";
 import { VoiceGuide } from "./voice-guide.js";
@@ -23,67 +24,76 @@ export function registerInstallerIpcHandlers(
 
   // ─── System Validation ──────────────────────────────────────────────
 
-  ipcMain.handle("occc:install:validate-system", async () => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_VALIDATE_SYSTEM, async () => {
     return validator.validate();
   });
 
   // ─── Docker ─────────────────────────────────────────────────────────
 
-  ipcMain.handle("occc:install:docker-options", () => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_DOCKER_OPTIONS, () => {
     return dockerInstaller.getOptions();
   });
 
-  ipcMain.handle("occc:install:open-docker-download", async () => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_OPEN_DOCKER_DOWNLOAD, async () => {
     await dockerInstaller.openDockerDesktopDownload();
   });
 
-  ipcMain.handle("occc:install:docker-ce-command", () => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_DOCKER_CE_COMMAND, () => {
     return dockerInstaller.getDockerCEInstallCommand();
   });
 
-  ipcMain.handle("occc:install:start-docker-desktop", async () => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_START_DOCKER_DESKTOP, async () => {
     return dockerInstaller.startDockerDesktop();
   });
 
-  ipcMain.handle("occc:install:verify-docker", async () => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_VERIFY_DOCKER, async () => {
     return dockerInstaller.verify();
   });
 
   // ─── Voice Guide ────────────────────────────────────────────────────
 
-  ipcMain.handle("occc:install:voice-speak", async (_event, text: string) => {
-    await voice.speak(text);
+  ipcMain.handle(IPC_CHANNELS.INSTALL_VOICE_SPEAK, async (_event, text: unknown) => {
+    // Validate: must be a string, max 512 chars, no ASCII control characters
+    if (typeof text !== "string") { return; }
+    // Strip ASCII control characters (0x00–0x1F, DEL) and clamp length
+    // eslint-disable-next-line no-control-regex
+    const safe = text.replace(/[\x00-\x1f\x7f]/g, "").slice(0, 512);
+    if (!safe) { return; }
+    await voice.speak(safe);
   });
 
-  ipcMain.handle("occc:install:voice-set-enabled", (_event, enabled: boolean) => {
-    voice.setEnabled(enabled);
-    return enabled;
+  ipcMain.handle(IPC_CHANNELS.INSTALL_VOICE_SET_ENABLED, (_event, enabled: unknown) => {
+    voice.setEnabled(enabled === true);
+    return enabled === true;
   });
 
-  ipcMain.handle("occc:install:voice-stop", () => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_VOICE_STOP, () => {
     voice.stop();
   });
 
   // ─── GitHub Backup ──────────────────────────────────────────────────
 
-  ipcMain.handle("occc:install:github-validate-pat", async (_event, pat: string) => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_GITHUB_VALIDATE_PAT, async (_event, pat: unknown) => {
+    if (typeof pat !== "string") { return { valid: false }; }
     return githubSetup.validatePAT(pat);
   });
 
-  ipcMain.handle("occc:install:github-check-scope", async (_event, pat: string) => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_GITHUB_CHECK_SCOPE, async (_event, pat: unknown) => {
+    if (typeof pat !== "string") { return { hasScope: false }; }
     return githubSetup.checkRepoScope(pat);
   });
 
-  ipcMain.handle("occc:install:github-create-repo", async (_event, pat: string) => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_GITHUB_CREATE_REPO, async (_event, pat: unknown) => {
+    if (typeof pat !== "string") { throw new Error("Invalid PAT"); }
     return githubSetup.createBackupRepo(pat);
   });
 
   // ─── Install ────────────────────────────────────────────────────────
 
-  ipcMain.handle("occc:install:run", async (event, config: InstallerConfig) => {
+  ipcMain.handle(IPC_CHANNELS.INSTALL_RUN, async (event, config: InstallerConfig) => {
     await engine.install(config, (progress) => {
       // Push progress to the renderer via the sender
-      event.sender.send("occc:install:progress", progress);
+      event.sender.send(IPC_CHANNELS.INSTALL_PROGRESS, progress);
     });
   });
 }

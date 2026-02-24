@@ -205,6 +205,22 @@ export const IPC_CHANNELS = {
   BACKUP_CREATE: "occc:backup:create",
   BACKUP_RESTORE: "occc:backup:restore",
   BACKUP_HISTORY: "occc:backup:history",
+
+  // Installer (pre-auth setup wizard)
+  INSTALL_VALIDATE_SYSTEM: "occc:install:validate-system",
+  INSTALL_DOCKER_OPTIONS: "occc:install:docker-options",
+  INSTALL_OPEN_DOCKER_DOWNLOAD: "occc:install:open-docker-download",
+  INSTALL_DOCKER_CE_COMMAND: "occc:install:docker-ce-command",
+  INSTALL_START_DOCKER_DESKTOP: "occc:install:start-docker-desktop",
+  INSTALL_VERIFY_DOCKER: "occc:install:verify-docker",
+  INSTALL_VOICE_SPEAK: "occc:install:voice-speak",
+  INSTALL_VOICE_SET_ENABLED: "occc:install:voice-set-enabled",
+  INSTALL_VOICE_STOP: "occc:install:voice-stop",
+  INSTALL_GITHUB_VALIDATE_PAT: "occc:install:github-validate-pat",
+  INSTALL_GITHUB_CHECK_SCOPE: "occc:install:github-check-scope",
+  INSTALL_GITHUB_CREATE_REPO: "occc:install:github-create-repo",
+  INSTALL_RUN: "occc:install:run",
+  INSTALL_PROGRESS: "occc:install:progress",
 } as const;
 
 // ─── API Bridge Type ────────────────────────────────────────────────────────
@@ -216,7 +232,7 @@ export interface OcccBridge {
   // Auth
   login(username: string, password: string): Promise<{ session: AuthSession; token: string } | { requiresTotp: true; nonce: string } | null>;
   biometricAuth(username: string): Promise<{ session: AuthSession; token: string } | null>;
-  verifyTotp(code: string): Promise<boolean>;
+  verifyTotp(nonce: string, code: string): Promise<{ session: AuthSession; token: string } | null>;
   logout(token?: string): Promise<void>;
   getSession(token?: string): Promise<AuthSession | null>;
   elevate(token?: string, totpCode?: string): Promise<{ ok: boolean; reason?: string } | null>;
@@ -237,7 +253,7 @@ export interface OcccBridge {
   getAuditLog(token: string, limit?: number): Promise<AuditLogEntry[]>;
 
   // Auth — Self-service
-  changePassword(token: string, currentPassword: string, newPassword: string): Promise<MutationResult>;
+  changePassword(token: string, currentPassword: string, newPassword: string): Promise<MutationResult & { newToken?: string }>;
 
   // Environment (session required; create/destroy require elevated session)
   getEnvironmentStatus(token: string): Promise<EnvironmentStatus>;
@@ -267,6 +283,21 @@ export interface OcccBridge {
   // Backup
   createBackup(): Promise<void>;
   getBackupHistory(): Promise<{ timestamp: string; commit: string }[]>;
+
+  // Installer (pre-auth setup wizard — no token required)
+  installValidateSystem(): Promise<SystemValidation>;
+  installGetDockerOptions(): Promise<{ dockerDesktop: boolean; dockerCE: boolean }>;
+  installOpenDockerDownload(): Promise<void>;
+  installGetDockerCECommand(): Promise<string>;
+  installStartDockerDesktop(): Promise<boolean>;
+  installVerifyDocker(): Promise<{ ok: boolean; version?: string; error?: string }>;
+  installVoiceSpeak(text: string): Promise<void>;
+  installVoiceSetEnabled(enabled: boolean): Promise<boolean>;
+  installVoiceStop(): Promise<void>;
+  installGitHubValidatePAT(pat: string): Promise<{ valid: boolean; login?: string }>;
+  installGitHubCheckScope(pat: string): Promise<{ hasScope: boolean }>;
+  installGitHubCreateRepo(pat: string): Promise<{ url: string }>;
+  installRun(config: Record<string, unknown>): Promise<void>;
 
   // Events
   on(channel: string, callback: (...args: unknown[]) => void): void;

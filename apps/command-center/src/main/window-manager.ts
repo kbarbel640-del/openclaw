@@ -21,7 +21,7 @@ import { APP_NAME } from "../shared/constants.js";
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'", // React needs inline for dynamic styles
+  "style-src 'self'",
   "img-src 'self' data:",
   "font-src 'self'",
   "connect-src 'self' ws://localhost:* http://localhost:*",

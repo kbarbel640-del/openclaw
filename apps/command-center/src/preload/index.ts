@@ -19,8 +19,8 @@ const bridge: OcccBridge = {
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGIN, username, password),
   biometricAuth: (username) =>
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_BIOMETRIC, username),
-  verifyTotp: (code) =>
-    ipcRenderer.invoke(IPC_CHANNELS.AUTH_VERIFY_TOTP, code),
+  verifyTotp: (nonce, code) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_VERIFY_TOTP, nonce, code),
   logout: (token?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT, token),
   getSession: (token?) =>
@@ -103,6 +103,34 @@ const bridge: OcccBridge = {
     ipcRenderer.invoke(IPC_CHANNELS.BACKUP_CREATE),
   getBackupHistory: () =>
     ipcRenderer.invoke(IPC_CHANNELS.BACKUP_HISTORY),
+
+  // ─── Installer (pre-auth setup wizard) ────────────────────────────────
+  installValidateSystem: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_VALIDATE_SYSTEM),
+  installGetDockerOptions: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_DOCKER_OPTIONS),
+  installOpenDockerDownload: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_OPEN_DOCKER_DOWNLOAD),
+  installGetDockerCECommand: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_DOCKER_CE_COMMAND),
+  installStartDockerDesktop: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_START_DOCKER_DESKTOP),
+  installVerifyDocker: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_VERIFY_DOCKER),
+  installVoiceSpeak: (text) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_VOICE_SPEAK, text),
+  installVoiceSetEnabled: (enabled) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_VOICE_SET_ENABLED, enabled),
+  installVoiceStop: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_VOICE_STOP),
+  installGitHubValidatePAT: (pat) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_GITHUB_VALIDATE_PAT, pat),
+  installGitHubCheckScope: (pat) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_GITHUB_CHECK_SCOPE, pat),
+  installGitHubCreateRepo: (pat) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_GITHUB_CREATE_REPO, pat),
+  installRun: (config) =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_RUN, config),
 
   // ─── Events (main → renderer) ─────────────────────────────────────────
   on: (channel, callback) => {
