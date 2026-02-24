@@ -10,6 +10,7 @@ describe("resolveTranscriptPolicy", () => {
     });
     expect(policy.sanitizeToolCallIds).toBe(true);
     expect(policy.toolCallIdMode).toBe("strict");
+    expect(policy.preserveSignatures).toBe(true);
   });
 
   it("enables sanitizeToolCallIds for Google provider", () => {
@@ -42,6 +43,16 @@ describe("resolveTranscriptPolicy", () => {
     });
     expect(policy.sanitizeToolCallIds).toBe(false);
     expect(policy.toolCallIdMode).toBeUndefined();
+    expect(policy.preserveSignatures).toBe(false);
+  });
+
+  it("preserves signatures for Bedrock Anthropic APIs", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "amazon-bedrock",
+      modelId: "us.anthropic.claude-opus-4-6-v1",
+      modelApi: "bedrock-converse-stream",
+    });
+    expect(policy.preserveSignatures).toBe(true);
   });
 
   it("enables user-turn merge for strict OpenAI-compatible providers", () => {
