@@ -13,6 +13,7 @@ const {
   formatToolFailuresSection,
   splitPreservedRecentTurns,
   formatPreservedTurnsSection,
+  buildCompactionStructureInstructions,
   resolveRecentTurnsPreserve,
   computeAdaptiveChunkRatio,
   isOversizedForSummary,
@@ -399,6 +400,13 @@ describe("compaction-safeguard recent-turn preservation", () => {
     expect(resolveRecentTurnsPreserve(undefined)).toBe(3);
     expect(resolveRecentTurnsPreserve(-1)).toBe(0);
     expect(resolveRecentTurnsPreserve(99)).toBe(12);
+  });
+
+  it("builds structured instructions with required sections", () => {
+    const instructions = buildCompactionStructureInstructions("Keep security caveats.");
+    expect(instructions).toContain("## Decisions");
+    expect(instructions).toContain("## Exact identifiers");
+    expect(instructions).toContain("Keep security caveats.");
   });
 });
 
