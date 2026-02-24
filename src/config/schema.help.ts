@@ -444,6 +444,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Per-agent provider-specific tool policy overrides for channel-scoped capability control. Use this when a single agent needs tighter restrictions on one provider than others.",
   "tools.exec.approvalRunningNoticeMs":
     "Delay in milliseconds before showing an in-progress notice after an exec approval is granted. Increase to reduce flicker for fast commands, or lower for quicker operator feedback.",
+  "tools.exec.approvalTimeoutMs":
+    "Timeout in milliseconds for exec approval requests. How long to wait for user approval before timing out (default: 120000ms = 2 minutes).",
   "tools.links.enabled":
     "Enable automatic link understanding pre-processing so URLs can be summarized before agent reasoning. Keep enabled for richer context, and disable when strict minimal processing is required.",
   "tools.links.maxLinks":

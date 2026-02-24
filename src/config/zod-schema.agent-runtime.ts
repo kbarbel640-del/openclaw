@@ -392,6 +392,7 @@ const AgentToolExecSchema = z
   .object({
     ...ToolExecBaseShape,
     approvalRunningNoticeMs: z.number().int().nonnegative().optional(),
+    approvalTimeoutMs: z.number().int().positive().optional(),
   })
   .strict()
   .optional();
