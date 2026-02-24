@@ -118,6 +118,43 @@ export const AZURE_FOUNDRY_MODEL_CATALOG: ModelDefinitionConfig[] = [
   },
 ];
 
+// Anthropic (Claude) models available on Azure AI Foundry.
+// These use the /anthropic endpoint and the anthropic-messages API.
+export const AZURE_FOUNDRY_ANTHROPIC_MODELS: Omit<
+  ModelDefinitionConfig,
+  "api" | "baseUrl" | "headers"
+>[] = [
+  {
+    id: "claude-sonnet-4-6",
+    name: "Claude Sonnet 4.6",
+    reasoning: true,
+    input: ["text", "image"],
+    contextWindow: 200000,
+    maxTokens: 16384,
+    cost: AZURE_FOUNDRY_ZERO_COST,
+  },
+  {
+    id: "claude-sonnet-4-5-20250514",
+    name: "Claude Sonnet 4.5",
+    reasoning: true,
+    input: ["text", "image"],
+    contextWindow: 200000,
+    maxTokens: 16384,
+    cost: AZURE_FOUNDRY_ZERO_COST,
+  },
+  {
+    id: "claude-haiku-3-5-20241022",
+    name: "Claude Haiku 3.5",
+    reasoning: false,
+    input: ["text", "image"],
+    contextWindow: 200000,
+    maxTokens: 8192,
+    cost: AZURE_FOUNDRY_ZERO_COST,
+  },
+];
+
+export const AZURE_FOUNDRY_ANTHROPIC_API_VERSION = "2023-06-01";
+
 export function buildAzureFoundryModelDefinition(
   model: (typeof AZURE_FOUNDRY_MODEL_CATALOG)[number],
 ): ModelDefinitionConfig {
@@ -131,4 +168,26 @@ export function buildAzureFoundryModelDefinition(
     contextWindow: model.contextWindow,
     maxTokens: model.maxTokens,
   };
+}
+
+export function buildAzureFoundryAnthropicModelDefinition(
+  model: (typeof AZURE_FOUNDRY_ANTHROPIC_MODELS)[number],
+  anthropicBaseUrl: string,
+): ModelDefinitionConfig {
+  return {
+    id: model.id,
+    name: model.name,
+    api: "anthropic-messages",
+    reasoning: model.reasoning,
+    input: model.input,
+    cost: model.cost,
+    contextWindow: model.contextWindow,
+    maxTokens: model.maxTokens,
+    baseUrl: anthropicBaseUrl,
+    headers: { "api-version": AZURE_FOUNDRY_ANTHROPIC_API_VERSION },
+  };
+}
+
+export function isAnthropicModelId(modelId: string): boolean {
+  return modelId.toLowerCase().startsWith("claude");
 }

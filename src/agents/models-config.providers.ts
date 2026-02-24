@@ -19,7 +19,9 @@ import {
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
 import { discoverAzureFoundryModels } from "./azure-foundry-discovery.js";
 import {
+  AZURE_FOUNDRY_ANTHROPIC_MODELS,
   AZURE_FOUNDRY_MODEL_CATALOG,
+  buildAzureFoundryAnthropicModelDefinition,
   buildAzureFoundryModelDefinition,
 } from "./azure-foundry-models.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
@@ -687,11 +689,18 @@ function buildTogetherProvider(): ProviderConfig {
 }
 
 function buildAzureFoundryProvider(endpoint: string): ProviderConfig {
-  const baseUrl = `${endpoint.replace(/\/+$/, "")}/openai/v1`;
+  const trimmedEndpoint = endpoint.replace(/\/+$/, "");
+  const openaiBaseUrl = `${trimmedEndpoint}/openai/v1`;
+  const anthropicBaseUrl = `${trimmedEndpoint}/anthropic`;
   return {
-    baseUrl,
+    baseUrl: openaiBaseUrl,
     api: "openai-completions",
-    models: AZURE_FOUNDRY_MODEL_CATALOG.map(buildAzureFoundryModelDefinition),
+    models: [
+      ...AZURE_FOUNDRY_MODEL_CATALOG.map(buildAzureFoundryModelDefinition),
+      ...AZURE_FOUNDRY_ANTHROPIC_MODELS.map((m) =>
+        buildAzureFoundryAnthropicModelDefinition(m, anthropicBaseUrl),
+      ),
+    ],
   };
 }
 

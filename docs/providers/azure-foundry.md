@@ -16,11 +16,11 @@ audio transcription (STT), and text-to-speech (TTS). Auth uses a **Bearer token*
 ## What OpenClaw supports
 
 - Provider ID: `azure-foundry`
-- API: `openai-completions` (OpenAI-compatible)
+- API: `openai-completions` (OpenAI models) and `anthropic-messages` (Claude models)
 - Auth: `Authorization: Bearer <key>` (chat) / `api-key` header (STT/TTS)
-- Endpoint styles: native Azure AI Inference (`/models`) and OpenAI-compatible (`/openai/v1`)
+- Endpoint styles: native Azure AI Inference (`/models`), OpenAI-compatible (`/openai/v1`), and Anthropic (`/anthropic`)
 - Automatic model discovery from the `/models` endpoint
-- Built-in catalog: GPT-4o, GPT-4.1, o3-mini, o4-mini, DeepSeek-R1, Phi-4, Mistral Large, Llama 3.1 405B, Cohere Command R+
+- Built-in catalog: GPT-4o, GPT-4.1, o3-mini, o4-mini, DeepSeek-R1, Phi-4, Mistral Large, Llama 3.1 405B, Cohere Command R+, Claude Sonnet 4.6, Claude Sonnet 4.5, Claude Haiku 3.5
 
 ## Environment variables
 
@@ -96,6 +96,24 @@ Notes:
 - `refreshInterval` is seconds; set to `0` to disable caching.
 - `defaultContextWindow` (default: `32000`) and `defaultMaxTokens` (default: `4096`)
   are used for discovered models when the API doesn't report them.
+
+## Anthropic (Claude) models
+
+Azure AI Foundry hosts Anthropic models at a separate `/anthropic` endpoint path.
+OpenClaw automatically routes Claude models to this endpoint using the `anthropic-messages`
+API, so no extra configuration is needed. Both catalog and discovered Claude models work
+under the same `azure-foundry` provider.
+
+```json5
+{
+  agents: { defaults: { model: { primary: "azure-foundry/claude-sonnet-4-6" } } },
+}
+```
+
+Built-in Claude models: `claude-sonnet-4-6`, `claude-sonnet-4-5-20250514`, `claude-haiku-3-5-20241022`.
+
+Claude models discovered via the `/models` endpoint are also automatically detected and
+routed to the Anthropic endpoint.
 
 ## Audio transcription (STT)
 

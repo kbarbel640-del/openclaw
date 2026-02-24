@@ -50,6 +50,7 @@ export const ModelDefinitionSchema = z
       .optional(),
     contextWindow: z.number().positive().optional(),
     maxTokens: z.number().positive().optional(),
+    baseUrl: z.string().optional(),
     headers: z.record(z.string(), z.string()).optional(),
     compat: ModelCompatSchema,
   })

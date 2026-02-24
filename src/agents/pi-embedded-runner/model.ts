@@ -16,7 +16,6 @@ import {
 
 type InlineModelEntry = ModelDefinitionConfig & {
   provider: string;
-  baseUrl?: string;
 };
 type InlineProviderConfig = {
   baseUrl?: string;
@@ -37,7 +36,7 @@ export function buildInlineProviderModels(
     return (entry?.models ?? []).map((model) => ({
       ...model,
       provider: trimmed,
-      baseUrl: entry?.baseUrl,
+      baseUrl: model.baseUrl || entry?.baseUrl,
       api: model.api ?? entry?.api,
     }));
   });

@@ -1,5 +1,6 @@
 import type { ModelDefinitionConfig } from "../config/types.models.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { AZURE_FOUNDRY_ANTHROPIC_API_VERSION, isAnthropicModelId } from "./azure-foundry-models.js";
 
 const log = createSubsystemLogger("azure-foundry-discovery");
 
@@ -75,7 +76,12 @@ function inferReasoningSupport(modelId: string, modelName: string): boolean {
 
 function inferInputModalities(modelId: string, modelName: string): Array<"text" | "image"> {
   const haystack = `${modelId} ${modelName}`.toLowerCase();
-  if (haystack.includes("gpt-4o") || haystack.includes("gpt-4.1") || haystack.includes("vision")) {
+  if (
+    haystack.includes("gpt-4o") ||
+    haystack.includes("gpt-4.1") ||
+    haystack.includes("vision") ||
+    haystack.includes("claude")
+  ) {
     return ["text", "image"];
   }
   return ["text"];
@@ -93,14 +99,14 @@ function resolveDefaultMaxTokens(config?: AzureFoundryDiscoveryConfig): number {
 
 function toModelDefinition(
   entry: AzureFoundryModelEntry,
-  defaults: { contextWindow: number; maxTokens: number },
+  defaults: { contextWindow: number; maxTokens: number; endpoint: string },
 ): ModelDefinitionConfig | null {
   const id = entry.id?.trim();
   if (!id) {
     return null;
   }
   const name = entry.name?.trim() || id;
-  return {
+  const base: ModelDefinitionConfig = {
     id,
     name,
     reasoning: inferReasoningSupport(id, name),
@@ -109,6 +115,13 @@ function toModelDefinition(
     contextWindow: defaults.contextWindow,
     maxTokens: defaults.maxTokens,
   };
+  // Route Anthropic (Claude) models to the /anthropic endpoint
+  if (isAnthropicModelId(id)) {
+    base.api = "anthropic-messages";
+    base.baseUrl = `${defaults.endpoint}/anthropic`;
+    base.headers = { "api-version": AZURE_FOUNDRY_ANTHROPIC_API_VERSION };
+  }
+  return base;
 }
 
 export function resetAzureFoundryDiscoveryCacheForTest(): void {
@@ -174,6 +187,7 @@ export async function discoverAzureFoundryModels(params: {
       const def = toModelDefinition(entry, {
         contextWindow: defaultContextWindow,
         maxTokens: defaultMaxTokens,
+        endpoint,
       });
       if (def) {
         discovered.push(def);

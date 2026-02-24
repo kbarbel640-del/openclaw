@@ -37,6 +37,7 @@ export type ModelDefinitionConfig = {
   };
   contextWindow: number;
   maxTokens: number;
+  baseUrl?: string;
   headers?: Record<string, string>;
   compat?: ModelCompatConfig;
 };

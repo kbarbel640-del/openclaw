@@ -172,4 +172,29 @@ describe("azure-foundry-discovery", () => {
     expect(o4?.reasoning).toBe(true);
     expect(gpt?.reasoning).toBe(false);
   });
+
+  it("sets anthropic api and baseUrl for Claude models", async () => {
+    const { discoverAzureFoundryModels } = await loadDiscovery();
+
+    mockModelsResponse([
+      { id: "gpt-4o", name: "GPT-4o" },
+      { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
+    ]);
+
+    const models = await discoverAzureFoundryModels({
+      endpoint: "https://my-resource.services.ai.azure.com",
+      apiKey: "key",
+      fetchFn: fetchMock,
+    });
+
+    const gpt = models.find((m) => m.id === "gpt-4o");
+    expect(gpt?.api).toBeUndefined();
+    expect(gpt?.baseUrl).toBeUndefined();
+
+    const claude = models.find((m) => m.id === "claude-sonnet-4-6");
+    expect(claude?.api).toBe("anthropic-messages");
+    expect(claude?.baseUrl).toBe("https://my-resource.services.ai.azure.com/anthropic");
+    expect(claude?.headers).toEqual({ "api-version": "2023-06-01" });
+    expect(claude?.input).toEqual(["text", "image"]);
+  });
 });
