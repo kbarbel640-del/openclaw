@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
+import type { ImageContent } from "../commands/agent/types.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { logWarn } from "../logger.js";
 import { defaultRuntime } from "../runtime.js";
@@ -42,12 +43,13 @@ function writeSse(res: ServerResponse, data: unknown) {
 }
 
 function buildAgentCommandInput(params: {
-  prompt: { message: string; extraSystemPrompt?: string };
+  prompt: { message: string; images?: ImageContent[]; extraSystemPrompt?: string };
   sessionKey: string;
   runId: string;
 }) {
   return {
     message: params.prompt.message,
+    images: params.prompt.images,
     extraSystemPrompt: params.prompt.extraSystemPrompt,
     sessionKey: params.sessionKey,
     runId: params.runId,
@@ -120,8 +122,43 @@ function extractTextContent(content: unknown): string {
   return "";
 }
 
+function extractImageContent(content: unknown): ImageContent[] {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+  const images: ImageContent[] = [];
+  for (const part of content) {
+    if (!part || typeof part !== "object") {
+      continue;
+    }
+    const type = (part as { type?: unknown }).type;
+    if (type !== "image_url") {
+      continue;
+    }
+    const imageUrl = (part as { image_url?: unknown }).image_url;
+    if (!imageUrl || typeof imageUrl !== "object") {
+      continue;
+    }
+    const url = (imageUrl as { url?: unknown }).url;
+    if (typeof url !== "string") {
+      continue;
+    }
+    // Parse data URIs: data:image/jpeg;base64,...
+    const match = url.match(/^data:(image\/[^;]+);base64,(.+)$/);
+    if (match) {
+      images.push({ type: "image", mimeType: match[1], data: match[2] });
+    } else if (url.startsWith("http://") || url.startsWith("https://")) {
+      logWarn(
+        "openai-compat: image_url with HTTP URL is not yet supported; only data URIs are accepted",
+      );
+    }
+  }
+  return images;
+}
+
 function buildAgentPrompt(messagesUnknown: unknown): {
   message: string;
+  images?: ImageContent[];
   extraSystemPrompt?: string;
 } {
   const messages = asMessages(messagesUnknown);
@@ -166,8 +203,23 @@ function buildAgentPrompt(messagesUnknown: unknown): {
 
   const message = buildAgentMessageFromConversationEntries(conversationEntries);
 
+  // Extract images from the last user message
+  const images: ImageContent[] = [];
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    if (!msg || typeof msg !== "object") {
+      continue;
+    }
+    const role = typeof msg.role === "string" ? msg.role.trim() : "";
+    if (role === "user") {
+      images.push(...extractImageContent(msg.content));
+      break;
+    }
+  }
+
   return {
     message,
+    images: images.length > 0 ? images : undefined,
     extraSystemPrompt: systemParts.length > 0 ? systemParts.join("\n\n") : undefined,
   };
 }
