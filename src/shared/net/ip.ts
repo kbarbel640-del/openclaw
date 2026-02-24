@@ -1,8 +1,10 @@
 import ipaddr from "ipaddr.js";
 
-export type ParsedIpAddress = ipaddr.IPv4 | ipaddr.IPv6;
-type Ipv4Range = ReturnType<ipaddr.IPv4["range"]>;
-type Ipv6Range = ReturnType<ipaddr.IPv6["range"]>;
+type IPv4 = InstanceType<typeof ipaddr.IPv4>;
+type IPv6 = InstanceType<typeof ipaddr.IPv6>;
+export type ParsedIpAddress = IPv4 | IPv6;
+type Ipv4Range = ReturnType<IPv4["range"]>;
+type Ipv6Range = ReturnType<IPv6["range"]>;
 
 const BLOCKED_IPV4_SPECIAL_USE_RANGES = new Set<Ipv4Range>([
   "unspecified",
@@ -87,7 +89,7 @@ function isNumericIpv4LiteralPart(value: string): boolean {
   return /^[0-9]+$/.test(value) || /^0x[0-9a-f]+$/i.test(value);
 }
 
-function parseIpv6WithEmbeddedIpv4(raw: string): ipaddr.IPv6 | undefined {
+function parseIpv6WithEmbeddedIpv4(raw: string): IPv6 | undefined {
   if (!raw.includes(":") || !raw.includes(".")) {
     return undefined;
   }
@@ -109,11 +111,11 @@ function parseIpv6WithEmbeddedIpv4(raw: string): ipaddr.IPv6 | undefined {
   return ipaddr.IPv6.parse(normalizedIpv6);
 }
 
-export function isIpv4Address(address: ParsedIpAddress): address is ipaddr.IPv4 {
+export function isIpv4Address(address: ParsedIpAddress): address is IPv4 {
   return address.kind() === "ipv4";
 }
 
-export function isIpv6Address(address: ParsedIpAddress): address is ipaddr.IPv6 {
+export function isIpv6Address(address: ParsedIpAddress): address is IPv6 {
   return address.kind() === "ipv6";
 }
 
@@ -261,7 +263,7 @@ export function isBlockedSpecialUseIpv4Address(
   return BLOCKED_IPV4_SPECIAL_USE_RANGES.has(address.range()) || inRfc2544BenchmarkRange;
 }
 
-function decodeIpv4FromHextets(high: number, low: number): ipaddr.IPv4 {
+function decodeIpv4FromHextets(high: number, low: number): IPv4 {
   const octets: [number, number, number, number] = [
     (high >>> 8) & 0xff,
     high & 0xff,
@@ -271,7 +273,7 @@ function decodeIpv4FromHextets(high: number, low: number): ipaddr.IPv4 {
   return ipaddr.IPv4.parse(octets.join("."));
 }
 
-export function extractEmbeddedIpv4FromIpv6(address: ipaddr.IPv6): ipaddr.IPv4 | undefined {
+export function extractEmbeddedIpv4FromIpv6(address: IPv6): IPv4 | undefined {
   if (address.isIPv4MappedAddress()) {
     return address.toIPv4Address();
   }

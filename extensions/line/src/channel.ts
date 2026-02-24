@@ -8,6 +8,7 @@ import {
   resolveDefaultGroupPolicy,
   type ChannelPlugin,
   type ChannelStatusIssue,
+  type GroupPolicy,
   type OpenClawConfig,
   type LineConfig,
   type LineChannelData,

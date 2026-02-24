@@ -212,10 +212,10 @@ export async function speak(
 
     addTranscriptEntry(call, "bot", text);
 
-    const voice = provider.name === "twilio" ? ctx.config.tts?.openai?.voice : undefined;
-    await provider.playTts({
+    const voice = ctx.provider?.name === "twilio" ? ctx.config.tts?.openai?.voice : undefined;
+    await ctx.provider.playTts({
       callId,
-      providerCallId,
+      providerCallId: call.providerCallId,
       text,
       voice,
     });
@@ -306,7 +306,7 @@ export async function continueCall(
     const transcriptReceivedAt = Date.now();
 
     // Best-effort: stop listening after final transcript.
-    await provider.stopListening({ callId, providerCallId });
+    await ctx.provider.stopListening({ callId, providerCallId: call.providerCallId });
 
     const lastTurnLatencyMs = transcriptReceivedAt - turnStartedAt;
     const lastTurnListenWaitMs = transcriptReceivedAt - listenStartedAt;
@@ -346,19 +346,21 @@ export async function endCall(
   ctx: EndCallContext,
   callId: CallId,
 ): Promise<{ success: boolean; error?: string }> {
-  const lookup = lookupConnectedCall(ctx, callId);
-  if (lookup.kind === "error") {
-    return { success: false, error: lookup.error };
+  const call = ctx.activeCalls.get(callId);
+  if (!call) {
+    return { success: false, error: "Call not found" };
   }
-  if (lookup.kind === "ended") {
+  if (!ctx.provider || !call.providerCallId) {
+    return { success: false, error: "Call not connected" };
+  }
+  if (TerminalStates.has(call.state)) {
     return { success: true };
   }
-  const { call, providerCallId, provider } = lookup;
 
   try {
-    await provider.hangupCall({
+    await ctx.provider.hangupCall({
       callId,
-      providerCallId,
+      providerCallId: call.providerCallId,
       reason: "hangup-bot",
     });
 
@@ -371,7 +373,9 @@ export async function endCall(
     rejectTranscriptWaiter(ctx, callId, "Call ended: hangup-bot");
 
     ctx.activeCalls.delete(callId);
-    ctx.providerCallIdMap.delete(providerCallId);
+    if (call.providerCallId) {
+      ctx.providerCallIdMap.delete(call.providerCallId);
+    }
 
     return { success: true };
   } catch (err) {

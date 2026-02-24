@@ -136,7 +136,17 @@ describe("handleFeishuMessage command authorization", () => {
       },
     };
 
-    await dispatchMessage({ cfg, event });
+    await handleFeishuMessage({
+      cfg,
+      event,
+      runtime: {
+        log: vi.fn(),
+        error: vi.fn(),
+        exit: vi.fn((code: number): never => {
+          throw new Error(`exit ${code}`);
+        }),
+      } as RuntimeEnv,
+    });
 
     expect(mockResolveCommandAuthorizedFromAuthorizers).toHaveBeenCalledWith({
       useAccessGroups: true,
@@ -181,7 +191,17 @@ describe("handleFeishuMessage command authorization", () => {
       },
     };
 
-    await dispatchMessage({ cfg, event });
+    await handleFeishuMessage({
+      cfg,
+      event,
+      runtime: {
+        log: vi.fn(),
+        error: vi.fn(),
+        exit: vi.fn((code: number): never => {
+          throw new Error(`exit ${code}`);
+        }),
+      } as RuntimeEnv,
+    });
 
     expect(mockReadAllowFromStore).toHaveBeenCalledWith("feishu");
     expect(mockResolveCommandAuthorizedFromAuthorizers).not.toHaveBeenCalled();
@@ -218,7 +238,17 @@ describe("handleFeishuMessage command authorization", () => {
       },
     };
 
-    await dispatchMessage({ cfg, event });
+    await handleFeishuMessage({
+      cfg,
+      event,
+      runtime: {
+        log: vi.fn(),
+        error: vi.fn(),
+        exit: vi.fn((code: number): never => {
+          throw new Error(`exit ${code}`);
+        }),
+      } as RuntimeEnv,
+    });
 
     expect(mockUpsertPairingRequest).toHaveBeenCalledWith({
       channel: "feishu",
@@ -272,7 +302,17 @@ describe("handleFeishuMessage command authorization", () => {
       },
     };
 
-    await dispatchMessage({ cfg, event });
+    await handleFeishuMessage({
+      cfg,
+      event,
+      runtime: {
+        log: vi.fn(),
+        error: vi.fn(),
+        exit: vi.fn((code: number): never => {
+          throw new Error(`exit ${code}`);
+        }),
+      } as RuntimeEnv,
+    });
 
     expect(mockResolveCommandAuthorizedFromAuthorizers).toHaveBeenCalledWith({
       useAccessGroups: true,

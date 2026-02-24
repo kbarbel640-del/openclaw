@@ -110,14 +110,24 @@ describe("processEvent (functional)", () => {
 
   it("does not call hangup when provider is null", () => {
     const ctx = createContext({
-      config: createInboundDisabledConfig(),
+      config: VoiceCallConfigSchema.parse({
+        enabled: true,
+        provider: "plivo",
+        fromNumber: "+15550000000",
+        inboundPolicy: "disabled",
+      }),
       provider: null,
     });
-    const event = createInboundInitiatedEvent({
+    const event: NormalizedEvent = {
       id: "evt-2",
+      type: "call.initiated",
+      callId: "prov-2",
       providerCallId: "prov-2",
+      timestamp: Date.now(),
+      direction: "inbound",
       from: "+15551111111",
-    });
+      to: "+15550000000",
+    };
 
     processEvent(ctx, event);
 
@@ -222,14 +232,24 @@ describe("processEvent (functional)", () => {
       },
     });
     const ctx = createContext({
-      config: createInboundDisabledConfig(),
+      config: VoiceCallConfigSchema.parse({
+        enabled: true,
+        provider: "plivo",
+        fromNumber: "+15550000000",
+        inboundPolicy: "disabled",
+      }),
       provider,
     });
-    const event = createInboundInitiatedEvent({
+    const event: NormalizedEvent = {
       id: "evt-fail",
+      type: "call.initiated",
+      callId: "prov-fail",
       providerCallId: "prov-fail",
+      timestamp: Date.now(),
+      direction: "inbound",
       from: "+15553333333",
-    });
+      to: "+15550000000",
+    };
 
     expect(() => processEvent(ctx, event)).not.toThrow();
     expect(ctx.activeCalls.size).toBe(0);
