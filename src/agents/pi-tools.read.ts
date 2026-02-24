@@ -538,10 +538,16 @@ export function assertRequiredParams(
 
   if (missingLabels.length > 0) {
     if (toolName === "edit" && missingLabels.some((l) => l.includes("newText"))) {
+      const isPlural = missingLabels.length > 1;
+      const paramNames = missingLabels
+        .filter((l) => l.includes("oldText") || l.includes("newText") || l.includes("path"))
+        .map((l) => `'${l.split(" ")[0]}'`)
+        .join(", ");
+
       throw new Error(
         JSON.stringify(
           {
-            error: "Missing required parameter: 'newText'",
+            error: `Missing required parameter${isPlural ? "s" : ""}: ${paramNames}`,
             hint: "The edit tool requires both 'oldText' (what to find) and 'newText' (what to replace it with). For file-wide changes, consider using 'write' instead.",
             suggestedParams: {
               oldText: "<exact text to find>",
