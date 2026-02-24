@@ -723,6 +723,35 @@ async function sendSubagentAnnounceDirectly(params: {
           timeoutMs: announceTimeoutMs,
         });
 
+        // Path B: direct send delivered the user-facing message. Now also inject
+        // into the parent agent session so it gets a turn to act on the result
+        // (e.g., send follow-up files, spawn the next subagent in a chain, etc.).
+        // Uses a distinct idempotency key to avoid gateway dedup treating this as
+        // a duplicate of the method:'send' call above.
+        // See: https://github.com/openclaw/openclaw/issues/22099
+        //      https://github.com/openclaw/openclaw/issues/22673
+        //      https://github.com/openclaw/openclaw/issues/25042
+        if (!params.signal?.aborted) {
+          const agentThreadId =
+            completionDirectOrigin?.threadId != null && completionDirectOrigin.threadId !== ""
+              ? String(completionDirectOrigin.threadId)
+              : undefined;
+          await callGateway({
+            method: "agent",
+            params: {
+              sessionKey: canonicalRequesterSessionKey,
+              message: params.triggerMessage,
+              deliver: false,
+              channel: completionChannel,
+              accountId: completionDirectOrigin?.accountId,
+              to: completionTo,
+              threadId: agentThreadId,
+              idempotencyKey: `${params.directIdempotencyKey}-agent`,
+            },
+            timeoutMs: announceTimeoutMs,
+          });
+        }
+
         return {
           delivered: true,
           path: "direct",
