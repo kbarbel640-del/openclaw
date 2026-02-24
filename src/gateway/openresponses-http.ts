@@ -44,6 +44,7 @@ import {
   type Usage,
 } from "./open-responses.schema.js";
 import { buildAgentPrompt } from "./openresponses-prompt.js";
+import { governorExecute } from "../governor/governor.js";
 
 type OpenResponsesHttpOptions = {
   auth: ResolvedGatewayAuth;
@@ -451,7 +452,7 @@ export async function handleOpenResponsesHttpRequest(
 
   if (!stream) {
     try {
-      const result = await runResponsesAgentCommand({
+      const result = await governorExecute({ agentId, fn: async () => await runResponsesAgentCommand({
         message: prompt.message,
         images,
         clientTools: resolvedClientTools,
@@ -460,7 +461,7 @@ export async function handleOpenResponsesHttpRequest(
         sessionKey,
         runId: responseId,
         deps,
-      });
+      }) });
 
       const payloads = (result as { payloads?: Array<{ text?: string }> } | null)?.payloads;
       const usage = extractUsageFromResult(result);
@@ -683,7 +684,7 @@ export async function handleOpenResponsesHttpRequest(
 
   void (async () => {
     try {
-      const result = await runResponsesAgentCommand({
+      const result = await governorExecute({ agentId, fn: async () => await runResponsesAgentCommand({
         message: prompt.message,
         images,
         clientTools: resolvedClientTools,
@@ -692,7 +693,7 @@ export async function handleOpenResponsesHttpRequest(
         sessionKey,
         runId: responseId,
         deps,
-      });
+      }) });
 
       finalUsage = extractUsageFromResult(result);
       maybeFinalize();

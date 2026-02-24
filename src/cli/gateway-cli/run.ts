@@ -25,6 +25,7 @@ import { forceFreePortAndWait } from "../ports.js";
 import { ensureDevGatewayConfig } from "./dev.js";
 import { runGatewayLoop } from "./run-loop.js";
 import {
+import { configureGovernor } from "../../governor/governor.js";
   describeUnknownError,
   extractGatewayMiskeys,
   maybeExplainGatewayServiceStop,
@@ -99,6 +100,20 @@ function resolveGatewayRunOptions(opts: GatewayRunOpts, command?: Command): Gate
 }
 
 async function runGatewayCommand(opts: GatewayRunOpts) {
+  // CyborgClaw SAFE MODE: enable Governor airlock when flagged.
+  // Toggle with: CYBORGCLAW_SAFE_MODE=1
+  const safeMode = String(process.env.CYBORGCLAW_SAFE_MODE || "").toLowerCase();
+  const governorEnabled = safeMode in {"1":1, "true":1, "yes":1, "on":1};
+  if (governorEnabled) {
+    configureGovernor({
+      enabled: true,
+      globalMaxInFlight: 2,
+      perAgentMaxInFlight: 1,
+      maxQueueDepth: 200,
+      permitTtlMs: 120_000,
+    });
+  }
+
   const isDevProfile = process.env.OPENCLAW_PROFILE?.trim().toLowerCase() === "dev";
   const devMode = Boolean(opts.dev) || isDevProfile;
   if (opts.reset && !devMode) {
