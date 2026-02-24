@@ -147,7 +147,13 @@ export function makeExecuteCommandHandler(cfg: OpenClawConfig, account: Resolved
       ctx: ctxPayload,
       cfg,
       dispatcherOptions: {
-        deliver: async (payload) => {
+        deliver: async (payload, info) => {
+          // OpenChat command/response model: one command → one reply message.
+          // Only send on "final" to avoid MessageIdAlreadyExists (code 287) from
+          // duplicate sendMessage calls when block replies and the final reply both fire.
+          if (info.kind !== "final") {
+            return;
+          }
           if (payload.text) {
             try {
               const msg = await client.createTextMessage(payload.text);
