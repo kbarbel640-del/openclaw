@@ -22,11 +22,22 @@ export function isAssistantMessageWithContent(message: AgentMessage): message is
  * Returns the original array reference when nothing was changed (callers can
  * use reference equality to skip downstream work).
  */
-export function dropThinkingBlocks(messages: AgentMessage[]): AgentMessage[] {
+export function dropThinkingBlocks(
+  messages: AgentMessage[],
+  options?: { preserveLatestAssistantThinkingBlocks?: boolean },
+): AgentMessage[] {
   let touched = false;
   const out: AgentMessage[] = [];
-  for (const msg of messages) {
+  const protectedAssistantIndex = options?.preserveLatestAssistantThinkingBlocks
+    ? findLatestAssistantIndex(messages)
+    : -1;
+
+  for (const [index, msg] of messages.entries()) {
     if (!isAssistantMessageWithContent(msg)) {
+      out.push(msg);
+      continue;
+    }
+    if (index === protectedAssistantIndex) {
       out.push(msg);
       continue;
     }
@@ -50,4 +61,13 @@ export function dropThinkingBlocks(messages: AgentMessage[]): AgentMessage[] {
     out.push({ ...msg, content });
   }
   return touched ? out : messages;
+}
+
+function findLatestAssistantIndex(messages: AgentMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (isAssistantMessageWithContent(messages[i])) {
+      return i;
+    }
+  }
+  return -1;
 }

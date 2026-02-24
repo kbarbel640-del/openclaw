@@ -379,6 +379,7 @@ export async function sanitizeSessionHistory(params: {
   sessionManager: SessionManager;
   sessionId: string;
   policy?: TranscriptPolicy;
+  preserveLatestAssistantThinkingBlocks?: boolean;
 }): Promise<AgentMessage[]> {
   // Keep docs/reference/transcript-hygiene.md in sync with any logic changes here.
   const policy =
@@ -402,7 +403,9 @@ export async function sanitizeSessionHistory(params: {
     },
   );
   const droppedThinking = policy.dropThinkingBlocks
-    ? dropThinkingBlocks(sanitizedImages)
+    ? dropThinkingBlocks(sanitizedImages, {
+        preserveLatestAssistantThinkingBlocks: params.preserveLatestAssistantThinkingBlocks,
+      })
     : sanitizedImages;
   const sanitizedToolCalls = sanitizeToolCallInputs(droppedThinking, {
     allowedToolNames: params.allowedToolNames,

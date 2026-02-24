@@ -595,6 +595,7 @@ export async function compactEmbeddedPiSessionDirect(
           sessionManager,
           sessionId: params.sessionId,
           policy: transcriptPolicy,
+          preserveLatestAssistantThinkingBlocks: true,
         });
         const validatedGemini = transcriptPolicy.validateGeminiTurns
           ? validateGeminiTurns(prior)

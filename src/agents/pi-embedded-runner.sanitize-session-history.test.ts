@@ -37,12 +37,14 @@ describe("sanitizeSessionHistory", () => {
     messages: AgentMessage[];
     modelApi?: string;
     modelId?: string;
+    preserveLatestAssistantThinkingBlocks?: boolean;
   }) =>
     sanitizeSessionHistory({
       messages: params.messages,
       modelApi: params.modelApi ?? "openai-completions",
       provider: "github-copilot",
       modelId: params.modelId ?? "claude-opus-4.6",
+      preserveLatestAssistantThinkingBlocks: params.preserveLatestAssistantThinkingBlocks,
       sessionManager: makeMockSessionManager(),
       sessionId: TEST_SESSION_ID,
     });
@@ -72,6 +74,43 @@ describe("sanitizeSessionHistory", () => {
         ],
       },
     ] as unknown as AgentMessage[];
+
+  const assertLatestAssistantThinkingUnmodified = (
+    original: AgentMessage[],
+    sanitized: AgentMessage[],
+  ) => {
+    const isThinkingLike = (block: unknown) => {
+      if (!block || typeof block !== "object") {
+        return false;
+      }
+      const type = (block as { type?: unknown }).type;
+      return type === "thinking" || type === "redacted_thinking";
+    };
+
+    const getLatestAssistantThinkingBlocks = (messages: AgentMessage[]) => {
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const message = messages[i] as
+          | (AgentMessage & { role?: string; content?: unknown })
+          | undefined;
+        if (!message || message.role !== "assistant" || !Array.isArray(message.content)) {
+          continue;
+        }
+        const thinkingBlocks = message.content.filter(isThinkingLike);
+        if (thinkingBlocks.length > 0) {
+          return thinkingBlocks;
+        }
+      }
+      return [];
+    };
+
+    const before = getLatestAssistantThinkingBlocks(original);
+    const after = getLatestAssistantThinkingBlocks(sanitized);
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      throw new Error(
+        "LLM request rejected: messages.51.content.1: thinking or redacted_thinking blocks in the latest assistant message cannot be modified.",
+      );
+    }
+  };
 
   beforeEach(async () => {
     sanitizeSessionHistory = await loadSanitizeSessionHistoryWithCleanMocks();
@@ -500,6 +539,52 @@ describe("sanitizeSessionHistory", () => {
     expect(result).toHaveLength(3);
     const assistant = getAssistantMessage(result);
     expect(assistant.content).toEqual([{ type: "text", text: "" }]);
+  });
+
+  it("keeps latest assistant thinking blocks untouched when compaction preservation is enabled", async () => {
+    setNonGoogleModelApi();
+
+    const messages = [
+      { role: "user", content: "first" },
+      {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "older reasoning", thinkingSignature: "reasoning_text" },
+          { type: "text", text: "older answer" },
+        ],
+      },
+      { role: "user", content: "second" },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: "latest reasoning",
+            thinkingSignature: "reasoning_text",
+          },
+        ],
+      },
+      { role: "user", content: "follow up" },
+    ] as unknown as AgentMessage[];
+
+    const broken = await sanitizeGithubCopilotHistory({ messages });
+    expect(() => assertLatestAssistantThinkingUnmodified(messages, broken)).toThrow(
+      /thinking or redacted_thinking blocks in the latest assistant message cannot be modified/i,
+    );
+
+    const preserved = await sanitizeGithubCopilotHistory({
+      messages,
+      preserveLatestAssistantThinkingBlocks: true,
+    });
+
+    expect(() => assertLatestAssistantThinkingUnmodified(messages, preserved)).not.toThrow();
+
+    const latestAssistant = [...preserved]
+      .toReversed()
+      .find((message) => message.role === "assistant");
+    expect(latestAssistant?.content).toEqual(
+      (messages[3] as Extract<AgentMessage, { role: "assistant" }>).content,
+    );
   });
 
   it("preserves tool_use blocks when dropping thinking blocks (github-copilot)", async () => {

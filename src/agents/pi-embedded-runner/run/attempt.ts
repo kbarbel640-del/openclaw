@@ -763,7 +763,9 @@ export async function runEmbeddedAttempt(
           if (!Array.isArray(messages)) {
             return inner(model, context, options);
           }
-          const sanitized = dropThinkingBlocks(messages as unknown as AgentMessage[]) as unknown;
+          const sanitized = dropThinkingBlocks(messages as unknown as AgentMessage[], {
+            preserveLatestAssistantThinkingBlocks: true,
+          }) as unknown;
           if (sanitized === messages) {
             return inner(model, context, options);
           }
@@ -818,6 +820,7 @@ export async function runEmbeddedAttempt(
           sessionManager,
           sessionId: params.sessionId,
           policy: transcriptPolicy,
+          preserveLatestAssistantThinkingBlocks: true,
         });
         cacheTrace?.recordStage("session:sanitized", { messages: prior });
         const validatedGemini = transcriptPolicy.validateGeminiTurns

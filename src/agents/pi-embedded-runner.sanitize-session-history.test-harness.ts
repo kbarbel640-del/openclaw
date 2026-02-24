@@ -12,6 +12,7 @@ export type SanitizeSessionHistoryFn = (params: {
   sessionManager: SessionManager;
   sessionId: string;
   modelId?: string;
+  preserveLatestAssistantThinkingBlocks?: boolean;
 }) => Promise<AgentMessage[]>;
 export const TEST_SESSION_ID = "test-session";
 
