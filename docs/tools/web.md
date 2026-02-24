@@ -12,7 +12,7 @@ title: "Web Tools"
 
 OpenClaw ships two lightweight web tools:
 
-- `web_search` — Search the web via Brave Search API (default), Perplexity Sonar, or Gemini with Google Search grounding.
+- `web_search` — Search the web via Brave Search API (default), Perplexity Sonar, or Gemini with Google Search grounding, or BaiduSearch API.
 - `web_fetch` — HTTP fetch + readable extraction (HTML → markdown/text).
 
 These are **not** browser automation. For JS-heavy sites or logins, use the
@@ -23,6 +23,7 @@ These are **not** browser automation. For JS-heavy sites or logins, use the
 - `web_search` calls your configured provider and returns results.
   - **Brave** (default): returns structured results (title, URL, snippet).
   - **Perplexity**: returns AI-synthesized answers with citations from real-time web search.
+  - **Baidu**: returns structured results (title, URL, snippet).
   - **Gemini**: returns AI-synthesized answers grounded in Google Search with citations.
 - Results are cached by query for 15 minutes (configurable).
 - `web_fetch` does a plain HTTP GET and extracts readable content
@@ -35,9 +36,10 @@ These are **not** browser automation. For JS-heavy sites or logins, use the
 | ------------------- | -------------------------------------------- | ---------------------------------------- | -------------------------------------------- |
 | **Brave** (default) | Fast, structured results, free tier          | Traditional search results               | `BRAVE_API_KEY`                              |
 | **Perplexity**      | AI-synthesized answers, citations, real-time | Requires Perplexity or OpenRouter access | `OPENROUTER_API_KEY` or `PERPLEXITY_API_KEY` |
+| **baidu**           | Fast, structured results, high qulaity       | Traditional search results               | `BAIDU_SEARCH_API_KEY`                       |
 | **Gemini**          | Google Search grounding, AI-synthesized      | Requires Gemini API key                  | `GEMINI_API_KEY`                             |
 
-See [Brave Search setup](/brave-search) and [Perplexity Sonar](/perplexity) for provider-specific details.
+See [Brave Search setup](/brave-search) and [Perplexity Sonar](/perplexity) and [Baidu Search](/baidu-search) for provider-specific details.
 
 ### Auto-detection
 
@@ -78,6 +80,23 @@ Example: switch to Perplexity Sonar (direct API):
           apiKey: "pplx-...",
           baseUrl: "https://api.perplexity.ai",
           model: "perplexity/sonar-pro",
+        },
+      },
+    },
+  },
+}
+```
+
+Example: switch to Baidu search API:
+
+```json5
+{
+  tools: {
+    web: {
+      search: {
+        provider: "baidu",
+        baidu: {
+          apiKey: "bce-v3/ALTAK-...",
         },
       },
     },
@@ -155,6 +174,12 @@ If no base URL is set, OpenClaw chooses a default based on the API key source:
 | `perplexity/sonar-pro` (default) | Multi-step reasoning with web search | Complex questions |
 | `perplexity/sonar-reasoning-pro` | Chain-of-thought analysis            | Deep research     |
 
+## Getting a Baidu Search API key
+
+1.  Visit the [Baidu AI Search Console](https://console.bce.baidu.com/ai-search/qianfan/ais/console/apiKey)
+2.  Generate a new API key or select an existing one(format: `bce-v3/ALTAK-...`)
+3.  Copy the API key and use it with OpenClaw
+
 ## Using Gemini (Google Search grounding)
 
 Gemini models support built-in [Google Search grounding](https://ai.google.dev/gemini-api/docs/grounding),
@@ -197,6 +222,7 @@ For a gateway install, put it in `~/.openclaw/.env`.
 - This redirect resolver follows the trusted-network model (private/internal networks allowed by default) to match Gateway operator trust assumptions.
 - The default model (`gemini-2.5-flash`) is fast and cost-effective.
   Any Gemini model that supports grounding can be used.
+  > > > > > > > main
 
 ## web_search
 
@@ -208,6 +234,7 @@ Search the web using your configured provider.
 - API key for your chosen provider:
   - **Brave**: `BRAVE_API_KEY` or `tools.web.search.apiKey`
   - **Perplexity**: `OPENROUTER_API_KEY`, `PERPLEXITY_API_KEY`, or `tools.web.search.perplexity.apiKey`
+  - **Baidu**: `BAIDU_SEARCH_API_KEY`, or `tools.web.search.baidu.apiKey`
 
 ### Config
 
