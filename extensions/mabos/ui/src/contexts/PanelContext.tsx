@@ -6,8 +6,10 @@ type PanelState = {
   toggleSidebar: () => void;
   setSidebarMode: (mode: SidebarMode) => void;
   detailPanel: DetailPanelState;
-  openDetailPanel: (type: EntityType, id: string, data: unknown) => void;
+  openDetailPanel: (type: EntityType, id: string, data: unknown, mode?: "view" | "create") => void;
   closeDetailPanel: () => void;
+  isPanelExpanded: boolean;
+  setIsPanelExpanded: (expanded: boolean) => void;
 };
 
 const PanelContext = createContext<PanelState | null>(null);
@@ -22,18 +24,23 @@ const defaultDetailPanel: DetailPanelState = {
 export function PanelProvider({ children }: { children: ReactNode }) {
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("collapsed");
   const [detailPanel, setDetailPanel] = useState<DetailPanelState>(defaultDetailPanel);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
 
   const toggleSidebar = useCallback(
     () => setSidebarMode((m) => (m === "collapsed" ? "expanded" : "collapsed")),
     [],
   );
 
-  const openDetailPanel = useCallback((type: EntityType, id: string, data: unknown) => {
-    setDetailPanel({ open: true, entityType: type, entityId: id, entityData: data });
-  }, []);
+  const openDetailPanel = useCallback(
+    (type: EntityType, id: string, data: unknown, mode?: "view" | "create") => {
+      setDetailPanel({ open: true, entityType: type, entityId: id, entityData: data, mode });
+    },
+    [],
+  );
 
   const closeDetailPanel = useCallback(() => {
     setDetailPanel(defaultDetailPanel);
+    setIsPanelExpanded(false);
   }, []);
 
   // Keyboard shortcuts
@@ -48,7 +55,9 @@ export function PanelProvider({ children }: { children: ReactNode }) {
         e.preventDefault();
         toggleSidebar();
       } else if (e.key === "Escape") {
-        if (detailPanel.open) {
+        if (isPanelExpanded) {
+          setIsPanelExpanded(false);
+        } else if (detailPanel.open) {
           closeDetailPanel();
         }
       }
@@ -56,7 +65,7 @@ export function PanelProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [detailPanel.open, toggleSidebar, closeDetailPanel]);
+  }, [detailPanel.open, isPanelExpanded, toggleSidebar, closeDetailPanel]);
 
   return (
     <PanelContext.Provider
@@ -67,6 +76,8 @@ export function PanelProvider({ children }: { children: ReactNode }) {
         detailPanel,
         openDetailPanel,
         closeDetailPanel,
+        isPanelExpanded,
+        setIsPanelExpanded,
       }}
     >
       {children}

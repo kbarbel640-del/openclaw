@@ -1,11 +1,24 @@
-import { AlertCircle, Shield, Gauge, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import {
+  AlertCircle,
+  Shield,
+  Gauge,
+  Pencil,
+  Trash2,
+  Target,
+  Maximize2,
+  Minimize2,
+  Camera,
+  UserPlus,
+} from "lucide-react";
+import { useState, useRef } from "react";
 import { AgentDeleteConfirmDialog } from "@/components/agents/AgentDeleteConfirmDialog";
+import { AgentFileEditor } from "@/components/agents/AgentFileEditor";
 import { AgentFormDialog } from "@/components/agents/AgentFormDialog";
-import { BdiViewer } from "@/components/agents/BdiViewer";
+import { BdiSummaryBar } from "@/components/agents/BdiViewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -17,11 +30,14 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePanels } from "@/contexts/PanelContext";
 import { useAgentDetail } from "@/hooks/useAgentDetail";
+import { useCreateAgent } from "@/hooks/useAgentMutations";
 import { useAgents } from "@/hooks/useAgents";
+import { useGoals } from "@/hooks/useGoals";
 import { getAgentAvatar } from "@/lib/agent-avatars";
 import { getAgentIcon, getAgentName } from "@/lib/agent-icons";
-import type { AgentDetail, AgentListResponse, AgentListItem } from "@/lib/types";
+import type { AgentDetail, AgentListResponse, AgentListItem, BusinessGoal } from "@/lib/types";
 
 const BUSINESS_ID = "vividwalls";
 
@@ -32,11 +48,39 @@ const statusColors: Record<string, string> = {
   paused: "var(--text-muted)",
 };
 
+// BDI cognitive files with display labels
+const BDI_FILES = [
+  { label: "Beliefs", filename: "Beliefs.md" },
+  { label: "Desires", filename: "Desires.md" },
+  { label: "Goals", filename: "Goals.md" },
+  { label: "Intentions", filename: "Intentions.md" },
+  { label: "Plans", filename: "Plans.md" },
+  { label: "Memory", filename: "Memory.md" },
+  { label: "Persona", filename: "Persona.md" },
+  { label: "Capabilities", filename: "Capabilities.md" },
+  { label: "Knowledge", filename: "Knowledge.md" },
+  { label: "Playbooks", filename: "Playbooks.md" },
+  { label: "Actions", filename: "Actions.md" },
+  { label: "Tasks", filename: "Task.md" },
+  { label: "Role", filename: "Role.md" },
+  { label: "Skills", filename: "Skill.md" },
+] as const;
+
+// OpenClaw core files
+const CORE_FILES = [
+  { label: "Soul", filename: "SOUL.md" },
+  { label: "Agent", filename: "AGENTS.md" },
+  { label: "Identity", filename: "IDENTITY.md" },
+  { label: "Tools", filename: "TOOLS.md" },
+  { label: "Bootstrap", filename: "Bootstrap.md" },
+] as const;
+
 interface AgentDetailPanelProps {
   agentId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sheetSide?: "right" | "bottom";
+  mode?: "view" | "create";
 }
 
 function PanelSkeleton() {
@@ -56,6 +100,161 @@ function PanelSkeleton() {
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
       </div>
+    </div>
+  );
+}
+
+const priorityColors: Record<number, string> = {
+  1: "var(--accent-red)",
+  2: "var(--accent-orange)",
+  3: "var(--accent-blue)",
+};
+
+function GoalsSection({ agentId }: { agentId: string }) {
+  const { data, isLoading } = useGoals(BUSINESS_ID);
+
+  const agentGoals: BusinessGoal[] = data?.goals?.filter((g) => g.actor === agentId) ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Target className="w-3.5 h-3.5 text-[var(--accent-green)]" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          Goals ({agentGoals.length})
+        </span>
+      </div>
+      {agentGoals.length === 0 ? (
+        <p className="text-xs text-[var(--text-muted)] italic pl-5.5">
+          No goals assigned to this agent
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {agentGoals.map((goal) => (
+            <div
+              key={goal.id}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-mabos)]"
+            >
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: priorityColors[goal.priority] ?? "var(--text-muted)" }}
+              />
+              <span className="text-xs text-[var(--text-secondary)] flex-1 truncate">
+                {goal.name}
+              </span>
+              <Badge
+                variant="outline"
+                className="border-[var(--border-mabos)] text-[10px] px-1.5 py-0 text-[var(--text-muted)] capitalize shrink-0"
+              >
+                {goal.level}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Projects & Workflows placeholders */}
+      <div className="mt-3 space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          Projects & Workflows
+        </p>
+        <p className="text-xs text-[var(--text-muted)] italic">
+          Coming soon — will show agent-specific projects and workflow assignments.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AgentMindTab({
+  agentId,
+  detail,
+  editable,
+}: {
+  agentId: string;
+  detail: AgentDetail | undefined;
+  editable: boolean;
+}) {
+  const [activeFile, setActiveFile] = useState<string>(BDI_FILES[0].filename);
+  const [fileGroup, setFileGroup] = useState<"bdi" | "core">("bdi");
+
+  function handleBdiSummaryClick(fileTab: string) {
+    setFileGroup("bdi");
+    setActiveFile(fileTab);
+  }
+
+  const currentFiles = fileGroup === "bdi" ? BDI_FILES : CORE_FILES;
+  // Ensure activeFile is valid for the current group
+  const validFile = currentFiles.find((f) => f.filename === activeFile)
+    ? activeFile
+    : currentFiles[0].filename;
+
+  return (
+    <div className="space-y-3">
+      {/* BDI Summary Bar */}
+      {detail && <BdiSummaryBar agent={detail} onClickSection={handleBdiSummaryClick} />}
+
+      {/* File Group Selector */}
+      <Tabs
+        value={fileGroup}
+        onValueChange={(v) => {
+          const group = v as "bdi" | "core";
+          setFileGroup(group);
+          const files = group === "bdi" ? BDI_FILES : CORE_FILES;
+          setActiveFile(files[0].filename);
+        }}
+      >
+        <TabsList className="bg-[var(--bg-secondary)]">
+          <TabsTrigger
+            value="bdi"
+            className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
+          >
+            BDI Files
+          </TabsTrigger>
+          <TabsTrigger
+            value="core"
+            className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
+          >
+            OpenClaw Core
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* File Sub-tabs (line variant) */}
+      <Tabs value={validFile} onValueChange={setActiveFile}>
+        <TabsList variant="line" className="flex-wrap gap-0">
+          {currentFiles.map((f) => (
+            <TabsTrigger
+              key={f.filename}
+              value={f.filename}
+              className="text-xs text-[var(--text-muted)] data-[state=active]:text-[var(--text-primary)] px-2 py-1"
+            >
+              {f.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {currentFiles.map((f) => (
+          <TabsContent key={f.filename} value={f.filename} className="mt-0">
+            <div className="rounded-lg border border-[var(--border-mabos)] overflow-hidden bg-[var(--bg-card)] min-h-[200px]">
+              <AgentFileEditor agentId={agentId} filename={f.filename} editable={editable} />
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      {/* Goals Section */}
+      <Separator className="bg-[var(--border-mabos)]" />
+      <GoalsSection agentId={agentId} />
     </div>
   );
 }
@@ -151,167 +350,419 @@ function ConfigurationTab({ agent }: { agent: AgentListItem | undefined }) {
   );
 }
 
-export function AgentDetailPanel({
+// --- Agent Create Form (replaces AgentFormDialog for panel-based creation) ---
+
+function AgentCreateForm({ onClose }: { onClose: () => void }) {
+  const createAgent = useCreateAgent(BUSINESS_ID);
+  const [id, setId] = useState("");
+  const [name, setName] = useState("");
+  const [type, setType] = useState<"core" | "domain">("domain");
+  const [autonomyLevel, setAutonomyLevel] = useState<"low" | "medium" | "high">("medium");
+  const [threshold, setThreshold] = useState(100);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    createAgent.mutate(
+      {
+        id: id.toLowerCase().replace(/\s+/g, "-"),
+        name,
+        type,
+        autonomy_level: autonomyLevel,
+        approval_threshold_usd: threshold,
+      },
+      { onSuccess: () => onClose() },
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 px-4 py-4">
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-[var(--text-muted)]">Agent ID</label>
+        <Input
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+          placeholder="e.g., product-mgr"
+          required
+          className="bg-[var(--bg-secondary)] border-[var(--border-mabos)] text-[var(--text-primary)]"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-[var(--text-muted)]">Name</label>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g., Product Manager"
+          required
+          className="bg-[var(--bg-secondary)] border-[var(--border-mabos)] text-[var(--text-primary)]"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-[var(--text-muted)]">Type</label>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as "core" | "domain")}
+            className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)]"
+          >
+            <option value="core">Core</option>
+            <option value="domain">Domain</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-[var(--text-muted)]">Autonomy Level</label>
+          <select
+            value={autonomyLevel}
+            onChange={(e) => setAutonomyLevel(e.target.value as "low" | "medium" | "high")}
+            className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)]"
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-[var(--text-muted)]">
+          Approval Threshold (USD)
+        </label>
+        <Input
+          type="number"
+          value={threshold}
+          onChange={(e) => setThreshold(Number(e.target.value))}
+          min={0}
+          className="bg-[var(--bg-secondary)] border-[var(--border-mabos)] text-[var(--text-primary)]"
+        />
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          className="border-[var(--border-mabos)] text-[var(--text-secondary)]"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={createAgent.isPending}
+          className="bg-[var(--accent-green)] text-white hover:bg-[var(--accent-green)]/90"
+        >
+          {createAgent.isPending ? "Creating..." : "Create Agent"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// --- Avatar with upload ---
+
+function AvatarWithUpload({
   agentId,
-  open,
-  onOpenChange,
-  sheetSide = "right",
-}: AgentDetailPanelProps) {
+  avatar,
+  displayName,
+  Icon,
+}: {
+  agentId: string;
+  avatar: string | undefined;
+  displayName: string;
+  Icon: React.ComponentType<{ className?: string }> | null;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarOverride, setAvatarOverride] = useState<string | null>(null);
+
+  const imgSrc = avatarOverride ?? avatar;
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const ext = file.name.endsWith(".png") ? "png" : "jpg";
+      try {
+        await fetch(`/mabos/api/agents/${agentId}/avatar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: base64, ext }),
+        });
+        setAvatarOverride(`/mabos/api/agents/${agentId}/avatar?t=${Date.now()}`);
+      } catch {
+        // silently fail
+      }
+    };
+    reader.readAsDataURL(file);
+    // Reset input so the same file can be re-selected
+    e.target.value = "";
+  }
+
+  return (
+    <div
+      className="relative group cursor-pointer shrink-0"
+      onClick={() => fileInputRef.current?.click()}
+    >
+      {imgSrc ? (
+        <img src={imgSrc} alt={displayName} className="w-24 h-24 rounded-xl object-cover" />
+      ) : Icon ? (
+        <div
+          className="flex items-center justify-center w-24 h-24 rounded-xl"
+          style={{
+            backgroundColor: `color-mix(in srgb, var(--accent-purple) 15%, transparent)`,
+          }}
+        >
+          <Icon className="w-10 h-10 text-[var(--accent-purple)]" />
+        </div>
+      ) : (
+        <div className="w-24 h-24 rounded-xl bg-[var(--bg-secondary)]" />
+      )}
+      {/* Camera overlay on hover */}
+      <div className="absolute inset-0 rounded-xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <Camera className="w-6 h-6 text-white" />
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".jpg,.jpeg,.png"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+    </div>
+  );
+}
+
+// --- Extracted Panel Content ---
+
+type AgentPanelContentProps = {
+  agentId: string | null;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onClose: () => void;
+  mode: "view" | "create";
+};
+
+function AgentPanelContent({
+  agentId,
+  isExpanded,
+  onToggleExpand,
+  onClose,
+  mode,
+}: AgentPanelContentProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [isEditable, setIsEditable] = useState(false);
 
   const {
     data: detailRaw,
     isLoading: detailLoading,
     error: detailError,
-  } = useAgentDetail(agentId ?? "");
+  } = useAgentDetail(mode === "view" && agentId ? agentId : "");
   const { data: agentsRaw } = useAgents(BUSINESS_ID);
 
   const detail = detailRaw as AgentDetail | undefined;
   const agentsResponse = agentsRaw as AgentListResponse | undefined;
-  const agentListItem = agentId ? agentsResponse?.agents?.find((a) => a.id === agentId) : undefined;
+  const agentListItem =
+    agentId && mode === "view" ? agentsResponse?.agents?.find((a) => a.id === agentId) : undefined;
 
-  const Icon = agentId ? getAgentIcon(agentId) : null;
-  const avatar = agentId ? getAgentAvatar(agentId) : undefined;
-  const displayName = agentId ? getAgentName(agentId) : "";
+  const Icon = agentId && mode === "view" ? getAgentIcon(agentId) : null;
+  const avatar = agentId && mode === "view" ? getAgentAvatar(agentId) : undefined;
+  const displayName = agentId && mode === "view" ? getAgentName(agentId) : "";
 
   const statusColor = agentListItem
     ? (statusColors[agentListItem.status] ?? "var(--text-muted)")
     : "var(--text-muted)";
 
+  // --- Create Mode ---
+  if (mode === "create") {
+    return (
+      <>
+        {/* Header */}
+        <div className="px-4 pt-4 pb-2 shrink-0">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex items-center justify-center w-12 h-12 rounded-xl shrink-0"
+              style={{
+                backgroundColor: `color-mix(in srgb, var(--accent-green) 15%, transparent)`,
+              }}
+            >
+              <UserPlus className="w-6 h-6 text-[var(--accent-green)]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Create New Agent</h2>
+              <p className="text-sm text-[var(--text-muted)]">Add a new agent to the system</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors shrink-0"
+              aria-label="Close panel"
+            >
+              <span className="text-lg leading-none">&times;</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="px-4 shrink-0">
+          <Separator className="bg-[var(--border-mabos)]" />
+        </div>
+
+        {/* Create Form */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <AgentCreateForm onClose={onClose} />
+        </div>
+      </>
+    );
+  }
+
+  // --- View Mode ---
+  if (detailLoading) {
+    return <PanelSkeleton />;
+  }
+
+  if (detailError) {
+    return (
+      <div className="flex items-center gap-3 p-4 mx-4 rounded-lg bg-[color-mix(in_srgb,var(--accent-red)_10%,var(--bg-card))] border border-[var(--accent-red)]/20">
+        <AlertCircle className="w-5 h-5 text-[var(--accent-red)] shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-[var(--text-primary)]">
+            Failed to load agent detail
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Unable to fetch data for agent &quot;{agentId}&quot;.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
-          side={sheetSide}
-          className={`bg-[var(--bg-primary)] overflow-y-auto ${sheetSide === "bottom" ? "h-[85vh] border-t" : "w-full sm:max-w-lg border-l"} border-[var(--border-mabos)]`}
-        >
-          {detailLoading ? (
-            <PanelSkeleton />
-          ) : detailError ? (
-            <div className="flex items-center gap-3 p-4 mx-4 rounded-lg bg-[color-mix(in_srgb,var(--accent-red)_10%,var(--bg-card))] border border-[var(--accent-red)]/20">
-              <AlertCircle className="w-5 h-5 text-[var(--accent-red)] shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-[var(--text-primary)]">
-                  Failed to load agent detail
-                </p>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Unable to fetch data for agent &quot;{agentId}&quot;.
-                </p>
-              </div>
+      {/* Fixed Header */}
+      <div className="px-4 pt-4 pb-0 shrink-0">
+        <div className="flex items-start gap-3">
+          {agentId ? (
+            <AvatarWithUpload
+              agentId={agentId}
+              avatar={avatar}
+              displayName={displayName}
+              Icon={Icon}
+            />
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">{displayName}</h2>
+              {agentListItem && (
+                <Badge
+                  variant="outline"
+                  className="border-[var(--border-mabos)] text-[var(--text-secondary)] text-[10px] px-1.5 py-0 gap-1.5 shrink-0"
+                >
+                  <span
+                    className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: statusColor }}
+                  />
+                  {agentListItem.status}
+                </Badge>
+              )}
             </div>
-          ) : (
-            <>
-              {/* Header */}
-              <SheetHeader className="pb-0">
-                <div className="flex items-center gap-3">
-                  {avatar ? (
-                    <img
-                      src={avatar}
-                      alt={displayName}
-                      className="w-12 h-12 rounded-xl object-cover shrink-0"
-                    />
-                  ) : Icon ? (
-                    <div
-                      className="flex items-center justify-center w-12 h-12 rounded-xl shrink-0"
-                      style={{
-                        backgroundColor: `color-mix(in srgb, var(--accent-purple) 15%, transparent)`,
-                      }}
-                    >
-                      <Icon className="w-6 h-6 text-[var(--accent-purple)]" />
-                    </div>
-                  ) : null}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <SheetTitle className="text-lg text-[var(--text-primary)]">
-                        {displayName}
-                      </SheetTitle>
-                      {agentListItem && (
-                        <Badge
-                          variant="outline"
-                          className="border-[var(--border-mabos)] text-[var(--text-secondary)] text-[10px] px-1.5 py-0 gap-1.5 shrink-0"
-                        >
-                          <span
-                            className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-                            style={{ backgroundColor: statusColor }}
-                          />
-                          {agentListItem.status}
-                        </Badge>
-                      )}
-                    </div>
-                    <SheetDescription className="text-[var(--text-muted)]">
-                      {agentListItem && (
-                        <span className="capitalize">{agentListItem.type} agent</span>
-                      )}
-                      {agentId && <span className="ml-2 font-mono text-xs">{agentId}</span>}
-                    </SheetDescription>
-                  </div>
-                </div>
-              </SheetHeader>
+            <p className="text-sm text-[var(--text-muted)]">
+              {agentListItem && <span className="capitalize">{agentListItem.type} agent</span>}
+              {agentId && <span className="ml-2 font-mono text-xs">{agentId}</span>}
+            </p>
+          </div>
+          {/* Header action buttons */}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setIsEditable(!isEditable)}
+              className={`p-1.5 rounded-md transition-colors ${isEditable ? "text-[var(--accent-purple)] bg-[var(--accent-purple)]/10" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"}`}
+              aria-label="Toggle edit mode"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onToggleExpand}
+              className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+              aria-label={isExpanded ? "Collapse panel" : "Expand to full page"}
+            >
+              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+              aria-label="Close panel"
+            >
+              <span className="text-lg leading-none">&times;</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
-              <div className="px-4">
-                <Separator className="bg-[var(--border-mabos)]" />
-              </div>
+      <div className="px-4 shrink-0">
+        <Separator className="bg-[var(--border-mabos)]" />
+      </div>
 
-              {/* Tabs */}
-              <div className="px-4 flex-1">
-                <Tabs defaultValue="bdi">
-                  <TabsList className="bg-[var(--bg-secondary)]">
-                    <TabsTrigger
-                      value="bdi"
-                      className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
-                    >
-                      BDI State
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="config"
-                      className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
-                    >
-                      Configuration
-                    </TabsTrigger>
-                  </TabsList>
+      {/* Scrollable Content */}
+      <div className="px-4 flex-1 overflow-y-auto min-h-0">
+        <Tabs defaultValue="mind">
+          <TabsList className="bg-[var(--bg-secondary)]">
+            <TabsTrigger
+              value="mind"
+              className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
+            >
+              Agent Mind
+            </TabsTrigger>
+            <TabsTrigger
+              value="config"
+              className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
+            >
+              Configuration
+            </TabsTrigger>
+          </TabsList>
 
-                  <TabsContent value="bdi" className="mt-4">
-                    {detail ? (
-                      <BdiViewer agent={detail} />
-                    ) : (
-                      <p className="text-sm text-[var(--text-muted)] italic">
-                        BDI data unavailable.
-                      </p>
-                    )}
-                  </TabsContent>
+          <TabsContent value="mind" className="mt-4">
+            {agentId && <AgentMindTab agentId={agentId} detail={detail} editable={isEditable} />}
+          </TabsContent>
 
-                  <TabsContent value="config" className="mt-4">
-                    <ConfigurationTab agent={agentListItem} />
-                  </TabsContent>
-                </Tabs>
-              </div>
+          <TabsContent value="config" className="mt-4">
+            <ConfigurationTab agent={agentListItem} />
+          </TabsContent>
+        </Tabs>
+      </div>
 
-              {/* Footer with actions */}
-              <SheetFooter className="border-t border-[var(--border-mabos)] flex-row gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowEditDialog(true)}
-                  className="border-[var(--border-mabos)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] gap-1.5"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowArchiveDialog(true)}
-                  className="border-[var(--accent-red)]/30 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Archive
-                </Button>
-              </SheetFooter>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      {/* Fixed Footer */}
+      <div className="border-t border-[var(--border-mabos)] px-4 py-3 flex gap-2 shrink-0">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setIsEditable(!isEditable);
+          }}
+          className={`border-[var(--border-mabos)] gap-1.5 ${isEditable ? "text-[var(--accent-purple)] border-[var(--accent-purple)]/30" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          {isEditable ? "Editing" : "Edit Files"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowEditDialog(true)}
+          className="border-[var(--border-mabos)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] gap-1.5"
+        >
+          <Gauge className="w-3.5 h-3.5" />
+          Settings
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowArchiveDialog(true)}
+          className="border-[var(--accent-red)]/30 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 gap-1.5"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          Archive
+        </Button>
+      </div>
 
       {/* Dialogs rendered outside Sheet to avoid portal conflicts */}
       {agentId && (
@@ -328,10 +779,64 @@ export function AgentDetailPanel({
             businessId={BUSINESS_ID}
             agentId={agentId}
             agentName={displayName}
-            onArchived={() => onOpenChange(false)}
+            onArchived={onClose}
           />
         </>
       )}
     </>
+  );
+}
+
+// --- Main Panel Export ---
+
+export function AgentDetailPanel({
+  agentId,
+  open,
+  onOpenChange,
+  sheetSide = "right",
+  mode = "view",
+}: AgentDetailPanelProps) {
+  const { isPanelExpanded, setIsPanelExpanded } = usePanels();
+
+  const handleClose = () => onOpenChange(false);
+
+  if (isPanelExpanded && open) {
+    // EXPANDED MODE: fixed overlay with 50px inset
+    return (
+      <>
+        <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setIsPanelExpanded(false)} />
+        <div
+          className="fixed z-50 flex flex-col bg-[var(--bg-primary)] border border-[var(--border-mabos)] rounded-2xl shadow-2xl overflow-hidden"
+          style={{ inset: "50px" }}
+        >
+          <AgentPanelContent
+            agentId={agentId}
+            isExpanded={true}
+            onToggleExpand={() => setIsPanelExpanded(false)}
+            onClose={handleClose}
+            mode={mode}
+          />
+        </div>
+      </>
+    );
+  }
+
+  // SIDEBAR MODE: existing Sheet
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side={sheetSide}
+        showCloseButton={false}
+        className={`bg-[var(--bg-primary)] ${sheetSide === "bottom" ? "h-[85vh] border-t" : "w-full sm:max-w-lg border-l"} border-[var(--border-mabos)]`}
+      >
+        <AgentPanelContent
+          agentId={agentId}
+          isExpanded={false}
+          onToggleExpand={() => setIsPanelExpanded(true)}
+          onClose={handleClose}
+          mode={mode}
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

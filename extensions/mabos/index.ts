@@ -18,6 +18,7 @@ import { onAgentEvent, type AgentEventPayload } from "../../src/infra/agent-even
 import { readJsonBodyWithLimit } from "../../src/infra/http-body.js";
 import { createCronBridgeService } from "./src/cron-bridge.js";
 import { createBdiTools } from "./src/tools/bdi-tools.js";
+import { createBpmnMigrateTools } from "./src/tools/bpmn-migrate.js";
 import { createBusinessTools } from "./src/tools/business-tools.js";
 import { createCbrTools } from "./src/tools/cbr-tools.js";
 import { resolveWorkspaceDir, getPluginConfig } from "./src/tools/common.js";
@@ -43,6 +44,7 @@ import { createSeoAnalyticsTools } from "./src/tools/seo-analytics-tools.js";
 import { createSetupWizardTools } from "./src/tools/setup-wizard-tools.js";
 import { createStakeholderTools } from "./src/tools/stakeholder-tools.js";
 import { createTypeDBTools } from "./src/tools/typedb-tools.js";
+import { createWorkflowTools } from "./src/tools/workflow-tools.js";
 import { createWorkforceTools } from "./src/tools/workforce-tools.js";
 
 // Use a variable for the bdi-runtime path so TypeScript doesn't try to
@@ -80,6 +82,8 @@ export default function register(api: OpenClawPluginApi) {
     createOntologyManagementTools,
     createSetupWizardTools,
     createTypeDBTools,
+    createWorkflowTools,
+    createBpmnMigrateTools,
   ];
 
   for (const factory of factories) {
@@ -726,6 +730,232 @@ export default function register(api: OpenClawPluginApi) {
       res.setHeader("Content-Type", "application/json");
       res.statusCode = 500;
       res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // API: Agent files (list, read, update)
+  // Matches both /agents/:id/files and /agents/:id/files/:filename
+  api.registerHttpHandler(async (req, res) => {
+    const url = new URL(req.url || "/", "http://localhost");
+    const filesMatch = url.pathname.match(/^\/mabos\/api\/agents\/([^/]+)\/files(?:\/(.+))?$/);
+    if (!filesMatch) return false;
+    if (!(await requireAuth(req, res))) return true;
+
+    try {
+      const { join } = await import("node:path");
+      const {
+        readdir,
+        stat: fsStat,
+        readFile: fsReadFile,
+        writeFile: fsWriteFile,
+      } = await import("node:fs/promises");
+
+      const rawId = filesMatch[1];
+      const agentId = sanitizeId(rawId);
+      if (!agentId) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Invalid agent ID" }));
+        return true;
+      }
+
+      const bdiDir = join(workspaceDir, "businesses", "vividwalls", "agents", agentId);
+      const coreDir = join(workspaceDir, "agents", agentId);
+      const rawFilename = filesMatch[2];
+
+      // --- Single file operations (GET / PUT) ---
+      if (rawFilename) {
+        const filename = decodeURIComponent(rawFilename);
+        if (!filename.endsWith(".md") || filename.includes("..") || filename.includes("/")) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid filename" }));
+          return true;
+        }
+
+        // Resolve which directory contains the file (BDI first, then core)
+        let filePath = join(bdiDir, filename);
+        let category: "bdi" | "core" = "bdi";
+        try {
+          await fsStat(filePath);
+        } catch {
+          filePath = join(coreDir, filename);
+          category = "core";
+          try {
+            await fsStat(filePath);
+          } catch {
+            if (req.method !== "PUT") {
+              res.statusCode = 404;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ error: "File not found" }));
+              return true;
+            }
+            // For PUT, default to BDI dir
+            filePath = join(bdiDir, filename);
+            category = "bdi";
+          }
+        }
+
+        if (req.method === "PUT") {
+          let body = "";
+          for await (const chunk of req as any) body += chunk;
+          const parsed = JSON.parse(body);
+          if (typeof parsed.content !== "string") {
+            res.statusCode = 400;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: "Missing content field" }));
+            return true;
+          }
+          await fsWriteFile(filePath, parsed.content, "utf-8");
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ ok: true }));
+          return true;
+        }
+
+        // GET file content
+        const content = await fsReadFile(filePath, "utf-8");
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ filename, content, category }));
+        return true;
+      }
+
+      // --- List all files ---
+      type AgentFile = {
+        filename: string;
+        category: "bdi" | "core";
+        size: number;
+        modified: string;
+      };
+      const files: AgentFile[] = [];
+
+      for (const [dir, cat] of [
+        [bdiDir, "bdi"],
+        [coreDir, "core"],
+      ] as const) {
+        try {
+          const entries = await readdir(dir);
+          for (const entry of entries) {
+            if (!entry.endsWith(".md")) continue;
+            try {
+              const s = await fsStat(join(dir, entry));
+              files.push({
+                filename: entry,
+                category: cat,
+                size: s.size,
+                modified: s.mtime.toISOString(),
+              });
+            } catch {
+              /* skip unreadable */
+            }
+          }
+        } catch {
+          /* dir doesn't exist */
+        }
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ files }));
+      return true;
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+      return true;
+    }
+  });
+
+  // API: Agent avatar (GET serve / POST upload)
+  api.registerHttpHandler(async (req, res) => {
+    const url = new URL(req.url || "/", "http://localhost");
+    const avatarMatch = url.pathname.match(/^\/mabos\/api\/agents\/([^/]+)\/avatar$/);
+    if (!avatarMatch) return false;
+    if (!(await requireAuth(req, res))) return true;
+
+    try {
+      const { join } = await import("node:path");
+      const {
+        readFile: fsReadFile,
+        writeFile: fsWriteFile,
+        unlink,
+        stat: fsStat,
+        mkdir,
+      } = await import("node:fs/promises");
+
+      const rawId = avatarMatch[1];
+      const agentId = sanitizeId(rawId);
+      if (!agentId) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Invalid agent ID" }));
+        return true;
+      }
+
+      const bdiDir = join(workspaceDir, "businesses", "vividwalls", "agents", agentId);
+
+      if (req.method === "GET") {
+        // Try png first, then jpg
+        for (const ext of ["png", "jpg"] as const) {
+          const avatarPath = join(bdiDir, `avatar.${ext}`);
+          try {
+            await fsStat(avatarPath);
+            const data = await fsReadFile(avatarPath);
+            res.setHeader("Content-Type", ext === "png" ? "image/png" : "image/jpeg");
+            res.setHeader("Cache-Control", "public, max-age=3600");
+            res.end(data);
+            return true;
+          } catch {
+            // try next extension
+          }
+        }
+        res.statusCode = 404;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: "Avatar not found" }));
+        return true;
+      }
+
+      if (req.method === "POST") {
+        let body = "";
+        for await (const chunk of req as any) body += chunk;
+        const parsed = JSON.parse(body);
+        const { data: dataUrl, ext } = parsed as { data: string; ext: string };
+
+        if (!dataUrl || !["png", "jpg"].includes(ext)) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Invalid data or ext" }));
+          return true;
+        }
+
+        // Strip base64 prefix (e.g. "data:image/png;base64,...")
+        const base64Data = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+        const buffer = Buffer.from(base64Data, "base64");
+
+        await mkdir(bdiDir, { recursive: true });
+        const avatarPath = join(bdiDir, `avatar.${ext}`);
+        await fsWriteFile(avatarPath, buffer);
+
+        // Delete other extension if it exists
+        const otherExt = ext === "png" ? "jpg" : "png";
+        try {
+          await unlink(join(bdiDir, `avatar.${otherExt}`));
+        } catch {
+          // ignore if not found
+        }
+
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true }));
+        return true;
+      }
+
+      res.statusCode = 405;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+      return true;
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+      return true;
     }
   });
 
@@ -2477,6 +2707,496 @@ export default function register(api: OpenClawPluginApi) {
     },
     { names: ["mabos_memory_search"] },
   );
+
+  // ── BPMN 2.0 Workflow API ────────────────────────────────────
+
+  const BPMN_DB = "mabos";
+
+  // GET /mabos/api/workflows — list all BPMN workflows
+  api.registerHttpRoute({
+    path: "/mabos/api/workflows",
+    handler: async (req, res) => {
+      if (!(await requireAuth(req, res))) return;
+      try {
+        const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+        const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+        const client = getTypeDBClient();
+        const url = new URL(req.url || "/", "http://localhost");
+        const status = url.searchParams.get("status") || undefined;
+        const agentId = url.searchParams.get("agentId") || "vw-ceo";
+
+        if (req.method === "POST") {
+          // Create workflow
+          const body = await readMabosJsonBody<any>(req, res);
+          if (!body) return;
+          const id = body.id || `bpmn-wf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          const typeql = BpmnStoreQueries.createWorkflow(body.agentId || agentId, {
+            id,
+            name: body.name || "Untitled Workflow",
+            status: body.status || "pending",
+            description: body.description,
+            version: body.version,
+          });
+          await client.insertData(typeql, BPMN_DB);
+
+          // Link to goal if provided
+          if (body.goalId) {
+            const linkTypeql = BpmnStoreQueries.linkWorkflowToGoal(id, body.goalId);
+            await client.insertData(linkTypeql, BPMN_DB).catch(() => {});
+          }
+
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ ok: true, id }));
+          return;
+        }
+
+        // GET — list workflows
+        const typeql = BpmnStoreQueries.queryWorkflows(agentId, { status });
+        const results = await client.matchQuery(typeql, BPMN_DB);
+        const workflows = Array.isArray(results)
+          ? results.map((r: any) => ({
+              id: r.wfid?.value ?? r.wfid,
+              name: r.wn?.value ?? r.wn,
+              status: r.ws?.value ?? r.ws,
+              createdAt: r.wc?.value ?? r.wc,
+              updatedAt: r.wu?.value ?? r.wu,
+            }))
+          : [];
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ workflows }));
+      } catch (err) {
+        res.setHeader("Content-Type", "application/json");
+        res.statusCode = 500;
+        res.end(JSON.stringify({ error: String(err) }));
+      }
+    },
+  });
+
+  // GET/PUT/DELETE /mabos/api/workflows/:id
+  registerParamRoute("/mabos/api/workflows/:id", async (req, res) => {
+    try {
+      const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+      const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+      const client = getTypeDBClient();
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const id = sanitizeId(segments[segments.length - 1]);
+      if (!id) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Invalid workflow ID" }));
+        return;
+      }
+
+      if (req.method === "DELETE") {
+        await client.deleteData(BpmnStoreQueries.deleteWorkflow(id), BPMN_DB);
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+
+      if (req.method === "PUT") {
+        const body = await readMabosJsonBody<any>(req, res);
+        if (!body) return;
+        const typeql = BpmnStoreQueries.updateWorkflow(id, {
+          name: body.name,
+          status: body.status,
+          description: body.description,
+        });
+        await client.insertData(typeql, BPMN_DB);
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+
+      // GET — full workflow with elements, flows, pools, lanes
+      const wfResult = await client.matchQuery(BpmnStoreQueries.queryWorkflow(id), BPMN_DB);
+      if (!wfResult || (Array.isArray(wfResult) && wfResult.length === 0)) {
+        res.statusCode = 404;
+        res.end(JSON.stringify({ error: "Workflow not found" }));
+        return;
+      }
+      const wf = Array.isArray(wfResult) ? wfResult[0] : wfResult;
+
+      // Fetch elements
+      let elements: any[] = [];
+      try {
+        const elResult = await client.matchQuery(BpmnStoreQueries.queryElements(id), BPMN_DB);
+        elements = Array.isArray(elResult)
+          ? elResult.map((r: any) => ({
+              id: r.eid?.value ?? r.eid,
+              type: r.etype?.value ?? r.etype,
+              position: { x: r.px?.value ?? r.px ?? 0, y: r.py?.value ?? r.py ?? 0 },
+              size: { w: r.sw?.value ?? r.sw ?? 160, h: r.sh?.value ?? r.sh ?? 80 },
+            }))
+          : [];
+      } catch {
+        /* no elements yet */
+      }
+
+      // Fetch flows
+      let flows: any[] = [];
+      try {
+        const flResult = await client.matchQuery(BpmnStoreQueries.queryFlows(id), BPMN_DB);
+        flows = Array.isArray(flResult)
+          ? flResult.map((r: any) => ({
+              id: r.fid?.value ?? r.fid,
+              type: r.ft?.value ?? r.ft,
+              sourceId: r.sid?.value ?? r.sid,
+              targetId: r.tid?.value ?? r.tid,
+            }))
+          : [];
+      } catch {
+        /* no flows yet */
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          id,
+          name: wf.wn?.value ?? wf.wn,
+          status: wf.ws?.value ?? wf.ws,
+          elements,
+          flows,
+          pools: [],
+          lanes: [],
+        }),
+      );
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // POST /mabos/api/workflows/:id/elements — add element
+  registerParamRoute("/mabos/api/workflows/:id/elements", async (req, res) => {
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+      return;
+    }
+    try {
+      const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+      const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+      const client = getTypeDBClient();
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const workflowId = sanitizeId(segments[segments.length - 2]);
+      if (!workflowId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Invalid workflow ID" }));
+        return;
+      }
+
+      const body = await readMabosJsonBody<any>(req, res);
+      if (!body) return;
+      const agentId = body.agentId || "vw-ceo";
+      const elementId =
+        body.id || `bpmn-el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const typeql = BpmnStoreQueries.addElement(agentId, workflowId, {
+        id: elementId,
+        name: body.name,
+        element_type: body.type || body.element_type || "task",
+        pos_x: body.position?.x ?? body.pos_x ?? 0,
+        pos_y: body.position?.y ?? body.pos_y ?? 0,
+        size_w: body.size?.w ?? body.size_w,
+        size_h: body.size?.h ?? body.size_h,
+        event_position: body.eventPosition ?? body.event_position,
+        event_trigger: body.eventTrigger ?? body.event_trigger,
+        event_catching: body.eventCatching ?? body.event_catching,
+        task_type_bpmn: body.taskType ?? body.task_type_bpmn,
+        loop_type: body.loopType ?? body.loop_type,
+        gateway_type: body.gatewayType ?? body.gateway_type,
+        subprocess_type: body.subProcessType ?? body.subprocess_type,
+        assignee_agent_id: body.assignee ?? body.assignee_agent_id,
+        action_tool: body.action ?? body.action_tool,
+        lane_id: body.laneId ?? body.lane_id,
+        documentation: body.documentation,
+      });
+      await client.insertData(typeql, BPMN_DB);
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ ok: true, id: elementId }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // PUT /mabos/api/workflows/:id/elements/:eid — update element
+  registerParamRoute("/mabos/api/workflows/:id/elements/:eid", async (req, res) => {
+    try {
+      const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+      const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+      const client = getTypeDBClient();
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const elementId = sanitizeId(segments[segments.length - 1]);
+      if (!elementId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Invalid element ID" }));
+        return;
+      }
+
+      if (req.method === "DELETE") {
+        await client.deleteData(BpmnStoreQueries.deleteElement(elementId), BPMN_DB);
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+
+      if (req.method === "PATCH" || req.method === "PUT") {
+        const body = await readMabosJsonBody<any>(req, res);
+        if (!body) return;
+
+        // Position-only update
+        if (body.position && Object.keys(body).length <= 2) {
+          const typeql = BpmnStoreQueries.updateElementPosition(
+            elementId,
+            body.position.x,
+            body.position.y,
+          );
+          await client.insertData(typeql, BPMN_DB);
+        } else {
+          // Full field update
+          const fields: Record<string, string | number | boolean> = {};
+          if (body.name !== undefined) fields.name = body.name;
+          if (body.element_type !== undefined) fields.element_type = body.element_type;
+          if (body.task_type_bpmn !== undefined) fields.task_type_bpmn = body.task_type_bpmn;
+          if (body.gateway_type !== undefined) fields.gateway_type = body.gateway_type;
+          if (body.documentation !== undefined) fields.documentation = body.documentation;
+          if (Object.keys(fields).length > 0) {
+            const typeql = BpmnStoreQueries.updateElement(elementId, fields);
+            await client.insertData(typeql, BPMN_DB);
+          }
+        }
+
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // POST /mabos/api/workflows/:id/flows — create flow
+  registerParamRoute("/mabos/api/workflows/:id/flows", async (req, res) => {
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+      return;
+    }
+    try {
+      const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+      const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+      const client = getTypeDBClient();
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const workflowId = sanitizeId(segments[segments.length - 2]);
+      if (!workflowId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Invalid workflow ID" }));
+        return;
+      }
+
+      const body = await readMabosJsonBody<any>(req, res);
+      if (!body) return;
+      const agentId = body.agentId || "vw-ceo";
+      const flowId = body.id || `bpmn-fl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const typeql = BpmnStoreQueries.addFlow(agentId, workflowId, {
+        id: flowId,
+        flow_type: body.type || body.flow_type || "sequence",
+        source_id: body.sourceId || body.source_id,
+        target_id: body.targetId || body.target_id,
+        name: body.name,
+        condition_expr: body.conditionExpression || body.condition_expr,
+        is_default: body.isDefault ?? body.is_default,
+      });
+      await client.insertData(typeql, BPMN_DB);
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ ok: true, id: flowId }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // DELETE /mabos/api/workflows/:id/flows/:fid
+  registerParamRoute("/mabos/api/workflows/:id/flows/:fid", async (req, res) => {
+    if (req.method !== "DELETE") {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+      return;
+    }
+    try {
+      const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+      const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+      const client = getTypeDBClient();
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const flowId = sanitizeId(segments[segments.length - 1]);
+      if (!flowId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Invalid flow ID" }));
+        return;
+      }
+      await client.deleteData(BpmnStoreQueries.deleteFlow(flowId), BPMN_DB);
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // POST /mabos/api/workflows/:id/pools — add pool
+  registerParamRoute("/mabos/api/workflows/:id/pools", async (req, res) => {
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+      return;
+    }
+    try {
+      const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+      const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+      const client = getTypeDBClient();
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const workflowId = sanitizeId(segments[segments.length - 2]);
+      if (!workflowId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Invalid workflow ID" }));
+        return;
+      }
+
+      const body = await readMabosJsonBody<any>(req, res);
+      if (!body) return;
+      const agentId = body.agentId || "vw-ceo";
+      const poolId = body.id || `bpmn-pool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const typeql = BpmnStoreQueries.addPool(agentId, workflowId, {
+        id: poolId,
+        name: body.name || "Pool",
+        participant_ref: body.participantRef,
+        is_black_box: body.isBlackBox,
+      });
+      await client.insertData(typeql, BPMN_DB);
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ ok: true, id: poolId }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // POST /mabos/api/workflows/:id/lanes — add lane
+  registerParamRoute("/mabos/api/workflows/:id/lanes", async (req, res) => {
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+      return;
+    }
+    try {
+      const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+      const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+      const client = getTypeDBClient();
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const workflowId = sanitizeId(segments[segments.length - 2]);
+      if (!workflowId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Invalid workflow ID" }));
+        return;
+      }
+
+      const body = await readMabosJsonBody<any>(req, res);
+      if (!body) return;
+      const agentId = body.agentId || "vw-ceo";
+      const laneId = body.id || `bpmn-lane-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const typeql = BpmnStoreQueries.addLane(agentId, body.poolId, {
+        id: laneId,
+        name: body.name || "Lane",
+        assignee_agent_id: body.assignee,
+      });
+      await client.insertData(typeql, BPMN_DB);
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ ok: true, id: laneId }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
+
+  // POST /mabos/api/workflows/:id/validate — BPMN validation
+  registerParamRoute("/mabos/api/workflows/:id/validate", async (req, res) => {
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.end(JSON.stringify({ error: "Method not allowed" }));
+      return;
+    }
+    try {
+      const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+      const { BpmnStoreQueries } = await import("./src/knowledge/bpmn-queries.js");
+      const client = getTypeDBClient();
+      const url = new URL(req.url || "", "http://localhost");
+      const segments = url.pathname.split("/");
+      const workflowId = sanitizeId(segments[segments.length - 2]);
+      if (!workflowId) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "Invalid workflow ID" }));
+        return;
+      }
+
+      const errors: { elementId: string; message: string; severity: string }[] = [];
+
+      // Check orphan nodes
+      try {
+        const orphanResult = await client.matchQuery(
+          BpmnStoreQueries.queryOrphanNodes(workflowId),
+          BPMN_DB,
+        );
+        if (Array.isArray(orphanResult)) {
+          for (const r of orphanResult) {
+            const eid = r.eid?.value ?? r.eid;
+            const etype = r.etype?.value ?? r.etype;
+            if (etype !== "startEvent" && etype !== "endEvent") {
+              errors.push({
+                elementId: eid,
+                message: `Element "${eid}" has no connections`,
+                severity: "warning",
+              });
+            }
+          }
+        }
+      } catch {
+        /* skip orphan check */
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ valid: errors.length === 0, errors }));
+    } catch (err) {
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: String(err) }));
+    }
+  });
 
   // ── 6. Agent Lifecycle Hooks ──────────────────────────────────
 

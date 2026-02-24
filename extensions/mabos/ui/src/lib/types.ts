@@ -140,6 +140,23 @@ export type DecisionResolution = {
 
 export type GoalLevel = "strategic" | "tactical" | "operational";
 export type GoalType = "hardgoal" | "softgoal" | "task" | "resource";
+
+export type GoalPerspective = "level" | "actor" | "type" | "bsc" | "goa-domain";
+
+// Balanced Scorecard perspectives
+export type GoalBSCCategory = "financial" | "customer" | "internal-process" | "learning-growth";
+
+// GOA Domain perspectives (from Goal-Oriented Architecture)
+export type GoalDomainCategory = "safety" | "efficiency" | "responsiveness" | "robustness";
+
+// Goal refinement relationship (goal-to-goal edges)
+export type GoalRefinement = {
+  parentGoalId: string;
+  childGoalId: string;
+  type: "and-refinement" | "or-refinement" | "contribution";
+  label?: string;
+  inferred?: boolean; // true if AI/hierarchy-inferred, false if explicit
+};
 export type WorkflowStatus = "active" | "completed" | "paused" | "pending";
 
 export type WorkflowStep = {
@@ -172,6 +189,9 @@ export type BusinessGoal = {
   actor?: string;
   desires: string[];
   workflows: Workflow[];
+  category?: GoalBSCCategory; // BSC perspective
+  domain?: GoalDomainCategory; // GOA domain perspective
+  parentGoalId?: string; // explicit refinement parent
 };
 
 export type TroposActor = {
@@ -192,6 +212,7 @@ export type TroposGoalModel = {
   actors: TroposActor[];
   goals: BusinessGoal[];
   dependencies: TroposDependency[];
+  refinements?: GoalRefinement[]; // goal-to-goal edges
 };
 
 // --- Contractors ---
@@ -218,6 +239,7 @@ export type EntityType =
   | "task"
   | "agent"
   | "workflow"
+  | "bpmn-node"
   | "knowledge-graph-node"
   | "timeline-event";
 
@@ -226,6 +248,7 @@ export type DetailPanelState = {
   entityType: EntityType | null;
   entityId: string | null;
   entityData: unknown;
+  mode?: "view" | "create";
 };
 
 // --- Cron / Scheduling ---
@@ -272,6 +295,21 @@ export type SLAPerspective = {
   label: string;
   description: string;
   columns: KanbanColumnConfig[];
+};
+
+// --- Agent Files ---
+
+export type AgentFileInfo = {
+  filename: string;
+  category: "bdi" | "core";
+  size: number;
+  modified: string;
+};
+
+export type AgentFileContent = {
+  filename: string;
+  content: string;
+  category: "bdi" | "core";
 };
 
 // --- Chat Actions ---

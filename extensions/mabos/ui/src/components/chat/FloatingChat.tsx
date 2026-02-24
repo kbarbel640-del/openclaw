@@ -15,6 +15,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChatState } from "@/contexts/ChatContext";
+import { usePanels } from "@/contexts/PanelContext";
 import { useChat } from "@/hooks/useChat";
 import type { AgentActivity } from "@/hooks/useChat";
 import { useChatActionDispatcher } from "@/lib/chat-actions";
@@ -71,6 +72,7 @@ function AgentActivityIndicator({ activity }: { activity: AgentActivity }) {
 
 export function FloatingChat() {
   const { isMinimized, minimizeChat, setLastActiveAgent } = useChatState();
+  const { isPanelExpanded } = usePanels();
   const { dispatchAction } = useChatActionDispatcher();
   const routerState = useRouterState();
   const pageCtx = getPageContext(routerState.location.pathname);
@@ -148,7 +150,9 @@ export function FloatingChat() {
   }
 
   return (
-    <div className="fixed bottom-[40px] left-1/2 -translate-x-1/2 z-[30] w-[calc(100vw-48px)] md:max-w-[800px] max-[480px]:max-w-[calc(100%-24px)] max-[480px]:bottom-[20px]">
+    <div
+      className={`fixed bottom-[40px] left-1/2 -translate-x-1/2 ${isPanelExpanded ? "z-[60]" : "z-[30]"} w-[calc(100vw-48px)] md:max-w-[800px] max-[480px]:max-w-[calc(100%-24px)] max-[480px]:bottom-[20px]`}
+    >
       {/* Unified Response + Suggestions Panel */}
       {showPanel && (
         <div
@@ -261,8 +265,12 @@ export function FloatingChat() {
 
           {/* Minimize button */}
           <button
-            onClick={minimizeChat}
-            className="p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors shrink-0 ml-auto"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              minimizeChat();
+            }}
+            className="relative z-10 p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors shrink-0 ml-auto"
             aria-label="Minimize chat"
           >
             <Minus className="w-4 h-4" />

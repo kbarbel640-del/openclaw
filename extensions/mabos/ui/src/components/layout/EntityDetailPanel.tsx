@@ -37,6 +37,7 @@ export function EntityDetailPanel() {
           open={true}
           onOpenChange={onOpenChange}
           sheetSide={sheetSide}
+          mode={detailPanel.mode ?? "view"}
         />
       );
     case "goal":
