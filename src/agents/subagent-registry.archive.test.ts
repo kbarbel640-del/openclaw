@@ -55,12 +55,10 @@ describe("subagent registry archive behavior", () => {
       requesterDisplayKey: "main",
       task: "persistent-session",
       cleanup: "keep",
-      spawnMode: "session",
     });
 
     const run = mod.listSubagentRunsForRequester("agent:main:main")[0];
     expect(run?.runId).toBe("run-session-1");
-    expect(run?.spawnMode).toBe("session");
     expect(run?.archiveAtMs).toBeUndefined();
   });
 
@@ -72,7 +70,6 @@ describe("subagent registry archive behavior", () => {
       requesterDisplayKey: "main",
       task: "persistent-session",
       cleanup: "keep",
-      spawnMode: "session",
     });
 
     const replaced = mod.replaceSubagentRunAfterSteer({
@@ -84,7 +81,6 @@ describe("subagent registry archive behavior", () => {
     const run = mod
       .listSubagentRunsForRequester("agent:main:main")
       .find((entry) => entry.runId === "run-new");
-    expect(run?.spawnMode).toBe("session");
     expect(run?.archiveAtMs).toBeUndefined();
   });
 });
