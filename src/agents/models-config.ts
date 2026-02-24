@@ -47,12 +47,13 @@ function mergeProviderModels(implicit: ProviderConfig, explicit: ProviderConfig)
 
     // Refresh capability metadata from the implicit catalog while preserving
     // user-specific fields (cost, headers, compat, etc.) on explicit entries.
+    // User-configured fields take precedence over implicit defaults.
     return {
       ...explicitModel,
-      input: implicitModel.input,
-      reasoning: implicitModel.reasoning,
-      contextWindow: implicitModel.contextWindow,
-      maxTokens: implicitModel.maxTokens,
+      input: explicitModel.input ?? implicitModel.input,
+      reasoning: explicitModel.reasoning ?? implicitModel.reasoning,
+      contextWindow: explicitModel.contextWindow ?? implicitModel.contextWindow,
+      maxTokens: explicitModel.maxTokens ?? implicitModel.maxTokens,
     };
   });
 
