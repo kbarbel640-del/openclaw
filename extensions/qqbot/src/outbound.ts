@@ -2,8 +2,8 @@
  * QQ Bot 消息发送模块
  */
 
-import type { ResolvedQQBotAccount } from "./types.js";
 import { getAccessToken } from "./api.js";
+import type { ResolvedQQBotAccount } from "./types.js";
 import { localImageToBase64, isLocalPath, isHttpUrl, isDataUrl } from "./utils/image-base64.js";
 import { decodeCronPayload } from "./utils/payload.js";
 import { hasQqimgTags, parseQqimgToSendQueue } from "./utils/qqimg.js";

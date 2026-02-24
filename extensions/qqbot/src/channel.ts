@@ -5,7 +5,6 @@ import {
   deleteAccountFromConfigSection,
   setAccountEnabledInConfigSection,
 } from "openclaw/plugin-sdk";
-import type { ResolvedQQBotAccount } from "./types.js";
 import {
   DEFAULT_ACCOUNT_ID,
   listQQBotAccountIds,
@@ -17,6 +16,7 @@ import { startGateway } from "./gateway.js";
 import { qqbotOnboardingAdapter } from "./onboarding.js";
 import { sendText, sendMedia } from "./outbound.js";
 import { getQQBotRuntime } from "./runtime.js";
+import type { ResolvedQQBotAccount } from "./types.js";
 
 /**
  * 简单的文本分块函数

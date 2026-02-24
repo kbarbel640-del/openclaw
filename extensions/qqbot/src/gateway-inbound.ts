@@ -4,8 +4,8 @@
  */
 
 import path from "node:path";
-import type { ResolvedQQBotAccount } from "./types.js";
 import { downloadFile } from "./image-server.js";
+import type { ResolvedQQBotAccount } from "./types.js";
 import { isVoiceAttachment, convertSilkToWav, formatDuration } from "./utils/audio-convert.js";
 import { parseFaceTags } from "./utils/text.js";
 

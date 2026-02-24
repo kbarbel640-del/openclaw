@@ -9,7 +9,6 @@
  */
 
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
-import type { ResolvedQQBotAccount } from "./types.js";
 import {
   getAccessToken,
   sendProactiveC2CMessage,
@@ -19,6 +18,7 @@ import {
 } from "./api.js";
 import { resolveQQBotAccount } from "./config.js";
 import { listKnownUsers } from "./known-users.js";
+import type { ResolvedQQBotAccount } from "./types.js";
 
 // ============ 类型定义 ============
 

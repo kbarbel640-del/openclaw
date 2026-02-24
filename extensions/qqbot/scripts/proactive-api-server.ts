@@ -20,7 +20,6 @@ import * as fs from "node:fs";
 import * as http from "node:http";
 import * as path from "node:path";
 import * as url from "node:url";
-import type { ResolvedQQBotAccount } from "../src/types.js";
 import {
   sendProactiveMessageDirect,
   listKnownUsers,
@@ -28,6 +27,7 @@ import {
   getKnownUser,
   broadcastMessage,
 } from "../src/proactive.js";
+import type { ResolvedQQBotAccount } from "../src/types.js";
 
 // 默认端口
 const DEFAULT_PORT = 3721;

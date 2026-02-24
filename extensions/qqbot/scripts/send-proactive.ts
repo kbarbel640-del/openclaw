@@ -21,13 +21,13 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ResolvedQQBotAccount } from "../src/types.js";
 import {
   sendProactiveMessageDirect,
   listKnownUsers,
   getKnownUsersStats,
   broadcastMessage,
 } from "../src/proactive.js";
+import type { ResolvedQQBotAccount } from "../src/types.js";
 
 // 解析命令行参数
 function parseArgs(): Record<string, string | boolean> {

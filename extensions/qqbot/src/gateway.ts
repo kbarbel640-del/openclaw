@@ -5,13 +5,6 @@
  */
 
 import WebSocket from "ws";
-import type {
-  ResolvedQQBotAccount,
-  WSPayload,
-  C2CMessageEvent,
-  GuildMessageEvent,
-  GroupMessageEvent,
-} from "./types.js";
 import {
   getAccessToken,
   getGatewayUrl,
@@ -26,6 +19,13 @@ import { buildInboundMessage, type InboundMessageEvent } from "./gateway-inbound
 import { recordKnownUser, flushKnownUsers } from "./known-users.js";
 import { getQQBotRuntime } from "./runtime.js";
 import { loadSession, saveSession, clearSession } from "./session-store.js";
+import type {
+  ResolvedQQBotAccount,
+  WSPayload,
+  C2CMessageEvent,
+  GuildMessageEvent,
+  GroupMessageEvent,
+} from "./types.js";
 import { withTokenRetry, targetFromEvent, sendTextToTarget } from "./utils/send-target.js";
 
 // QQ Bot intents
