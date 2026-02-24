@@ -30,6 +30,14 @@ export function formatPermissionSummary(cfg: ResolvedOpenClawEnvConfig): string 
 
   lines.push("Filesystem");
   lines.push(`- workspace: ${cfg.workspace.hostPath} -> /workspace (${fmtMode(cfg.workspace.mode)})`);
+  if (cfg.workspace.writeAllowlist.length > 0) {
+    lines.push("- workspace write_allowlist:");
+    for (const m of cfg.workspace.writeAllowlist) {
+      lines.push(`  - ${m.hostPath} -> ${m.containerPath} (rw)`);
+    }
+  } else {
+    lines.push("- workspace write_allowlist: (none)");
+  }
   if (cfg.mounts.length > 0) {
     for (const m of cfg.mounts) {
       lines.push(`- mount: ${m.hostPath} -> ${m.container} (${fmtMode(m.mode)})`);
@@ -76,6 +84,20 @@ export function formatPermissionSummary(cfg: ResolvedOpenClawEnvConfig): string 
   lines.push(`- pids: ${cfg.limits.pids}`);
   lines.push("");
 
+  lines.push("Write guards");
+  lines.push(`- enabled: ${cfg.writeGuards.enabled ? "yes" : "no"}`);
+  if (cfg.writeGuards.enabled) {
+    lines.push(`- dry_run_audit: ${cfg.writeGuards.dryRunAudit ? "yes" : "no"}`);
+    lines.push(`- poll_interval_ms: ${cfg.writeGuards.pollIntervalMs}`);
+    lines.push(
+      `- max_file_writes: ${cfg.writeGuards.maxFileWrites !== undefined ? cfg.writeGuards.maxFileWrites : "(unset)"}`,
+    );
+    lines.push(
+      `- max_bytes_written: ${cfg.writeGuards.maxBytesWritten !== undefined ? cfg.writeGuards.maxBytesWritten : "(unset)"}`,
+    );
+  }
+  lines.push("");
+
   lines.push("Hardening defaults (openclaw)");
   lines.push(`- user: ${cfg.runtime.user}`);
   lines.push("- read_only_rootfs: true");
@@ -99,7 +121,9 @@ export function formatPermissionSummary(cfg: ResolvedOpenClawEnvConfig): string 
     lines.push(`- ${path.join(cfg.outputDir, "allowlist.txt")}`);
     lines.push(`- ${path.join(cfg.outputDir, "proxy")}/`);
   }
+  if (cfg.writeGuards.enabled) {
+    lines.push(`- ${path.join(cfg.outputDir, "write-guard.mjs")}`);
+  }
 
   return lines.join("\n");
 }
-

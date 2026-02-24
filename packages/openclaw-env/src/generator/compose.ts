@@ -5,6 +5,7 @@ const OPENCLAW_CONTAINER_WORKSPACE = "/workspace";
 const OPENCLAW_CONTAINER_CONFIG_PATH = "/etc/openclaw/openclaw-env.json5";
 const OPENCLAW_CONTAINER_STATE_DIR = "/state/openclaw";
 const OPENCLAW_CONTAINER_HOME = "/state/home";
+const OPENCLAW_CONTAINER_WRITE_GUARD_PATH = "/etc/openclaw/openclaw-env-write-guard.mjs";
 const PROXY_CONTAINER_ALLOWLIST_PATH = "/etc/openclaw-env/allowlist.txt";
 
 export type GeneratedArtifacts = {
@@ -14,6 +15,7 @@ export type GeneratedArtifacts = {
   allowlistText: string | null;
   proxyDockerfile: string | null;
   proxyServerJs: string | null;
+  writeGuardRunnerJs: string | null;
 };
 
 function normalizeAllowlist(entries: string[]): string[] {
@@ -283,6 +285,204 @@ server.listen(listenPort, listenHost, () => {
 `;
 }
 
+function resolveWritableContainerPaths(cfg: ResolvedOpenClawEnvConfig): string[] {
+  const paths = new Set<string>();
+  if (cfg.workspace.mode === "rw") {
+    paths.add(OPENCLAW_CONTAINER_WORKSPACE);
+  }
+  for (const mount of cfg.workspace.writeAllowlist) {
+    paths.add(mount.containerPath);
+  }
+  for (const mount of cfg.mounts) {
+    if (mount.mode === "rw") {
+      paths.add(mount.container);
+    }
+  }
+  return Array.from(paths).sort();
+}
+
+export function generateWriteGuardRunnerJs(): string {
+  // No dependencies: this script runs in the main container before the image CMD.
+  return `/* eslint-disable no-console */
+import fs from "node:fs/promises";
+import { spawn } from "node:child_process";
+import path from "node:path";
+
+const rawConfig = process.env.OPENCLAW_ENV_WRITE_GUARDS || "{}";
+let config = {};
+try {
+  config = JSON.parse(rawConfig);
+} catch (err) {
+  console.error("[write-guard] invalid OPENCLAW_ENV_WRITE_GUARDS JSON:", String(err));
+}
+
+const watchPaths = Array.isArray(config.watchPaths)
+  ? config.watchPaths.filter((v) => typeof v === "string" && v.trim().length > 0)
+  : [];
+const maxFileWrites =
+  typeof config.maxFileWrites === "number" && Number.isFinite(config.maxFileWrites)
+    ? Math.trunc(config.maxFileWrites)
+    : null;
+const maxBytesWritten =
+  typeof config.maxBytesWritten === "number" && Number.isFinite(config.maxBytesWritten)
+    ? Math.trunc(config.maxBytesWritten)
+    : null;
+const dryRunAudit = Boolean(config.dryRunAudit);
+const pollIntervalMs =
+  typeof config.pollIntervalMs === "number" && Number.isFinite(config.pollIntervalMs)
+    ? Math.max(250, Math.trunc(config.pollIntervalMs))
+    : 2000;
+
+async function scanFileTree(targetPath, out) {
+  let st;
+  try {
+    st = await fs.lstat(targetPath);
+  } catch {
+    return;
+  }
+  if (st.isSymbolicLink()) {
+    return;
+  }
+  if (st.isDirectory()) {
+    let entries = [];
+    try {
+      entries = await fs.readdir(targetPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      await scanFileTree(path.join(targetPath, entry.name), out);
+    }
+    return;
+  }
+  if (st.isFile()) {
+    out.set(targetPath, {
+      size: st.size,
+      mtimeMs: Math.trunc(st.mtimeMs),
+    });
+  }
+}
+
+async function snapshot(paths) {
+  const out = new Map();
+  for (const targetPath of paths) {
+    await scanFileTree(targetPath, out);
+  }
+  return out;
+}
+
+function collectDiff(previous, next, state) {
+  for (const [filePath, cur] of next.entries()) {
+    const prev = previous.get(filePath);
+    if (!prev) {
+      state.changedFiles.add(filePath);
+      state.bytesWritten += cur.size;
+      continue;
+    }
+    if (cur.size !== prev.size || cur.mtimeMs !== prev.mtimeMs) {
+      state.changedFiles.add(filePath);
+      if (cur.size > prev.size) {
+        state.bytesWritten += cur.size - prev.size;
+      }
+    }
+  }
+}
+
+function enforceLimits(state, child, status) {
+  if (status.guardTriggered) {
+    return;
+  }
+  const tooManyFiles = maxFileWrites !== null && state.changedFiles.size > maxFileWrites;
+  const tooManyBytes = maxBytesWritten !== null && state.bytesWritten > maxBytesWritten;
+  if (!tooManyFiles && !tooManyBytes) {
+    return;
+  }
+  const reasonParts = [];
+  if (tooManyFiles) {
+    reasonParts.push("files " + String(state.changedFiles.size) + " > " + String(maxFileWrites));
+  }
+  if (tooManyBytes) {
+    reasonParts.push("bytes " + String(state.bytesWritten) + " > " + String(maxBytesWritten));
+  }
+  const reason = reasonParts.join(", ");
+  if (dryRunAudit) {
+    console.log("[write-audit] limit exceeded (dry-run): " + reason);
+    return;
+  }
+  status.guardTriggered = true;
+  console.error("[write-guard] stopping process: " + reason);
+  try {
+    child.kill("SIGTERM");
+  } catch {}
+  setTimeout(() => {
+    try {
+      child.kill("SIGKILL");
+    } catch {}
+  }, 1500).unref();
+}
+
+async function main() {
+  const command = process.argv[2];
+  const args = process.argv.slice(3);
+  if (!command) {
+    console.error("[write-guard] missing command. Ensure container CMD is set.");
+    process.exit(64);
+  }
+
+  const state = {
+    changedFiles: new Set(),
+    bytesWritten: 0,
+  };
+  let previous = await snapshot(watchPaths);
+  const status = { guardTriggered: false };
+
+  const child = spawn(command, args, {
+    stdio: "inherit",
+    env: process.env,
+  });
+
+  let pollHandle = null;
+  if (watchPaths.length > 0) {
+    pollHandle = setInterval(async () => {
+      const next = await snapshot(watchPaths);
+      collectDiff(previous, next, state);
+      previous = next;
+      enforceLimits(state, child, status);
+    }, pollIntervalMs);
+  }
+
+  child.on("error", (err) => {
+    if (pollHandle) clearInterval(pollHandle);
+    console.error("[write-guard] failed to start child process:", String(err));
+    process.exit(1);
+  });
+
+  child.on("exit", (code, signal) => {
+    if (pollHandle) clearInterval(pollHandle);
+    console.log(
+      "[write-guard] summary files=" +
+        String(state.changedFiles.size) +
+        " bytes=" +
+        String(state.bytesWritten) +
+        " mode=" +
+        (dryRunAudit ? "audit" : "enforce"),
+    );
+    if (status.guardTriggered && !dryRunAudit) {
+      process.exit(125);
+      return;
+    }
+    if (typeof code === "number") {
+      process.exit(code);
+      return;
+    }
+    process.exit(signal ? 1 : 0);
+  });
+}
+
+await main();
+`;
+}
+
 export function generateCompose(cfg: ResolvedOpenClawEnvConfig): GeneratedArtifacts {
   const openclawConfigJson5 = generateOpenClawConfigJson5(cfg);
   const allowlistText = generateAllowlistText(cfg);
@@ -291,6 +491,9 @@ export function generateCompose(cfg: ResolvedOpenClawEnvConfig): GeneratedArtifa
   volumes.push(
     `${cfg.workspace.hostPath}:${OPENCLAW_CONTAINER_WORKSPACE}:${cfg.workspace.mode}`,
   );
+  for (const mount of cfg.workspace.writeAllowlist) {
+    volumes.push(`${mount.hostPath}:${mount.containerPath}:rw`);
+  }
   for (const m of cfg.mounts) {
     volumes.push(`${m.hostPath}:${m.container}:${m.mode}`);
   }
@@ -307,6 +510,26 @@ export function generateCompose(cfg: ResolvedOpenClawEnvConfig): GeneratedArtifa
     env.HTTP_PROXY = "http://egress-proxy:3128";
     env.HTTPS_PROXY = "http://egress-proxy:3128";
     env.NO_PROXY = "localhost,127.0.0.1,egress-proxy";
+  }
+
+  let writeGuardRunnerJs: string | null = null;
+  if (cfg.writeGuards.enabled) {
+    writeGuardRunnerJs = generateWriteGuardRunnerJs();
+    volumes.push(
+      `${cfg.generated.writeGuardRunnerPath}:${OPENCLAW_CONTAINER_WRITE_GUARD_PATH}:ro`,
+    );
+    const writeGuardConfig: Record<string, unknown> = {
+      watchPaths: resolveWritableContainerPaths(cfg),
+      dryRunAudit: cfg.writeGuards.dryRunAudit,
+      pollIntervalMs: cfg.writeGuards.pollIntervalMs,
+    };
+    if (typeof cfg.writeGuards.maxFileWrites === "number") {
+      writeGuardConfig.maxFileWrites = cfg.writeGuards.maxFileWrites;
+    }
+    if (typeof cfg.writeGuards.maxBytesWritten === "number") {
+      writeGuardConfig.maxBytesWritten = cfg.writeGuards.maxBytesWritten;
+    }
+    env.OPENCLAW_ENV_WRITE_GUARDS = JSON.stringify(writeGuardConfig);
   }
 
   const openclawService: Record<string, unknown> = {
@@ -326,6 +549,10 @@ export function generateCompose(cfg: ResolvedOpenClawEnvConfig): GeneratedArtifa
 
   if (Array.isArray(cfg.openclaw.command)) {
     openclawService.command = cfg.openclaw.command;
+  }
+
+  if (cfg.writeGuards.enabled) {
+    openclawService.entrypoint = ["node", OPENCLAW_CONTAINER_WRITE_GUARD_PATH];
   }
 
   if (cfg.secrets.mode === "env_file") {
@@ -413,7 +640,6 @@ export function generateCompose(cfg: ResolvedOpenClawEnvConfig): GeneratedArtifa
     allowlistText,
     proxyDockerfile,
     proxyServerJs,
+    writeGuardRunnerJs,
   };
 }
-
-

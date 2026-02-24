@@ -14,7 +14,7 @@ export type InitCommandOptions = {
 type DraftConfig = {
   schema_version: "openclaw_env.v1";
   openclaw: { image: string; command?: string[]; env: Record<string, string> };
-  workspace: { path: string; mode: "ro" | "rw" };
+  workspace: { path: string; mode: "ro" | "rw"; write_allowlist: string[] };
   mounts: Array<{ host: string; container: string; mode: "ro" | "rw" }>;
   network: { mode: "off" | "full" | "restricted"; restricted: { allowlist: string[] } };
   secrets: {
@@ -24,7 +24,16 @@ type DraftConfig = {
   };
   limits: { cpus: number; memory: string; pids: number };
   runtime: { user: string };
+  write_guards: {
+    enabled: boolean;
+    max_file_writes?: number;
+    max_bytes_written?: number;
+    dry_run_audit: boolean;
+    poll_interval_ms: number;
+  };
 };
+
+type MountPresetId = "data_rw" | "gitconfig_ro" | "ssh_never";
 
 function parseProfile(input?: string): ProfileId | null {
   const raw = (input ?? "").trim().toLowerCase();
@@ -68,6 +77,7 @@ function defaultDraft(profile: ProfileId): DraftConfig {
     workspace: {
       path: ".",
       mode: workspaceMode,
+      write_allowlist: [],
     },
     mounts: [],
     network: {
@@ -89,6 +99,11 @@ function defaultDraft(profile: ProfileId): DraftConfig {
     runtime: {
       user: "1000:1000",
     },
+    write_guards: {
+      enabled: false,
+      dry_run_audit: false,
+      poll_interval_ms: 2000,
+    },
   };
 }
 
@@ -102,6 +117,48 @@ function parseCsvList(input: string): string[] {
 function parseNumberLike(input: string, fallback: number): number {
   const n = Number.parseFloat(String(input).trim());
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function parseIntegerLike(input: string, fallback: number): number {
+  return Math.trunc(parseNumberLike(input, fallback));
+}
+
+function dedupeStrings(values: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (!seen.has(value)) {
+      seen.add(value);
+      out.push(value);
+    }
+  }
+  return out;
+}
+
+function presetMount(
+  preset: MountPresetId,
+): { mount?: DraftConfig["mounts"][number]; blockedReason?: string } {
+  if (preset === "data_rw") {
+    return {
+      mount: {
+        host: "./data",
+        container: "/workspace/data",
+        mode: "rw",
+      },
+    };
+  }
+  if (preset === "gitconfig_ro") {
+    return {
+      mount: {
+        host: "~/.gitconfig",
+        container: "/state/home/.gitconfig",
+        mode: "ro",
+      },
+    };
+  }
+  return {
+    blockedReason: "Preset ~/.ssh is intentionally blocked (NEVER) to reduce secret exposure.",
+  };
 }
 
 async function confirmOverwrite(configPath: string): Promise<boolean> {
@@ -158,6 +215,14 @@ export async function initCommand(opts: InitCommandOptions): Promise<void> {
     ],
     defaultValue: draft.workspace.mode,
   });
+  const workspaceWriteAllowlistInput =
+    workspaceMode === "ro"
+      ? await promptText({
+          message:
+            "Workspace write allowlist subpaths (comma-separated, relative to workspace; empty = none)",
+          defaultValue: "",
+        })
+      : "";
   const networkMode = await promptSelect<"off" | "full" | "restricted">({
     message: "Network mode",
     options: [
@@ -207,7 +272,72 @@ export async function initCommand(opts: InitCommandOptions): Promise<void> {
     defaultValue: draft.runtime.user,
   });
 
+  const enableWriteGuards = await promptConfirm({
+    message: "Enable write guards (max file writes / max bytes)?",
+    defaultValue: false,
+  });
+  const maxFileWritesInput = enableWriteGuards
+    ? await promptText({
+        message: "Max file writes before stop (integer; empty = unset)",
+        defaultValue: "200",
+      })
+    : "";
+  const maxBytesWrittenInput = enableWriteGuards
+    ? await promptText({
+        message: "Max bytes written before stop (integer; empty = unset)",
+        defaultValue: "10485760",
+      })
+    : "";
+  const dryRunAudit = enableWriteGuards
+    ? await promptConfirm({
+        message: "Dry-run write audit only (log limit breaches, do not stop)?",
+        defaultValue: false,
+      })
+    : false;
+
   const mounts: DraftConfig["mounts"] = [];
+  while (true) {
+    const usePreset = await promptConfirm({
+      message: "Apply a mount preset?",
+      defaultValue: false,
+    });
+    if (!usePreset) {
+      break;
+    }
+    const preset = await promptSelect<MountPresetId | "done">({
+      message: "Choose a mount preset",
+      options: [
+        { label: "mount ./data rw", value: "data_rw" },
+        { label: "mount ~/.gitconfig ro", value: "gitconfig_ro" },
+        { label: "mount ~/.ssh NEVER", value: "ssh_never" },
+        { label: "done", value: "done" },
+      ],
+      defaultValue: "data_rw",
+    });
+    if (preset === "done") {
+      break;
+    }
+    const picked = presetMount(preset);
+    if (picked.blockedReason) {
+      process.stdout.write(`${picked.blockedReason}\n`);
+      continue;
+    }
+    if (!picked.mount) {
+      continue;
+    }
+    const duplicate = mounts.some(
+      (m) => m.host === picked.mount?.host && m.container === picked.mount?.container,
+    );
+    if (duplicate) {
+      process.stdout.write("Preset mount already present. Skipping.\n");
+      continue;
+    }
+    mounts.push(picked.mount);
+    process.stdout.write(
+      `Added preset mount: ${picked.mount.host} -> ${picked.mount.container} (${picked.mount.mode})\n`,
+    );
+  }
+
   while (true) {
     const addMount = await promptConfirm({
       message: "Add an extra mount?",
@@ -245,6 +375,24 @@ export async function initCommand(opts: InitCommandOptions): Promise<void> {
     }
   }
 
+  const workspaceWriteAllowlist =
+    workspaceMode === "ro"
+      ? dedupeStrings(
+          parseCsvList(workspaceWriteAllowlistInput)
+            .map((s) => s.trim().replace(/\\/g, "/").replace(/^\/+/, ""))
+            .filter((s) => Boolean(s) && s !== "." && s !== ".."),
+        )
+      : [];
+
+  const maxFileWrites =
+    enableWriteGuards && maxFileWritesInput.trim().length > 0
+      ? parseIntegerLike(maxFileWritesInput, 200)
+      : undefined;
+  const maxBytesWritten =
+    enableWriteGuards && maxBytesWrittenInput.trim().length > 0
+      ? parseIntegerLike(maxBytesWrittenInput, 10_485_760)
+      : undefined;
+
   const config: DraftConfig = {
     ...draft,
     openclaw: {
@@ -254,6 +402,7 @@ export async function initCommand(opts: InitCommandOptions): Promise<void> {
     workspace: {
       ...draft.workspace,
       mode: workspaceMode,
+      write_allowlist: workspaceWriteAllowlist,
     },
     mounts,
     network: {
@@ -277,6 +426,17 @@ export async function initCommand(opts: InitCommandOptions): Promise<void> {
     },
     runtime: {
       user: user.trim() || draft.runtime.user,
+    },
+    write_guards: {
+      enabled:
+        enableWriteGuards ||
+        dryRunAudit ||
+        maxFileWrites !== undefined ||
+        maxBytesWritten !== undefined,
+      max_file_writes: maxFileWrites,
+      max_bytes_written: maxBytesWritten,
+      dry_run_audit: dryRunAudit,
+      poll_interval_ms: draft.write_guards.poll_interval_ms,
     },
   };
 

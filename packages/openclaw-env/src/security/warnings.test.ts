@@ -14,12 +14,13 @@ function cfgWithMount(hostPath: string): ResolvedOpenClawEnvConfig {
     outputDir,
     projectName: "openclaw-env-test-12345678",
     openclaw: { image: "openclaw/openclaw:latest", env: {} },
-    workspace: { hostPath: configDir, mode: "ro" },
+    workspace: { hostPath: configDir, mode: "ro", writeAllowlist: [] },
     mounts: [{ hostPath, container: "/data", mode: "ro" }],
     network: { mode: "off", restricted: { allowlist: [] } },
     secrets: { mode: "none", envFilePath: path.join(configDir, ".env.openclaw"), dockerSecrets: [] },
     limits: { cpus: 1, memory: "1g", pids: 128 },
     runtime: { user: "1000:1000" },
+    writeGuards: { enabled: false, dryRunAudit: false, pollIntervalMs: 2000 },
     generated: {
       composePath: path.join(outputDir, "docker-compose.yml"),
       openclawConfigPath: path.join(outputDir, "openclaw.config.json5"),
@@ -27,6 +28,7 @@ function cfgWithMount(hostPath: string): ResolvedOpenClawEnvConfig {
       proxyDir: path.join(outputDir, "proxy"),
       proxyServerPath: path.join(outputDir, "proxy", "server.mjs"),
       proxyDockerfilePath: path.join(outputDir, "proxy", "Dockerfile"),
+      writeGuardRunnerPath: path.join(outputDir, "write-guard.mjs"),
     },
   };
 }
@@ -45,4 +47,3 @@ describe("evaluateSafety", () => {
     expect(res.requiresOverride.some((f) => f.code === "mount_secret_dir")).toBe(true);
   });
 });
-

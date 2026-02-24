@@ -20,6 +20,7 @@ function baseResolvedConfig(overrides?: Partial<ResolvedOpenClawEnvConfig>): Res
     workspace: {
       hostPath: configDir,
       mode: "ro",
+      writeAllowlist: [],
     },
     mounts: [],
     network: {
@@ -39,6 +40,11 @@ function baseResolvedConfig(overrides?: Partial<ResolvedOpenClawEnvConfig>): Res
     runtime: {
       user: "1000:1000",
     },
+    writeGuards: {
+      enabled: false,
+      dryRunAudit: false,
+      pollIntervalMs: 2000,
+    },
     generated: {
       composePath: path.join(outputDir, "docker-compose.yml"),
       openclawConfigPath: path.join(outputDir, "openclaw.config.json5"),
@@ -46,6 +52,7 @@ function baseResolvedConfig(overrides?: Partial<ResolvedOpenClawEnvConfig>): Res
       proxyDir: path.join(outputDir, "proxy"),
       proxyServerPath: path.join(outputDir, "proxy", "server.mjs"),
       proxyDockerfilePath: path.join(outputDir, "proxy", "Dockerfile"),
+      writeGuardRunnerPath: path.join(outputDir, "write-guard.mjs"),
     },
     ...overrides,
   };
@@ -69,7 +76,7 @@ describe("generateCompose", () => {
   it("wires restricted networking correctly", () => {
     const cfg = baseResolvedConfig({
       network: { mode: "restricted", restricted: { allowlist: ["api.openai.com"] } },
-      workspace: { hostPath: "/tmp/work", mode: "ro" },
+      workspace: { hostPath: "/tmp/work", mode: "ro", writeAllowlist: [] },
     });
     const out = generateCompose(cfg);
     const compose = out.composeObject as any;
@@ -83,5 +90,57 @@ describe("generateCompose", () => {
     expect(env.HTTPS_PROXY).toBe("http://egress-proxy:3128");
     expect(env.NO_PROXY).toContain("egress-proxy");
   });
-});
 
+  it("mounts workspace write allowlist as rw while workspace stays ro", () => {
+    const cfg = baseResolvedConfig({
+      workspace: {
+        hostPath: "/tmp/work",
+        mode: "ro",
+        writeAllowlist: [
+          {
+            subpath: ".openclaw-cache",
+            hostPath: "/tmp/work/.openclaw-cache",
+            containerPath: "/workspace/.openclaw-cache",
+          },
+        ],
+      },
+    });
+    const out = generateCompose(cfg);
+    const compose = out.composeObject as any;
+    const volumes: string[] = compose.services.openclaw.volumes;
+    expect(volumes).toContain("/tmp/work:/workspace:ro");
+    expect(volumes).toContain("/tmp/work/.openclaw-cache:/workspace/.openclaw-cache:rw");
+  });
+
+  it("adds write guard entrypoint and config when enabled", () => {
+    const cfg = baseResolvedConfig({
+      workspace: {
+        hostPath: "/tmp/work",
+        mode: "ro",
+        writeAllowlist: [
+          {
+            subpath: ".openclaw-cache",
+            hostPath: "/tmp/work/.openclaw-cache",
+            containerPath: "/workspace/.openclaw-cache",
+          },
+        ],
+      },
+      mounts: [{ hostPath: "/tmp/data", container: "/data", mode: "rw" }],
+      writeGuards: {
+        enabled: true,
+        maxFileWrites: 5,
+        maxBytesWritten: 1024,
+        dryRunAudit: true,
+        pollIntervalMs: 1500,
+      },
+    });
+    const out = generateCompose(cfg);
+    const compose = out.composeObject as any;
+    const svc = compose.services.openclaw;
+    expect(Array.isArray(svc.entrypoint)).toBe(true);
+    expect(svc.environment.OPENCLAW_ENV_WRITE_GUARDS).toContain("\"dryRunAudit\":true");
+    expect(svc.environment.OPENCLAW_ENV_WRITE_GUARDS).toContain("/workspace/.openclaw-cache");
+    expect(svc.environment.OPENCLAW_ENV_WRITE_GUARDS).toContain("/data");
+    expect(out.writeGuardRunnerJs).toContain("write-guard");
+  });
+});

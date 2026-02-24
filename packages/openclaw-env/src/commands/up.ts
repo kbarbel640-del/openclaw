@@ -63,6 +63,12 @@ async function writeGeneratedFiles(
     // Best-effort cleanup of restricted-only artifacts (do not delete user data).
     await fs.rm(cfg.generated.allowlistPath, { force: true }).catch(() => {});
   }
+
+  if (artifacts.writeGuardRunnerJs) {
+    await fs.writeFile(cfg.generated.writeGuardRunnerPath, artifacts.writeGuardRunnerJs, "utf-8");
+  } else {
+    await fs.rm(cfg.generated.writeGuardRunnerPath, { force: true }).catch(() => {});
+  }
 }
 
 export async function upCommand(opts: UpCommandOptions): Promise<void> {

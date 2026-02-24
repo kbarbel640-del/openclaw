@@ -36,6 +36,7 @@ Note: `openclaw-env init` defaults `openclaw.image` to `openclaw:local`. You can
 ## What gets enforced
 
 - **Filesystem**: only what you mount (workspace is `ro` by default)
+  - Optional `workspace.write_allowlist` lets you keep workspace `ro` while allowing writes to specific subpaths only (for example `.openclaw-cache`)
 - **Runtime hardening**: non-root user, read-only rootfs, `no-new-privileges`, `cap_drop: ["ALL"]`, tmpfs for `/tmp` + `/run` + `/state`
 - **Network**:
   - `off`: `network_mode: "none"`
@@ -54,3 +55,13 @@ Note: `openclaw-env init` defaults `openclaw.image` to `openclaw:local`. You can
 - **Requires `--i-know-what-im-doing`**: mounting your home dir, `/`, or common secret dirs (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config`, browser profiles)
 - **Warning**: any `rw` mounts with `network.mode=full` (requires interactive confirmation; with `--yes`, pass `--accept-risk`)
 
+## Option 2 additions
+
+- **Mount presets in `init`**:
+  - `mount ./data rw`
+  - `mount ~/.gitconfig ro`
+  - `mount ~/.ssh NEVER` (blocked preset)
+- **Write guards** (`write_guards`):
+  - `max_file_writes`
+  - `max_bytes_written`
+  - `dry_run_audit` mode (logs limit breaches without stopping the process)

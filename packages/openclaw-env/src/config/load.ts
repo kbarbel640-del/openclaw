@@ -11,6 +11,12 @@ export type ResolvedExtraMount = {
   mode: "ro" | "rw";
 };
 
+export type ResolvedWorkspaceWriteMount = {
+  subpath: string;
+  hostPath: string;
+  containerPath: string;
+};
+
 export type ResolvedDockerSecret = {
   name: string;
   filePath: string;
@@ -26,6 +32,7 @@ export type ResolvedOpenClawEnvConfig = {
   workspace: {
     hostPath: string;
     mode: "ro" | "rw";
+    writeAllowlist: ResolvedWorkspaceWriteMount[];
   };
   mounts: ResolvedExtraMount[];
   network: OpenClawEnvConfig["network"];
@@ -36,6 +43,13 @@ export type ResolvedOpenClawEnvConfig = {
   };
   limits: OpenClawEnvConfig["limits"];
   runtime: OpenClawEnvConfig["runtime"];
+  writeGuards: {
+    enabled: boolean;
+    maxFileWrites?: number;
+    maxBytesWritten?: number;
+    dryRunAudit: boolean;
+    pollIntervalMs: number;
+  };
   generated: {
     composePath: string;
     openclawConfigPath: string;
@@ -43,6 +57,7 @@ export type ResolvedOpenClawEnvConfig = {
     proxyDir: string;
     proxyServerPath: string;
     proxyDockerfilePath: string;
+    writeGuardRunnerPath: string;
   };
 };
 
@@ -62,6 +77,26 @@ function expandTilde(inputPath: string): string {
 
 function resolveHostPath(baseDir: string, inputPath: string): string {
   return path.resolve(baseDir, expandTilde(inputPath));
+}
+
+function normalizeWorkspaceSubpath(inputPath: string): string {
+  const normalized = inputPath.trim().replace(/\\/g, "/");
+  const out = path.posix.normalize(normalized);
+  if (!out || out === "." || out === "..") {
+    throw new Error(`Invalid workspace.write_allowlist path: ${inputPath}`);
+  }
+  if (out.startsWith("../") || out.includes("/../")) {
+    throw new Error(`workspace.write_allowlist escapes workspace: ${inputPath}`);
+  }
+  return out.replace(/^\/+/, "");
+}
+
+function isSameOrChild(childPath: string, parentPath: string): boolean {
+  const rel = path.relative(parentPath, childPath);
+  if (!rel) {
+    return true;
+  }
+  return !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
 function resolveProjectName(configDir: string): string {
@@ -125,6 +160,25 @@ export async function loadOpenClawEnvConfig(options: {
   const projectName = resolveProjectName(configDir);
 
   const workspacePath = resolveHostPath(configDir, cfg.workspace.path);
+  const workspaceWriteAllowlist: ResolvedWorkspaceWriteMount[] = [];
+  const seenWorkspaceWriteMounts = new Set<string>();
+  for (const rawSubpath of cfg.workspace.write_allowlist) {
+    const normalizedSubpath = normalizeWorkspaceSubpath(rawSubpath);
+    if (seenWorkspaceWriteMounts.has(normalizedSubpath)) {
+      continue;
+    }
+    seenWorkspaceWriteMounts.add(normalizedSubpath);
+    const hostPath = path.resolve(workspacePath, normalizedSubpath);
+    if (!isSameOrChild(hostPath, workspacePath)) {
+      throw new Error(`workspace.write_allowlist escapes workspace: ${rawSubpath}`);
+    }
+    workspaceWriteAllowlist.push({
+      subpath: normalizedSubpath,
+      hostPath,
+      containerPath: `/workspace/${normalizedSubpath}`,
+    });
+  }
+
   const mounts: ResolvedExtraMount[] = cfg.mounts.map((m) => ({
     hostPath: resolveHostPath(configDir, m.host),
     container: m.container,
@@ -143,6 +197,13 @@ export async function loadOpenClawEnvConfig(options: {
   const proxyDir = path.join(outputDir, "proxy");
   const proxyServerPath = path.join(proxyDir, "server.mjs");
   const proxyDockerfilePath = path.join(proxyDir, "Dockerfile");
+  const writeGuardRunnerPath = path.join(outputDir, "write-guard.mjs");
+
+  const writeGuardsEnabled =
+    cfg.write_guards.enabled ||
+    cfg.write_guards.dry_run_audit ||
+    cfg.write_guards.max_file_writes !== undefined ||
+    cfg.write_guards.max_bytes_written !== undefined;
 
   return {
     schema_version: cfg.schema_version,
@@ -154,6 +215,7 @@ export async function loadOpenClawEnvConfig(options: {
     workspace: {
       hostPath: workspacePath,
       mode: cfg.workspace.mode,
+      writeAllowlist: workspaceWriteAllowlist,
     },
     mounts,
     network: cfg.network,
@@ -164,6 +226,13 @@ export async function loadOpenClawEnvConfig(options: {
     },
     limits: cfg.limits,
     runtime: cfg.runtime,
+    writeGuards: {
+      enabled: writeGuardsEnabled,
+      maxFileWrites: cfg.write_guards.max_file_writes,
+      maxBytesWritten: cfg.write_guards.max_bytes_written,
+      dryRunAudit: cfg.write_guards.dry_run_audit,
+      pollIntervalMs: cfg.write_guards.poll_interval_ms,
+    },
     generated: {
       composePath,
       openclawConfigPath,
@@ -171,8 +240,7 @@ export async function loadOpenClawEnvConfig(options: {
       proxyDir,
       proxyServerPath,
       proxyDockerfilePath,
+      writeGuardRunnerPath,
     },
   };
 }
-
-

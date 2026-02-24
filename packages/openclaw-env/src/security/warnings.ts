@@ -70,6 +70,11 @@ export function evaluateSafety(cfg: ResolvedOpenClawEnvConfig): SafetyEvaluation
 
   const allMounts: Array<{ hostPath: string; mode: "ro" | "rw"; label: string }> = [
     { hostPath: cfg.workspace.hostPath, mode: cfg.workspace.mode, label: "workspace" },
+    ...cfg.workspace.writeAllowlist.map((m) => ({
+      hostPath: m.hostPath,
+      mode: "rw" as const,
+      label: `workspace.write_allowlist:${m.subpath}`,
+    })),
     ...cfg.mounts.map((m) => ({ hostPath: m.hostPath, mode: m.mode, label: m.container })),
   ];
 
@@ -137,5 +142,4 @@ export function evaluateSafety(cfg: ResolvedOpenClawEnvConfig): SafetyEvaluation
 
   return { findings, hardErrors, requiresOverride, requiresConfirmation };
 }
-
 
