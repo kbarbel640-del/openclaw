@@ -35,10 +35,28 @@ const VECTOR_TABLE = "chunks_vec";
 const FTS_TABLE = "chunks_fts";
 const EMBEDDING_CACHE_TABLE = "embedding_cache";
 const BATCH_FAILURE_LIMIT = 2;
+const SEARCH_SYNC_MIN_INTERVAL_MS = 60_000;
+const VECTOR_FALLBACK_WARN_INTERVAL_MS = 60_000;
+const REPO_BG_ENRICH_MAX_INFLIGHT = 2;
+const REPO_BG_ENRICH_BUDGET_MS = 12_000;
+const REPO_BG_DROP_LOG_INTERVAL_MS = 30_000;
 
 const log = createSubsystemLogger("memory");
 
 const INDEX_CACHE = new Map<string, MemoryIndexManager>();
+
+type ProjectRoute = {
+  id: string;
+  tokens: Set<string>;
+  pathBits: Set<string>;
+};
+
+type ProjectRouteMatch = {
+  route: ProjectRoute;
+  score: number;
+};
+
+type QueryTier = "core" | "repo" | "mixed";
 
 export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements MemorySearchManager {
   private readonly cacheKey: string;
@@ -99,6 +117,23 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
   >();
   private sessionWarm = new Set<string>();
   private syncing: Promise<void> | null = null;
+  private lastSearchTriggeredSyncAt = 0;
+  private lastLargeCorpusSkipLogAt = 0;
+  private lastVectorFallbackWarnAt = 0;
+  private indexedFileCountCache: { value: number; at: number } = { value: 0, at: 0 };
+  private readonly queryPathHints: Map<string, string[]>;
+  private readonly projectRoutes: ProjectRoute[];
+  private readonly repoQueryCache = new Map<
+    string,
+    { at: number; results: MemorySearchResult[] }
+  >();
+  private readonly repoQueryJobs = new Map<string, Promise<void>>();
+  private readonly projectDbs = new Map<string, DatabaseSync>();
+  /** Track access order for LRU eviction of project DB handles. */
+  private readonly projectDbAccess = new Map<string, number>();
+  /** Maximum number of project DB handles to keep open simultaneously. */
+  private static readonly MAX_PROJECT_DB_HANDLES = 16;
+  private lastRepoBgDropLogAt = 0;
 
   static async get(params: {
     cfg: OpenClawConfig;
@@ -112,9 +147,12 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     }
     const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
     const key = `${agentId}:${workspaceDir}:${JSON.stringify(settings)}`;
-    const existing = INDEX_CACHE.get(key);
-    if (existing) {
-      return existing;
+    const statusOnly = params.purpose === "status";
+    if (!statusOnly) {
+      const existing = INDEX_CACHE.get(key);
+      if (existing) {
+        return existing;
+      }
     }
     const providerResult = await createEmbeddingProvider({
       config: cfg,
@@ -134,7 +172,9 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       providerResult,
       purpose: params.purpose,
     });
-    INDEX_CACHE.set(key, manager);
+    if (!statusOnly) {
+      INDEX_CACHE.set(key, manager);
+    }
     return manager;
   }
 
@@ -163,6 +203,8 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     this.voyage = params.providerResult.voyage;
     this.mistral = params.providerResult.mistral;
     this.sources = new Set(params.settings.sources);
+    this.queryPathHints = this.buildQueryPathHints();
+    this.projectRoutes = this.buildProjectRoutes();
     this.db = this.openDatabase();
     this.providerKey = this.computeProviderKey();
     this.cache = {
@@ -188,6 +230,15 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     this.batch = this.resolveBatchConfig();
   }
 
+  private logSyncFailure(reason: string, err: unknown): void {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/database is locked/i.test(message)) {
+      log.debug(`memory sync skipped (${reason}): ${message}`);
+      return;
+    }
+    log.warn(`memory sync failed (${reason}): ${message}`);
+  }
+
   async warmSession(sessionKey?: string): Promise<void> {
     if (!this.settings.sync.onSessionStart) {
       return;
@@ -197,7 +248,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       return;
     }
     void this.sync({ reason: "session-start" }).catch((err) => {
-      log.warn(`memory sync failed (session-start): ${String(err)}`);
+      this.logSyncFailure("session-start", err);
     });
     if (key) {
       this.sessionWarm.add(key);
@@ -214,9 +265,15 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
   ): Promise<MemorySearchResult[]> {
     void this.warmSession(opts?.sessionKey);
     if (this.settings.sync.onSearch && (this.dirty || this.sessionsDirty)) {
-      void this.sync({ reason: "search" }).catch((err) => {
-        log.warn(`memory sync failed (search): ${String(err)}`);
-      });
+      if (!this.shouldSkipSearchTriggeredSyncForLargeCorpus()) {
+        const now = Date.now();
+        if (now - this.lastSearchTriggeredSyncAt >= SEARCH_SYNC_MIN_INTERVAL_MS) {
+          this.lastSearchTriggeredSyncAt = now;
+          void this.sync({ reason: "search" }).catch((err) => {
+            this.logSyncFailure("search", err);
+          });
+        }
+      }
     }
     const cleaned = query.trim();
     if (!cleaned) {
@@ -225,10 +282,18 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     const minScore = opts?.minScore ?? this.settings.query.minScore;
     const maxResults = opts?.maxResults ?? this.settings.query.maxResults;
     const hybrid = this.settings.query.hybrid;
+    const t0 = Date.now();
+    let keywordMs = 0;
+    let embedQueryMs = 0;
+    let vectorMs = 0;
+    let fusionMs = 0;
     const candidates = Math.min(
       200,
       Math.max(1, Math.floor(maxResults * hybrid.candidateMultiplier)),
     );
+    const queryTier = this.detectQueryTier(cleaned);
+    const pathFilter = this.resolvePathFilter(cleaned);
+    const searchDb = this.getSearchDatabase(cleaned, queryTier);
 
     // FTS-only mode: no embedding provider available
     if (!this.provider) {
@@ -244,7 +309,9 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
 
       // Search with each keyword and merge results
       const resultSets = await Promise.all(
-        searchTerms.map((term) => this.searchKeyword(term, candidates).catch(() => [])),
+        searchTerms.map((term) =>
+          this.searchKeyword(term, candidates, pathFilter, searchDb.db).catch(() => []),
+        ),
       );
 
       // Merge and deduplicate results, keeping highest score for each chunk
@@ -266,20 +333,191 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       return merged;
     }
 
+    const keywordStart = Date.now();
     const keywordResults = hybrid.enabled
-      ? await this.searchKeyword(cleaned, candidates).catch(() => [])
+      ? await this.searchKeyword(cleaned, candidates, pathFilter, searchDb.db).catch(() => [])
       : [];
+    keywordMs = Date.now() - keywordStart;
 
-    const queryVec = await this.embedQueryWithTimeout(cleaned);
-    const hasVector = queryVec.some((v) => v !== 0);
-    const vectorResults = hasVector
-      ? await this.searchVector(queryVec, candidates).catch(() => [])
-      : [];
+    const keywordOnlyResults = keywordResults
+      .map((item) => ({
+        path: item.path,
+        startLine: item.startLine,
+        endLine: item.endLine,
+        score: item.textScore,
+        snippet: item.snippet,
+        source: item.source,
+      }))
+      .filter((item) => item.score >= minScore)
+      .slice(0, maxResults);
 
-    if (!hybrid.enabled) {
-      return vectorResults.filter((entry) => entry.score >= minScore).slice(0, maxResults);
+    if (queryTier === "repo" && keywordOnlyResults.length === 0) {
+      const coreFallbackFilter = { sql: " AND path NOT LIKE ?", params: ["%/.openclaw_kb/%"] };
+      const coreFallback = await this.searchKeyword(
+        cleaned,
+        candidates,
+        coreFallbackFilter,
+        this.db,
+      ).catch(() => []);
+      const coreFallbackResults = coreFallback
+        .map((item) => ({
+          path: item.path,
+          startLine: item.startLine,
+          endLine: item.endLine,
+          score: item.textScore,
+          snippet: item.snippet,
+          source: item.source,
+        }))
+        .filter((item) => item.score >= minScore)
+        .slice(0, maxResults);
+      if (coreFallbackResults.length > 0) {
+        log.debug("memory search: repo-empty fallback to core", {
+          query: cleaned.slice(0, 120),
+          results: coreFallbackResults.length,
+        });
+        return coreFallbackResults;
+      }
     }
 
+    const indexedFiles = this.getIndexedFileCount();
+    const topKeywordScore = keywordResults[0]?.textScore ?? 0;
+    const shouldUseKeywordOnly =
+      hybrid.enabled &&
+      indexedFiles >= this.settings.query.routing.keywordOnlyLargeCorpusFileThreshold &&
+      keywordResults.length >=
+        Math.max(1, Math.min(maxResults, this.settings.query.routing.keywordOnlyMinResults)) &&
+      topKeywordScore >= this.settings.query.routing.keywordOnlyMinScore;
+
+    if (shouldUseKeywordOnly) {
+      log.debug("memory search: keyword-only fast path", {
+        indexedFiles,
+        topKeywordScore,
+        results: keywordResults.length,
+      });
+      log.debug("memory search perf", {
+        tier: queryTier,
+        db_target: searchDb.target,
+        project_id: searchDb.projectId,
+        mode: "keyword-fast-path",
+        keyword_ms: keywordMs,
+        total_ms: Date.now() - t0,
+        results: keywordOnlyResults.length,
+      });
+      return keywordOnlyResults;
+    }
+
+    if (queryTier === "repo" && hybrid.enabled) {
+      const cacheKey = this.getRepoCacheKey(cleaned, maxResults, minScore);
+      const cached = this.getRepoCachedResults(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      if (!this.settings.query.routing.foregroundVectorEnabled) {
+        if (!this.repoQueryJobs.has(cacheKey)) {
+          if (this.repoQueryJobs.size >= REPO_BG_ENRICH_MAX_INFLIGHT) {
+            const now = Date.now();
+            if (now - this.lastRepoBgDropLogAt >= REPO_BG_DROP_LOG_INTERVAL_MS) {
+              this.lastRepoBgDropLogAt = now;
+              log.debug("memory repo enrich skipped (backpressure)", {
+                inflight: this.repoQueryJobs.size,
+                limit: REPO_BG_ENRICH_MAX_INFLIGHT,
+              });
+            }
+          } else {
+            const job = (async () => {
+              let vectorResults: Array<MemorySearchResult & { id: string }> = [];
+              try {
+                const queryVec = await this.embedQueryWithBudget(cleaned, REPO_BG_ENRICH_BUDGET_MS);
+                const hasVector = queryVec.some((v) => v !== 0);
+                vectorResults = hasVector
+                  ? await this.searchVector(queryVec, candidates, pathFilter, searchDb.db).catch(
+                      () => [],
+                    )
+                  : [];
+                const merged = await this.mergeHybridResults({
+                  vector: vectorResults,
+                  keyword: keywordResults,
+                  vectorWeight: hybrid.vectorWeight,
+                  textWeight: hybrid.textWeight,
+                  mmr: hybrid.mmr,
+                  temporalDecay: hybrid.temporalDecay,
+                });
+                this.repoQueryCache.set(cacheKey, {
+                  at: Date.now(),
+                  results: merged.filter((entry) => entry.score >= minScore).slice(0, maxResults),
+                });
+              } catch (err) {
+                const message = err instanceof Error ? err.message : String(err);
+                const now = Date.now();
+                if (now - this.lastVectorFallbackWarnAt >= VECTOR_FALLBACK_WARN_INTERVAL_MS) {
+                  this.lastVectorFallbackWarnAt = now;
+                  log.warn(`memory vector query fallback to keyword-only: ${message}`);
+                } else {
+                  log.debug(`memory vector query fallback to keyword-only: ${message}`);
+                }
+              } finally {
+                this.repoQueryJobs.delete(cacheKey);
+              }
+            })();
+            this.repoQueryJobs.set(cacheKey, job);
+          }
+        }
+        return keywordOnlyResults;
+      }
+    }
+
+    if (!this.settings.query.routing.foregroundVectorEnabled) {
+      return keywordOnlyResults;
+    }
+
+    let vectorResults: Array<MemorySearchResult & { id: string }> = [];
+    try {
+      const embedStart = Date.now();
+      const queryVec = await this.embedQueryWithTimeout(cleaned);
+      embedQueryMs = Date.now() - embedStart;
+      const hasVector = queryVec.some((v) => v !== 0);
+      if (hasVector) {
+        const vectorStart = Date.now();
+        vectorResults = await this.searchVector(
+          queryVec,
+          candidates,
+          pathFilter,
+          searchDb.db,
+        ).catch(() => []);
+        vectorMs = Date.now() - vectorStart;
+      } else {
+        vectorResults = [];
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const now = Date.now();
+      if (now - this.lastVectorFallbackWarnAt >= VECTOR_FALLBACK_WARN_INTERVAL_MS) {
+        this.lastVectorFallbackWarnAt = now;
+        log.warn(`memory vector query fallback to keyword-only: ${message}`);
+      } else {
+        log.debug(`memory vector query fallback to keyword-only: ${message}`);
+      }
+      vectorResults = [];
+    }
+
+    if (!hybrid.enabled) {
+      const out = vectorResults.filter((entry) => entry.score >= minScore).slice(0, maxResults);
+      log.debug("memory search perf", {
+        tier: queryTier,
+        db_target: searchDb.target,
+        project_id: searchDb.projectId,
+        mode: "vector-only",
+        keyword_ms: keywordMs,
+        embed_query_ms: embedQueryMs,
+        vector_ms: vectorMs,
+        total_ms: Date.now() - t0,
+        results: out.length,
+      });
+      return out;
+    }
+
+    const fusionStart = Date.now();
     const merged = await this.mergeHybridResults({
       vector: vectorResults,
       keyword: keywordResults,
@@ -289,29 +527,371 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       temporalDecay: hybrid.temporalDecay,
     });
 
-    return merged.filter((entry) => entry.score >= minScore).slice(0, maxResults);
+    fusionMs = Date.now() - fusionStart;
+    const out = merged.filter((entry) => entry.score >= minScore).slice(0, maxResults);
+    log.debug("memory search perf", {
+      tier: queryTier,
+      db_target: searchDb.target,
+      project_id: searchDb.projectId,
+      mode: "hybrid",
+      keyword_ms: keywordMs,
+      embed_query_ms: embedQueryMs,
+      vector_ms: vectorMs,
+      fusion_ms: fusionMs,
+      total_ms: Date.now() - t0,
+      results: out.length,
+    });
+    return out;
+  }
+
+  private buildQueryPathHints(): Map<string, string[]> {
+    const hints = new Map<string, string[]>();
+    for (const raw of this.settings.extraPaths) {
+      const abs = path.resolve(this.workspaceDir, raw);
+      const parts = abs.split(path.sep).filter(Boolean);
+      const candidates = [parts.at(-1), parts.at(-2)].filter((v): v is string => Boolean(v));
+      for (const candidate of candidates) {
+        const tokens = new Set<string>();
+        const compact = candidate.toLowerCase().replace(/[^a-z0-9]+/g, "");
+        if (compact.length >= 4) {
+          tokens.add(compact);
+        }
+        for (const part of candidate.toLowerCase().split(/[^a-z0-9]+/g)) {
+          if (part.length >= 4) {
+            tokens.add(part);
+          }
+        }
+        for (const token of tokens) {
+          const list = hints.get(token) ?? [];
+          list.push(candidate);
+          hints.set(token, list);
+        }
+      }
+    }
+    return hints;
+  }
+
+  private buildProjectRoutes(): ProjectRoute[] {
+    const routes = new Map<string, ProjectRoute>();
+    for (const raw of this.settings.extraPaths) {
+      const abs = path.resolve(this.workspaceDir, raw);
+      const parts = abs.split(path.sep).filter(Boolean);
+      const projectName = parts.includes("Projects")
+        ? (parts[parts.indexOf("Projects") + 1] ?? parts.at(-2) ?? parts.at(-1) ?? "project")
+        : (parts.at(-2) ?? parts.at(-1) ?? "project");
+      const id = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const entry =
+        routes.get(id) ??
+        ({ id, tokens: new Set<string>(), pathBits: new Set<string>() } satisfies ProjectRoute);
+
+      const candidates = [projectName, parts.at(-2), parts.at(-1)].filter((v): v is string =>
+        Boolean(v),
+      );
+      for (const candidate of candidates) {
+        const cleaned = candidate.toLowerCase();
+        const compact = cleaned.replace(/[^a-z0-9]+/g, "");
+        if (compact.length >= 4) {
+          entry.tokens.add(compact);
+        }
+        for (const part of cleaned.split(/[^a-z0-9]+/g)) {
+          if (part.length >= 4) {
+            entry.tokens.add(part);
+          }
+        }
+        entry.pathBits.add(candidate);
+      }
+      routes.set(id, entry);
+    }
+    return Array.from(routes.values());
+  }
+
+  /**
+   * Signals indicating a query targets personal/continuity memory (dates,
+   * people, decisions).  Override at the class level or extend via subclass
+   * if the default heuristics don't fit your deployment.
+   *
+   * Future: these could be exposed as `memorySearch.query.routing.coreSignals`
+   * in the agent runtime config for per-user customization.
+   */
+  protected static readonly CORE_QUERY_SIGNALS: readonly string[] = [
+    "yesterday",
+    "today",
+    "remember",
+    "memory",
+    "todo",
+    "decision",
+    "preference",
+    "we did",
+    "what did we",
+  ];
+
+  /**
+   * Signals indicating a query targets code/repository knowledge.
+   * Same extensibility notes as CORE_QUERY_SIGNALS.
+   */
+  protected static readonly REPO_QUERY_SIGNALS: readonly string[] = [
+    "code",
+    "repo",
+    "middleware",
+    "function",
+    "class",
+    "method",
+    "api",
+    "query",
+    "python",
+    "typescript",
+    "import",
+    "module",
+  ];
+
+  private detectQueryTier(query: string): QueryTier {
+    const normalized = query.toLowerCase().replace(/[^a-z0-9]+/g, " ");
+    const hasCore = MemoryIndexManager.CORE_QUERY_SIGNALS.some((s) => normalized.includes(s));
+    const hasRepo = MemoryIndexManager.REPO_QUERY_SIGNALS.some((s) => normalized.includes(s));
+    if (hasCore && !hasRepo) {
+      return "core";
+    }
+    if (hasRepo && !hasCore) {
+      return "repo";
+    }
+    return hasCore && hasRepo ? "mixed" : "core";
+  }
+
+  private findBestProjectRouteMatch(query: string): ProjectRouteMatch | null {
+    const normalized = query.toLowerCase().replace(/[^a-z0-9]+/g, " ");
+    let best: ProjectRouteMatch | null = null;
+    for (const route of this.projectRoutes) {
+      let score = 0;
+      for (const token of route.tokens) {
+        if (normalized.includes(token)) {
+          score += token.length >= 8 ? 2 : 1;
+        }
+      }
+      if (!best || score > best.score) {
+        best = { route, score };
+      }
+    }
+    if (!best || best.score < this.settings.query.routing.projectRouteMinScore) {
+      return null;
+    }
+    return best;
+  }
+
+  private resolvePathFilter(query: string): { sql: string; params: string[] } {
+    const normalized = query.toLowerCase().replace(/[^a-z0-9]+/g, " ");
+    const params = new Set<string>();
+    const tier = this.detectQueryTier(query);
+
+    if (tier === "core") {
+      return { sql: " AND path NOT LIKE ?", params: ["%/.openclaw_kb/%"] };
+    }
+
+    const best = this.findBestProjectRouteMatch(query);
+    if (best) {
+      for (const bit of best.route.pathBits) {
+        params.add(`%${bit}%`);
+      }
+    }
+
+    // Fallback: legacy token-to-path-hint mapping.
+    for (const [token, pathBits] of this.queryPathHints.entries()) {
+      if (!normalized.includes(token)) {
+        continue;
+      }
+      for (const bit of pathBits) {
+        params.add(`%${bit}%`);
+      }
+    }
+
+    if (params.size === 0) {
+      return tier === "mixed"
+        ? { sql: "", params: [] }
+        : { sql: " AND path LIKE ?", params: ["%/.openclaw_kb/%"] };
+    }
+    const clauses = Array.from(params, () => "path LIKE ?").join(" OR ");
+    return { sql: ` AND (${clauses})`, params: Array.from(params) };
+  }
+
+  private resolveProjectDbPath(projectId: string): string {
+    const template = this.settings.store.projectPathTemplate;
+    const withProject = template.includes("{projectId}")
+      ? template.replaceAll("{projectId}", projectId)
+      : template;
+    return path.resolve(withProject);
+  }
+
+  private getSearchDatabase(
+    query: string,
+    tier: QueryTier,
+  ): {
+    db: DatabaseSync;
+    target: "core" | "project";
+    projectId?: string;
+  } {
+    if (tier !== "repo") {
+      return { db: this.db, target: "core" };
+    }
+    const best = this.findBestProjectRouteMatch(query);
+    if (!best) {
+      return { db: this.db, target: "core" };
+    }
+
+    try {
+      const dbPath = this.resolveProjectDbPath(best.route.id);
+      let projectDb = this.projectDbs.get(dbPath);
+      if (!projectDb) {
+        this.evictProjectDbIfNeeded();
+        projectDb = this.openDatabaseAtPath(dbPath);
+        this.projectDbs.set(dbPath, projectDb);
+      }
+      this.projectDbAccess.set(dbPath, Date.now());
+      return { db: projectDb, target: "project", projectId: best.route.id };
+    } catch {
+      return { db: this.db, target: "core" };
+    }
+  }
+
+  /**
+   * Evict least-recently-used project DB handle when the pool exceeds
+   * MAX_PROJECT_DB_HANDLES.  Prevents unbounded handle accumulation for
+   * deployments with many indexed projects.
+   */
+  private evictProjectDbIfNeeded(): void {
+    if (this.projectDbs.size < MemoryIndexManager.MAX_PROJECT_DB_HANDLES) {
+      return;
+    }
+    let oldestPath: string | undefined;
+    let oldestTime = Infinity;
+    for (const [dbPath, accessTime] of this.projectDbAccess) {
+      if (accessTime < oldestTime && this.projectDbs.has(dbPath)) {
+        oldestTime = accessTime;
+        oldestPath = dbPath;
+      }
+    }
+    if (oldestPath) {
+      try {
+        this.projectDbs.get(oldestPath)?.close();
+      } catch {
+        // DB handle may already be closed; safe to ignore.
+      }
+      this.projectDbs.delete(oldestPath);
+      this.projectDbAccess.delete(oldestPath);
+    }
+  }
+
+  private getRepoCacheKey(query: string, maxResults: number, minScore: number): string {
+    return `${query}::${maxResults}::${minScore}`;
+  }
+
+  private async embedQueryWithBudget(query: string, budgetMs: number): Promise<number[]> {
+    return await Promise.race([
+      this.embedQueryWithTimeout(query),
+      new Promise<number[]>((_, reject) =>
+        setTimeout(() => reject(new Error(`embed budget exceeded (${budgetMs}ms)`)), budgetMs),
+      ),
+    ]);
+  }
+
+  private getRepoCachedResults(key: string): MemorySearchResult[] | null {
+    const CACHE_TTL_MS = 5 * 60_000;
+    const hit = this.repoQueryCache.get(key);
+    if (!hit) {
+      return null;
+    }
+    if (Date.now() - hit.at > CACHE_TTL_MS) {
+      this.repoQueryCache.delete(key);
+      return null;
+    }
+    return hit.results;
+  }
+
+  private getIndexedFileCount(): number {
+    const now = Date.now();
+    const CACHE_TTL_MS = 60_000;
+    if (now - this.indexedFileCountCache.at < CACHE_TTL_MS) {
+      return this.indexedFileCountCache.value;
+    }
+    try {
+      const row = this.db.prepare(`SELECT COUNT(*) as c FROM files`).get() as { c?: number };
+      const value = row?.c ?? 0;
+      this.indexedFileCountCache = { value, at: now };
+      return value;
+    } catch {
+      return this.indexedFileCountCache.value;
+    }
+  }
+
+  private shouldSkipSearchTriggeredSyncForLargeCorpus(): boolean {
+    try {
+      const count = this.getIndexedFileCount();
+      const threshold = this.settings.query.routing.onSearchSyncSkipFileThreshold;
+      if (count <= threshold) {
+        return false;
+      }
+      const now = Date.now();
+      if (now - this.lastLargeCorpusSkipLogAt >= 60_000) {
+        this.lastLargeCorpusSkipLogAt = now;
+        log.debug("memory search: skipping on-search sync for large corpus", {
+          indexedFiles: count,
+          threshold,
+        });
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async searchVector(
     queryVec: number[],
     limit: number,
+    pathFilter?: { sql: string; params: string[] },
+    dbOverride?: DatabaseSync,
   ): Promise<Array<MemorySearchResult & { id: string }>> {
+    const startedAt = Date.now();
+    let resultsCount = 0;
     // This method should never be called without a provider
     if (!this.provider) {
       return [];
     }
-    const results = await searchVector({
-      db: this.db,
-      vectorTable: VECTOR_TABLE,
-      providerModel: this.provider.model,
-      queryVec,
-      limit,
-      snippetMaxChars: SNIPPET_MAX_CHARS,
-      ensureVectorReady: async (dimensions) => await this.ensureVectorReady(dimensions),
-      sourceFilterVec: this.buildSourceFilter("c"),
-      sourceFilterChunks: this.buildSourceFilter(),
-    });
-    return results.map((entry) => entry as MemorySearchResult & { id: string });
+
+    const run = async (): Promise<Array<MemorySearchResult & { id: string }>> => {
+      const results = await searchVector({
+        db: this.db,
+        vectorTable: VECTOR_TABLE,
+        providerModel: this.provider?.model ?? "",
+        queryVec,
+        limit,
+        snippetMaxChars: SNIPPET_MAX_CHARS,
+        ensureVectorReady: async (dimensions) => await this.ensureVectorReady(dimensions),
+        sourceFilterVec: this.buildSourceFilter("c"),
+        sourceFilterChunks: this.buildSourceFilter(),
+        pathFilter,
+      });
+      const mapped = results.map((entry) => entry as MemorySearchResult & { id: string });
+      resultsCount = mapped.length;
+      return mapped;
+    };
+
+    try {
+      if (dbOverride && dbOverride !== this.db) {
+        return await this.withDbContext({
+          db: dbOverride,
+          vectorEnabled: true,
+          fn: run,
+        });
+      }
+
+      return await run();
+    } finally {
+      log.debug("memory lifecycle perf", {
+        function: "searchVector",
+        limit,
+        results: resultsCount,
+        used_db_override: Boolean(dbOverride && dbOverride !== this.db),
+        total_ms: Date.now() - startedAt,
+      });
+    }
   }
 
   private buildFtsQuery(raw: string): string | null {
@@ -321,28 +901,50 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
   private async searchKeyword(
     query: string,
     limit: number,
+    pathFilter?: { sql: string; params: string[] },
+    dbOverride?: DatabaseSync,
   ): Promise<Array<MemorySearchResult & { id: string; textScore: number }>> {
+    const startedAt = Date.now();
+    let resultsCount = 0;
     if (!this.fts.enabled || !this.fts.available) {
+      log.debug("memory lifecycle perf", {
+        function: "searchKeyword",
+        skipped: true,
+        reason: "fts-unavailable",
+        total_ms: Date.now() - startedAt,
+      });
       return [];
     }
     const sourceFilter = this.buildSourceFilter();
     // In FTS-only mode (no provider), search all models; otherwise filter by current provider's model
     const providerModel = this.provider?.model;
     const results = await searchKeyword({
-      db: this.db,
+      db: dbOverride ?? this.db,
       ftsTable: FTS_TABLE,
       providerModel,
       query,
       limit,
       snippetMaxChars: SNIPPET_MAX_CHARS,
       sourceFilter,
+      pathFilter,
       buildFtsQuery: (raw) => this.buildFtsQuery(raw),
       bm25RankToScore,
     });
-    return results.map((entry) => entry as MemorySearchResult & { id: string; textScore: number });
+    const mapped = results.map(
+      (entry) => entry as MemorySearchResult & { id: string; textScore: number },
+    );
+    resultsCount = mapped.length;
+    log.debug("memory lifecycle perf", {
+      function: "searchKeyword",
+      limit,
+      results: resultsCount,
+      used_db_override: Boolean(dbOverride && dbOverride !== this.db),
+      total_ms: Date.now() - startedAt,
+    });
+    return mapped;
   }
 
-  private mergeHybridResults(params: {
+  private async mergeHybridResults(params: {
     vector: Array<MemorySearchResult & { id: string }>;
     keyword: Array<MemorySearchResult & { id: string; textScore: number }>;
     vectorWeight: number;
@@ -350,7 +952,8 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     mmr?: { enabled: boolean; lambda: number };
     temporalDecay?: { enabled: boolean; halfLifeDays: number };
   }): Promise<MemorySearchResult[]> {
-    return mergeHybridResults({
+    const startedAt = Date.now();
+    const entries = await mergeHybridResults({
       vector: params.vector.map((r) => ({
         id: r.id,
         path: r.path,
@@ -374,7 +977,16 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       mmr: params.mmr,
       temporalDecay: params.temporalDecay,
       workspaceDir: this.workspaceDir,
-    }).then((entries) => entries.map((entry) => entry as MemorySearchResult));
+    });
+    const out = entries.map((entry) => entry as MemorySearchResult);
+    log.debug("memory lifecycle perf", {
+      function: "mergeHybridResults",
+      vector_candidates: params.vector.length,
+      keyword_candidates: params.keyword.length,
+      results: out.length,
+      total_ms: Date.now() - startedAt,
+    });
+    return out;
   }
 
   async sync(params?: {
@@ -621,6 +1233,11 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       clearInterval(this.intervalTimer);
       this.intervalTimer = null;
     }
+    if (this.backgroundSyncTimer) {
+      clearTimeout(this.backgroundSyncTimer);
+      this.backgroundSyncTimer = null;
+    }
+    this.backgroundSyncReasons.clear();
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
@@ -634,6 +1251,14 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
         await pendingSync;
       } catch {}
     }
+    this.repoQueryCache.clear();
+    this.repoQueryJobs.clear();
+    for (const db of this.projectDbs.values()) {
+      try {
+        db.close();
+      } catch {}
+    }
+    this.projectDbs.clear();
     this.db.close();
     INDEX_CACHE.delete(this.cacheKey);
   }

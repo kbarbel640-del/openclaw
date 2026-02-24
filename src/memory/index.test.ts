@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMemorySearchManager, type MemoryIndexManager } from "./index.js";
+import { requireNodeSqlite } from "./sqlite.js";
 import "./test-runtime-mocks.js";
 
 let embedBatchCalls = 0;
@@ -92,6 +93,7 @@ describe("memory index", () => {
 
   function createCfg(params: {
     storePath: string;
+    projectPathTemplate?: string;
     extraPaths?: string[];
     sources?: Array<"memory" | "sessions">;
     sessionMemory?: boolean;
@@ -107,7 +109,13 @@ describe("memory index", () => {
           memorySearch: {
             provider: "openai",
             model: params.model ?? "mock-embed",
-            store: { path: params.storePath, vector: { enabled: params.vectorEnabled ?? false } },
+            store: {
+              path: params.storePath,
+              ...(params.projectPathTemplate
+                ? { projectPathTemplate: params.projectPathTemplate }
+                : {}),
+              vector: { enabled: params.vectorEnabled ?? false },
+            },
             // Perf: keep test indexes to a single chunk to reduce sqlite work.
             chunking: { tokens: 4000, overlap: 0 },
             sync: { watch: false, onSessionStart: false, onSearch: true },
@@ -170,6 +178,75 @@ describe("memory index", () => {
         }),
       ]),
     );
+  });
+
+  it("indexes repo-rag markdown into project DB instead of core DB", async () => {
+    const projectDir = path.join(workspaceDir, "Projects", "Demo-Repo", ".openclaw_kb");
+    await fs.mkdir(projectDir, { recursive: true });
+    const projectFile = path.join(projectDir, "demo-repo-chunk.md");
+    await fs.writeFile(projectFile, "# Repo Chunk\nproject split db marker");
+
+    const coreDbPath = path.join(workspaceDir, `index-split-core-${Date.now()}.sqlite`);
+    const projectPathTemplate = path.join(workspaceDir, "project-dbs", "{projectId}.sqlite");
+    const cfg = createCfg({
+      storePath: coreDbPath,
+      projectPathTemplate,
+      extraPaths: [path.relative(workspaceDir, projectDir)],
+      hybrid: { enabled: true, vectorWeight: 0.5, textWeight: 0.5 },
+    });
+
+    const manager = await getPersistentManager(cfg);
+    await manager.sync({ reason: "test" });
+
+    const relProjectPath = path.relative(workspaceDir, projectFile).replace(/\\/g, "/");
+    const { DatabaseSync } = requireNodeSqlite();
+
+    const coreDb = new DatabaseSync(coreDbPath);
+    const coreRow = coreDb
+      .prepare(`SELECT COUNT(*) as c FROM files WHERE path = ? AND source = ?`)
+      .get(relProjectPath, "memory") as { c: number };
+    coreDb.close();
+    expect(coreRow.c).toBe(0);
+
+    const projectDbPath = path.join(workspaceDir, "project-dbs", "demo-repo.sqlite");
+    const projectDb = new DatabaseSync(projectDbPath);
+    const projectRow = projectDb
+      .prepare(`SELECT COUNT(*) as c FROM files WHERE path = ? AND source = ?`)
+      .get(relProjectPath, "memory") as { c: number };
+    projectDb.close();
+    expect(projectRow.c).toBeGreaterThan(0);
+  });
+
+  it("does not close the active default manager when status-only manager closes", async () => {
+    const indexStatusPath = path.join(workspaceDir, `index-status-live-${Date.now()}.sqlite`);
+    const cfg = createCfg({
+      storePath: indexStatusPath,
+      hybrid: { enabled: true, vectorWeight: 0.5, textWeight: 0.5 },
+    });
+
+    const active = await getMemorySearchManager({ cfg, agentId: "main" });
+    expect(active.manager).not.toBeNull();
+    if (!active.manager) {
+      throw new Error("active manager missing");
+    }
+    await active.manager.sync?.({ reason: "test" });
+
+    const statusOnly = await getMemorySearchManager({
+      cfg,
+      agentId: "main",
+      purpose: "status",
+    });
+    expect(statusOnly.manager).not.toBeNull();
+    if (!statusOnly.manager) {
+      throw new Error("status manager missing");
+    }
+
+    await statusOnly.manager.close?.();
+
+    const results = await active.manager.search("alpha");
+    expect(results.length).toBeGreaterThan(0);
+
+    await active.manager.close?.();
   });
 
   it("keeps dirty false in status-only manager after prior indexing", async () => {

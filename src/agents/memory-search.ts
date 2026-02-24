@@ -34,6 +34,8 @@ export type ResolvedMemorySearchConfig = {
   store: {
     driver: "sqlite";
     path: string;
+    corePath: string;
+    projectPathTemplate: string;
     vector: {
       enabled: boolean;
       extensionPath?: string;
@@ -57,6 +59,14 @@ export type ResolvedMemorySearchConfig = {
   query: {
     maxResults: number;
     minScore: number;
+    routing: {
+      onSearchSyncSkipFileThreshold: number;
+      keywordOnlyLargeCorpusFileThreshold: number;
+      keywordOnlyMinScore: number;
+      keywordOnlyMinResults: number;
+      projectRouteMinScore: number;
+      foregroundVectorEnabled: boolean;
+    };
     hybrid: {
       enabled: boolean;
       vectorWeight: number;
@@ -97,6 +107,12 @@ const DEFAULT_MMR_ENABLED = false;
 const DEFAULT_MMR_LAMBDA = 0.7;
 const DEFAULT_TEMPORAL_DECAY_ENABLED = false;
 const DEFAULT_TEMPORAL_DECAY_HALF_LIFE_DAYS = 30;
+const DEFAULT_ON_SEARCH_SYNC_SKIP_FILE_THRESHOLD = 20_000;
+const DEFAULT_KEYWORD_ONLY_LARGE_CORPUS_FILE_THRESHOLD = 30_000;
+const DEFAULT_KEYWORD_ONLY_MIN_SCORE = 0.55;
+const DEFAULT_KEYWORD_ONLY_MIN_RESULTS = 3;
+const DEFAULT_PROJECT_ROUTE_MIN_SCORE = 1;
+const DEFAULT_FOREGROUND_VECTOR_ENABLED = false;
 const DEFAULT_CACHE_ENABLED = true;
 const DEFAULT_SOURCES: Array<"memory" | "sessions"> = ["memory"];
 
@@ -128,6 +144,33 @@ function resolveStorePath(agentId: string, raw?: string): string {
   }
   const withToken = raw.includes("{agentId}") ? raw.replaceAll("{agentId}", agentId) : raw;
   return resolveUserPath(withToken);
+}
+
+function resolveCoreStorePath(agentId: string, raw?: string): string {
+  const stateDir = resolveStateDir(process.env, os.homedir);
+  const fallback = path.join(stateDir, "memory", "agents", agentId, "core.sqlite");
+  if (!raw) {
+    return fallback;
+  }
+  const withToken = raw.includes("{agentId}") ? raw.replaceAll("{agentId}", agentId) : raw;
+  return resolveUserPath(withToken);
+}
+
+function resolveProjectStorePathTemplate(agentId: string, raw?: string): string {
+  const stateDir = resolveStateDir(process.env, os.homedir);
+  const fallback = path.join(
+    stateDir,
+    "memory",
+    "agents",
+    agentId,
+    "projects",
+    "{projectId}.sqlite",
+  );
+  const input = raw || fallback;
+  const withAgentToken = input.includes("{agentId}")
+    ? input.replaceAll("{agentId}", agentId)
+    : input;
+  return resolveUserPath(withAgentToken);
 }
 
 function mergeConfig(
@@ -202,9 +245,27 @@ function mergeConfig(
     extensionPath:
       overrides?.store?.vector?.extensionPath ?? defaults?.store?.vector?.extensionPath,
   };
+  const resolvedStorePath = resolveStorePath(
+    agentId,
+    overrides?.store?.path ?? defaults?.store?.path,
+  );
+  const explicitCorePath = overrides?.store?.corePath ?? defaults?.store?.corePath;
   const store = {
     driver: overrides?.store?.driver ?? defaults?.store?.driver ?? "sqlite",
-    path: resolveStorePath(agentId, overrides?.store?.path ?? defaults?.store?.path),
+    path: resolvedStorePath,
+    // Backward compatibility: when corePath is not explicitly configured,
+    // preserve legacy single-DB behavior by reusing store.path.
+    // To adopt split-DB architecture, set store.corePath explicitly:
+    //   "store": { "corePath": "~/.openclaw/memory/{agentId}-core.sqlite" }
+    // This separates personal memory from project code indexes for better
+    // query performance on large codebases.
+    corePath: explicitCorePath
+      ? resolveCoreStorePath(agentId, explicitCorePath)
+      : resolvedStorePath,
+    projectPathTemplate: resolveProjectStorePathTemplate(
+      agentId,
+      overrides?.store?.projectPathTemplate ?? defaults?.store?.projectPathTemplate,
+    ),
     vector,
   };
   const chunking = {
@@ -234,6 +295,32 @@ function mergeConfig(
   const query = {
     maxResults: overrides?.query?.maxResults ?? defaults?.query?.maxResults ?? DEFAULT_MAX_RESULTS,
     minScore: overrides?.query?.minScore ?? defaults?.query?.minScore ?? DEFAULT_MIN_SCORE,
+    routing: {
+      onSearchSyncSkipFileThreshold:
+        overrides?.query?.routing?.onSearchSyncSkipFileThreshold ??
+        defaults?.query?.routing?.onSearchSyncSkipFileThreshold ??
+        DEFAULT_ON_SEARCH_SYNC_SKIP_FILE_THRESHOLD,
+      keywordOnlyLargeCorpusFileThreshold:
+        overrides?.query?.routing?.keywordOnlyLargeCorpusFileThreshold ??
+        defaults?.query?.routing?.keywordOnlyLargeCorpusFileThreshold ??
+        DEFAULT_KEYWORD_ONLY_LARGE_CORPUS_FILE_THRESHOLD,
+      keywordOnlyMinScore:
+        overrides?.query?.routing?.keywordOnlyMinScore ??
+        defaults?.query?.routing?.keywordOnlyMinScore ??
+        DEFAULT_KEYWORD_ONLY_MIN_SCORE,
+      keywordOnlyMinResults:
+        overrides?.query?.routing?.keywordOnlyMinResults ??
+        defaults?.query?.routing?.keywordOnlyMinResults ??
+        DEFAULT_KEYWORD_ONLY_MIN_RESULTS,
+      projectRouteMinScore:
+        overrides?.query?.routing?.projectRouteMinScore ??
+        defaults?.query?.routing?.projectRouteMinScore ??
+        DEFAULT_PROJECT_ROUTE_MIN_SCORE,
+      foregroundVectorEnabled:
+        overrides?.query?.routing?.foregroundVectorEnabled ??
+        defaults?.query?.routing?.foregroundVectorEnabled ??
+        DEFAULT_FOREGROUND_VECTOR_ENABLED,
+    },
   };
   const hybrid = {
     enabled:
@@ -320,6 +407,22 @@ function mergeConfig(
     query: {
       ...query,
       minScore,
+      routing: {
+        onSearchSyncSkipFileThreshold: clampInt(
+          query.routing.onSearchSyncSkipFileThreshold,
+          1,
+          Number.MAX_SAFE_INTEGER,
+        ),
+        keywordOnlyLargeCorpusFileThreshold: clampInt(
+          query.routing.keywordOnlyLargeCorpusFileThreshold,
+          1,
+          Number.MAX_SAFE_INTEGER,
+        ),
+        keywordOnlyMinScore: clampNumber(query.routing.keywordOnlyMinScore, 0, 1),
+        keywordOnlyMinResults: clampInt(query.routing.keywordOnlyMinResults, 1, 50),
+        projectRouteMinScore: clampInt(query.routing.projectRouteMinScore, 1, 10),
+        foregroundVectorEnabled: Boolean(query.routing.foregroundVectorEnabled),
+      },
       hybrid: {
         enabled: Boolean(hybrid.enabled),
         vectorWeight: normalizedVectorWeight,

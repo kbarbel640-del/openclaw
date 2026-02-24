@@ -124,6 +124,8 @@ export abstract class MemoryManagerSyncOps {
   protected sessionUnsubscribe: (() => void) | null = null;
   protected fallbackReason?: string;
   protected intervalTimer: NodeJS.Timeout | null = null;
+  protected backgroundSyncTimer: NodeJS.Timeout | null = null;
+  protected backgroundSyncReasons = new Set<string>();
   protected closed = false;
   protected dirty = false;
   protected sessionsDirty = false;
@@ -153,60 +155,111 @@ export abstract class MemoryManagerSyncOps {
     entry: MemoryFileEntry | SessionFileEntry,
     options: { source: MemorySource; content?: string },
   ): Promise<void>;
+  protected abstract indexFileToDb(
+    entry: MemoryFileEntry | SessionFileEntry,
+    options: { source: MemorySource; content?: string },
+    db: DatabaseSync,
+    runtime?: { vectorEnabled?: boolean },
+  ): Promise<void>;
+
+  protected logPerf(functionName: string, fields: Record<string, unknown>): void {
+    log.debug("memory lifecycle perf", {
+      function: functionName,
+      ...fields,
+    });
+  }
+
+  protected async withPerf<T>(
+    functionName: string,
+    fields: Record<string, unknown>,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const startedAt = Date.now();
+    try {
+      return await run();
+    } finally {
+      this.logPerf(functionName, {
+        ...fields,
+        total_ms: Date.now() - startedAt,
+      });
+    }
+  }
 
   protected async ensureVectorReady(dimensions?: number): Promise<boolean> {
-    if (!this.vector.enabled) {
-      return false;
-    }
-    if (!this.vectorReady) {
-      this.vectorReady = this.withTimeout(
-        this.loadVectorExtension(),
-        VECTOR_LOAD_TIMEOUT_MS,
-        `sqlite-vec load timed out after ${Math.round(VECTOR_LOAD_TIMEOUT_MS / 1000)}s`,
-      );
-    }
+    const startedAt = Date.now();
     let ready = false;
     try {
-      ready = (await this.vectorReady) || false;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.vector.available = false;
-      this.vector.loadError = message;
-      this.vectorReady = null;
-      log.warn(`sqlite-vec unavailable: ${message}`);
-      return false;
+      if (!this.vector.enabled) {
+        return false;
+      }
+      if (!this.vectorReady) {
+        this.vectorReady = this.withTimeout(
+          this.loadVectorExtension(),
+          VECTOR_LOAD_TIMEOUT_MS,
+          `sqlite-vec load timed out after ${Math.round(VECTOR_LOAD_TIMEOUT_MS / 1000)}s`,
+        );
+      }
+      try {
+        ready = (await this.vectorReady) || false;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.vector.available = false;
+        this.vector.loadError = message;
+        this.vectorReady = null;
+        log.warn(`sqlite-vec unavailable: ${message}`);
+        return false;
+      }
+      if (ready && typeof dimensions === "number" && dimensions > 0) {
+        this.ensureVectorTable(dimensions);
+      }
+      return ready;
+    } finally {
+      this.logPerf("ensureVectorReady", {
+        dims: dimensions,
+        ready,
+        total_ms: Date.now() - startedAt,
+      });
     }
-    if (ready && typeof dimensions === "number" && dimensions > 0) {
-      this.ensureVectorTable(dimensions);
-    }
-    return ready;
   }
 
   private async loadVectorExtension(): Promise<boolean> {
-    if (this.vector.available !== null) {
-      return this.vector.available;
-    }
-    if (!this.vector.enabled) {
-      this.vector.available = false;
-      return false;
-    }
+    const startedAt = Date.now();
+    let loadedOk = false;
     try {
-      const resolvedPath = this.vector.extensionPath?.trim()
-        ? resolveUserPath(this.vector.extensionPath)
-        : undefined;
-      const loaded = await loadSqliteVecExtension({ db: this.db, extensionPath: resolvedPath });
-      if (!loaded.ok) {
-        throw new Error(loaded.error ?? "unknown sqlite-vec load error");
+      if (this.vector.available !== null) {
+        loadedOk = this.vector.available;
+        return this.vector.available;
       }
-      this.vector.extensionPath = loaded.extensionPath;
-      this.vector.available = true;
-      return true;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.vector.available = false;
-      this.vector.loadError = message;
-      log.warn(`sqlite-vec unavailable: ${message}`);
-      return false;
+      if (!this.vector.enabled) {
+        this.vector.available = false;
+        loadedOk = false;
+        return false;
+      }
+      try {
+        const resolvedPath = this.vector.extensionPath?.trim()
+          ? resolveUserPath(this.vector.extensionPath)
+          : undefined;
+        const loaded = await loadSqliteVecExtension({ db: this.db, extensionPath: resolvedPath });
+        if (!loaded.ok) {
+          throw new Error(loaded.error ?? "unknown sqlite-vec load error");
+        }
+        this.vector.extensionPath = loaded.extensionPath;
+        this.vector.available = true;
+        loadedOk = true;
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.vector.available = false;
+        this.vector.loadError = message;
+        log.warn(`sqlite-vec unavailable: ${message}`);
+        loadedOk = false;
+        return false;
+      }
+    } finally {
+      this.logPerf("loadVectorExtension", {
+        available: loadedOk,
+        total_ms: Date.now() - startedAt,
+      });
     }
   }
 
@@ -245,16 +298,52 @@ export abstract class MemoryManagerSyncOps {
     return { sql: ` AND ${column} IN (${placeholders})`, params: sources };
   }
 
+  private normalizeProjectId(input: string): string {
+    return (
+      input
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "project"
+    );
+  }
+
+  private resolveProjectIdForMemoryFile(absPath: string): string | null {
+    const relPath = path.relative(this.workspaceDir, absPath).replace(/\\/g, "/");
+    const match = relPath.match(/^Projects\/([^/]+)\/\.openclaw_kb\//i);
+    if (!match?.[1]) {
+      return null;
+    }
+    return this.normalizeProjectId(match[1]);
+  }
+
+  private resolveProjectDbPathForSync(projectId: string): string {
+    const template = this.settings.store.projectPathTemplate;
+    const withProject = template.includes("{projectId}")
+      ? template.replaceAll("{projectId}", projectId)
+      : template;
+    return resolveUserPath(withProject);
+  }
+
   protected openDatabase(): DatabaseSync {
-    const dbPath = resolveUserPath(this.settings.store.path);
+    const dbPath = resolveUserPath(this.settings.store.corePath || this.settings.store.path);
     return this.openDatabaseAtPath(dbPath);
   }
 
-  private openDatabaseAtPath(dbPath: string): DatabaseSync {
+  protected openDatabaseAtPath(dbPath: string): DatabaseSync {
     const dir = path.dirname(dbPath);
     ensureDir(dir);
     const { DatabaseSync } = requireNodeSqlite();
-    return new DatabaseSync(dbPath, { allowExtension: this.settings.store.vector.enabled });
+    const db = new DatabaseSync(dbPath, { allowExtension: this.settings.store.vector.enabled });
+    try {
+      // Improve resilience under concurrent sync/search access.
+      db.exec("PRAGMA journal_mode = WAL");
+      db.exec("PRAGMA busy_timeout = 5000");
+      db.exec("PRAGMA synchronous = NORMAL");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.debug(`memory sqlite pragma setup skipped: ${message}`);
+    }
+    return db;
   }
 
   private seedEmbeddingCache(sourceDb: DatabaseSync): void {
@@ -458,9 +547,7 @@ export abstract class MemoryManagerSyncOps {
       shouldSync = true;
     }
     if (shouldSync) {
-      void this.sync({ reason: "session-delta" }).catch((err) => {
-        log.warn(`memory sync failed (session-delta): ${String(err)}`);
-      });
+      this.scheduleBackgroundSync("session-delta");
     }
   }
 
@@ -579,6 +666,25 @@ export abstract class MemoryManagerSyncOps {
     return resolvedFile.startsWith(`${resolvedDir}${path.sep}`);
   }
 
+  protected scheduleBackgroundSync(reason: string, delayMs = 250): void {
+    if (this.closed) {
+      return;
+    }
+    this.backgroundSyncReasons.add(reason);
+    if (this.backgroundSyncTimer) {
+      return;
+    }
+    this.backgroundSyncTimer = setTimeout(() => {
+      this.backgroundSyncTimer = null;
+      const reasons = Array.from(this.backgroundSyncReasons);
+      this.backgroundSyncReasons.clear();
+      const reasonLabel = reasons.length ? `bg:${reasons.join(",")}` : "bg";
+      void this.sync({ reason: reasonLabel }).catch((err) => {
+        log.warn(`memory sync failed (${reasonLabel}): ${String(err)}`);
+      });
+    }, delayMs);
+  }
+
   protected ensureIntervalSync() {
     const minutes = this.settings.sync.intervalMinutes;
     if (!minutes || minutes <= 0 || this.intervalTimer) {
@@ -586,9 +692,7 @@ export abstract class MemoryManagerSyncOps {
     }
     const ms = minutes * 60 * 1000;
     this.intervalTimer = setInterval(() => {
-      void this.sync({ reason: "interval" }).catch((err) => {
-        log.warn(`memory sync failed (interval): ${String(err)}`);
-      });
+      this.scheduleBackgroundSync("interval", 0);
     }, ms);
   }
 
@@ -601,9 +705,7 @@ export abstract class MemoryManagerSyncOps {
     }
     this.watchTimer = setTimeout(() => {
       this.watchTimer = null;
-      void this.sync({ reason: "watch" }).catch((err) => {
-        log.warn(`memory sync failed (watch): ${String(err)}`);
-      });
+      this.scheduleBackgroundSync("watch", 0);
     }, this.settings.sync.watchDebounceMs);
   }
 
@@ -630,6 +732,7 @@ export abstract class MemoryManagerSyncOps {
   private async syncMemoryFiles(params: {
     needsFullReindex: boolean;
     progress?: MemorySyncProgressState;
+    scope?: "all" | "core-only" | "projects-only";
   }) {
     // FTS-only mode: skip embedding sync (no provider)
     if (!this.provider) {
@@ -637,31 +740,179 @@ export abstract class MemoryManagerSyncOps {
       return;
     }
 
+    const discoverStart = Date.now();
     const files = await listMemoryFiles(this.workspaceDir, this.settings.extraPaths);
-    const fileEntries = (
-      await Promise.all(files.map(async (file) => buildFileEntry(file, this.workspaceDir)))
-    ).filter((entry): entry is MemoryFileEntry => entry !== null);
+    const coreFiles: string[] = [];
+    const projectFiles = new Map<string, string[]>();
+    for (const absPath of files) {
+      const projectId = this.resolveProjectIdForMemoryFile(absPath);
+      if (!projectId) {
+        coreFiles.push(absPath);
+        continue;
+      }
+      const list = projectFiles.get(projectId) ?? [];
+      list.push(absPath);
+      projectFiles.set(projectId, list);
+    }
+
+    const scope = params.scope ?? "all";
+    const includeCore = scope !== "projects-only";
+    const includeProjects = scope !== "core-only";
+    const projectFileCount = Array.from(projectFiles.values()).reduce(
+      (acc, items) => acc + items.length,
+      0,
+    );
+    const selectedFileCount =
+      (includeCore ? coreFiles.length : 0) + (includeProjects ? projectFileCount : 0);
+
+    const discoverMs = Date.now() - discoverStart;
     log.debug("memory sync: indexing memory files", {
-      files: fileEntries.length,
+      scope,
+      files: files.length,
+      selected_files: selectedFileCount,
+      coreFiles: coreFiles.length,
+      projectFiles: projectFileCount,
+      projects: projectFiles.size,
+      discover_ms: discoverMs,
       needsFullReindex: params.needsFullReindex,
       batch: this.batch.enabled,
       concurrency: this.getIndexConcurrency(),
     });
-    const activePaths = new Set(fileEntries.map((entry) => entry.path));
+
     if (params.progress) {
-      params.progress.total += fileEntries.length;
+      params.progress.total += selectedFileCount;
       params.progress.report({
         completed: params.progress.completed,
         total: params.progress.total,
-        label: this.batch.enabled ? "Indexing memory files (batch)..." : "Indexing memory files…",
+        label:
+          scope === "core-only"
+            ? "Indexing core memory…"
+            : scope === "projects-only"
+              ? "Indexing project memory…"
+              : this.batch.enabled
+                ? "Indexing memory files (batch)..."
+                : "Indexing memory files…",
       });
     }
 
-    const tasks = fileEntries.map((entry) => async () => {
-      const record = this.db
-        .prepare(`SELECT hash FROM files WHERE path = ? AND source = ?`)
-        .get(entry.path, "memory") as { hash: string } | undefined;
-      if (!params.needsFullReindex && record?.hash === entry.hash) {
+    if (includeCore) {
+      const coreActivePaths = new Set(
+        coreFiles.map((file) => path.relative(this.workspaceDir, file).replace(/\\/g, "/")),
+      );
+      await this.syncMemoryFilesForDb({
+        files: coreFiles,
+        activePaths: coreActivePaths,
+        db: this.db,
+        needsFullReindex: params.needsFullReindex,
+        progress: params.progress,
+        target: "core",
+        vectorEnabled: true,
+      });
+    }
+
+    if (includeProjects) {
+      for (const [projectId, projectAbsFiles] of projectFiles.entries()) {
+        const projectDbPath = this.resolveProjectDbPathForSync(projectId);
+        const projectDb = this.openDatabaseAtPath(projectDbPath);
+        try {
+          ensureMemoryIndexSchema({
+            db: projectDb,
+            embeddingCacheTable: EMBEDDING_CACHE_TABLE,
+            ftsTable: FTS_TABLE,
+            ftsEnabled: this.fts.enabled,
+          });
+          const projectActivePaths = new Set(
+            projectAbsFiles.map((file) =>
+              path.relative(this.workspaceDir, file).replace(/\\/g, "/"),
+            ),
+          );
+          await this.syncMemoryFilesForDb({
+            files: projectAbsFiles,
+            activePaths: projectActivePaths,
+            db: projectDb,
+            needsFullReindex: params.needsFullReindex,
+            progress: params.progress,
+            target: "project",
+            projectId,
+            vectorEnabled: true,
+          });
+        } finally {
+          try {
+            projectDb.close();
+          } catch {}
+        }
+      }
+    }
+
+    this.logPerf("syncMemoryFiles", {
+      scope,
+      discover_ms: discoverMs,
+      selected_files: selectedFileCount,
+      core_files: includeCore ? coreFiles.length : 0,
+      project_files: includeProjects ? projectFileCount : 0,
+      projects: includeProjects ? projectFiles.size : 0,
+      needs_full_reindex: params.needsFullReindex,
+      total_ms: Date.now() - discoverStart,
+    });
+  }
+
+  private async syncMemoryFilesForDb(params: {
+    files: string[];
+    activePaths: Set<string>;
+    db: DatabaseSync;
+    needsFullReindex: boolean;
+    progress?: MemorySyncProgressState;
+    target: "core" | "project";
+    projectId?: string;
+    vectorEnabled: boolean;
+  }): Promise<void> {
+    const syncStart = Date.now();
+    let hashCheckMs = 0;
+    let indexMs = 0;
+    const cachedRows = params.db
+      .prepare(`SELECT path, hash, mtime, size FROM files WHERE source = ?`)
+      .all("memory") as Array<{ path: string; hash: string; mtime: number; size: number }>;
+    const cachedByPath = new Map(cachedRows.map((row) => [row.path, row]));
+
+    const tasks = params.files.map((absPath) => async () => {
+      const relPath = path.relative(this.workspaceDir, absPath).replace(/\\/g, "/");
+      const cached = cachedByPath.get(relPath);
+
+      if (!params.needsFullReindex) {
+        const statStart = Date.now();
+        try {
+          const stat = await fs.stat(absPath);
+          if (cached && cached.mtime === stat.mtimeMs && cached.size === stat.size) {
+            if (params.progress) {
+              params.progress.completed += 1;
+              params.progress.report({
+                completed: params.progress.completed,
+                total: params.progress.total,
+              });
+            }
+            return;
+          }
+        } catch (err) {
+          if (isFileMissingError(err)) {
+            if (params.progress) {
+              params.progress.completed += 1;
+              params.progress.report({
+                completed: params.progress.completed,
+                total: params.progress.total,
+              });
+            }
+            return;
+          }
+          throw err;
+        } finally {
+          hashCheckMs += Date.now() - statStart;
+        }
+      }
+
+      const buildStart = Date.now();
+      const entry = await buildFileEntry(absPath, this.workspaceDir);
+      hashCheckMs += Date.now() - buildStart;
+      if (!entry) {
         if (params.progress) {
           params.progress.completed += 1;
           params.progress.report({
@@ -671,7 +922,23 @@ export abstract class MemoryManagerSyncOps {
         }
         return;
       }
-      await this.indexFile(entry, { source: "memory" });
+
+      if (!params.needsFullReindex && cached?.hash === entry.hash) {
+        if (params.progress) {
+          params.progress.completed += 1;
+          params.progress.report({
+            completed: params.progress.completed,
+            total: params.progress.total,
+          });
+        }
+        return;
+      }
+
+      const indexStart = Date.now();
+      await this.indexFileToDb(entry, { source: "memory" }, params.db, {
+        vectorEnabled: params.vectorEnabled,
+      });
+      indexMs += Date.now() - indexStart;
       if (params.progress) {
         params.progress.completed += 1;
         params.progress.report({
@@ -682,36 +949,64 @@ export abstract class MemoryManagerSyncOps {
     });
     await runWithConcurrency(tasks, this.getIndexConcurrency());
 
-    const staleRows = this.db
+    const cleanupStart = Date.now();
+    const staleRows = params.db
       .prepare(`SELECT path FROM files WHERE source = ?`)
       .all("memory") as Array<{ path: string }>;
+    let staleProcessed = 0;
     for (const stale of staleRows) {
-      if (activePaths.has(stale.path)) {
+      staleProcessed += 1;
+      if (staleProcessed % 50 === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      if (params.activePaths.has(stale.path)) {
         continue;
       }
-      this.db.prepare(`DELETE FROM files WHERE path = ? AND source = ?`).run(stale.path, "memory");
+      params.db
+        .prepare(`DELETE FROM files WHERE path = ? AND source = ?`)
+        .run(stale.path, "memory");
       try {
-        this.db
+        params.db
           .prepare(
             `DELETE FROM ${VECTOR_TABLE} WHERE id IN (SELECT id FROM chunks WHERE path = ? AND source = ?)`,
           )
           .run(stale.path, "memory");
       } catch {}
-      this.db.prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`).run(stale.path, "memory");
+      params.db
+        .prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`)
+        .run(stale.path, "memory");
       if (this.fts.enabled && this.fts.available) {
         try {
-          this.db
+          params.db
             .prepare(`DELETE FROM ${FTS_TABLE} WHERE path = ? AND source = ? AND model = ?`)
-            .run(stale.path, "memory", this.provider.model);
+            .run(stale.path, "memory", this.provider?.model ?? "");
         } catch {}
       }
     }
+
+    const cleanupMs = Date.now() - cleanupStart;
+    log.debug("memory sync: db target complete", {
+      db_target: params.target,
+      project_id: params.projectId,
+      indexed_files: params.files.length,
+      stale_rows_scanned: staleRows.length,
+      discover_ms: 0,
+      hash_check_ms: hashCheckMs,
+      index_ms: indexMs,
+      cleanup_ms: cleanupMs,
+      total_ms: Date.now() - syncStart,
+      vector_enabled: params.vectorEnabled,
+    });
   }
 
   private async syncSessionFiles(params: {
     needsFullReindex: boolean;
     progress?: MemorySyncProgressState;
   }) {
+    const startedAt = Date.now();
+    let hashCheckMs = 0;
+    let indexMs = 0;
+
     // FTS-only mode: skip embedding sync (no provider)
     if (!this.provider) {
       log.debug("Skipping session file sync in FTS-only mode (no embedding provider)");
@@ -737,7 +1032,15 @@ export abstract class MemoryManagerSyncOps {
       });
     }
 
+    const cachedRows = this.db
+      .prepare(`SELECT path, hash, mtime, size FROM files WHERE source = ?`)
+      .all("sessions") as Array<{ path: string; hash: string; mtime: number; size: number }>;
+    const cachedByPath = new Map(cachedRows.map((row) => [row.path, row]));
+
     const tasks = files.map((absPath) => async () => {
+      const relPath = sessionPathForFile(absPath);
+      const cached = cachedByPath.get(relPath);
+
       if (!indexAll && !this.sessionsDirtyFiles.has(absPath)) {
         if (params.progress) {
           params.progress.completed += 1;
@@ -748,7 +1051,42 @@ export abstract class MemoryManagerSyncOps {
         }
         return;
       }
+
+      if (!params.needsFullReindex) {
+        const statStart = Date.now();
+        try {
+          const stat = await fs.stat(absPath);
+          if (cached && cached.mtime === stat.mtimeMs && cached.size === stat.size) {
+            this.resetSessionDelta(absPath, stat.size);
+            if (params.progress) {
+              params.progress.completed += 1;
+              params.progress.report({
+                completed: params.progress.completed,
+                total: params.progress.total,
+              });
+            }
+            return;
+          }
+        } catch (err) {
+          if (isFileMissingError(err)) {
+            if (params.progress) {
+              params.progress.completed += 1;
+              params.progress.report({
+                completed: params.progress.completed,
+                total: params.progress.total,
+              });
+            }
+            return;
+          }
+          throw err;
+        } finally {
+          hashCheckMs += Date.now() - statStart;
+        }
+      }
+
+      const buildStart = Date.now();
       const entry = await buildSessionEntry(absPath);
+      hashCheckMs += Date.now() - buildStart;
       if (!entry) {
         if (params.progress) {
           params.progress.completed += 1;
@@ -759,10 +1097,8 @@ export abstract class MemoryManagerSyncOps {
         }
         return;
       }
-      const record = this.db
-        .prepare(`SELECT hash FROM files WHERE path = ? AND source = ?`)
-        .get(entry.path, "sessions") as { hash: string } | undefined;
-      if (!params.needsFullReindex && record?.hash === entry.hash) {
+
+      if (!params.needsFullReindex && cached?.hash === entry.hash) {
         if (params.progress) {
           params.progress.completed += 1;
           params.progress.report({
@@ -773,7 +1109,12 @@ export abstract class MemoryManagerSyncOps {
         this.resetSessionDelta(absPath, entry.size);
         return;
       }
-      await this.indexFile(entry, { source: "sessions", content: entry.content });
+
+      const indexStart = Date.now();
+      await this.indexFileToDb(entry, { source: "sessions", content: entry.content }, this.db, {
+        vectorEnabled: true,
+      });
+      indexMs += Date.now() - indexStart;
       this.resetSessionDelta(absPath, entry.size);
       if (params.progress) {
         params.progress.completed += 1;
@@ -785,10 +1126,16 @@ export abstract class MemoryManagerSyncOps {
     });
     await runWithConcurrency(tasks, this.getIndexConcurrency());
 
+    const cleanupStart = Date.now();
     const staleRows = this.db
       .prepare(`SELECT path FROM files WHERE source = ?`)
       .all("sessions") as Array<{ path: string }>;
+    let staleProcessed = 0;
     for (const stale of staleRows) {
+      staleProcessed += 1;
+      if (staleProcessed % 50 === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
       if (activePaths.has(stale.path)) {
         continue;
       }
@@ -813,6 +1160,16 @@ export abstract class MemoryManagerSyncOps {
         } catch {}
       }
     }
+
+    this.logPerf("syncSessionFiles", {
+      files: files.length,
+      dirty_files: this.sessionsDirtyFiles.size,
+      index_all: indexAll,
+      hash_check_ms: hashCheckMs,
+      index_ms: indexMs,
+      cleanup_ms: Date.now() - cleanupStart,
+      total_ms: Date.now() - startedAt,
+    });
   }
 
   private createSyncProgress(
@@ -845,6 +1202,11 @@ export abstract class MemoryManagerSyncOps {
     force?: boolean;
     progress?: (update: MemorySyncProgressUpdate) => void;
   }) {
+    const startedAt = Date.now();
+    let vectorReady = false;
+    let needsFullReindex = false;
+    let shouldSyncMemory = false;
+    let shouldSyncSessions = false;
     const progress = params?.progress ? this.createSyncProgress(params.progress) : undefined;
     if (progress) {
       progress.report({
@@ -853,10 +1215,10 @@ export abstract class MemoryManagerSyncOps {
         label: "Loading vector extension…",
       });
     }
-    const vectorReady = await this.ensureVectorReady();
+    vectorReady = await this.ensureVectorReady();
     const meta = this.readMeta();
     const configuredSources = this.resolveConfiguredSourcesForMeta();
-    const needsFullReindex =
+    needsFullReindex =
       params?.force ||
       !meta ||
       (this.provider && meta.model !== this.provider.model) ||
@@ -887,9 +1249,9 @@ export abstract class MemoryManagerSyncOps {
         return;
       }
 
-      const shouldSyncMemory =
+      shouldSyncMemory =
         this.sources.has("memory") && (params?.force || needsFullReindex || this.dirty);
-      const shouldSyncSessions = this.shouldSyncSessions(params, needsFullReindex);
+      shouldSyncSessions = this.shouldSyncSessions(params, needsFullReindex);
 
       if (shouldSyncMemory) {
         await this.syncMemoryFiles({ needsFullReindex, progress: progress ?? undefined });
@@ -918,6 +1280,16 @@ export abstract class MemoryManagerSyncOps {
         return;
       }
       throw err;
+    } finally {
+      this.logPerf("runSync", {
+        reason: params?.reason,
+        force: Boolean(params?.force),
+        vector_ready: vectorReady,
+        needs_full_reindex: needsFullReindex,
+        sync_memory: shouldSyncMemory,
+        sync_sessions: shouldSyncSessions,
+        total_ms: Date.now() - startedAt,
+      });
     }
   }
 
@@ -998,7 +1370,8 @@ export abstract class MemoryManagerSyncOps {
     force?: boolean;
     progress?: MemorySyncProgressState;
   }): Promise<void> {
-    const dbPath = resolveUserPath(this.settings.store.path);
+    const startedAt = Date.now();
+    const dbPath = resolveUserPath(this.settings.store.corePath || this.settings.store.path);
     const tempDbPath = `${dbPath}.tmp-${randomUUID()}`;
     const tempDb = this.openDatabaseAtPath(tempDbPath);
 
@@ -1045,10 +1418,21 @@ export abstract class MemoryManagerSyncOps {
         { reason: params.reason, force: params.force },
         true,
       );
+      const publishStart = Date.now();
 
+      // Two-stage reindex: core memory is published first so the agent has
+      // continuity/recall while the (potentially large) project corpus indexes
+      // in stage 2.  If stage 2 fails, the catch block restores the original
+      // DB and sets this.dirty = true, so the next sync cycle will retry a
+      // full reindex rather than leaving a partial project index live.
+      //
+      // Stage 1: build and publish core continuity memory first.
       if (shouldSyncMemory) {
-        await this.syncMemoryFiles({ needsFullReindex: true, progress: params.progress });
-        this.dirty = false;
+        await this.syncMemoryFiles({
+          needsFullReindex: true,
+          progress: params.progress,
+          scope: "core-only",
+        });
       }
 
       if (shouldSyncSessions) {
@@ -1092,6 +1476,22 @@ export abstract class MemoryManagerSyncOps {
       this.vector.loadError = undefined;
       this.ensureSchema();
       this.vector.dims = nextMeta?.vectorDims;
+
+      this.logPerf("runSafeReindex_corePublish", {
+        reason: params.reason,
+        force: Boolean(params.force),
+        total_ms: Date.now() - publishStart,
+      });
+
+      // Stage 2: continue project corpus indexing without blocking core publication.
+      if (shouldSyncMemory) {
+        await this.syncMemoryFiles({
+          needsFullReindex: true,
+          progress: params.progress,
+          scope: "projects-only",
+        });
+      }
+      this.dirty = false;
     } catch (err) {
       try {
         this.db.close();
@@ -1099,6 +1499,12 @@ export abstract class MemoryManagerSyncOps {
       await this.removeIndexFiles(tempDbPath);
       restoreOriginalState();
       throw err;
+    } finally {
+      this.logPerf("runSafeReindex", {
+        reason: params.reason,
+        force: Boolean(params.force),
+        total_ms: Date.now() - startedAt,
+      });
     }
   }
 
@@ -1107,6 +1513,7 @@ export abstract class MemoryManagerSyncOps {
     force?: boolean;
     progress?: MemorySyncProgressState;
   }): Promise<void> {
+    const startedAt = Date.now();
     // Perf: for test runs, skip atomic temp-db swapping. The index is isolated
     // under the per-test HOME anyway, and this cuts substantial fs+sqlite churn.
     this.resetIndex();
@@ -1146,6 +1553,12 @@ export abstract class MemoryManagerSyncOps {
 
     this.writeMeta(nextMeta);
     this.pruneEmbeddingCacheIfNeeded?.();
+
+    this.logPerf("runUnsafeReindex", {
+      reason: params.reason,
+      force: Boolean(params.force),
+      total_ms: Date.now() - startedAt,
+    });
   }
 
   private resetIndex() {

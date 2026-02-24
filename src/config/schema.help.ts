@@ -725,6 +725,18 @@ export const FIELD_HELP: Record<string, string> = {
     "Maximum number of memory hits returned from search before downstream reranking and prompt injection. Raise for broader recall, or lower for tighter prompts and faster responses.",
   "agents.defaults.memorySearch.query.minScore":
     "Minimum relevance score threshold for including memory results in final recall output. Increase to reduce weak/noisy matches, or lower when you need more permissive retrieval.",
+  "agents.defaults.memorySearch.query.routing.onSearchSyncSkipFileThreshold":
+    "Skip on-search sync trigger when indexed file count exceeds this threshold (default: 20000).",
+  "agents.defaults.memorySearch.query.routing.keywordOnlyLargeCorpusFileThreshold":
+    "Treat corpus as large at this indexed-file threshold for keyword-only fast path (default: 30000).",
+  "agents.defaults.memorySearch.query.routing.keywordOnlyMinScore":
+    "Minimum keyword score to allow keyword-only fast path (default: 0.55).",
+  "agents.defaults.memorySearch.query.routing.keywordOnlyMinResults":
+    "Minimum keyword result count to allow keyword-only fast path (default: 3).",
+  "agents.defaults.memorySearch.query.routing.projectRouteMinScore":
+    "Minimum route token score before applying project route narrowing (default: 1).",
+  "agents.defaults.memorySearch.query.routing.foregroundVectorEnabled":
+    "Enable foreground vector enrichment on request path (default: false).",
   "agents.defaults.memorySearch.query.hybrid.enabled":
     "Combines BM25 keyword matching with vector similarity for better recall on mixed exact + semantic queries. Keep enabled unless you are isolating ranking behavior for troubleshooting.",
   "agents.defaults.memorySearch.query.hybrid.vectorWeight":
