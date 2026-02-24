@@ -994,6 +994,10 @@ export function resetSubagentRegistryForTests(opts?: { persist?: boolean }) {
   subagentRuns.clear();
   resumedRuns.clear();
   endedHookInFlightRunIds.clear();
+  for (const timer of pendingCleanupTimers.values()) {
+    clearTimeout(timer);
+  }
+  pendingCleanupTimers.clear();
   resetAnnounceQueuesForTests();
   stopSweeper();
   restoreAttempted = false;
