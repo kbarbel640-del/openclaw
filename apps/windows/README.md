@@ -145,6 +145,7 @@ Node resolves gateway connection values in this order:
 ```json
 {
   "gateway": {
+    "host": "127.0.0.1",
     "port": 18789,
     "auth": {
       "token": "REPLACE_WITH_REAL_TOKEN"
@@ -200,7 +201,8 @@ Use Gateway-side command policy to explicitly allow only the node commands you w
 
 ### Notes on config fields
 
-- `gateway.port`: local WebSocket port used by node (`ws://127.0.0.1:<port>/`)
+- `gateway.host`: gateway host/IP used by node (default `127.0.0.1`)
+- `gateway.port`: gateway WebSocket port used by node (`ws://<host>:<port>/`)
 - `gateway.auth.token`: shared auth token for gateway connect
 - `gateway.nodes.allowCommands`: explicit list of node command names the gateway will permit
 - `gateway.nodes.denyCommands`: deny patterns for commands you want blocked even if broadly allowed
@@ -227,7 +229,7 @@ dotnet build OpenClaw.Node/OpenClaw.Node.csproj -p:Platform=x64
 
 ```bash
 cd <repo-root>/apps/windows/OpenClaw.Node
-dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token <TOKEN>
+dotnet run -p:Platform=x64 -- --gateway-url ws://192.168.1.50:18789 --gateway-token <TOKEN>
 ```
 
 ### Tray/headless behavior
@@ -240,7 +242,7 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 
 ## 6) Initial setup and pairing
 
-1. Ensure gateway is running and reachable on localhost.
+1. Ensure gateway is running and reachable on the configured `gateway.host` IP/name (default is `127.0.0.1`).
 2. Ensure token is available via CLI/env/config.
 3. Start node (or watchdog).
 4. Confirm node appears connected in OpenClaw node status.
@@ -259,7 +261,7 @@ dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token
 ### Example A — run node with explicit token
 
 ```bash
-dotnet run -p:Platform=x64 -- --gateway-url ws://127.0.0.1:18789 --gateway-token <TOKEN>
+dotnet run -p:Platform=x64 -- --gateway-url ws://192.168.1.50:18789 --gateway-token <TOKEN>
 ```
 
 ### Example B — run with config fallback only
@@ -418,7 +420,7 @@ apps/windows/
 
 - verify gateway service status
 - verify local port and URL
-- confirm no firewall/network policy blocks localhost websocket
+- confirm no firewall/network policy blocks the configured gateway host/IP websocket
 
 ---
 

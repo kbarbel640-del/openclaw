@@ -327,7 +327,7 @@ namespace OpenClaw.Node
                 if (!File.Exists(configPath))
                 {
                     File.WriteAllText(configPath,
-                        "{\n  \"gateway\": {\n    \"port\": 18789,\n    \"auth\": {\n      \"token\": \"\"\n    }\n  }\n}\n");
+                        "{\n  \"gateway\": {\n    \"host\": \"127.0.0.1\",\n    \"port\": 18789,\n    \"auth\": {\n      \"token\": \"\"\n    }\n  }\n}\n");
                 }
 
                 Process.Start(new ProcessStartInfo
@@ -478,20 +478,49 @@ namespace OpenClaw.Node
             error = null;
 
             if (!TryReadGatewaySection(out var gateway, out error)) return null;
+            return BuildGatewayUrlFromGatewaySection(gateway, out error);
+        }
 
-            if (!gateway.TryGetProperty("port", out var portEl))
+        internal static string? BuildGatewayUrlFromGatewaySection(JsonElement gateway, out string? error)
+        {
+            error = null;
+
+            var host = "127.0.0.1";
+            if (gateway.TryGetProperty("host", out var hostEl))
             {
-                return "ws://127.0.0.1:18789";
+                if (hostEl.ValueKind != JsonValueKind.String)
+                {
+                    error = "gateway.host must be a string";
+                    return null;
+                }
+
+                var configuredHost = hostEl.GetString();
+                if (string.IsNullOrWhiteSpace(configuredHost))
+                {
+                    error = "gateway.host must not be empty";
+                    return null;
+                }
+
+                host = configuredHost.Trim();
             }
 
-            if (portEl.ValueKind != JsonValueKind.Number)
+            var port = 18789;
+            if (gateway.TryGetProperty("port", out var portEl))
             {
-                error = "gateway.port must be numeric";
-                return null;
+                if (portEl.ValueKind != JsonValueKind.Number)
+                {
+                    error = "gateway.port must be numeric";
+                    return null;
+                }
+
+                port = portEl.GetInt32();
             }
 
-            var port = portEl.GetInt32();
-            return $"ws://127.0.0.1:{port}";
+            var normalizedHost = host.Contains(':') && !(host.StartsWith("[") && host.EndsWith("]"))
+                ? $"[{host}]"
+                : host;
+
+            return $"ws://{normalizedHost}:{port}";
         }
 
         private static string? TryReadGatewayTokenFromOpenClawConfig(out string? error)
