@@ -1,5 +1,7 @@
+import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
+import { resolveAgentModelFallbackValues } from "../../config/model-input.js";
 import { generateSecureToken } from "../../infra/secure-random.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import type { PluginHookBeforeAgentStartResult } from "../../plugins/types.js";
@@ -11,6 +13,7 @@ import {
   markAuthProfileFailure,
   markAuthProfileGood,
   markAuthProfileUsed,
+  resolveProfilesUnavailableReason,
 } from "../auth-profiles.js";
 import {
   CONTEXT_WINDOW_HARD_MIN_TOKENS,
@@ -229,7 +232,7 @@ export async function runEmbeddedPiAgent(
       let modelId = (params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
       const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
       const fallbackConfigured =
-        (params.config?.agents?.defaults?.model?.fallbacks?.length ?? 0) > 0;
+        resolveAgentModelFallbackValues(params.config?.agents?.defaults?.model).length > 0;
       await ensureOpenClawModelsJson(params.config, agentDir);
 
       // Run before_model_resolve hooks early so plugins can override the
@@ -363,9 +366,18 @@ export async function runEmbeddedPiAgent(
       const resolveAuthProfileFailoverReason = (params: {
         allInCooldown: boolean;
         message: string;
+        profileIds?: Array<string | undefined>;
       }): FailoverReason => {
         if (params.allInCooldown) {
-          return "rate_limit";
+          const profileIds = (params.profileIds ?? profileCandidates).filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          );
+          return (
+            resolveProfilesUnavailableReason({
+              store: authStore,
+              profileIds,
+            }) ?? "rate_limit"
+          );
         }
         const classified = classifyFailoverReason(params.message);
         return classified ?? "auth";
@@ -384,6 +396,7 @@ export async function runEmbeddedPiAgent(
         const reason = resolveAuthProfileFailoverReason({
           allInCooldown: params.allInCooldown,
           message,
+          profileIds: profileCandidates,
         });
         if (fallbackConfigured) {
           throw new FailoverError(message, {
@@ -500,11 +513,13 @@ export async function runEmbeddedPiAgent(
       let lastRunPromptUsage: ReturnType<typeof normalizeUsage> | undefined;
       let autoCompactionCount = 0;
       let runLoopIterations = 0;
-      const maybeMarkAuthProfileFailure = async (params: {
+      const maybeMarkAuthProfileFailure = async (failure: {
         profileId?: string;
         reason?: Parameters<typeof markAuthProfileFailure>[0]["reason"] | null;
+        config?: RunEmbeddedPiAgentParams["config"];
+        agentDir?: RunEmbeddedPiAgentParams["agentDir"];
       }) => {
-        const { profileId, reason } = params;
+        const { profileId, reason } = failure;
         if (!profileId || !reason || reason === "timeout") {
           return;
         }
@@ -513,7 +528,7 @@ export async function runEmbeddedPiAgent(
           profileId,
           reason,
           cfg: params.config,
-          agentDir: params.agentDir,
+          agentDir,
         });
       };
       try {
@@ -569,6 +584,7 @@ export async function runEmbeddedPiAgent(
             senderIsOwner: params.senderIsOwner,
             currentChannelId: params.currentChannelId,
             currentThreadTs: params.currentThreadTs,
+            currentMessageId: params.currentMessageId,
             replyToMode: params.replyToMode,
             hasRepliedRef: params.hasRepliedRef,
             sessionFile: params.sessionFile,
@@ -1065,6 +1081,7 @@ export async function runEmbeddedPiAgent(
             toolResultFormat: resolvedToolResultFormat,
             suppressToolErrorWarnings: params.suppressToolErrorWarnings,
             inlineToolResultsAllowed: false,
+            didSendViaMessagingTool: attempt.didSendViaMessagingTool,
           });
 
           // Timeout aborts can leave the run without any assistant payloads.
@@ -1122,7 +1139,7 @@ export async function runEmbeddedPiAgent(
               pendingToolCalls: attempt.clientToolCall
                 ? [
                     {
-                      id: `call_${Date.now()}`,
+                      id: randomBytes(5).toString("hex").slice(0, 9),
                       name: attempt.clientToolCall.name,
                       arguments: JSON.stringify(attempt.clientToolCall.params),
                     },

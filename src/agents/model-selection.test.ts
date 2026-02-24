@@ -83,6 +83,45 @@ describe("model-selection", () => {
       expect(parseModelRef("  ", "anthropic")).toBeNull();
     });
 
+    it("should preserve openrouter/ prefix for native models", () => {
+      expect(parseModelRef("openrouter/aurora-alpha", "openai")).toEqual({
+        provider: "openrouter",
+        model: "openrouter/aurora-alpha",
+      });
+    });
+
+    it("should pass through openrouter external provider models as-is", () => {
+      expect(parseModelRef("openrouter/anthropic/claude-sonnet-4-5", "openai")).toEqual({
+        provider: "openrouter",
+        model: "anthropic/claude-sonnet-4-5",
+      });
+    });
+
+    it("normalizes Vercel Claude shorthand to anthropic-prefixed model ids", () => {
+      expect(parseModelRef("vercel-ai-gateway/claude-opus-4.6", "openai")).toEqual({
+        provider: "vercel-ai-gateway",
+        model: "anthropic/claude-opus-4.6",
+      });
+      expect(parseModelRef("vercel-ai-gateway/opus-4.6", "openai")).toEqual({
+        provider: "vercel-ai-gateway",
+        model: "anthropic/claude-opus-4-6",
+      });
+    });
+
+    it("keeps already-prefixed Vercel Anthropic models unchanged", () => {
+      expect(parseModelRef("vercel-ai-gateway/anthropic/claude-opus-4.6", "openai")).toEqual({
+        provider: "vercel-ai-gateway",
+        model: "anthropic/claude-opus-4.6",
+      });
+    });
+
+    it("passes through non-Claude Vercel model ids unchanged", () => {
+      expect(parseModelRef("vercel-ai-gateway/openai/gpt-5.2", "openai")).toEqual({
+        provider: "vercel-ai-gateway",
+        model: "openai/gpt-5.2",
+      });
+    });
+
     it("should handle invalid slash usage", () => {
       expect(parseModelRef("/", "anthropic")).toBeNull();
       expect(parseModelRef("anthropic/", "anthropic")).toBeNull();

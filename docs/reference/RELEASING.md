@@ -23,7 +23,7 @@ When the operator says “release”, immediately do this preflight (no extra qu
 
 - [ ] Bump `package.json` version (e.g., `2026.1.29`).
 - [ ] Run `pnpm plugins:sync` to align extension package versions + changelogs.
-- [ ] Update CLI/version strings: [`src/cli/program.ts`](https://github.com/openclaw/openclaw/blob/main/src/cli/program.ts) and the Baileys user agent in [`src/provider-web.ts`](https://github.com/openclaw/openclaw/blob/main/src/provider-web.ts).
+- [ ] Update CLI/version strings in [`src/version.ts`](https://github.com/openclaw/openclaw/blob/main/src/version.ts) and the Baileys user agent in [`src/web/session.ts`](https://github.com/openclaw/openclaw/blob/main/src/web/session.ts).
 - [ ] Confirm package metadata (name, description, repository, keywords, license) and `bin` map points to [`openclaw.mjs`](https://github.com/openclaw/openclaw/blob/main/openclaw.mjs) for `openclaw`.
 - [ ] If dependencies changed, run `pnpm install` so `pnpm-lock.yaml` is current.
 
@@ -38,6 +38,7 @@ When the operator says “release”, immediately do this preflight (no extra qu
 3. **Changelog & docs**
 
 - [ ] Update `CHANGELOG.md` with user-facing highlights (create the file if missing); keep entries strictly descending by version.
+  - Tip: use `pnpm changelog:add -- --section fixes --entry "Your entry. (#12345) Thanks @contrib."` (or `--section changes`) to append deterministically under the current Unreleased block.
 - [ ] Ensure README examples/flags match current CLI behavior (notably new commands or options).
 
 4. **Validation**
