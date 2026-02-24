@@ -48,6 +48,7 @@ import { isBlockedObjectKey } from "./prototype-keys.js";
 import { applyConfigOverrides } from "./runtime-overrides.js";
 import type { OpenClawConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
 import {
+  validateConfigObject,
   validateConfigObjectRawWithPlugins,
   validateConfigObjectWithPlugins,
 } from "./validation.js";
@@ -692,6 +693,34 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
   }
 
   /**
+   * Extract top-level key names from a validation issue.
+   * For nested paths like "gateway.port", returns ["gateway"].
+   * For root-level unrecognized key issues (empty path, message contains key
+   * names), extracts the key names from the message.
+   */
+  function issueToTopKeys(issue: { path: string; message: string }): string[] {
+    if (issue.path) {
+      const key = issuePathToTopKey(issue.path);
+      return key ? [key] : [];
+    }
+    // Zod .strict() produces empty path for unrecognized root-level keys.
+    // Message formats vary by Zod version:
+    //   v3: 'Unrecognized key(s) in object: \'key1\', \'key2\''
+    //   v4: 'Unrecognized key: "key1"'
+    const match = issue.message.match(
+      /Unrecognized key(?:\(s\) in object)?:\s*(.+)/i,
+    );
+    if (match) {
+      const keys: string[] = [];
+      for (const m of match[1].matchAll(/['"]([^'"]+)['"]/g)) {
+        keys.push(m[1]);
+      }
+      return keys;
+    }
+    return [];
+  }
+
+  /**
    * Load a valid backup config (resolved object, not file-on-disk).
    * Returns the first valid backup's resolved config, or null if none found.
    */
@@ -703,24 +732,21 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     }
     for (const candidate of candidates) {
       try {
-        if (!deps.fs.existsSync(candidate)) {
-          continue;
-        }
+        if (!deps.fs.existsSync(candidate)) continue;
         const raw = deps.fs.readFileSync(candidate, "utf-8");
         const parsed = deps.json5.parse(raw);
         const { resolvedConfigRaw: resolvedConfig } = resolveConfigForRead(
           resolveConfigIncludesForRead(parsed, candidate, deps),
           deps.env,
         );
-        if (typeof resolvedConfig !== "object" || resolvedConfig === null) {
-          continue;
-        }
-        const validated = validateConfigObjectWithPlugins(resolvedConfig);
-        if (!validated.ok) {
-          continue;
-        }
+        if (typeof resolvedConfig !== "object" || resolvedConfig === null) continue;
+        // Use base validation (without plugin manifests) for backups.
+        // Plugin-level diagnostics depend on runtime state (installed plugins,
+        // workspace paths) and would incorrectly reject perfectly valid backups.
+        const validated = validateConfigObject(resolvedConfig);
+        if (!validated.ok) continue;
         return resolvedConfig as Record<string, unknown>;
-      } catch {
+      } catch (err) {
         continue;
       }
     }
@@ -739,22 +765,17 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     issues: Array<{ path: string; message: string }>,
   ): OpenClawConfig | null {
     const backupConfig = loadFirstValidBackupConfig();
-    if (!backupConfig) {
-      return null;
-    }
+    if (!backupConfig) return null;
 
     // Collect unique top-level keys that have errors.
     const brokenKeys = new Set<string>();
     for (const issue of issues) {
-      const key = issuePathToTopKey(issue.path);
-      if (key) {
+      for (const key of issueToTopKeys(issue)) {
         brokenKeys.add(key);
       }
     }
 
-    if (brokenKeys.size === 0) {
-      return null;
-    }
+    if (brokenKeys.size === 0) return null;
 
     // Patch: replace only the broken top-level keys with values from backup.
     const patched = { ...brokenConfig };
@@ -770,8 +791,9 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
     }
 
-    // Re-validate the patched config.
-    const validated = validateConfigObjectWithPlugins(patched);
+    // Re-validate the patched config (base schema only, not plugins —
+    // plugin manifests depend on runtime state and should not block repair).
+    const validated = validateConfigObject(patched);
     if (!validated.ok) {
       // Surgical repair insufficient — fall back to full backup restore.
       try {
