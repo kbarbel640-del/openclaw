@@ -1,19 +1,11 @@
 /**
- * Moonshot (Kimi) Context Caching
- *
- * Implements lazy caching for Moonshot/Kimi models using the /v1/caching API.
- * Caches system prompts and tool definitions to reduce token usage.
- *
+ * Moonshot (Kimi) Context Caching via /v1/caching API.
  * @see https://github.com/Elarwei001/research_openclaw/blob/main/proposals/kimi-context-cache.md
  */
 
 import { createHash } from "crypto";
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import { log } from "./pi-embedded-runner/logger.js";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export type MoonshotCacheConfig = {
   enabled: boolean;
@@ -40,79 +32,39 @@ type CacheCreateResponse = {
   tokens: number;
 };
 
-type Message = {
-  role: string;
-  content: unknown;
-};
+type Message = { role: string; content: unknown };
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
-// Maximum number of cached sessions to prevent memory leaks
 const MAX_CACHE_SIZE = 1000;
-
-// Cache store: sessionKey -> CacheEntry
 const cacheStore = new Map<string, CacheEntry>();
-
-// Inflight cache creation promises to avoid duplicate creation
 const inflightCreation = new Map<string, Promise<string>>();
 
-/**
- * Evict oldest entries if cache exceeds max size.
- * Uses simple FIFO eviction (Map maintains insertion order).
- */
 function evictIfNeeded(): void {
   while (cacheStore.size > MAX_CACHE_SIZE) {
-    const oldestKey = cacheStore.keys().next().value;
-    if (oldestKey) {
-      cacheStore.delete(oldestKey);
-      log.debug(`[moonshot-cache] Evicted oldest cache entry: ${oldestKey}`);
+    const key = cacheStore.keys().next().value;
+    if (key) {
+      cacheStore.delete(key);
     }
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function hashContent(system: string, tools: unknown[] | undefined): string {
-  const content = JSON.stringify({ system, tools: tools ?? [] });
-  return createHash("sha256").update(content).digest("hex").slice(0, 16);
+  return createHash("sha256")
+    .update(JSON.stringify({ system, tools: tools ?? [] }))
+    .digest("hex")
+    .slice(0, 16);
 }
 
-/**
- * Map model ID to caching-compatible model name.
- * The caching API uses base model names without context-length suffixes.
- */
 function toCacheModelName(modelId: string): string {
-  // Strip provider prefix if present (e.g., "moonshot/moonshot-v1-32k" -> "moonshot-v1-32k")
   const name = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
-
-  // Map known model families to their caching-compatible base names
-  if (name.startsWith("moonshot-v1")) {
+  if (name.startsWith("moonshot-v1") || name.startsWith("kimi-k")) {
     return "moonshot-v1";
   }
-  if (name.startsWith("kimi-k2") || name.startsWith("kimi-k1")) {
-    // K2/K1 models may use different cache model names - needs verification
-    // For now, try the model name as-is, fall back to moonshot-v1
-    return "moonshot-v1";
-  }
-
-  // Default: use the name as-is and let the API validate
   return name;
 }
 
-function shouldInvalidate(entry: CacheEntry | undefined, currentHash: string): boolean {
-  if (!entry) {
-    return true;
-  }
-  return entry.contentHash !== currentHash;
+function shouldInvalidate(entry: CacheEntry | undefined, hash: string): boolean {
+  return !entry || entry.contentHash !== hash;
 }
-
-// ---------------------------------------------------------------------------
-// API calls
-// ---------------------------------------------------------------------------
 
 async function createCache(params: {
   apiKey: string;
@@ -174,14 +126,7 @@ async function deleteCache(params: {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Main API
-// ---------------------------------------------------------------------------
-
-/**
- * Get or create a cache for the given session.
- * Uses inflight promise coalescing to avoid duplicate creation.
- */
+/** Get or create a cache. Uses promise coalescing to avoid duplicate creation. */
 export async function getOrCreateCache(params: {
   sessionKey: string;
   apiKey: string;
@@ -242,30 +187,12 @@ export async function getOrCreateCache(params: {
   return creationPromise;
 }
 
-/**
- * Inject cache reference into messages array.
- * Replaces system message with cache role reference.
- */
+/** Inject cache role, replacing system message with cache reference. */
 export function injectCacheRole(messages: Message[], cacheId: string, resetTtl: number): Message[] {
-  // Filter out system messages (they're in the cache)
-  const nonSystemMessages = messages.filter((m) => m.role !== "system");
-
-  // Prepend cache reference
   return [
-    {
-      role: "cache",
-      content: `cache_id=${cacheId};reset_ttl=${resetTtl}`,
-    },
-    ...nonSystemMessages,
+    { role: "cache", content: `cache_id=${cacheId};reset_ttl=${resetTtl}` },
+    ...messages.filter((m) => m.role !== "system"),
   ];
-}
-
-/**
- * Clear cache for a specific session.
- */
-export function clearSessionCache(sessionKey: string): void {
-  cacheStore.delete(sessionKey);
-  log.debug(`[moonshot-cache] Cleared cache for session ${sessionKey}`);
 }
 
 /**
@@ -280,30 +207,24 @@ export function clearAllCaches(): void {
 /**
  * Check if caching is enabled for a model based on config.
  */
+/** Check if caching is enabled for Moonshot provider. */
 export function isMoonshotCacheEnabled(
   provider: string,
   config: MoonshotCacheConfig | undefined,
 ): boolean {
-  if (provider !== "moonshot") {
-    return false;
-  }
-  return config?.enabled === true;
+  return provider === "moonshot" && config?.enabled === true;
 }
 
-/**
- * Extract system message content from messages array.
- */
 function extractSystemMessage(messages: Message[]): string | undefined {
-  const systemMsg = messages.find((m) => m.role === "system");
-  if (!systemMsg) {
+  const msg = messages.find((m) => m.role === "system");
+  if (!msg) {
     return undefined;
   }
-  if (typeof systemMsg.content === "string") {
-    return systemMsg.content;
+  if (typeof msg.content === "string") {
+    return msg.content;
   }
-  // Handle array content (like Anthropic format)
-  if (Array.isArray(systemMsg.content)) {
-    return systemMsg.content
+  if (Array.isArray(msg.content)) {
+    return msg.content
       .filter((c): c is { type: string; text: string } => c?.type === "text")
       .map((c) => c.text)
       .join("\n");
@@ -311,50 +232,28 @@ function extractSystemMessage(messages: Message[]): string | undefined {
   return undefined;
 }
 
-// ---------------------------------------------------------------------------
-// StreamFn Wrapper
-// ---------------------------------------------------------------------------
-
-// Default base URLs for Moonshot
 const MOONSHOT_BASE_URLS: Record<string, string> = {
   moonshot: "https://api.moonshot.ai/v1",
   "moonshot-cn": "https://api.moonshot.cn/v1",
 };
 
-/**
- * Resolve Moonshot cache configuration from extraParams.
- */
+/** Resolve cache config from extraParams. */
 export function resolveMoonshotCacheConfig(
   extraParams: Record<string, unknown> | undefined,
 ): MoonshotCacheConfig | undefined {
-  const cacheConfig = extraParams?.contextCache;
-  if (!cacheConfig || typeof cacheConfig !== "object") {
+  const cfg = extraParams?.contextCache;
+  if (!cfg || typeof cfg !== "object" || (cfg as Record<string, unknown>).enabled !== true) {
     return undefined;
   }
-  const cfg = cacheConfig as Record<string, unknown>;
-  if (cfg.enabled !== true) {
-    return undefined;
-  }
+  const c = cfg as Record<string, unknown>;
   return {
     enabled: true,
-    ttl: typeof cfg.ttl === "number" ? cfg.ttl : 3600,
-    resetTtl: typeof cfg.resetTtl === "number" ? cfg.resetTtl : undefined,
+    ttl: typeof c.ttl === "number" ? c.ttl : 3600,
+    resetTtl: typeof c.resetTtl === "number" ? c.resetTtl : undefined,
   };
 }
 
-/**
- * Create a streamFn wrapper that implements Moonshot context caching.
- *
- * This wrapper:
- * 1. Extracts system prompt and tools from the context
- * 2. Creates or retrieves a cache for them via /v1/caching API
- * 3. Injects `role: "cache"` with cache_id into the messages
- *
- * The cache is resolved BEFORE calling the underlying stream to avoid
- * race conditions with async onPayload callbacks.
- *
- * @see https://github.com/Elarwei001/research_openclaw/blob/main/proposals/kimi-context-cache.md
- */
+/** Create streamFn wrapper for Moonshot context caching. */
 export function createMoonshotCacheWrapper(
   baseStreamFn: StreamFn,
   config: MoonshotCacheConfig,
