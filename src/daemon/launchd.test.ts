@@ -6,6 +6,7 @@ import {
   parseLaunchctlPrint,
   repairLaunchAgentBootstrap,
   resolveLaunchAgentPlistPath,
+  stopLaunchAgent,
 } from "./launchd.js";
 
 const state = vi.hoisted(() => ({
@@ -251,5 +252,24 @@ describe("resolveLaunchAgentPlistPath", () => {
     },
   ])("$name", ({ env, expected }) => {
     expect(resolveLaunchAgentPlistPath(env)).toBe(expected);
+  });
+});
+
+describe("stopLaunchAgent", () => {
+  it("uses launchctl kill SIGTERM instead of bootout to preserve LaunchAgent registration", async () => {
+    const env: Record<string, string | undefined> = {
+      HOME: "/Users/test",
+      OPENCLAW_PROFILE: "default",
+    };
+    const stdout = new PassThrough();
+    await stopLaunchAgent({ env, stdout });
+
+    const domain = typeof process.getuid === "function" ? `gui/${process.getuid()}` : "gui/501";
+    const label = "ai.openclaw.gateway";
+    const serviceId = `${domain}/${label}`;
+
+    // Must use kill SIGTERM, never bootout
+    expect(state.launchctlCalls).toContainEqual(["kill", "SIGTERM", serviceId]);
+    expect(state.launchctlCalls.flat()).not.toContain("bootout");
   });
 });
