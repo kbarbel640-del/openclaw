@@ -237,7 +237,10 @@ describe("moonshot-cache", () => {
       );
 
       // Call the wrapper
-      const model = { provider: "moonshot", baseUrl: "https://api.moonshot.cn/v1" };
+      // Cast to satisfy StreamFn's Model type - only provider and baseUrl are used
+      const model = { provider: "moonshot", baseUrl: "https://api.moonshot.cn/v1" } as Parameters<
+        typeof wrapper
+      >[0];
       const context = {
         messages: [
           { role: "system", content: "You are helpful." },
@@ -278,7 +281,7 @@ describe("moonshot-cache", () => {
         "test-session",
       );
 
-      const model = { provider: "moonshot" };
+      const model = { provider: "moonshot" } as Parameters<typeof wrapper>[0];
       const context = {
         messages: [{ role: "system", content: "System" }],
       };
@@ -321,7 +324,9 @@ describe("moonshot-cache", () => {
       };
 
       // Should not throw
-      await wrapper({ provider: "moonshot" }, context, { apiKey: "sk-test" });
+      await wrapper({ provider: "moonshot" } as Parameters<typeof wrapper>[0], context, {
+        apiKey: "sk-test",
+      });
 
       // Should call underlying streamFn with original context (no cache injection)
       expect(mockStreamFn).toHaveBeenCalled();
