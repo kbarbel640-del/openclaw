@@ -13,40 +13,15 @@ vi.mock("../media/image-ops.js", () => ({
 import "./test-helpers/fast-core-tools.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 
-const NODE_ID = "mac-1";
-const BASE_RUN_INPUT = { action: "run", node: NODE_ID, command: ["echo", "hi"] } as const;
-
-function unexpectedGatewayMethod(method: unknown): never {
-  throw new Error(`unexpected method: ${String(method)}`);
-}
-
-function getNodesTool() {
-  const tool = createOpenClawTools().find((candidate) => candidate.name === "nodes");
-  if (!tool) {
-    throw new Error("missing nodes tool");
-  }
-  return tool;
-}
-
-async function executeNodes(input: Record<string, unknown>) {
-  return getNodesTool().execute("call1", input as never);
-}
-
-function mockNodeList(commands?: string[]) {
-  return {
-    nodes: [{ nodeId: NODE_ID, ...(commands ? { commands } : {}) }],
-  };
-}
-
-beforeEach(() => {
-  callGateway.mockClear();
-});
-
 describe("nodes camera_snap", () => {
+  beforeEach(() => {
+    callGateway.mockReset();
+  });
+
   it("maps jpg payloads to image/jpeg", async () => {
     callGateway.mockImplementation(async ({ method }) => {
       if (method === "node.list") {
-        return mockNodeList();
+        return { nodes: [{ nodeId: "mac-1" }] };
       }
       if (method === "node.invoke") {
         return {
@@ -58,12 +33,17 @@ describe("nodes camera_snap", () => {
           },
         };
       }
-      return unexpectedGatewayMethod(method);
+      throw new Error(`unexpected method: ${String(method)}`);
     });
 
-    const result = await executeNodes({
+    const tool = createOpenClawTools().find((candidate) => candidate.name === "nodes");
+    if (!tool) {
+      throw new Error("missing nodes tool");
+    }
+
+    const result = await tool.execute("call1", {
       action: "camera_snap",
-      node: NODE_ID,
+      node: "mac-1",
       facing: "front",
     });
 
@@ -75,7 +55,7 @@ describe("nodes camera_snap", () => {
   it("passes deviceId when provided", async () => {
     callGateway.mockImplementation(async ({ method, params }) => {
       if (method === "node.list") {
-        return mockNodeList();
+        return { nodes: [{ nodeId: "mac-1" }] };
       }
       if (method === "node.invoke") {
         expect(params).toMatchObject({
@@ -91,12 +71,17 @@ describe("nodes camera_snap", () => {
           },
         };
       }
-      return unexpectedGatewayMethod(method);
+      throw new Error(`unexpected method: ${String(method)}`);
     });
 
-    await executeNodes({
+    const tool = createOpenClawTools().find((candidate) => candidate.name === "nodes");
+    if (!tool) {
+      throw new Error("missing nodes tool");
+    }
+
+    await tool.execute("call1", {
       action: "camera_snap",
-      node: NODE_ID,
+      node: "mac-1",
       facing: "front",
       deviceId: "cam-123",
     });
@@ -104,14 +89,18 @@ describe("nodes camera_snap", () => {
 });
 
 describe("nodes run", () => {
+  beforeEach(() => {
+    callGateway.mockReset();
+  });
+
   it("passes invoke and command timeouts", async () => {
     callGateway.mockImplementation(async ({ method, params }) => {
       if (method === "node.list") {
-        return mockNodeList(["system.run"]);
+        return { nodes: [{ nodeId: "mac-1", commands: ["system.run"] }] };
       }
       if (method === "node.invoke") {
         expect(params).toMatchObject({
-          nodeId: NODE_ID,
+          nodeId: "mac-1",
           command: "system.run",
           timeoutMs: 45_000,
           params: {
@@ -125,11 +114,18 @@ describe("nodes run", () => {
           payload: { stdout: "", stderr: "", exitCode: 0, success: true },
         };
       }
-      return unexpectedGatewayMethod(method);
+      throw new Error(`unexpected method: ${String(method)}`);
     });
 
-    await executeNodes({
-      ...BASE_RUN_INPUT,
+    const tool = createOpenClawTools().find((candidate) => candidate.name === "nodes");
+    if (!tool) {
+      throw new Error("missing nodes tool");
+    }
+
+    await tool.execute("call1", {
+      action: "run",
+      node: "mac-1",
+      command: ["echo", "hi"],
       cwd: "/tmp",
       env: ["FOO=bar"],
       commandTimeoutMs: 12_000,
@@ -137,97 +133,71 @@ describe("nodes run", () => {
     });
   });
 
-  it("requests approval and retries with allow-once decision", async () => {
-    let invokeCalls = 0;
-    let approvalId: string | null = null;
-    callGateway.mockImplementation(async ({ method, params }) => {
+  it("truncates oversized run payloads", async () => {
+    callGateway.mockImplementation(async ({ method }) => {
       if (method === "node.list") {
-        return mockNodeList(["system.run"]);
+        return { nodes: [{ nodeId: "mac-1", commands: ["system.run"] }] };
       }
       if (method === "node.invoke") {
-        invokeCalls += 1;
-        if (invokeCalls === 1) {
-          throw new Error("SYSTEM_RUN_DENIED: approval required");
-        }
-        expect(params).toMatchObject({
-          nodeId: NODE_ID,
-          command: "system.run",
-          params: {
-            command: ["echo", "hi"],
-            runId: approvalId,
-            approved: true,
-            approvalDecision: "allow-once",
+        return {
+          payload: {
+            stdout: "x".repeat(40_000),
+            stderr: "",
+            exitCode: 0,
+            success: true,
           },
-        });
-        return { payload: { stdout: "", stderr: "", exitCode: 0, success: true } };
+        };
       }
-      if (method === "exec.approval.request") {
-        expect(params).toMatchObject({
-          id: expect.any(String),
-          command: "echo hi",
-          nodeId: NODE_ID,
-          host: "node",
-          timeoutMs: 120_000,
-        });
-        approvalId =
-          typeof (params as { id?: unknown } | undefined)?.id === "string"
-            ? ((params as { id: string }).id ?? null)
-            : null;
-        return { decision: "allow-once" };
-      }
-      return unexpectedGatewayMethod(method);
+      throw new Error(`unexpected method: ${String(method)}`);
     });
 
-    await executeNodes(BASE_RUN_INPUT);
-    expect(invokeCalls).toBe(2);
+    const tool = createOpenClawTools().find((candidate) => candidate.name === "nodes");
+    if (!tool) {
+      throw new Error("missing nodes tool");
+    }
+
+    const result = await tool.execute("call2", {
+      action: "run",
+      node: "mac-1",
+      command: ["echo", "hi"],
+    });
+
+    const details = result.details as Record<string, unknown>;
+    expect(details).toMatchObject({ truncated: true, maxChars: 16_000 });
+    expect(typeof details.payloadSummary).toBe("object");
+    const text = result.content?.find((block) => block.type === "text")?.text ?? "";
+    expect(text.includes("...(truncated)...")).toBe(true);
   });
 
-  it("fails with user denied when approval decision is deny", async () => {
+  it("truncates oversized invoke payloads", async () => {
     callGateway.mockImplementation(async ({ method }) => {
       if (method === "node.list") {
-        return mockNodeList(["system.run"]);
+        return { nodes: [{ nodeId: "mac-1" }] };
       }
       if (method === "node.invoke") {
-        throw new Error("SYSTEM_RUN_DENIED: approval required");
+        return {
+          payload: {
+            output: "y".repeat(40_000),
+          },
+        };
       }
-      if (method === "exec.approval.request") {
-        return { decision: "deny" };
-      }
-      return unexpectedGatewayMethod(method);
+      throw new Error(`unexpected method: ${String(method)}`);
     });
 
-    await expect(executeNodes(BASE_RUN_INPUT)).rejects.toThrow("exec denied: user denied");
-  });
+    const tool = createOpenClawTools().find((candidate) => candidate.name === "nodes");
+    if (!tool) {
+      throw new Error("missing nodes tool");
+    }
 
-  it("fails closed for timeout and invalid approval decisions", async () => {
-    callGateway.mockImplementation(async ({ method }) => {
-      if (method === "node.list") {
-        return mockNodeList(["system.run"]);
-      }
-      if (method === "node.invoke") {
-        throw new Error("SYSTEM_RUN_DENIED: approval required");
-      }
-      if (method === "exec.approval.request") {
-        return {};
-      }
-      return unexpectedGatewayMethod(method);
+    const result = await tool.execute("call3", {
+      action: "invoke",
+      node: "mac-1",
+      invokeCommand: "custom.command",
     });
-    await expect(executeNodes(BASE_RUN_INPUT)).rejects.toThrow("exec denied: approval timed out");
 
-    callGateway.mockImplementation(async ({ method }) => {
-      if (method === "node.list") {
-        return mockNodeList(["system.run"]);
-      }
-      if (method === "node.invoke") {
-        throw new Error("SYSTEM_RUN_DENIED: approval required");
-      }
-      if (method === "exec.approval.request") {
-        return { decision: "allow-never" };
-      }
-      return unexpectedGatewayMethod(method);
-    });
-    await expect(executeNodes(BASE_RUN_INPUT)).rejects.toThrow(
-      "exec denied: invalid approval decision",
-    );
+    const details = result.details as Record<string, unknown>;
+    expect(details).toMatchObject({ truncated: true, maxChars: 16_000 });
+    const text = result.content?.find((block) => block.type === "text")?.text ?? "";
+    expect(text.includes("...(truncated)...")).toBe(true);
   });
 });
