@@ -37,6 +37,7 @@ import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
 import type { SpawnSubagentMode } from "./subagent-spawn.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
 import { sanitizeTextContent, extractAssistantText } from "./tools/sessions-helpers.js";
+import { isAnnounceSkip } from "./tools/sessions-send-helpers.js";
 
 const FAST_TEST_MODE = process.env.OPENCLAW_TEST_FAST === "1";
 const FAST_TEST_RETRY_INTERVAL_MS = 8;
@@ -1141,6 +1142,11 @@ export async function runSubagentAnnounceFlow(params: {
     const subagentName = resolveAgentIdFromSessionKey(params.childSessionKey);
     const announceSessionId = childSessionId || "unknown";
     const findings = reply || "(no output)";
+
+    // If the sub-agent replied exactly ANNOUNCE_SKIP, skip completion delivery
+    // but still send the internal trigger message to the requester session.
+    const shouldSkipCompletionDelivery = isAnnounceSkip(reply);
+
     let completionMessage = "";
     let triggerMessage = "";
 
@@ -1264,7 +1270,8 @@ export async function runSubagentAnnounceFlow(params: {
       directOrigin,
       targetRequesterSessionKey,
       requesterIsSubagent,
-      expectsCompletionMessage: expectsCompletionMessage,
+      // If the sub-agent replied ANNOUNCE_SKIP, suppress completion delivery
+      expectsCompletionMessage: expectsCompletionMessage && !shouldSkipCompletionDelivery,
       bestEffortDeliver: params.bestEffortDeliver,
       completionRouteMode: completionResolution.routeMode,
       spawnMode: params.spawnMode,
