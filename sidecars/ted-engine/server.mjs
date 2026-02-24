@@ -7610,13 +7610,11 @@ async function _runDiscoveryPipelineInner(profileId, options = {}) {
     top_contacts: contactList,
     deal_candidates: dealCandidates,
     commitment_candidates: commitmentCandidates,
-    calendar_events_preview: calendarEvents
-      .slice(0, 10)
-      .map((e) => ({
-        subject: e.subject,
-        start: e.start,
-        attendee_count: e.attendees?.length || 0,
-      })),
+    calendar_events_preview: calendarEvents.slice(0, 10).map((e) => ({
+      subject: e.subject,
+      start: e.start,
+      attendee_count: e.attendees?.length || 0,
+    })),
     planner_tasks_preview: plannerTasks.slice(0, 10),
     todo_tasks_preview: todoTasks.slice(0, 10),
     generated_at: new Date().toISOString(),
@@ -8009,19 +8007,17 @@ async function listGraphMail(profileId, parsedUrl, res, route) {
         count: messages.length,
         at: new Date().toISOString(),
       });
-      const mailSummary = messages
-        .slice(0, 5)
-        .map((m) =>
-          normalizeMailEvent(
-            {
-              id: m.id,
-              subject: m.subject,
-              from: m.from?.address || m.from,
-              receivedDateTime: m.received_at,
-            },
-            "fetched",
-          ),
-        );
+      const mailSummary = messages.slice(0, 5).map((m) =>
+        normalizeMailEvent(
+          {
+            id: m.id,
+            subject: m.subject,
+            from: m.from?.address || m.from,
+            receivedDateTime: m.received_at,
+          },
+          "fetched",
+        ),
+      );
       appendEvent("mail.fetched", "/graph/mail/list", {
         profile_id: profileId,
         count: messages.length,
@@ -9003,14 +8999,12 @@ async function generateMorningBrief(_parsedUrl, res, route) {
       recommendations,
       recent_activity: recentAudit.slice(-20),
       // C9-011/C9-034: Real calendar + commitment data for LLM
-      meetings_today_summary: meetings_today
-        .slice(0, 10)
-        .map((m) => ({
-          title: m.title,
-          time: m.time,
-          attendee_count: m.attendee_count || 0,
-          profile_id: m.profile_id || null,
-        })),
+      meetings_today_summary: meetings_today.slice(0, 10).map((m) => ({
+        title: m.title,
+        time: m.time,
+        attendee_count: m.attendee_count || 0,
+        profile_id: m.profile_id || null,
+      })),
       calendar_source: calendarSource,
       commitments_active: activeCommitments080.length,
       clint_overdue: clintOverdue,
@@ -9137,14 +9131,12 @@ async function generateMorningBrief(_parsedUrl, res, route) {
     },
     facility_alerts_snapshot: {
       active_count: activeAlerts.length,
-      alerts: activeAlerts
-        .slice(0, 10)
-        .map((a) => ({
-          alert_id: a.alert_id,
-          facility: a.facility,
-          status: a.status,
-          severity: a.severity || "low",
-        })),
+      alerts: activeAlerts.slice(0, 10).map((a) => ({
+        alert_id: a.alert_id,
+        facility: a.facility,
+        status: a.status,
+        severity: a.severity || "low",
+      })),
     },
     operator_brief_sections: briefCfg?.daily_briefs?.work?.must_include || [],
     operator_timezone: operatorCfg?.operator?.timezone || "UTC",
@@ -14071,14 +14063,12 @@ async function generateImprovementProposal(req, res, route) {
       topBanned[p] = (topBanned[p] || 0) + 1;
     }
   }
-  const sampleFailures = entries
-    .slice(0, 5)
-    .map((e) => ({
-      intent: e.intent,
-      missing: e.missing_sections,
-      banned: e.banned_phrases_found,
-      ts: e.timestamp,
-    }));
+  const sampleFailures = entries.slice(0, 5).map((e) => ({
+    intent: e.intent,
+    missing: e.missing_sections,
+    banned: e.banned_phrases_found,
+    ts: e.timestamp,
+  }));
 
   const systemPrompt = `You are a system reliability engineer analyzing trust validation failures in an executive assistant AI.
 Generate an improvement proposal with exactly these markdown sections:
@@ -18299,8 +18289,8 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     // BL-013: Shadow mode routes (POST=start or complete, GET=status)
-    if (/^\/ops\/builder-lane\/shadow\/[^/]+$/.test(pathname)) {
-      const shadowProposalId = pathname.split("/").pop();
+    if (/^\/ops\/builder-lane\/shadow\/[^/]+$/.test(route)) {
+      const shadowProposalId = route.split("/").pop();
       if (method === "POST") {
         const body = await readJsonBodyGuarded(req, res, route);
         if (!body) {
@@ -18448,7 +18438,7 @@ const server = http.createServer(async (req, res) => {
       logLine(`POST ${route} -> 200 expired=${result.expired}`);
       return;
     }
-    const resurrectMatch = pathname.match(/^\/ops\/builder-lane\/proposals\/([^/]+)\/resurrect$/);
+    const resurrectMatch = route.match(/^\/ops\/builder-lane\/proposals\/([^/]+)\/resurrect$/);
     if (method === "POST" && resurrectMatch) {
       const proposalId = decodeURIComponent(resurrectMatch[1]);
       const result = resurrectProposal(proposalId);
