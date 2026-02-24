@@ -60,6 +60,9 @@ describe("security/config-integrity-store", () => {
   });
 
   it("store file is created with mode 0o600", () => {
+    if (process.platform === "win32") {
+      return;
+    }
     const store: ConfigIntegrityStore = { version: 1, entries: {}, auditLog: [] };
     saveConfigIntegrityStore(store, tmpDir);
 
