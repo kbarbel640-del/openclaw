@@ -36,6 +36,11 @@ type LifecycleHost = {
   topbarObserver: ResizeObserver | null;
 };
 
+type LifecycleHostWithPanel = LifecycleHost & {
+  agentDetailPanel: import("./ui-types.ts").AgentDetailPanelState;
+  paletteOpen: boolean;
+};
+
 function handleCmdK(host: LifecycleHost, e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key === "k") {
     e.preventDefault();
@@ -44,23 +49,16 @@ function handleCmdK(host: LifecycleHost, e: KeyboardEvent) {
     ).paletteOpen;
   }
   if (e.key === "Escape") {
-    // Let command palette close first if it is open
-    if ((host as unknown as { paletteOpen: boolean }).paletteOpen) {
+    const h = host as unknown as LifecycleHostWithPanel;
+    if (h.paletteOpen) {
       return;
     }
-    const panel = (host as unknown as { agentDetailPanel: { open: boolean; expanded: boolean } })
-      .agentDetailPanel;
-    if (panel && panel.open) {
+    const panel = h.agentDetailPanel;
+    if (panel?.open) {
       e.preventDefault();
-      if (panel.expanded) {
-        (
-          host as unknown as { agentDetailPanel: { open: boolean; expanded: boolean } }
-        ).agentDetailPanel = { ...panel, expanded: false };
-      } else {
-        (
-          host as unknown as { agentDetailPanel: { open: boolean; expanded: boolean } }
-        ).agentDetailPanel = { ...panel, open: false };
-      }
+      h.agentDetailPanel = panel.expanded
+        ? { ...panel, expanded: false }
+        : { ...panel, open: false };
     }
   }
 }
