@@ -167,6 +167,54 @@ enum OpenClawConfigFile {
         return remote["password"] as? String
     }
 
+    static func remoteGatewayToken() -> String? {
+        let root = self.loadDict()
+        guard let gateway = root["gateway"] as? [String: Any],
+              let remote = gateway["remote"] as? [String: Any],
+              let token = remote["token"] as? String
+        else {
+            return nil
+        }
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func setRemoteGatewayToken(_ value: String) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.updateGatewayDict { gateway in
+            var remote = gateway["remote"] as? [String: Any] ?? [:]
+            if trimmed.isEmpty {
+                remote.removeValue(forKey: "token")
+            } else {
+                remote["token"] = trimmed
+            }
+            if remote.isEmpty {
+                gateway.removeValue(forKey: "remote")
+            } else {
+                gateway["remote"] = remote
+            }
+        }
+    }
+
+    static func extractGatewayToken(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let looksLikeURL = trimmed.contains("://")
+        if let components = URLComponents(string: trimmed),
+           let value = self.gatewayToken(from: components.queryItems)
+        {
+            return value
+        }
+        if let components = URLComponents(string: trimmed),
+           let fragment = components.fragment,
+           let value = self.gatewayToken(fromFragment: fragment)
+        {
+            return value
+        }
+        if looksLikeURL { return nil }
+        return trimmed
+    }
+
     static func gatewayPort() -> Int? {
         let root = self.loadDict()
         guard let gateway = root["gateway"] as? [String: Any] else { return nil }
@@ -258,6 +306,38 @@ enum OpenClawConfigFile {
             return trimmed
         }
         return trimmed.split(separator: ".").first.map(String.init) ?? trimmed
+    }
+
+    private static func gatewayToken(from queryItems: [URLQueryItem]?) -> String? {
+        guard let tokenItem = queryItems?.first(where: { $0.name.caseInsensitiveCompare("token") == .orderedSame }),
+              let value = tokenItem.value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else {
+            return nil
+        }
+        return value
+    }
+
+    private static func gatewayToken(fromFragment fragment: String) -> String? {
+        let trimmed = fragment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var queryCandidate = trimmed
+        if queryCandidate.hasPrefix("?") {
+            queryCandidate = String(queryCandidate.dropFirst())
+        }
+        var components = URLComponents()
+        components.query = queryCandidate
+        if let value = self.gatewayToken(from: components.queryItems) {
+            return value
+        }
+
+        if let questionMark = queryCandidate.firstIndex(of: "?") {
+            let query = String(queryCandidate[queryCandidate.index(after: questionMark)...])
+            components.query = query
+            return self.gatewayToken(from: components.queryItems)
+        }
+        return nil
     }
 
     private static func parseConfigData(_ data: Data) -> [String: Any]? {

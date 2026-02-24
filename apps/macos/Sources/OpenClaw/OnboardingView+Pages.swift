@@ -233,6 +233,37 @@ extension OnboardingView {
                             }
                         }
                         GridRow {
+                            Text("Gateway token")
+                                .font(.callout.weight(.semibold))
+                                .frame(width: labelWidth, alignment: .leading)
+                            SecureField(
+                                "Paste gateway.auth.token from remote host",
+                                text: Binding(
+                                    get: { OpenClawConfigFile.remoteGatewayToken() ?? "" },
+                                    set: { OpenClawConfigFile.setRemoteGatewayToken($0) }
+                                ))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: fieldWidth)
+                        }
+                        GridRow {
+                            Text("Token import")
+                                .font(.callout.weight(.semibold))
+                                .frame(width: labelWidth, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Button("Import from clipboard") {
+                                    self.importRemoteGatewayTokenFromClipboard()
+                                }
+                                .buttonStyle(.bordered)
+                                if let message = self.remoteTokenImportMessage {
+                                    Text(message)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                            .frame(width: fieldWidth, alignment: .leading)
+                        }
+                        GridRow {
                             Text("Identity file")
                                 .font(.callout.weight(.semibold))
                                 .frame(width: labelWidth, alignment: .leading)

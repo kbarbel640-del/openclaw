@@ -87,6 +87,52 @@ struct OpenClawConfigFileTests {
         }
     }
 
+    @MainActor
+    @Test
+    func remoteGatewayTokenRoundTripsAndPreservesRemoteURL() async {
+        let override = FileManager().temporaryDirectory
+            .appendingPathComponent("openclaw-config-\(UUID().uuidString)")
+            .appendingPathComponent("openclaw.json")
+            .path
+
+        await TestIsolation.withEnvValues(["OPENCLAW_CONFIG_PATH": override]) {
+            OpenClawConfigFile.saveDict([
+                "gateway": [
+                    "remote": [
+                        "url": "wss://gateway.ts.net:18789",
+                    ],
+                ],
+            ])
+
+            OpenClawConfigFile.setRemoteGatewayToken("  test-token  ")
+            #expect(OpenClawConfigFile.remoteGatewayToken() == "test-token")
+
+            var root = OpenClawConfigFile.loadDict()
+            var remote = ((root["gateway"] as? [String: Any])?["remote"] as? [String: Any]) ?? [:]
+            #expect((remote["url"] as? String) == "wss://gateway.ts.net:18789")
+            #expect((remote["token"] as? String) == "test-token")
+
+            OpenClawConfigFile.setRemoteGatewayToken("")
+            #expect(OpenClawConfigFile.remoteGatewayToken() == nil)
+            root = OpenClawConfigFile.loadDict()
+            remote = ((root["gateway"] as? [String: Any])?["remote"] as? [String: Any]) ?? [:]
+            #expect((remote["url"] as? String) == "wss://gateway.ts.net:18789")
+            #expect((remote["token"] as? String) == nil)
+        }
+    }
+
+    @Test
+    func extractGatewayTokenParsesDashboardURLOrRawValue() async {
+        #expect(OpenClawConfigFile.extractGatewayToken("  https://host:18789/?token=abc123  ") == "abc123")
+        #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/?ToKeN=abcDEF") == "abcDEF")
+        #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/#token=abcFRAG") == "abcFRAG")
+        #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/#/pairing?token=abcRoute") == "abcRoute")
+        #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/?foo=bar") == nil)
+        #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/#/pairing?foo=bar") == nil)
+        #expect(OpenClawConfigFile.extractGatewayToken(" raw-token ") == "raw-token")
+        #expect(OpenClawConfigFile.extractGatewayToken("   ") == nil)
+    }
+
     @Test
     func stateDirOverrideSetsConfigPath() async {
         let dir = FileManager().temporaryDirectory

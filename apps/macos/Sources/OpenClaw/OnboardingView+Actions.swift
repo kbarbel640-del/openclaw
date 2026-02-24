@@ -9,6 +9,7 @@ extension OnboardingView {
         self.state.connectionMode = .local
         self.preferredGatewayID = nil
         self.showAdvancedConnection = false
+        self.remoteTokenImportMessage = nil
         GatewayDiscoveryPreferences.setPreferredStableID(nil)
     }
 
@@ -17,6 +18,7 @@ extension OnboardingView {
         self.state.connectionMode = .unconfigured
         self.preferredGatewayID = nil
         self.showAdvancedConnection = false
+        self.remoteTokenImportMessage = nil
         GatewayDiscoveryPreferences.setPreferredStableID(nil)
     }
 
@@ -39,7 +41,19 @@ extension OnboardingView {
         }
 
         self.state.connectionMode = .remote
+        self.remoteTokenImportMessage = nil
         MacNodeModeCoordinator.shared.setPreferredGatewayStableID(gateway.stableID)
+    }
+
+    @MainActor
+    func importRemoteGatewayTokenFromClipboard() {
+        let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
+        guard let token = OpenClawConfigFile.extractGatewayToken(clipboard) else {
+            self.remoteTokenImportMessage = "Clipboard has no gateway token or dashboard URL token."
+            return
+        }
+        OpenClawConfigFile.setRemoteGatewayToken(token)
+        self.remoteTokenImportMessage = "Saved gateway.remote.token from clipboard."
     }
 
     func openSettings(tab: SettingsTab) {

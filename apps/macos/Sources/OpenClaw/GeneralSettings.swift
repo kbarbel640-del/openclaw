@@ -15,6 +15,7 @@ struct GeneralSettings: View {
     @State private var gatewayStatus: GatewayEnvironmentStatus = .checking
     @State private var remoteStatus: RemoteStatus = .idle
     @State private var showRemoteAdvanced = false
+    @State private var remoteTokenImportMessage: String?
     private let isPreview = ProcessInfo.processInfo.isPreview
     private var isNixMode: Bool {
         ProcessInfo.processInfo.isNixMode
@@ -166,6 +167,28 @@ struct GeneralSettings: View {
             if self.state.remoteTransport == .ssh {
                 DisclosureGroup(isExpanded: self.$showRemoteAdvanced) {
                     VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent("Gateway token") {
+                            SecureField("Paste gateway.auth.token from remote host", text: Binding(
+                                get: { OpenClawConfigFile.remoteGatewayToken() ?? "" },
+                                set: { OpenClawConfigFile.setRemoteGatewayToken($0) }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 280)
+                        }
+                        LabeledContent("Token import") {
+                            HStack(spacing: 8) {
+                                Button("Import from clipboard") {
+                                    self.importRemoteGatewayTokenFromClipboard()
+                                }
+                                .buttonStyle(.bordered)
+                                if let message = self.remoteTokenImportMessage {
+                                    Text(message)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                        }
                         LabeledContent("Identity file") {
                             TextField("/Users/you/.ssh/id_ed25519", text: self.$state.remoteIdentity)
                                 .textFieldStyle(.roundedBorder)
@@ -622,6 +645,17 @@ extension GeneralSettings {
             options: options,
             remoteCommand: ["echo", "ok"])
         return ["/usr/bin/ssh"] + args
+    }
+
+    @MainActor
+    private func importRemoteGatewayTokenFromClipboard() {
+        let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
+        guard let token = OpenClawConfigFile.extractGatewayToken(clipboard) else {
+            self.remoteTokenImportMessage = "Clipboard has no gateway token or dashboard URL token."
+            return
+        }
+        OpenClawConfigFile.setRemoteGatewayToken(token)
+        self.remoteTokenImportMessage = "Saved gateway.remote.token from clipboard."
     }
 
     private func formatSSHFailure(_ response: Response, target: String) -> String {
