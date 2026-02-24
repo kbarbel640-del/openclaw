@@ -787,6 +787,7 @@ Primary reference:
 - `channels.telegram.actions.sendMessage`: gate Telegram tool message sends.
 - `channels.telegram.actions.deleteMessage`: gate Telegram tool message deletes.
 - `channels.telegram.actions.sticker`: gate Telegram sticker actions — send and search (default: false).
+- `channels.telegram.actions.dice`: gate Telegram dice actions — send animated dice, slots, darts, etc. (default: false).
 - `channels.telegram.reactionNotifications`: `off | own | all` — control which reactions trigger system events (default: `own` when not set).
 - `channels.telegram.reactionLevel`: `off | ack | minimal | extensive` — control agent's reaction capability (default: `minimal` when not set).
 
