@@ -10,6 +10,7 @@ export type CompactionSafeguardRuntimeValue = {
    * (extensionRunner.initialize() is never called in that path).
    */
   model?: Model<Api>;
+  recentTurnsPreserve?: number;
 };
 
 const registry = createSessionManagerRuntimeRegistry<CompactionSafeguardRuntimeValue>();
