@@ -10,8 +10,9 @@
     },
     "controlUi": {
       "enabled": true,
-      "allowedOrigins": ["*"],
-      "allowInsecureAuth": true
+      "allowedOrigins": ["https://commons.openfinclaw.ai", "https://web.openfinclaw.ai", "http://localhost:8020"],
+      "allowInsecureAuth": true,
+      "dangerouslyDisableDeviceAuth": true
     },
     "http": {
       "endpoints": {

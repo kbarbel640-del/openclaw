@@ -10,7 +10,7 @@
     },
     "controlUi": {
       "enabled": true,
-      "allowedOrigins": ["*"],
+      "allowedOrigins": ["http://localhost:18789"],
       "allowInsecureAuth": true
     },
     "http": {
