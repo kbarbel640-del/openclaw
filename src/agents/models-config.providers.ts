@@ -5,6 +5,13 @@ import {
   DEFAULT_COPILOT_API_BASE_URL,
   resolveCopilotApiToken,
 } from "../providers/github-copilot-token.js";
+import {
+  KILOCODE_BASE_URL,
+  KILOCODE_DEFAULT_CONTEXT_WINDOW,
+  KILOCODE_DEFAULT_COST,
+  KILOCODE_DEFAULT_MAX_TOKENS,
+  KILOCODE_MODEL_CATALOG,
+} from "../providers/kilocode-shared.js";
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
 import {
@@ -678,6 +685,12 @@ function buildOpenrouterProvider(): ProviderConfig {
       {
         id: OPENROUTER_DEFAULT_MODEL_ID,
         name: "OpenRouter Auto",
+        // reasoning: false here is a catalog default only; it does NOT cause
+        // `reasoning.effort: "none"` to be sent for the "auto" routing model.
+        // applyExtraParamsToAgent skips the reasoning effort injection for
+        // model id "auto" because it dynamically routes to any OpenRouter model
+        // (including ones where reasoning is mandatory and cannot be disabled).
+        // See: openclaw/openclaw#24851
         reasoning: false,
         input: ["text", "image"],
         cost: OPENROUTER_DEFAULT_COST,
@@ -764,33 +777,19 @@ export function buildNvidiaProvider(): ProviderConfig {
   };
 }
 
-// Kilo Gateway provider
-const KILOCODE_BASE_URL = "https://api.kilo.ai/api/gateway/";
-const KILOCODE_DEFAULT_MODEL_ID = "anthropic/claude-opus-4.6";
-const KILOCODE_DEFAULT_CONTEXT_WINDOW = 200000;
-const KILOCODE_DEFAULT_MAX_TOKENS = 8192;
-const KILOCODE_DEFAULT_COST = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-};
-
 export function buildKilocodeProvider(): ProviderConfig {
   return {
     baseUrl: KILOCODE_BASE_URL,
     api: "openai-completions",
-    models: [
-      {
-        id: KILOCODE_DEFAULT_MODEL_ID,
-        name: "Claude Opus 4.6",
-        reasoning: true,
-        input: ["text", "image"],
-        cost: KILOCODE_DEFAULT_COST,
-        contextWindow: KILOCODE_DEFAULT_CONTEXT_WINDOW,
-        maxTokens: KILOCODE_DEFAULT_MAX_TOKENS,
-      },
-    ],
+    models: KILOCODE_MODEL_CATALOG.map((model) => ({
+      id: model.id,
+      name: model.name,
+      reasoning: model.reasoning,
+      input: model.input,
+      cost: KILOCODE_DEFAULT_COST,
+      contextWindow: model.contextWindow ?? KILOCODE_DEFAULT_CONTEXT_WINDOW,
+      maxTokens: model.maxTokens ?? KILOCODE_DEFAULT_MAX_TOKENS,
+    })),
   };
 }
 
