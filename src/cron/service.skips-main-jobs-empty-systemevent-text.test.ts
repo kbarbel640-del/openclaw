@@ -5,26 +5,9 @@ import {
   createNoopLogger,
   withCronServiceForTest,
 } from "./service.test-harness.js";
-import type { CronJob } from "./types.js";
 
 const noopLogger = createNoopLogger();
 const { makeStorePath } = createCronStoreHarness();
-
-async function waitForFirstJob(
-  cron: CronService,
-  predicate: (job: CronJob | undefined) => boolean,
-) {
-  let latest: CronJob | undefined;
-  for (let i = 0; i < 30; i++) {
-    const jobs = await cron.list({ includeDisabled: true });
-    latest = jobs[0];
-    if (predicate(latest)) {
-      return latest;
-    }
-    await vi.runOnlyPendingTimersAsync();
-  }
-  return latest;
-}
 
 async function withCronService(
   cronEnabled: boolean,
@@ -59,27 +42,22 @@ describe("CronService", () => {
     vi.useRealTimers();
   });
 
-  it("skips main jobs with empty systemEvent text", async () => {
+  it("rejects main jobs with empty systemEvent text on add", async () => {
     await withCronService(true, async ({ cron, enqueueSystemEvent, requestHeartbeatNow }) => {
       const atMs = Date.parse("2025-12-13T00:00:01.000Z");
-      await cron.add({
-        name: "empty systemEvent test",
-        enabled: true,
-        schedule: { kind: "at", at: new Date(atMs).toISOString() },
-        sessionTarget: "main",
-        wakeMode: "now",
-        payload: { kind: "systemEvent", text: "   " },
-      });
-
-      vi.setSystemTime(new Date("2025-12-13T00:00:01.000Z"));
-      await vi.runOnlyPendingTimersAsync();
+      await expect(
+        cron.add({
+          name: "empty systemEvent test",
+          enabled: true,
+          schedule: { kind: "at", at: new Date(atMs).toISOString() },
+          sessionTarget: "main",
+          wakeMode: "now",
+          payload: { kind: "systemEvent", text: "   " },
+        }),
+      ).rejects.toThrow('cron.add payload.kind="systemEvent" requires non-empty text');
 
       expect(enqueueSystemEvent).not.toHaveBeenCalled();
       expect(requestHeartbeatNow).not.toHaveBeenCalled();
-
-      const job = await waitForFirstJob(cron, (current) => current?.state.lastStatus === "skipped");
-      expect(job?.state.lastStatus).toBe("skipped");
-      expect(job?.state.lastError).toMatch(/non-empty/i);
     });
   });
 

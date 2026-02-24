@@ -123,6 +123,22 @@ function assertDeliverySupport(job: Pick<CronJob, "sessionTarget" | "delivery">)
   }
 }
 
+function normalizePayloadOrThrow(payload: CronPayload, context: "cron.add" | "cron.update") {
+  if (payload.kind === "systemEvent") {
+    const text = payload.text.trim();
+    if (!text) {
+      throw new Error(`${context} payload.kind="systemEvent" requires non-empty text`);
+    }
+    return { ...payload, text };
+  }
+
+  const message = payload.message.trim();
+  if (!message) {
+    throw new Error(`${context} payload.kind="agentTurn" requires non-empty message`);
+  }
+  return { ...payload, message };
+}
+
 export function findJobOrThrow(state: CronServiceState, id: string) {
   const job = state.store?.jobs.find((j) => j.id === id);
   if (!job) {
@@ -386,7 +402,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     schedule,
     sessionTarget: input.sessionTarget,
     wakeMode: input.wakeMode,
-    payload: input.payload,
+    payload: normalizePayloadOrThrow(input.payload, "cron.add"),
     delivery: input.delivery,
     state: {
       ...input.state,
@@ -452,6 +468,7 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   if (patch.delivery) {
     job.delivery = mergeCronDelivery(job.delivery, patch.delivery);
   }
+  job.payload = normalizePayloadOrThrow(job.payload, "cron.update");
   if (job.sessionTarget === "main" && job.delivery?.mode !== "webhook") {
     job.delivery = undefined;
   }
@@ -559,19 +576,19 @@ function buildLegacyDeliveryPatch(
 
 function buildPayloadFromPatch(patch: CronPayloadPatch): CronPayload {
   if (patch.kind === "systemEvent") {
-    if (typeof patch.text !== "string" || patch.text.length === 0) {
+    if (typeof patch.text !== "string" || patch.text.trim().length === 0) {
       throw new Error('cron.update payload.kind="systemEvent" requires text');
     }
-    return { kind: "systemEvent", text: patch.text };
+    return { kind: "systemEvent", text: patch.text.trim() };
   }
 
-  if (typeof patch.message !== "string" || patch.message.length === 0) {
+  if (typeof patch.message !== "string" || patch.message.trim().length === 0) {
     throw new Error('cron.update payload.kind="agentTurn" requires message');
   }
 
   return {
     kind: "agentTurn",
-    message: patch.message,
+    message: patch.message.trim(),
     model: patch.model,
     thinking: patch.thinking,
     timeoutSeconds: patch.timeoutSeconds,
