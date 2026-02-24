@@ -77,6 +77,7 @@ export type GatewayBrowserClientOptions = {
   url: string;
   token?: string;
   password?: string;
+  supabaseJwt?: string;
   clientName?: GatewayClientName;
   clientVersion?: string;
   platform?: string;
@@ -189,10 +190,11 @@ export class GatewayBrowserClient {
       canFallbackToShared = Boolean(storedToken && this.opts.token);
     }
     const auth =
-      authToken || this.opts.password
+      authToken || this.opts.password || this.opts.supabaseJwt
         ? {
             token: authToken,
             password: this.opts.password,
+            supabaseJwt: this.opts.supabaseJwt,
           }
         : undefined;
 

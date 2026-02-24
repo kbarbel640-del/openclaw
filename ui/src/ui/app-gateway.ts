@@ -46,6 +46,7 @@ import type {
 type GatewayHost = {
   settings: UiSettings;
   password: string;
+  supabaseSession: { access_token: string } | null;
   clientInstanceId: string;
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -149,6 +150,7 @@ export function connectGateway(host: GatewayHost) {
     url: host.settings.gatewayUrl,
     token: host.settings.token.trim() ? host.settings.token : undefined,
     password: host.password.trim() ? host.password : undefined,
+    supabaseJwt: host.supabaseSession?.access_token,
     clientName: "openclaw-control-ui",
     mode: "webchat",
     instanceId: host.clientInstanceId,

@@ -119,6 +119,9 @@ export class OpenClawApp extends LitElement {
     }
   }
   @state() password = "";
+  @state() supabaseSession: import("./supabase-client.ts").SupabaseSession | null = null;
+  @state() supabaseLoading = false;
+  @state() supabaseError: string | null = null;
   @state() tab: Tab = "chat";
   @state() onboarding = resolveOnboardingMode();
   @state() connected = false;

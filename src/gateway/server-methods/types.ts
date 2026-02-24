@@ -18,6 +18,7 @@ export type GatewayClient = {
   connect: ConnectParams;
   connId?: string;
   clientIp?: string;
+  supabaseUser?: import("../auth.js").SupabaseUser;
 };
 
 export type RespondFn = (

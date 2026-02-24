@@ -47,6 +47,9 @@ import type { SessionLogEntry } from "./views/usage.ts";
 export type AppViewState = {
   settings: UiSettings;
   password: string;
+  supabaseSession: import("./supabase-client.ts").SupabaseSession | null;
+  supabaseLoading: boolean;
+  supabaseError: string | null;
   tab: Tab;
   onboarding: boolean;
   basePath: string;

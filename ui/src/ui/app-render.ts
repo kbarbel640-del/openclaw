@@ -5,6 +5,7 @@ import { refreshChatAvatar } from "./app-chat.ts";
 import { renderUsageTab } from "./app-render-usage-tab.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
+import type { OpenClawApp } from "./app.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
@@ -62,8 +63,15 @@ import {
   updateSkillEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
+import {
+  handleEmailLogin,
+  handleEmailSignup,
+  handleMagicLink,
+  handleOAuthLogin,
+} from "./controllers/supabase-auth.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
+import { isSupabaseConfigured } from "./supabase-client.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
@@ -73,6 +81,7 @@ import { renderDebug } from "./views/debug.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
 import { renderInstances } from "./views/instances.ts";
+import { renderLoginView } from "./views/login.ts";
 import { renderLogs } from "./views/logs.ts";
 import { renderNodes } from "./views/nodes.ts";
 import { renderOverview } from "./views/overview.ts";
@@ -136,6 +145,21 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
 }
 
 export function renderApp(state: AppViewState) {
+  // Login gate: if Supabase is configured but user is not authenticated, show login
+  if (isSupabaseConfigured() && !state.supabaseSession && !state.supabaseLoading) {
+    return renderLoginView({
+      onEmailLogin: (email, password) =>
+        handleEmailLogin(state as unknown as OpenClawApp, email, password),
+      onEmailSignup: (email, password) =>
+        handleEmailSignup(state as unknown as OpenClawApp, email, password),
+      onMagicLink: (email) => handleMagicLink(state as unknown as OpenClawApp, email),
+      onOAuthLogin: (provider) => handleOAuthLogin(state as unknown as OpenClawApp, provider),
+      supabaseError: state.supabaseError,
+      supabaseLoading: state.supabaseLoading,
+      oauthProviders: [],
+    });
+  }
+
   const openClawVersion =
     (typeof state.hello?.server?.version === "string" && state.hello.server.version.trim()) ||
     state.updateAvailable?.currentVersion ||

@@ -10,9 +10,19 @@
     },
     "controlUi": {
       "enabled": true,
-      "allowedOrigins": ["https://commons.openfinclaw.ai", "https://web.openfinclaw.ai", "http://localhost:8020"],
+      "allowedOrigins": [
+        "https://commons.openfinclaw.ai",
+        "https://web.openfinclaw.ai",
+        "http://localhost:8020"
+      ],
       "allowInsecureAuth": true,
-      "dangerouslyDisableDeviceAuth": true
+      "dangerouslyDisableDeviceAuth": true,
+      "supabase": {
+        "url": "${SUPABASE_URL}",
+        "anonKey": "${SUPABASE_ANON_KEY}",
+        "jwtSecret": "${SUPABASE_JWT_SECRET}",
+        "required": false
+      }
     },
     "http": {
       "endpoints": {

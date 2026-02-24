@@ -61,6 +61,21 @@ export type TalkConfig = {
   interruptOnSpeech?: boolean;
 };
 
+export type SupabaseAuthConfig = {
+  /** Supabase project URL (e.g. "https://xyz.supabase.co"). */
+  url: string;
+  /** Supabase public anon key. */
+  anonKey: string;
+  /** JWT secret for HS256 verification (optional; falls back to JWKS). */
+  jwtSecret?: string;
+  /** When true, Supabase auth is required; unauthenticated users are rejected. */
+  required?: boolean;
+  /** Restrict login to these email domains (e.g. ["company.com"]). */
+  allowedDomains?: string[];
+  /** OAuth providers to show in the login UI (e.g. ["google", "github"]). */
+  oauthProviders?: string[];
+};
+
 export type GatewayControlUiConfig = {
   /** If false, the Gateway will not serve the Control UI (default /). */
   enabled?: boolean;
@@ -83,6 +98,8 @@ export type GatewayControlUiConfig = {
   allowInsecureAuth?: boolean;
   /** DANGEROUS: Disable device identity checks for the Control UI (default: false). */
   dangerouslyDisableDeviceAuth?: boolean;
+  /** Supabase Auth configuration for multi-tenant WebChat login. */
+  supabase?: SupabaseAuthConfig;
 };
 
 export type GatewayAuthMode = "none" | "token" | "password" | "trusted-proxy";

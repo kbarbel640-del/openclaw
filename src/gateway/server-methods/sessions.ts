@@ -49,6 +49,7 @@ import {
 } from "../session-utils.js";
 import { applySessionsPatchToStore } from "../sessions-patch.js";
 import { resolveSessionKeyFromResolveParams } from "../sessions-resolve.js";
+import { extractUserIdFromSessionKey } from "../supabase-session.js";
 import type { GatewayClient, GatewayRequestHandlers, RespondFn } from "./types.js";
 import { assertValidParams } from "./validation.js";
 
@@ -203,7 +204,7 @@ async function ensureSessionRuntimeCleanup(params: {
 }
 
 export const sessionsHandlers: GatewayRequestHandlers = {
-  "sessions.list": ({ params, respond }) => {
+  "sessions.list": ({ params, respond, client }) => {
     if (!assertValidParams(params, validateSessionsListParams, "sessions.list", respond)) {
       return;
     }
@@ -216,6 +217,14 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       store,
       opts: p,
     });
+    // Filter sessions to only include those belonging to the authenticated Supabase user
+    if (client?.supabaseUser && result) {
+      const userId = client.supabaseUser.id;
+      result.sessions = result.sessions.filter((session) => {
+        const sessionUserId = extractUserIdFromSessionKey(session.key);
+        return sessionUserId === userId;
+      });
+    }
     respond(true, result, undefined);
   },
   "sessions.preview": ({ params, respond }) => {

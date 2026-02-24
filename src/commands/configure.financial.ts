@@ -75,7 +75,9 @@ export async function promptFinancialConfig(
       runtime,
     );
 
-    if (action === "done") {break;}
+    if (action === "done") {
+      break;
+    }
 
     if (action === "add") {
       const exchangeType = guardCancel(
@@ -97,8 +99,12 @@ export async function promptFinancialConfig(
           placeholder: `${exchangeType}-main`,
           validate: (v) => {
             const s = (v ?? "").trim();
-            if (!s) {return "Name is required";}
-            if (!/^[\w-]+$/.test(s)) {return "Use only letters, numbers, hyphens, underscores";}
+            if (!s) {
+              return "Name is required";
+            }
+            if (!/^[\w-]+$/.test(s)) {
+              return "Use only letters, numbers, hyphens, underscores";
+            }
             return undefined;
           },
         }),
@@ -237,7 +243,9 @@ export async function promptFinancialConfig(
       if (confirmed) {
         delete existingExchanges[toRemove as string];
         const idx = configuredIds.indexOf(toRemove as string);
-        if (idx >= 0) {configuredIds.splice(idx, 1);}
+        if (idx >= 0) {
+          configuredIds.splice(idx, 1);
+        }
         note(`Exchange "${toRemove}" removed.`, "Removed");
       }
     }

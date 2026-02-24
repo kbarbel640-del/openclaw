@@ -42,6 +42,7 @@ import {
   readSessionMessages,
   resolveSessionModelRef,
 } from "../session-utils.js";
+import { scopeSessionKeyToUser } from "../supabase-session.js";
 import { formatForLog } from "../ws-log.js";
 import { injectTimestamp, timestampOptsFromConfig } from "./agent-timestamp.js";
 import { normalizeRpcAttachmentsToChatAttachments } from "./attachment-normalize.js";
@@ -530,7 +531,7 @@ function broadcastChatError(params: {
 }
 
 export const chatHandlers: GatewayRequestHandlers = {
-  "chat.history": async ({ params, respond, context }) => {
+  "chat.history": async ({ params, respond, context, client }) => {
     if (!validateChatHistoryParams(params)) {
       respond(
         false,
@@ -542,10 +543,15 @@ export const chatHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const { sessionKey, limit } = params as {
+    const { limit } = params as {
       sessionKey: string;
       limit?: number;
     };
+    let { sessionKey } = params as { sessionKey: string };
+    // Scope session to authenticated Supabase user for tenant isolation
+    if (client?.supabaseUser) {
+      sessionKey = scopeSessionKeyToUser(sessionKey, client.supabaseUser.id);
+    }
     const { cfg, storePath, entry } = loadSessionEntry(sessionKey);
     const sessionId = entry?.sessionId;
     const rawMessages =
@@ -731,7 +737,11 @@ export const chatHandlers: GatewayRequestHandlers = {
         return;
       }
     }
-    const rawSessionKey = p.sessionKey;
+    let rawSessionKey = p.sessionKey;
+    // Scope session to authenticated Supabase user for tenant isolation
+    if (client?.supabaseUser) {
+      rawSessionKey = scopeSessionKeyToUser(rawSessionKey, client.supabaseUser.id);
+    }
     const { cfg, entry, canonicalKey: sessionKey } = loadSessionEntry(rawSessionKey);
     const timeoutMs = resolveAgentTimeoutMs({
       cfg,

@@ -61,6 +61,7 @@ import { MAX_BUFFERED_BYTES, MAX_PAYLOAD_BYTES, TICK_INTERVAL_MS } from "../../s
 import { handleGatewayRequest } from "../../server-methods.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "../../server-methods/types.js";
 import { formatError } from "../../server-utils.js";
+import { verifySupabaseJwt } from "../../supabase-auth.js";
 import { formatForLog, logWs } from "../../ws-log.js";
 import { truncateCloseReason } from "../close-reason.js";
 import {
@@ -380,6 +381,35 @@ export function attachGatewayWsMessageHandler(params: {
           rateLimiter,
           clientIp,
         });
+
+        // Supabase JWT verification (multi-tenant WebChat auth)
+        let supabaseUser: import("../../auth.js").SupabaseUser | undefined;
+        const supabaseConfig = configSnapshot.gateway?.controlUi?.supabase;
+        const supabaseJwt = connectParams.auth?.supabaseJwt;
+        if (supabaseConfig && typeof supabaseJwt === "string" && supabaseJwt.trim()) {
+          const supabaseResult = await verifySupabaseJwt({
+            jwt: supabaseJwt,
+            config: supabaseConfig,
+          });
+          if (supabaseResult.ok) {
+            authOk = true;
+            authMethod = "supabase-jwt";
+            supabaseUser = supabaseResult.user;
+          } else if (supabaseConfig.required) {
+            // Supabase auth is required but JWT verification failed — reject
+            markHandshakeFailure("supabase-jwt-failed", {
+              reason: supabaseResult.reason,
+            });
+            sendHandshakeErrorResponse(
+              ErrorCodes.INVALID_REQUEST,
+              `supabase auth failed: ${supabaseResult.reason}`,
+            );
+            close(1008, truncateCloseReason(`supabase auth failed: ${supabaseResult.reason}`));
+            return;
+          }
+          // If not required and verification failed, fall through to existing auth
+        }
+
         const rejectUnauthorized = (failedAuth: GatewayAuthResult) => {
           markHandshakeFailure("unauthorized", {
             authMode: resolvedAuth.mode,
@@ -822,6 +852,7 @@ export function attachGatewayWsMessageHandler(params: {
           clientIp: reportedClientIp,
           canvasCapability,
           canvasCapabilityExpiresAtMs,
+          supabaseUser,
         };
         setClient(nextClient);
         setHandshakeState("connected");

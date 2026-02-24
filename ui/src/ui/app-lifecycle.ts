@@ -17,12 +17,16 @@ import {
   syncThemeWithSettings,
 } from "./app-settings.ts";
 import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
+import { initSupabaseAuthListener } from "./controllers/supabase-auth.ts";
 import type { Tab } from "./navigation.ts";
+import { isSupabaseConfigured, getSupabaseSession } from "./supabase-client.ts";
 
 type LifecycleHost = {
   basePath: string;
   client?: { stop: () => void } | null;
   connected?: boolean;
+  supabaseSession?: { access_token: string } | null;
+  supabaseLoading?: boolean;
   tab: Tab;
   assistantName: string;
   assistantAvatar: string | null;
@@ -48,7 +52,21 @@ export function handleConnected(host: LifecycleHost) {
   syncThemeWithSettings(host as unknown as Parameters<typeof syncThemeWithSettings>[0]);
   attachThemeListener(host as unknown as Parameters<typeof attachThemeListener>[0]);
   window.addEventListener("popstate", host.popStateHandler);
-  connectGateway(host as unknown as Parameters<typeof connectGateway>[0]);
+
+  if (isSupabaseConfigured()) {
+    initSupabaseAuthListener(host as unknown as Parameters<typeof initSupabaseAuthListener>[0]);
+    host.supabaseLoading = true;
+    void getSupabaseSession().then((session) => {
+      host.supabaseSession = session;
+      host.supabaseLoading = false;
+      if (session) {
+        connectGateway(host as unknown as Parameters<typeof connectGateway>[0]);
+      }
+    });
+  } else {
+    connectGateway(host as unknown as Parameters<typeof connectGateway>[0]);
+  }
+
   startNodesPolling(host as unknown as Parameters<typeof startNodesPolling>[0]);
   if (host.tab === "logs") {
     startLogsPolling(host as unknown as Parameters<typeof startLogsPolling>[0]);
