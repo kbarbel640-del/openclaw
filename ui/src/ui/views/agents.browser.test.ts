@@ -9,11 +9,13 @@ function baseProps(): AgentsProps {
     error: null,
     agentsList: {
       defaultId: "main",
+      mainKey: "main",
+      scope: "default",
       agents: [
         {
           id: "main",
           name: "Main",
-          identity: null,
+          identity: undefined,
         },
       ],
     },
@@ -88,7 +90,7 @@ describe("agents overview", () => {
     const container = document.createElement("div");
     render(renderAgents(baseProps()), container);
 
-    const fallbackInput = container.querySelector(
+    const fallbackInput = container.querySelector<HTMLInputElement>(
       'input[placeholder="provider/model, provider/model"]',
     );
 
@@ -121,7 +123,7 @@ describe("agents overview", () => {
     const container = document.createElement("div");
     render(renderAgents(props), container);
 
-    const fallbackInput = container.querySelector(
+    const fallbackInput = container.querySelector<HTMLInputElement>(
       'input[placeholder="provider/model, provider/model"]',
     );
 
