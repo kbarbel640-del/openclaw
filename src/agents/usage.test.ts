@@ -54,6 +54,23 @@ describe("normalizeUsage", () => {
     });
   });
 
+  it("handles Moonshot/Kimi cached_tokens field", () => {
+    // Moonshot returns cached_tokens instead of cache_read_input_tokens
+    const usage = normalizeUsage({
+      prompt_tokens: 30,
+      completion_tokens: 9,
+      total_tokens: 39,
+      cached_tokens: 19,
+    });
+    expect(usage).toEqual({
+      input: 30,
+      output: 9,
+      cacheRead: 19,
+      cacheWrite: undefined,
+      total: 39,
+    });
+  });
+
   it("returns undefined when no valid fields are provided", () => {
     const usage = normalizeUsage(null);
     expect(usage).toBeUndefined();

@@ -29,8 +29,8 @@ async function createCache(): Promise<string> {
         {
           role: "system",
           content:
-            "You are a helpful assistant. This is a test system prompt with some content to cache. ".repeat(
-              50,
+            "You are a helpful assistant. This is a test system prompt with some content to cache. Here is additional context about various topics including science, history, and technology that would typically be repeated in every API request. ".repeat(
+              200,
             ),
         },
       ],
@@ -93,8 +93,8 @@ async function chatWithoutCache(message: string): Promise<void> {
   console.log(`\n💬 Sending message WITHOUT cache: "${message}"`);
 
   const systemPrompt =
-    "You are a helpful assistant. This is a test system prompt with some content to cache. ".repeat(
-      50,
+    "You are a helpful assistant. This is a test system prompt with some content to cache. Here is additional context about various topics including science, history, and technology that would typically be repeated in every API request. ".repeat(
+      200,
     );
 
   const response = await fetch(`${BASE_URL}/chat/completions`, {
