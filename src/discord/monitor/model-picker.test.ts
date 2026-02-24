@@ -117,6 +117,28 @@ describe("Discord model picker custom_id", () => {
     });
   });
 
+  it("parses compact custom_id aliases", () => {
+    const parsed = parseDiscordModelPickerData({
+      c: "models",
+      a: "submit",
+      v: "models",
+      u: "42",
+      p: "openai",
+      g: "3",
+      mi: "2",
+    });
+
+    expect(parsed).toEqual({
+      command: "models",
+      action: "submit",
+      view: "models",
+      userId: "42",
+      provider: "openai",
+      page: 3,
+      modelIndex: 2,
+    });
+  });
+
   it("parses optional submit model index", () => {
     const parsed = parseDiscordModelPickerData({
       cmd: "models",
@@ -164,6 +186,21 @@ describe("Discord model picker custom_id", () => {
         u: "42",
       }),
     ).toBeNull();
+  });
+
+  it("keeps typical submit ids under Discord max length", () => {
+    const customId = buildDiscordModelPickerCustomId({
+      command: "models",
+      action: "submit",
+      view: "models",
+      provider: "azure-openai-responses",
+      page: 1,
+      providerPage: 1,
+      modelIndex: 10,
+      userId: "12345678901234567890",
+    });
+
+    expect(customId.length).toBeLessThanOrEqual(DISCORD_CUSTOM_ID_MAX_CHARS);
   });
 
   it("enforces Discord custom_id max length", () => {
