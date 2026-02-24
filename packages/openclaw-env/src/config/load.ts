@@ -135,7 +135,7 @@ export async function loadOpenClawEnvConfig(options: {
     raw = await fs.readFile(configPath, "utf-8");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to read config: ${configPath}\n${message}`);
+    throw new Error(`Failed to read config: ${configPath}\n${message}`, { cause: err });
   }
 
   let parsed: unknown;
@@ -143,7 +143,7 @@ export async function loadOpenClawEnvConfig(options: {
     parsed = YAML.parse(raw);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to parse YAML: ${configPath}\n${message}`);
+    throw new Error(`Failed to parse YAML: ${configPath}\n${message}`, { cause: err });
   }
 
   const validated = OpenClawEnvConfigSchema.safeParse(parsed);
