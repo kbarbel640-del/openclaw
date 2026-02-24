@@ -340,6 +340,10 @@ class NodeRuntime(context: Context) {
   val wakeWords: StateFlow<List<String>> = prefs.wakeWords
   val voiceWakeMode: StateFlow<VoiceWakeMode> = prefs.voiceWakeMode
   val talkEnabled: StateFlow<Boolean> = prefs.talkEnabled
+  val talkElevenLabsApiKey: StateFlow<String> = prefs.talkElevenLabsApiKey
+  val talkVoiceId: StateFlow<String> = prefs.talkVoiceId
+  fun saveTalkElevenLabsApiKey(key: String) = prefs.saveTalkElevenLabsApiKey(key)
+  fun saveTalkVoiceId(id: String) = prefs.saveTalkVoiceId(id)
   val manualEnabled: StateFlow<Boolean> = prefs.manualEnabled
   val manualHost: StateFlow<String> = prefs.manualHost
   val manualPort: StateFlow<Int> = prefs.manualPort
@@ -409,6 +413,16 @@ class NodeRuntime(context: Context) {
         talkMode.setEnabled(enabled)
         externalAudioCaptureActive.value = enabled
       }
+    }
+
+    scope.launch {
+      combine(prefs.talkElevenLabsApiKey, prefs.talkVoiceId) { k, v -> Pair(k, v) }
+        .collect { (apiKey, voiceId) ->
+          talkMode.setElevenLabsConfig(
+            apiKey = apiKey.trim().takeIf { it.isNotEmpty() },
+            voiceId = voiceId.trim().takeIf { it.isNotEmpty() },
+          )
+        }
     }
 
     scope.launch(Dispatchers.Default) {
