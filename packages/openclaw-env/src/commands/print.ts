@@ -39,5 +39,3 @@ export async function printCommand(opts: PrintCommandOptions): Promise<void> {
     process.stdout.write(`${findingsText}\n`);
   }
 }
-
-

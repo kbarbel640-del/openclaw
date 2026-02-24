@@ -17,7 +17,11 @@ function cfgWithMount(hostPath: string): ResolvedOpenClawEnvConfig {
     workspace: { hostPath: configDir, mode: "ro", writeAllowlist: [] },
     mounts: [{ hostPath, container: "/data", mode: "ro" }],
     network: { mode: "off", restricted: { allowlist: [] } },
-    secrets: { mode: "none", envFilePath: path.join(configDir, ".env.openclaw"), dockerSecrets: [] },
+    secrets: {
+      mode: "none",
+      envFilePath: path.join(configDir, ".env.openclaw"),
+      dockerSecrets: [],
+    },
     limits: { cpus: 1, memory: "1g", pids: 128 },
     runtime: { user: "1000:1000" },
     writeGuards: { enabled: false, dryRunAudit: false, pollIntervalMs: 2000 },

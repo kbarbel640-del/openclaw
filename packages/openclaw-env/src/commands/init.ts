@@ -37,8 +37,12 @@ type MountPresetId = "data_rw" | "gitconfig_ro" | "ssh_never";
 
 function parseProfile(input?: string): ProfileId | null {
   const raw = (input ?? "").trim().toLowerCase();
-  if (!raw) return null;
-  if (raw === "safe" || raw === "dev" || raw === "integrations") return raw;
+  if (!raw) {
+    return null;
+  }
+  if (raw === "safe" || raw === "dev" || raw === "integrations") {
+    return raw;
+  }
   return null;
 }
 
@@ -61,8 +65,7 @@ function defaultAllowlistForProfile(profile: ProfileId): string[] {
 
 function defaultDraft(profile: ProfileId): DraftConfig {
   const workspaceMode: "ro" | "rw" = profile === "safe" ? "ro" : "rw";
-  const networkMode: "off" | "full" | "restricted" =
-    profile === "safe" ? "off" : "restricted";
+  const networkMode: "off" | "full" | "restricted" = profile === "safe" ? "off" : "restricted";
   const secretsMode: "none" | "env_file" | "docker_secrets" =
     profile === "integrations" ? "env_file" : "none";
 
@@ -135,9 +138,10 @@ function dedupeStrings(values: string[]): string[] {
   return out;
 }
 
-function presetMount(
-  preset: MountPresetId,
-): { mount?: DraftConfig["mounts"][number]; blockedReason?: string } {
+function presetMount(preset: MountPresetId): {
+  mount?: DraftConfig["mounts"][number];
+  blockedReason?: string;
+} {
   if (preset === "data_rw") {
     return {
       mount: {
@@ -343,7 +347,9 @@ export async function initCommand(opts: InitCommandOptions): Promise<void> {
       message: "Add an extra mount?",
       defaultValue: false,
     });
-    if (!addMount) break;
+    if (!addMount) {
+      break;
+    }
     const host = await promptText({ message: "Host path (relative to repo ok)" });
     const container = await promptText({ message: "Container path (e.g. /data)" });
     const mode = await promptSelect<"ro" | "rw">({
@@ -366,7 +372,9 @@ export async function initCommand(opts: InitCommandOptions): Promise<void> {
         message: "Add a docker secret?",
         defaultValue: false,
       });
-      if (!addSecret) break;
+      if (!addSecret) {
+        break;
+      }
       const name = await promptText({ message: "Secret name (used as /run/secrets/<name>)" });
       const file = await promptText({ message: "Secret file path (relative to repo ok)" });
       if (name.trim() && file.trim()) {
@@ -408,10 +416,7 @@ export async function initCommand(opts: InitCommandOptions): Promise<void> {
     network: {
       mode: networkMode,
       restricted: {
-        allowlist:
-          networkMode === "restricted"
-            ? parseCsvList(allowlist)
-            : [],
+        allowlist: networkMode === "restricted" ? parseCsvList(allowlist) : [],
       },
     },
     secrets: {

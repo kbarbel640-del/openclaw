@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "Hardened Docker sandbox generator for OpenClaw",
   "license": "MIT",
-  "type": "module",
   "bin": {
     "openclaw-env": "bin/openclaw-env.js"
   },
@@ -13,6 +12,7 @@
     "README.md",
     "openclaw.env.example.yml"
   ],
+  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "node --import tsx src/cli.ts",

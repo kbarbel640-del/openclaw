@@ -142,4 +142,3 @@ export function evaluateSafety(cfg: ResolvedOpenClawEnvConfig): SafetyEvaluation
 
   return { findings, hardErrors, requiresOverride, requiresConfirmation };
 }
-

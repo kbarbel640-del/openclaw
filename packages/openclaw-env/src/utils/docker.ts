@@ -52,5 +52,3 @@ export async function runDockerCompose(args: string[], options?: { cwd?: string 
     });
   });
 }
-
-

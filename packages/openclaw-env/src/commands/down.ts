@@ -17,4 +17,3 @@ export async function downCommand(opts: DownCommandOptions): Promise<void> {
     cwd: cfg.configDir,
   });
 }
-

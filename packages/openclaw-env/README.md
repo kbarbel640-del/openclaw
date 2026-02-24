@@ -11,13 +11,13 @@
 
 From a project directory:
 
-1) Build an OpenClaw image locally (from the OpenClaw repo root):
+1. Build an OpenClaw image locally (from the OpenClaw repo root):
 
 ```bash
 docker build -t openclaw:local -f Dockerfile .
 ```
 
-2) Initialize + run:
+2. Initialize + run:
 
 ```bash
 openclaw-env init

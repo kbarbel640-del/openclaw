@@ -29,7 +29,9 @@ export function formatPermissionSummary(cfg: ResolvedOpenClawEnvConfig): string 
   lines.push("");
 
   lines.push("Filesystem");
-  lines.push(`- workspace: ${cfg.workspace.hostPath} -> /workspace (${fmtMode(cfg.workspace.mode)})`);
+  lines.push(
+    `- workspace: ${cfg.workspace.hostPath} -> /workspace (${fmtMode(cfg.workspace.mode)})`,
+  );
   if (cfg.workspace.writeAllowlist.length > 0) {
     lines.push("- workspace write_allowlist:");
     for (const m of cfg.workspace.writeAllowlist) {

@@ -4,7 +4,31 @@ import { describe, expect, it } from "vitest";
 import type { ResolvedOpenClawEnvConfig } from "../config/load.js";
 import { generateCompose } from "./compose.js";
 
-function baseResolvedConfig(overrides?: Partial<ResolvedOpenClawEnvConfig>): ResolvedOpenClawEnvConfig {
+type ComposeService = {
+  read_only?: boolean;
+  cap_drop?: string[];
+  security_opt?: string[];
+  tmpfs?: string[];
+  working_dir?: string;
+  user?: string;
+  networks?: string[];
+  environment?: Record<string, string>;
+  volumes?: string[];
+  entrypoint?: string[];
+};
+
+type ComposeLike = {
+  services: Record<string, ComposeService>;
+  networks?: Record<string, { internal?: boolean }>;
+};
+
+function asCompose(value: unknown): ComposeLike {
+  return value as ComposeLike;
+}
+
+function baseResolvedConfig(
+  overrides?: Partial<ResolvedOpenClawEnvConfig>,
+): ResolvedOpenClawEnvConfig {
   const configDir = path.join(os.tmpdir(), "openclaw-env-test");
   const outputDir = path.join(configDir, ".openclaw-env");
   return {
@@ -62,7 +86,7 @@ describe("generateCompose", () => {
   it("includes hardening defaults on openclaw service", () => {
     const cfg = baseResolvedConfig();
     const out = generateCompose(cfg);
-    const compose = out.composeObject as any;
+    const compose = asCompose(out.composeObject);
 
     const svc = compose.services.openclaw;
     expect(svc.read_only).toBe(true);
@@ -79,11 +103,14 @@ describe("generateCompose", () => {
       workspace: { hostPath: "/tmp/work", mode: "ro", writeAllowlist: [] },
     });
     const out = generateCompose(cfg);
-    const compose = out.composeObject as any;
+    const compose = asCompose(out.composeObject);
 
     expect(compose.networks.openclaw_internal.internal).toBe(true);
     expect(compose.services.openclaw.networks).toEqual(["openclaw_internal"]);
-    expect(compose.services["egress-proxy"].networks).toEqual(["openclaw_internal", "openclaw_egress"]);
+    expect(compose.services["egress-proxy"].networks).toEqual([
+      "openclaw_internal",
+      "openclaw_egress",
+    ]);
 
     const env = compose.services.openclaw.environment;
     expect(env.HTTP_PROXY).toBe("http://egress-proxy:3128");
@@ -106,7 +133,7 @@ describe("generateCompose", () => {
       },
     });
     const out = generateCompose(cfg);
-    const compose = out.composeObject as any;
+    const compose = asCompose(out.composeObject);
     const volumes: string[] = compose.services.openclaw.volumes;
     expect(volumes).toContain("/tmp/work:/workspace:ro");
     expect(volumes).toContain("/tmp/work/.openclaw-cache:/workspace/.openclaw-cache:rw");
@@ -135,10 +162,10 @@ describe("generateCompose", () => {
       },
     });
     const out = generateCompose(cfg);
-    const compose = out.composeObject as any;
+    const compose = asCompose(out.composeObject);
     const svc = compose.services.openclaw;
     expect(Array.isArray(svc.entrypoint)).toBe(true);
-    expect(svc.environment.OPENCLAW_ENV_WRITE_GUARDS).toContain("\"dryRunAudit\":true");
+    expect(svc.environment.OPENCLAW_ENV_WRITE_GUARDS).toContain('"dryRunAudit":true');
     expect(svc.environment.OPENCLAW_ENV_WRITE_GUARDS).toContain("/workspace/.openclaw-cache");
     expect(svc.environment.OPENCLAW_ENV_WRITE_GUARDS).toContain("/data");
     expect(out.writeGuardRunnerJs).toContain("write-guard");

@@ -62,15 +62,11 @@ export async function promptSelect<T extends string>(params: {
 
   const defaultIndex = Math.max(
     0,
-    params.defaultValue
-      ? params.options.findIndex((o) => o.value === params.defaultValue)
-      : 0,
+    params.defaultValue ? params.options.findIndex((o) => o.value === params.defaultValue) : 0,
   );
 
   while (true) {
-    const answer = await ask(
-      `Select [1-${params.options.length}] (default ${defaultIndex + 1}): `,
-    );
+    const answer = await ask(`Select [1-${params.options.length}] (default ${defaultIndex + 1}): `);
     if (!answer) {
       return params.options[defaultIndex].value;
     }

@@ -298,7 +298,7 @@ function resolveWritableContainerPaths(cfg: ResolvedOpenClawEnvConfig): string[]
       paths.add(mount.container);
     }
   }
-  return Array.from(paths).sort();
+  return Array.from(paths).toSorted();
 }
 
 export function generateWriteGuardRunnerJs(): string {
@@ -488,9 +488,7 @@ export function generateCompose(cfg: ResolvedOpenClawEnvConfig): GeneratedArtifa
   const allowlistText = generateAllowlistText(cfg);
 
   const volumes: string[] = [];
-  volumes.push(
-    `${cfg.workspace.hostPath}:${OPENCLAW_CONTAINER_WORKSPACE}:${cfg.workspace.mode}`,
-  );
+  volumes.push(`${cfg.workspace.hostPath}:${OPENCLAW_CONTAINER_WORKSPACE}:${cfg.workspace.mode}`);
   for (const mount of cfg.workspace.writeAllowlist) {
     volumes.push(`${mount.hostPath}:${mount.containerPath}:rw`);
   }
@@ -515,9 +513,7 @@ export function generateCompose(cfg: ResolvedOpenClawEnvConfig): GeneratedArtifa
   let writeGuardRunnerJs: string | null = null;
   if (cfg.writeGuards.enabled) {
     writeGuardRunnerJs = generateWriteGuardRunnerJs();
-    volumes.push(
-      `${cfg.generated.writeGuardRunnerPath}:${OPENCLAW_CONTAINER_WRITE_GUARD_PATH}:ro`,
-    );
+    volumes.push(`${cfg.generated.writeGuardRunnerPath}:${OPENCLAW_CONTAINER_WRITE_GUARD_PATH}:ro`);
     const writeGuardConfig: Record<string, unknown> = {
       watchPaths: resolveWritableContainerPaths(cfg),
       dryRunAudit: cfg.writeGuards.dryRunAudit,
