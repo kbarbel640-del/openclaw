@@ -842,6 +842,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Requires at least this many newly appended bytes before session transcript changes trigger reindex (default: 100000). Increase to reduce frequent small reindexes, or lower for faster transcript freshness.",
   "agents.defaults.memorySearch.sync.sessions.deltaMessages":
     "Requires at least this many appended transcript messages before reindex is triggered (default: 50). Lower this for near-real-time transcript recall, or raise it to reduce indexing churn.",
+  "agents.defaults.memorySearch.sync.sessions.postCompactionForce":
+    "Forces a session memory-search reindex after compaction-triggered transcript updates (default: true). Keep enabled when compacted summaries must be immediately searchable, or disable to reduce write-time indexing pressure.",
   "agents.defaults.compaction.recentTurnsPreserve":
     "Number of most recent user/assistant turns kept verbatim outside safeguard summarization (default: 3). Raise this to preserve exact recent dialogue context, or lower it to maximize compaction savings.",
   "agents.defaults.compaction.postIndexSync":
