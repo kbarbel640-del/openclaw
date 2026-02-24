@@ -913,6 +913,15 @@ export function renderApp(state: AppViewState) {
                   }
                   updateConfigFormValue(state, ["agents", "defaultId"], agentId);
                 },
+                onOpenDetailPanel: (agentId) => {
+                  state.agentDetailPanel = {
+                    ...state.agentDetailPanel,
+                    open: true,
+                    agentId,
+                    mode: "view" as const,
+                    avatarPreview: null,
+                  };
+                },
               })
             : nothing
         }

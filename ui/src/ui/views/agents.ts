@@ -96,6 +96,7 @@ export type AgentsProps = {
   onAgentSkillsClear: (agentId: string) => void;
   onAgentSkillsDisableAll: (agentId: string) => void;
   onSetDefault: (agentId: string) => void;
+  onOpenDetailPanel?: (agentId: string) => void;
 };
 
 export function renderAgents(props: AgentsProps) {
@@ -185,6 +186,12 @@ export function renderAgents(props: AgentsProps) {
                     `
                   : nothing
               }
+              <button
+                class="btn btn--sm"
+                type="button"
+                ?disabled=${!selectedAgent}
+                @click=${() => selectedAgent && props.onOpenDetailPanel?.(selectedAgent.id)}
+              >Detail</button>
               <button class="btn btn--sm agents-refresh-btn" ?disabled=${props.loading} @click=${props.onRefresh}>
                 ${props.loading ? "Loading…" : "Refresh"}
               </button>
