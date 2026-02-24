@@ -188,6 +188,9 @@ jobs:
           - runtime: node
             task: protocol
             command: pnpm protocol:check
+          - runtime: node
+            task: security-guardrails
+            command: pnpm test:security:guardrails
           - runtime: bun
             task: test
             command: pnpm canvas:a2ui:bundle && bunx vitest run --config vitest.unit.config.ts
@@ -256,8 +259,8 @@ jobs:
         with:
           install-bun: "false"
 
-      - name: Check types and lint and oxfmt
-        run: pnpm check
+      - name: Check types/lint/format + authorization guardrails
+        run: pnpm check && pnpm check:authz-guardrails
 
   # Report-only dead-code scans. Runs after scope detection and stores machine-readable
   # results as artifacts for later triage before we enable hard gates.
