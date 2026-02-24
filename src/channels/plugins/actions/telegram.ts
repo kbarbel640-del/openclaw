@@ -174,7 +174,7 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
       const to =
         readStringParam(params, "to") ?? readStringParam(params, "target", { required: true });
       const question = readStringParam(params, "pollQuestion", { required: true });
-      const options = readStringArrayParam(params, "pollOption", { required: true }) ?? [];
+      const options = readStringArrayParam(params, "pollOption", { required: true });
       const allowMultiselect = typeof params.pollMulti === "boolean" ? params.pollMulti : undefined;
       const durationHours = readNumberParam(params, "pollDurationHours", { integer: true });
       const threadId = readNumberParam(params, "threadId", { integer: true });
