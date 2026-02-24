@@ -109,11 +109,12 @@ export function renderAgentDetailPanel(props: AgentDetailPanelProps) {
         </div>
         <div class="agent-detail-header__actions">
           <button
-            class="btn btn--sm ${isEdit ? "primary" : ""}"
+            class="btn btn--sm ${isEdit ? "" : "primary"}"
             type="button"
             @click=${() => props.onModeChange(isEdit ? "view" : "edit")}
+            title="${isEdit ? "Switch to view mode" : "Switch to edit mode"}"
           >
-            ${isEdit ? "Viewing" : "Edit"}
+            ${isEdit ? icons.eye : icons.edit} ${isEdit ? "View" : "Edit"}
           </button>
           <button
             class="btn btn--sm"
