@@ -146,6 +146,7 @@ export const dispatchTelegramMessage = async ({
     sessionKey: ctxPayload.SessionKey,
     agentId: route.agentId,
   });
+  const resolvedReasoningFormat = cfg.agents?.defaults?.reasoningFormat ?? "italic";
   const forceBlockStreamingForReasoning = resolvedReasoningLevel === "on";
   const streamReasoningDraft = resolvedReasoningLevel === "stream";
   const previewStreamingEnabled = streamMode !== "off";
@@ -207,7 +208,7 @@ export const dispatchTelegramMessage = async ({
     suppressedReasoningOnly: boolean;
   };
   const splitTextIntoLaneSegments = (text?: string): SplitLaneSegmentsResult => {
-    const split = splitTelegramReasoningText(text);
+    const split = splitTelegramReasoningText(text, resolvedReasoningFormat);
     const segments: SplitLaneSegment[] = [];
     const suppressReasoning = resolvedReasoningLevel === "off";
     if (split.reasoningText && !suppressReasoning) {
