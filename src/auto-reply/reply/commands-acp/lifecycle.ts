@@ -18,6 +18,7 @@ import type { OpenClawConfig } from "../../../config/config.js";
 import type { SessionAcpMeta } from "../../../config/sessions/types.js";
 import {
   resolveDiscordThreadBindingSessionTtlMs,
+  resolveThreadBindingSessionTtlMs,
   resolveThreadBindingIntroText,
   resolveThreadBindingThreadName,
 } from "../../../discord/monitor/thread-bindings.js";
@@ -27,7 +28,6 @@ import {
   type SessionBindingRecord,
 } from "../../../infra/outbound/session-binding-service.js";
 import {
-  isDiscordSurface,
   resolveDiscordAccountId,
   resolveDiscordChannelIdForFocus,
 } from "../commands-subagents/shared.js";
@@ -51,7 +51,58 @@ function resolveDiscordAcpSpawnFlags(params: HandleCommandsParams): {
   return resolveSharedDiscordAcpSpawnFlags(params.cfg, accountId);
 }
 
-async function bindSpawnedAcpSessionToDiscordThread(params: {
+function resolveBindingChannel(params: HandleCommandsParams): string {
+  const raw =
+    params.ctx.OriginatingChannel ??
+    params.command.channel ??
+    params.ctx.Surface ??
+    params.ctx.Provider;
+  return String(raw ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function resolveBindingAccountId(params: HandleCommandsParams): string {
+  const accountId = typeof params.ctx.AccountId === "string" ? params.ctx.AccountId.trim() : "";
+  return accountId || "default";
+}
+
+function resolveConversationIdForChildBinding(params: {
+  commandParams: HandleCommandsParams;
+  channel: string;
+}): string | undefined {
+  if (params.channel === "discord") {
+    return resolveDiscordChannelIdForFocus(params.commandParams);
+  }
+
+  const candidates = [
+    typeof params.commandParams.ctx.OriginatingTo === "string"
+      ? params.commandParams.ctx.OriginatingTo.trim()
+      : "",
+    typeof params.commandParams.command.to === "string"
+      ? params.commandParams.command.to.trim()
+      : "",
+    typeof params.commandParams.ctx.To === "string" ? params.commandParams.ctx.To.trim() : "",
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    if (candidate.startsWith("channel:")) {
+      const channelId = candidate.slice("channel:".length).trim();
+      if (channelId) {
+        return channelId;
+      }
+    }
+    const mentionMatch = candidate.match(/^<#(\d+)>$/);
+    if (mentionMatch?.[1]) {
+      return mentionMatch[1];
+    }
+    if (/^\d{6,}$/.test(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+async function bindSpawnedAcpSessionToThread(params: {
   commandParams: HandleCommandsParams;
   sessionKey: string;
   agentId: string;
@@ -67,45 +118,51 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
     };
   }
 
-  if (!isDiscordSurface(commandParams)) {
+  const channel = resolveBindingChannel(commandParams);
+  if (!channel) {
     return {
       ok: false,
-      error: "ACP thread binding is only available on Discord.",
+      error: "ACP thread binding requires a channel context.",
     };
   }
 
-  const flags = resolveDiscordAcpSpawnFlags(commandParams);
-  if (!flags.enabled) {
-    return {
-      ok: false,
-      error:
-        "Discord thread bindings are disabled (set channels.discord.threadBindings.enabled=true to override for this account, or session.threadBindings.enabled=true globally).",
-    };
-  }
-  if (!flags.spawnAcpSessions) {
-    return {
-      ok: false,
-      error:
-        "Discord thread-bound ACP spawns are disabled for this account (set channels.discord.threadBindings.spawnAcpSessions=true to enable).",
-    };
+  if (channel === "discord") {
+    const flags = resolveDiscordAcpSpawnFlags(commandParams);
+    if (!flags.enabled) {
+      return {
+        ok: false,
+        error:
+          "Discord thread bindings are disabled (set channels.discord.threadBindings.enabled=true to override for this account, or session.threadBindings.enabled=true globally).",
+      };
+    }
+    if (!flags.spawnAcpSessions) {
+      return {
+        ok: false,
+        error:
+          "Discord thread-bound ACP spawns are disabled for this account (set channels.discord.threadBindings.spawnAcpSessions=true to enable).",
+      };
+    }
   }
 
-  const accountId = resolveDiscordAccountId(commandParams);
+  const accountId =
+    channel === "discord"
+      ? resolveDiscordAccountId(commandParams)
+      : resolveBindingAccountId(commandParams);
   const bindingService = getSessionBindingService();
   const capabilities = bindingService.getCapabilities({
-    channel: "discord",
+    channel,
     accountId,
   });
   if (!capabilities.adapterAvailable) {
     return {
       ok: false,
-      error: "Discord thread bindings are unavailable for this account.",
+      error: `Thread bindings are unavailable for ${channel}.`,
     };
   }
   if (!capabilities.bindSupported) {
     return {
       ok: false,
-      error: "Discord thread bindings are unavailable for this account.",
+      error: `Thread bindings are unavailable for ${channel}.`,
     };
   }
 
@@ -117,7 +174,7 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
   if (threadMode === "here" && !currentThreadId) {
     return {
       ok: false,
-      error: "--thread here requires running /acp spawn inside a Discord thread.",
+      error: `--thread here requires running /acp spawn inside an active ${channel} thread/conversation.`,
     };
   }
 
@@ -126,23 +183,28 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
   if (!capabilities.placements.includes(placement)) {
     return {
       ok: false,
-      error: "Discord thread bindings do not support ACP thread spawn for this account.",
+      error: `Thread bindings do not support ${placement} placement for ${channel}.`,
     };
   }
   const channelId =
-    placement === "child" ? resolveDiscordChannelIdForFocus(commandParams) : undefined;
+    placement === "child"
+      ? resolveConversationIdForChildBinding({
+          commandParams,
+          channel,
+        })
+      : undefined;
 
   if (placement === "child" && !channelId) {
     return {
       ok: false,
-      error: "Could not resolve a Discord channel for ACP thread spawn.",
+      error: `Could not resolve a ${channel} conversation for ACP thread spawn.`,
     };
   }
 
   const senderId = commandParams.command.senderId?.trim() || "";
   if (threadId) {
     const existingBinding = bindingService.resolveByConversation({
-      channel: "discord",
+      channel,
       accountId,
       conversationId: threadId,
     });
@@ -163,7 +225,7 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
   if (!conversationId) {
     return {
       ok: false,
-      error: "Could not resolve a Discord channel for ACP thread spawn.",
+      error: `Could not resolve a ${channel} conversation for ACP thread spawn.`,
     };
   }
 
@@ -172,7 +234,7 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
       targetSessionKey: params.sessionKey,
       targetKind: "session",
       conversation: {
-        channel: "discord",
+        channel,
         accountId,
         conversationId,
       },
@@ -188,10 +250,16 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
         introText: resolveThreadBindingIntroText({
           agentId: params.agentId,
           label,
-          sessionTtlMs: resolveDiscordThreadBindingSessionTtlMs({
-            cfg: commandParams.cfg,
-            accountId,
-          }),
+          sessionTtlMs:
+            channel === "discord"
+              ? resolveDiscordThreadBindingSessionTtlMs({
+                  cfg: commandParams.cfg,
+                  accountId,
+                })
+              : resolveThreadBindingSessionTtlMs({
+                  channelTtlHoursRaw: undefined,
+                  sessionTtlHoursRaw: commandParams.cfg.session?.threadBindings?.ttlHours,
+                }),
           sessionDetails: resolveAcpSessionIdentifierLines({
             sessionKey: params.sessionKey,
             meta: params.sessionMeta,
@@ -207,7 +275,7 @@ async function bindSpawnedAcpSessionToDiscordThread(params: {
     const message = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
-      error: message || "Failed to bind a Discord thread to the new ACP session.",
+      error: message || `Failed to bind a ${channel} thread/conversation to the new ACP session.`,
     };
   }
 }
@@ -284,7 +352,7 @@ export async function handleAcpSpawnAction(
 
   let binding: SessionBindingRecord | null = null;
   if (spawn.thread !== "off") {
-    const bound = await bindSpawnedAcpSessionToDiscordThread({
+    const bound = await bindSpawnedAcpSessionToThread({
       commandParams: params,
       sessionKey,
       agentId: spawn.agentId,

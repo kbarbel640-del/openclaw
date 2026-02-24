@@ -22,11 +22,39 @@ import {
 } from "./commands-acp/runtime-options.js";
 import {
   COMMAND,
+  type AcpAction,
   resolveAcpAction,
   resolveAcpHelpText,
   stopWithText,
 } from "./commands-acp/shared.js";
-import type { CommandHandler } from "./commands-types.js";
+import type {
+  CommandHandler,
+  CommandHandlerResult,
+  HandleCommandsParams,
+} from "./commands-types.js";
+
+type AcpActionHandler = (
+  params: HandleCommandsParams,
+  tokens: string[],
+) => Promise<CommandHandlerResult>;
+
+const ACP_ACTION_HANDLERS: Record<Exclude<AcpAction, "help">, AcpActionHandler> = {
+  spawn: handleAcpSpawnAction,
+  cancel: handleAcpCancelAction,
+  steer: handleAcpSteerAction,
+  close: handleAcpCloseAction,
+  status: handleAcpStatusAction,
+  "set-mode": handleAcpSetModeAction,
+  set: handleAcpSetAction,
+  cwd: handleAcpCwdAction,
+  permissions: handleAcpPermissionsAction,
+  timeout: handleAcpTimeoutAction,
+  model: handleAcpModelAction,
+  "reset-options": handleAcpResetOptionsAction,
+  doctor: handleAcpDoctorAction,
+  install: async (params, tokens) => handleAcpInstallAction(params, tokens),
+  sessions: async (params, tokens) => handleAcpSessionsAction(params, tokens),
+};
 
 export const handleAcpCommand: CommandHandler = async (params, allowTextCommands) => {
   if (!allowTextCommands) {
@@ -46,41 +74,10 @@ export const handleAcpCommand: CommandHandler = async (params, allowTextCommands
   const rest = normalized.slice(COMMAND.length).trim();
   const tokens = rest.split(/\s+/).filter(Boolean);
   const action = resolveAcpAction(tokens);
-
-  switch (action) {
-    case "help":
-      return stopWithText(resolveAcpHelpText());
-    case "spawn":
-      return await handleAcpSpawnAction(params, tokens);
-    case "cancel":
-      return await handleAcpCancelAction(params, tokens);
-    case "steer":
-      return await handleAcpSteerAction(params, tokens);
-    case "close":
-      return await handleAcpCloseAction(params, tokens);
-    case "status":
-      return await handleAcpStatusAction(params, tokens);
-    case "set-mode":
-      return await handleAcpSetModeAction(params, tokens);
-    case "set":
-      return await handleAcpSetAction(params, tokens);
-    case "cwd":
-      return await handleAcpCwdAction(params, tokens);
-    case "permissions":
-      return await handleAcpPermissionsAction(params, tokens);
-    case "timeout":
-      return await handleAcpTimeoutAction(params, tokens);
-    case "model":
-      return await handleAcpModelAction(params, tokens);
-    case "reset-options":
-      return await handleAcpResetOptionsAction(params, tokens);
-    case "doctor":
-      return await handleAcpDoctorAction(params, tokens);
-    case "install":
-      return handleAcpInstallAction(params, tokens);
-    case "sessions":
-      return handleAcpSessionsAction(params, tokens);
-    default:
-      return stopWithText(resolveAcpHelpText());
+  if (action === "help") {
+    return stopWithText(resolveAcpHelpText());
   }
+
+  const handler = ACP_ACTION_HANDLERS[action];
+  return handler ? await handler(params, tokens) : stopWithText(resolveAcpHelpText());
 };

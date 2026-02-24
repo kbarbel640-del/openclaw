@@ -1,6 +1,6 @@
 import { getAcpSessionManager } from "../acp/control-plane/manager.js";
 import { resolveAcpAgentPolicyError, resolveAcpDispatchPolicyError } from "../acp/policy.js";
-import { AcpRuntimeError, toAcpRuntimeError } from "../acp/runtime/errors.js";
+import { toAcpRuntimeError } from "../acp/runtime/errors.js";
 import {
   listAgentIds,
   resolveAgentDir,
@@ -60,7 +60,7 @@ import {
   registerAgentRunContext,
 } from "../infra/agent-events.js";
 import { getRemoteSkillEligibility } from "../infra/skills-remote.js";
-import { isAcpSessionKey, normalizeAgentId } from "../routing/session-key.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { applyVerboseOverride } from "../sessions/level-overrides.js";
 import { applyModelOverrideToSessionEntry } from "../sessions/model-overrides.js";
@@ -298,6 +298,13 @@ export async function agentCommand(
   const workspaceDir = workspace.dir;
   let sessionEntry = resolvedSessionEntry;
   const runId = opts.runId?.trim() || sessionId;
+  const acpManager = getAcpSessionManager();
+  const acpResolution = sessionKey
+    ? acpManager.resolveSession({
+        cfg,
+        sessionKey,
+      })
+    : null;
 
   try {
     if (opts.deliver === true) {
@@ -313,14 +320,11 @@ export async function agentCommand(
       }
     }
 
-    if (sessionKey && isAcpSessionKey(sessionKey) && !sessionEntry?.acp) {
-      throw new AcpRuntimeError(
-        "ACP_SESSION_INIT_FAILED",
-        `ACP metadata is missing for session ${sessionKey}.`,
-      );
+    if (acpResolution?.kind === "stale") {
+      throw acpResolution.error;
     }
 
-    if (sessionKey && sessionEntry?.acp) {
+    if (acpResolution?.kind === "ready" && sessionKey) {
       const startedAt = Date.now();
       registerAgentRunContext(runId, {
         sessionKey,
@@ -334,7 +338,6 @@ export async function agentCommand(
         },
       });
 
-      const acpManager = getAcpSessionManager();
       let streamedText = "";
       let stopReason: string | undefined;
       try {
@@ -343,7 +346,7 @@ export async function agentCommand(
           throw dispatchPolicyError;
         }
         const acpAgent = normalizeAgentId(
-          sessionEntry.acp.agent || resolveAgentIdFromSessionKey(sessionKey),
+          acpResolution.meta.agent || resolveAgentIdFromSessionKey(sessionKey),
         );
         const agentPolicyError = resolveAcpAgentPolicyError(cfg, acpAgent);
         if (agentPolicyError) {

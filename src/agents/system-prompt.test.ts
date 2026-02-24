@@ -615,10 +615,12 @@ describe("buildSubagentSystemPrompt", () => {
     });
 
     expect(prompt).toContain("## Sub-Agent Spawning");
-    expect(prompt).toContain("Use `sessions_spawn` for child work.");
+    expect(prompt).toContain(
+      "You CAN spawn your own sub-agents for parallel or complex work using `sessions_spawn`.",
+    );
     expect(prompt).toContain("sessions_spawn");
     expect(prompt).toContain('runtime: "acp"');
-    expect(prompt).toContain("ACP harness session (codex/claudecode/gemini)");
+    expect(prompt).toContain("For ACP harness sessions (codex/claudecode/gemini)");
     expect(prompt).toContain("set `agentId` unless `acp.defaultAgent` is configured");
     expect(prompt).toContain("Do not ask users to run slash commands or CLI");
     expect(prompt).toContain("Do not use `exec` (`openclaw ...`, `acpx ...`)");

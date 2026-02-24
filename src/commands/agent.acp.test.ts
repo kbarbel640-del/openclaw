@@ -3,6 +3,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
 import * as acpManagerModule from "../acp/control-plane/manager.js";
+import { AcpRuntimeError } from "../acp/runtime/errors.js";
 import * as embeddedModule from "../agents/pi-embedded.js";
 import type { OpenClawConfig } from "../config/config.js";
 import * as configModule from "../config/config.js";
@@ -93,6 +94,41 @@ function writeAcpSessionStore(storePath: string) {
   );
 }
 
+function resolveReadySession(
+  sessionKey: string,
+  agent = "codex",
+): ReturnType<ReturnType<typeof acpManagerModule.getAcpSessionManager>["resolveSession"]> {
+  return {
+    kind: "ready",
+    sessionKey,
+    meta: {
+      backend: "acpx",
+      agent,
+      runtimeSessionName: sessionKey,
+      mode: "oneshot",
+      state: "idle",
+      lastActivityAt: Date.now(),
+    },
+  };
+}
+
+function mockAcpManager(params: {
+  runTurn: (params: unknown) => Promise<void>;
+  resolveSession?: (params: {
+    cfg: OpenClawConfig;
+    sessionKey: string;
+  }) => ReturnType<ReturnType<typeof acpManagerModule.getAcpSessionManager>["resolveSession"]>;
+}) {
+  getAcpSessionManagerSpy.mockReturnValue({
+    runTurn: params.runTurn,
+    resolveSession:
+      params.resolveSession ??
+      ((input) => {
+        return resolveReadySession(input.sessionKey);
+      }),
+  } as unknown as ReturnType<typeof acpManagerModule.getAcpSessionManager>);
+}
+
 describe("agentCommand ACP runtime routing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -119,9 +155,9 @@ describe("agentCommand ACP runtime routing", () => {
         await params.onEvent?.({ type: "done", stopReason: "stop" });
       });
 
-      getAcpSessionManagerSpy.mockReturnValue({
+      mockAcpManager({
         runTurn: (params: unknown) => runTurn(params),
-      } as unknown as ReturnType<typeof acpManagerModule.getAcpSessionManager>);
+      });
 
       await agentCommand({ message: "ping", sessionKey: "agent:codex:acp:test" }, runtime);
 
@@ -160,9 +196,19 @@ describe("agentCommand ACP runtime routing", () => {
       mockConfig(home, storePath);
 
       const runTurn = vi.fn(async (_params: unknown) => {});
-      getAcpSessionManagerSpy.mockReturnValue({
+      mockAcpManager({
         runTurn: (params: unknown) => runTurn(params),
-      } as unknown as ReturnType<typeof acpManagerModule.getAcpSessionManager>);
+        resolveSession: ({ sessionKey }) => {
+          return {
+            kind: "stale",
+            sessionKey,
+            error: new AcpRuntimeError(
+              "ACP_SESSION_INIT_FAILED",
+              `ACP metadata is missing for session ${sessionKey}.`,
+            ),
+          };
+        },
+      });
 
       await expect(
         agentCommand({ message: "ping", sessionKey: "agent:codex:acp:stale" }, runtime),
@@ -184,9 +230,9 @@ describe("agentCommand ACP runtime routing", () => {
       });
 
       const runTurn = vi.fn(async (_params: unknown) => {});
-      getAcpSessionManagerSpy.mockReturnValue({
+      mockAcpManager({
         runTurn: (params: unknown) => runTurn(params),
-      } as unknown as ReturnType<typeof acpManagerModule.getAcpSessionManager>);
+      });
 
       await expect(
         agentCommand({ message: "ping", sessionKey: "agent:codex:acp:test" }, runtime),
@@ -207,9 +253,9 @@ describe("agentCommand ACP runtime routing", () => {
       });
 
       const runTurn = vi.fn(async (_params: unknown) => {});
-      getAcpSessionManagerSpy.mockReturnValue({
+      mockAcpManager({
         runTurn: (params: unknown) => runTurn(params),
-      } as unknown as ReturnType<typeof acpManagerModule.getAcpSessionManager>);
+      });
 
       await expect(
         agentCommand({ message: "ping", sessionKey: "agent:codex:acp:test" }, runtime),
@@ -230,9 +276,10 @@ describe("agentCommand ACP runtime routing", () => {
       });
 
       const runTurn = vi.fn(async (_params: unknown) => {});
-      getAcpSessionManagerSpy.mockReturnValue({
+      mockAcpManager({
         runTurn: (params: unknown) => runTurn(params),
-      } as unknown as ReturnType<typeof acpManagerModule.getAcpSessionManager>);
+        resolveSession: ({ sessionKey }) => resolveReadySession(sessionKey, "codex"),
+      });
 
       await expect(
         agentCommand({ message: "ping", sessionKey: "agent:codex:acp:test" }, runtime),

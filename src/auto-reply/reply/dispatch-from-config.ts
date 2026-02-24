@@ -90,31 +90,30 @@ const resolveSessionStoreEntry = (
   }
 };
 
+function resolveFirstContextText(
+  ctx: FinalizedMsgContext,
+  keys: Array<"BodyForAgent" | "BodyForCommands" | "CommandBody" | "RawBody" | "Body">,
+): string {
+  for (const key of keys) {
+    const value = ctx[key];
+    if (typeof value === "string") {
+      return value;
+    }
+  }
+  return "";
+}
+
 const resolveAcpPromptText = (ctx: FinalizedMsgContext): string =>
-  (typeof ctx.BodyForAgent === "string"
-    ? ctx.BodyForAgent
-    : typeof ctx.BodyForCommands === "string"
-      ? ctx.BodyForCommands
-      : typeof ctx.CommandBody === "string"
-        ? ctx.CommandBody
-        : typeof ctx.RawBody === "string"
-          ? ctx.RawBody
-          : typeof ctx.Body === "string"
-            ? ctx.Body
-            : ""
-  ).trim();
+  resolveFirstContextText(ctx, [
+    "BodyForAgent",
+    "BodyForCommands",
+    "CommandBody",
+    "RawBody",
+    "Body",
+  ]).trim();
 
 const resolveCommandCandidateText = (ctx: FinalizedMsgContext): string =>
-  (typeof ctx.CommandBody === "string"
-    ? ctx.CommandBody
-    : typeof ctx.BodyForCommands === "string"
-      ? ctx.BodyForCommands
-      : typeof ctx.RawBody === "string"
-        ? ctx.RawBody
-        : typeof ctx.Body === "string"
-          ? ctx.Body
-          : ""
-  ).trim();
+  resolveFirstContextText(ctx, ["CommandBody", "BodyForCommands", "RawBody", "Body"]).trim();
 
 const shouldBypassAcpDispatchForCommand = (
   ctx: FinalizedMsgContext,
