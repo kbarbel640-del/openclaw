@@ -2810,6 +2810,7 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
     public let id: String?
     public let command: String
     public let cwd: AnyCodable?
+    public let nodeid: AnyCodable?
     public let host: AnyCodable?
     public let security: AnyCodable?
     public let ask: AnyCodable?
@@ -2823,6 +2824,7 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         id: String?,
         command: String,
         cwd: AnyCodable?,
+        nodeid: AnyCodable?,
         host: AnyCodable?,
         security: AnyCodable?,
         ask: AnyCodable?,
@@ -2835,6 +2837,7 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         self.id = id
         self.command = command
         self.cwd = cwd
+        self.nodeid = nodeid
         self.host = host
         self.security = security
         self.ask = ask
@@ -2849,6 +2852,7 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         case id
         case command
         case cwd
+        case nodeid = "nodeId"
         case host
         case security
         case ask
