@@ -35,5 +35,12 @@ export function applyTargetToParams(params: {
     params.args.to = target;
     return;
   }
+  // For plugin-custom actions not in the known action map, pass target
+  // through as channelId so plugins that accept chatId/channelId work.
+  const isKnownAction = params.action in MESSAGE_ACTION_TARGET_MODE;
+  if (!isKnownAction) {
+    params.args.channelId = target;
+    return;
+  }
   throw new Error(`Action ${params.action} does not accept a target.`);
 }
