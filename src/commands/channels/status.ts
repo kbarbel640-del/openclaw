@@ -309,7 +309,9 @@ export async function channelsStatusCommand(
       runtime.log(JSON.stringify(payload, null, 2));
       return;
     }
-    runtime.log(formatGatewayChannelsStatusLines(payload, { verbose: Boolean(opts.verbose) }).join("\n"));
+    runtime.log(
+      formatGatewayChannelsStatusLines(payload, { verbose: Boolean(opts.verbose) }).join("\n"),
+    );
   } catch (err) {
     runtime.error(`Gateway not reachable: ${String(err)}`);
     const cfg = await requireValidConfig(runtime);
@@ -320,10 +322,14 @@ export async function channelsStatusCommand(
     const mode = cfg.gateway?.mode === "remote" ? "remote" : "local";
     runtime.log(
       (
-        await formatConfigChannelsStatusLines(cfg, {
-          path: snapshot.path,
-          mode,
-        }, { verbose: Boolean(opts.verbose) })
+        await formatConfigChannelsStatusLines(
+          cfg,
+          {
+            path: snapshot.path,
+            mode,
+          },
+          { verbose: Boolean(opts.verbose) },
+        )
       ).join("\n"),
     );
   }
