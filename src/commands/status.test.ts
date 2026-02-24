@@ -566,6 +566,28 @@ describe("statusCommand", () => {
     expect(joined).toContain("devices approve req-close-456");
   });
 
+  it("shows actual session model in overview row when it differs from configured default", async () => {
+    const originalLoadSessionStore = mocks.loadSessionStore.getMockImplementation();
+    mocks.loadSessionStore.mockReturnValue({
+      "+1000": {
+        ...createDefaultSessionStoreEntry(),
+        model: "google:gemini-flash",
+      },
+    });
+    try {
+      runtimeLogMock.mockClear();
+      await statusCommand({}, runtime as never);
+      const logs = runtimeLogMock.mock.calls.map((c: unknown[]) => String(c[0]));
+      const sessionsLine = logs.find((l) => l.includes("Sessions") && l.includes("active"));
+      expect(sessionsLine).toBeDefined();
+      expect(sessionsLine).toMatch(/gemini-flash/);
+    } finally {
+      if (originalLoadSessionStore) {
+        mocks.loadSessionStore.mockImplementation(originalLoadSessionStore);
+      }
+    }
+  });
+
   it("includes sessions across agents in JSON output", async () => {
     const originalAgents = mocks.listAgentsForGateway.getMockImplementation();
     const originalResolveStorePath = mocks.resolveStorePath.getMockImplementation();

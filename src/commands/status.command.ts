@@ -296,6 +296,7 @@ export async function statusCommand(
   const defaultCtx = defaults.contextTokens
     ? ` (${formatKTokens(defaults.contextTokens)} ctx)`
     : "";
+  const activeModel = summary.sessions.recent[0]?.model ?? defaults.model ?? "unknown";
   const eventsValue =
     summary.queuedSystemEvents.length > 0 ? `${summary.queuedSystemEvents.length} queued` : "none";
 
@@ -412,7 +413,7 @@ export async function statusCommand(
     ...(lastHeartbeatValue ? [{ Item: "Last heartbeat", Value: lastHeartbeatValue }] : []),
     {
       Item: "Sessions",
-      Value: `${summary.sessions.count} active · default ${defaults.model ?? "unknown"}${defaultCtx} · ${storeLabel}`,
+      Value: `${summary.sessions.count} active · model ${activeModel}${defaultCtx} · ${storeLabel}`,
     },
   ];
 
