@@ -13,7 +13,32 @@ export type FormatTimeAgoOptions = {
   suffix?: boolean;
   /** Return value for invalid/null/negative input. Default: "unknown" */
   fallback?: string;
+  /** Optional locale for localized output (e.g. "pt-BR") */
+  locale?: string;
 };
+
+function resolveLocaleTag(locale?: string): string {
+  if (!locale) {
+    return "en";
+  }
+  return locale.toLowerCase();
+}
+
+function formatRelativeText(value: number, unit: string, isPast: boolean, locale?: string): string {
+  const tag = resolveLocaleTag(locale);
+  if (tag.startsWith("pt")) {
+    return isPast ? `há ${value}${unit}` : `em ${value}${unit}`;
+  }
+  return isPast ? `${value}${unit} ago` : `in ${value}${unit}`;
+}
+
+function formatJustNow(isPast: boolean, locale?: string): string {
+  const tag = resolveLocaleTag(locale);
+  if (tag.startsWith("pt")) {
+    return isPast ? "agora mesmo" : "em <1m";
+  }
+  return isPast ? "just now" : "in <1m";
+}
 
 /**
  * Format a duration (in ms) as a human-readable relative time.
@@ -29,6 +54,7 @@ export function formatTimeAgo(
 ): string {
   const suffix = options?.suffix !== false;
   const fallback = options?.fallback ?? "unknown";
+  const locale = options?.locale;
 
   if (durationMs == null || !Number.isFinite(durationMs) || durationMs < 0) {
     return fallback;
@@ -38,17 +64,17 @@ export function formatTimeAgo(
   const minutes = Math.round(totalSeconds / 60);
 
   if (minutes < 1) {
-    return suffix ? "just now" : `${totalSeconds}s`;
+    return suffix ? formatJustNow(true, locale) : `${totalSeconds}s`;
   }
   if (minutes < 60) {
-    return suffix ? `${minutes}m ago` : `${minutes}m`;
+    return suffix ? formatRelativeText(minutes, "m", true, locale) : `${minutes}m`;
   }
   const hours = Math.round(minutes / 60);
   if (hours < 48) {
-    return suffix ? `${hours}h ago` : `${hours}h`;
+    return suffix ? formatRelativeText(hours, "h", true, locale) : `${hours}h`;
   }
   const days = Math.round(hours / 24);
-  return suffix ? `${days}d ago` : `${days}d`;
+  return suffix ? formatRelativeText(days, "d", true, locale) : `${days}d`;
 }
 
 export type FormatRelativeTimestampOptions = {
@@ -58,6 +84,8 @@ export type FormatRelativeTimestampOptions = {
   timezone?: string;
   /** Return value for invalid/null input. Default: "n/a" */
   fallback?: string;
+  /** Optional locale for localized output (e.g. "pt-BR") */
+  locale?: string;
 };
 
 /**
@@ -71,6 +99,7 @@ export function formatRelativeTimestamp(
   options?: FormatRelativeTimestampOptions,
 ): string {
   const fallback = options?.fallback ?? "n/a";
+  const locale = options?.locale;
   if (timestampMs == null || !Number.isFinite(timestampMs)) {
     return fallback;
   }
@@ -81,32 +110,33 @@ export function formatRelativeTimestamp(
 
   const sec = Math.round(absDiff / 1000);
   if (sec < 60) {
-    return isPast ? "just now" : "in <1m";
+    return formatJustNow(isPast, locale);
   }
 
   const min = Math.round(sec / 60);
   if (min < 60) {
-    return isPast ? `${min}m ago` : `in ${min}m`;
+    return formatRelativeText(min, "m", isPast, locale);
   }
 
   const hr = Math.round(min / 60);
   if (hr < 48) {
-    return isPast ? `${hr}h ago` : `in ${hr}h`;
+    return formatRelativeText(hr, "h", isPast, locale);
   }
 
   const day = Math.round(hr / 24);
   if (!options?.dateFallback || day <= 7) {
-    return isPast ? `${day}d ago` : `in ${day}d`;
+    return formatRelativeText(day, "d", isPast, locale);
   }
 
   // Fall back to short date display for old timestamps
   try {
-    return new Intl.DateTimeFormat("en-US", {
+    const localeTag = locale && resolveLocaleTag(locale).startsWith("pt") ? "pt-BR" : "en-US";
+    return new Intl.DateTimeFormat(localeTag, {
       month: "short",
       day: "numeric",
       ...(options.timezone ? { timeZone: options.timezone } : {}),
     }).format(new Date(timestampMs));
   } catch {
-    return `${day}d ago`;
+    return formatRelativeText(day, "d", isPast, locale);
   }
 }
