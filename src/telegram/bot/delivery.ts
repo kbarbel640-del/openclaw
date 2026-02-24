@@ -312,6 +312,7 @@ export async function resolveMedia(
   maxBytes: number,
   token: string,
   proxyFetch?: typeof fetch,
+  apiRoot = "https://api.telegram.org",
 ): Promise<{
   path: string;
   contentType?: string;
@@ -320,7 +321,7 @@ export async function resolveMedia(
 } | null> {
   const msg = ctx.message;
   const downloadAndSaveTelegramFile = async (filePath: string, fetchImpl: typeof fetch) => {
-    const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
+    const url = `${apiRoot}/file/bot${token}/${filePath}`;
     const fetched = await fetchRemoteMedia({
       url,
       fetchImpl,
