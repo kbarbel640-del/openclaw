@@ -24,8 +24,11 @@ export function buildCommandContext(params: {
   const channel = (ctx.Provider ?? surface).trim().toLowerCase();
   const abortKey = sessionKey ?? (auth.from || undefined) ?? (auth.to || undefined);
   const rawBodyNormalized = triggerBodyNormalized;
+  const shouldStripMentionsForCommands = isGroup || ctx.WasMentioned === true;
   const commandBodyNormalized = normalizeCommandBody(
-    isGroup ? stripMentions(rawBodyNormalized, ctx, cfg, agentId) : rawBodyNormalized,
+    shouldStripMentionsForCommands
+      ? stripMentions(rawBodyNormalized, ctx, cfg, agentId)
+      : rawBodyNormalized,
   );
 
   return {

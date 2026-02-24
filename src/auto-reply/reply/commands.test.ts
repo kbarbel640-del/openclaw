@@ -588,6 +588,32 @@ function buildPolicyParams(
   return params;
 }
 
+describe("buildCommandContext mention stripping", () => {
+  it("strips mentions when mention is flagged even if group detection is false", () => {
+    const cfg = { commands: { text: true } } as OpenClawConfig;
+    const body = "<@U123> /allowlist list dm";
+    const ctx = {
+      Body: body,
+      CommandBody: body,
+      CommandSource: "text",
+      CommandAuthorized: true,
+      Provider: "slack",
+      Surface: "slack",
+      WasMentioned: true,
+    } as MsgContext;
+
+    const command = buildCommandContext({
+      ctx,
+      cfg,
+      isGroup: false,
+      triggerBodyNormalized: body.trim(),
+      commandAuthorized: true,
+    });
+
+    expect(command.commandBodyNormalized).toBe("/allowlist list dm");
+  });
+});
+
 describe("handleCommands /allowlist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
