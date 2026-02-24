@@ -688,11 +688,42 @@ async function handlePluginAction(ctx: ResolvedActionContext): Promise<MessageAc
   };
 }
 
+function looksLikeSlackChannelId(raw?: string | null): boolean {
+  const s = raw?.trim();
+  // Slack channel IDs typically start with C or G and are uppercase alphanumeric.
+  // Treat these as opaque IDs and avoid normalizing them as channel names.
+  return !!s && /^[CG][0-9A-Z]{8,}$/.test(s);
+}
+
 export async function runMessageAction(
   input: RunMessageActionParams,
 ): Promise<MessageActionRunResult> {
   const cfg = input.cfg;
   const params = { ...input.params };
+
+  // Slack agent convenience: when running in a Slack context, allow the `channel`
+  // field to hold a Slack channel ID (e.g. C0AGJ7ZJLNP). In that case, treat it
+  // as a destination and set channel="slack" so channel selection does not try
+  // to normalize the ID as a provider name (which would lowercase it).
+  const rawChannelParam =
+    typeof params.channel === "string" && params.channel.trim().length > 0
+      ? params.channel.trim()
+      : undefined;
+  if (rawChannelParam && looksLikeSlackChannelId(rawChannelParam)) {
+    const normalizedProvider = normalizeMessageChannel(rawChannelParam);
+    if (!normalizedProvider || !isDeliverableMessageChannel(normalizedProvider)) {
+      const hasAnyTarget =
+        (typeof params.target === "string" && params.target.trim().length > 0) ||
+        (typeof params.to === "string" && params.to.trim().length > 0) ||
+        (typeof params.channelId === "string" && params.channelId.trim().length > 0);
+      if (!hasAnyTarget) {
+        // Promote the channel id to a target; downstream Slack routing preserves case.
+        params.target = rawChannelParam;
+      }
+      params.channel = "slack";
+    }
+  }
+
   const resolvedAgentId =
     input.agentId ??
     (input.sessionKey
