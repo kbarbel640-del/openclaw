@@ -93,7 +93,7 @@ const plugin = {
         }
 
         // Local mode: in-process service
-        if (!account.enabled && !account.configured) return null;
+        if (!account.enabled || !account.configured) return null;
         return createWhatsAppCallTool(() => service) as AnyAgentTool;
       }) as OpenClawPluginToolFactory,
       { optional: true },
