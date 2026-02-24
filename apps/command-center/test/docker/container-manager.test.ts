@@ -36,6 +36,7 @@ describe("ContainerManager", () => {
   let startContainerFn: ReturnType<typeof vi.fn>;
   let stopContainerFn: ReturnType<typeof vi.fn>;
   let removeContainerFn: ReturnType<typeof vi.fn>;
+  let removeNetworkFn: ReturnType<typeof vi.fn>;
   let inspectContainerFn: ReturnType<typeof vi.fn>;
   let getContainerStatsFn: ReturnType<typeof vi.fn>;
   let createNetworkFn: ReturnType<typeof vi.fn>;
@@ -64,6 +65,7 @@ describe("ContainerManager", () => {
     });
     createNetworkFn = vi.fn();
     createVolumeFn = vi.fn();
+    removeNetworkFn = vi.fn().mockResolvedValue(undefined);
     listManagedNetworksFn = vi.fn().mockResolvedValue([]);
     getEngineFn = vi.fn().mockReturnValue({
       getNetwork: vi.fn().mockReturnValue({ remove: vi.fn().mockResolvedValue(undefined) }),
@@ -75,6 +77,7 @@ describe("ContainerManager", () => {
       startContainer: startContainerFn,
       stopContainer: stopContainerFn,
       removeContainer: removeContainerFn,
+      removeNetwork: removeNetworkFn,
       inspectContainer: inspectContainerFn,
       getContainerStats: getContainerStatsFn,
       createNetwork: createNetworkFn,
@@ -260,18 +263,15 @@ describe("ContainerManager", () => {
       expect(removeContainerFn).toHaveBeenCalledTimes(2);
     });
 
-    it("removes managed networks", async () => {
+    it("removes managed networks via client.removeNetwork (idempotent)", async () => {
       listContainersFn.mockResolvedValue([]);
       listManagedNetworksFn.mockResolvedValue([
         { Id: "net-1", Name: "openclaw-net" } as never,
       ]);
 
-      const mockEngine = { getNetwork: vi.fn().mockReturnValue({ remove: vi.fn().mockResolvedValue(undefined) }) };
-      getEngineFn.mockReturnValue(mockEngine);
-
       await manager.destroyEnvironment();
 
-      expect(mockEngine.getNetwork).toHaveBeenCalledWith("net-1");
+      expect(removeNetworkFn).toHaveBeenCalledWith("net-1");
     });
   });
 
