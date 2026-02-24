@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveSandboxBrowserConfig } from "../agents/sandbox/config.js";
+import {
+  resolveSandboxBrowserConfig,
+  resolveSandboxDockerConfig,
+} from "../agents/sandbox/config.js";
 import { validateConfigObject } from "./config.js";
 
 describe("sandbox docker config", () => {
@@ -51,6 +54,53 @@ describe("sandbox docker config", () => {
       },
     });
     expect(res.ok).toBe(false);
+  });
+
+  it("rejects container namespace join by default", () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          sandbox: {
+            docker: {
+              network: "container:peer",
+            },
+          },
+        },
+      },
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("allows container namespace join with explicit dangerous override", () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          sandbox: {
+            docker: {
+              network: "container:peer",
+              dangerouslyAllowContainerNamespaceJoin: true,
+            },
+          },
+        },
+      },
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("uses agent override precedence for dangerouslyAllowContainerNamespaceJoin", () => {
+    const inherited = resolveSandboxDockerConfig({
+      scope: "agent",
+      globalDocker: { dangerouslyAllowContainerNamespaceJoin: true },
+      agentDocker: {},
+    });
+    expect(inherited.dangerouslyAllowContainerNamespaceJoin).toBe(true);
+
+    const overridden = resolveSandboxDockerConfig({
+      scope: "agent",
+      globalDocker: { dangerouslyAllowContainerNamespaceJoin: true },
+      agentDocker: { dangerouslyAllowContainerNamespaceJoin: false },
+    });
+    expect(overridden.dangerouslyAllowContainerNamespaceJoin).toBe(false);
   });
 
   it("rejects seccomp unconfined via Zod schema validation", () => {
@@ -176,5 +226,80 @@ describe("sandbox browser binds config", () => {
       agentBrowser: {},
     });
     expect(resolved.binds).toBeUndefined();
+  });
+
+  it("defaults browser network to dedicated sandbox network", () => {
+    const resolved = resolveSandboxBrowserConfig({
+      scope: "agent",
+      globalBrowser: {},
+      agentBrowser: {},
+    });
+    expect(resolved.network).toBe("openclaw-sandbox-browser");
+  });
+
+  it("prefers agent browser network over global browser network", () => {
+    const resolved = resolveSandboxBrowserConfig({
+      scope: "agent",
+      globalBrowser: { network: "openclaw-sandbox-browser-global" },
+      agentBrowser: { network: "openclaw-sandbox-browser-agent" },
+    });
+    expect(resolved.network).toBe("openclaw-sandbox-browser-agent");
+  });
+
+  it("merges cdpSourceRange with agent override", () => {
+    const resolved = resolveSandboxBrowserConfig({
+      scope: "agent",
+      globalBrowser: { cdpSourceRange: "172.21.0.1/32" },
+      agentBrowser: { cdpSourceRange: "172.22.0.1/32" },
+    });
+    expect(resolved.cdpSourceRange).toBe("172.22.0.1/32");
+  });
+
+  it("rejects host network mode in sandbox.browser config", () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          sandbox: {
+            browser: {
+              network: "host",
+            },
+          },
+        },
+      },
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("rejects container namespace join in sandbox.browser config by default", () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          sandbox: {
+            browser: {
+              network: "container:peer",
+            },
+          },
+        },
+      },
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("allows container namespace join in sandbox.browser config with explicit dangerous override", () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          sandbox: {
+            docker: {
+              dangerouslyAllowContainerNamespaceJoin: true,
+            },
+            browser: {
+              network: "container:peer",
+            },
+          },
+        },
+      },
+    });
+    expect(res.ok).toBe(true);
   });
 });
