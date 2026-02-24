@@ -923,8 +923,10 @@ export function renderApp(state: AppViewState) {
                   };
 
                   // Load agent files and identity
-                  await loadAgentFiles(state, agentId);
-                  await loadAgentIdentity(state, agentId);
+                  await Promise.all([
+                    loadAgentFiles(state, agentId),
+                    loadAgentIdentity(state, agentId),
+                  ]);
 
                   // Load BDI cognitive file contents
                   const bdiFiles = [
@@ -947,11 +949,9 @@ export function renderApp(state: AppViewState) {
                     "TOOLS.md",
                   ];
 
-                  await Promise.all(
-                    [...bdiFiles, ...coreFiles].map((name) =>
-                      loadAgentFileContent(state, agentId, name),
-                    ),
-                  );
+                  for (const name of [...bdiFiles, ...coreFiles]) {
+                    await loadAgentFileContent(state, agentId, name);
+                  }
                 },
               })
             : nothing
