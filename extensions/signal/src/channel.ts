@@ -1,5 +1,6 @@
 import {
   applyAccountNameToChannelSection,
+  buildBaseAccountStatusSnapshot,
   buildBaseChannelStatusSummary,
   buildChannelConfigSchema,
   collectStatusIssuesFromLastError,
@@ -275,18 +276,8 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
       });
     },
     buildAccountSnapshot: ({ account, runtime, probe }) => ({
-      accountId: account.accountId,
-      name: account.name,
-      enabled: account.enabled,
-      configured: account.configured,
+      ...buildBaseAccountStatusSnapshot({ account, runtime, probe }),
       baseUrl: account.baseUrl,
-      running: runtime?.running ?? false,
-      lastStartAt: runtime?.lastStartAt ?? null,
-      lastStopAt: runtime?.lastStopAt ?? null,
-      lastError: runtime?.lastError ?? null,
-      probe,
-      lastInboundAt: runtime?.lastInboundAt ?? null,
-      lastOutboundAt: runtime?.lastOutboundAt ?? null,
     }),
   },
   gateway: {

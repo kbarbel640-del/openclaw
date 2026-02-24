@@ -455,4 +455,35 @@ describe("signal client backend compatibility", () => {
       ),
     ).rejects.toThrow("Signal REST send timed out after 45000ms (/v2/send)");
   });
+
+  it("throws a wrapped error when JSON-RPC response JSON is malformed", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }))
+      .mockResolvedValueOnce(new Response("not-json", { status: 502 }));
+    resolveFetchMock.mockReturnValue(fetchMock);
+
+    await expect(
+      signalRpcRequest("version", undefined, {
+        baseUrl: "http://signal-jsonrpc-malformed:8080",
+      }),
+    ).rejects.toMatchObject({
+      message: "Signal RPC returned malformed JSON (status 502)",
+      cause: expect.any(SyntaxError),
+    });
+  });
+
+  it("throws when JSON-RPC envelope has neither result nor error", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse({ jsonrpc: "2.0", id: "test-id" }));
+    resolveFetchMock.mockReturnValue(fetchMock);
+
+    await expect(
+      signalRpcRequest("version", undefined, {
+        baseUrl: "http://signal-jsonrpc-invalid-envelope:8080",
+      }),
+    ).rejects.toThrow("Signal RPC returned invalid response envelope (status 200)");
+  });
 });
