@@ -115,6 +115,10 @@ export class GatewayBrowserClient {
 
   stop() {
     this.closed = true;
+    if (this.connectTimer !== null) {
+      window.clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
     if (this.tickTimer !== null) {
       window.clearInterval(this.tickTimer);
       this.tickTimer = null;
