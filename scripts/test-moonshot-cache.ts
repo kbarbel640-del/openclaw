@@ -24,7 +24,7 @@ async function createCache(): Promise<string> {
       Authorization: `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      model: "moonshot-v1-32k",
+      model: "moonshot-v1", // Note: caching API uses base model name without suffix
       messages: [
         {
           role: "system",

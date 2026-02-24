@@ -80,6 +80,28 @@ function hashContent(system: string, tools: unknown[] | undefined): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
 
+/**
+ * Map model ID to caching-compatible model name.
+ * The caching API uses base model names without context-length suffixes.
+ */
+function toCacheModelName(modelId: string): string {
+  // Strip provider prefix if present (e.g., "moonshot/moonshot-v1-32k" -> "moonshot-v1-32k")
+  const name = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
+
+  // Map known model families to their caching-compatible base names
+  if (name.startsWith("moonshot-v1")) {
+    return "moonshot-v1";
+  }
+  if (name.startsWith("kimi-k2") || name.startsWith("kimi-k1")) {
+    // K2/K1 models may use different cache model names - needs verification
+    // For now, try the model name as-is, fall back to moonshot-v1
+    return "moonshot-v1";
+  }
+
+  // Default: use the name as-is and let the API validate
+  return name;
+}
+
 function shouldInvalidate(entry: CacheEntry | undefined, currentHash: string): boolean {
   if (!entry) {
     return true;
@@ -100,8 +122,9 @@ async function createCache(params: {
   ttl: number;
 }): Promise<string> {
   const url = `${params.baseUrl}/caching`;
+  const cacheModel = toCacheModelName(params.model);
   const body: CacheCreateRequest = {
-    model: params.model,
+    model: cacheModel,
     messages: [{ role: "system", content: params.system }],
     ttl: params.ttl,
   };
