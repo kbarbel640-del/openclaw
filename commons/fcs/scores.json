@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "updatedAt": "2026-02-24T07:29:42.761Z",
+  "entries": {
+    "fin-dca-strategy": {
+      "entryId": "fin-dca-strategy",
+      "score": {
+        "total": 14.963965014625526,
+        "breakdown": {
+          "quality": 0,
+          "usage": 0,
+          "social": 0,
+          "freshness": 99.75976676417018
+        },
+        "calculatedAt": "2026-02-24T07:29:42.741Z",
+        "decayApplied": 0.9975976676417018
+      },
+      "lifecycle": {
+        "tier": "seedling",
+        "status": "active",
+        "tierHistory": [
+          {
+            "tier": "seedling",
+            "status": "active",
+            "changedAt": "2026-02-24T07:29:42.741Z",
+            "reason": "Initial publish"
+          }
+        ]
+      }
+    },
+    "fin-tax-report": {
+      "entryId": "fin-tax-report",
+      "score": {
+        "total": 14.963965011957772,
+        "breakdown": {
+          "quality": 0,
+          "usage": 0,
+          "social": 0,
+          "freshness": 99.75976674638515
+        },
+        "calculatedAt": "2026-02-24T07:29:42.743Z",
+        "decayApplied": 0.9975976674638515
+      },
+      "lifecycle": {
+        "tier": "seedling",
+        "status": "active",
+        "tierHistory": [
+          {
+            "tier": "seedling",
+            "status": "active",
+            "changedAt": "2026-02-24T07:29:42.743Z",
+            "reason": "Initial publish"
+          }
+        ]
+      }
+    },
+    "fin-risk-manager": {
+      "entryId": "fin-risk-manager",
+      "score": {
+        "total": 14.963965010623893,
+        "breakdown": {
+          "quality": 0,
+          "usage": 0,
+          "social": 0,
+          "freshness": 99.75976673749263
+        },
+        "calculatedAt": "2026-02-24T07:29:42.744Z",
+        "decayApplied": 0.9975976673749263
+      },
+      "lifecycle": {
+        "tier": "seedling",
+        "status": "active",
+        "tierHistory": [
+          {
+            "tier": "seedling",
+            "status": "active",
+            "changedAt": "2026-02-24T07:29:42.744Z",
+            "reason": "Initial publish"
+          }
+        ]
+      }
+    },
+    "fin-news-intel": {
+      "entryId": "fin-news-intel",
+      "score": {
+        "total": 14.963965010623893,
+        "breakdown": {
+          "quality": 0,
+          "usage": 0,
+          "social": 0,
+          "freshness": 99.75976673749263
+        },
+        "calculatedAt": "2026-02-24T07:29:42.744Z",
+        "decayApplied": 0.9975976673749263
+      },
+      "lifecycle": {
+        "tier": "seedling",
+        "status": "active",
+        "tierHistory": [
+          {
+            "tier": "seedling",
+            "status": "active",
+            "changedAt": "2026-02-24T07:29:42.744Z",
+            "reason": "Initial publish"
+          }
+        ]
+      }
+    },
+    "fin-backtest": {
+      "entryId": "fin-backtest",
+      "score": {
+        "total": 14.963965009290016,
+        "breakdown": {
+          "quality": 0,
+          "usage": 0,
+          "social": 0,
+          "freshness": 99.75976672860011
+        },
+        "calculatedAt": "2026-02-24T07:29:42.745Z",
+        "decayApplied": 0.9975976672860012
+      },
+      "lifecycle": {
+        "tier": "seedling",
+        "status": "active",
+        "tierHistory": [
+          {
+            "tier": "seedling",
+            "status": "active",
+            "changedAt": "2026-02-24T07:29:42.745Z",
+            "reason": "Initial publish"
+          }
+        ]
+      }
+    },
+    "fin-onchain": {
+      "entryId": "fin-onchain",
+      "score": {
+        "total": 14.963965005288385,
+        "breakdown": {
+          "quality": 0,
+          "usage": 0,
+          "social": 0,
+          "freshness": 99.75976670192257
+        },
+        "calculatedAt": "2026-02-24T07:29:42.748Z",
+        "decayApplied": 0.9975976670192257
+      },
+      "lifecycle": {
+        "tier": "seedling",
+        "status": "active",
+        "tierHistory": [
+          {
+            "tier": "seedling",
+            "status": "active",
+            "changedAt": "2026-02-24T07:29:42.748Z",
+            "reason": "Initial publish"
+          }
+        ]
+      }
+    },
+    "fin-macro-calendar": {
+      "entryId": "fin-macro-calendar",
+      "score": {
+        "total": 14.963965003954506,
+        "breakdown": {
+          "quality": 0,
+          "usage": 0,
+          "social": 0,
+          "freshness": 99.75976669303004
+        },
+        "calculatedAt": "2026-02-24T07:29:42.750Z",
+        "decayApplied": 0.9975976669303005
+      },
+      "lifecycle": {
+        "tier": "seedling",
+        "status": "active",
+        "tierHistory": [
+          {
+            "tier": "seedling",
+            "status": "active",
+            "changedAt": "2026-02-24T07:29:42.750Z",
+            "reason": "Initial publish"
+          }
+        ]
+      }
+    },
+    "finclaw-starter": {
+      "entryId": "finclaw-starter",
+      "score": {
+        "total": 14.963965001286752,
+        "breakdown": {
+          "quality": 0,
+          "usage": 0,
+          "social": 0,
+          "freshness": 99.75976667524502
+        },
+        "calculatedAt": "2026-02-24T07:29:42.751Z",
+        "decayApplied": 0.9975976667524502
+      },
+      "lifecycle": {
+        "tier": "seedling",
+        "status": "active",
+        "tierHistory": [
+          {
+            "tier": "seedling",
+            "status": "active",
+            "changedAt": "2026-02-24T07:29:42.751Z",
+            "reason": "Initial publish"
+          }
+        ]
+      }
+    }
+  }
+}
