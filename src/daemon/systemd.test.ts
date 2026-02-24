@@ -158,6 +158,10 @@ describe("systemd service control", () => {
     execFileMock
       .mockImplementationOnce((_cmd, _args, _opts, cb) => cb(null, "", ""))
       .mockImplementationOnce((_cmd, args, _opts, cb) => {
+        expect(args).toEqual(["--user", "is-enabled", "openclaw-gateway.service"]);
+        cb(null, "", "");
+      })
+      .mockImplementationOnce((_cmd, args, _opts, cb) => {
         expect(args).toEqual(["--user", "stop", "openclaw-gateway.service"]);
         cb(null, "", "");
       });
@@ -174,6 +178,10 @@ describe("systemd service control", () => {
     execFileMock
       .mockImplementationOnce((_cmd, _args, _opts, cb) => cb(null, "", ""))
       .mockImplementationOnce((_cmd, args, _opts, cb) => {
+        expect(args).toEqual(["--user", "is-enabled", "openclaw-gateway-work.service"]);
+        cb(null, "", "");
+      })
+      .mockImplementationOnce((_cmd, args, _opts, cb) => {
         expect(args).toEqual(["--user", "restart", "openclaw-gateway-work.service"]);
         cb(null, "", "");
       });
@@ -188,6 +196,7 @@ describe("systemd service control", () => {
 
   it("surfaces stop failures with systemctl detail", async () => {
     execFileMock
+      .mockImplementationOnce((_cmd, _args, _opts, cb) => cb(null, "", ""))
       .mockImplementationOnce((_cmd, _args, _opts, cb) => cb(null, "", ""))
       .mockImplementationOnce((_cmd, _args, _opts, cb) => {
         const err = new Error("stop failed") as Error & { code?: number };
