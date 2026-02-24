@@ -18,17 +18,45 @@ export function triggerAvatarPicker(): Promise<File | null> {
     input.type = "file";
     input.accept = ".jpg,.jpeg,.png";
     input.style.display = "none";
+    let resolved = false;
+    const cleanup = () => {
+      if (input.parentNode) {
+        document.body.removeChild(input);
+      }
+    };
     input.addEventListener("change", () => {
+      if (resolved) {
+        return;
+      }
+      resolved = true;
       const file = input.files?.[0] ?? null;
-      document.body.removeChild(input);
+      cleanup();
       resolve(file);
     });
     input.addEventListener("cancel", () => {
-      document.body.removeChild(input);
+      if (resolved) {
+        return;
+      }
+      resolved = true;
+      cleanup();
       resolve(null);
     });
     document.body.appendChild(input);
     input.click();
+    // Safety: clean up if dialog closes without firing change/cancel
+    window.addEventListener(
+      "focus",
+      () => {
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            cleanup();
+            resolve(null);
+          }
+        }, 500);
+      },
+      { once: true },
+    );
   });
 }
 
