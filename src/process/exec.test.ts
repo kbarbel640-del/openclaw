@@ -48,11 +48,38 @@ function waitForLine(
 }
 
 describe("runCommandWithTimeout", () => {
-  it("never enables shell execution (Windows cmd.exe injection hardening)", () => {
+  it("enables shell execution for .cmd files on Windows (required by OS)", () => {
     expect(
       shouldSpawnWithShell({
         resolvedCommand: "npm.cmd",
         platform: "win32",
+      }),
+    ).toBe(true);
+    expect(
+      shouldSpawnWithShell({
+        resolvedCommand: "pnpm.cmd",
+        platform: "win32",
+      }),
+    ).toBe(true);
+  });
+
+  it("never enables shell execution for non-.cmd commands (Windows cmd.exe injection hardening)", () => {
+    expect(
+      shouldSpawnWithShell({
+        resolvedCommand: "npm",
+        platform: "win32",
+      }),
+    ).toBe(false);
+    expect(
+      shouldSpawnWithShell({
+        resolvedCommand: "node",
+        platform: "linux",
+      }),
+    ).toBe(false);
+    expect(
+      shouldSpawnWithShell({
+        resolvedCommand: "/usr/bin/git",
+        platform: "darwin",
       }),
     ).toBe(false);
   });
@@ -105,12 +132,12 @@ describe("runCommandWithTimeout", () => {
           "clearInterval(ticker);",
           "process.exit(0);",
           "}",
-          "}, 40);",
+          "}, 12);",
         ].join(" "),
       ],
       {
         timeoutMs: 5_000,
-        noOutputTimeoutMs: 1_500,
+        noOutputTimeoutMs: 120,
       },
     );
 
