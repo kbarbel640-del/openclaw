@@ -222,7 +222,6 @@ For a gateway install, put it in `~/.openclaw/.env`.
 - This redirect resolver follows the trusted-network model (private/internal networks allowed by default) to match Gateway operator trust assumptions.
 - The default model (`gemini-2.5-flash`) is fast and cost-effective.
   Any Gemini model that supports grounding can be used.
-  > > > > > > > main
 
 ## web_search
 
