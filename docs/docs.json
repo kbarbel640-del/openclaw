@@ -1077,7 +1077,8 @@
                   "providers/glm",
                   "providers/zai",
                   "providers/synthetic",
-                  "providers/qianfan"
+                  "providers/qianfan",
+                  "providers/clawpane"
                 ]
               }
             ]
@@ -1605,7 +1606,8 @@
                   "zh-CN/providers/glm",
                   "zh-CN/providers/zai",
                   "zh-CN/providers/synthetic",
-                  "zh-CN/providers/qianfan"
+                  "zh-CN/providers/qianfan",
+                  "zh-CN/providers/clawpane"
                 ]
               }
             ]
