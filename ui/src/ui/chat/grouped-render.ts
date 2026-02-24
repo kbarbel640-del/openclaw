@@ -201,7 +201,6 @@ function renderMessageImages(images: ImageBlock[]) {
   }
 
   const openImage = (url: string) => {
-    // SECURITY: prevent tabnabbing by removing access to window.opener.
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (opened) {
       opened.opener = null;
