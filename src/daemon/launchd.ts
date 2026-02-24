@@ -334,11 +334,18 @@ function isUnsupportedGuiDomain(detail: string): boolean {
 export async function stopLaunchAgent({ stdout, env }: GatewayServiceControlArgs): Promise<void> {
   const domain = resolveGuiDomain();
   const label = resolveLaunchAgentLabel({ env });
-  const res = await execLaunchctl(["bootout", `${domain}/${label}`]);
+  const serviceId = `${domain}/${label}`;
+  // Disable KeepAlive before killing — prevents launchd from immediately restarting the
+  // process after SIGTERM. Does not unregister the service: the plist stays registered so
+  // `gateway start` (kickstart) can recover without reinstalling. Unlike `bootout`, this is
+  // reversible: `installLaunchAgent` re-enables before bootstrap.
+  await execLaunchctl(["disable", serviceId]);
+  // Send SIGTERM to the running process while keeping the service registered in launchd.
+  const res = await execLaunchctl(["kill", "SIGTERM", serviceId]);
   if (res.code !== 0 && !isLaunchctlNotLoaded(res)) {
-    throw new Error(`launchctl bootout failed: ${res.stderr || res.stdout}`.trim());
+    throw new Error(`launchctl kill SIGTERM failed: ${res.stderr || res.stdout}`.trim());
   }
-  stdout.write(`${formatLine("Stopped LaunchAgent", `${domain}/${label}`)}\n`);
+  stdout.write(`${formatLine("Stopped LaunchAgent", serviceId)}\n`);
 }
 
 export async function installLaunchAgent({

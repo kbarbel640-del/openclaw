@@ -6,12 +6,14 @@ import {
   parseLaunchctlPrint,
   repairLaunchAgentBootstrap,
   resolveLaunchAgentPlistPath,
+  stopLaunchAgent,
 } from "./launchd.js";
 
 const state = vi.hoisted(() => ({
   launchctlCalls: [] as string[][],
   listOutput: "",
   bootstrapError: "",
+  killError: "",
   dirs: new Set<string>(),
   files: new Map<string, string>(),
 }));
@@ -37,6 +39,9 @@ vi.mock("./exec-file.js", () => ({
     }
     if (call[0] === "bootstrap" && state.bootstrapError) {
       return { stdout: "", stderr: state.bootstrapError, code: 1 };
+    }
+    if (call[0] === "kill" && state.killError) {
+      return { stdout: "", stderr: state.killError, code: 1 };
     }
     return { stdout: "", stderr: "", code: 0 };
   }),
@@ -72,6 +77,7 @@ beforeEach(() => {
   state.launchctlCalls.length = 0;
   state.listOutput = "";
   state.bootstrapError = "";
+  state.killError = "";
   state.dirs.clear();
   state.files.clear();
   vi.clearAllMocks();
@@ -208,6 +214,54 @@ describe("launchd install", () => {
         programArguments: defaultProgramArguments,
       }),
     ).rejects.toThrow("launchctl bootstrap failed: Operation not permitted");
+  });
+});
+
+describe("launchd stop", () => {
+  function createDefaultStopEnv(): Record<string, string | undefined> {
+    return {
+      HOME: "/Users/test",
+      OPENCLAW_PROFILE: "default",
+    };
+  }
+
+  const domain = typeof process.getuid === "function" ? `gui/${process.getuid()}` : "gui/501";
+  const label = "ai.openclaw.gateway";
+  const serviceId = `${domain}/${label}`;
+
+  it("disables the service before killing to prevent KeepAlive restart", async () => {
+    await stopLaunchAgent({ env: createDefaultStopEnv(), stdout: new PassThrough() });
+
+    const disableIndex = state.launchctlCalls.findIndex(
+      (c) => c[0] === "disable" && c[1] === serviceId,
+    );
+    const killIndex = state.launchctlCalls.findIndex(
+      (c) => c[0] === "kill" && c[1] === "SIGTERM" && c[2] === serviceId,
+    );
+    expect(disableIndex).toBeGreaterThanOrEqual(0);
+    expect(killIndex).toBeGreaterThanOrEqual(0);
+    expect(disableIndex).toBeLessThan(killIndex);
+  });
+
+  it("does NOT call bootout — service stays registered after stop", async () => {
+    await stopLaunchAgent({ env: createDefaultStopEnv(), stdout: new PassThrough() });
+
+    const bootoutCalled = state.launchctlCalls.some((c) => c[0] === "bootout");
+    expect(bootoutCalled).toBe(false);
+  });
+
+  it("ignores 'not loaded' errors from kill SIGTERM — graceful when already stopped", async () => {
+    state.killError = "could not find service";
+    await expect(
+      stopLaunchAgent({ env: createDefaultStopEnv(), stdout: new PassThrough() }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws on unexpected kill errors", async () => {
+    state.killError = "Operation not permitted";
+    await expect(
+      stopLaunchAgent({ env: createDefaultStopEnv(), stdout: new PassThrough() }),
+    ).rejects.toThrow("launchctl kill SIGTERM failed: Operation not permitted");
   });
 });
 
