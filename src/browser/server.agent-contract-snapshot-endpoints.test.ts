@@ -9,6 +9,13 @@ let reachable = false;
 let cfgAttachOnly = false;
 let createTargetId: string | null = null;
 let prevGatewayPort: string | undefined;
+let cdpTabs: Array<{
+  id: string;
+  title: string;
+  url: string;
+  webSocketDebuggerUrl: string;
+  type: string;
+}> = [];
 
 const cdpMocks = vi.hoisted(() => ({
   createTargetViaCdp: vi.fn(async () => {
@@ -190,6 +197,22 @@ describe("browser control server", () => {
     reachable = false;
     cfgAttachOnly = false;
     createTargetId = null;
+    cdpTabs = [
+      {
+        id: "abcd1234",
+        title: "Tab",
+        url: "https://example.com",
+        webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/abcd1234",
+        type: "page",
+      },
+      {
+        id: "abce9999",
+        title: "Other",
+        url: "https://other",
+        webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/abce9999",
+        type: "page",
+      },
+    ];
 
     cdpMocks.createTargetViaCdp.mockImplementation(async () => {
       if (createTargetId) {
@@ -220,22 +243,7 @@ describe("browser control server", () => {
           if (!reachable) {
             return makeResponse([]);
           }
-          return makeResponse([
-            {
-              id: "abcd1234",
-              title: "Tab",
-              url: "https://example.com",
-              webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/abcd1234",
-              type: "page",
-            },
-            {
-              id: "abce9999",
-              title: "Other",
-              url: "https://other",
-              webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/abce9999",
-              type: "page",
-            },
-          ]);
+          return makeResponse(cdpTabs);
         }
         if (u.includes("/json/new?")) {
           if (init?.method === "PUT") {
@@ -418,5 +426,37 @@ describe("browser control server", () => {
       startRef: "3",
       endRef: "4",
     });
+  });
+
+  it("returns refreshed targetId after navigation swaps the renderer target", async () => {
+    const base = await startServerAndBase();
+
+    pwMocks.navigateViaPlaywright.mockImplementationOnce(async () => {
+      cdpTabs = [
+        {
+          id: "newtarget1",
+          title: "Example",
+          url: "https://example.com",
+          webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/newtarget1",
+          type: "page",
+        },
+        {
+          id: "abce9999",
+          title: "Other",
+          url: "https://other",
+          webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/abce9999",
+          type: "page",
+        },
+      ];
+      return { url: "https://example.com" };
+    });
+
+    const nav = await postJson(`${base}/navigate`, {
+      url: "https://example.com",
+      targetId: "abcd1234",
+    });
+
+    expect(nav.ok).toBe(true);
+    expect(nav.targetId).toBe("newtarget1");
   });
 });

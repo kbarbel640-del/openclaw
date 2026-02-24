@@ -48,7 +48,22 @@ export function registerBrowserAgentSnapshotRoutes(
         targetId: tab.targetId,
         url,
       });
-      res.json({ ok: true, targetId: tab.targetId, ...result });
+      let currentTargetId = tab.targetId;
+      try {
+        const tabs = await profileCtx.listTabs();
+        const exact = tabs.find((t) => t.targetId === tab.targetId);
+        const byUrl = tabs.find((t) => t.url === result.url);
+        const refreshed =
+          exact ??
+          byUrl ??
+          (profileCtx.profile.driver === "extension" && tabs.length === 1 ? tabs[0] : undefined);
+        if (refreshed?.targetId) {
+          currentTargetId = refreshed.targetId;
+        }
+      } catch {
+        // Best-effort refresh only; keep legacy targetId if tab listing fails.
+      }
+      res.json({ ok: true, targetId: currentTargetId, ...result });
     } catch (err) {
       handleRouteError(ctx, res, err);
     }
