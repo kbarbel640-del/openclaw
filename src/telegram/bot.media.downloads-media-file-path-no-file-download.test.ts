@@ -290,6 +290,10 @@ describe("telegram media groups", () => {
 
   const MEDIA_GROUP_TEST_TIMEOUT_MS = process.platform === "win32" ? 45_000 : 20_000;
   const MEDIA_GROUP_FLUSH_MS = TELEGRAM_TEST_TIMINGS.mediaGroupFlushMs + 40;
+  // Windows timer resolution is coarse (~15ms) and CI runners can be loaded,
+  // so allow much more wall-clock time for the real timer to fire.
+  const MEDIA_GROUP_WAIT_MS =
+    process.platform === "win32" ? MEDIA_GROUP_FLUSH_MS * 20 : MEDIA_GROUP_FLUSH_MS * 2;
 
   it(
     "handles same-group buffering and separate-group independence",
@@ -370,7 +374,7 @@ describe("telegram media groups", () => {
             () => {
               expect(replySpy).toHaveBeenCalledTimes(scenario.expectedReplyCount);
             },
-            { timeout: MEDIA_GROUP_FLUSH_MS * 2, interval: 2 },
+            { timeout: MEDIA_GROUP_WAIT_MS, interval: 2 },
           );
 
           expect(runtimeError).not.toHaveBeenCalled();
