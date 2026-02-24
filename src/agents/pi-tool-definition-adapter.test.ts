@@ -25,7 +25,34 @@ async function executeThrowingTool(name: string, callId: string) {
   return await def.execute(callId, {}, undefined, undefined, extensionContext);
 }
 
+function makeSimpleTool(name: string): AgentTool {
+  return {
+    name,
+    label: name,
+    description: "a test tool",
+    parameters: Type.Object({}),
+    execute: async () => ({ content: [], details: {} }) as ReturnType<AgentTool["execute"]>,
+  } satisfies AgentTool;
+}
+
 describe("pi tool definition adapter", () => {
+  it("sanitizes tool names with special characters for API compatibility", () => {
+    const tools = [
+      makeSimpleTool("my.tool"),
+      makeSimpleTool("tool name"),
+      makeSimpleTool("tool:call"),
+    ].map((t) => toToolDefinitions([t])[0]);
+
+    expect(tools[0].name).toBe("my_tool");
+    expect(tools[1].name).toBe("tool_name");
+    expect(tools[2].name).toBe("tool_call");
+  });
+
+  it("leaves already-valid tool names unchanged", () => {
+    const defs = toToolDefinitions([makeSimpleTool("web_search")]);
+    expect(defs[0].name).toBe("web_search");
+  });
+
   it("wraps tool errors into a tool result", async () => {
     const result = await executeThrowingTool("boom", "call1");
 

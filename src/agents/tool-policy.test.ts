@@ -9,6 +9,7 @@ import {
   isOwnerOnlyToolName,
   normalizeToolName,
   resolveToolProfilePolicy,
+  sanitizeToolNameForApi,
   TOOL_GROUPS,
 } from "./tool-policy.js";
 import type { AnyAgentTool } from "./tools/common.js";
@@ -199,5 +200,32 @@ describe("resolveSandboxToolPolicyForAgent", () => {
     const resolved = resolveSandboxToolPolicyForAgent(cfg, undefined);
     expect(resolved.allow).toEqual(["read"]);
     expect(resolved.deny).toEqual(["image"]);
+  });
+});
+
+describe("sanitizeToolNameForApi", () => {
+  it("passes through already-valid names unchanged", () => {
+    expect(sanitizeToolNameForApi("read")).toBe("read");
+    expect(sanitizeToolNameForApi("web_search")).toBe("web_search");
+    expect(sanitizeToolNameForApi("my-tool")).toBe("my-tool");
+    expect(sanitizeToolNameForApi("Tool123")).toBe("Tool123");
+  });
+
+  it("replaces spaces and special characters with underscores", () => {
+    expect(sanitizeToolNameForApi("my tool")).toBe("my_tool");
+    expect(sanitizeToolNameForApi("tool.name")).toBe("tool_name");
+    expect(sanitizeToolNameForApi("tool:name")).toBe("tool_name");
+    expect(sanitizeToolNameForApi("tool/name")).toBe("tool_name");
+  });
+
+  it("strips leading and trailing underscores/hyphens after replacement", () => {
+    expect(sanitizeToolNameForApi(".tool")).toBe("tool");
+    expect(sanitizeToolNameForApi("tool.")).toBe("tool");
+    expect(sanitizeToolNameForApi("_tool_")).toBe("tool");
+  });
+
+  it("falls back to 'tool' when result would be empty", () => {
+    expect(sanitizeToolNameForApi("")).toBe("tool");
+    expect(sanitizeToolNameForApi("...")).toBe("tool");
   });
 });
