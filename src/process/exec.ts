@@ -33,12 +33,18 @@ export function shouldSpawnWithShell(params: {
   resolvedCommand: string;
   platform: NodeJS.Platform;
 }): boolean {
-  // SECURITY: never enable `shell` for argv-based execution.
+  // SECURITY: never enable `shell` for arbitrary argv-based execution.
   // `shell` routes through cmd.exe on Windows, which turns untrusted argv values
   // (like chat prompts passed as CLI args) into command-injection primitives.
   // If you need a shell, use an explicit shell-wrapper argv (e.g. `cmd.exe /c ...`)
   // and validate/escape at the call site.
-  void params;
+  //
+  // EXCEPTION: On Windows, .cmd files cannot be spawned without shell:true —
+  // Node throws EINVAL. These only come from the hardcoded resolveCommand()
+  // allowlist (npm, pnpm, yarn, npx), never from user input.
+  if (params.platform === "win32" && params.resolvedCommand.toLowerCase().endsWith(".cmd")) {
+    return true;
+  }
   return false;
 }
 
@@ -57,7 +63,10 @@ export async function runExec(
           encoding: "utf8" as const,
         };
   try {
-    const { stdout, stderr } = await execFileAsync(resolveCommand(command), args, options);
+    const { stdout, stderr } = await execFileAsync(resolveCommand(command), args, {
+      ...options,
+      windowsHide: true,
+    });
     if (shouldLogVerbose()) {
       if (stdout.trim()) {
         logDebug(stdout.trim());
@@ -138,6 +147,7 @@ export async function runCommandWithTimeout(
     stdio,
     cwd,
     env: resolvedEnv,
+    windowsHide: true,
     windowsVerbatimArguments,
     ...(shouldSpawnWithShell({ resolvedCommand, platform: process.platform })
       ? { shell: true }

@@ -48,11 +48,32 @@ function waitForLine(
 }
 
 describe("runCommandWithTimeout", () => {
-  it("never enables shell execution (Windows cmd.exe injection hardening)", () => {
+  it("enables shell for .cmd files on Windows (OS requirement)", () => {
     expect(
       shouldSpawnWithShell({
         resolvedCommand: "npm.cmd",
         platform: "win32",
+      }),
+    ).toBe(true);
+    expect(
+      shouldSpawnWithShell({
+        resolvedCommand: "pnpm.cmd",
+        platform: "win32",
+      }),
+    ).toBe(true);
+  });
+
+  it("never enables shell for non-.cmd commands", () => {
+    expect(
+      shouldSpawnWithShell({
+        resolvedCommand: "node",
+        platform: "win32",
+      }),
+    ).toBe(false);
+    expect(
+      shouldSpawnWithShell({
+        resolvedCommand: "git",
+        platform: "linux",
       }),
     ).toBe(false);
   });

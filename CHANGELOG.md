@@ -17,6 +17,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Windows/Process: enable `shell:true` for `.cmd` files on Windows to prevent `spawn EINVAL` errors when running npm/pnpm/yarn/npx, add `windowsHide:true` to all spawn sites to suppress visible console window flashes, and sanitize HTTP header values to strip non-Latin1 characters that crash Node's undici fetch with ByteString errors. (#25225, #25153, #7631, #22851) Thanks @arosstale.
 - Security/iOS deep links: require local confirmation (or trusted key) before forwarding `openclaw://agent` requests from iOS to gateway `agent.request`, and strip unkeyed delivery-routing fields to reduce exfiltration risk. This ships in the next npm release. Thanks @GCXWLP for reporting.
 - Security/Export session HTML: escape raw HTML markdown tokens in the exported session viewer, harden tree/header metadata rendering against HTML injection, and sanitize image data-URL MIME types in export output to prevent stored XSS when opening exported HTML files. This ships in the next npm release. Thanks @allsmog for reporting.
 - Security/Session export: harden exported HTML image rendering against data-URL attribute injection by validating image MIME/base64 fields, rejecting malformed base64 input in media ingestion paths, and dropping invalid tool-image payloads.

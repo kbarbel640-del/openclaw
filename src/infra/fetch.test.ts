@@ -43,6 +43,44 @@ function createThrowingCleanupSignalHarness(cleanupError: Error) {
   return { fakeSignal, removeEventListener };
 }
 
+describe("header sanitization", () => {
+  it("sanitizes non-Latin1 characters in header values", async () => {
+    let seenHeaders: HeadersInit | undefined;
+    const fetchImpl = withFetchPreconnect(
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        seenHeaders = init?.headers;
+        return {} as Response;
+      }),
+    );
+    const wrapped = wrapFetchWithAbortSignal(fetchImpl);
+
+    await wrapped("https://example.com", {
+      headers: { "x-test": "Hello \u0417\u0434\u0440" },
+    });
+
+    const rec = seenHeaders as Record<string, string>;
+    expect(rec["x-test"]).toBe("Hello ???");
+  });
+
+  it("passes through pure ASCII headers unchanged", async () => {
+    let seenHeaders: HeadersInit | undefined;
+    const fetchImpl = withFetchPreconnect(
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        seenHeaders = init?.headers;
+        return {} as Response;
+      }),
+    );
+    const wrapped = wrapFetchWithAbortSignal(fetchImpl);
+
+    await wrapped("https://example.com", {
+      headers: { "x-test": "plain ascii" },
+    });
+
+    const rec = seenHeaders as Record<string, string>;
+    expect(rec["x-test"]).toBe("plain ascii");
+  });
+});
+
 describe("wrapFetchWithAbortSignal", () => {
   it("adds duplex for requests with a body", async () => {
     let seenInit: RequestInit | undefined;
