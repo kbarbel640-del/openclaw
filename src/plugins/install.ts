@@ -158,9 +158,7 @@ async function installPluginFromPackageDir(params: {
   // uses the manifest id as the authoritative key, so the config entry must match it.
   const ocManifestResult = loadPluginManifest(params.packageDir);
   const manifestPluginId =
-    ocManifestResult.ok && ocManifestResult.manifest.id
-      ? ocManifestResult.manifest.id
-      : undefined;
+    ocManifestResult.ok && ocManifestResult.manifest.id ? ocManifestResult.manifest.id : undefined;
 
   const pluginId = manifestPluginId ?? npmPluginId;
   const pluginIdError = validatePluginId(pluginId);
