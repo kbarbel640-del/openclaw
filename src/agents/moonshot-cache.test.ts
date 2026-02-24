@@ -5,7 +5,7 @@ import {
   getOrCreateCache,
   injectCacheRole,
   isMoonshotCacheEnabled,
-  toCacheModelName,
+  getExplicitCacheModel,
 } from "./moonshot-cache.js";
 
 // Mock fetch
@@ -46,28 +46,28 @@ describe("moonshot-cache", () => {
     });
   });
 
-  describe("toCacheModelName", () => {
+  describe("getExplicitCacheModel", () => {
     it("maps moonshot-v1-* variants to moonshot-v1", () => {
-      expect(toCacheModelName("moonshot-v1-8k")).toBe("moonshot-v1");
-      expect(toCacheModelName("moonshot-v1-32k")).toBe("moonshot-v1");
-      expect(toCacheModelName("moonshot-v1-128k")).toBe("moonshot-v1");
-      expect(toCacheModelName("moonshot-v1-auto")).toBe("moonshot-v1");
-      expect(toCacheModelName("moonshot-v1-128k-vision-preview")).toBe("moonshot-v1");
+      expect(getExplicitCacheModel("moonshot-v1-8k")).toBe("moonshot-v1");
+      expect(getExplicitCacheModel("moonshot-v1-32k")).toBe("moonshot-v1");
+      expect(getExplicitCacheModel("moonshot-v1-128k")).toBe("moonshot-v1");
+      expect(getExplicitCacheModel("moonshot-v1-auto")).toBe("moonshot-v1");
+      expect(getExplicitCacheModel("moonshot-v1-128k-vision-preview")).toBe("moonshot-v1");
     });
 
     it("returns undefined for kimi-k2 models (caching API not supported)", () => {
-      expect(toCacheModelName("kimi-k2-0711-preview")).toBeUndefined();
-      expect(toCacheModelName("kimi-k2-0905-preview")).toBeUndefined();
-      expect(toCacheModelName("kimi-k2-thinking")).toBeUndefined();
-      expect(toCacheModelName("kimi-k2-thinking-turbo")).toBeUndefined();
-      expect(toCacheModelName("kimi-k2-turbo-preview")).toBeUndefined();
-      expect(toCacheModelName("kimi-k2.5")).toBeUndefined();
-      expect(toCacheModelName("kimi-latest")).toBeUndefined();
+      expect(getExplicitCacheModel("kimi-k2-0711-preview")).toBeUndefined();
+      expect(getExplicitCacheModel("kimi-k2-0905-preview")).toBeUndefined();
+      expect(getExplicitCacheModel("kimi-k2-thinking")).toBeUndefined();
+      expect(getExplicitCacheModel("kimi-k2-thinking-turbo")).toBeUndefined();
+      expect(getExplicitCacheModel("kimi-k2-turbo-preview")).toBeUndefined();
+      expect(getExplicitCacheModel("kimi-k2.5")).toBeUndefined();
+      expect(getExplicitCacheModel("kimi-latest")).toBeUndefined();
     });
 
     it("strips provider prefix from model id", () => {
-      expect(toCacheModelName("moonshot/moonshot-v1-32k")).toBe("moonshot-v1");
-      expect(toCacheModelName("moonshotai/kimi-k2-turbo-preview")).toBeUndefined();
+      expect(getExplicitCacheModel("moonshot/moonshot-v1-32k")).toBe("moonshot-v1");
+      expect(getExplicitCacheModel("moonshotai/kimi-k2-turbo-preview")).toBeUndefined();
     });
   });
 

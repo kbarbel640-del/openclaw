@@ -59,23 +59,23 @@ function hashContent(system: string, tools: unknown[] | undefined): string {
 }
 
 /**
- * Extract base model name for caching API.
- * Moonshot caching API currently only supports the moonshot-v1 model family.
- * Kimi K2 series (kimi-k2.5, kimi-k2-*, kimi-latest) returns "model family is invalid".
+ * Check if model requires explicit /v1/caching API calls.
+ *
+ * - moonshot-v1-* → requires explicit cache API, returns "moonshot-v1"
+ * - kimi-k2.* → uses automatic prefix caching (like Anthropic), returns undefined
  *
  * @internal Exported for testing only
- * @returns Base model name, or undefined if model doesn't support caching
+ * @returns Model name for cache API, or undefined if model uses automatic caching
  */
-export function toCacheModelName(modelId: string): string | undefined {
+export function getExplicitCacheModel(modelId: string): string | undefined {
   const name = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
 
-  // Only moonshot-v1-* models support the caching API
+  // moonshot-v1-* requires explicit /v1/caching API
   if (name.startsWith(MOONSHOT_V1_CACHE_MODEL)) {
     return MOONSHOT_V1_CACHE_MODEL;
   }
 
-  // Kimi K2 series does NOT support caching API (returns 400 "model family is invalid")
-  // Return undefined to skip caching for unsupported models
+  // Kimi K2 series uses automatic prefix caching (no API call needed)
   return undefined;
 }
 
@@ -92,7 +92,7 @@ async function createCache(params: {
   ttl: number;
 }): Promise<string> {
   const url = `${params.baseUrl}/caching`;
-  const cacheModel = toCacheModelName(params.model);
+  const cacheModel = getExplicitCacheModel(params.model);
   if (!cacheModel) {
     throw new Error(`Model ${params.model} does not support caching API`);
   }
@@ -284,7 +284,7 @@ export function createMoonshotCacheWrapper(
   const resetTtl = config.resetTtl ?? ttl;
 
   // Check if model supports caching API (only moonshot-v1-* for now)
-  const cacheModelName = toCacheModelName(modelId);
+  const cacheModelName = getExplicitCacheModel(modelId);
   if (!cacheModelName) {
     log.debug(`[moonshot-cache] Model ${modelId} does not support caching API, skipping wrapper`);
     return baseStreamFn;
