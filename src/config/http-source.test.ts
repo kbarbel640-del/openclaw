@@ -116,6 +116,44 @@ describe("HttpConfigSource", () => {
     });
     expect(source.watchPath).toBe("/tmp/my-sentinel");
   });
+
+  it("startup() returns config on success", async () => {
+    testServer = await createTestServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(VALID_CONFIG));
+    });
+
+    const logs: string[] = [];
+    const log = {
+      info: (msg: string) => logs.push(msg),
+      warn: (msg: string) => logs.push(`WARN: ${msg}`),
+      error: (msg: string) => logs.push(`ERROR: ${msg}`),
+    };
+
+    const source = new HttpConfigSource({ url: testServer.url });
+    const config = await source.startup(log);
+    expect(config).toBeDefined();
+    expect(typeof config).toBe("object");
+    expect(logs.some((l) => l.includes("loading config"))).toBe(true);
+    expect(logs.some((l) => l.includes("config loaded"))).toBe(true);
+  });
+
+  it("startup() throws on network error", async () => {
+    const log = { info: () => {}, warn: () => {}, error: () => {} };
+    const source = new HttpConfigSource({ url: "http://127.0.0.1:1" });
+    await expect(source.startup(log)).rejects.toThrow("Failed to fetch config");
+  });
+
+  it("startup() throws on invalid config", async () => {
+    testServer = await createTestServer((_req, res) => {
+      res.writeHead(500);
+      res.end("Internal Server Error");
+    });
+
+    const log = { info: () => {}, warn: () => {}, error: () => {} };
+    const source = new HttpConfigSource({ url: testServer.url });
+    await expect(source.startup(log)).rejects.toThrow("Failed to fetch config");
+  });
 });
 
 describe("createHttpConfigSourceFromEnv", () => {

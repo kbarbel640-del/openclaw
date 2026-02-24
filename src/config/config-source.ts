@@ -1,3 +1,4 @@
+import type { OpenClawConfig } from "./types.openclaw.js";
 import type { ConfigFileSnapshot } from "./types.openclaw.js";
 
 /**
@@ -21,8 +22,17 @@ export type ConfigSourceLog = {
  */
 export interface ConfigSource {
   /**
+   * One-time startup: run source-specific initialization and return the
+   * initial config. File sources use this for legacy migration and plugin
+   * auto-enable; HTTP sources use this to fetch and validate.
+   *
+   * Called once at gateway boot, before plugins load.
+   */
+  startup(log: ConfigSourceLog): Promise<OpenClawConfig>;
+
+  /**
    * Read the current configuration snapshot.
-   * Called at startup and on each reload trigger.
+   * Called on each reload trigger (not at startup — use startup() for that).
    */
   read(): Promise<ConfigFileSnapshot>;
 

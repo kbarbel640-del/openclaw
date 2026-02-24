@@ -8,6 +8,7 @@ import {
   readConfigFileSnapshot,
   writeConfigFile,
 } from "./config.js";
+import type { OpenClawConfig } from "./config.js";
 import { applyPluginAutoEnable } from "./plugin-auto-enable.js";
 import type { ConfigFileSnapshot } from "./types.openclaw.js";
 
@@ -30,16 +31,29 @@ export class FileConfigSource implements ConfigSource {
     error: () => {},
   };
 
+  /**
+   * One-time startup: run legacy migration, plugin auto-enable, and
+   * return the config with full runtime defaults applied.
+   */
+  async startup(log: ConfigSourceLog): Promise<OpenClawConfig> {
+    this.log = log;
+    await this.prepareOnFirstRead();
+    return loadConfig();
+  }
+
   async read(): Promise<ConfigFileSnapshot> {
     return readConfigFileSnapshot();
   }
 
+  start(log: ConfigSourceLog): undefined {
+    this.log = log;
+    return undefined;
+  }
+
   /**
-   * Run file-specific first-read tasks: legacy migration and plugin auto-enable.
-   * Called once at startup before the main config is used.
-   * These only apply to file-based configs — HTTP sources skip this.
+   * File-specific first-read tasks: legacy migration and plugin auto-enable.
    */
-  async prepareOnFirstRead(): Promise<void> {
+  private async prepareOnFirstRead(): Promise<void> {
     let snapshot = await readConfigFileSnapshot();
 
     // Legacy migration
@@ -87,18 +101,5 @@ export class FileConfigSource implements ConfigSource {
         this.log.warn(`gateway: failed to persist plugin auto-enable changes: ${String(err)}`);
       }
     }
-  }
-
-  /**
-   * Load the final config with runtime defaults applied.
-   * Called after prepareOnFirstRead() to get the startup config.
-   */
-  loadStartupConfig() {
-    return loadConfig();
-  }
-
-  start(log: ConfigSourceLog): undefined {
-    this.log = log;
-    return undefined;
   }
 }

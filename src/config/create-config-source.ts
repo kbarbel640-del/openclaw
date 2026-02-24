@@ -1,22 +1,28 @@
 import type { ConfigSource } from "./config-source.js";
 import { FileConfigSource } from "./file-source.js";
-import { HttpConfigSource } from "./http-source.js";
+import { HttpConfigSource, createHttpConfigSourceFromEnv } from "./http-source.js";
 
 /**
  * Create a ConfigSource based on environment variables.
  *
- * OCM_CONFIG_SOURCE selects the implementation:
- *   - "metadata" → HttpConfigSource (IMDSv2-style metadata endpoint)
- *   - undefined   → FileConfigSource (local openclaw.json file)
+ * Two env var conventions are supported:
  *
- * The "metadata" source reads OCM_METADATA_URL and OCM_METADATA_NONCE
- * from the environment. This keeps the metadata-specific env vars
- * contained here rather than scattered through server.impl.ts.
+ *   OPENCLAW_CONFIG_SOURCE=http  → generic HTTP config source
+ *     Uses OPENCLAW_CONFIG_URL, OPENCLAW_CONFIG_HEADERS, etc.
+ *
+ *   OCM_CONFIG_SOURCE=metadata   → IMDSv2-style metadata endpoint
+ *     Uses OCM_METADATA_URL, OCM_METADATA_NONCE (legacy/internal)
+ *
+ *   (unset)                      → FileConfigSource (local file, default)
  */
 export function createConfigSource(env: Record<string, string | undefined>): ConfigSource {
-  const source = env.OCM_CONFIG_SOURCE;
+  // Generic HTTP source (upstream convention)
+  if (env.OPENCLAW_CONFIG_SOURCE === "http") {
+    return createHttpConfigSourceFromEnv(env);
+  }
 
-  if (source === "metadata") {
+  // IMDSv2-style metadata source (internal convention)
+  if (env.OCM_CONFIG_SOURCE === "metadata") {
     const metadataUrl = env.OCM_METADATA_URL || "http://169.254.169.253";
     const nonce = env.OCM_METADATA_NONCE || "";
     return new HttpConfigSource({

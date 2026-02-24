@@ -11,7 +11,6 @@ import { isRestartEnabled } from "../config/commands.js";
 import { isNixMode, loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { createConfigSource } from "../config/create-config-source.js";
-import { FileConfigSource } from "../config/file-source.js";
 import { clearAgentRunContext, onAgentEvent } from "../infra/agent-events.js";
 import {
   ensureControlUiAssetsBuilt,
@@ -178,35 +177,12 @@ export async function startGatewayServer(
   });
 
   const cfgSource = createConfigSource(process.env);
-
-  // File sources need legacy migration and plugin auto-enable before first use
-  if (cfgSource instanceof FileConfigSource) {
-    await cfgSource.prepareOnFirstRead();
-  }
-
-  // Read the initial config snapshot
-  let cfgAtStart: OpenClawConfig;
-  if (cfgSource instanceof FileConfigSource) {
-    cfgAtStart = cfgSource.loadStartupConfig();
-  } else {
-    log.info("gateway: loading config from HTTP config source");
-    const configSnapshot = await cfgSource.read();
-    if (!configSnapshot.exists) {
-      throw new Error(
-        `Failed to fetch config from config source: ${
-          configSnapshot.issues.map((i) => i.message).join(", ") || "endpoint unreachable"
-        }`,
-      );
-    }
-    if (!configSnapshot.valid) {
-      const issues = configSnapshot.issues
-        .map((issue) => `${issue.path || "<root>"}: ${issue.message}`)
-        .join("\n");
-      throw new Error(`Invalid config from config source.\n${issues}`);
-    }
-    cfgAtStart = configSnapshot.config;
-    log.info("gateway: config loaded from HTTP config source");
-  }
+  const sourceLog = {
+    info: log.info.bind(log),
+    warn: log.warn.bind(log),
+    error: log.error.bind(log),
+  };
+  let cfgAtStart: OpenClawConfig = await cfgSource.startup(sourceLog);
 
   const authBootstrap = await ensureGatewayStartupAuth({
     cfg: cfgAtStart,

@@ -65,6 +65,26 @@ export class HttpConfigSource implements ConfigSource {
     this.label = opts.label ?? "http";
   }
 
+  async startup(log: ConfigSourceLog): Promise<OpenClawConfig> {
+    log.info(`gateway: loading config from ${this.label} config source`);
+    const snapshot = await this.read();
+    if (!snapshot.exists) {
+      throw new Error(
+        `Failed to fetch config from ${this.label} source: ${
+          snapshot.issues.map((i) => i.message).join(", ") || "endpoint unreachable"
+        }`,
+      );
+    }
+    if (!snapshot.valid) {
+      const issues = snapshot.issues
+        .map((issue) => `${issue.path || "<root>"}: ${issue.message}`)
+        .join("\n");
+      throw new Error(`Invalid config from ${this.label} source.\n${issues}`);
+    }
+    log.info(`gateway: config loaded from ${this.label} config source`);
+    return snapshot.config;
+  }
+
   async read(): Promise<ConfigFileSnapshot> {
     let response: Response;
     try {
