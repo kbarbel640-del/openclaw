@@ -16,7 +16,9 @@ export type MessagingTargetParseOptions = {
 };
 
 export function normalizeTargetId(kind: MessagingTargetKind, id: string): string {
-  return `${kind}:${id}`.toLowerCase();
+  // Only lowercase the kind prefix; preserve the id casing.
+  // Some channels (e.g. Signal) use base64-encoded group IDs that are case-sensitive.
+  return `${kind.toLowerCase()}:${id}`;
 }
 
 export function buildMessagingTarget(

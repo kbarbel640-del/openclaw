@@ -6,7 +6,12 @@ import {
   listChatChannels,
   normalizeChatChannelId,
 } from "./registry.js";
-import { buildMessagingTarget, ensureTargetId, requireTargetKind } from "./targets.js";
+import {
+  buildMessagingTarget,
+  ensureTargetId,
+  normalizeTargetId,
+  requireTargetKind,
+} from "./targets.js";
 import { createTypingCallbacks } from "./typing.js";
 
 const flushMicrotasks = async () => {
@@ -47,6 +52,23 @@ describe("channel registry helpers", () => {
     expect(line).not.toContain("Docs:");
     expect(line).toContain("/channels/telegram");
     expect(line).toContain("https://openclaw.ai");
+  });
+});
+
+describe("normalizeTargetId", () => {
+  it("lowercases the kind prefix", () => {
+    expect(normalizeTargetId("channel", "C123")).toBe("channel:C123");
+    expect(normalizeTargetId("user", "U456")).toBe("user:U456");
+  });
+
+  it("preserves case-sensitive id (e.g. base64 Signal group IDs)", () => {
+    const base64Id = "iGrccZxHzYtMPu5SlxMgYYEQNKRi019TIICdcHVMDsY=";
+    expect(normalizeTargetId("channel", base64Id)).toBe(`channel:${base64Id}`);
+  });
+
+  it("buildMessagingTarget normalized field preserves id casing", () => {
+    const target = buildMessagingTarget("channel", "AbCdEf", "group:AbCdEf");
+    expect(target.normalized).toBe("channel:AbCdEf");
   });
 });
 
