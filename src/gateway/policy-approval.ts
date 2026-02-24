@@ -64,7 +64,10 @@ export async function requestPolicyApproval(params: {
     { dropIfSlow: true },
   );
 
-  if (typeof params.context.hasExecApprovalClients === "function" && !params.context.hasExecApprovalClients()) {
+  if (
+    typeof params.context.hasExecApprovalClients === "function" &&
+    !params.context.hasExecApprovalClients()
+  ) {
     manager.expire(record.id, "auto-expire:no-approver-clients");
   }
 

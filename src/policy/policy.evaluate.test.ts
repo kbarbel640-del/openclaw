@@ -58,6 +58,62 @@ describe("policy evaluate", () => {
     expect(decision.requireApproval).toBe(true);
   });
 
+  it("maps gateway restart action to config mutation guardrails", () => {
+    const state = buildState({
+      version: 1,
+      tools: {
+        allow: ["gateway"],
+      },
+      configMutations: {
+        allow: [{ action: "gateway.restart" }],
+      },
+    });
+    const decision = evaluateToolCall("gateway", { action: "restart" }, { state });
+    expect(decision.allow).toBe(true);
+  });
+
+  it("maps gateway config.patch action to config mutation guardrails", () => {
+    const state = buildState({
+      version: 1,
+      tools: {
+        allow: ["gateway"],
+      },
+      configMutations: {
+        allow: [{ action: "config.patch" }],
+      },
+    });
+    const decision = evaluateToolCall("gateway", { action: "config.patch" }, { state });
+    expect(decision.allow).toBe(true);
+  });
+
+  it("maps gateway config.apply action to config mutation guardrails", () => {
+    const state = buildState({
+      version: 1,
+      tools: {
+        allow: ["gateway"],
+      },
+      configMutations: {
+        allow: [{ action: "config.apply" }],
+      },
+    });
+    const decision = evaluateToolCall("gateway", { action: "config.apply" }, { state });
+    expect(decision.allow).toBe(true);
+  });
+
+  it("maps gateway update.run action to config mutation guardrails", () => {
+    const state = buildState({
+      version: 1,
+      tools: {
+        allow: ["gateway"],
+      },
+      configMutations: {
+        allow: [{ action: "update.run" }],
+      },
+    });
+    const decision = evaluateToolCall("gateway", { action: "update.run" }, { state });
+    expect(decision.allow).toBe(true);
+  });
+
   it("blocks config.set when current policy is enabled and next config drops policy", () => {
     const state = buildState({
       version: 1,

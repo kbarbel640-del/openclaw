@@ -167,13 +167,6 @@ function mutationDisablesPolicy(payload: ConfigMutationPayload | undefined): boo
       return true;
     }
   }
-
-  if (isRecord(next) && isRecord(next.policy) && next.policy.enabled === false) {
-    return true;
-  }
-  if (isRecord(rawPatch) && isRecord(rawPatch.policy) && rawPatch.policy.enabled === false) {
-    return true;
-  }
   return false;
 }
 
