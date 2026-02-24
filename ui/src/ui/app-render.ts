@@ -947,9 +947,11 @@ export function renderApp(state: AppViewState) {
                     "TOOLS.md",
                   ];
 
-                  for (const name of [...bdiFiles, ...coreFiles]) {
-                    await loadAgentFileContent(state, agentId, name);
-                  }
+                  await Promise.all(
+                    [...bdiFiles, ...coreFiles].map((name) =>
+                      loadAgentFileContent(state, agentId, name),
+                    ),
+                  );
                 },
               })
             : nothing
