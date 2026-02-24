@@ -1,0 +1,458 @@
+﻿[
+    {
+        "src":  ".agent",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".agents",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".github",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  ".pi",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".vscode",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "apps",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "assets",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "docs",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "extensions",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "git-hooks",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "packages",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "patches",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "scripts",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "skills",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "src",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "Swabble",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "test",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "ui",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "vendor",
+        "target":  "keep",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw",
+        "wouldMove":  false
+    },
+    {
+        "src":  "# Code Citations.md",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".detect-secrets.cfg",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".dockerignore",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".env.example",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".gitattributes",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".gitignore",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".markdownlint-cli2.jsonc",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".npmrc",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".oxfmtrc.jsonc",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".oxlintrc.json",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".pre-commit-config.yaml",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".secrets.baseline",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".shellcheckrc",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".swiftformat",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  ".swiftlint.yml",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "AGENTS.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "appcast.xml",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "CHANGELOG.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "CIPHER-AUTH.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "CIPHER-SETUP.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "cipher.ps1",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "CLAUDE.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "CONTRIBUTING.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "deploy-cipher.ps1",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "docker-compose.yml",
+        "target":  "infra",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\infra",
+        "wouldMove":  true
+    },
+    {
+        "src":  "docker-setup.sh",
+        "target":  "infra",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\infra",
+        "wouldMove":  true
+    },
+    {
+        "src":  "Dockerfile",
+        "target":  "infra",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\infra",
+        "wouldMove":  true
+    },
+    {
+        "src":  "Dockerfile.sandbox",
+        "target":  "infra",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\infra",
+        "wouldMove":  true
+    },
+    {
+        "src":  "Dockerfile.sandbox-browser",
+        "target":  "infra",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\infra",
+        "wouldMove":  true
+    },
+    {
+        "src":  "Dockerfile.sandbox-common",
+        "target":  "infra",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\infra",
+        "wouldMove":  true
+    },
+    {
+        "src":  "docs.acp.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "fly.private.toml",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "fly.toml",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "LICENSE",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "openclaw.mjs",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "openclaw.podman.env",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "package-lock.json",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "package.json",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "pnpm-lock.yaml",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "pnpm-workspace.yaml",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "pyproject.toml",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "README.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "render.yaml",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "SECURITY.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "setup-cipher-agent.ps1",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "setup-podman.sh",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "tsconfig.json",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "tsconfig.plugin-sdk.dts.json",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "tsdown.config.ts",
+        "target":  "other",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\other",
+        "wouldMove":  true
+    },
+    {
+        "src":  "VISION.md",
+        "target":  "meta-docs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\meta-docs",
+        "wouldMove":  true
+    },
+    {
+        "src":  "vitest.config.ts",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "vitest.e2e.config.ts",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "vitest.extensions.config.ts",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "vitest.gateway.config.ts",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "vitest.live.config.ts",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "vitest.unit.config.ts",
+        "target":  "config",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\config",
+        "wouldMove":  true
+    },
+    {
+        "src":  "zizmor.yml",
+        "target":  "ci-configs",
+        "dest":  "C:\\Users\\arcan_e9q9t\\openclaw\\ci-configs",
+        "wouldMove":  true
+    }
+]
