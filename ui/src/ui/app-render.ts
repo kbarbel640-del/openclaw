@@ -378,6 +378,7 @@ export function renderApp(state: AppViewState) {
                 configFormDirty: state.configFormDirty,
                 nostrProfileFormState: state.nostrProfileFormState,
                 nostrProfileAccountId: state.nostrProfileAccountId,
+                simplexControlByAccount: state.simplexControlByAccount,
                 onRefresh: (probe) => loadChannels(state, probe),
                 onWhatsAppStart: (force) => state.handleWhatsAppStart(force),
                 onWhatsAppWait: () => state.handleWhatsAppWait(),
@@ -393,6 +394,11 @@ export function renderApp(state: AppViewState) {
                 onNostrProfileSave: () => state.handleNostrProfileSave(),
                 onNostrProfileImport: () => state.handleNostrProfileImport(),
                 onNostrProfileToggleAdvanced: () => state.handleNostrProfileToggleAdvanced(),
+                onSimplexOneTimeLinkCreate: (accountId) =>
+                  state.handleSimplexOneTimeLinkCreate(accountId),
+                onSimplexInviteRevoke: (accountId) => state.handleSimplexInviteRevoke(accountId),
+                onSimplexAddressShowOrCreate: (accountId) =>
+                  state.handleSimplexAddressShowOrCreate(accountId),
               })
             : nothing
         }
