@@ -96,18 +96,14 @@ describe("ComposeOrchestrator", () => {
     it("ensures the network before creating the environment", async () => {
       await orchestrator.up(BASE_CONFIG);
 
-      expect(networksEnsureFn).toHaveBeenCalledWith(
-        ComposeOrchestrator.NETWORK_NAME,
-      );
+      expect(networksEnsureFn).toHaveBeenCalledWith("openclaw-net");
       expect(createEnvironmentFn).toHaveBeenCalledOnce();
     });
 
     it("ensures the volume before creating the environment", async () => {
       await orchestrator.up(BASE_CONFIG);
 
-      expect(volumesEnsureFn).toHaveBeenCalledWith(
-        ComposeOrchestrator.VOLUME_NAME,
-      );
+      expect(volumesEnsureFn).toHaveBeenCalledWith("openclaw-home");
     });
 
     it("pulls/ensures the image before creating the environment", async () => {
@@ -120,13 +116,14 @@ describe("ComposeOrchestrator", () => {
       await orchestrator.up(BASE_CONFIG);
 
       const callArg = createEnvironmentFn.mock.calls[0]?.[0] as Record<string, unknown>;
-      expect(callArg?.network).toBe(ComposeOrchestrator.NETWORK_NAME);
+      expect(callArg?.network).toBe("openclaw-net");
     });
 
-    it("starts the environment after creating it", async () => {
+    it("creates the environment with the correct config", async () => {
       await orchestrator.up(BASE_CONFIG);
 
-      expect(startEnvironmentFn).toHaveBeenCalledOnce();
+      expect(createEnvironmentFn).toHaveBeenCalledOnce();
+      expect(startEnvironmentFn).not.toHaveBeenCalled();
     });
 
     it("rolls back the network if createEnvironment fails", async () => {
@@ -136,9 +133,7 @@ describe("ComposeOrchestrator", () => {
         "container create failed",
       );
 
-      expect(networksRemoveByNameFn).toHaveBeenCalledWith(
-        ComposeOrchestrator.NETWORK_NAME,
-      );
+      expect(networksRemoveByNameFn).toHaveBeenCalledWith("openclaw-net");
     });
 
     it("does not start the environment if creation failed", async () => {
@@ -187,9 +182,7 @@ describe("ComposeOrchestrator", () => {
       await orchestrator.purge();
 
       expect(destroyEnvironmentFn).toHaveBeenCalledOnce();
-      expect(networksRemoveByNameFn).toHaveBeenCalledWith(
-        ComposeOrchestrator.NETWORK_NAME,
-      );
+      expect(networksRemoveByNameFn).toHaveBeenCalledWith("openclaw-net");
     });
   });
 });
