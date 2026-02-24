@@ -5,7 +5,7 @@ import Darwin
 
 /// Shared device and platform info for Settings, gateway node payloads, and device status.
 enum DeviceInfoHelper {
-    /// e.g. "iOS 18.0.0" or "iPadOS 18.0.0" by interface idiom.
+    /// e.g. "iOS 18.0.0" or "iPadOS 18.0.0" by interface idiom. Use for gateway/device payloads.
     static func platformString() -> String {
         let v = ProcessInfo.processInfo.operatingSystemVersion
         let name = switch UIDevice.current.userInterfaceIdiom {
@@ -17,6 +17,12 @@ enum DeviceInfoHelper {
             "iOS"
         }
         return "\(name) \(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
+    }
+
+    /// Always "iOS X.Y.Z" for UI display (e.g. Settings), matching legacy behavior on iPad.
+    static func platformStringForDisplay() -> String {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return "iOS \(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
     }
 
     /// Device family for display: "iPad", "iPhone", or "iOS".

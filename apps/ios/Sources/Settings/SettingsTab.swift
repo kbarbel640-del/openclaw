@@ -375,7 +375,7 @@ struct SettingsTab: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                         LabeledContent("Device", value: DeviceInfoHelper.deviceFamily())
-                        LabeledContent("Platform", value: DeviceInfoHelper.platformString())
+                        LabeledContent("Platform", value: DeviceInfoHelper.platformStringForDisplay())
                         LabeledContent("OpenClaw", value: DeviceInfoHelper.openClawVersionString())
                     }
                 }
