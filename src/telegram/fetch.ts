@@ -1,5 +1,6 @@
 import * as dns from "node:dns";
 import * as net from "node:net";
+import { Agent, setGlobalDispatcher } from "undici";
 import type { TelegramNetworkConfig } from "../config/types.telegram.js";
 import { resolveFetch } from "../infra/fetch.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -10,6 +11,7 @@ import {
 
 let appliedAutoSelectFamily: boolean | null = null;
 let appliedDnsResultOrder: string | null = null;
+let appliedGlobalDispatcher = false;
 const log = createSubsystemLogger("telegram/network");
 
 // Node 22 workaround: enable autoSelectFamily to allow IPv4 fallback on broken IPv6 networks.
@@ -27,6 +29,30 @@ function applyTelegramNetworkWorkarounds(network?: TelegramNetworkConfig): void 
         log.info(`autoSelectFamily=${autoSelectDecision.value}${label}`);
       } catch {
         // ignore if unsupported by the runtime
+      }
+    }
+
+    // Node 22's built-in globalThis.fetch uses undici's internal Agent whose
+    // connect options are frozen at construction time.  Calling
+    // net.setDefaultAutoSelectFamily() after that agent is created has no
+    // effect on it.  Replace the global dispatcher with one that carries the
+    // correct autoSelectFamily setting so every subsequent globalThis.fetch
+    // call inherits it.
+    // See: https://github.com/openclaw/openclaw/issues/25676
+    if (autoSelectDecision.value !== null && !appliedGlobalDispatcher) {
+      try {
+        setGlobalDispatcher(
+          new Agent({
+            connect: {
+              autoSelectFamily: autoSelectDecision.value,
+              autoSelectFamilyAttemptTimeout: 300,
+            },
+          }),
+        );
+        appliedGlobalDispatcher = true;
+        log.info("global undici dispatcher updated for autoSelectFamily");
+      } catch {
+        // ignore if setGlobalDispatcher is unavailable
       }
     }
   }
@@ -68,4 +94,5 @@ export function resolveTelegramFetch(
 export function resetTelegramFetchStateForTests(): void {
   appliedAutoSelectFamily = null;
   appliedDnsResultOrder = null;
+  appliedGlobalDispatcher = false;
 }
