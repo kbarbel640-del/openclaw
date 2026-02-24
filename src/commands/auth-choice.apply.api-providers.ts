@@ -83,6 +83,7 @@ import {
 import type { AuthChoice } from "./onboard-types.js";
 import { OPENCODE_ZEN_DEFAULT_MODEL } from "./opencode-zen-model-default.js";
 import { detectZaiEndpoint } from "./zai-endpoint-detect.js";
+import { configureZaiMcpTools } from "./zai-mcp-tools-config.js";
 
 const API_KEY_TOKEN_PROVIDER_AUTH_CHOICE: Record<string, AuthChoice> = {
   openrouter: "openrouter-api-key",
@@ -603,7 +604,10 @@ export async function applyAuthChoiceApiProviders(
       normalize: normalizeApiKeyInput,
       validate: validateApiKeyInput,
       prompter: params.prompter,
-      setCredential: async (apiKey) => setZaiApiKey(apiKey, params.agentDir),
+      setCredential: async (apiKey) => {
+        await setZaiApiKey(apiKey, params.agentDir);
+        await configureZaiMcpTools(apiKey, params.agentDir);
+      },
     });
 
     // zai-api-key: auto-detect endpoint + choose a working default model.
