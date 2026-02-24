@@ -21,7 +21,6 @@ import {
 import {
   reactMatrixMessage,
   sendMessageMatrix,
-  sendReadReceiptMatrix,
   sendTypingMatrix,
 } from "../send.js";
 import {
@@ -602,13 +601,9 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         return;
       }
 
-      if (messageId) {
-        sendReadReceiptMatrix(roomId, messageId, client).catch((err) => {
-          logVerboseMessage(
-            `matrix: read receipt failed room=${roomId} id=${messageId}: ${String(err)}`,
-          );
-        });
-      }
+      // Read receipt is now sent immediately in events.ts when the message
+      // arrives from the SDK, before handler processing. This ensures "read"
+      // status shows even when the agent is busy with queued messages.
 
       let didSendReply = false;
       const tableMode = core.channel.text.resolveMarkdownTableMode({

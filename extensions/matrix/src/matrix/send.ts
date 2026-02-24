@@ -3,6 +3,7 @@ import type { PollInput } from "openclaw/plugin-sdk";
 import { getMatrixRuntime } from "../runtime.js";
 import { buildPollStartContent, M_POLL_START } from "./poll-types.js";
 import { resolveMatrixClient, resolveMediaMaxBytes } from "./send/client.js";
+import { enqueueSend } from "./send-queue.js";
 import {
   buildReplyRelation,
   buildTextContent,
@@ -49,6 +50,7 @@ export async function sendMessageMatrix(
   });
   try {
     const roomId = await resolveMatrixRoomId(client, to);
+    return await enqueueSend(roomId, async () => {
     const cfg = getCore().config.loadConfig();
     const tableMode = getCore().channel.text.resolveMarkdownTableMode({
       cfg,
@@ -146,6 +148,7 @@ export async function sendMessageMatrix(
       messageId: lastMessageId || "unknown",
       roomId,
     };
+    }); // enqueueSend
   } finally {
     if (stopOnDone) {
       client.stop();
