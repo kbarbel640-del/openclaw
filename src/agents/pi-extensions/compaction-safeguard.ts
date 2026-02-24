@@ -29,8 +29,11 @@ const TURN_PREFIX_INSTRUCTIONS =
 const MAX_TOOL_FAILURES = 8;
 const MAX_TOOL_FAILURE_CHARS = 240;
 const DEFAULT_RECENT_TURNS_PRESERVE = 3;
+const DEFAULT_QUALITY_GUARD_MAX_RETRIES = 1;
 const MAX_RECENT_TURNS_PRESERVE = 12;
+const MAX_QUALITY_GUARD_MAX_RETRIES = 3;
 const MAX_RECENT_TURN_TEXT_CHARS = 600;
+const MAX_EXTRACTED_IDENTIFIERS = 12;
 const REQUIRED_SUMMARY_SECTIONS = [
   "## Decisions",
   "## Open TODOs",
@@ -55,6 +58,13 @@ function resolveRecentTurnsPreserve(value: unknown): number {
   return Math.min(
     MAX_RECENT_TURNS_PRESERVE,
     clampNonNegativeInt(value, DEFAULT_RECENT_TURNS_PRESERVE),
+  );
+}
+
+function resolveQualityGuardMaxRetries(value: unknown): number {
+  return Math.min(
+    MAX_QUALITY_GUARD_MAX_RETRIES,
+    clampNonNegativeInt(value, DEFAULT_QUALITY_GUARD_MAX_RETRIES),
   );
 }
 
@@ -275,6 +285,78 @@ function buildCompactionStructureInstructions(customInstructions?: string): stri
   return `${sectionsTemplate}\n\nAdditional focus:\n${custom}`;
 }
 
+function sanitizeExtractedIdentifier(value: string): string {
+  return value
+    .trim()
+    .replace(/^[("'`[{<]+/, "")
+    .replace(/[)\]"'`,;:.!?<>]+$/, "");
+}
+
+function extractOpaqueIdentifiers(text: string): string[] {
+  const matches =
+    text.match(
+      /([A-Fa-f0-9]{8,}|https?:\/\/\S+|\/[\w./-]+|[A-Za-z]:\\[\w\\.-]+|[A-Za-z0-9._-]+\.[A-Za-z0-9._/-]+:\d{1,5}|\b\d{6,}\b)/g,
+    ) ?? [];
+  return Array.from(
+    new Set(
+      matches
+        .map((value) => sanitizeExtractedIdentifier(value))
+        .filter((value) => value.length >= 4),
+    ),
+  ).slice(0, MAX_EXTRACTED_IDENTIFIERS);
+}
+
+function extractLatestUserAsk(messages: AgentMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    if (msg.role !== "user") {
+      continue;
+    }
+    const text = extractMessageText(msg);
+    if (text) {
+      return text;
+    }
+  }
+  return null;
+}
+
+function hasAskOverlap(summary: string, latestAsk: string | null): boolean {
+  if (!latestAsk) {
+    return true;
+  }
+  const normalizedSummary = summary.toLowerCase();
+  const tokens = latestAsk
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter((token) => token.length >= 5)
+    .slice(0, 8);
+  if (tokens.length === 0) {
+    return true;
+  }
+  return tokens.some((token) => normalizedSummary.includes(token));
+}
+
+function auditSummaryQuality(params: {
+  summary: string;
+  identifiers: string[];
+  latestAsk: string | null;
+}): { ok: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  for (const section of REQUIRED_SUMMARY_SECTIONS) {
+    if (!params.summary.includes(section)) {
+      reasons.push(`missing_section:${section}`);
+    }
+  }
+  const missingIdentifiers = params.identifiers.filter((id) => !params.summary.includes(id));
+  if (missingIdentifiers.length > 0) {
+    reasons.push(`missing_identifiers:${missingIdentifiers.slice(0, 3).join(",")}`);
+  }
+  if (!hasAskOverlap(params.summary, params.latestAsk)) {
+    reasons.push("latest_user_ask_not_reflected");
+  }
+  return { ok: reasons.length === 0, reasons };
+}
+
 /**
  * Read and format critical workspace context for compaction summary.
  * Extracts "Session Startup" and "Red Lines" from AGENTS.md.
@@ -358,6 +440,8 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       const turnPrefixMessages = preparation.turnPrefixMessages ?? [];
       let messagesToSummarize = preparation.messagesToSummarize;
       const recentTurnsPreserve = resolveRecentTurnsPreserve(runtime?.recentTurnsPreserve);
+      const qualityGuardEnabled = runtime?.qualityGuardEnabled ?? true;
+      const qualityGuardMaxRetries = resolveQualityGuardMaxRetries(runtime?.qualityGuardMaxRetries);
 
       const maxHistoryShare = runtime?.maxHistoryShare ?? 0.5;
 
@@ -436,6 +520,17 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       });
       messagesToSummarize = summaryTargetMessages;
       const preservedTurnsSection = formatPreservedTurnsSection(preservedRecentMessages);
+      const latestUserAsk = extractLatestUserAsk([
+        ...messagesToSummarize,
+        ...preservedRecentMessages,
+        ...turnPrefixMessages,
+      ]);
+      const identifierSeedText = [...messagesToSummarize, ...preservedRecentMessages]
+        .slice(-10)
+        .map((message) => extractMessageText(message))
+        .filter(Boolean)
+        .join("\n");
+      const identifiers = extractOpaqueIdentifiers(identifierSeedText);
       const structuredInstructions = buildCompactionStructureInstructions(customInstructions);
 
       // Use adaptive chunk ratio based on message sizes, reserving headroom for
@@ -453,34 +548,52 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       // incorporates context from pruned messages instead of losing it entirely.
       const effectivePreviousSummary = droppedSummary ?? preparation.previousSummary;
 
-      const historySummary = await summarizeInStages({
-        messages: messagesToSummarize,
-        model,
-        apiKey,
-        signal,
-        reserveTokens,
-        maxChunkTokens,
-        contextWindow: contextWindowTokens,
-        customInstructions: structuredInstructions,
-        previousSummary: effectivePreviousSummary,
-      });
-
-      let summary = historySummary;
-      if (preparation.isSplitTurn && turnPrefixMessages.length > 0) {
-        const prefixSummary = await summarizeInStages({
-          messages: turnPrefixMessages,
+      let summary = "";
+      let currentInstructions = structuredInstructions;
+      const totalAttempts = qualityGuardEnabled ? qualityGuardMaxRetries + 1 : 1;
+      for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+        const historySummary = await summarizeInStages({
+          messages: messagesToSummarize,
           model,
           apiKey,
           signal,
           reserveTokens,
           maxChunkTokens,
           contextWindow: contextWindowTokens,
-          customInstructions: `${TURN_PREFIX_INSTRUCTIONS}\n\n${structuredInstructions}`,
-          previousSummary: undefined,
+          customInstructions: currentInstructions,
+          previousSummary: effectivePreviousSummary,
         });
-        summary = `${historySummary}\n\n---\n\n**Turn Context (split turn):**\n\n${prefixSummary}`;
+
+        summary = historySummary;
+        if (preparation.isSplitTurn && turnPrefixMessages.length > 0) {
+          const prefixSummary = await summarizeInStages({
+            messages: turnPrefixMessages,
+            model,
+            apiKey,
+            signal,
+            reserveTokens,
+            maxChunkTokens,
+            contextWindow: contextWindowTokens,
+            customInstructions: `${TURN_PREFIX_INSTRUCTIONS}\n\n${currentInstructions}`,
+            previousSummary: undefined,
+          });
+          summary = `${historySummary}\n\n---\n\n**Turn Context (split turn):**\n\n${prefixSummary}`;
+        }
+        summary += preservedTurnsSection;
+        if (!qualityGuardEnabled) {
+          break;
+        }
+        const quality = auditSummaryQuality({
+          summary,
+          identifiers,
+          latestAsk: latestUserAsk,
+        });
+        if (quality.ok || attempt >= totalAttempts - 1) {
+          break;
+        }
+        const reasons = quality.reasons.join(", ");
+        currentInstructions = `${structuredInstructions}\n\nPrevious summary failed quality checks (${reasons}). Fix all issues and include every required section with exact identifiers preserved.`;
       }
-      summary += preservedTurnsSection;
 
       summary += toolFailureSection;
       summary += fileOpsSummary;
@@ -516,7 +629,10 @@ export const __testing = {
   splitPreservedRecentTurns,
   formatPreservedTurnsSection,
   buildCompactionStructureInstructions,
+  extractOpaqueIdentifiers,
+  auditSummaryQuality,
   resolveRecentTurnsPreserve,
+  resolveQualityGuardMaxRetries,
   computeAdaptiveChunkRatio,
   isOversizedForSummary,
   BASE_CHUNK_RATIO,
