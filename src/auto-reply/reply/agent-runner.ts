@@ -426,10 +426,6 @@ export async function runReplyAgent(params: {
       await blockReplyPipeline.flush({ force: true });
       blockReplyPipeline.stop();
     }
-    if (pendingToolTasks.size > 0) {
-      await Promise.allSettled(pendingToolTasks);
-    }
-
     const usage = runResult.meta?.agentMeta?.usage;
     const promptTokens = runResult.meta?.agentMeta?.promptTokens;
     const modelUsed = runResult.meta?.agentMeta?.model ?? fallbackModel ?? defaultModel;
@@ -730,6 +726,9 @@ export async function runReplyAgent(params: {
     );
   } finally {
     blockReplyPipeline?.stop();
+    if (pendingToolTasks.size > 0) {
+      await Promise.allSettled(pendingToolTasks);
+    }
     typing.markRunComplete();
   }
 }
