@@ -17,6 +17,8 @@ export type CronDelivery = {
   channel?: CronMessageChannel;
   to?: string;
   bestEffort?: boolean;
+  /** Relay cron summary to the main agent session (default: true). */
+  announceToMain?: boolean;
 };
 
 export type CronDeliveryPatch = Partial<CronDelivery>;

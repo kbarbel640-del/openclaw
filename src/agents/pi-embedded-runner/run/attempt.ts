@@ -678,10 +678,14 @@ export async function runEmbeddedAttempt(
               }
               if (!isProbeSession) {
                 log.warn(
-                  `embedded run abort still streaming: runId=${params.runId} sessionId=${params.sessionId}`,
+                  `embedded run force-clearing stuck run: runId=${params.runId} sessionId=${params.sessionId}`,
                 );
               }
-            }, 10_000);
+              // Force-clear the active run registration so the session lane unblocks.
+              // Without this, a stuck LLM/tool call that ignores the abort signal
+              // will permanently block new messages to this session.
+              clearActiveEmbeddedRun(params.sessionId, queueHandle);
+            }, 30_000);
           }
         },
         Math.max(1, params.timeoutMs),

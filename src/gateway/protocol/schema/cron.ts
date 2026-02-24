@@ -73,6 +73,7 @@ export const CronDeliverySchema = Type.Object(
     channel: Type.Optional(Type.Union([Type.Literal("last"), NonEmptyString])),
     to: Type.Optional(Type.String()),
     bestEffort: Type.Optional(Type.Boolean()),
+    announceToMain: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -83,6 +84,7 @@ export const CronDeliveryPatchSchema = Type.Object(
     channel: Type.Optional(Type.Union([Type.Literal("last"), NonEmptyString])),
     to: Type.Optional(Type.String()),
     bestEffort: Type.Optional(Type.Boolean()),
+    announceToMain: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

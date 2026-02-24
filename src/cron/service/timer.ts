@@ -189,7 +189,8 @@ export async function executeJob(
     // the cron result without opening the isolated session.
     const summaryText = res.summary?.trim();
     const deliveryMode = job.delivery?.mode ?? "announce";
-    if (summaryText && deliveryMode !== "none") {
+    const shouldAnnounce = job.delivery?.announceToMain !== false;
+    if (summaryText && deliveryMode !== "none" && shouldAnnounce) {
       const prefix = "Cron";
       const label =
         res.status === "error" ? `${prefix} (error): ${summaryText}` : `${prefix}: ${summaryText}`;
