@@ -121,10 +121,8 @@ This endpoint does not require an `api-version` query parameter.
 Both GPT-5.2-Codex and GPT-5.2 are reasoning-capable models. You can control the
 thinking level in three ways (highest priority first):
 
-1. **Inline directive** — add `/think:<level>` in your message
-   (e.g. `/think:high explain quicksort`). Applies to that message only.
-2. **Session default** — send `/think:medium` as a standalone message.
-   Persists for the session until changed.
+1. **Inline directive** — add `/think:<level>` in your message (e.g. `/think:high explain quicksort`). Applies to that message only.
+2. **Session default** — send `/think:medium` as a standalone message. Persists for the session until changed.
 3. **Global config** — set `thinkingDefault` in `agents.defaults`:
 
 ```json5
