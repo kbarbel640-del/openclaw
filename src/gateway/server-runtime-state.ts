@@ -13,7 +13,7 @@ import type { GatewayTlsRuntime } from "./server/tls.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 import { CANVAS_HOST_PATH } from "../canvas-host/a2ui.js";
 import { type CanvasHostHandler, createCanvasHostHandler } from "../canvas-host/server.js";
-import { resolveGatewayListenHosts } from "./net.js";
+import { isLoopbackHost, resolveGatewayListenHosts } from "./net.js";
 import { createGatewayBroadcaster } from "./server-broadcast.js";
 import { type ChatRunEntry, createChatRunState } from "./server-chat.js";
 import { MAX_PAYLOAD_BYTES } from "./server-constants.js";
@@ -107,6 +107,12 @@ export async function createGatewayRuntimeState(params: {
   });
 
   const bindHosts = await resolveGatewayListenHosts(params.bindHost);
+  if (!isLoopbackHost(params.bindHost)) {
+    params.log.warn(
+      "⚠️  Gateway is binding to a non-loopback address. " +
+        "Ensure authentication is configured before exposing to public networks."
+    );
+  }
   const httpServers: HttpServer[] = [];
   const httpBindHosts: string[] = [];
   for (const host of bindHosts) {
