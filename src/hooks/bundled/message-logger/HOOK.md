@@ -32,12 +32,12 @@ Every time a message is received or sent:
 
 ```markdown
 # Chat: Alice (5511999990000)
+
 ## 2026-02-24
 
 ← 08:30 | Hello! How are you?
 → 08:31 | Hi Alice! I'm doing well, how can I help?
-← 08:35 | 🎤 [audio]
-    > Hey, I need you to check that report...
+← 08:35 | 🎤 [audio] > Hey, I need you to check that report...
 ← 08:40 | 📎 [image: media/2026-02-24-084000-0.jpg]
 → 08:41 | Checked! The report looks correct.
 ```
@@ -46,14 +46,14 @@ Every time a message is received or sent:
 
 The hook automatically detects contact names from any channel's metadata:
 
-| Channel | Name field | Example |
-|---------|-----------|---------|
-| WhatsApp | `senderName` | "Alice Smith" |
+| Channel  | Name field                 | Example       |
+| -------- | -------------------------- | ------------- |
+| WhatsApp | `senderName`               | "Alice Smith" |
 | Telegram | `first_name` + `last_name` | "Alice Smith" |
-| Discord | `displayName` / `username` | "alice.smith" |
-| Signal | `profileName` | "Alice" |
-| iMessage | macOS contact name | "Alice Smith" |
-| Slack | `real_name` | "Alice Smith" |
+| Discord  | `displayName` / `username` | "alice.smith" |
+| Signal   | `profileName`              | "Alice"       |
+| iMessage | macOS contact name         | "Alice Smith" |
+| Slack    | `real_name`                | "Alice Smith" |
 
 Discovered contacts are saved to `<workspace>/memory/contacts-map.json`.
 
@@ -63,8 +63,8 @@ Discovered contacts are saved to `<workspace>/memory/contacts-map.json`.
 
 ## Configuration
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| Option      | Type   | Default                    | Description             |
+| ----------- | ------ | -------------------------- | ----------------------- |
 | `outputDir` | string | `<workspace>/chat-history` | Custom output directory |
 
 Example configuration:

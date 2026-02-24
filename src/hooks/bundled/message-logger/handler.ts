@@ -483,10 +483,7 @@ async function handleMessageReceived(ctx: MessageReceivedHookContext): Promise<v
 
   if (hookConfig?.enabled === false) return;
 
-  const outputDir = resolveOutputDir(
-    hookConfig as Record<string, unknown> | undefined,
-    cfgRec,
-  );
+  const outputDir = resolveOutputDir(hookConfig as Record<string, unknown> | undefined, cfgRec);
   if (!outputDir) {
     log.debug("No output directory resolved, skipping message log");
     return;
@@ -554,10 +551,7 @@ async function handleMessageSent(ctx: MessageSentHookContext): Promise<void> {
 
   if (hookConfig?.enabled === false) return;
 
-  const outputDir = resolveOutputDir(
-    hookConfig as Record<string, unknown> | undefined,
-    cfgRec,
-  );
+  const outputDir = resolveOutputDir(hookConfig as Record<string, unknown> | undefined, cfgRec);
   if (!outputDir) return;
 
   const isGroup = ctx.to.includes("@g.us");
