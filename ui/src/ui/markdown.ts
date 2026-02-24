@@ -112,7 +112,8 @@ export function toSanitizedMarkdownHtml(markdown: string): string {
     }
     return sanitized;
   }
-  const rendered = marked.parse(`${truncated.text}${suffix}`, {
+  const safeInput = escapeNonAutolinkAngles(`${truncated.text}${suffix}`);
+  const rendered = marked.parse(safeInput, {
     renderer: htmlEscapeRenderer,
   }) as string;
   const sanitized = DOMPurify.sanitize(rendered, {
@@ -131,6 +132,17 @@ export function toSanitizedMarkdownHtml(markdown: string): string {
 // pages) as formatted output is confusing UX (#13937).
 const htmlEscapeRenderer = new marked.Renderer();
 htmlEscapeRenderer.html = ({ text }: { text: string }) => escapeHtml(text);
+
+const AUTOLINK_RE = /^(https?:\/\/|mailto:)/i;
+
+function escapeNonAutolinkAngles(value: string): string {
+  return value.replace(/<([^\n<>]+)>/g, (match, inner) => {
+    if (AUTOLINK_RE.test(inner.trim())) {
+      return match;
+    }
+    return `&lt;${inner}&gt;`;
+  });
+}
 
 function escapeHtml(value: string): string {
   return value

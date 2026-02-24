@@ -28,4 +28,14 @@ describe("toSanitizedMarkdownHtml", () => {
     expect(html).toContain("<code");
     expect(html).toContain("console.log(1)");
   });
+
+  it("preserves angle-bracketed ids as text", () => {
+    const html = toSanitizedMarkdownHtml("/approve <id> allow-once");
+    expect(html).toContain("&lt;id&gt;");
+  });
+
+  it("keeps autolinks clickable", () => {
+    const html = toSanitizedMarkdownHtml("Check out <https://example.com>");
+    expect(html).toContain('href="https://example.com"');
+  });
 });
