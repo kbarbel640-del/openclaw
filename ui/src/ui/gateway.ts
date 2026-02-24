@@ -125,10 +125,22 @@ export class GatewayBrowserClient {
     if (this.closed) {
       return;
     }
-    this.ws = new WebSocket(this.opts.url);
-    this.ws.addEventListener("open", () => this.queueConnect());
-    this.ws.addEventListener("message", (ev) => this.handleMessage(String(ev.data ?? "")));
-    this.ws.addEventListener("close", (ev) => {
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(this.opts.url);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      this.ws = null;
+      this.flushPending(new Error(`gateway websocket init failed: ${reason}`));
+      this.opts.onClose?.({ code: CONNECT_FAILED_CLOSE_CODE, reason: `connect failed: ${reason}` });
+      this.scheduleReconnect();
+      return;
+    }
+
+    this.ws = ws;
+    ws.addEventListener("open", () => this.queueConnect());
+    ws.addEventListener("message", (ev) => this.handleMessage(String(ev.data ?? "")));
+    ws.addEventListener("close", (ev) => {
       const reason = String(ev.reason ?? "");
       const connectError = this.pendingConnectError;
       this.pendingConnectError = undefined;
@@ -137,7 +149,7 @@ export class GatewayBrowserClient {
       this.opts.onClose?.({ code: ev.code, reason, error: connectError });
       this.scheduleReconnect();
     });
-    this.ws.addEventListener("error", () => {
+    ws.addEventListener("error", () => {
       // ignored; close handler will fire
     });
   }
