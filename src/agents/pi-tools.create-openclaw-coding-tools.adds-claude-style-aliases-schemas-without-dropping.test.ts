@@ -357,6 +357,14 @@ describe("createOpenClawCodingTools", () => {
     expect(names.has("exec")).toBe(false);
     expect(names.has("browser")).toBe(false);
   });
+  it("includes cron in coding profile", () => {
+    const tools = createOpenClawCodingTools({
+      config: { tools: { profile: "coding" } },
+    });
+    const names = new Set(tools.map((tool) => tool.name));
+    expect(names.has("cron")).toBe(true);
+    expect(names.has("gateway")).toBe(false);
+  });
   it("expands group shorthands in global tool policy", () => {
     const tools = createOpenClawCodingTools({
       config: { tools: { allow: ["group:fs"] } },

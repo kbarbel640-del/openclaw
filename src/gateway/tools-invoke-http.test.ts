@@ -298,6 +298,77 @@ describe("POST /tools/invoke", () => {
     await server.close();
   });
 
+  it("allows cron via coding profile", async () => {
+    testState.agentsConfig = {
+      list: [
+        {
+          id: "main",
+          tools: {
+            allow: ["cron"],
+          },
+        },
+      ],
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any;
+
+    const { writeConfigFile } = await import("../config/config.js");
+    await writeConfigFile({
+      tools: { profile: "coding" },
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
+
+    const port = await getFreePort();
+    const server = await startGatewayServer(port, { bind: "loopback" });
+    const token = resolveGatewayToken();
+
+    const res = await fetch(`http://127.0.0.1:${port}/tools/invoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ tool: "cron", action: "status", args: {}, sessionKey: "main" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+
+    await server.close();
+  });
+
+  it("still hides cron when explicitly denied", async () => {
+    testState.agentsConfig = {
+      list: [
+        {
+          id: "main",
+          tools: {
+            allow: ["cron"],
+            deny: ["cron"],
+          },
+        },
+      ],
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any;
+
+    const { writeConfigFile } = await import("../config/config.js");
+    await writeConfigFile({
+      tools: { profile: "coding" },
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
+
+    const port = await getFreePort();
+    const server = await startGatewayServer(port, { bind: "loopback" });
+    const token = resolveGatewayToken();
+
+    const res = await fetch(`http://127.0.0.1:${port}/tools/invoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ tool: "cron", action: "status", args: {}, sessionKey: "main" }),
+    });
+
+    expect(res.status).toBe(404);
+
+    await server.close();
+  });
+
   it("uses the configured main session key when sessionKey is missing or main", async () => {
     testState.agentsConfig = {
       list: [
