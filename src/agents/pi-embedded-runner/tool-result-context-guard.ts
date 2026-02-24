@@ -231,7 +231,11 @@ function compactExistingToolResultsInPlace(params: {
     }
 
     const before = estimateMessageChars(msg);
-    if (before <= PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER.length) {
+    // The threshold must account for the weighted estimate used in estimateMessageChars.
+    // Tool results are weighted by 2x (CHARS_PER_TOKEN_ESTIMATE / TOOL_RESULT_CHARS_PER_TOKEN_ESTIMATE),
+    // so we multiply the placeholder length by 2 to avoid incorrectly compacting small outputs.
+    const weightedThreshold = PREEMPTIVE_TOOL_RESULT_COMPACTION_PLACEHOLDER.length * 2;
+    if (before <= weightedThreshold) {
       continue;
     }
 
