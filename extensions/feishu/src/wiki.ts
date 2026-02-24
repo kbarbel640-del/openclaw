@@ -1,6 +1,6 @@
 import type * as Lark from "@larksuiteoapi/node-sdk";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { listEnabledFeishuAccounts } from "./accounts.js";
+import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import { listEnabledFeishuAccounts, resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { resolveToolsConfig } from "./tools-config.js";
 import { FeishuWikiSchema, type FeishuWikiParams } from "./wiki-schema.js";
@@ -168,6 +168,7 @@ export function registerFeishuWikiTools(api: OpenClawPluginApi) {
     return;
   }
 
+  // Get tools config from first account (config should be consistent across accounts)
   const firstAccount = accounts[0];
   const toolsCfg = resolveToolsConfig(firstAccount.config.tools);
   if (!toolsCfg.wiki) {
@@ -175,10 +176,24 @@ export function registerFeishuWikiTools(api: OpenClawPluginApi) {
     return;
   }
 
-  const getClient = () => createFeishuClient(firstAccount);
+  // Helper to get client for a specific account (fallback to first if not found)
+  const getClientForAccount = (accountId?: string): Lark.Client => {
+    if (!accountId) {
+      return createFeishuClient(firstAccount);
+    }
+    
+    const account = resolveFeishuAccount({ cfg: api.config!, accountId });
+    if (account.configured) {
+      return createFeishuClient(account);
+    }
+    
+    api.logger.warn?.(`feishu_wiki: Account "${accountId}" not found or not configured, falling back to default`);
+    return createFeishuClient(firstAccount);
+  };
 
+  // Use tool factory to receive context with agentAccountId
   api.registerTool(
-    {
+    (ctx: OpenClawPluginToolContext) => ({
       name: "feishu_wiki",
       label: "Feishu Wiki",
       description:
@@ -187,7 +202,8 @@ export function registerFeishuWikiTools(api: OpenClawPluginApi) {
       async execute(_toolCallId, params) {
         const p = params as FeishuWikiParams;
         try {
-          const client = getClient();
+          // Use the account from context (current conversation's account)
+          const client = getClientForAccount(ctx.agentAccountId);
           switch (p.action) {
             case "spaces":
               return json(await listSpaces(client));
@@ -224,7 +240,7 @@ export function registerFeishuWikiTools(api: OpenClawPluginApi) {
           return json({ error: err instanceof Error ? err.message : String(err) });
         }
       },
-    },
+    }),
     { name: "feishu_wiki" },
   );
 

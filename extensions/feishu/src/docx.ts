@@ -1,8 +1,8 @@
 import { Readable } from "stream";
 import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { listEnabledFeishuAccounts } from "./accounts.js";
+import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import { listEnabledFeishuAccounts, resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
@@ -454,19 +454,37 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
     return;
   }
 
-  // Use first account's config for tools configuration
+  // Get tools config from first account (config should be consistent across accounts)
   const firstAccount = accounts[0];
   const toolsCfg = resolveToolsConfig(firstAccount.config.tools);
-  const mediaMaxBytes = (firstAccount.config?.mediaMaxMb ?? 30) * 1024 * 1024;
+  const defaultMediaMaxBytes = (firstAccount.config?.mediaMaxMb ?? 30) * 1024 * 1024;
 
-  // Helper to get client for the default account
-  const getClient = () => createFeishuClient(firstAccount);
+  // Helper to get client for a specific account (fallback to first if not found)
+  const getClientForAccount = (accountId?: string): { client: Lark.Client; mediaMaxBytes: number } => {
+    if (!accountId) {
+      // No account specified, use first (default behavior)
+      return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
+    }
+    
+    // Try to find the specific account
+    const account = resolveFeishuAccount({ cfg: api.config!, accountId });
+    if (account.configured) {
+      const mediaMaxBytes = (account.config?.mediaMaxMb ?? 30) * 1024 * 1024;
+      return { client: createFeishuClient(account), mediaMaxBytes };
+    }
+    
+    // Fallback to first account if specified account not found
+    api.logger.warn?.(`feishu_doc: Account "${accountId}" not found or not configured, falling back to default`);
+    return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
+  };
+
   const registered: string[] = [];
 
   // Main document tool with action-based dispatch
+  // Use tool factory to receive context with agentAccountId
   if (toolsCfg.doc) {
     api.registerTool(
-      {
+      (ctx: OpenClawPluginToolContext) => ({
         name: "feishu_doc",
         label: "Feishu Doc",
         description:
@@ -475,7 +493,8 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         async execute(_toolCallId, params) {
           const p = params as FeishuDocParams;
           try {
-            const client = getClient();
+            // Use the account from context (current conversation's account)
+            const { client, mediaMaxBytes } = getClientForAccount(ctx.agentAccountId);
             switch (p.action) {
               case "read":
                 return json(await readDoc(client, p.doc_token));
@@ -501,7 +520,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
             return json({ error: err instanceof Error ? err.message : String(err) });
           }
         },
-      },
+      }),
       { name: "feishu_doc" },
     );
     registered.push("feishu_doc");
@@ -510,7 +529,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
   // Keep feishu_app_scopes as independent tool
   if (toolsCfg.scopes) {
     api.registerTool(
-      {
+      (ctx: OpenClawPluginToolContext) => ({
         name: "feishu_app_scopes",
         label: "Feishu App Scopes",
         description:
@@ -518,13 +537,14 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         parameters: Type.Object({}),
         async execute() {
           try {
-            const result = await listAppScopes(getClient());
+            const { client } = getClientForAccount(ctx.agentAccountId);
+            const result = await listAppScopes(client);
             return json(result);
           } catch (err) {
             return json({ error: err instanceof Error ? err.message : String(err) });
           }
         },
-      },
+      }),
       { name: "feishu_app_scopes" },
     );
     registered.push("feishu_app_scopes");
