@@ -272,4 +272,54 @@ describe("deliverWebReply", () => {
       }),
     );
   });
+
+  it("filters out reasoning messages from delivery (issue #25214)", async () => {
+    const msg = makeMsg();
+
+    await deliverWebReply({
+      replyResult: { text: "Reasoning:\n_some internal thinking_" },
+      msg,
+      maxMediaBytes: 1024 * 1024,
+      textLimit: 200,
+      replyLogger,
+      skipLog: true,
+    });
+
+    // Reasoning messages should not be delivered
+    expect(msg.reply).not.toHaveBeenCalled();
+    expect(msg.sendMedia).not.toHaveBeenCalled();
+    expect(logVerbose).toHaveBeenCalledWith("Skipping reasoning message delivery to WhatsApp");
+  });
+
+  it("filters out reasoning messages with leading whitespace", async () => {
+    const msg = makeMsg();
+
+    await deliverWebReply({
+      replyResult: { text: "  \n  Reasoning:\n_some internal thinking_" },
+      msg,
+      maxMediaBytes: 1024 * 1024,
+      textLimit: 200,
+      replyLogger,
+      skipLog: true,
+    });
+
+    expect(msg.reply).not.toHaveBeenCalled();
+    expect(msg.sendMedia).not.toHaveBeenCalled();
+  });
+
+  it("delivers normal messages that contain Reasoning: prefix in the middle", async () => {
+    const msg = makeMsg();
+
+    await deliverWebReply({
+      replyResult: { text: "Hello\nReasoning: this is not" },
+      msg,
+      maxMediaBytes: 1024 * 1024,
+      textLimit: 200,
+      replyLogger,
+      skipLog: true,
+    });
+
+    // Messages that don't START with Reasoning: should be delivered
+    expect(msg.reply).toHaveBeenCalled();
+  });
 });
