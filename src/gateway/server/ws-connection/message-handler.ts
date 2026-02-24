@@ -563,9 +563,13 @@ export function attachGatewayWsMessageHandler(params: {
         // In that case, don't force device pairing on first connect.
         const skipPairingForOperatorSharedAuth =
           role === "operator" && sharedAuthOk && !isControlUi && !isWebchat;
+        // Auto-skip pairing for loopback connections (sub-agents, same-machine tools).
+        // gateway bind=loopback already restricts external access; loopback = trusted.
+        const skipPairingForLoopback = isLocalClient;
         const skipPairing =
           shouldSkipControlUiPairing(controlUiAuthPolicy, sharedAuthOk) ||
-          skipPairingForOperatorSharedAuth;
+          skipPairingForOperatorSharedAuth ||
+          skipPairingForLoopback;
         if (device && devicePublicKey && !skipPairing) {
           const formatAuditList = (items: string[] | undefined): string => {
             if (!items || items.length === 0) {
