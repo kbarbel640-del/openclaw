@@ -263,6 +263,7 @@ export function renderOverview(props: OverviewProps) {
               <option value="zh-CN">${t("languages.zhCN")}</option>
               <option value="zh-TW">${t("languages.zhTW")}</option>
               <option value="pt-BR">${t("languages.ptBR")}</option>
+              <option value="tr">${t("languages.tr")}</option>
             </select>
           </label>
         </div>
