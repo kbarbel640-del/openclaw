@@ -494,16 +494,28 @@ async function sendAnnounce(item: AnnounceQueueItem) {
       enqueuedAt: item.enqueuedAt,
     }),
   );
+  // Only request outbound delivery when the requester has a known deliverable
+  // channel (Telegram, WhatsApp, Discord, etc.). Webchat and HTTP API sessions
+  // have no external channel — passing deliver:true for those causes the WS
+  // handler to hard-fail with "Channel is required". With deliver:false, the
+  // agent still runs and the result is written to the session transcript for
+  // the webchat/API consumer to retrieve via session history.
+  const originChannel = requesterIsSubagent ? undefined : origin?.channel;
+  const shouldDeliver =
+    !requesterIsSubagent &&
+    typeof originChannel === "string" &&
+    isDeliverableMessageChannel(originChannel);
+
   await callGateway({
     method: "agent",
     params: {
       sessionKey: item.sessionKey,
       message: item.prompt,
-      channel: requesterIsSubagent ? undefined : origin?.channel,
-      accountId: requesterIsSubagent ? undefined : origin?.accountId,
-      to: requesterIsSubagent ? undefined : origin?.to,
-      threadId: requesterIsSubagent ? undefined : threadId,
-      deliver: !requesterIsSubagent,
+      channel: shouldDeliver ? originChannel : undefined,
+      accountId: shouldDeliver ? origin?.accountId : undefined,
+      to: shouldDeliver ? origin?.to : undefined,
+      threadId: shouldDeliver ? threadId : undefined,
+      deliver: shouldDeliver,
       idempotencyKey,
     },
     timeoutMs: announceTimeoutMs,

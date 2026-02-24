@@ -476,7 +476,7 @@ export const agentHandlers: GatewayRequestHandlers = {
       }
     }
 
-    const wantsDelivery = request.deliver === true;
+    let wantsDelivery = request.deliver === true;
     const explicitTo =
       typeof request.replyTo === "string" && request.replyTo.trim()
         ? request.replyTo.trim()
@@ -514,9 +514,13 @@ export const agentHandlers: GatewayRequestHandlers = {
           deliveryTargetMode,
           resolvedAccountId,
         };
-      } catch (err) {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, String(err)));
-        return;
+      } catch {
+        // No deliverable external channels configured (e.g. webchat-only or HTTP API
+        // sessions). Fall through with deliver=false so the agent still runs and the
+        // result is written to the session transcript. Webchat and API consumers can
+        // retrieve it via session history. This prevents hard-failing subagent announce
+        // on instances without Telegram/WhatsApp/Discord configured.
+        wantsDelivery = false;
       }
     }
 

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   registerAgentRunContext: vi.fn(),
   sessionsResetHandler: vi.fn(),
   loadConfigReturn: {} as Record<string, unknown>,
+  resolveMessageChannelSelection: vi.fn(),
 }));
 
 vi.mock("../session-utils.js", async () => {
@@ -65,6 +66,10 @@ vi.mock("./sessions.js", () => ({
 
 vi.mock("../../sessions/send-policy.js", () => ({
   resolveSendPolicy: () => "allow",
+}));
+
+vi.mock("../../infra/outbound/channel-selection.js", () => ({
+  resolveMessageChannelSelection: mocks.resolveMessageChannelSelection,
 }));
 
 vi.mock("../../utils/delivery-context.js", async () => {
@@ -460,6 +465,48 @@ describe("gateway agent handler", () => {
       expect.objectContaining({
         message: expect.stringContaining("malformed session key"),
       }),
+    );
+  });
+
+  it("falls through gracefully when deliver:true but no external channels configured (webchat/HTTP API sessions)", async () => {
+    // Regression test: subagent announce for webchat-only instances (e.g. customer
+    // VMs without Telegram/WhatsApp/Discord) previously hard-failed with
+    // "Channel is required (no configured channels detected)" — the agent never ran
+    // and the result was lost. Now it falls back to deliver:false so the result is
+    // written to the session transcript for polling consumers.
+    mocks.agentCommand.mockClear();
+    mocks.agentCommand.mockResolvedValueOnce({
+      payloads: [{ text: "subagent result" }],
+      meta: { durationMs: 50 },
+    });
+
+    // Simulate no external channels configured → resolveMessageChannelSelection throws
+    mocks.resolveMessageChannelSelection.mockRejectedValueOnce(
+      new Error("Channel is required (no configured channels detected)."),
+    );
+
+    primeMainAgentRun();
+
+    const respond = await invokeAgent(
+      {
+        message: "subagent announce",
+        agentId: "main",
+        sessionKey: "agent:main:main",
+        deliver: true,
+        // No channel — simulates webchat/HTTP API session with no channel attribution
+        idempotencyKey: "test-webchat-fallback",
+      },
+      { reqId: "webchat-fallback-1" },
+    );
+
+    // Agent must NOT be rejected — it should run
+    await vi.waitFor(() => expect(mocks.agentCommand).toHaveBeenCalled());
+
+    // respond should have been called with accepted status (true), not an error
+    expect(respond).not.toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({ message: expect.stringContaining("Channel is required") }),
     );
   });
 });
