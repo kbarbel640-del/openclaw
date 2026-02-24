@@ -47,10 +47,15 @@ function mergeProviderModels(implicit: ProviderConfig, explicit: ProviderConfig)
 
     // Refresh capability metadata from the implicit catalog while preserving
     // user-specific fields (cost, headers, compat, etc.) on explicit entries.
+    // Note: reasoning is a user-configurable preference, not a capability.
+    // Built-in defaults should be fallbacks, not forced values.
+    // See: https://github.com/openclaw/openclaw/issues/25244
+    const explicitReasoning = (explicitModel as { reasoning?: unknown }).reasoning;
+    const hasExplicitReasoning = typeof explicitReasoning === "boolean";
     return {
       ...explicitModel,
       input: implicitModel.input,
-      reasoning: implicitModel.reasoning,
+      reasoning: hasExplicitReasoning ? explicitReasoning : implicitModel.reasoning,
       contextWindow: implicitModel.contextWindow,
       maxTokens: implicitModel.maxTokens,
     };
