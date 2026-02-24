@@ -389,7 +389,7 @@ export function resolveDiscordChannelConfig(params: {
     slug: channelSlug,
   });
   const resolved = resolveChannelMatchConfig(match, resolveDiscordChannelConfigEntry);
-  return resolved ?? { allowed: false };
+  return resolved ?? { allowed: true, requireMention: guildInfo?.requireMention ?? true };
 }
 
 export function resolveDiscordChannelConfigWithFallback(params: {
@@ -433,7 +433,7 @@ export function resolveDiscordChannelConfigWithFallback(params: {
         }
       : undefined,
   );
-  return resolveChannelMatchConfig(match, resolveDiscordChannelConfigEntry) ?? { allowed: false };
+  return resolveChannelMatchConfig(match, resolveDiscordChannelConfigEntry) ?? { allowed: true, requireMention: guildInfo?.requireMention ?? true };
 }
 
 export function resolveDiscordShouldRequireMention(params: {
