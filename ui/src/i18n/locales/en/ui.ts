@@ -11,6 +11,8 @@ export const en_ui: TranslationMap = {
     add: "Add",
     delete: "Delete",
     edit: "Edit",
+    enable: "Enable",
+    disable: "Disable",
     run: "Run",
     open: "Open",
     viewRawText: "View Raw Text",

@@ -308,14 +308,15 @@ function matchesSearch(params: {
   const q = criteria.text;
   const rawMeta = SECTION_META[params.key];
   const meta = rawMeta ? resolveLocalizedSectionMeta(params.key, rawMeta) : undefined;
+  const hasTagFilters = criteria.tags.length > 0;
 
   // Check key name
-  if (q && params.key.toLowerCase().includes(q)) {
+  if (!hasTagFilters && q && params.key.toLowerCase().includes(q)) {
     return true;
   }
 
   // Check label and description
-  if (q && meta) {
+  if (!hasTagFilters && q && meta) {
     if (meta.label.toLowerCase().includes(q)) {
       return true;
     }

@@ -11,6 +11,8 @@ export const uk_ui: TranslationMap = {
     add: "Додати",
     delete: "Видалити",
     edit: "Редагувати",
+    enable: "Увімкнути",
+    disable: "Вимкнути",
     run: "Запустити",
     open: "Відкрити",
     viewRawText: "Показати сирий текст",

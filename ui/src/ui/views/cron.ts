@@ -343,7 +343,9 @@ export function renderCron(props: CronProps) {
     props.runsScope === "all"
       ? t("cronUi.runs.allJobs")
       : (selectedJob?.name ?? props.runsJobId ?? `(${t("cronUi.runs.selectJob")})`);
-  const runs = props.runs;
+  const runs = props.runs.toSorted((a, b) =>
+    props.runsSortDir === "asc" ? a.ts - b.ts : b.ts - a.ts,
+  );
   const selectedStatusLabels = RUN_STATUS_OPTIONS.filter((option) =>
     props.runsStatuses.includes(option.value),
   ).map((option) => option.label);
@@ -1316,7 +1318,7 @@ function renderJob(job: CronJob, props: CronProps) {
               selectAnd(() => props.onToggle(job, !job.enabled));
             }}
           >
-            ${job.enabled ? t("common.disabled") : t("common.enabled")}
+            ${job.enabled ? t("actions.disable") : t("actions.enable")}
           </button>
           <button
             class="btn"
@@ -1333,7 +1335,7 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              selectAnd(() => props.onLoadRuns(job.id));
+              props.onLoadRuns(job.id);
             }}
           >
             ${t("cronUi.actions.history")}
