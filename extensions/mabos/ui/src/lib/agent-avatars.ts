@@ -4,24 +4,26 @@
  * Generated via nano-banana-pro with geometric low-poly style.
  */
 
+const base = import.meta.env.BASE_URL ?? "/";
+
 export const agentAvatars: Record<string, string> = {
-  ceo: "/avatars/ceo.png",
-  cfo: "/avatars/cfo.jpg",
-  cmo: "/avatars/cmo.jpg",
-  coo: "/avatars/coo.jpg",
-  cto: "/avatars/cto.jpg",
-  hr: "/avatars/hr.jpg",
-  knowledge: "/avatars/knowledge.jpg",
-  legal: "/avatars/legal.jpg",
-  strategy: "/avatars/strategy.jpg",
-  "inventory-mgr": "/avatars/inventory-mgr.jpg",
-  "fulfillment-mgr": "/avatars/fulfillment-mgr.jpg",
-  "product-mgr": "/avatars/product-mgr.jpg",
-  "marketing-dir": "/avatars/marketing-dir.png",
-  "sales-dir": "/avatars/sales-dir.png",
-  "compliance-dir": "/avatars/compliance-dir.png",
-  "creative-dir": "/avatars/creative-dir.png",
-  "cs-dir": "/avatars/cs-dir.png",
+  ceo: `${base}avatars/ceo.png`,
+  cfo: `${base}avatars/cfo.jpg`,
+  cmo: `${base}avatars/cmo.jpg`,
+  coo: `${base}avatars/coo.jpg`,
+  cto: `${base}avatars/cto.jpg`,
+  hr: `${base}avatars/hr.jpg`,
+  knowledge: `${base}avatars/knowledge.jpg`,
+  legal: `${base}avatars/legal.jpg`,
+  strategy: `${base}avatars/strategy.jpg`,
+  "inventory-mgr": `${base}avatars/inventory-mgr.jpg`,
+  "fulfillment-mgr": `${base}avatars/fulfillment-mgr.jpg`,
+  "product-mgr": `${base}avatars/product-mgr.jpg`,
+  "marketing-dir": `${base}avatars/marketing-dir.png`,
+  "sales-dir": `${base}avatars/sales-dir.png`,
+  "compliance-dir": `${base}avatars/compliance-dir.png`,
+  "creative-dir": `${base}avatars/creative-dir.png`,
+  "cs-dir": `${base}avatars/cs-dir.png`,
 };
 
 /**
