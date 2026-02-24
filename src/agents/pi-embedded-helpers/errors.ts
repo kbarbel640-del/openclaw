@@ -703,9 +703,22 @@ export function isTimeoutErrorMessage(raw: string): boolean {
   return matchesErrorPatterns(raw, ERROR_PATTERNS.timeout);
 }
 
+/**
+ * Maximum character length for a string to be considered a billing error message.
+ * Real API billing errors are short, structured messages (typically under 300 chars).
+ * Longer text is almost certainly assistant content that happens to mention billing keywords.
+ */
+const BILLING_ERROR_MAX_LENGTH = 512;
+
 export function isBillingErrorMessage(raw: string): boolean {
   const value = raw.toLowerCase();
   if (!value) {
+    return false;
+  }
+  // Real billing error messages from APIs are short structured payloads.
+  // Long text (e.g. multi-paragraph assistant responses) that happens to mention
+  // "billing", "payment", etc. should not be treated as a billing error.
+  if (raw.length > BILLING_ERROR_MAX_LENGTH) {
     return false;
   }
   if (matchesErrorPatterns(value, ERROR_PATTERNS.billing)) {
