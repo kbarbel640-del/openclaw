@@ -277,7 +277,7 @@ export function buildEmbeddedRunPayloads(params: {
 
   const onlySilentFromAssistant =
     hasUserFacingAssistantReply &&
-    replyItems.every((item) => !item.text || isSilentReplyText(item.text, SILENT_REPLY_TOKEN));
+    replyItems.every((item) => item.isError || item.isReasoning || !item.text || isSilentReplyText(item.text, SILENT_REPLY_TOKEN));
 
   // When the model replies with only TTS tool call(s) (no separate text block),
   // or when the only assistant text is silent (e.g. NO_REPLY), use all TTS tools'
