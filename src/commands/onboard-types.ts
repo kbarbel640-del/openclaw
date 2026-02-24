@@ -13,6 +13,7 @@ export type AuthChoice =
   | "openai-codex"
   | "openai-api-key"
   | "openrouter-api-key"
+  | "kilocode-api-key"
   | "litellm-api-key"
   | "ai-gateway-api-key"
   | "cloudflare-ai-gateway-api-key"
@@ -26,7 +27,6 @@ export type AuthChoice =
   | "codex-cli"
   | "apiKey"
   | "gemini-api-key"
-  | "google-antigravity"
   | "google-gemini-cli"
   | "zai-api-key"
   | "zai-coding-global"
@@ -37,6 +37,7 @@ export type AuthChoice =
   | "minimax-cloud"
   | "minimax"
   | "minimax-api"
+  | "minimax-api-key-cn"
   | "minimax-api-lightning"
   | "minimax-portal"
   | "opencode-zen"
@@ -44,6 +45,9 @@ export type AuthChoice =
   | "copilot-proxy"
   | "qwen-portal"
   | "xai-api-key"
+  | "mistral-api-key"
+  | "volcengine-api-key"
+  | "byteplus-api-key"
   | "qianfan-api-key"
   | "custom-api-key"
   | "skip";
@@ -55,6 +59,7 @@ export type AuthChoiceGroupId =
   | "google"
   | "copilot"
   | "openrouter"
+  | "kilocode"
   | "litellm"
   | "ai-gateway"
   | "cloudflare-ai-gateway"
@@ -65,11 +70,14 @@ export type AuthChoiceGroupId =
   | "minimax"
   | "synthetic"
   | "venice"
+  | "mistral"
   | "qwen"
   | "together"
   | "huggingface"
   | "qianfan"
   | "xai"
+  | "volcengine"
+  | "byteplus"
   | "custom";
 export type GatewayAuthChoice = "token" | "password";
 export type ResetScope = "config" | "config+creds+sessions" | "full";
@@ -100,7 +108,9 @@ export type OnboardOptions = {
   tokenExpiresIn?: string;
   anthropicApiKey?: string;
   openaiApiKey?: string;
+  mistralApiKey?: string;
   openrouterApiKey?: string;
+  kilocodeApiKey?: string;
   litellmApiKey?: string;
   aiGatewayApiKey?: string;
   cloudflareAiGatewayAccountId?: string;
@@ -118,6 +128,8 @@ export type OnboardOptions = {
   huggingfaceApiKey?: string;
   opencodeZenApiKey?: string;
   xaiApiKey?: string;
+  volcengineApiKey?: string;
+  byteplusApiKey?: string;
   qianfanApiKey?: string;
   customBaseUrl?: string;
   customApiKey?: string;

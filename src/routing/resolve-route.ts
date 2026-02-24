@@ -1,13 +1,16 @@
-import type { ChatType } from "../channels/chat-type.js";
-import type { OpenClawConfig } from "../config/config.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
+import type { ChatType } from "../channels/chat-type.js";
 import { normalizeChatType } from "../channels/chat-type.js";
+import type { OpenClawConfig } from "../config/config.js";
+import { shouldLogVerbose } from "../globals.js";
+import { logDebug } from "../logger.js";
 import { listBindings } from "./bindings.js";
 import {
   buildAgentMainSessionKey,
   buildAgentPeerSessionKey,
   DEFAULT_ACCOUNT_ID,
   DEFAULT_MAIN_KEY,
+  normalizeAccountId,
   normalizeAgentId,
   sanitizeAgentId,
 } from "./session-key.js";
@@ -59,13 +62,14 @@ function normalizeToken(value: string | undefined | null): string {
   return (value ?? "").trim().toLowerCase();
 }
 
-function normalizeId(value: string | undefined | null): string {
-  return (value ?? "").trim();
-}
-
-function normalizeAccountId(value: string | undefined | null): string {
-  const trimmed = (value ?? "").trim();
-  return trimmed ? trimmed : DEFAULT_ACCOUNT_ID;
+function normalizeId(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (typeof value === "number" || typeof value === "bigint") {
+    return String(value).trim();
+  }
+  return "";
 }
 
 function matchesAccountId(match: string | undefined, actual: string): boolean {
@@ -76,7 +80,7 @@ function matchesAccountId(match: string | undefined, actual: string): boolean {
   if (trimmed === "*") {
     return true;
   }
-  return trimmed === actual;
+  return normalizeAccountId(trimmed) === actual;
 }
 
 export function buildAgentSessionKey(params: {
@@ -160,6 +164,57 @@ type BindingScope = {
   memberRoleIds: Set<string>;
 };
 
+type EvaluatedBindingsCache = {
+  bindingsRef: OpenClawConfig["bindings"];
+  byChannelAccount: Map<string, EvaluatedBinding[]>;
+};
+
+const evaluatedBindingsCacheByCfg = new WeakMap<OpenClawConfig, EvaluatedBindingsCache>();
+const MAX_EVALUATED_BINDINGS_CACHE_KEYS = 2000;
+
+function getEvaluatedBindingsForChannelAccount(
+  cfg: OpenClawConfig,
+  channel: string,
+  accountId: string,
+): EvaluatedBinding[] {
+  const bindingsRef = cfg.bindings;
+  const existing = evaluatedBindingsCacheByCfg.get(cfg);
+  const cache =
+    existing && existing.bindingsRef === bindingsRef
+      ? existing
+      : { bindingsRef, byChannelAccount: new Map<string, EvaluatedBinding[]>() };
+  if (cache !== existing) {
+    evaluatedBindingsCacheByCfg.set(cfg, cache);
+  }
+
+  const cacheKey = `${channel}\t${accountId}`;
+  const hit = cache.byChannelAccount.get(cacheKey);
+  if (hit) {
+    return hit;
+  }
+
+  const evaluated: EvaluatedBinding[] = listBindings(cfg).flatMap((binding) => {
+    if (!binding || typeof binding !== "object") {
+      return [];
+    }
+    if (!matchesChannel(binding.match, channel)) {
+      return [];
+    }
+    if (!matchesAccountId(binding.match?.accountId, accountId)) {
+      return [];
+    }
+    return [{ binding, match: normalizeBindingMatch(binding.match) }];
+  });
+
+  cache.byChannelAccount.set(cacheKey, evaluated);
+  if (cache.byChannelAccount.size > MAX_EVALUATED_BINDINGS_CACHE_KEYS) {
+    cache.byChannelAccount.clear();
+    cache.byChannelAccount.set(cacheKey, evaluated);
+  }
+
+  return evaluated;
+}
+
 function normalizePeerConstraint(
   peer: { kind?: string; id?: string } | undefined,
 ): NormalizedPeerConstraint {
@@ -236,24 +291,18 @@ function matchesBindingScope(match: NormalizedBindingMatch, scope: BindingScope)
 export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentRoute {
   const channel = normalizeToken(input.channel);
   const accountId = normalizeAccountId(input.accountId);
-  const peer = input.peer ? { kind: input.peer.kind, id: normalizeId(input.peer.id) } : null;
+  const peer = input.peer
+    ? {
+        kind: normalizeChatType(input.peer.kind) ?? input.peer.kind,
+        id: normalizeId(input.peer.id),
+      }
+    : null;
   const guildId = normalizeId(input.guildId);
   const teamId = normalizeId(input.teamId);
   const memberRoleIds = input.memberRoleIds ?? [];
   const memberRoleIdSet = new Set(memberRoleIds);
 
-  const bindings: EvaluatedBinding[] = listBindings(input.cfg).flatMap((binding) => {
-    if (!binding || typeof binding !== "object") {
-      return [];
-    }
-    if (!matchesChannel(binding.match, channel)) {
-      return [];
-    }
-    if (!matchesAccountId(binding.match?.accountId, accountId)) {
-      return [];
-    }
-    return [{ binding, match: normalizeBindingMatch(binding.match) }];
-  });
+  const bindings = getEvaluatedBindingsForChannelAccount(input.cfg, channel, accountId);
 
   const dmScope = input.cfg.session?.dmScope ?? "main";
   const identityLinks = input.cfg.session?.identityLinks;
@@ -282,9 +331,35 @@ export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentR
     };
   };
 
+  const shouldLogDebug = shouldLogVerbose();
+  const formatPeer = (value?: RoutePeer | null) =>
+    value?.kind && value?.id ? `${value.kind}:${value.id}` : "none";
+  const formatNormalizedPeer = (value: NormalizedPeerConstraint) => {
+    if (value.state === "none") {
+      return "none";
+    }
+    if (value.state === "invalid") {
+      return "invalid";
+    }
+    return `${value.kind}:${value.id}`;
+  };
+
+  if (shouldLogDebug) {
+    logDebug(
+      `[routing] resolveAgentRoute: channel=${channel} accountId=${accountId} peer=${formatPeer(peer)} guildId=${guildId || "none"} teamId=${teamId || "none"} bindings=${bindings.length}`,
+    );
+    for (const entry of bindings) {
+      logDebug(
+        `[routing] binding: agentId=${entry.binding.agentId} accountPattern=${entry.match.accountPattern || "default"} peer=${formatNormalizedPeer(entry.match.peer)} guildId=${entry.match.guildId ?? "none"} teamId=${entry.match.teamId ?? "none"} roles=${entry.match.roles?.length ?? 0}`,
+      );
+    }
+  }
   // Thread parent inheritance: if peer (thread) didn't match, check parent peer binding
   const parentPeer = input.parentPeer
-    ? { kind: input.parentPeer.kind, id: normalizeId(input.parentPeer.id) }
+    ? {
+        kind: normalizeChatType(input.parentPeer.kind) ?? input.parentPeer.kind,
+        id: normalizeId(input.parentPeer.id),
+      }
     : null;
   const baseScope = {
     guildId,
@@ -357,6 +432,9 @@ export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentR
         }),
     );
     if (matched) {
+      if (shouldLogDebug) {
+        logDebug(`[routing] match: matchedBy=${tier.matchedBy} agentId=${matched.binding.agentId}`);
+      }
       return choose(matched.binding.agentId, tier.matchedBy);
     }
   }
