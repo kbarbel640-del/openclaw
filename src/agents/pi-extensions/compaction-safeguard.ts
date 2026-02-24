@@ -1,8 +1,12 @@
-import fs from "node:fs";
-import path from "node:path";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ExtensionAPI, FileOperations } from "@mariozechner/pi-coding-agent";
-import { extractSections } from "../../auto-reply/reply/post-compaction-context.js";
+import fs from "node:fs";
+import path from "node:path";
+import {
+  extractSectionsWithAliases,
+  SAFETY_SECTION_NAMES,
+  STARTUP_SECTION_NAMES,
+} from "../../auto-reply/reply/post-compaction-context.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import {
   BASE_CHUNK_RATIO,
@@ -156,7 +160,7 @@ function formatFileOperations(readFiles: string[], modifiedFiles: string[]): str
 
 /**
  * Read and format critical workspace context for compaction summary.
- * Extracts "Session Startup" and "Red Lines" from AGENTS.md.
+ * Extracts startup and safety sections from AGENTS.md using known aliases.
  * Limited to 2000 chars to avoid bloating the summary.
  */
 async function readWorkspaceContextForSummary(): Promise<string> {
@@ -170,7 +174,10 @@ async function readWorkspaceContextForSummary(): Promise<string> {
     }
 
     const content = await fs.promises.readFile(agentsPath, "utf-8");
-    const sections = extractSections(content, ["Session Startup", "Red Lines"]);
+    const sections = extractSectionsWithAliases(content, [
+      STARTUP_SECTION_NAMES,
+      SAFETY_SECTION_NAMES,
+    ]);
 
     if (sections.length === 0) {
       return "";

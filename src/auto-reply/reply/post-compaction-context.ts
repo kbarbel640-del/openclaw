@@ -4,6 +4,14 @@ import path from "node:path";
 const MAX_CONTEXT_CHARS = 3000;
 
 /**
+ * Section name aliases — the code originally looked for "Session Startup" and "Red Lines",
+ * but the default AGENTS.md template uses "Every Session" and "Safety" (or "Safety defaults").
+ * We search for all known aliases and use the first match for each logical section.
+ */
+export const STARTUP_SECTION_NAMES = ["Session Startup", "Every Session"];
+export const SAFETY_SECTION_NAMES = ["Red Lines", "Safety", "Safety defaults"];
+
+/**
  * Read critical sections from workspace AGENTS.md for post-compaction injection.
  * Returns formatted system event text, or null if no AGENTS.md or no relevant sections.
  */
@@ -17,9 +25,11 @@ export async function readPostCompactionContext(workspaceDir: string): Promise<s
 
     const content = await fs.promises.readFile(agentsPath, "utf-8");
 
-    // Extract "## Session Startup" and "## Red Lines" sections
-    // Each section ends at the next "## " heading or end of file
-    const sections = extractSections(content, ["Session Startup", "Red Lines"]);
+    // Extract startup and safety sections, trying known aliases for each
+    const sections = extractSectionsWithAliases(content, [
+      STARTUP_SECTION_NAMES,
+      SAFETY_SECTION_NAMES,
+    ]);
 
     if (sections.length === 0) {
       return null;
@@ -110,6 +120,25 @@ export function extractSections(content: string, sectionNames: string[]): string
 
     if (sectionLines.length > 0) {
       results.push(sectionLines.join("\n").trim());
+    }
+  }
+
+  return results;
+}
+
+/**
+ * For each group of aliases, extract the first matching section from the content.
+ * This allows the code to work with multiple naming conventions (e.g., "Session Startup"
+ * vs "Every Session") without requiring users to rename their AGENTS.md sections.
+ */
+export function extractSectionsWithAliases(content: string, aliasGroups: string[][]): string[] {
+  const results: string[] = [];
+
+  for (const aliases of aliasGroups) {
+    // Try each alias in order; use the first one that matches
+    const sections = extractSections(content, aliases);
+    if (sections.length > 0) {
+      results.push(sections[0]);
     }
   }
 
