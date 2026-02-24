@@ -2591,7 +2591,7 @@ public struct CronRunLogEntry: Codable, Sendable {
     public let summary: String?
     public let delivered: Bool?
     public let deliverystatus: AnyCodable?
-    public let deliveryoutcomereason: AnyCodable?
+    public let deliveryoutcomereason: String?
     public let deliveryerror: String?
     public let sessionid: String?
     public let sessionkey: String?
@@ -2612,7 +2612,7 @@ public struct CronRunLogEntry: Codable, Sendable {
         summary: String?,
         delivered: Bool?,
         deliverystatus: AnyCodable?,
-        deliveryoutcomereason: AnyCodable?,
+        deliveryoutcomereason: String?,
         deliveryerror: String?,
         sessionid: String?,
         sessionkey: String?,

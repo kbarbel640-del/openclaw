@@ -1,11 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type {
-  CronDeliveryOutcomeReason,
-  CronDeliveryStatus,
-  CronRunStatus,
-  CronRunTelemetry,
-} from "./types.js";
+import type { CronDeliveryStatus, CronRunStatus, CronRunTelemetry } from "./types.js";
+import { isCronDeliveryOutcomeReason } from "./types.js";
+import type { CronDeliveryOutcomeReason } from "./types.js";
 
 export type CronRunLogEntry = {
   ts: number;
@@ -267,21 +264,7 @@ function parseAllRunLogEntries(raw: string, opts?: { jobId?: string }): CronRunL
       ) {
         entry.deliveryStatus = obj.deliveryStatus;
       }
-      if (
-        obj.deliveryOutcomeReason === "not-requested" ||
-        obj.deliveryOutcomeReason === "messaging-tool-delivered" ||
-        obj.deliveryOutcomeReason === "heartbeat-only" ||
-        obj.deliveryOutcomeReason === "target-resolution-failed" ||
-        obj.deliveryOutcomeReason === "target-resolution-failed-best-effort" ||
-        obj.deliveryOutcomeReason === "direct-delivered" ||
-        obj.deliveryOutcomeReason === "announce-delivered" ||
-        obj.deliveryOutcomeReason === "silent-reply" ||
-        obj.deliveryOutcomeReason === "interim-suppressed" ||
-        obj.deliveryOutcomeReason === "subagent-still-running" ||
-        obj.deliveryOutcomeReason === "announce-failed" ||
-        obj.deliveryOutcomeReason === "direct-send-failed" ||
-        obj.deliveryOutcomeReason === "no-deliverable-payload"
-      ) {
+      if (isCronDeliveryOutcomeReason(obj.deliveryOutcomeReason)) {
         entry.deliveryOutcomeReason = obj.deliveryOutcomeReason;
       }
       if (typeof obj.deliveryError === "string") {

@@ -29,20 +29,28 @@ export type CronDeliveryPatch = Partial<CronDelivery>;
 
 export type CronRunStatus = "ok" | "error" | "skipped";
 export type CronDeliveryStatus = "delivered" | "not-delivered" | "unknown" | "not-requested";
-export type CronDeliveryOutcomeReason =
-  | "not-requested"
-  | "messaging-tool-delivered"
-  | "heartbeat-only"
-  | "target-resolution-failed"
-  | "target-resolution-failed-best-effort"
-  | "direct-delivered"
-  | "announce-delivered"
-  | "silent-reply"
-  | "interim-suppressed"
-  | "subagent-still-running"
-  | "announce-failed"
-  | "direct-send-failed"
-  | "no-deliverable-payload";
+export const CRON_DELIVERY_OUTCOME_REASONS = [
+  "not-requested",
+  "messaging-tool-delivered",
+  "heartbeat-only",
+  "target-resolution-failed",
+  "target-resolution-failed-best-effort",
+  "direct-delivered",
+  "announce-delivered",
+  "silent-reply",
+  "interim-suppressed",
+  "subagent-still-running",
+  "announce-failed",
+  "direct-send-failed",
+  "no-deliverable-payload",
+] as const;
+export type CronDeliveryOutcomeReason = (typeof CRON_DELIVERY_OUTCOME_REASONS)[number];
+
+const cronDeliveryOutcomeReasonSet = new Set<string>(CRON_DELIVERY_OUTCOME_REASONS);
+
+export function isCronDeliveryOutcomeReason(value: unknown): value is CronDeliveryOutcomeReason {
+  return typeof value === "string" && cronDeliveryOutcomeReasonSet.has(value);
+}
 
 export type CronUsageSummary = {
   input_tokens?: number;

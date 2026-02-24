@@ -132,7 +132,6 @@ function resolveDeliveryStatus(params: { job: CronJob; delivered?: boolean }): C
 
 function resolveDeliveryError(params: {
   deliveryStatus: CronDeliveryStatus;
-  deliveryOutcomeReason?: CronDeliveryOutcomeReason;
   error?: string;
 }): string | undefined {
   if (params.deliveryStatus !== "not-delivered") {
@@ -141,7 +140,7 @@ function resolveDeliveryError(params: {
   if (typeof params.error === "string" && params.error.trim()) {
     return params.error;
   }
-  return params.deliveryOutcomeReason;
+  return undefined;
 }
 
 /**
@@ -173,7 +172,6 @@ export function applyJobResult(
   job.state.lastDeliveryOutcomeReason = result.deliveryOutcomeReason;
   job.state.lastDeliveryError = resolveDeliveryError({
     deliveryStatus,
-    deliveryOutcomeReason: result.deliveryOutcomeReason,
     error: result.error,
   });
   job.updatedAtMs = result.endedAt;

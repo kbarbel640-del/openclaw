@@ -1,4 +1,8 @@
 import { Type, type TSchema } from "@sinclair/typebox";
+import {
+  CRON_DELIVERY_OUTCOME_REASONS,
+  type CronDeliveryOutcomeReason,
+} from "../../../cron/types.js";
 import { NonEmptyString } from "./primitives.js";
 
 function cronAgentTurnPayloadSchema(params: { message: TSchema }) {
@@ -54,21 +58,10 @@ const CronDeliveryStatusSchema = Type.Union([
   Type.Literal("unknown"),
   Type.Literal("not-requested"),
 ]);
-const CronDeliveryOutcomeReasonSchema = Type.Union([
-  Type.Literal("not-requested"),
-  Type.Literal("messaging-tool-delivered"),
-  Type.Literal("heartbeat-only"),
-  Type.Literal("target-resolution-failed"),
-  Type.Literal("target-resolution-failed-best-effort"),
-  Type.Literal("direct-delivered"),
-  Type.Literal("announce-delivered"),
-  Type.Literal("silent-reply"),
-  Type.Literal("interim-suppressed"),
-  Type.Literal("subagent-still-running"),
-  Type.Literal("announce-failed"),
-  Type.Literal("direct-send-failed"),
-  Type.Literal("no-deliverable-payload"),
-]);
+const CronDeliveryOutcomeReasonSchema = Type.Unsafe<CronDeliveryOutcomeReason>({
+  type: "string",
+  enum: [...CRON_DELIVERY_OUTCOME_REASONS],
+});
 const CronCommonOptionalFields = {
   agentId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
   sessionKey: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),

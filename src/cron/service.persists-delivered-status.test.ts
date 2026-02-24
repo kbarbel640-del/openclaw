@@ -40,6 +40,7 @@ function buildMainSessionSystemEventJob(name: string): CronAddInput {
 function createIsolatedCronWithFinishedBarrier(params: {
   storePath: string;
   delivered?: boolean;
+  deliveryOutcomeReason?: "announce-failed";
   onFinished?: (evt: { jobId: string; delivered?: boolean; deliveryStatus?: string }) => void;
 }) {
   const finished = createFinishedBarrier();
@@ -53,6 +54,9 @@ function createIsolatedCronWithFinishedBarrier(params: {
       status: "ok" as const,
       summary: "done",
       ...(params.delivered === undefined ? {} : { delivered: params.delivered }),
+      ...(params.deliveryOutcomeReason
+        ? { deliveryOutcomeReason: params.deliveryOutcomeReason }
+        : {}),
     })),
     onEvent: (evt) => {
       if (evt.action === "finished") {
@@ -124,6 +128,31 @@ describe("CronService persists delivered status", () => {
     expect(updated?.state.lastRunStatus).toBe("ok");
     expect(updated?.state.lastDelivered).toBe(false);
     expect(updated?.state.lastDeliveryStatus).toBe("not-delivered");
+    expect(updated?.state.lastDeliveryError).toBeUndefined();
+
+    cron.stop();
+  });
+
+  it("keeps lastDeliveryError empty when not-delivered has only outcome reason", async () => {
+    const store = await makeStorePath();
+    const { cron, finished } = createIsolatedCronWithFinishedBarrier({
+      storePath: store.storePath,
+      delivered: false,
+      deliveryOutcomeReason: "announce-failed",
+    });
+
+    await cron.start();
+    const { updated } = await runSingleJobAndReadState({
+      cron,
+      finished,
+      job: buildIsolatedAgentTurnJob("not-delivered-with-reason"),
+    });
+
+    expect(updated?.state.lastStatus).toBe("ok");
+    expect(updated?.state.lastRunStatus).toBe("ok");
+    expect(updated?.state.lastDelivered).toBe(false);
+    expect(updated?.state.lastDeliveryStatus).toBe("not-delivered");
+    expect(updated?.state.lastDeliveryOutcomeReason).toBe("announce-failed");
     expect(updated?.state.lastDeliveryError).toBeUndefined();
 
     cron.stop();

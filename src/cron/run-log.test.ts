@@ -142,17 +142,28 @@ describe("cron run log", () => {
             deliveryOutcomeReason: "announce-failed",
             deliveryError: "announce failed",
           }),
+          JSON.stringify({
+            ts: 3,
+            jobId: "job-1",
+            action: "finished",
+            status: "ok",
+            delivered: false,
+            deliveryStatus: "not-delivered",
+            deliveryOutcomeReason: "unsupported-reason",
+          }),
         ].join("\n") + "\n",
         "utf-8",
       );
 
       const entries = await readCronRunLogEntries(logPath, { limit: 10, jobId: "job-1" });
-      expect(entries).toHaveLength(1);
+      expect(entries).toHaveLength(2);
       expect(entries[0]?.ts).toBe(2);
       expect(entries[0]?.delivered).toBe(true);
       expect(entries[0]?.deliveryStatus).toBe("not-delivered");
       expect(entries[0]?.deliveryOutcomeReason).toBe("announce-failed");
       expect(entries[0]?.deliveryError).toBe("announce failed");
+      expect(entries[1]?.ts).toBe(3);
+      expect(entries[1]?.deliveryOutcomeReason).toBeUndefined();
     });
   });
 
