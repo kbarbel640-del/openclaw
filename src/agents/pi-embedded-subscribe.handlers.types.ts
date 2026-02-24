@@ -77,6 +77,8 @@ export type EmbeddedPiSubscribeState = {
   successfulCronAdds: number;
   pendingMessagingMediaUrls: Map<string, string[]>;
   lastAssistant?: AgentMessage;
+
+  pendingFlushGate: Promise<void> | null;
 };
 
 export type EmbeddedPiSubscribeContext = {
@@ -149,6 +151,7 @@ export type ToolHandlerState = Pick<
   | "messagingToolSentMediaUrls"
   | "messagingToolSentTargets"
   | "successfulCronAdds"
+  | "pendingFlushGate"
 >;
 
 export type ToolHandlerContext = {

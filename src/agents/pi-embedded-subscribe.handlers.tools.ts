@@ -1,13 +1,13 @@
 import type { AgentEvent } from "@mariozechner/pi-agent-core";
-import { emitAgentEvent } from "../infra/agent-events.js";
-import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import type { PluginHookAfterToolCallEvent } from "../plugins/types.js";
-import { normalizeTextForComparison } from "./pi-embedded-helpers.js";
-import { isMessagingTool, isMessagingToolSendAction } from "./pi-embedded-messaging.js";
 import type {
   ToolCallSummary,
   ToolHandlerContext,
 } from "./pi-embedded-subscribe.handlers.types.js";
+import { emitAgentEvent } from "../infra/agent-events.js";
+import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
+import { normalizeTextForComparison } from "./pi-embedded-helpers.js";
+import { isMessagingTool, isMessagingToolSendAction } from "./pi-embedded-messaging.js";
 import {
   extractMessagingToolSend,
   extractToolErrorMessage,
@@ -171,10 +171,21 @@ export async function handleToolExecutionStart(
   ctx: ToolHandlerContext,
   evt: AgentEvent & { toolName: string; toolCallId: string; args: unknown },
 ) {
-  // Flush pending block replies to preserve message boundaries before tool execution.
+  // Flush buffered block replies and capture the async flush as a gate that
+  // handleToolExecutionEnd awaits before emitting tool results, preventing
+  // out-of-order delivery (e.g. media arriving before preceding text).
   ctx.flushBlockReplyBuffer();
   if (ctx.params.onBlockReplyFlush) {
-    void ctx.params.onBlockReplyFlush();
+    const previousGate = ctx.state.pendingFlushGate;
+    const caught = Promise.resolve(ctx.params.onBlockReplyFlush()).catch((err) => {
+      ctx.log.debug(`onBlockReplyFlush failed: ${String(err)}`);
+    });
+    ctx.state.pendingFlushGate = previousGate
+      ? previousGate.then(
+          () => caught,
+          () => caught,
+        )
+      : caught;
   }
 
   const rawToolName = String(evt.toolName);
@@ -408,6 +419,14 @@ export async function handleToolExecutionEnd(
   ctx.log.debug(
     `embedded run tool end: runId=${ctx.params.runId} tool=${toolName} toolCallId=${toolCallId}`,
   );
+
+  // Safe to clear after awaiting: the gate is a chained promise covering all
+  // pending flushes, so whichever tool_execution_end awaits first waits for
+  // the entire chain. Subsequent ends see null but all flushes are already done.
+  if (ctx.state.pendingFlushGate) {
+    await ctx.state.pendingFlushGate;
+    ctx.state.pendingFlushGate = null;
+  }
 
   emitToolResultOutput({ ctx, toolName, meta, isToolError, result, sanitizedResult });
 
