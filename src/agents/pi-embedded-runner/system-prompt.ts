@@ -1,11 +1,12 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { MemoryCitationsMode } from "../../config/types.memory.js";
 import type { ResolvedTimeFormat } from "../date-time.js";
 import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
-import type { EmbeddedSandboxInfo } from "./types.js";
-import type { ReasoningLevel, ThinkLevel } from "./utils.js";
 import { buildAgentSystemPrompt, type PromptMode } from "../system-prompt.js";
 import { buildToolSummaryMap } from "../tool-summaries.js";
+import type { EmbeddedSandboxInfo } from "./types.js";
+import type { ReasoningLevel, ThinkLevel } from "./utils.js";
 
 export function buildEmbeddedSystemPrompt(params: {
   workspaceDir: string;
@@ -13,6 +14,8 @@ export function buildEmbeddedSystemPrompt(params: {
   reasoningLevel?: ReasoningLevel;
   extraSystemPrompt?: string;
   ownerNumbers?: string[];
+  ownerDisplay?: "raw" | "hash";
+  ownerDisplaySecret?: string;
   reasoningTagHint: boolean;
   heartbeatPrompt?: string;
   skillsPrompt?: string;
@@ -46,6 +49,7 @@ export function buildEmbeddedSystemPrompt(params: {
   userTime?: string;
   userTimeFormat?: ResolvedTimeFormat;
   contextFiles?: EmbeddedContextFile[];
+  memoryCitationsMode?: MemoryCitationsMode;
 }): string {
   return buildAgentSystemPrompt({
     workspaceDir: params.workspaceDir,
@@ -53,6 +57,8 @@ export function buildEmbeddedSystemPrompt(params: {
     reasoningLevel: params.reasoningLevel,
     extraSystemPrompt: params.extraSystemPrompt,
     ownerNumbers: params.ownerNumbers,
+    ownerDisplay: params.ownerDisplay,
+    ownerDisplaySecret: params.ownerDisplaySecret,
     reasoningTagHint: params.reasoningTagHint,
     heartbeatPrompt: params.heartbeatPrompt,
     skillsPrompt: params.skillsPrompt,
@@ -71,21 +77,22 @@ export function buildEmbeddedSystemPrompt(params: {
     userTime: params.userTime,
     userTimeFormat: params.userTimeFormat,
     contextFiles: params.contextFiles,
+    memoryCitationsMode: params.memoryCitationsMode,
   });
 }
 
 export function createSystemPromptOverride(
   systemPrompt: string,
 ): (defaultPrompt?: string) => string {
-  const trimmed = systemPrompt.trim();
-  return () => trimmed;
+  const override = systemPrompt.trim();
+  return (_defaultPrompt?: string) => override;
 }
 
 export function applySystemPromptOverrideToSession(
   session: AgentSession,
-  override: (defaultPrompt?: string) => string,
+  override: string | ((defaultPrompt?: string) => string),
 ) {
-  const prompt = override().trim();
+  const prompt = typeof override === "function" ? override() : override.trim();
   session.agent.setSystemPrompt(prompt);
   const mutableSession = session as unknown as {
     _baseSystemPrompt?: string;
