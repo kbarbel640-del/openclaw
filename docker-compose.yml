@@ -7,7 +7,7 @@ services:
     command: ["--tls=false", "--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock"]
     volumes:
       - openclaw_dind:/var/lib/docker
-      - openclaw_workspace:/openclaw/workspace
+      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
     restart: unless-stopped
 
   openclaw-gateway:
@@ -29,8 +29,8 @@ services:
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
       DOCKER_HOST: tcp://openclaw-dind:2375
     volumes:
-      - openclaw_config:/home/node/.openclaw
-      - openclaw_workspace:/openclaw/workspace
+      - ${OPENCLAW_CONFIG_DIR:-./data/.openclaw}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
     user: "0:0"
     depends_on:
       - openclaw-dind
@@ -63,8 +63,8 @@ services:
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
       DOCKER_HOST: tcp://openclaw-dind:2375
     volumes:
-      - openclaw_config:/home/node/.openclaw
-      - openclaw_workspace:/openclaw/workspace
+      - ${OPENCLAW_CONFIG_DIR:-./data/.openclaw}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
     user: "0:0"
     depends_on:
       - openclaw-dind
@@ -94,6 +94,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  openclaw_config:
-  openclaw_workspace:
   openclaw_dind:
