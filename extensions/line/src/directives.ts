@@ -1,5 +1,53 @@
 import type { LineChannelData } from "openclaw/plugin-sdk";
 
+function splitActions(actionsText: string): string[] {
+  const normalized = actionsText.replace(/;/g, ",");
+  const parts: string[] = [];
+  let current = "";
+  let escaping = false;
+
+  const pushCurrent = (): void => {
+    const trimmed = current.trim();
+    if (trimmed) {
+      parts.push(trimmed);
+    }
+    current = "";
+  };
+
+  for (const char of normalized) {
+    if (escaping) {
+      if (char === ",") {
+        current += ",";
+      } else {
+        current += "\\";
+        current += char;
+      }
+      escaping = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+
+    if (char === ",") {
+      pushCurrent();
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (escaping) {
+    current += "\\";
+  }
+
+  pushCurrent();
+
+  return parts;
+}
+
 /**
  * Parses embedded directives like [[quick_replies: ...]] from the text.
  * Returns the cleaned text and any extracted channel data.
@@ -60,14 +108,14 @@ export function parseLineDirectives(text: string): {
     cleanedText = cleanedText.replace(confirmMatch[0], "");
   }
 
-  // 4. Buttons: [[buttons: Title | Text | Label:Action; Label:Action...]]
-  // Uses semicolon as delimiter to support commas in label/data values
+  // 4. Buttons: [[buttons: Title | Text | Label:Action, Label:Action...]]
+  // Actions split on unescaped commas; use \\, to include a comma in a value
   const btnRegex = /\[\[buttons:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([\s\S]+?)\]\]/i;
   const btnMatch = cleanedText.match(btnRegex);
   if (btnMatch) {
     const title = btnMatch[1].trim();
     const body = btnMatch[2].trim();
-    const actionsRaw = btnMatch[3].split(";");
+    const actionsRaw = splitActions(btnMatch[3]);
     const actions = actionsRaw.map((a) => {
       const parts = a.split(":"); // Label:Data or Label:http...
       const label = parts[0].trim();
