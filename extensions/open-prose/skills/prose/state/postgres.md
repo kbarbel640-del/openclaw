@@ -30,7 +30,7 @@ This document describes how the OpenProse VM tracks execution state using a **Po
 | Platform             | Command                                         | Notes                  |
 | -------------------- | ----------------------------------------------- | ---------------------- |
 | macOS (Homebrew)     | `brew install libpq && brew link --force libpq` | Client-only; no server |
-| macOS (Postgres.app) | Download from https://postgresapp.com           | Full install with GUI  |
+| macOS (Postgres.app) | Download from <https://postgresapp.com>         | Full install with GUI  |
 | Debian/Ubuntu        | `apt install postgresql-client`                 | Client-only            |
 | Fedora/RHEL          | `dnf install postgresql`                        | Client-only            |
 | Arch Linux           | `pacman -S postgresql-libs`                     | Client-only            |
@@ -51,10 +51,15 @@ If `psql` is not available, the VM will offer to fall back to SQLite state.
 PostgreSQL state provides:
 
 - **True concurrent writes**: Row-level locking allows parallel branches to write simultaneously
+
 - **Network access**: Query state from any machine, external tools, or dashboards
+
 - **Team collaboration**: Multiple developers can share run state
+
 - **Rich SQL**: JSONB queries, window functions, CTEs for complex state analysis
+
 - **High throughput**: Handle 1000+ writes/minute, multi-GB outputs
+
 - **Durability**: WAL-based recovery, point-in-time restore
 
 **Key principle:** The database is a flexible, shared workspace. The VM and subagents coordinate through it, and external tools can observe and query execution state in real-time.
@@ -66,8 +71,11 @@ PostgreSQL state provides:
 **⚠️ Credentials are visible to subagents.** The `OPENPROSE_POSTGRES_URL` connection string is passed to spawned sessions so they can write their outputs. This means:
 
 - Database credentials appear in subagent context and may be logged
+
 - Treat these credentials as **non-sensitive**
+
 - Use a **dedicated database** for OpenProse, not your production systems
+
 - Create a **limited-privilege user** with access only to the `openprose` schema
 
 **Recommended setup:**
@@ -125,6 +133,7 @@ Will outputs exceed 1GB or writes exceed 100/minute?
 The primary motivation for PostgreSQL is **concurrent writes in parallel execution**:
 
 - SQLite uses table-level locks: parallel branches serialize
+
 - PostgreSQL uses row-level locks: parallel branches write simultaneously
 
 If your program has 10 parallel branches completing at once, PostgreSQL will be 5-10x faster than SQLite for the write phase.
@@ -414,11 +423,17 @@ CREATE INDEX IF NOT EXISTS idx_agent_segments_lookup ON openprose.agent_segments
 ### Schema Conventions
 
 - **Timestamps**: Use `TIMESTAMPTZ` with `NOW()` (timezone-aware)
+
 - **JSON fields**: Use `JSONB` for structured data in `metadata` columns (queryable, indexable)
+
 - **Large values**: If a binding value exceeds ~100KB, write to `attachments/{name}.md` and store path
+
 - **Extension tables**: Prefix with `x_` (e.g., `x_metrics`, `x_audit_log`)
+
 - **Anonymous bindings**: Sessions without explicit capture use auto-generated names: `anon_001`, `anon_002`, etc.
+
 - **Import bindings**: Prefix with import alias for scoping: `research.findings`, `research.sources`
+
 - **Scoped bindings**: Use `execution_id` column—NULL for root scope, non-null for block invocations
 
 ### Scope Resolution Query
@@ -618,7 +633,7 @@ The narration is the VM's "mental model" of execution. The database is the "sour
 
 ## Parallel Execution
 
-For parallel blocks, the VM uses the `metadata` JSONB field to track branches. **Only the VM writes to the `execution` table.**
+For parallel blocks, the VM uses the `metadata` JSONB field to track branches. **Only the VM writes to the** **`execution`** **table.**
 
 ```sql
 -- VM marks parallel start
@@ -723,6 +738,7 @@ PRIMARY KEY (name, COALESCE(run_id, '__project__'))
 This means:
 
 - `name='advisor', run_id=NULL` has PK `('advisor', '__project__')`
+
 - `name='advisor', run_id='20260116-143052-a7b3c9'` has PK `('advisor', '20260116-143052-a7b3c9')`
 
 The same agent name can exist as both project-scoped and execution-scoped without collision.
@@ -744,6 +760,7 @@ Project-scoped agents should store generalizable knowledge that accumulates:
 ### Agent Cleanup
 
 - **Execution-scoped:** Can be deleted when run completes or after retention period
+
 - **Project-scoped:** Only deleted on explicit user request
 
 ```sql
@@ -814,9 +831,13 @@ WHERE run_id = '20260116-143052-a7b3c9'
 PostgreSQL state is intentionally **flexible**. The core schema is a starting point. You are encouraged to:
 
 - **Add columns** to existing tables as needed
+
 - **Create extension tables** (prefix with `x_`)
+
 - **Store custom metrics** (timing, token counts, model info)
+
 - **Build indexes** for your query patterns
+
 - **Use JSONB operators** for semi-structured data queries
 
 Example extensions:
@@ -878,3 +899,35 @@ PostgreSQL state management:
 The core contract: the VM manages execution flow and spawns subagents; subagents write their own outputs directly to the database. Completion is signaled through the Task tool return, not database updates. External tools can query execution state in real-time.
 
 **PostgreSQL state is for power users.** If you don't need concurrent writes, network access, or team collaboration, filesystem or SQLite state will be simpler and sufficient.
+
+<!-- PROOF
+{
+  "version": 2,
+  "marks": {
+    "m1771966051407_4": {
+      "kind": "replace",
+      "by": "ai:external-agent",
+      "createdAt": "2026-02-24T20:47:31.407Z",
+      "range": {
+        "from": 17444,
+        "to": 17506
+      },
+      "content": "| Connection | `postgresql://user:***@host:5432/db` |",
+      "status": "pending"
+    },
+    "m1771966051400_3": {
+      "kind": "replace",
+      "by": "ai:external-agent",
+      "createdAt": "2026-02-24T20:47:31.400Z",
+      "range": {
+        "from": 18238,
+        "to": 18300
+      },
+      "content": "| Connection | `postgresql://user:***@host:5432/db` |",
+      "status": "pending"
+    }
+  }
+}
+-->
+
+<!-- PROOF:END -->

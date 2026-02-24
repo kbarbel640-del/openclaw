@@ -1,0 +1,17 @@
+# TruffleHog allowlist for known false positives (specific files only)
+# Audit: ~/Projects/audit-reports/02-secrets.md (2026-02-22)
+# Note: detect-secrets (.secrets.baseline) also active via pre-commit + CI
+
+paths:
+  # Specific test files with intentional mock credentials (user:pass@example.com)
+  - "src/browser/browser-utils.test.ts"
+  - "src/browser/cdp.test.ts"
+  - "extensions/tlon/src/urbit/base-url.test.ts"
+  # Documentation with example PostgreSQL connection strings
+  - "extensions/open-prose/skills/prose/state/postgres.md"
+  - "extensions/open-prose/skills/prose/SKILL.md"
+  - "docs/tools/browser.md"
+  - "docs/zh-CN/tools/browser.md"
+  # Deleted files — only in git history (trufflehog git mode)
+  - "**/sleep-cycle*.ts"
+  - "**/venture-studio-tool.ts"

@@ -11,18 +11,25 @@ OpenProse is a programming language for AI sessions. LLMs are simulators—when 
 ## OpenClaw Runtime Mapping
 
 - **Task tool** in the upstream spec == OpenClaw `sessions_spawn`
+
 - **File I/O** == OpenClaw `read`/`write`
+
 - **Remote fetch** == OpenClaw `web_fetch` (or `exec` with curl when POST is required)
 
 ## When to Activate
 
 Activate this skill when the user:
 
-- **Uses ANY `prose` command** (e.g., `prose boot`, `prose run`, `prose compile`, `prose update`, `prose help`, etc.)
+- **Uses ANY** **`prose`** **command** (e.g., `prose boot`, `prose run`, `prose compile`, `prose update`, `prose help`, etc.)
+
 - Asks to run a `.prose` file
+
 - Mentions "OpenProse" or "prose program"
+
 - Wants to orchestrate multiple AI agents from a script
+
 - Has a file with `session "..."` or `agent name:` syntax
+
 - Wants to create a reusable workflow
 
 ## Command Routing
@@ -45,22 +52,23 @@ There is only ONE skill: `open-prose`. There are NO separate skills like `prose-
 
 ### Resolving Example References
 
-**Examples are bundled in `examples/` (same directory as this file).** When users reference examples by name (e.g., "run the gastown example"):
+**Examples are bundled in** **`examples/`** **(same directory as this file).** When users reference examples by name (e.g., "run the gastown example"):
 
 1. Read `examples/` to list available files
 2. Match by partial name, keyword, or number
 3. Run with: `prose run examples/28-gas-town.prose`
 
 **Common examples by keyword:**
-| Keyword | File |
-|---------|------|
-| hello, hello world | `examples/01-hello-world.prose` |
-| gas town, gastown | `examples/28-gas-town.prose` |
-| captain, chair | `examples/29-captains-chair.prose` |
-| forge, browser | `examples/37-the-forge.prose` |
-| parallel | `examples/16-parallel-reviews.prose` |
-| pipeline | `examples/21-pipeline-operations.prose` |
-| error, retry | `examples/22-error-handling.prose` |
+
+| Keyword            | File                                    |
+| ------------------ | --------------------------------------- |
+| hello, hello world | `examples/01-hello-world.prose`         |
+| gas town, gastown  | `examples/28-gas-town.prose`            |
+| captain, chair     | `examples/29-captains-chair.prose`      |
+| forge, browser     | `examples/37-the-forge.prose`           |
+| parallel           | `examples/16-parallel-reviews.prose`    |
+| pipeline           | `examples/21-pipeline-operations.prose` |
+| error, retry       | `examples/22-error-handling.prose`      |
 
 ### Remote Programs
 
@@ -152,6 +160,7 @@ When you need to read `prose.md` or `compiler.md`, read them from the same direc
 When the user asks you to **write or create** a new `.prose` file, load the guidance files:
 
 - `guidance/patterns.md` — Proven patterns for robust, efficient programs
+
 - `guidance/antipatterns.md` — Common mistakes to avoid
 
 Do **not** load these when running or compiling—they're for authoring only.
@@ -210,7 +219,7 @@ OpenProse supports three state management approaches:
    See state/postgres.md for detailed setup options.
    ```
 
-4. **Only after successful connection check, load `state/postgres.md`**
+4. **Only after successful connection check, load** **`state/postgres.md`**
 
 This mode requires both `psql` CLI and a running PostgreSQL server. If either is unavailable, warn and offer fallback to filesystem state.
 
@@ -221,15 +230,25 @@ This mode requires both `psql` CLI and a running PostgreSQL server. If either is
 The `examples/` directory contains 37 example programs:
 
 - **01-08**: Basics (hello world, research, code review, debugging)
+
 - **09-12**: Agents and skills
+
 - **13-15**: Variables and composition
-- **16-19**: Parallel execution
+
+- **<span data-proof="authored" data-by="ai:claude">16-19</span>**<span data-proof="authored" data-by="ai:claude">: Parallel execution</span>
+
 - **20-21**: Loops and pipelines
+
 - **22-23**: Error handling
+
 - **24-27**: Advanced (choice, conditionals, blocks, interpolation)
+
 - **28**: Gas Town (multi-agent orchestration)
+
 - **29-31**: Captain's chair pattern (persistent orchestrator)
+
 - **33-36**: Production workflows (PR auto-fix, content pipeline, feature factory, bug hunter)
+
 - **37**: The Forge (build a browser from scratch)
 
 Start with `01-hello-world.prose` or try `37-the-forge.prose` to watch AI build a web browser.
@@ -247,10 +266,10 @@ When first invoking the OpenProse VM in a session, display this banner:
 
 To execute a `.prose` file, you become the OpenProse VM:
 
-1. **Read `prose.md`** — this document defines how you embody the VM
+1. **Read** **`prose.md`** — this document defines how you embody the VM
 2. **You ARE the VM** — your conversation is its memory, your tools are its instructions
 3. **Spawn sessions** — each `session` statement triggers a Task tool call
-4. **Narrate state** — use the narration protocol to track execution ([Position], [Binding], [Success], etc.)
+4. **Narrate state** — use the narration protocol to track execution (\[Position], \[Binding], \[Success], etc.)
 5. **Evaluate intelligently** — `**...**` markers require your judgment
 
 ## Help & FAQs
@@ -272,26 +291,33 @@ When a user invokes `prose update`, check for legacy file structures and migrate
 
 ### Migration Steps
 
-1. **Check for `.prose/state.json`**
+1. **Check for** **`.prose/state.json`**
    - If exists, read the JSON content
+
    - Convert to `.env` format:
+
      ```json
      { "OPENPROSE_TELEMETRY": "enabled", "USER_ID": "user-xxx", "SESSION_ID": "sess-xxx" }
      ```
+
      becomes:
+
      ```env
      OPENPROSE_TELEMETRY=enabled
      USER_ID=user-xxx
      SESSION_ID=sess-xxx
      ```
+
    - Write to `.prose/.env`
+
    - Delete `.prose/state.json`
 
-2. **Check for `.prose/execution/`**
+2. **Check for** **`.prose/execution/`**
    - If exists, rename to `.prose/runs/`
+
    - The internal structure of run directories may also have changed; migration of individual run state is best-effort
 
-3. **Create `.prose/agents/` if missing**
+3. **Create** **`.prose/agents/`** **if missing**
    - This is a new directory for project-scoped persistent agents
 
 ### Migration Output
