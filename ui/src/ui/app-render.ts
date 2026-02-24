@@ -913,7 +913,7 @@ export function renderApp(state: AppViewState) {
                   }
                   updateConfigFormValue(state, ["agents", "defaultId"], agentId);
                 },
-                onOpenDetailPanel: (agentId) => {
+                onOpenDetailPanel: async (agentId) => {
                   state.agentDetailPanel = {
                     ...state.agentDetailPanel,
                     open: true,
@@ -921,6 +921,35 @@ export function renderApp(state: AppViewState) {
                     mode: "view" as const,
                     avatarPreview: null,
                   };
+
+                  // Load agent files and identity
+                  await loadAgentFiles(state, agentId);
+                  await loadAgentIdentity(state, agentId);
+
+                  // Load BDI cognitive file contents
+                  const bdiFiles = [
+                    "Beliefs.md",
+                    "Desires.md",
+                    "Goals.md",
+                    "Intentions.md",
+                    "Plans.md",
+                    "Commitments.md",
+                    "Memory.md",
+                    "Persona.md",
+                    "Capabilities.md",
+                    "Learnings.md",
+                  ];
+                  const coreFiles = [
+                    "Soul.md",
+                    "AGENTS.md",
+                    "Bootstrap.md",
+                    "Identity.md",
+                    "TOOLS.md",
+                  ];
+
+                  for (const name of [...bdiFiles, ...coreFiles]) {
+                    await loadAgentFileContent(state, agentId, name);
+                  }
                 },
               })
             : nothing
