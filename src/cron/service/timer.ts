@@ -322,6 +322,7 @@ export async function onTimer(state: CronServiceState) {
   // (for example in a provider call), the scheduler still wakes to re-check.
   armRunningRecheckTimer(state);
   try {
+<<<<<<< HEAD
     const dueJobs = await locked(state, async () => {
       await ensureLoaded(state, { forceReload: true, skipRecompute: true });
       const due = findDueJobs(state);
@@ -342,6 +343,29 @@ export async function onTimer(state: CronServiceState) {
         job.state.runningAtMs = now;
         job.state.lastError = undefined;
       }
+=======
+    await locked(state, async () => {
+      // Snapshot nextRunAtMs before reload to preserve due times.
+      // This prevents every-type jobs from being perpetually deferred when
+      // recomputeNextRuns() advances nextRunAtMs past now due to timer firing late.
+      const dueSnapshot = state.store?.jobs
+        .filter((j) => j.enabled && typeof j.state.nextRunAtMs === "number")
+        .map((j) => ({ id: j.id, dueAt: j.state.nextRunAtMs as number })) ?? [];
+
+      await ensureLoaded(state, { forceReload: true });
+
+      // Restore pre-reload nextRunAtMs for jobs that were due.
+      // This ensures they execute at their originally scheduled time.
+      const now = state.deps.nowMs();
+      for (const snap of dueSnapshot) {
+        const job = state.store?.jobs.find((j) => j.id === snap.id);
+        if (job && snap.dueAt <= now) {
+          job.state.nextRunAtMs = snap.dueAt;
+        }
+      }
+
+      await runDueJobs(state);
+>>>>>>> d154b94da36b953421475c2f7c0507aca1fc6c48
       await persist(state);
 
       return due.map((j) => ({
@@ -794,7 +818,94 @@ export async function executeJob(
   } & CronRunOutcome &
     CronRunTelemetry;
   try {
+<<<<<<< HEAD
     coreResult = await executeJobCore(state, job);
+=======
+    if (job.sessionTarget === "main") {
+      const text = resolveJobPayloadTextForMain(job);
+      if (!text) {
+        const kind = job.payload.kind;
+        await finish(
+          "skipped",
+          kind === "systemEvent"
+            ? "main job requires non-empty systemEvent text"
+            : 'main job requires payload.kind="systemEvent"',
+        );
+        return;
+      }
+      state.deps.enqueueSystemEvent(text, { agentId: job.agentId });
+      if (job.wakeMode === "now" && state.deps.runHeartbeatOnce) {
+        const reason = `cron:${job.id}`;
+        const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+        const maxWaitMs = 2 * 60_000;
+        const waitStartedAt = state.deps.nowMs();
+
+        let heartbeatResult: HeartbeatRunResult;
+        for (; ;) {
+          heartbeatResult = await state.deps.runHeartbeatOnce({ reason });
+          if (
+            heartbeatResult.status !== "skipped" ||
+            heartbeatResult.reason !== "requests-in-flight"
+          ) {
+            break;
+          }
+          if (state.deps.nowMs() - waitStartedAt > maxWaitMs) {
+            heartbeatResult = {
+              status: "skipped",
+              reason: "timeout waiting for main lane to become idle",
+            };
+            break;
+          }
+          await delay(250);
+        }
+
+        if (heartbeatResult.status === "ran") {
+          await finish("ok", undefined, text);
+        } else if (heartbeatResult.status === "skipped") {
+          await finish("skipped", heartbeatResult.reason, text);
+        } else {
+          await finish("error", heartbeatResult.reason, text);
+        }
+      } else {
+        // wakeMode is "next-heartbeat" or runHeartbeatOnce not available
+        state.deps.requestHeartbeatNow({ reason: `cron:${job.id}` });
+        await finish("ok", undefined, text);
+      }
+      return;
+    }
+
+    if (job.payload.kind !== "agentTurn") {
+      await finish("skipped", "isolated job requires payload.kind=agentTurn");
+      return;
+    }
+
+    const res = await state.deps.runIsolatedAgentJob({
+      job,
+      message: job.payload.message,
+    });
+
+    // Post a short summary back to the main session so the user sees
+    // the cron result without opening the isolated session.
+    const summaryText = res.summary?.trim();
+    const deliveryMode = job.delivery?.mode ?? "announce";
+    if (summaryText && deliveryMode !== "none") {
+      const prefix = "Cron";
+      const label =
+        res.status === "error" ? `${prefix} (error): ${summaryText}` : `${prefix}: ${summaryText}`;
+      state.deps.enqueueSystemEvent(label, { agentId: job.agentId });
+      if (job.wakeMode === "now") {
+        state.deps.requestHeartbeatNow({ reason: `cron:${job.id}` });
+      }
+    }
+
+    if (res.status === "ok") {
+      await finish("ok", undefined, res.summary);
+    } else if (res.status === "skipped") {
+      await finish("skipped", undefined, res.summary);
+    } else {
+      await finish("error", res.error ?? "cron job failed", res.summary);
+    }
+>>>>>>> d154b94da36b953421475c2f7c0507aca1fc6c48
   } catch (err) {
     coreResult = { status: "error", error: String(err) };
   }

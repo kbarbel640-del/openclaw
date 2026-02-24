@@ -708,6 +708,12 @@ export function isBillingErrorMessage(raw: string): boolean {
   if (!value) {
     return false;
   }
+  // Rate-limit / quota errors like "429 You exceeded your current quota, please
+  // check your plan and billing details" contain billing keywords ("plan") but
+  // should NOT be classified as billing errors — they are rate limits.
+  if (isRateLimitErrorMessage(value)) {
+    return false;
+  }
   if (matchesErrorPatterns(value, ERROR_PATTERNS.billing)) {
     return true;
   }
