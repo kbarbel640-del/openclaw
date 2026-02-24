@@ -57,6 +57,30 @@ export function resolveHeartbeatPrompt(raw?: string): string {
   return trimmed || HEARTBEAT_PROMPT;
 }
 
+/**
+ * Resolve the primary heartbeat model string from config.
+ *
+ * Accepts either a plain string (`"openai/gpt-4o-mini"`) or an object form
+ * (`{ primary: "openai/gpt-4o-mini", fallbacks: [...] }`).  The object form
+ * isn't officially supported yet but is defensive against users who configure
+ * it that way (mirrors `resolveAgentModelPrimary` in `agent-scope.ts`).
+ */
+export function resolveHeartbeatModelPrimary(raw?: unknown): string | undefined {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    return trimmed || undefined;
+  }
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  const primary = (raw as { primary?: unknown }).primary;
+  if (typeof primary !== "string") {
+    return undefined;
+  }
+  const trimmedPrimary = primary.trim();
+  return trimmedPrimary || undefined;
+}
+
 export type StripHeartbeatMode = "heartbeat" | "message";
 
 function stripTokenAtEdges(raw: string): { text: string; didStrip: boolean } {

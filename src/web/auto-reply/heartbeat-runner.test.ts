@@ -187,4 +187,37 @@ describe("runWebHeartbeatOnce", () => {
       ]),
     );
   });
+
+  it("passes heartbeat model override and suppressToolErrorWarnings to reply resolver", async () => {
+    replyResolverMock.mockResolvedValue({ text: "ALERT" });
+    const { runWebHeartbeatOnce } = await getModules();
+    await runWebHeartbeatOnce({
+      cfg: {
+        agents: {
+          defaults: {
+            heartbeat: {
+              model: {
+                primary: "openrouter/meta-llama/llama-3.3-70b-instruct",
+                fallbacks: ["openai/gpt-4o-mini"],
+              },
+              suppressToolErrorWarnings: true,
+            },
+          },
+        },
+        session: {},
+      } as never,
+      to: "+123",
+      sender,
+      replyResolver,
+    });
+    expect(replyResolverMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        isHeartbeat: true,
+        heartbeatModelOverride: "openrouter/meta-llama/llama-3.3-70b-instruct",
+        suppressToolErrorWarnings: true,
+      }),
+      expect.any(Object),
+    );
+  });
 });

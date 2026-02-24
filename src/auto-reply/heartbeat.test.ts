@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
   isHeartbeatContentEffectivelyEmpty,
+  resolveHeartbeatModelPrimary,
   stripHeartbeatToken,
 } from "./heartbeat.js";
 import { HEARTBEAT_TOKEN } from "./tokens.js";
@@ -235,5 +236,41 @@ Check the server logs
 ### Subsection
 `;
     expect(isHeartbeatContentEffectivelyEmpty(content)).toBe(true);
+  });
+});
+
+describe("resolveHeartbeatModelPrimary", () => {
+  it("returns trimmed string when model is a plain string", () => {
+    expect(resolveHeartbeatModelPrimary("  openai/gpt-4o-mini  ")).toBe("openai/gpt-4o-mini");
+    expect(resolveHeartbeatModelPrimary("ollama/llama3.2:1b")).toBe("ollama/llama3.2:1b");
+  });
+
+  it("returns model.primary when heartbeat model is an object", () => {
+    expect(
+      resolveHeartbeatModelPrimary({
+        primary: "openrouter/meta-llama/llama-3.3-70b-instruct",
+        fallbacks: ["openai/gpt-4o-mini"],
+      }),
+    ).toBe("openrouter/meta-llama/llama-3.3-70b-instruct");
+  });
+
+  it("returns undefined for blank strings", () => {
+    expect(resolveHeartbeatModelPrimary("")).toBeUndefined();
+    expect(resolveHeartbeatModelPrimary("   ")).toBeUndefined();
+  });
+
+  it("returns undefined for blank primary in object form", () => {
+    expect(resolveHeartbeatModelPrimary({ primary: "" })).toBeUndefined();
+    expect(resolveHeartbeatModelPrimary({ primary: "   " })).toBeUndefined();
+  });
+
+  it("returns undefined for empty object", () => {
+    expect(resolveHeartbeatModelPrimary({})).toBeUndefined();
+  });
+
+  it("returns undefined for undefined/null/non-object", () => {
+    expect(resolveHeartbeatModelPrimary(undefined)).toBeUndefined();
+    expect(resolveHeartbeatModelPrimary(null)).toBeUndefined();
+    expect(resolveHeartbeatModelPrimary(42)).toBeUndefined();
   });
 });

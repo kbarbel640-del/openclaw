@@ -2,6 +2,7 @@ import { appendCronStyleCurrentTimeLine } from "../../agents/current-time.js";
 import { resolveHeartbeatReplyPayload } from "../../auto-reply/heartbeat-reply-payload.js";
 import {
   DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
+  resolveHeartbeatModelPrimary,
   resolveHeartbeatPrompt,
   stripHeartbeatToken,
 } from "../../auto-reply/heartbeat.js";
@@ -159,10 +160,17 @@ export async function runWebHeartbeatOnce(opts: {
       return;
     }
 
+    const heartbeatConfig = cfg.agents?.defaults?.heartbeat;
+    const heartbeatModelOverride = resolveHeartbeatModelPrimary(heartbeatConfig?.model);
+    const suppressToolErrorWarnings = heartbeatConfig?.suppressToolErrorWarnings === true;
+    const replyOpts = heartbeatModelOverride
+      ? { isHeartbeat: true, heartbeatModelOverride, suppressToolErrorWarnings }
+      : { isHeartbeat: true, suppressToolErrorWarnings };
+
     const replyResult = await replyResolver(
       {
         Body: appendCronStyleCurrentTimeLine(
-          resolveHeartbeatPrompt(cfg.agents?.defaults?.heartbeat?.prompt),
+          resolveHeartbeatPrompt(heartbeatConfig?.prompt),
           cfg,
           Date.now(),
         ),
@@ -170,7 +178,7 @@ export async function runWebHeartbeatOnce(opts: {
         To: to,
         MessageSid: sessionId ?? sessionSnapshot.entry?.sessionId,
       },
-      { isHeartbeat: true },
+      replyOpts,
       cfg,
     );
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
@@ -201,7 +209,7 @@ export async function runWebHeartbeatOnce(opts: {
     const hasMedia = Boolean(replyPayload.mediaUrl || (replyPayload.mediaUrls?.length ?? 0) > 0);
     const ackMaxChars = Math.max(
       0,
-      cfg.agents?.defaults?.heartbeat?.ackMaxChars ?? DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
+      heartbeatConfig?.ackMaxChars ?? DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
     );
     const stripped = stripHeartbeatToken(replyPayload.text, {
       mode: "heartbeat",
