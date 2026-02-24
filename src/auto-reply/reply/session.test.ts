@@ -727,6 +727,44 @@ describe("initSessionState reset triggers in Slack channels", () => {
     expect(result.sessionId).not.toBe(existingSessionId);
     expect(result.bodyStripped).toBe("take notes");
   });
+
+  it("resets on mention-prefixed commands when chat type is missing but mention is flagged", async () => {
+    const existingSessionId = "existing-session-124";
+    const sessionKey = "agent:main:slack:channel:c3";
+    const body = "<@U123> /new summarize this";
+    const storePath = await createStorePath("openclaw-slack-channel-new-");
+    await seedSessionStore({
+      storePath,
+      sessionKey,
+      sessionId: existingSessionId,
+    });
+    const cfg = {
+      session: { store: storePath, idleMinutes: 999 },
+    } as OpenClawConfig;
+
+    const result = await initSessionState({
+      ctx: {
+        Body: body,
+        RawBody: body,
+        CommandBody: body,
+        From: "slack:channel:C1",
+        To: "channel:C1",
+        SessionKey: sessionKey,
+        Provider: "slack",
+        Surface: "slack",
+        SenderId: "U123",
+        SenderName: "Owner",
+        WasMentioned: true,
+      },
+      cfg,
+      commandAuthorized: true,
+    });
+
+    expect(result.isNewSession).toBe(true);
+    expect(result.resetTriggered).toBe(true);
+    expect(result.sessionId).not.toBe(existingSessionId);
+    expect(result.bodyStripped).toBe("summarize this");
+  });
 });
 
 describe("applyResetModelOverride", () => {

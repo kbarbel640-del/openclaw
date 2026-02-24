@@ -221,7 +221,8 @@ export async function initSessionState(params: {
   // Timestamp/message prefixes (e.g. "[Dec 4 17:35] ") are added by the
   // web inbox before we get here. They prevented reset triggers like "/new"
   // from matching, so strip structural wrappers when checking for resets.
-  const strippedForReset = isGroup
+  const shouldStripMentionsForCommands = isGroup || ctx.WasMentioned === true;
+  const strippedForReset = shouldStripMentionsForCommands
     ? stripMentions(triggerBodyNormalized, ctx, cfg, agentId)
     : triggerBodyNormalized;
 
