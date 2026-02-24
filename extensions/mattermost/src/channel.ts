@@ -6,6 +6,7 @@ import {
   formatPairingApproveHint,
   migrateBaseNameToDefaultAccount,
   normalizeAccountId,
+  registerPluginHttpRoute,
   resolveAllowlistProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   setAccountEnabledInConfigSection,
@@ -253,6 +254,7 @@ export const mattermostPlugin: ChannelPlugin<ResolvedMattermostAccount> = {
     reactions: true,
     threads: true,
     media: true,
+    blockStreaming: true,
   },
   streaming: {
     blockStreamingCoalesceDefaults: { minChars: 1500, idleMs: 1000 },
