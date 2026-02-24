@@ -273,14 +273,14 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     value: "minimax-portal",
     label: "MiniMax OAuth",
     hint: "Oauth plugin for MiniMax",
-  });
-  options.push({ value: "qwen-portal", label: "Qwen OAuth" });
-  options.push({
+  },
+  { value: "qwen-portal", label: "Qwen OAuth" },
+  {
     value: "qwen-api-key",
     label: "Qwen API Key (DashScope)",
     hint: "International (Singapore) or China",
-  });
-  options.push({
+  },
+  {
     value: "copilot-proxy",
     label: "Copilot Proxy (local)",
     hint: "Local proxy for VS Code Copilot models",
