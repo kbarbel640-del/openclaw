@@ -1,9 +1,11 @@
-import type { ImageContent } from "@mariozechner/pi-ai";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { SandboxFsBridge } from "../../sandbox/fs-bridge.js";
+import type { ImageContent } from "@mariozechner/pi-ai";
 import { resolveUserPath } from "../../../utils.js";
 import { loadWebMedia } from "../../../web/media.js";
+import type { ImageSanitizationLimits } from "../../image-sanitization.js";
+import { assertSandboxPath } from "../../sandbox-paths.js";
+import type { SandboxFsBridge } from "../../sandbox/fs-bridge.js";
 import { sanitizeImageBlocks } from "../../tool-images.js";
 import { log } from "../logger.js";
 
@@ -48,8 +50,13 @@ function isImageExtension(filePath: string): boolean {
 async function sanitizeImagesWithLog(
   images: ImageContent[],
   label: string,
+  imageSanitization?: ImageSanitizationLimits,
 ): Promise<ImageContent[]> {
-  const { images: sanitized, dropped } = await sanitizeImageBlocks(images, label);
+  const { images: sanitized, dropped } = await sanitizeImageBlocks(
+    images,
+    label,
+    imageSanitization,
+  );
   if (dropped > 0) {
     log.warn(`Native image: dropped ${dropped} image(s) after sanitization (${label}).`);
   }
@@ -175,6 +182,7 @@ export async function loadImageFromRef(
   workspaceDir: string,
   options?: {
     maxBytes?: number;
+    workspaceOnly?: boolean;
     sandbox?: { root: string; bridge: SandboxFsBridge };
   },
 ): Promise<ImageContent | null> {
@@ -204,6 +212,14 @@ export async function loadImageFromRef(
         }
       } else if (!path.isAbsolute(targetPath)) {
         targetPath = path.resolve(workspaceDir, targetPath);
+      }
+      if (options?.workspaceOnly) {
+        const root = options?.sandbox?.root ?? workspaceDir;
+        await assertSandboxPath({
+          filePath: targetPath,
+          cwd: root,
+          root,
+        });
       }
     }
 
@@ -354,6 +370,8 @@ export async function detectAndLoadPromptImages(params: {
   existingImages?: ImageContent[];
   historyMessages?: unknown[];
   maxBytes?: number;
+  maxDimensionPx?: number;
+  workspaceOnly?: boolean;
   sandbox?: { root: string; bridge: SandboxFsBridge };
 }): Promise<{
   /** Images for the current prompt (existingImages + detected in current prompt) */
@@ -415,6 +433,7 @@ export async function detectAndLoadPromptImages(params: {
   for (const ref of allRefs) {
     const image = await loadImageFromRef(ref, params.workspaceDir, {
       maxBytes: params.maxBytes,
+      workspaceOnly: params.workspaceOnly,
       sandbox: params.sandbox,
     });
     if (image) {
@@ -437,10 +456,21 @@ export async function detectAndLoadPromptImages(params: {
     }
   }
 
-  const sanitizedPromptImages = await sanitizeImagesWithLog(promptImages, "prompt:images");
+  const imageSanitization: ImageSanitizationLimits = {
+    maxDimensionPx: params.maxDimensionPx,
+  };
+  const sanitizedPromptImages = await sanitizeImagesWithLog(
+    promptImages,
+    "prompt:images",
+    imageSanitization,
+  );
   const sanitizedHistoryImagesByIndex = new Map<number, ImageContent[]>();
   for (const [index, images] of historyImagesByIndex) {
-    const sanitized = await sanitizeImagesWithLog(images, `history:images:${index}`);
+    const sanitized = await sanitizeImagesWithLog(
+      images,
+      `history:images:${index}`,
+      imageSanitization,
+    );
     if (sanitized.length > 0) {
       sanitizedHistoryImagesByIndex.set(index, sanitized);
     }

@@ -1,4 +1,3 @@
-import type { OpenClawConfig } from "./config.js";
 import { normalizeProviderId } from "../agents/model-selection.js";
 import {
   getChannelPluginCatalogEntry,
@@ -9,8 +8,14 @@ import {
   listChatChannels,
   normalizeChatChannelId,
 } from "../channels/registry.js";
+import {
+  loadPluginManifestRegistry,
+  type PluginManifestRegistry,
+} from "../plugins/manifest-registry.js";
 import { isRecord } from "../utils.js";
 import { hasAnyWhatsAppAuth } from "../web/accounts.js";
+import type { OpenClawConfig } from "./config.js";
+import { ensurePluginAllowlisted } from "./plugins-allowlist.js";
 
 type PluginEnableChange = {
   pluginId: string;
@@ -30,7 +35,6 @@ const CHANNEL_PLUGIN_IDS = Array.from(
 );
 
 const PROVIDER_PLUGIN_IDS: Array<{ pluginId: string; providerId: string }> = [
-  { pluginId: "google-antigravity-auth", providerId: "google-antigravity" },
   { pluginId: "google-gemini-cli-auth", providerId: "google-gemini-cli" },
   { pluginId: "qwen-portal-auth", providerId: "qwen-portal" },
   { pluginId: "copilot-proxy", providerId: "copilot-proxy" },
@@ -309,32 +313,74 @@ function isProviderConfigured(cfg: OpenClawConfig, providerId: string): boolean 
   return false;
 }
 
+function buildChannelToPluginIdMap(registry: PluginManifestRegistry): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const record of registry.plugins) {
+    for (const channelId of record.channels) {
+      if (channelId && !map.has(channelId)) {
+        map.set(channelId, record.id);
+      }
+    }
+  }
+  return map;
+}
+
+type ChannelPluginPair = {
+  channelId: string;
+  pluginId: string;
+};
+
 function resolveConfiguredPlugins(
   cfg: OpenClawConfig,
   env: NodeJS.ProcessEnv,
+  registry: PluginManifestRegistry,
 ): PluginEnableChange[] {
   const changes: PluginEnableChange[] = [];
-  const channelIds = new Set(CHANNEL_PLUGIN_IDS);
+  // Build reverse map: channel ID → plugin ID from installed plugin manifests.
+  // This is needed when a third-party plugin declares a channel ID that differs
+  // from the plugin's own ID (e.g. plugin id="apn-channel", channels=["apn"]).
+  const channelToPluginId = buildChannelToPluginIdMap(registry);
+
+  // For built-in and catalog entries: channelId === pluginId (they are the same).
+  const pairs: ChannelPluginPair[] = CHANNEL_PLUGIN_IDS.map((id) => ({
+    channelId: id,
+    pluginId: id,
+  }));
+
   const configuredChannels = cfg.channels as Record<string, unknown> | undefined;
   if (configuredChannels && typeof configuredChannels === "object") {
     for (const key of Object.keys(configuredChannels)) {
-      if (key === "defaults") {
+      if (key === "defaults" || key === "modelByChannel") {
         continue;
       }
-      channelIds.add(key);
+      const builtInId = normalizeChatChannelId(key);
+      if (builtInId) {
+        // Built-in channel: channelId and pluginId are the same.
+        pairs.push({ channelId: builtInId, pluginId: builtInId });
+      } else {
+        // Third-party channel plugin: look up the actual plugin ID from the
+        // manifest registry. If the plugin declares channels=["apn"] but its
+        // id is "apn-channel", we must use "apn-channel" as the pluginId so
+        // that plugins.entries is keyed correctly. Fall back to the channel key
+        // when no installed manifest declares this channel.
+        const pluginId = channelToPluginId.get(key) ?? key;
+        pairs.push({ channelId: key, pluginId });
+      }
     }
   }
-  for (const channelId of channelIds) {
-    if (!channelId) {
+
+  // Deduplicate by channelId, preserving first occurrence.
+  const seenChannelIds = new Set<string>();
+  for (const { channelId, pluginId } of pairs) {
+    if (!channelId || !pluginId || seenChannelIds.has(channelId)) {
       continue;
     }
+    seenChannelIds.add(channelId);
     if (isChannelConfigured(cfg, channelId, env)) {
-      changes.push({
-        pluginId: channelId,
-        reason: `${channelId} configured`,
-      });
+      changes.push({ pluginId, reason: `${channelId} configured` });
     }
   }
+
   for (const mapping of PROVIDER_PLUGIN_IDS) {
     if (isProviderConfigured(cfg, mapping.providerId)) {
       changes.push({
@@ -347,6 +393,19 @@ function resolveConfiguredPlugins(
 }
 
 function isPluginExplicitlyDisabled(cfg: OpenClawConfig, pluginId: string): boolean {
+  const builtInChannelId = normalizeChatChannelId(pluginId);
+  if (builtInChannelId) {
+    const channels = cfg.channels as Record<string, unknown> | undefined;
+    const channelConfig = channels?.[builtInChannelId];
+    if (
+      channelConfig &&
+      typeof channelConfig === "object" &&
+      !Array.isArray(channelConfig) &&
+      (channelConfig as { enabled?: unknown }).enabled === false
+    ) {
+      return true;
+    }
+  }
   const entry = cfg.plugins?.entries?.[pluginId];
   return entry?.enabled === false;
 }
@@ -388,21 +447,26 @@ function shouldSkipPreferredPluginAutoEnable(
   return false;
 }
 
-function ensureAllowlisted(cfg: OpenClawConfig, pluginId: string): OpenClawConfig {
-  const allow = cfg.plugins?.allow;
-  if (!Array.isArray(allow) || allow.includes(pluginId)) {
-    return cfg;
-  }
-  return {
-    ...cfg,
-    plugins: {
-      ...cfg.plugins,
-      allow: [...allow, pluginId],
-    },
-  };
-}
-
 function registerPluginEntry(cfg: OpenClawConfig, pluginId: string): OpenClawConfig {
+  const builtInChannelId = normalizeChatChannelId(pluginId);
+  if (builtInChannelId) {
+    const channels = cfg.channels as Record<string, unknown> | undefined;
+    const existing = channels?.[builtInChannelId];
+    const existingRecord =
+      existing && typeof existing === "object" && !Array.isArray(existing)
+        ? (existing as Record<string, unknown>)
+        : {};
+    return {
+      ...cfg,
+      channels: {
+        ...cfg.channels,
+        [builtInChannelId]: {
+          ...existingRecord,
+          enabled: true,
+        },
+      },
+    };
+  }
   const entries = {
     ...cfg.plugins?.entries,
     [pluginId]: {
@@ -432,9 +496,14 @@ function formatAutoEnableChange(entry: PluginEnableChange): string {
 export function applyPluginAutoEnable(params: {
   config: OpenClawConfig;
   env?: NodeJS.ProcessEnv;
+  /** Pre-loaded manifest registry. When omitted, the registry is loaded from
+   *  the installed plugins on disk. Pass an explicit registry in tests to
+   *  avoid filesystem access and control what plugins are "installed". */
+  manifestRegistry?: PluginManifestRegistry;
 }): PluginAutoEnableResult {
   const env = params.env ?? process.env;
-  const configured = resolveConfiguredPlugins(params.config, env);
+  const registry = params.manifestRegistry ?? loadPluginManifestRegistry({ config: params.config });
+  const configured = resolveConfiguredPlugins(params.config, env, registry);
   if (configured.length === 0) {
     return { config: params.config, changes: [] };
   }
@@ -447,6 +516,7 @@ export function applyPluginAutoEnable(params: {
   }
 
   for (const entry of configured) {
+    const builtInChannelId = normalizeChatChannelId(entry.pluginId);
     if (isPluginDenied(next, entry.pluginId)) {
       continue;
     }
@@ -458,12 +528,28 @@ export function applyPluginAutoEnable(params: {
     }
     const allow = next.plugins?.allow;
     const allowMissing = Array.isArray(allow) && !allow.includes(entry.pluginId);
-    const alreadyEnabled = next.plugins?.entries?.[entry.pluginId]?.enabled === true;
+    const alreadyEnabled =
+      builtInChannelId != null
+        ? (() => {
+            const channels = next.channels as Record<string, unknown> | undefined;
+            const channelConfig = channels?.[builtInChannelId];
+            if (
+              !channelConfig ||
+              typeof channelConfig !== "object" ||
+              Array.isArray(channelConfig)
+            ) {
+              return false;
+            }
+            return (channelConfig as { enabled?: unknown }).enabled === true;
+          })()
+        : next.plugins?.entries?.[entry.pluginId]?.enabled === true;
     if (alreadyEnabled && !allowMissing) {
       continue;
     }
     next = registerPluginEntry(next, entry.pluginId);
-    next = ensureAllowlisted(next, entry.pluginId);
+    if (allowMissing || !builtInChannelId) {
+      next = ensurePluginAllowlisted(next, entry.pluginId);
+    }
     changes.push(formatAutoEnableChange(entry));
   }
 
