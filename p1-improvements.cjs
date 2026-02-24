@@ -44,6 +44,43 @@ function logStructuredTiming(req, res) {
   console.log(JSON.stringify(logEntry));
 }
 
+// ─── P0.4: Error Message Formatter (標準化格式) ──────────────────
+
+/**
+ * 統一錯誤信息格式
+ * 格式: [wrapper] #reqId component: message
+ *
+ * @param {string} component - 組件名稱 (e.g., 'intent-classifier', 'gmail', 'agentd')
+ * @param {string} message - 錯誤信息
+ * @param {string} reqId - 請求 ID (可選)
+ * @returns {string} 格式化的錯誤信息
+ */
+function formatError(component, message, reqId = null) {
+  const base = reqId ? `[wrapper] #${reqId}` : '[wrapper]';
+  return `${base} ${component}: ${message}`;
+}
+
+/**
+ * 建立標準化的 Error 對象
+ * @param {string} component - 組件名稱
+ * @param {string} message - 錯誤信息
+ * @param {string} reqId - 請求 ID (可選)
+ * @returns {Error} Error 對象，message 已格式化
+ */
+function createError(component, message, reqId = null) {
+  return new Error(formatError(component, message, reqId));
+}
+
+/**
+ * 標準化 console.error 輸出
+ * @param {string} component - 組件名稱
+ * @param {string} message - 錯誤信息
+ * @param {string} reqId - 請求 ID (可選)
+ */
+function logError(component, message, reqId = null) {
+  console.error(formatError(component, message, reqId));
+}
+
 // ─── P1.3: Runtime Tool Injection ────────────────────────────────────
 
 // AGENTD_TOOLS 應該從配置動態讀取，而不是 hardcode
@@ -214,5 +251,8 @@ module.exports = {
   injectToolsIntoSystemPrompt,
   executeToolWithConcurrency,
   CircuitBreaker,
-  HybridIntentClassifier
+  HybridIntentClassifier,
+  formatError,
+  createError,
+  logError
 };
