@@ -190,7 +190,7 @@ export interface OcccBridge {
   // Config (session required)
   getConfigSections(token: string): Promise<ConfigSection[]>;
   getConfig(token: string, section: string): Promise<Record<string, unknown>>;
-  setConfig(section: string, values: Record<string, unknown>): Promise<void>;
+  setConfig(token: string, section: string, values: Record<string, unknown>): Promise<void>;
 
   // Skills (session required)
   listSkills(token: string): Promise<SkillInfo[]>;

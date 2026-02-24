@@ -30,6 +30,9 @@ vi.mock("node:fs", () => ({
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 
+/** Typed callback for mocked execFile calls. */
+type ExecCallback = (err: Error | null, result: { stdout: string; stderr: string }) => void;
+
 const mockExecFile = execFile as unknown as ReturnType<typeof vi.fn>;
 const mockExistsSync = existsSync as unknown as ReturnType<typeof vi.fn>;
 
@@ -68,7 +71,7 @@ describe("EngineDetector", () => {
   describe("detect()", () => {
     it("returns docker-ce when Docker daemon is running and Desktop is absent", async () => {
       mockExecFile.mockImplementation(
-        (_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        (_cmd: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
           cb(null, { stdout: makeDockerVersionOutput(), stderr: "" });
         },
       );
@@ -86,7 +89,7 @@ describe("EngineDetector", () => {
         p.includes("Docker.app"),
       );
       mockExecFile.mockImplementation(
-        (_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        (_cmd: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
           cb(null, { stdout: makeDockerVersionOutput(), stderr: "" });
         },
       );
@@ -99,7 +102,7 @@ describe("EngineDetector", () => {
 
     it("returns running=false when Docker client present but server absent", async () => {
       mockExecFile.mockImplementation(
-        (_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        (_cmd: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
           cb(null, { stdout: makeDockerVersionOutput("24.0.5", "1.43", false), stderr: "" });
         },
       );
@@ -112,7 +115,7 @@ describe("EngineDetector", () => {
 
     it("falls back to podman when docker command fails", async () => {
       mockExecFile.mockImplementation(
-        (cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        (cmd: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
           if (cmd === "docker") {
             cb(new Error("command not found"), { stdout: "", stderr: "" });
           } else {
@@ -130,7 +133,7 @@ describe("EngineDetector", () => {
 
     it("returns none when neither docker nor podman is available", async () => {
       mockExecFile.mockImplementation(
-        (_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        (_cmd: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
           cb(new Error("command not found"), { stdout: "", stderr: "" });
         },
       );
@@ -143,7 +146,7 @@ describe("EngineDetector", () => {
 
     it("returns none when docker output is invalid JSON", async () => {
       mockExecFile.mockImplementation(
-        (_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+        (_cmd: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
           cb(null, { stdout: "not json", stderr: "" });
         },
       );

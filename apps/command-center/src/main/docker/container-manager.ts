@@ -211,7 +211,8 @@ export class ContainerManager {
         const stats = await this.client.getContainerStats(c.Id);
         cpu = this.calculateCpuPercent(stats as unknown as Record<string, unknown>);
         memoryMB = Math.round((stats.memory_stats?.usage ?? 0) / 1024 / 1024);
-        const netStats = stats.networks?.eth0;
+        // Use the first available network interface rather than hardcoding eth0
+        const netStats = Object.values(stats.networks ?? {})[0];
         networkRx = netStats?.rx_bytes ?? 0;
         networkTx = netStats?.tx_bytes ?? 0;
       } catch {

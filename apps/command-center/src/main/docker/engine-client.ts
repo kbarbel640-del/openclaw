@@ -19,8 +19,8 @@ export class DockerEngineClient {
     );
   }
 
-  /** Get the raw dockerode instance for advanced operations. */
-  getEngine(): Dockerode {
+  /** @internal Raw dockerode instance — not for external callers. */
+  private getEngine(): Dockerode {
     return this.docker;
   }
 
@@ -152,6 +152,32 @@ export class DockerEngineClient {
   /** Remove a named volume. */
   async removeVolume(name: string): Promise<void> {
     await this.docker.getVolume(name).remove({});
+  }
+
+  /** Inspect an image by name/tag. */
+  async inspectImage(name: string): Promise<Dockerode.ImageInspectInfo> {
+    return this.docker.getImage(name).inspect();
+  }
+
+  /** Remove an image by name. */
+  async removeImage(name: string, force = false): Promise<void> {
+    await this.docker.getImage(name).remove({ force });
+  }
+
+  /**
+   * Follow a Docker modem progress stream.
+   * Calls onEnd when the stream finishes; relays each event to onEvent.
+   */
+  followStreamProgress(
+    stream: NodeJS.ReadableStream,
+    onEnd: (err: Error | null) => void,
+    onEvent?: (event: Record<string, unknown>) => void,
+  ): void {
+    this.docker.modem.followProgress(
+      stream,
+      (err) => onEnd(err),
+      onEvent,
+    );
   }
 
   /** Create and start a container with security hardening. */

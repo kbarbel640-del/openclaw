@@ -51,8 +51,8 @@ const bridge: OcccBridge = {
     ipcRenderer.invoke(IPC_CHANNELS.CONFIG_SECTIONS, token),
   getConfig: (token, section) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONFIG_GET, token, section),
-  setConfig: (section, values) =>
-    ipcRenderer.invoke(IPC_CHANNELS.CONFIG_SET, section, values),
+  setConfig: (token, section, values) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONFIG_SET, token, section, values),
 
   // ─── Skills ───────────────────────────────────────────────────────────
   listSkills: (token) =>

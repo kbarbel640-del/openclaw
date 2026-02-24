@@ -65,7 +65,7 @@ export class ImageManager {
    * Inspect a specific image by name/tag.
    */
   async inspect(imageName: string): Promise<Dockerode.ImageInspectInfo> {
-    return this.client.getEngine().getImage(imageName).inspect();
+    return this.client.inspectImage(imageName);
   }
 
   /**
@@ -84,7 +84,7 @@ export class ImageManager {
    * Remove an image by name. Force-removes even if tagged.
    */
   async remove(imageName: string, force = false): Promise<void> {
-    await this.client.getEngine().getImage(imageName).remove({ force });
+    await this.client.removeImage(imageName, force);
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────
@@ -94,15 +94,10 @@ export class ImageManager {
     onProgress?: PullProgressCallback,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const docker = this.client.getEngine();
-      docker.modem.followProgress(
+      this.client.followStreamProgress(
         stream,
-        (err: Error | null) => {
-          if (err) { reject(err); } else { resolve(); }
-        },
-        (event: PullProgressEvent) => {
-          onProgress?.(event);
-        },
+        (err) => { if (err) { reject(err); } else { resolve(); } },
+        onProgress ? (event) => onProgress(event as unknown as PullProgressEvent) : undefined,
       );
     });
   }
