@@ -1,4 +1,6 @@
 import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk";
+import fs from "fs";
+import path from "path";
 import { sendMediaFeishu } from "./media.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { sendMessageFeishu } from "./send.js";
@@ -21,13 +23,33 @@ export const feishuOutbound: ChannelOutboundAdapter = {
     // Upload and send media if URL provided
     if (mediaUrl) {
       try {
-        const result = await sendMediaFeishu({
-          cfg,
-          to,
-          mediaUrl,
-          accountId: accountId ?? undefined,
-        });
-        return { channel: "feishu", ...result };
+        // Check if mediaUrl is a local file path
+        const isLocalFile = !mediaUrl.startsWith("http://") && 
+                           !mediaUrl.startsWith("https://") && 
+                           !mediaUrl.startsWith("data:");
+        
+        if (isLocalFile) {
+          // Read local file as buffer
+          const buffer = await fs.promises.readFile(mediaUrl);
+          const fileName = path.basename(mediaUrl);
+          const result = await sendMediaFeishu({
+            cfg,
+            to,
+            mediaBuffer: buffer,
+            fileName,
+            accountId: accountId ?? undefined,
+          });
+          return { channel: "feishu", ...result };
+        } else {
+          // Use original behavior for web URLs
+          const result = await sendMediaFeishu({
+            cfg,
+            to,
+            mediaUrl,
+            accountId: accountId ?? undefined,
+          });
+          return { channel: "feishu", ...result };
+        }
       } catch (err) {
         // Log the error for debugging
         console.error(`[feishu] sendMediaFeishu failed:`, err);
