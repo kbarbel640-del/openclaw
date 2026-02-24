@@ -4,11 +4,9 @@ import { streamSimple } from "@mariozechner/pi-ai";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import {
-  type MoonshotCacheConfig,
-  extractSystemMessage,
-  getOrCreateCache,
-  injectCacheRole,
+  createMoonshotCacheWrapper,
   isMoonshotCacheEnabled,
+  resolveMoonshotCacheConfig,
 } from "../moonshot-cache.js";
 import { log } from "./logger.js";
 
@@ -508,123 +506,6 @@ function createZaiToolStreamWrapper(
   };
 }
 
-// Default base URLs for Moonshot
-const MOONSHOT_BASE_URLS: Record<string, string> = {
-  moonshot: "https://api.moonshot.ai/v1",
-  "moonshot-cn": "https://api.moonshot.cn/v1",
-};
-
-/**
- * Resolve Moonshot cache configuration from extraParams.
- */
-function resolveMoonshotCacheConfig(
-  extraParams: Record<string, unknown> | undefined,
-): MoonshotCacheConfig | undefined {
-  const cacheConfig = extraParams?.contextCache;
-  if (!cacheConfig || typeof cacheConfig !== "object") {
-    return undefined;
-  }
-  const cfg = cacheConfig as Record<string, unknown>;
-  if (cfg.enabled !== true) {
-    return undefined;
-  }
-  return {
-    enabled: true,
-    ttl: typeof cfg.ttl === "number" ? cfg.ttl : 3600,
-    resetTtl: typeof cfg.resetTtl === "number" ? cfg.resetTtl : undefined,
-  };
-}
-
-/**
- * Create a streamFn wrapper that implements Moonshot context caching.
- *
- * This wrapper:
- * 1. Extracts system prompt and tools from the context
- * 2. Creates or retrieves a cache for them via /v1/caching API
- * 3. Injects `role: "cache"` with cache_id into the messages
- *
- * The cache is resolved BEFORE calling the underlying stream to avoid
- * race conditions with async onPayload callbacks.
- *
- * @see https://github.com/Elarwei001/research_openclaw/blob/main/proposals/kimi-context-cache.md
- */
-function createMoonshotCacheWrapper(
-  baseStreamFn: StreamFn | undefined,
-  config: MoonshotCacheConfig,
-  modelId: string,
-): StreamFn {
-  const underlying = baseStreamFn ?? streamSimple;
-  const ttl = config.ttl ?? 3600;
-  const resetTtl = config.resetTtl ?? ttl;
-
-  return (model, context, options) => {
-    const apiKey = options?.apiKey;
-    const sessionKey = (options as Record<string, unknown>)?.sessionKey as string | undefined;
-
-    // Skip caching if we don't have required params
-    if (!apiKey || typeof apiKey !== "string" || !sessionKey) {
-      log.debug(`[moonshot-cache] Skipping cache: missing apiKey or sessionKey`);
-      return underlying(model, context, options);
-    }
-
-    // Extract system message
-    const messages = context.messages ?? [];
-    const systemContent = extractSystemMessage(messages);
-    if (!systemContent) {
-      log.debug(`[moonshot-cache] Skipping cache: no system message found`);
-      return underlying(model, context, options);
-    }
-
-    // Get tools from context
-    const tools = context.tools as unknown[] | undefined;
-
-    // Resolve base URL
-    const baseUrl =
-      (model.baseUrl as string | undefined) ??
-      MOONSHOT_BASE_URLS[model.provider] ??
-      MOONSHOT_BASE_URLS.moonshot;
-
-    // Resolve cache BEFORE streaming starts to avoid async onPayload race condition.
-    // StreamFn allows returning Promise<stream>, so we use an async IIFE.
-    return (async () => {
-      let modifiedContext = context;
-
-      try {
-        const cacheId = await getOrCreateCache({
-          sessionKey,
-          apiKey,
-          baseUrl,
-          model: modelId,
-          system: systemContent,
-          tools,
-          ttl,
-        });
-
-        // Inject cache role into messages, replacing system message.
-        // Cast to unknown[] to avoid type mismatch with pi-ai's stricter Message type.
-        const modifiedMessages = injectCacheRole(
-          messages as Array<{ role: string; content: unknown }>,
-          cacheId,
-          resetTtl,
-        ) as unknown as typeof context.messages;
-
-        modifiedContext = {
-          ...context,
-          messages: modifiedMessages,
-        };
-
-        log.debug(`[moonshot-cache] Injected cache ${cacheId} for session ${sessionKey}`);
-      } catch (err) {
-        // On cache error, fall back to normal request with original context
-        log.warn(`[moonshot-cache] Cache error, falling back: ${String(err)}`);
-      }
-
-      // Delegate to underlying stream with (possibly modified) context
-      return underlying(model, modifiedContext, options);
-    })();
-  };
-}
-
 /**
  * Apply extra params (like temperature) to an agent's streamFn.
  * Also adds OpenRouter app attribution headers when using the OpenRouter provider.
@@ -703,7 +584,11 @@ export function applyExtraParamsToAgent(
     const moonshotCacheConfig = resolveMoonshotCacheConfig(merged);
     if (isMoonshotCacheEnabled(provider, moonshotCacheConfig)) {
       log.debug(`enabling Moonshot context caching for ${provider}/${modelId}`);
-      agent.streamFn = createMoonshotCacheWrapper(agent.streamFn, moonshotCacheConfig!, modelId);
+      agent.streamFn = createMoonshotCacheWrapper(
+        agent.streamFn ?? streamSimple,
+        moonshotCacheConfig!,
+        modelId,
+      );
     }
   }
 

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   clearAllCaches,
-  extractSystemMessage,
   getOrCreateCache,
   injectCacheRole,
   isMoonshotCacheEnabled,
@@ -15,34 +14,6 @@ describe("moonshot-cache", () => {
   beforeEach(() => {
     clearAllCaches();
     mockFetch.mockReset();
-  });
-
-  describe("extractSystemMessage", () => {
-    it("extracts string content from system message", () => {
-      const messages = [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: "Hello" },
-      ];
-      expect(extractSystemMessage(messages)).toBe("You are a helpful assistant.");
-    });
-
-    it("extracts array content from system message", () => {
-      const messages = [
-        {
-          role: "system",
-          content: [
-            { type: "text", text: "Part 1" },
-            { type: "text", text: "Part 2" },
-          ],
-        },
-      ];
-      expect(extractSystemMessage(messages)).toBe("Part 1\nPart 2");
-    });
-
-    it("returns undefined when no system message", () => {
-      const messages = [{ role: "user", content: "Hello" }];
-      expect(extractSystemMessage(messages)).toBeUndefined();
-    });
   });
 
   describe("injectCacheRole", () => {
