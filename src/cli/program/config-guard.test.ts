@@ -73,7 +73,10 @@ describe("ensureConfigReady", () => {
   });
 
   it("skips doctor flow when --json output is requested", async () => {
-    await runEnsureConfigReady(["nodes", "status"], ["node", "openclaw", "nodes", "status", "--json"]);
+    await runEnsureConfigReady(
+      ["nodes", "status"],
+      ["node", "openclaw", "nodes", "status", "--json"],
+    );
     expect(loadAndMaybeMigrateDoctorConfigMock).not.toHaveBeenCalled();
   });
 
