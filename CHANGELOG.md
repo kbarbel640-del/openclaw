@@ -10,6 +10,15 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway/Browser control: load `src/browser/server.js` during browser-control startup so the control listener starts reliably when browser control is enabled. (#23974) Thanks @ieaves.
+- Onboarding/Custom providers: raise verification probe token budgets for OpenAI and Anthropic compatibility checks to avoid false negatives on strict provider defaults. (#24743) Thanks @Glucksberg.
+- WhatsApp/DM routing: only update main-session last-route state when DM traffic is bound to the main session, preserving isolated `dmScope` routing. (#24949) Thanks @kevinWangSheng.
+- Providers/OpenRouter: when thinking is explicitly off, avoid injecting `reasoning.effort` so reasoning-required models can use provider defaults instead of failing request validation. (#24863) Thanks @DevSecTim.
+- Status/Pairing recovery: show explicit pairing-approval command hints (including requestId when safe) when gateway probe failures report pairing-required closures. (#24771) Thanks @markmusson.
+- Discord/Threading: recover missing thread parent IDs by refetching thread metadata before resolving parent channel context. (#24897) Thanks @z-x-yang.
+- Web UI/i18n: load and hydrate saved locale translations during startup so non-English sessions apply immediately without manual toggling. (#24795) Thanks @chilu18.
+- Plugins/Config schema: support legacy plugin schemas without `toJSONSchema()` by falling back to permissive object schema generation. (#24933) Thanks @pandego.
+- Auto-reply/Abort shortcuts: expand standalone stop phrases (`stop openclaw`, `stop action`, `stop run`, `stop agent`, `please stop`, and related variants) and accept trailing punctuation (for example `STOP OPENCLAW!!!`) so emergency stop messages are caught more reliably.
 - Cron/Isolated sessions: use full prompt mode for isolated cron runs so skills/extensions are available during cron execution. (#24944)
 - Discord/Reasoning: suppress reasoning/thinking-only payload blocks from Discord delivery output. (#24969)
 - Sessions/Reasoning: persist `reasoningLevel: "off"` explicitly instead of deleting it so session overrides survive patch/update flows. (#24406, #24559)
