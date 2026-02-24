@@ -9,7 +9,7 @@ import { OPENAI_CODEX_DEFAULT_MODEL } from "./openai-codex-model-default.js";
 export async function warnIfModelConfigLooksOff(
   config: OpenClawConfig,
   prompter: WizardPrompter,
-  options?: { agentId?: string; agentDir?: string },
+  options?: { agentId?: string; agentDir?: string; skipAuthCheck?: boolean },
 ) {
   const ref = resolveDefaultModelForAgent({
     cfg: config,
@@ -31,22 +31,24 @@ export async function warnIfModelConfigLooksOff(
     }
   }
 
-  const store = ensureAuthProfileStore(options?.agentDir);
-  const hasProfile = listProfilesForProvider(store, ref.provider).length > 0;
-  const envKey = resolveEnvApiKey(ref.provider);
-  const customKey = getCustomProviderApiKey(config, ref.provider);
-  if (!hasProfile && !envKey && !customKey) {
-    warnings.push(
-      `No auth configured for provider "${ref.provider}". The agent may fail until credentials are added.`,
-    );
-  }
-
-  if (ref.provider === "openai") {
-    const hasCodex = listProfilesForProvider(store, "openai-codex").length > 0;
-    if (hasCodex) {
+  if (!options?.skipAuthCheck) {
+    const store = ensureAuthProfileStore(options?.agentDir);
+    const hasProfile = listProfilesForProvider(store, ref.provider).length > 0;
+    const envKey = resolveEnvApiKey(ref.provider);
+    const customKey = getCustomProviderApiKey(config, ref.provider);
+    if (!hasProfile && !envKey && !customKey) {
       warnings.push(
-        `Detected OpenAI Codex OAuth. Consider setting agents.defaults.model to ${OPENAI_CODEX_DEFAULT_MODEL}.`,
+        `No auth configured for provider "${ref.provider}". The agent may fail until credentials are added.`,
       );
+    }
+
+    if (ref.provider === "openai") {
+      const hasCodex = listProfilesForProvider(store, "openai-codex").length > 0;
+      if (hasCodex) {
+        warnings.push(
+          `Detected OpenAI Codex OAuth. Consider setting agents.defaults.model to ${OPENAI_CODEX_DEFAULT_MODEL}.`,
+        );
+      }
     }
   }
 
