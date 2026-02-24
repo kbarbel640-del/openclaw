@@ -81,7 +81,12 @@ import type {
   StatusSummary,
   NostrProfile,
 } from "./types.ts";
-import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
+import {
+  type AgentDetailPanelState,
+  type ChatAttachment,
+  type ChatQueueItem,
+  type CronFormState,
+} from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 
 declare global {
@@ -217,6 +222,14 @@ export class OpenClawApp extends LitElement {
   @state() agentsSelectedId: string | null = null;
   @state() agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron" =
     "overview";
+  @state() agentDetailPanel: AgentDetailPanelState = {
+    open: false,
+    expanded: false,
+    mode: "view" as const,
+    agentId: null,
+    activeSection: null,
+    avatarPreview: null,
+  };
   @state() agentFilesLoading = false;
   @state() agentFilesError: string | null = null;
   @state() agentFilesList: AgentsFilesListResult | null = null;

@@ -33,7 +33,12 @@ import type {
   SkillStatusReport,
   StatusSummary,
 } from "./types.ts";
-import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts";
+import type {
+  AgentDetailPanelState,
+  ChatAttachment,
+  ChatQueueItem,
+  CronFormState,
+} from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 import type { SessionLogEntry } from "./views/usage.ts";
 
@@ -132,6 +137,7 @@ export type AppViewState = {
   agentsError: string | null;
   agentsSelectedId: string | null;
   agentsPanel: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
+  agentDetailPanel: AgentDetailPanelState;
   agentFilesLoading: boolean;
   agentFilesError: string | null;
   agentFilesList: AgentsFilesListResult | null;

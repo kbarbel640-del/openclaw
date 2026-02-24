@@ -34,3 +34,14 @@ export type CronFormState = {
   deliveryTo: string;
   timeoutSeconds: string;
 };
+
+export type AgentDetailPanelMode = "view" | "edit" | "create";
+
+export type AgentDetailPanelState = {
+  open: boolean;
+  expanded: boolean;
+  mode: AgentDetailPanelMode;
+  agentId: string | null;
+  activeSection: string | null;
+  avatarPreview: string | null;
+};
