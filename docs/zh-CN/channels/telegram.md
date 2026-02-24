@@ -740,6 +740,7 @@ Telegram 反应作为**单独的 `message_reaction` 事件**到达，而不是�
 - `channels.telegram.actions.sendMessage`：门控 Telegram 工具消息发送。
 - `channels.telegram.actions.deleteMessage`：门控 Telegram 工具消息删除。
 - `channels.telegram.actions.sticker`：门控 Telegram 贴纸动作 — 发送和搜索（默认：false）。
+- `channels.telegram.actions.dice`：门控 Telegram 骰子动作 — 发送动画骰子/老虎机/飞镖等（默认：false）。
 - `channels.telegram.reactionNotifications`：`off | own | all` — 控制哪些反应触发系统事件（未设置时默认：`own`）。
 - `channels.telegram.reactionLevel`：`off | ack | minimal | extensive` — 控制智能体的反应能力（未设置时默认：`minimal`）。
 

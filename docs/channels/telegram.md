@@ -393,6 +393,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
     - `channels.telegram.actions.deleteMessage`
     - `channels.telegram.actions.reactions`
     - `channels.telegram.actions.sticker` (default: disabled)
+    - `channels.telegram.actions.dice` (default: disabled)
 
     Reaction removal semantics: [/tools/reactions](/tools/reactions)
 
@@ -535,6 +536,44 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
   limit: 5,
 }
 ```
+
+  </Accordion>
+
+  <Accordion title="Dice">
+    Send animated dice, slot machines, darts, basketball, bowling, or football using Telegram's native `sendDice` API. The result value is server-determined and returned to the agent.
+
+    Enable dice actions:
+
+```json5
+{
+  channels: {
+    telegram: {
+      actions: {
+        dice: true,
+      },
+    },
+  },
+}
+```
+
+    Send dice action:
+
+```json5
+{
+  action: "sendDice",
+  channel: "telegram",
+  to: "123456789",
+  emoji: "🎲",       // 🎲 🎯 🏀 ⚽ 🎳 🎰 (default: 🎲)
+}
+```
+
+    Response includes `emoji` and `value` (the random result):
+    - 🎲 → 1–6
+    - 🎯 → 1–6
+    - 🏀 → 1–5
+    - ⚽ → 1–5
+    - 🎳 → 1–6
+    - 🎰 → 1–64
 
   </Accordion>
 
