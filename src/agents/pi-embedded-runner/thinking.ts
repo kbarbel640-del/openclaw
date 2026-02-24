@@ -13,7 +13,13 @@ export function isAssistantMessageWithContent(message: AgentMessage): message is
 }
 
 /**
- * Strip all `type: "thinking"` content blocks from assistant messages.
+ * Strip `type: "thinking"` content blocks from assistant messages, EXCEPT
+ * the latest assistant message.
+ *
+ * Anthropic's API requires that thinking/redacted_thinking blocks in the
+ * latest assistant message remain exactly as received - they cannot be
+ * modified or removed. Stripping them causes API 400 errors:
+ * "thinking or redacted_thinking blocks in the latest assistant message cannot be modified"
  *
  * If an assistant message becomes empty after stripping, it is replaced with
  * a synthetic `{ type: "text", text: "" }` block to preserve turn structure
@@ -23,10 +29,23 @@ export function isAssistantMessageWithContent(message: AgentMessage): message is
  * use reference equality to skip downstream work).
  */
 export function dropThinkingBlocks(messages: AgentMessage[]): AgentMessage[] {
+  let latestAssistantIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (isAssistantMessageWithContent(messages[i])) {
+      latestAssistantIndex = i;
+      break;
+    }
+  }
+
   let touched = false;
   const out: AgentMessage[] = [];
-  for (const msg of messages) {
+  for (let i = 0; i < messages.length; i += 1) {
+    const msg = messages[i];
     if (!isAssistantMessageWithContent(msg)) {
+      out.push(msg);
+      continue;
+    }
+    if (i === latestAssistantIndex) {
       out.push(msg);
       continue;
     }
