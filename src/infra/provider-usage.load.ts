@@ -60,6 +60,8 @@ export async function loadProviderUsageSummary(
             return await fetchClaudeUsage(auth.token, timeoutMs, fetchFn);
           case "github-copilot":
             return await fetchCopilotUsage(auth.token, timeoutMs, fetchFn);
+          case "google-antigravity":
+            return await fetchGeminiUsage(auth.token, timeoutMs, fetchFn, "google-antigravity");
           case "google-gemini-cli":
             return await fetchGeminiUsage(auth.token, timeoutMs, fetchFn, "google-gemini-cli");
           case "openai-codex":
