@@ -13,6 +13,9 @@ const runtimeStub = vi.hoisted(() => ({
     }),
   },
   config: { loadConfig: () => ({}) },
+  channel: {
+    text: { resolveTextChunkLimit: () => 4000 },
+  },
 }));
 
 vi.mock("./runtime.js", () => ({
