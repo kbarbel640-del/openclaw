@@ -156,6 +156,9 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
     };
 
     if (opts.useWebhook) {
+      if (!opts.abortSignal) {
+        throw new Error("monitorTelegramProvider requires abortSignal when useWebhook is enabled");
+      }
       await startTelegramWebhook({
         token,
         accountId: account.accountId,
@@ -170,7 +173,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         publicUrl: opts.webhookUrl,
       });
       const abortSignal = opts.abortSignal;
-      if (abortSignal && !abortSignal.aborted) {
+      if (!abortSignal.aborted) {
         await new Promise<void>((resolve) => {
           const onAbort = () => {
             abortSignal.removeEventListener("abort", onAbort);
