@@ -1,14 +1,14 @@
 import type { AgentEvent } from "@mariozechner/pi-agent-core";
 import { describe, expect, it, vi } from "vitest";
 import type { MessagingToolSend } from "./pi-embedded-messaging.js";
-import {
-  handleToolExecutionEnd,
-  handleToolExecutionStart,
-} from "./pi-embedded-subscribe.handlers.tools.js";
 import type {
   ToolCallSummary,
   ToolHandlerContext,
 } from "./pi-embedded-subscribe.handlers.types.js";
+import {
+  handleToolExecutionEnd,
+  handleToolExecutionStart,
+} from "./pi-embedded-subscribe.handlers.tools.js";
 
 type ToolExecutionStartEvent = Extract<AgentEvent, { type: "tool_execution_start" }>;
 type ToolExecutionEndEvent = Extract<AgentEvent, { type: "tool_execution_end" }>;
@@ -45,6 +45,7 @@ function createTestContext(): {
       messagingToolSentMediaUrls: [],
       messagingToolSentTargets: [],
       successfulCronAdds: 0,
+      pendingFlushGate: null,
     },
     shouldEmitToolResult: () => false,
     shouldEmitToolOutput: () => false,
@@ -299,5 +300,152 @@ describe("messaging tool media URL tracking", () => {
 
     expect(ctx.state.messagingToolSentMediaUrls).toHaveLength(0);
     expect(ctx.state.pendingMessagingMediaUrls.has("tool-m3")).toBe(false);
+  });
+});
+
+describe("flush gate: tool_execution_end awaits pending flush from tool_execution_start", () => {
+  it("delays tool result emission until block-reply flush completes", async () => {
+    const order: string[] = [];
+    let resolveFlush!: () => void;
+    const flushPromise = new Promise<void>((resolve) => {
+      resolveFlush = resolve;
+    });
+
+    const { ctx } = createTestContext();
+    ctx.params.onBlockReplyFlush = () => {
+      order.push("flush-started");
+      return flushPromise.then(() => {
+        order.push("flush-completed");
+      });
+    };
+    // Use verbose output mode so emitToolOutput fires for any result text
+    ctx.shouldEmitToolResult = () => true;
+    ctx.shouldEmitToolOutput = () => true;
+    ctx.params.onToolResult = vi.fn();
+    ctx.emitToolOutput = (..._args: unknown[]) => {
+      order.push("tool-output-emitted");
+    };
+
+    // Fire tool_execution_start (sets the flush gate)
+    void handleToolExecutionStart(ctx, {
+      type: "tool_execution_start",
+      toolName: "screenshot",
+      toolCallId: "tool-gate-1",
+      args: {},
+    } as ToolExecutionStartEvent);
+
+    // Fire tool_execution_end before flush completes (simulates the race).
+    // Use content-block format so extractToolResultText returns text.
+    const endPromise = handleToolExecutionEnd(ctx, {
+      type: "tool_execution_end",
+      toolName: "screenshot",
+      toolCallId: "tool-gate-1",
+      isError: false,
+      result: { content: [{ type: "text", text: "screenshot taken" }] },
+    } as ToolExecutionEndEvent);
+
+    // Flush hasn't resolved yet — tool output should NOT have been emitted
+    await vi.waitFor(() => {
+      expect(order).toContain("flush-started");
+    });
+    expect(order).not.toContain("tool-output-emitted");
+
+    // Resolve the flush
+    resolveFlush();
+    await endPromise;
+
+    // Tool output should fire AFTER flush completed
+    expect(order.indexOf("flush-completed")).toBeLessThan(order.indexOf("tool-output-emitted"));
+  });
+
+  it("proceeds immediately when no flush is pending", async () => {
+    const { ctx } = createTestContext();
+    ctx.params.onBlockReplyFlush = undefined;
+
+    await handleToolExecutionStart(ctx, {
+      type: "tool_execution_start",
+      toolName: "bash",
+      toolCallId: "tool-no-gate",
+      args: { command: "echo hi" },
+    } as ToolExecutionStartEvent);
+
+    await handleToolExecutionEnd(ctx, {
+      type: "tool_execution_end",
+      toolName: "bash",
+      toolCallId: "tool-no-gate",
+      isError: false,
+      result: "hi",
+    } as ToolExecutionEndEvent);
+
+    // Gate should remain null when no flush callback is configured
+    expect(ctx.state.pendingFlushGate).toBeNull();
+  });
+
+  it("clears the gate after awaiting so subsequent tools are not blocked", async () => {
+    const { ctx } = createTestContext();
+    ctx.params.onBlockReplyFlush = () => Promise.resolve();
+
+    // First tool cycle
+    await handleToolExecutionStart(ctx, {
+      type: "tool_execution_start",
+      toolName: "bash",
+      toolCallId: "tool-clear-1",
+      args: {},
+    } as ToolExecutionStartEvent);
+
+    expect(ctx.state.pendingFlushGate).not.toBeNull();
+
+    await handleToolExecutionEnd(ctx, {
+      type: "tool_execution_end",
+      toolName: "bash",
+      toolCallId: "tool-clear-1",
+      isError: false,
+      result: "ok",
+    } as ToolExecutionEndEvent);
+
+    expect(ctx.state.pendingFlushGate).toBeNull();
+
+    // Second tool cycle — should not be blocked by stale gate
+    await handleToolExecutionStart(ctx, {
+      type: "tool_execution_start",
+      toolName: "bash",
+      toolCallId: "tool-clear-2",
+      args: {},
+    } as ToolExecutionStartEvent);
+    await handleToolExecutionEnd(ctx, {
+      type: "tool_execution_end",
+      toolName: "bash",
+      toolCallId: "tool-clear-2",
+      isError: false,
+      result: "ok",
+    } as ToolExecutionEndEvent);
+
+    expect(ctx.state.pendingFlushGate).toBeNull();
+  });
+
+  it("still proceeds when flush rejects", async () => {
+    const { ctx } = createTestContext();
+    ctx.params.onBlockReplyFlush = () => Promise.reject(new Error("flush failed"));
+
+    await handleToolExecutionStart(ctx, {
+      type: "tool_execution_start",
+      toolName: "bash",
+      toolCallId: "tool-reject-1",
+      args: {},
+    } as ToolExecutionStartEvent);
+
+    // Gate should be set (flush rejection is caught internally)
+    expect(ctx.state.pendingFlushGate).not.toBeNull();
+
+    // End should not throw despite flush rejection
+    await handleToolExecutionEnd(ctx, {
+      type: "tool_execution_end",
+      toolName: "bash",
+      toolCallId: "tool-reject-1",
+      isError: false,
+      result: "ok",
+    } as ToolExecutionEndEvent);
+
+    expect(ctx.state.pendingFlushGate).toBeNull();
   });
 });
