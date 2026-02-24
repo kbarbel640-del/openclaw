@@ -1306,8 +1306,8 @@ export const registerTelegramHandlers = ({
     const MAX_FILE_BYTES = 65_536;
     if (
       Buffer.byteLength(identityMd, "utf-8") > MAX_FILE_BYTES ||
-      Buffer.byteLength(soulMd,     "utf-8") > MAX_FILE_BYTES ||
-      Buffer.byteLength(userMd,     "utf-8") > MAX_FILE_BYTES
+      Buffer.byteLength(soulMd, "utf-8") > MAX_FILE_BYTES ||
+      Buffer.byteLength(userMd, "utf-8") > MAX_FILE_BYTES
     ) {
       await ctx.reply("❌ Soul wizard payload exceeds size limit — please try again.");
       return;
