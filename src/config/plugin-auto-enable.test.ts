@@ -12,8 +12,7 @@ describe("applyPluginAutoEnable", () => {
       env: {},
     });
 
-    expect(result.config.channels?.slack?.enabled).toBe(true);
-    expect(result.config.plugins?.entries?.slack).toBeUndefined();
+    expect(result.config.plugins?.entries?.slack?.enabled).toBe(true);
     expect(result.config.plugins?.allow).toEqual(["telegram", "slack"]);
     expect(result.changes.join("\n")).toContain("Slack configured, enabled automatically.");
   });
@@ -26,7 +25,7 @@ describe("applyPluginAutoEnable", () => {
       env: {},
     });
 
-    expect(result.config.channels?.slack?.enabled).toBe(true);
+    expect(result.config.plugins?.entries?.slack?.enabled).toBe(true);
     expect(result.config.plugins?.allow).toBeUndefined();
   });
 
@@ -61,7 +60,13 @@ describe("applyPluginAutoEnable", () => {
       env: {},
     });
 
-    expect(result.config.channels?.whatsapp?.enabled).toBe(true);
+    // enabled must be written to plugins.entries, not channels.whatsapp,
+    // because the WhatsApp channel schema uses additionalProperties:false
+    // and rejects unknown keys like "enabled".
+    expect(result.config.plugins?.entries?.whatsapp?.enabled).toBe(true);
+    expect(
+      (result.config.channels?.whatsapp as Record<string, unknown> | undefined)?.enabled,
+    ).toBeUndefined();
     const validated = validateConfigObject(result.config);
     expect(validated.ok).toBe(true);
   });
@@ -101,7 +106,7 @@ describe("applyPluginAutoEnable", () => {
       },
     });
 
-    expect(result.config.channels?.irc?.enabled).toBe(true);
+    expect(result.config.plugins?.entries?.irc?.enabled).toBe(true);
     expect(result.changes.join("\n")).toContain("IRC configured, enabled automatically.");
   });
 
@@ -185,7 +190,7 @@ describe("applyPluginAutoEnable", () => {
       });
 
       expect(result.config.plugins?.entries?.bluebubbles?.enabled).toBe(false);
-      expect(result.config.channels?.imessage?.enabled).toBe(true);
+      expect(result.config.plugins?.entries?.imessage?.enabled).toBe(true);
       expect(result.changes.join("\n")).toContain("iMessage configured, enabled automatically.");
     });
 
@@ -202,7 +207,7 @@ describe("applyPluginAutoEnable", () => {
       });
 
       expect(result.config.plugins?.entries?.bluebubbles?.enabled).toBeUndefined();
-      expect(result.config.channels?.imessage?.enabled).toBe(true);
+      expect(result.config.plugins?.entries?.imessage?.enabled).toBe(true);
     });
 
     it("auto-enables imessage when only imessage is configured", () => {
@@ -213,7 +218,7 @@ describe("applyPluginAutoEnable", () => {
         env: {},
       });
 
-      expect(result.config.channels?.imessage?.enabled).toBe(true);
+      expect(result.config.plugins?.entries?.imessage?.enabled).toBe(true);
       expect(result.changes.join("\n")).toContain("iMessage configured, enabled automatically.");
     });
   });

@@ -32,12 +32,16 @@ describe("enablePluginInConfig", () => {
     expect(result.reason).toBe("blocked by denylist");
   });
 
-  it("writes built-in channels to channels.<id>.enabled and plugins.entries", () => {
+  it("writes built-in channel enabled state to plugins.entries only", () => {
     const cfg: OpenClawConfig = {};
     const result = enablePluginInConfig(cfg, "telegram");
     expect(result.enabled).toBe(true);
-    expect(result.config.channels?.telegram?.enabled).toBe(true);
     expect(result.config.plugins?.entries?.telegram?.enabled).toBe(true);
+    // enabled must NOT be written to channels to avoid schema validation failures
+    // (e.g. WhatsApp uses additionalProperties:false and rejects unknown keys)
+    expect(
+      (result.config.channels as Record<string, unknown> | undefined)?.telegram,
+    ).toBeUndefined();
   });
 
   it("adds built-in channel id to allowlist when allowlist is configured", () => {
@@ -48,7 +52,7 @@ describe("enablePluginInConfig", () => {
     };
     const result = enablePluginInConfig(cfg, "telegram");
     expect(result.enabled).toBe(true);
-    expect(result.config.channels?.telegram?.enabled).toBe(true);
+    expect(result.config.plugins?.entries?.telegram?.enabled).toBe(true);
     expect(result.config.plugins?.allow).toEqual(["memory-core", "telegram"]);
   });
 
@@ -69,7 +73,6 @@ describe("enablePluginInConfig", () => {
     };
     const result = enablePluginInConfig(cfg, "telegram");
     expect(result.enabled).toBe(true);
-    expect(result.config.channels?.telegram?.enabled).toBe(true);
     expect(result.config.plugins?.entries?.telegram?.enabled).toBe(true);
   });
 });
