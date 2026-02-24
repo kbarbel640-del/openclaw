@@ -527,7 +527,8 @@ export async function modelsStatusCommand(
         ),
       );
     }
-    runtime.log(`- ${theme.heading(entry.provider)} ${bits.join(separator)}`);
+    const disabledTag = entry.disabled ? ` ${colorize(rich, theme.error, "(disabled)")}` : "";
+    runtime.log(`- ${theme.heading(entry.provider)}${disabledTag} ${bits.join(separator)}`);
   }
 
   if (missingProvidersInUse.length > 0) {

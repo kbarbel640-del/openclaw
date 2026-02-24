@@ -7,6 +7,7 @@ import {
   resolveProfileUnusableUntilForDisplay,
 } from "../../agents/auth-profiles.js";
 import { getCustomProviderApiKey, resolveEnvApiKey } from "../../agents/model-auth.js";
+import { normalizeProviderId } from "../../agents/model-selection.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { shortenHomePath } from "../../utils.js";
 import { maskApiKey } from "./list.format.js";
@@ -83,8 +84,22 @@ export function resolveProviderAuthOverview(params: {
     return { kind: "missing", detail: "missing" };
   })();
 
+  const disabled = (() => {
+    const providers = cfg.models?.providers;
+    if (!providers) {
+      return false;
+    }
+    for (const [key, providerCfg] of Object.entries(providers)) {
+      if (normalizeProviderId(key) === provider && providerCfg.enabled === false) {
+        return true;
+      }
+    }
+    return false;
+  })();
+
   return {
     provider,
+    ...(disabled ? { disabled: true } : {}),
     effective,
     profiles: {
       count: profiles.length,

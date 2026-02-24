@@ -18,6 +18,7 @@ export type ModelRow = {
 
 export type ProviderAuthOverview = {
   provider: string;
+  disabled?: boolean;
   effective: {
     kind: "profiles" | "env" | "models.json" | "missing";
     detail: string;
