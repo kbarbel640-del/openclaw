@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { saveSessionStore } from "../../config/sessions.js";
+import { withTempDir } from "../../test-utils/temp-dir.js";
 import {
   debugMention,
   isBotMentionedFromTargets,
@@ -28,15 +28,6 @@ const makeMsg = (overrides: Partial<WebInboundMsg>): WebInboundMsg =>
     sendMedia: async () => {},
     ...overrides,
   }) as WebInboundMsg;
-
-async function withTempDir<T>(prefix: string, run: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
-  try {
-    return await run(dir);
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true });
-  }
-}
 
 describe("isBotMentionedFromTargets", () => {
   const mentionCfg = { mentionRegexes: [/\bopenclaw\b/i] };
@@ -224,21 +215,6 @@ describe("web auto-reply util", () => {
   });
 
   describe("isLikelyWhatsAppCryptoError", () => {
-    it("returns false for non-matching reasons", () => {
-      expect(isLikelyWhatsAppCryptoError(new Error("boom"))).toBe(false);
-      expect(isLikelyWhatsAppCryptoError("boom")).toBe(false);
-      expect(isLikelyWhatsAppCryptoError({ message: "bad mac" })).toBe(false);
-    });
-
-    it("matches known Baileys crypto auth errors (string)", () => {
-      expect(
-        isLikelyWhatsAppCryptoError(
-          "baileys: unsupported state or unable to authenticate data (noise-handler)",
-        ),
-      ).toBe(true);
-      expect(isLikelyWhatsAppCryptoError("bad mac in aesDecryptGCM (baileys)")).toBe(true);
-    });
-
     it("matches known Baileys crypto auth errors (Error)", () => {
       const err = new Error("bad mac");
       err.stack = "at something\nat @whiskeysockets/baileys/noise-handler\n";
@@ -251,13 +227,40 @@ describe("web auto-reply util", () => {
       expect(isLikelyWhatsAppCryptoError(circular)).toBe(false);
     });
 
-    it("handles non-string reasons without throwing", () => {
-      expect(isLikelyWhatsAppCryptoError(null)).toBe(false);
-      expect(isLikelyWhatsAppCryptoError(123)).toBe(false);
-      expect(isLikelyWhatsAppCryptoError(true)).toBe(false);
-      expect(isLikelyWhatsAppCryptoError(123n)).toBe(false);
-      expect(isLikelyWhatsAppCryptoError(Symbol("bad mac"))).toBe(false);
-      expect(isLikelyWhatsAppCryptoError(function namedFn() {})).toBe(false);
-    });
+    const cases: Array<{ name: string; value: unknown; expected: boolean }> = [
+      { name: "returns false for non-matching Error", value: new Error("boom"), expected: false },
+      { name: "returns false for non-matching string", value: "boom", expected: false },
+      {
+        name: "returns false for bad-mac object without whatsapp/baileys markers",
+        value: { message: "bad mac" },
+        expected: false,
+      },
+      {
+        name: "matches known Baileys crypto auth errors (string, unsupported state)",
+        value: "baileys: unsupported state or unable to authenticate data (noise-handler)",
+        expected: true,
+      },
+      {
+        name: "matches known Baileys crypto auth errors (string, bad mac)",
+        value: "bad mac in aesDecryptGCM (baileys)",
+        expected: true,
+      },
+      { name: "handles null reason without throwing", value: null, expected: false },
+      { name: "handles number reason without throwing", value: 123, expected: false },
+      { name: "handles boolean reason without throwing", value: true, expected: false },
+      { name: "handles bigint reason without throwing", value: 123n, expected: false },
+      { name: "handles symbol reason without throwing", value: Symbol("bad mac"), expected: false },
+      {
+        name: "handles function reason without throwing",
+        value: function namedFn() {},
+        expected: false,
+      },
+    ];
+
+    for (const testCase of cases) {
+      it(testCase.name, () => {
+        expect(isLikelyWhatsAppCryptoError(testCase.value)).toBe(testCase.expected);
+      });
+    }
   });
 });
