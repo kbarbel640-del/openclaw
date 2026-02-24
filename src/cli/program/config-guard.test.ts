@@ -124,9 +124,7 @@ describe("ensureConfigReady", () => {
     const runtime = await runEnsureConfigReady(["gateway", "run"]);
 
     expect(loadConfigMock).toHaveBeenCalledTimes(1);
-    expect(runtime.error).toHaveBeenCalledWith(
-      expect.stringContaining("auto-repaired"),
-    );
+    expect(runtime.error).toHaveBeenCalledWith(expect.stringContaining("auto-repaired"));
     expect(runtime.exit).not.toHaveBeenCalled();
   });
 

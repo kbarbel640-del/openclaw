@@ -81,9 +81,7 @@ export async function ensureConfigReady(params: {
       if (!repairedSnapshot.exists || repairedSnapshot.valid) {
         const rich = isRich();
         const muted = (value: string) => colorize(rich, theme.muted, value);
-        params.runtime.error(
-          muted("Config auto-repaired from backup — continuing normally."),
-        );
+        params.runtime.error(muted("Config auto-repaired from backup — continuing normally."));
         return;
       }
     } catch {

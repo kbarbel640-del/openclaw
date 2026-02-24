@@ -707,9 +707,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     // Message formats vary by Zod version:
     //   v3: 'Unrecognized key(s) in object: \'key1\', \'key2\''
     //   v4: 'Unrecognized key: "key1"'
-    const match = issue.message.match(
-      /Unrecognized key(?:\(s\) in object)?:\s*(.+)/i,
-    );
+    const match = issue.message.match(/Unrecognized key(?:\(s\) in object)?:\s*(.+)/i);
     if (match) {
       const keys: string[] = [];
       for (const m of match[1].matchAll(/['"]([^'"]+)['"]/g)) {
@@ -732,21 +730,27 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     }
     for (const candidate of candidates) {
       try {
-        if (!deps.fs.existsSync(candidate)) continue;
+        if (!deps.fs.existsSync(candidate)) {
+          continue;
+        }
         const raw = deps.fs.readFileSync(candidate, "utf-8");
         const parsed = deps.json5.parse(raw);
         const { resolvedConfigRaw: resolvedConfig } = resolveConfigForRead(
           resolveConfigIncludesForRead(parsed, candidate, deps),
           deps.env,
         );
-        if (typeof resolvedConfig !== "object" || resolvedConfig === null) continue;
+        if (typeof resolvedConfig !== "object" || resolvedConfig === null) {
+          continue;
+        }
         // Use base validation (without plugin manifests) for backups.
         // Plugin-level diagnostics depend on runtime state (installed plugins,
         // workspace paths) and would incorrectly reject perfectly valid backups.
         const validated = validateConfigObject(resolvedConfig);
-        if (!validated.ok) continue;
+        if (!validated.ok) {
+          continue;
+        }
         return resolvedConfig as Record<string, unknown>;
-      } catch (err) {
+      } catch {
         continue;
       }
     }
@@ -765,7 +769,9 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     issues: Array<{ path: string; message: string }>,
   ): OpenClawConfig | null {
     const backupConfig = loadFirstValidBackupConfig();
-    if (!backupConfig) return null;
+    if (!backupConfig) {
+      return null;
+    }
 
     // Collect unique top-level keys that have errors.
     const brokenKeys = new Set<string>();
@@ -775,7 +781,9 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
     }
 
-    if (brokenKeys.size === 0) return null;
+    if (brokenKeys.size === 0) {
+      return null;
+    }
 
     // Patch: replace only the broken top-level keys with values from backup.
     const patched = { ...brokenConfig };
