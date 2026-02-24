@@ -1282,6 +1282,9 @@ export const registerTelegramHandlers = ({
   // ── Soul Wizard: receive identity files from the Mini App ──────────────────
   // https://github.com/monswag/soul-wizard
   bot.on("message:web_app_data", async (ctx) => {
+    if (shouldSkipUpdate(ctx)) {
+      return;
+    }
     const raw = ctx.message.web_app_data?.data;
     if (!raw) return;
 
