@@ -21,6 +21,9 @@ describe("ws connect policy", () => {
     expect(bypass.allowBypass).toBe(true);
     expect(bypass.device).toBeNull();
 
+    // dangerouslyDisableDeviceAuth applies to ALL clients, not just Control UI.
+    // Backend/API integrations authenticated via shared token need scopes
+    // without a paired device identity.
     const regular = resolveControlUiAuthPolicy({
       isControlUi: false,
       controlUiConfig: { dangerouslyDisableDeviceAuth: true },
@@ -32,8 +35,8 @@ describe("ws connect policy", () => {
         nonce: "nonce-2",
       },
     });
-    expect(regular.allowBypass).toBe(false);
-    expect(regular.device?.id).toBe("dev-2");
+    expect(regular.allowBypass).toBe(true);
+    expect(regular.device).toBeNull();
   });
 
   test("evaluates missing-device decisions", () => {

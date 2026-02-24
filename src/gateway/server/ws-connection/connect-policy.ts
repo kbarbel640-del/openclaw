@@ -19,10 +19,15 @@ export function resolveControlUiAuthPolicy(params: {
     | undefined;
   deviceRaw: ConnectParams["device"] | null | undefined;
 }): ControlUiAuthPolicy {
+  // `allowInsecureAuth` is browser-specific (localhost without HTTPS) — only for Control UI.
   const allowInsecureAuthConfigured =
     params.isControlUi && params.controlUiConfig?.allowInsecureAuth === true;
+  // `dangerouslyDisableDeviceAuth` disables device-based auth entirely.
+  // This applies to ALL clients (not just Control UI) so that backend/API
+  // integrations authenticated via shared token can connect with scopes
+  // without needing a paired device identity.
   const dangerouslyDisableDeviceAuth =
-    params.isControlUi && params.controlUiConfig?.dangerouslyDisableDeviceAuth === true;
+    params.controlUiConfig?.dangerouslyDisableDeviceAuth === true;
   return {
     allowInsecureAuthConfigured,
     dangerouslyDisableDeviceAuth,
