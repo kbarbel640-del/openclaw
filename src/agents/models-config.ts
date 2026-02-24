@@ -50,7 +50,7 @@ function mergeProviderModels(implicit: ProviderConfig, explicit: ProviderConfig)
     return {
       ...explicitModel,
       input: implicitModel.input,
-      reasoning: implicitModel.reasoning,
+      reasoning: explicitModel.reasoning ?? implicitModel.reasoning,
       contextWindow: implicitModel.contextWindow,
       maxTokens: implicitModel.maxTokens,
     };
