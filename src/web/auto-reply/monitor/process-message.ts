@@ -324,7 +324,7 @@ export async function processMessage(params: {
     OriginatingTo: params.msg.from,
   });
 
-  if (dmRouteTarget) {
+  if (dmRouteTarget && params.route.sessionKey === params.route.mainSessionKey) {
     updateLastRouteInBackground({
       cfg: params.cfg,
       backgroundTasks: params.backgroundTasks,

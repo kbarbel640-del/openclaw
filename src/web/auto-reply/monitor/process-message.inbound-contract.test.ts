@@ -230,3 +230,76 @@ describe("web processMessage inbound contract", () => {
     expect(groupHistories.get("whatsapp:default:group:123@g.us") ?? []).toHaveLength(0);
   });
 });
+
+// --- dmScope / updateLastRoute guard tests (fix for #24912) ---
+
+import { updateLastRouteInBackground } from "./last-route.js";
+
+describe("web processMessage dmScope updateLastRoute guard", () => {
+  beforeEach(async () => {
+    capturedCtx = undefined;
+    capturedDispatchParams = undefined;
+    backgroundTasks = new Set();
+    sessionDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-process-message-dm-"));
+    sessionStorePath = path.join(sessionDir, "sessions.json");
+    vi.mocked(updateLastRouteInBackground).mockClear();
+  });
+
+  afterEach(async () => {
+    await Promise.allSettled(Array.from(backgroundTasks));
+    if (sessionDir) {
+      await fs.rm(sessionDir, { recursive: true, force: true });
+      sessionDir = undefined;
+    }
+  });
+
+  it("calls updateLastRouteInBackground for DMs when sessionKey equals mainSessionKey", async () => {
+    const args = makeProcessMessageArgs({
+      routeSessionKey: "agent:main:whatsapp:direct:+1000",
+      groupHistoryKey: "+1000",
+      msg: {
+        id: "msg1",
+        from: "+1000",
+        to: "+2000",
+        chatType: "direct",
+        body: "hello",
+        senderE164: "+1000",
+      },
+    });
+    // Ensure sessionKey === mainSessionKey (no dmScope isolation)
+    args.route = {
+      ...args.route,
+      sessionKey: "agent:main:whatsapp:direct:+1000",
+      mainSessionKey: "agent:main:whatsapp:direct:+1000",
+    };
+
+    await processMessage(args);
+
+    expect(updateLastRouteInBackground).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips updateLastRouteInBackground for DMs when dmScope isolates session key", async () => {
+    const args = makeProcessMessageArgs({
+      routeSessionKey: "agent:main:whatsapp:dm:+1000:peer:+3000",
+      groupHistoryKey: "+3000",
+      msg: {
+        id: "msg2",
+        from: "+3000",
+        to: "+2000",
+        chatType: "direct",
+        body: "hello",
+        senderE164: "+3000",
+      },
+    });
+    // Simulate dmScope isolation: sessionKey differs from mainSessionKey
+    args.route = {
+      ...args.route,
+      sessionKey: "agent:main:whatsapp:dm:+1000:peer:+3000",
+      mainSessionKey: "agent:main:whatsapp:direct:+1000",
+    };
+
+    await processMessage(args);
+
+    expect(updateLastRouteInBackground).not.toHaveBeenCalled();
+  });
+});
