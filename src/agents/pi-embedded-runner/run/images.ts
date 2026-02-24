@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractTextFromMessage } from "../../../tui/tui-formatters.js";
 import { resolveUserPath } from "../../../utils.js";
-import { loadWebMedia } from "../../../web/media.js";
+import { getDefaultLocalRoots, loadWebMedia } from "../../../web/media.js";
 import { assertSandboxPath } from "../../sandbox-paths.js";
 import { sanitizeImageBlocks } from "../../tool-images.js";
 import { log } from "../logger.js";
@@ -228,8 +228,11 @@ export async function loadImageFromRef(
       }
     }
 
-    // loadWebMedia handles local file paths (including file:// URLs)
-    const media = await loadWebMedia(targetPath, options?.maxBytes);
+    // loadWebMedia handles local file paths (including file:// URLs).
+    // Pass the workspace dir as an allowed local root so the workspace-* guard
+    // in assertLocalMediaAllowed does not block the agent's own workspace.
+    const localRoots = [...getDefaultLocalRoots(), workspaceDir];
+    const media = await loadWebMedia(targetPath, options?.maxBytes, { localRoots });
 
     if (media.kind !== "image") {
       log.debug(`Native image: not an image file: ${targetPath} (got ${media.kind})`);
