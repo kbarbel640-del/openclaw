@@ -37,6 +37,7 @@ import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
 import type { SpawnSubagentMode } from "./subagent-spawn.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
 import { sanitizeTextContent, extractAssistantText } from "./tools/sessions-helpers.js";
+import { isAnnounceSkip } from "./tools/sessions-send-helpers.js";
 
 const FAST_TEST_MODE = process.env.OPENCLAW_TEST_FAST === "1";
 const FAST_TEST_RETRY_INTERVAL_MS = 8;
@@ -72,6 +73,9 @@ function buildCompletionDeliveryMessage(params: {
   outcome?: SubagentRunOutcome;
 }): string {
   const findingsText = params.findings.trim();
+  if (isAnnounceSkip(findingsText)) {
+    return "";
+  }
   const hasFindings = findingsText.length > 0 && findingsText !== "(no output)";
   const header = (() => {
     if (params.outcome?.status === "error") {
@@ -1141,6 +1145,15 @@ export async function runSubagentAnnounceFlow(params: {
     const subagentName = resolveAgentIdFromSessionKey(params.childSessionKey);
     const announceSessionId = childSessionId || "unknown";
     const findings = reply || "(no output)";
+
+    // When the subagent replies exactly "ANNOUNCE_SKIP", suppress all
+    // delivery (both direct completion and agent-routed trigger messages).
+    // The a2a `sessions_send` path already checks `isAnnounceSkip()`, but
+    // the `sessions_spawn` direct completion path was missing this guard.
+    if (isAnnounceSkip(findings)) {
+      return true;
+    }
+
     let completionMessage = "";
     let triggerMessage = "";
 

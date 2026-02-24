@@ -1720,4 +1720,68 @@ describe("subagent announce formatting", () => {
       expect(call?.params?.channel, testCase.name).toBe(testCase.expectedChannel);
     }
   });
+
+  it("suppresses all delivery when subagent replies exactly ANNOUNCE_SKIP", async () => {
+    sessionStore = {
+      "agent:main:subagent:test": {
+        sessionId: "child-session-skip",
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2,
+      },
+      "agent:main:main": {
+        sessionId: "requester-session-skip",
+      },
+    };
+    readLatestAssistantReplyMock.mockResolvedValue("ANNOUNCE_SKIP");
+
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-skip",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      requesterOrigin: { channel: "discord", to: "channel:12345", accountId: "acct-1" },
+      ...defaultOutcomeAnnounce,
+      expectsCompletionMessage: true,
+    });
+
+    // Should return true (handled) but never send or inject any message
+    expect(didAnnounce).toBe(true);
+    expect(sendSpy).not.toHaveBeenCalled();
+    expect(agentSpy).not.toHaveBeenCalled();
+  });
+
+  it("suppresses delivery for ANNOUNCE_SKIP in non-completion mode", async () => {
+    readLatestAssistantReplyMock.mockResolvedValue("ANNOUNCE_SKIP");
+
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-skip-non-completion",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      ...defaultOutcomeAnnounce,
+    });
+
+    expect(didAnnounce).toBe(true);
+    expect(sendSpy).not.toHaveBeenCalled();
+    expect(agentSpy).not.toHaveBeenCalled();
+  });
+
+  it("suppresses delivery for padded ANNOUNCE_SKIP with surrounding whitespace", async () => {
+    readLatestAssistantReplyMock.mockResolvedValue("  ANNOUNCE_SKIP  \n");
+
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-skip-padded",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      requesterOrigin: { channel: "discord", to: "channel:12345", accountId: "acct-1" },
+      ...defaultOutcomeAnnounce,
+      expectsCompletionMessage: true,
+    });
+
+    expect(didAnnounce).toBe(true);
+    expect(sendSpy).not.toHaveBeenCalled();
+    expect(agentSpy).not.toHaveBeenCalled();
+  });
 });
