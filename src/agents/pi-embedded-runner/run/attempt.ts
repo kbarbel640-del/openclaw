@@ -16,6 +16,7 @@ import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 import type {
   PluginHookAgentContext,
+  PluginHookAgentEndMessage,
   PluginHookBeforeAgentStartResult,
   PluginHookBeforePromptBuildResult,
 } from "../../../plugins/types.js";
@@ -226,6 +227,62 @@ export function resolvePromptModeForSession(sessionKey?: string): "minimal" | "f
     return "full";
   }
   return isSubagentSessionKey(sessionKey) ? "minimal" : "full";
+}
+
+function collectAgentHookMessageText(value: unknown): string {
+  if (!value) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => collectAgentHookMessageText(entry).trim())
+      .filter((entry) => entry.length > 0);
+    return parts.join("\n");
+  }
+  if (typeof value !== "object") {
+    return "";
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.text === "string") {
+    return record.text;
+  }
+  if (typeof record.content === "string") {
+    return record.content;
+  }
+  if (Array.isArray(record.content)) {
+    return collectAgentHookMessageText(record.content);
+  }
+  return "";
+}
+
+export function serializeAgentEndHookMessages(
+  messages: AgentMessage[],
+): PluginHookAgentEndMessage[] {
+  return messages.map((message) => {
+    if (!message || typeof message !== "object") {
+      return message;
+    }
+    const messageRecord = message as Record<string, unknown>;
+    const content = messageRecord.content;
+    if (typeof content === "string" || content === undefined) {
+      return { ...messageRecord };
+    }
+    if (Array.isArray(content)) {
+      return {
+        ...messageRecord,
+        content: collectAgentHookMessageText(content),
+        contentBlocks: content,
+      };
+    }
+    return {
+      ...messageRecord,
+      content: collectAgentHookMessageText(content),
+      contentRaw: content,
+    };
+  });
 }
 
 function summarizeMessagePayload(msg: AgentMessage): { textChars: number; imageBlocks: number } {
@@ -1272,10 +1329,11 @@ export async function runEmbeddedAttempt(
         // This is fire-and-forget, so we don't await
         // Run even on compaction timeout so plugins can log/cleanup
         if (hookRunner?.hasHooks("agent_end")) {
+          const hookMessages = serializeAgentEndHookMessages(messagesSnapshot);
           hookRunner
             .runAgentEnd(
               {
-                messages: messagesSnapshot,
+                messages: hookMessages,
                 success: !aborted && !promptError,
                 error: promptError ? describeUnknownError(promptError) : undefined,
                 durationMs: Date.now() - promptStartedAt,

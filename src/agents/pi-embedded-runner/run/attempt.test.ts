@@ -3,6 +3,7 @@ import type { ImageContent } from "@mariozechner/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import {
   injectHistoryImagesIntoMessages,
+  serializeAgentEndHookMessages,
   resolvePromptBuildHookResult,
   resolvePromptModeForSession,
 } from "./attempt.js";
@@ -116,5 +117,51 @@ describe("resolvePromptModeForSession", () => {
   it("uses full mode for cron sessions", () => {
     expect(resolvePromptModeForSession("agent:main:cron:job-1")).toBe("full");
     expect(resolvePromptModeForSession("agent:main:cron:job-1:run:run-abc")).toBe("full");
+  });
+});
+
+describe("serializeAgentEndHookMessages", () => {
+  it("converts content blocks to string content and preserves raw blocks", () => {
+    const messages: AgentMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "first line" },
+          { type: "toolCall", name: "read", arguments: { path: "/tmp/x" } },
+          { type: "text", text: "second line" },
+        ],
+      } as unknown as AgentMessage,
+    ];
+
+    const serialized = serializeAgentEndHookMessages(messages) as Array<{
+      content?: unknown;
+      contentBlocks?: unknown;
+    }>;
+
+    expect(serialized[0]?.content).toBe("first line\nsecond line");
+    expect(Array.isArray(serialized[0]?.contentBlocks)).toBe(true);
+    expect((messages[0] as { content?: unknown }).content).toEqual([
+      { type: "text", text: "first line" },
+      { type: "toolCall", name: "read", arguments: { path: "/tmp/x" } },
+      { type: "text", text: "second line" },
+    ]);
+  });
+
+  it("avoids [object Object] for non-string content payloads", () => {
+    const contentPayload = { text: "nested text" };
+    const messages: AgentMessage[] = [
+      {
+        role: "user",
+        content: contentPayload,
+      } as unknown as AgentMessage,
+    ];
+
+    const serialized = serializeAgentEndHookMessages(messages) as Array<{
+      content?: unknown;
+      contentRaw?: unknown;
+    }>;
+
+    expect(serialized[0]?.content).toBe("nested text");
+    expect(serialized[0]?.contentRaw).toEqual(contentPayload);
   });
 });
