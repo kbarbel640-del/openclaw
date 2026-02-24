@@ -33,9 +33,12 @@ describe("exec approvals allowlist matching", () => {
 
   it("handles wildcard/path matching semantics", () => {
     const cases: Array<{ entries: ExecAllowlistEntry[]; expectedPattern: string | null }> = [
-      { entries: [{ pattern: "RG" }], expectedPattern: null },
+      { entries: [{ pattern: "RG" }], expectedPattern: "RG" },
       { entries: [{ pattern: "/opt/**/rg" }], expectedPattern: "/opt/**/rg" },
       { entries: [{ pattern: "/opt/*/rg" }], expectedPattern: null },
+      { entries: [{ pattern: "*" }], expectedPattern: "*" },
+      { entries: [{ pattern: "r*" }], expectedPattern: "r*" },
+      { entries: [{ pattern: "ls" }], expectedPattern: null },
     ];
     for (const testCase of cases) {
       const match = matchAllowlist(testCase.entries, baseResolution);

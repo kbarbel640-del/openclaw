@@ -227,6 +227,7 @@ export function matchAllowlist(
     return null;
   }
   const resolvedPath = resolution.resolvedPath;
+  const executableName = resolution.executableName;
   for (const entry of entries) {
     const pattern = entry.pattern?.trim();
     if (!pattern) {
@@ -234,6 +235,9 @@ export function matchAllowlist(
     }
     const hasPath = pattern.includes("/") || pattern.includes("\\") || pattern.includes("~");
     if (!hasPath) {
+      if (matchesPattern(pattern, executableName)) {
+        return entry;
+      }
       continue;
     }
     if (matchesPattern(pattern, resolvedPath)) {
