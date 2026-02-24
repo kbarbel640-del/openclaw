@@ -490,6 +490,20 @@ export function patchToolSchemaForClaudeCompatibility(tool: AnyAgentTool): AnyAg
   };
 }
 
+export function patchEditToolDocumentation(tool: AnyAgentTool): AnyAgentTool {
+  return {
+    ...tool,
+    description:
+      "edit - Make precise, surgical changes to files\n\n" +
+      "Use edit() when you know exactly what text to replace.\n" +
+      "Use write() for file-wide changes or when you're uncertain about exact matches.\n\n" +
+      "Required params:\n" +
+      "- oldText: Exact text to find (must match exactly, including whitespace)\n" +
+      "- newText: Replacement text\n" +
+      "- path: File path",
+  };
+}
+
 export function assertRequiredParams(
   record: Record<string, unknown> | undefined,
   groups: readonly RequiredParamGroup[],
@@ -522,6 +536,22 @@ export function assertRequiredParams(
   }
 
   if (missingLabels.length > 0) {
+    if (toolName === "edit" && missingLabels.some((l) => l.includes("newText"))) {
+      throw new Error(
+        JSON.stringify(
+          {
+            error: "Missing required parameter: 'newText'",
+            hint: "The edit tool requires both 'oldText' (what to find) and 'newText' (what to replace it with). For file-wide changes, consider using 'write' instead.",
+            suggestedParams: {
+              oldText: "<exact text to find>",
+              newText: "<replacement text>",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+    }
     const joined = missingLabels.join(", ");
     const noun = missingLabels.length === 1 ? "parameter" : "parameters";
     throw parameterValidationError(`Missing required ${noun}: ${joined}`);
