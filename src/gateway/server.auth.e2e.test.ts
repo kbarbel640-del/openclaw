@@ -59,12 +59,12 @@ describe("gateway server auth/connect", () => {
     let server: Awaited<ReturnType<typeof startGatewayServer>>;
     let port: number;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
       port = await getFreePort();
       server = await startGatewayServer(port);
     });
 
-    afterAll(async () => {
+    afterEach(async () => {
       await server.close();
     });
 
@@ -473,6 +473,97 @@ describe("gateway server auth/connect", () => {
       const ws = await openTailscaleWs(port);
       const res = await connectReq(ws, { token: "secret", device: null });
       expect(res.ok).toBe(true);
+      ws.close();
+    });
+  });
+
+  describe("trusted-proxy auth", () => {
+    let server: Awaited<ReturnType<typeof startGatewayServer>>;
+    let port: number;
+
+    beforeEach(async () => {
+      testState.gatewayAuth = {
+        mode: "trusted-proxy",
+        trustedProxy: { userHeader: "x-openclaw-user" },
+      };
+      const { writeConfigFile } = await import("../config/config.js");
+      await writeConfigFile({
+        gateway: {
+          trustedProxies: ["127.0.0.1"],
+        },
+        // oxlint-disable-next-line typescript/no-explicit-any
+      } as any);
+      port = await getFreePort();
+      server = await startGatewayServer(port);
+    });
+
+    afterEach(async () => {
+      await server.close();
+    });
+
+    test("allows control ui without device identity via trusted proxy auth", async () => {
+      const ws = await openWs(port, {
+        origin: originForPort(port),
+        "x-openclaw-user": "alice",
+      });
+      const res = await connectReq(ws, {
+        skipDefaultAuth: true,
+        device: null,
+        client: {
+          id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+          version: "1.0.0",
+          platform: "web",
+          mode: GATEWAY_CLIENT_MODES.WEBCHAT,
+        },
+      });
+      expect(res.ok).toBe(true);
+      ws.close();
+    });
+
+    test("rejects trusted-proxy auth from untrusted proxy", async () => {
+      const { writeConfigFile } = await import("../config/config.js");
+      await writeConfigFile({
+        gateway: {
+          trustedProxies: ["203.0.113.10"],
+        },
+        // oxlint-disable-next-line typescript/no-explicit-any
+      } as any);
+
+      const ws = await openWs(port, {
+        origin: originForPort(port),
+        "x-openclaw-user": "alice",
+      });
+      const res = await connectReq(ws, {
+        skipDefaultAuth: true,
+        device: null,
+        client: {
+          id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+          version: "1.0.0",
+          platform: "web",
+          mode: GATEWAY_CLIENT_MODES.WEBCHAT,
+        },
+      });
+      expect(res.ok).toBe(false);
+      expect(res.error?.message ?? "").toContain("trusted proxy");
+      ws.close();
+    });
+
+    test("rejects trusted-proxy auth when user header is missing", async () => {
+      const ws = await openWs(port, {
+        origin: originForPort(port),
+      });
+      const res = await connectReq(ws, {
+        skipDefaultAuth: true,
+        device: null,
+        client: {
+          id: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+          version: "1.0.0",
+          platform: "web",
+          mode: GATEWAY_CLIENT_MODES.WEBCHAT,
+        },
+      });
+      expect(res.ok).toBe(false);
+      expect(res.error?.message ?? "").toContain("user header");
       ws.close();
     });
   });

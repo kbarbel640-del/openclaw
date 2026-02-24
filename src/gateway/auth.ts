@@ -8,18 +8,22 @@ import {
   parseForwardedForClientIp,
   resolveGatewayClientIp,
 } from "./net.js";
-export type ResolvedGatewayAuthMode = "token" | "password";
+export type ResolvedGatewayAuthMode = "token" | "password" | "trusted-proxy";
+export type ResolvedGatewayTrustedProxy = {
+  userHeader: string;
+};
 
 export type ResolvedGatewayAuth = {
   mode: ResolvedGatewayAuthMode;
   token?: string;
   password?: string;
+  trustedProxy?: ResolvedGatewayTrustedProxy;
   allowTailscale: boolean;
 };
 
 export type GatewayAuthResult = {
   ok: boolean;
-  method?: "token" | "password" | "tailscale" | "device-token";
+  method?: "token" | "password" | "tailscale" | "device-token" | "trusted-proxy";
   user?: string;
   reason?: string;
 };
@@ -199,10 +203,13 @@ export function resolveGatewayAuth(params: {
   const mode: ResolvedGatewayAuth["mode"] = authConfig.mode ?? (password ? "password" : "token");
   const allowTailscale =
     authConfig.allowTailscale ?? (params.tailscaleMode === "serve" && mode !== "password");
+  const trustedProxyUserHeader =
+    authConfig.trustedProxy?.userHeader?.trim().toLowerCase() || "x-forwarded-user";
   return {
     mode,
     token,
     password,
+    trustedProxy: mode === "trusted-proxy" ? { userHeader: trustedProxyUserHeader } : undefined,
     allowTailscale,
   };
 }
@@ -271,6 +278,19 @@ export async function authorizeGatewayConnect(params: {
       return { ok: false, reason: "password_mismatch" };
     }
     return { ok: true, method: "password" };
+  }
+
+  if (auth.mode === "trusted-proxy") {
+    if (!isTrustedProxyAddress(req?.socket?.remoteAddress, trustedProxies)) {
+      return { ok: false, reason: "trusted_proxy_untrusted_proxy" };
+    }
+    const headerName = auth.trustedProxy?.userHeader ?? "x-forwarded-user";
+    const userHeaderValue = headerValue(req?.headers?.[headerName]);
+    const user = typeof userHeaderValue === "string" ? userHeaderValue.trim() : "";
+    if (!user) {
+      return { ok: false, reason: "trusted_proxy_user_missing" };
+    }
+    return { ok: true, method: "trusted-proxy", user };
   }
 
   return { ok: false, reason: "unauthorized" };

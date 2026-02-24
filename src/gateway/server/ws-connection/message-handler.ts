@@ -117,6 +117,10 @@ function formatGatewayAuthFailureMessage(params: {
       return "unauthorized: tailscale identity check failed (use Tailscale Serve auth or gateway token/password)";
     case "tailscale_user_mismatch":
       return "unauthorized: tailscale identity mismatch (use Tailscale Serve auth or gateway token/password)";
+    case "trusted_proxy_untrusted_proxy":
+      return "unauthorized: request did not come from a trusted proxy (set gateway.trustedProxies)";
+    case "trusted_proxy_user_missing":
+      return "unauthorized: trusted proxy user header missing (set gateway.auth.trustedProxy.userHeader and forward it)";
     default:
       break;
   }
@@ -414,6 +418,7 @@ export function attachGatewayWsMessageHandler(params: {
         let authOk = authResult.ok;
         let authMethod =
           authResult.method ?? (resolvedAuth.mode === "password" ? "password" : "token");
+        const trustedProxyAuthOk = authResult.ok && authResult.method === "trusted-proxy";
         const sharedAuthResult = hasSharedAuth
           ? await authorizeGatewayConnect({
               auth: { ...resolvedAuth, allowTailscale: false },
@@ -460,9 +465,9 @@ export function attachGatewayWsMessageHandler(params: {
           close(1008, truncateCloseReason(authMessage));
         };
         if (!device) {
-          const canSkipDevice = sharedAuthOk;
+          const canSkipDevice = sharedAuthOk || trustedProxyAuthOk;
 
-          if (isControlUi && !allowControlUiBypass) {
+          if (isControlUi && !allowControlUiBypass && !trustedProxyAuthOk) {
             const errorMessage = "control ui requires HTTPS or localhost (secure context)";
             setHandshakeState("failed");
             setCloseCause("control-ui-insecure-auth", {

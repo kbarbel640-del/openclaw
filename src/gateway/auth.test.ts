@@ -98,4 +98,62 @@ describe("gateway auth", () => {
     expect(res.method).toBe("tailscale");
     expect(res.user).toBe("peter");
   });
+
+  it("authorizes trusted-proxy mode using a trusted proxy user header", async () => {
+    const res = await authorizeGatewayConnect({
+      auth: {
+        mode: "trusted-proxy",
+        trustedProxy: { userHeader: "x-openclaw-user" },
+        allowTailscale: false,
+      },
+      connectAuth: null,
+      trustedProxies: ["127.0.0.1"],
+      req: {
+        socket: { remoteAddress: "127.0.0.1" },
+        headers: { "x-openclaw-user": "alice" },
+      } as never,
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.method).toBe("trusted-proxy");
+    expect(res.user).toBe("alice");
+  });
+
+  it("rejects trusted-proxy mode when user header is missing", async () => {
+    const res = await authorizeGatewayConnect({
+      auth: {
+        mode: "trusted-proxy",
+        trustedProxy: { userHeader: "x-openclaw-user" },
+        allowTailscale: false,
+      },
+      connectAuth: null,
+      trustedProxies: ["127.0.0.1"],
+      req: {
+        socket: { remoteAddress: "127.0.0.1" },
+        headers: {},
+      } as never,
+    });
+
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("trusted_proxy_user_missing");
+  });
+
+  it("rejects trusted-proxy mode when proxy IP is not trusted", async () => {
+    const res = await authorizeGatewayConnect({
+      auth: {
+        mode: "trusted-proxy",
+        trustedProxy: { userHeader: "x-openclaw-user" },
+        allowTailscale: false,
+      },
+      connectAuth: null,
+      trustedProxies: ["127.0.0.1"],
+      req: {
+        socket: { remoteAddress: "203.0.113.10" },
+        headers: { "x-openclaw-user": "alice" },
+      } as never,
+    });
+
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("trusted_proxy_untrusted_proxy");
+  });
 });

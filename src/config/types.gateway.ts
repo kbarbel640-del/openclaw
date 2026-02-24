@@ -76,7 +76,7 @@ export type GatewayControlUiConfig = {
   dangerouslyDisableDeviceAuth?: boolean;
 };
 
-export type GatewayAuthMode = "token" | "password";
+export type GatewayAuthMode = "token" | "password" | "trusted-proxy";
 
 export type GatewayAuthConfig = {
   /** Authentication mode for Gateway connections. Defaults to token when set. */
@@ -85,6 +85,11 @@ export type GatewayAuthConfig = {
   token?: string;
   /** Shared password for password mode (consider env instead). */
   password?: string;
+  /** Trusted reverse-proxy auth settings (gateway.auth.mode=trusted-proxy). */
+  trustedProxy?: {
+    /** Header that contains the authenticated username (default: x-forwarded-user). */
+    userHeader?: string;
+  };
   /** Allow Tailscale identity headers when serve mode is enabled. */
   allowTailscale?: boolean;
 };
