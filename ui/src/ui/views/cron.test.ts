@@ -158,6 +158,27 @@ describe("cron view", () => {
     expect(container.textContent).toContain("Invalid payload");
   });
 
+  it("renders whitespace-only systemEvent payload as invalid", () => {
+    const container = document.createElement("div");
+    const malformedSystemJob = {
+      ...createJob("job-malformed-system"),
+      name: "Malformed system payload",
+      payload: { kind: "systemEvent", text: "   " },
+    } as unknown as CronJob;
+
+    render(
+      renderCron(
+        createProps({
+          jobs: [malformedSystemJob],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Malformed system payload");
+    expect(container.textContent).toContain("Invalid payload");
+  });
+
   it("marks the selected job and keeps History button to a single call", () => {
     const container = document.createElement("div");
     const onLoadRuns = vi.fn();

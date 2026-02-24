@@ -104,6 +104,38 @@ describe("CronService", () => {
     });
   });
 
+  it("keeps job unchanged when update payload validation fails", async () => {
+    await withCronService(true, async ({ cron }) => {
+      const atMs = Date.parse("2025-12-13T00:00:01.000Z");
+      const job = await cron.add({
+        name: "atomic update payload reject",
+        enabled: true,
+        schedule: { kind: "at", at: new Date(atMs).toISOString() },
+        sessionTarget: "isolated",
+        wakeMode: "now",
+        payload: { kind: "agentTurn", message: "hello" },
+      });
+
+      await expect(
+        cron.update(job.id, {
+          name: "should-not-apply",
+          enabled: false,
+          payload: { kind: "agentTurn", message: "   " },
+        }),
+      ).rejects.toThrow('cron.update payload.kind="agentTurn" requires non-empty message');
+
+      const jobs = await cron.list({ includeDisabled: true });
+      const unchanged = jobs.find((entry) => entry.id === job.id);
+      expect(unchanged).toBeDefined();
+      expect(unchanged?.name).toBe("atomic update payload reject");
+      expect(unchanged?.enabled).toBe(true);
+      expect(unchanged?.payload.kind).toBe("agentTurn");
+      if (unchanged?.payload.kind === "agentTurn") {
+        expect(unchanged.payload.message).toBe("hello");
+      }
+    });
+  });
+
   it("does not schedule timers when cron is disabled", async () => {
     await withCronService(false, async ({ cron, enqueueSystemEvent, requestHeartbeatNow }) => {
       const atMs = Date.parse("2025-12-13T00:00:01.000Z");

@@ -299,9 +299,10 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
     warnIfDisabled(state, "update");
     await ensureLoaded(state, { skipRecompute: true });
     const job = findJobOrThrow(state, id);
+    const draft = structuredClone(job);
     const now = state.deps.nowMs();
     try {
-      applyJobPatch(job, patch);
+      applyJobPatch(draft, patch);
     } catch (err) {
       maybeLogPayloadValidationRejected({
         state,
@@ -311,18 +312,18 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
       });
       throw err;
     }
-    if (job.schedule.kind === "every") {
-      const anchor = job.schedule.anchorMs;
+    if (draft.schedule.kind === "every") {
+      const anchor = draft.schedule.anchorMs;
       if (typeof anchor !== "number" || !Number.isFinite(anchor)) {
         const patchSchedule = patch.schedule;
         const fallbackAnchorMs =
           patchSchedule?.kind === "every"
             ? now
-            : typeof job.createdAtMs === "number" && Number.isFinite(job.createdAtMs)
-              ? job.createdAtMs
+            : typeof draft.createdAtMs === "number" && Number.isFinite(draft.createdAtMs)
+              ? draft.createdAtMs
               : now;
-        job.schedule = {
-          ...job.schedule,
+        draft.schedule = {
+          ...draft.schedule,
           anchorMs: Math.max(0, Math.floor(fallbackAnchorMs)),
         };
       }
@@ -330,23 +331,24 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
     const scheduleChanged = patch.schedule !== undefined;
     const enabledChanged = patch.enabled !== undefined;
 
-    job.updatedAtMs = now;
+    draft.updatedAtMs = now;
     if (scheduleChanged || enabledChanged) {
-      if (job.enabled) {
-        job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+      if (draft.enabled) {
+        draft.state.nextRunAtMs = computeJobNextRunAtMs(draft, now);
       } else {
-        job.state.nextRunAtMs = undefined;
-        job.state.runningAtMs = undefined;
+        draft.state.nextRunAtMs = undefined;
+        draft.state.runningAtMs = undefined;
       }
-    } else if (job.enabled) {
+    } else if (draft.enabled) {
       // Non-schedule edits should not mutate other jobs, but still repair a
       // missing/corrupt nextRunAtMs for the updated job.
-      const nextRun = job.state.nextRunAtMs;
+      const nextRun = draft.state.nextRunAtMs;
       if (typeof nextRun !== "number" || !Number.isFinite(nextRun)) {
-        job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+        draft.state.nextRunAtMs = computeJobNextRunAtMs(draft, now);
       }
     }
 
+    Object.assign(job, draft);
     await persist(state);
     armTimer(state);
     emit(state, {

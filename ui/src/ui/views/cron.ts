@@ -1327,7 +1327,9 @@ function renderJobPayload(job: CronJob) {
     const systemText = typeof normalizedPayload.text === "string" ? normalizedPayload.text : "";
     return html`<div class="cron-job-detail">
       <span class="cron-job-detail-label">System</span>
-      <span class="muted cron-job-detail-value">${systemText || "Invalid payload"}</span>
+      <span class="muted cron-job-detail-value">
+        ${systemText.trim() ? systemText : "Invalid payload"}
+      </span>
     </div>`;
   }
 
