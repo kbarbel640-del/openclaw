@@ -100,7 +100,7 @@ describe("createTelegramDraftStream", () => {
       expect(api.sendMessage).toHaveBeenCalledTimes(1);
       expect(stream.messageId()).toBeUndefined();
       expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("telegram stream preview failed: timed out"),
+        expect.stringContaining("telegram stream preview failed (transient): timed out"),
       );
 
       await stream.flush();
@@ -233,6 +233,108 @@ describe("createTelegramDraftStream", () => {
     expect(api.sendMessage).toHaveBeenCalledTimes(2);
     expect(api.sendMessage).toHaveBeenNthCalledWith(2, 123, "Message B partial", undefined);
     expect(api.editMessageText).not.toHaveBeenCalledWith(123, 17, "Message B partial");
+  });
+
+  it("does not dedupe when forceNewMessage races in-flight send and new generation has same text", async () => {
+    let resolveFirstSend: ((value: { message_id: number }) => void) | undefined;
+    const firstSend = new Promise<{ message_id: number }>((resolve) => {
+      resolveFirstSend = resolve;
+    });
+    const api = {
+      sendMessage: vi.fn().mockReturnValueOnce(firstSend).mockResolvedValueOnce({ message_id: 42 }),
+      editMessageText: vi.fn().mockResolvedValue(true),
+      deleteMessage: vi.fn().mockResolvedValue(true),
+    };
+    const onSupersededPreview = vi.fn();
+    const stream = createTelegramDraftStream({
+      api: api as unknown as Bot["api"],
+      chatId: 123,
+      onSupersededPreview,
+    });
+
+    // Send "Same text" — in-flight, not yet resolved.
+    stream.update("Same text");
+    await vi.waitFor(() => expect(api.sendMessage).toHaveBeenCalledTimes(1));
+
+    // Rotate generation before first send resolves.
+    stream.forceNewMessage();
+    stream.update("Same text"); // identical text in new generation
+
+    // Resolve the superseded send.
+    resolveFirstSend?.({ message_id: 17 });
+    await stream.flush();
+
+    // The new generation must still send, not be deduped.
+    expect(api.sendMessage).toHaveBeenCalledTimes(2);
+    expect(api.sendMessage).toHaveBeenNthCalledWith(2, 123, "Same text", undefined);
+    expect(onSupersededPreview).toHaveBeenCalledWith({
+      messageId: 17,
+      textSnapshot: "Same text",
+      parseMode: undefined,
+    });
+  });
+
+  it("stops the stream on permanent (non-recoverable) errors", async () => {
+    const api = createMockDraftApi();
+    api.sendMessage.mockRejectedValueOnce(new Error("Forbidden: bot was blocked by the user"));
+    const warn = vi.fn();
+    const stream = createTelegramDraftStream({
+      api: api as unknown as Bot["api"],
+      chatId: 123,
+      warn,
+    });
+
+    stream.update("Hello");
+    await stream.flush();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("telegram stream preview stopped (permanent error)"),
+    );
+
+    // Further updates should be no-ops because the stream is stopped.
+    api.sendMessage.mockClear();
+    stream.update("Another message");
+    await stream.flush();
+
+    expect(api.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("retries after transient editMessageText failure without stopping", async () => {
+    vi.useFakeTimers();
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(0);
+    try {
+      const api = createMockDraftApi();
+      const warn = vi.fn();
+      const stream = createTelegramDraftStream({
+        api: api as unknown as Bot["api"],
+        chatId: 123,
+        warn,
+      });
+
+      // Establish the initial message.
+      stream.update("Hello");
+      await stream.flush();
+      expect(api.sendMessage).toHaveBeenCalledTimes(1);
+      expect(stream.messageId()).toBe(17);
+
+      // Edit fails transiently.
+      api.editMessageText.mockRejectedValueOnce(new Error("timed out")).mockResolvedValueOnce(true);
+
+      stream.update("Hello updated");
+      await stream.flush();
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("telegram stream preview failed (transient): timed out"),
+      );
+
+      // Retry succeeds on next flush.
+      await stream.flush();
+      expect(api.editMessageText).toHaveBeenCalledWith(123, 17, "Hello updated");
+      expect(stream.messageId()).toBe(17);
+    } finally {
+      nowSpy.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("supports rendered previews with parse_mode", async () => {

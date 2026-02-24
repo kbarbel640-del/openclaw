@@ -1,6 +1,7 @@
 import type { Bot } from "grammy";
 import { createFinalizableDraftLifecycle } from "../channels/draft-stream-controls.js";
 import { buildTelegramThreadParams, type TelegramThreadSpec } from "./bot/helpers.js";
+import { isRecoverableTelegramNetworkError } from "./network-errors.js";
 
 const TELEGRAM_STREAM_MAX_CHARS = 4096;
 const DEFAULT_THROTTLE_MS = 1000;
@@ -130,8 +131,6 @@ export function createTelegramDraftStream(params: {
           textSnapshot: renderedText,
           parseMode: renderedParseMode,
         });
-        lastSentText = renderedText;
-        lastSentParseMode = renderedParseMode;
         return true;
       }
       streamMessageId = normalizedMessageId;
@@ -139,9 +138,13 @@ export function createTelegramDraftStream(params: {
       lastSentParseMode = renderedParseMode;
       return true;
     } catch (err) {
-      params.warn?.(
-        `telegram stream preview failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      if (isRecoverableTelegramNetworkError(err, { context: "send", allowMessageMatch: true })) {
+        params.warn?.(`telegram stream preview failed (transient): ${message}`);
+        return false;
+      }
+      streamState.stopped = true;
+      params.warn?.(`telegram stream preview stopped (permanent error): ${message}`);
       return false;
     }
   };
