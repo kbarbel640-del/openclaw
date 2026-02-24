@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { OpenClawPluginConfigSchema } from "openclaw/plugin-sdk";
 
 export const ACPX_PERMISSION_MODES = ["approve-all", "approve-reads", "deny-all"] as const;
@@ -27,6 +29,10 @@ export type ResolvedAcpxPluginConfig = {
 
 const DEFAULT_PERMISSION_MODE: AcpxPermissionMode = "approve-reads";
 const DEFAULT_NON_INTERACTIVE_POLICY: AcpxNonInteractivePermissionPolicy = "fail";
+const DEFAULT_ACPX_COMMAND = "acpx";
+const ACPX_BIN_NAME = process.platform === "win32" ? "acpx.cmd" : "acpx";
+const ACPX_PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ACPX_BUNDLED_BIN = path.join(ACPX_PLUGIN_ROOT, "node_modules", ".bin", ACPX_BIN_NAME);
 
 type ParseResult =
   | { ok: true; value: AcpxPluginConfig | undefined }
@@ -138,6 +144,10 @@ function parseAcpxPluginConfig(value: unknown): ParseResult {
   };
 }
 
+function resolveDefaultAcpxCommand(): string {
+  return existsSync(ACPX_BUNDLED_BIN) ? ACPX_BUNDLED_BIN : DEFAULT_ACPX_COMMAND;
+}
+
 export function createAcpxPluginConfigSchema(): OpenClawPluginConfigSchema {
   return {
     safeParse(value: unknown):
@@ -191,7 +201,7 @@ export function resolveAcpxPluginConfig(params: {
   const cwd = path.resolve(normalized.cwd?.trim() || fallbackCwd);
 
   return {
-    command: normalized.command?.trim() || "acpx",
+    command: normalized.command?.trim() || resolveDefaultAcpxCommand(),
     commandArgs: normalized.commandArgs ?? [],
     cwd,
     permissionMode: normalized.permissionMode ?? DEFAULT_PERMISSION_MODE,

@@ -35,7 +35,7 @@
   "uiHints": {
     "command": {
       "label": "acpx Command",
-      "help": "CLI command used to invoke acpx (default: acpx)."
+      "help": "CLI command used to invoke acpx (default: plugin-local acpx binary, fallback: acpx on PATH)."
     },
     "commandArgs": {
       "label": "acpx Command Args",
