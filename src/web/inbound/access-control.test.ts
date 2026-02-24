@@ -58,8 +58,38 @@ describe("checkInboundAccessControl pairing grace", () => {
     expect(sendMessageMock).not.toHaveBeenCalled();
   });
 
-  it("sends pairing replies for live DMs", async () => {
+  it("does not send pairing reply for live DM from non-owner", async () => {
     const result = await runPairingGraceCase(1_000_000 - 10_000);
+
+    expect(result.allowed).toBe(false);
+    expect(upsertPairingRequestMock).not.toHaveBeenCalled();
+    expect(sendMessageMock).not.toHaveBeenCalled();
+  });
+
+  it("sends pairing reply for live DM from owner (same number)", async () => {
+    setAccessControlTestConfig({
+      channels: {
+        whatsapp: {
+          dmPolicy: "pairing",
+          allowFrom: ["+15550001111"],
+        },
+      },
+    });
+    const connectedAtMs = 1_000_000;
+    const result = await checkInboundAccessControl({
+      accountId: "default",
+      from: "+15550009999",
+      selfE164: "+15550009999",
+      senderE164: "+15550009999",
+      group: false,
+      pushName: "Owner",
+      isFromMe: false,
+      messageTimestampMs: connectedAtMs - 10_000,
+      connectedAtMs,
+      pairingGraceMs: 30_000,
+      sock: { sendMessage: sendMessageMock },
+      remoteJid: "15550009999@s.whatsapp.net",
+    });
 
     expect(result.allowed).toBe(false);
     expect(upsertPairingRequestMock).toHaveBeenCalled();
