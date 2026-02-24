@@ -50,6 +50,54 @@ Desktop command center for deep analysis, mobile-optimized monitoring for on-the
 **The 9 C-Suite Agents:** CEO, CFO, COO, CMO, CTO, HR Director, Legal Counsel, Strategy Officer, Knowledge Manager
 
 ---
+## RLM-Inspired Memory System
+
+The MABOS memory subsystem implements five enhancements inspired by the [Recursive Language Models](https://arxiv.org/abs/2512.24601v2) paper (Zhang, Kraska, Khattab — Jan 2026), which demonstrates that treating context as a hierarchically navigable external environment enables LLMs to process inputs far beyond native context windows.
+
+### Recursive Memory Consolidation (R1)
+
+When short-term memories are promoted to long-term storage, related items are automatically grouped by tag similarity (Jaccard > 0.3) and compressed into narrative summaries. Each consolidated memory tracks its lineage via `derived_from` references, preserving full provenance.
+
+```
+5 related observations → 1 consolidated summary with derived_from: [M-001, M-002, M-003, M-004, M-005]
+```
+
+### Hierarchical Memory Index (R2)
+
+Daily memory logs are automatically rolled up into time-hierarchy summaries:
+
+- **Weekly digests** — `memory/weekly/YYYY-Www.md`
+- **Monthly themes** — `memory/monthly/YYYY-MM.md`
+- **Quarterly reviews** — `memory/quarterly/YYYY-Qq.md`
+
+Two tools support this: `memory_build_hierarchy` generates missing summaries, and `memory_hierarchy_search` queries at a specific granularity level.
+
+### Context-Aware Pre-Compaction Checkpoints (R3)
+
+Before context window compaction, the system writes structured session checkpoints to `memory/checkpoints/` containing:
+
+1. Current task context
+2. Active decisions and open questions
+3. Key findings from the session segment
+4. Next steps to resume
+
+The `memory_checkpoint` tool and `resolveLatestCheckpoint()` function enable seamless session continuity across compaction boundaries.
+
+### Recursive Memory Search (R4)
+
+The `memory_recall` tool supports iterative query refinement via a `recursive_depth` parameter (max 3). At each depth level, the search extracts key terms from results, builds a refined query, and searches again — discovering indirect connections that single-pass search would miss.
+
+```
+Query: "market" → finds A (market analysis, mentions enterprise)
+  Refined: "market enterprise" → finds B (enterprise billing)
+    Refined: "market enterprise billing" → finds C (billing revenue projection)
+```
+
+### BDI Recursive Reasoning (R5)
+
+The BDI maintenance heartbeat handles large belief bases by splitting them into chunks of 50 sections each. A conflict detection system compares belief blocks for contradictions (same subject, high certainty, different content) and writes conflict reports to `memory/bdi-conflicts/` for agent resolution.
+
+---
 
 ## Prerequisites
 
