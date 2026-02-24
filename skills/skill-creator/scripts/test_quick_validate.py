@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
-"""
-Regression tests for quick skill validation.
-"""
-
-from pathlib import Path
 import shutil
+import sys
 import tempfile
+from pathlib import Path
 from unittest import TestCase, main
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
 from quick_validate import validate_skill
 
