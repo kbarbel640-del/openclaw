@@ -22,7 +22,7 @@ jobs:
         run: |
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
           
-          if echo "$CHANGED_FILES" | grep -qE "(api/|auth/|payment|security)"; then
+          if echo "$CHANGED_FILES" | grep -qE "(\*\*/api/|\*\*/auth/|payment|security)"; then
             echo "tier=high" >> $GITHUB_OUTPUT
           elif echo "$CHANGED_FILES" | grep -qE "(\*\*/components|\*\*/lib|\*\*/core)/"; then
             echo "tier=medium" >> $GITHUB_OUTPUT
