@@ -89,6 +89,27 @@ describe("compaction identifier-preservation instructions", () => {
       expect(call[5]).toContain("Preserve all opaque identifiers exactly as written");
     }
   });
+
+  it("avoids duplicate additional-focus headers in split+merge path", async () => {
+    await summarizeInStages({
+      messages: [makeMessage(1), makeMessage(2), makeMessage(3), makeMessage(4)],
+      model: testModel,
+      apiKey: "test-key",
+      signal: new AbortController().signal,
+      reserveTokens: 4000,
+      maxChunkTokens: 1000,
+      contextWindow: 200_000,
+      parts: 2,
+      minMessagesForSplit: 4,
+      customInstructions: "Prioritize customer-visible regressions.",
+    });
+
+    const mergedCall = mockGenerateSummary.mock.calls.at(-1);
+    const instructions = mergedCall?.[5] ?? "";
+    expect(instructions).toContain("Merge these partial summaries into a single cohesive summary.");
+    expect(instructions).toContain("Prioritize customer-visible regressions.");
+    expect((instructions.match(/Additional focus:/g) ?? []).length).toBe(1);
+  });
 });
 
 describe("buildCompactionSummarizationInstructions", () => {
