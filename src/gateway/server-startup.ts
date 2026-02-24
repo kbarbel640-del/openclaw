@@ -41,7 +41,6 @@ async function cleanupOrphanTranscripts(params: {
   log: { warn: (msg: string) => void; info: (msg: string) => void };
 }): Promise<number> {
   const fs = await import("node:fs");
-  const path = await import("node:path");
 
   if (!fs.existsSync(params.storePath)) {
     return 0;
