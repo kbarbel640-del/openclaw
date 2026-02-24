@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { classifyImage } from "../vision/vlm-adapter.js";
+import type { VlmAdapterConfig } from "../vision/vlm-adapter.js";
 import { CatalogIngester } from "./catalog-ingester.js";
 import type { CatalogPhotoRecord } from "./catalog-ingester.js";
 import { SceneClassifier } from "./scene-classifier.js";
@@ -36,12 +38,20 @@ export class IngestPipeline {
   private styleDbPath: string;
   private classifier: SceneClassifier;
   private callbacks: IngestCallbacks;
+  /** Optional VLM config for vision-augmented classification during ingestion */
+  private vlmConfig: VlmAdapterConfig | null;
 
-  constructor(catalogPath: string, styleDbPath: string, callbacks: IngestCallbacks = {}) {
+  constructor(
+    catalogPath: string,
+    styleDbPath: string,
+    callbacks: IngestCallbacks = {},
+    vlmConfig?: VlmAdapterConfig,
+  ) {
     this.catalogPath = catalogPath;
     this.styleDbPath = styleDbPath;
     this.classifier = new SceneClassifier();
     this.callbacks = callbacks;
+    this.vlmConfig = vlmConfig ?? null;
   }
 
   /**
@@ -84,8 +94,25 @@ export class IngestPipeline {
             continue;
           }
 
-          // Classify the scene
-          const classification = this.classifier.classifyFromExif(photo.exif);
+          // Classify the scene (EXIF + optional VLM)
+          const exifClassification = this.classifier.classifyFromExif(photo.exif);
+          let classification = exifClassification;
+
+          // Optional VLM vision-augmented classification
+          if (this.vlmConfig?.enabled && photo.filePath) {
+            try {
+              const visionResult = await classifyImage(photo.filePath, this.vlmConfig);
+              if (visionResult.confidence > 0) {
+                classification = this.classifier.mergeVisionClassification(
+                  exifClassification,
+                  visionResult,
+                );
+              }
+            } catch {
+              // VLM failure is non-fatal — fall back to EXIF-only
+            }
+          }
+
           const key = styleDb.ensureScenario(classification);
           scenariosSeenSet.add(key);
 

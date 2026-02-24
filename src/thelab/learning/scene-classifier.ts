@@ -48,14 +48,20 @@ export type Special =
   | "golden_flare"
   | "first_look"
   | "ceremony"
-  | "reception";
+  | "reception"
+  // Vision-only classifications (detectable by VLM, not EXIF)
+  | "lens_flare"
+  | "creative_blur"
+  | "high_key"
+  | "low_key"
+  | "moody";
 
 /**
  * Generates a stable string key for a scenario combination.
  * Used as the lookup key in the style profile database.
  */
 export function scenarioKey(classification: SceneClassification): string {
-  const parts = [
+  const parts: string[] = [
     classification.timeOfDay,
     classification.location,
     classification.lighting,

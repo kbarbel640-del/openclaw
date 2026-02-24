@@ -21,21 +21,30 @@ export class VisionTool {
     this.analyzerPath = config.vision.analyzerScript.replace("{baseDir}", REPO_ROOT);
   }
 
+  /**
+   * Analyze a screenshot with optional Soul context.
+   *
+   * When a soulContext string is provided, it's passed as `--soul` to the
+   * Python analyzer. The VLM uses it as qualitative style guidance
+   * ("this photographer loves warm lifted shadows with grain").
+   */
   async analyzeScreenshot(
     screenshotPath: string,
     targetPath: string,
+    soulContext?: string,
   ): Promise<ImageAnalysisResultType> {
     const result = await this.runAnalyzer({
       mode: "analyze",
       screenshot: screenshotPath,
       target: targetPath,
+      soul: soulContext,
     });
 
     const parsed = ImageAnalysisResult.safeParse(result);
     if (!parsed.success) {
       console.error("[VisionTool] Schema validation failed:", parsed.error.issues);
       return {
-        image_id: result.image_id ?? "unknown",
+        image_id: (result.image_id as string) ?? "unknown",
         confidence: 0,
         adjustments: [],
         flag_for_review: true,
@@ -77,6 +86,7 @@ export class VisionTool {
     screenshot: string;
     target: string;
     adjustments?: string;
+    soul?: string;
   }): Promise<Record<string, unknown>> {
     await fs.access(this.analyzerPath);
 
@@ -94,6 +104,10 @@ export class VisionTool {
 
     if (params.adjustments) {
       args.push("--adjustments", params.adjustments);
+    }
+
+    if (params.soul) {
+      args.push("--soul", params.soul);
     }
 
     try {

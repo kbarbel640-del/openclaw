@@ -1,6 +1,7 @@
 import path from "node:path";
 import { app, BrowserWindow, nativeTheme } from "electron";
 import { registerIpcHandlers } from "./ipc-handlers";
+import { initBridge, destroyBridge } from "./sophie-bridge";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -43,6 +44,7 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  initBridge();
   registerIpcHandlers();
   createWindow();
 
@@ -54,6 +56,7 @@ void app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  destroyBridge();
   app.quit();
 });
 

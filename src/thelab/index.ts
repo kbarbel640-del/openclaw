@@ -21,6 +21,24 @@ export { SliderController } from "./lightroom/sliders.js";
 
 // --- Vision ---
 export { VisionTool } from "./vision/vision-tool.js";
+export {
+  classifyImage as vlmClassifyImage,
+  classifyScreenshot as vlmClassifyScreenshot,
+  vlmConfigFromLabConfig,
+  isMlxVlmAvailable,
+  resetAvailabilityCache,
+} from "./vision/vlm-adapter.js";
+export type { VlmAdapterConfig } from "./vision/vlm-adapter.js";
+export {
+  buildClassifyPrompt,
+  parseClassifyOutput,
+  VALID_TIME_OF_DAY,
+  VALID_LOCATIONS,
+  VALID_LIGHTING,
+  VALID_SUBJECTS,
+  VALID_SPECIALS,
+} from "./vision/classify-prompt.js";
+export type { VisionClassification } from "./vision/classify-prompt.js";
 
 // --- Session ---
 export { SessionStore } from "./session/session-store.js";
@@ -102,6 +120,30 @@ export type {
   AdjustmentEntryType,
   SessionImageEntryType,
 } from "./vision/schema.js";
+
+// --- Soul system ---
+export { generateSoulData, renderSoulMarkdown } from "./soul/index.js";
+export { SoulStore } from "./soul/index.js";
+export type {
+  SoulData,
+  SoulGeneratorConfig,
+  SoulPhilosophy,
+  SoulNonNegotiable,
+  SoulTendency,
+  SoulScenarioShift,
+  SoulConfidenceGap,
+  SoulSignaturePair,
+  SoulStoreConfig,
+} from "./soul/index.js";
+
+// --- EXIF extraction ---
+export {
+  extractFullExif,
+  extractQuickExif,
+  extractBatchExif,
+  isExiftoolAvailable,
+} from "./exif/index.js";
+export type { ExifQuickData } from "./exif/index.js";
 
 // --- Config ---
 export type { TheLabConfig } from "./config/thelab-config.js";

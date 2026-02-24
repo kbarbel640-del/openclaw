@@ -12,6 +12,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { TheLabConfig } from "../config/thelab-config.js";
+import { extractQuickExif as exifExtractQuick } from "../exif/exif-reader.js";
 
 export type CullVerdict = "pick" | "reject" | "maybe" | "review";
 
@@ -251,13 +252,11 @@ export class Culler {
   }
 
   /**
-   * Quick EXIF extraction using file naming heuristics and basic metadata.
-   * Full EXIF parsing happens during the learning phase; this is for fast culling.
+   * Quick EXIF extraction for culling decisions.
+   * Uses exiftool to read key fields (ISO, shutter speed, aperture, focal length, flash).
    */
-  private async extractQuickExif(_filePath: string): Promise<ExifQuickData> {
-    // In production, this would use exiftool or a native EXIF parser.
-    // For now, return empty data — the vision model handles quality assessment.
-    return {};
+  private async extractQuickExif(filePath: string): Promise<ExifQuickData> {
+    return exifExtractQuick(filePath);
   }
 
   private computeStats(

@@ -1,5 +1,7 @@
+import fs from "node:fs";
 import path from "node:path";
 import type { TheLabConfig } from "../config/thelab-config.js";
+import { extractFullExif } from "../exif/exif-reader.js";
 import type { CatalogExifData } from "../learning/catalog-ingester.js";
 import { SceneClassifier, scenarioKey, scenarioLabel } from "../learning/scene-classifier.js";
 import type { SceneClassification } from "../learning/scene-classifier.js";
@@ -7,12 +9,15 @@ import { StyleDatabase } from "../learning/style-db.js";
 import type { ScenarioProfile, AdjustmentStats } from "../learning/style-db.js";
 import { LightroomController } from "../lightroom/controller.js";
 import { SessionStore } from "../session/session-store.js";
+import { SoulStore } from "../soul/soul-store.js";
 import type {
   ImageAnalysisResultType,
   VerificationResultType,
   AdjustmentEntryType,
 } from "../vision/schema.js";
 import { VisionTool } from "../vision/vision-tool.js";
+import { classifyScreenshot, vlmConfigFromLabConfig } from "../vision/vlm-adapter.js";
+import type { VlmAdapterConfig } from "../vision/vlm-adapter.js";
 import { evaluateGate, filterConfidentAdjustments } from "./gate.js";
 import { ImageQueue } from "./queue.js";
 
@@ -63,6 +68,10 @@ export class EditingLoop {
   private classifier: SceneClassifier;
   private styleDb: StyleDatabase;
   private aborted = false;
+  private vlmConfig: VlmAdapterConfig;
+
+  /** Photographer's Soul — qualitative style context for the VLM. */
+  private soulContext: string | null = null;
 
   private scenariosUsed = new Set<string>();
 
@@ -87,9 +96,33 @@ export class EditingLoop {
     this.vision = new VisionTool(config);
     this.classifier = new SceneClassifier();
     this.styleDb = new StyleDatabase(styleDbPath);
+    this.vlmConfig = vlmConfigFromLabConfig(config);
     this.session = new SessionStore(config.session.sessionDir, "personal-style", imagePaths);
     this.queue = new ImageQueue();
     this.queue.loadFromPaths(imagePaths);
+
+    // Load Soul context for VLM reasoning (non-blocking, non-fatal)
+    this.loadSoulContext();
+  }
+
+  /**
+   * Load the photographer's SOUL.md for VLM context injection.
+   * Reads synchronously at construction — the file is small (~2-4KB).
+   */
+  private loadSoulContext(): void {
+    try {
+      const soulStore = new SoulStore();
+      const soulDir = soulStore.getSoulDir("default");
+      const soulPath = path.join(soulDir, "SOUL.md");
+      if (fs.existsSync(soulPath)) {
+        this.soulContext = fs.readFileSync(soulPath, "utf-8");
+        console.log("[EditingLoop] Soul loaded — VLM will use qualitative style context");
+      } else {
+        console.log("[EditingLoop] No Soul found — VLM will use statistical profiles only");
+      }
+    } catch {
+      console.warn("[EditingLoop] Could not load Soul — continuing without qualitative context");
+    }
   }
 
   async run(): Promise<SessionStats> {
@@ -162,9 +195,36 @@ export class EditingLoop {
     console.log(`[EditingLoop] [${index + 1}/${this.queue.getTotal()}] Processing: ${imageId}`);
 
     // Step 2: CLASSIFY — determine the scene scenario
+    //   a) EXIF-based classification (fast, always available)
     const screenshotPath = await this.lightroom.takeScreenshot(`pre_${imageId}`);
-    const exif = this.extractExifFromPath(imagePath);
-    const classification = this.classifier.classifyFromExif(exif);
+    const exif = await this.extractExifFromPath(imagePath);
+    const exifClassification = this.classifier.classifyFromExif(exif);
+
+    //   b) VLM vision classification (when enabled — detects backlit, moody, high-key, etc.)
+    let classification: SceneClassification;
+    if (this.vlmConfig.enabled) {
+      const visionResult = await classifyScreenshot(screenshotPath, this.vlmConfig);
+      if (visionResult.confidence > 0) {
+        classification = this.classifier.mergeVisionClassification(
+          exifClassification,
+          visionResult,
+        );
+        console.log(
+          `[EditingLoop]   VLM: ${visionResult.subject ?? "?"}/${visionResult.lighting ?? "?"} ` +
+            `(confidence: ${visionResult.confidence.toFixed(2)})` +
+            (visionResult.special ? ` [${visionResult.special}]` : "") +
+            (visionResult.reasoning ? ` — ${visionResult.reasoning}` : ""),
+        );
+      } else {
+        classification = exifClassification;
+        console.log(
+          "[EditingLoop]   VLM classification returned zero confidence — using EXIF only",
+        );
+      }
+    } else {
+      classification = exifClassification;
+    }
+
     const scKey = scenarioKey(classification);
     this.scenariosUsed.add(scKey);
 
@@ -192,10 +252,12 @@ export class EditingLoop {
     );
 
     // Step 4: REASON — vision model refines the profile for THIS specific image
+    //   Soul context gives the VLM qualitative understanding of the photographer's style
     const profileAdjustments = this.profileToAdjustments(profile);
     const analysis = await this.vision.analyzeScreenshot(
       screenshotPath,
       this.buildProfileTargetPath(profile),
+      this.soulContext ?? undefined,
     );
 
     // Merge: use the profile as the baseline, vision model as refinement
@@ -393,33 +455,11 @@ export class EditingLoop {
   }
 
   /**
-   * Extract basic EXIF data from a file path.
-   * In a real implementation, this would read the actual EXIF tags.
-   * For now, we infer what we can from the file metadata.
+   * Extract EXIF data from a file using exiftool.
+   * Returns full CatalogExifData for scene classification and profile lookup.
    */
-  private extractExifFromPath(imagePath: string): CatalogExifData {
-    const fs = require("node:fs") as typeof import("node:fs");
-    let mtime: Date;
-    try {
-      const stat = fs.statSync(imagePath);
-      mtime = stat.mtime;
-    } catch {
-      mtime = new Date();
-    }
-
-    return {
-      dateTimeOriginal: mtime.toISOString(),
-      isoSpeedRating: null,
-      focalLength: null,
-      aperture: null,
-      shutterSpeed: null,
-      flashFired: null,
-      whiteBalance: null,
-      cameraModel: null,
-      lensModel: null,
-      gpsLatitude: null,
-      gpsLongitude: null,
-    };
+  private async extractExifFromPath(imagePath: string): Promise<CatalogExifData> {
+    return extractFullExif(imagePath);
   }
 
   abort(): void {

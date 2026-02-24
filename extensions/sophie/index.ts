@@ -28,6 +28,7 @@ import { registerSophieLifecycle } from "./src/lifecycle.js";
 import { registerSophieMemory } from "./src/memory.js";
 import { createSophieMetricsTool } from "./src/observability.js";
 import { registerSophieObservability } from "./src/observability.js";
+import { loadSkills } from "./src/skill-loader.js";
 import { createSophieSubagentTools } from "./src/subagents.js";
 import { createSophieTools } from "./src/tools.js";
 
@@ -53,6 +54,15 @@ export default function register(api: OpenClawPluginApi) {
   registerSophieObservability(api);
   registerSophieFileWatcher(api);
   setupSophieHeartbeat(api);
+
+  // --- Photography Skills (async, non-blocking) ---
+  loadSkills()
+    .then((skills) => {
+      api.logger.info(`[sophie] ${skills.length} photography skills loaded`);
+    })
+    .catch(() => {
+      api.logger.warn("[sophie] Failed to load photography skills — continuing without");
+    });
 
   api.logger.info(`[sophie] Plugin loaded — ${allTools.length} tools registered`);
 }

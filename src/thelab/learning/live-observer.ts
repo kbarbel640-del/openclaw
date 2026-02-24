@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { TheLabConfig } from "../config/thelab-config.js";
+import { extractFullExif } from "../exif/exif-reader.js";
 import { VisionTool } from "../vision/vision-tool.js";
 import type { CatalogExifData } from "./catalog-ingester.js";
 import { SceneClassifier } from "./scene-classifier.js";
@@ -54,6 +55,7 @@ export class LiveObserver {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   private currentImageFingerprint: string | null = null;
+  private currentImagePath: string | null = null;
   private firstSnapshot: SliderSnapshot | null = null;
   private lastSnapshot: SliderSnapshot | null = null;
   private screenshotCounter = 0;
@@ -164,6 +166,7 @@ export class LiveObserver {
 
       // Start tracking the new image
       this.currentImageFingerprint = fingerprint;
+      this.currentImagePath = await this.tryGetCurrentImagePath();
       this.firstSnapshot = {
         timestamp: Date.now(),
         imageFingerprint: fingerprint,
@@ -205,23 +208,28 @@ export class LiveObserver {
     }
 
     try {
-      // Build a basic EXIF from what we can infer (time-based)
-      const now = new Date();
-      const exif: CatalogExifData = {
-        dateTimeOriginal: now.toISOString(),
-        isoSpeedRating: null,
-        focalLength: null,
-        aperture: null,
-        shutterSpeed: null,
-        flashFired: null,
-        whiteBalance: null,
-        cameraModel: null,
-        lensModel: null,
-        gpsLatitude: null,
-        gpsLongitude: null,
-      };
+      // Extract real EXIF if we have the image path, otherwise fall back to timestamp-only
+      let exif: CatalogExifData;
+      if (this.currentImagePath) {
+        exif = await extractFullExif(this.currentImagePath);
+      } else {
+        const now = new Date();
+        exif = {
+          dateTimeOriginal: now.toISOString(),
+          isoSpeedRating: null,
+          focalLength: null,
+          aperture: null,
+          shutterSpeed: null,
+          flashFired: null,
+          whiteBalance: null,
+          cameraModel: null,
+          lensModel: null,
+          gpsLatitude: null,
+          gpsLongitude: null,
+        };
+      }
 
-      // Classify the scene (limited info from live observation)
+      // Classify the scene using real EXIF data when available
       const classification = this.classifier.classifyFromExif(exif);
       const key = this.styleDb.ensureScenario(classification);
 
@@ -245,7 +253,7 @@ export class LiveObserver {
         scenarioKey: key,
         exifJson: JSON.stringify(exif),
         adjustmentsJson: JSON.stringify(adjustments),
-        editedAt: now.toISOString(),
+        editedAt: exif.dateTimeOriginal ?? new Date().toISOString(),
         source: "live_observer",
       });
 
@@ -335,6 +343,99 @@ export class LiveObserver {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Try to get the current image file path from Lightroom's title bar.
+   * Lightroom Classic shows the filename in the window title when in Develop module.
+   * We attempt to locate the full path in common photo directories.
+   */
+  private async tryGetCurrentImagePath(): Promise<string | null> {
+    try {
+      const { stdout } = await execFileAsync("peekaboo", [
+        "list",
+        "windows",
+        "--app",
+        this.appName,
+        "--json",
+      ]);
+      const windows = JSON.parse(stdout);
+      if (!Array.isArray(windows) || windows.length === 0) {
+        return null;
+      }
+
+      const title = (windows[0].title ?? windows[0].name ?? "") as string;
+
+      // Lightroom title patterns: "Lightroom Classic - Develop - IMG_1234.CR3"
+      // or "Lightroom Classic - Library - IMG_1234.CR3"
+      const fileMatch = title.match(
+        /[\s-]+(\S+\.(?:cr[23]|nef|arw|orf|raf|dng|rw2|pef|srw|jpg|jpeg|tif|tiff|heic))$/i,
+      );
+      if (!fileMatch) {
+        return null;
+      }
+
+      const fileName = fileMatch[1];
+
+      // Try to find this file in the catalog's folder hierarchy
+      const catalogDir = path.dirname(this.config.learning.catalogPath);
+      const photosDir = path.dirname(catalogDir);
+
+      // Search common photo directory structures
+      const searchDirs = [photosDir, catalogDir, `${process.env.HOME}/Pictures`];
+
+      for (const dir of searchDirs) {
+        try {
+          const found = await this.findFileRecursive(dir, fileName, 3);
+          if (found) {
+            return found;
+          }
+        } catch {
+          // directory doesn't exist or can't be read
+        }
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Recursively search for a file by name within a directory, up to maxDepth levels.
+   */
+  private async findFileRecursive(
+    dir: string,
+    fileName: string,
+    maxDepth: number,
+  ): Promise<string | null> {
+    if (maxDepth <= 0) {
+      return null;
+    }
+
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isFile() && entry.name === fileName) {
+          return path.join(dir, entry.name);
+        }
+      }
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.name.startsWith(".")) {
+          const found = await this.findFileRecursive(
+            path.join(dir, entry.name),
+            fileName,
+            maxDepth - 1,
+          );
+          if (found) {
+            return found;
+          }
+        }
+      }
+    } catch {
+      // permission denied or directory doesn't exist
+    }
+    return null;
   }
 
   private setStatus(status: ObserverStatus): void {

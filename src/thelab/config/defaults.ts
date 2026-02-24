@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG: TheLabConfig = {
     analyzerScript: "{baseDir}/src/thelab/vision/analyze.py",
     screenshotDir: "/tmp/thelab-screenshots",
     maxRetries: 2,
+    enableClassification: false,
   },
   session: {
     sessionDir: "~/.thelab/sessions",

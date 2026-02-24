@@ -20,6 +20,8 @@ export interface TheLabConfig {
     analyzerScript: string;
     screenshotDir: string;
     maxRetries: number;
+    /** Enable VLM-based scene classification (requires mlx-vlm + Qwen model) */
+    enableClassification?: boolean;
   };
   session: {
     sessionDir: string;
