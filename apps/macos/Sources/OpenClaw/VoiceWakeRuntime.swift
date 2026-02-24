@@ -167,6 +167,7 @@ actor VoiceWakeRuntime {
             guard let audioEngine = self.audioEngine else { return }
 
             guard AudioInputDeviceObserver.hasUsableDefaultInputDevice() else {
+                self.audioEngine = nil
                 throw NSError(
                     domain: "VoiceWakeRuntime",
                     code: 1,

@@ -186,6 +186,7 @@ actor TalkModeRuntime {
         guard let audioEngine = self.audioEngine else { return }
 
         guard AudioInputDeviceObserver.hasUsableDefaultInputDevice() else {
+            self.audioEngine = nil
             self.logger.error("talk mode: no usable audio input device")
             return
         }
