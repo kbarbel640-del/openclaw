@@ -568,7 +568,7 @@ describe("gateway server auth/connect", () => {
 
       const closeInfo = await closeInfoPromise;
       expect(closeInfo.code).toBe(1008);
-      expect(Buffer.byteLength(closeInfo.reason, "utf8")).toBeLessThanOrEqual(123);
+      expect(Buffer.byteLength(closeInfo.reason, "utf8")).toBeLessThanOrEqual(120);
       expect(closeInfo.reason).toContain("invalid request frame");
     });
 
