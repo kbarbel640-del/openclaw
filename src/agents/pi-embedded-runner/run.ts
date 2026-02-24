@@ -1019,7 +1019,7 @@ export async function runEmbeddedPiAgent(
                 cfg: params.config,
                 agentDir: params.agentDir,
               });
-              if (timedOut && !isProbeSession) {
+              if (timedOut && !isProbeSession && consecutiveTimeouts === 0) {
                 log.warn(
                   `Profile ${lastProfileId} timed out (possible rate limit). Trying next account...`,
                 );
