@@ -228,6 +228,10 @@
   - changed-files:
       - any-glob-to-any-file:
           - "extensions/memory-lancedb/**"
+"extensions: meeting-baas":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/meeting-baas/**"
 "extensions: open-prose":
   - changed-files:
       - any-glob-to-any-file:

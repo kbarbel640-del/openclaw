@@ -1,0 +1,19 @@
+{
+  "name": "@openclaw/meeting-baas",
+  "version": "2026.2.23",
+  "private": true,
+  "description": "OpenClaw Meeting BaaS plugin for recording meetings on Google Meet, Zoom, and Microsoft Teams",
+  "type": "module",
+  "dependencies": {
+    "@meeting-baas/sdk": "6.0.4",
+    "@sinclair/typebox": "0.34.48"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
