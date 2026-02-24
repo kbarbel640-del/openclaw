@@ -621,11 +621,129 @@ describe("exec approvals allowlist evaluation", () => {
       analysis,
       allowlist: [],
       safeBins: new Set(),
-      skillBins: new Set(["skill-bin"]),
+      skillBins: [{ name: "skill-bin", resolvedPath: "/opt/skills/skill-bin" }],
       autoAllowSkills: true,
       cwd: "/tmp",
     });
     expect(result.allowlistSatisfied).toBe(true);
+  });
+
+  it("does not satisfy auto-allow skills for explicit relative paths", () => {
+    const analysis = {
+      ok: true,
+      segments: [
+        {
+          raw: "./skill-bin",
+          argv: ["./skill-bin", "--help"],
+          resolution: {
+            rawExecutable: "./skill-bin",
+            resolvedPath: "/tmp/skill-bin",
+            executableName: "skill-bin",
+          },
+        },
+      ],
+    };
+    const result = evaluateExecAllowlist({
+      analysis,
+      allowlist: [],
+      safeBins: new Set(),
+      skillBins: [{ name: "skill-bin", resolvedPath: "/tmp/skill-bin" }],
+      autoAllowSkills: true,
+      cwd: "/tmp",
+    });
+    expect(result.allowlistSatisfied).toBe(false);
+    expect(result.segmentSatisfiedBy).toEqual([null]);
+  });
+
+  it("does not satisfy auto-allow skills when command resolution is missing", () => {
+    const analysis = {
+      ok: true,
+      segments: [
+        {
+          raw: "skill-bin --help",
+          argv: ["skill-bin", "--help"],
+          resolution: {
+            rawExecutable: "skill-bin",
+            executableName: "skill-bin",
+          },
+        },
+      ],
+    };
+    const result = evaluateExecAllowlist({
+      analysis,
+      allowlist: [],
+      safeBins: new Set(),
+      skillBins: [{ name: "skill-bin", resolvedPath: "/opt/skills/skill-bin" }],
+      autoAllowSkills: true,
+      cwd: "/tmp",
+    });
+    expect(result.allowlistSatisfied).toBe(false);
+    expect(result.segmentSatisfiedBy).toEqual([null]);
+  });
+
+  it("returns empty segment details for chain misses", () => {
+    const segment = {
+      raw: "tool",
+      argv: ["tool"],
+      resolution: {
+        rawExecutable: "tool",
+        resolvedPath: "/usr/bin/tool",
+        executableName: "tool",
+      },
+    };
+    const analysis = {
+      ok: true,
+      segments: [segment],
+      chains: [[segment]],
+    };
+    const result = evaluateExecAllowlist({
+      analysis,
+      allowlist: [{ pattern: "/usr/bin/other" }],
+      safeBins: new Set(),
+      cwd: "/tmp",
+    });
+    expect(result.allowlistSatisfied).toBe(false);
+    expect(result.allowlistMatches).toEqual([]);
+    expect(result.segmentSatisfiedBy).toEqual([]);
+  });
+
+  it("aggregates segment satisfaction across chains", () => {
+    const allowlistSegment = {
+      raw: "tool",
+      argv: ["tool"],
+      resolution: {
+        rawExecutable: "tool",
+        resolvedPath: "/usr/bin/tool",
+        executableName: "tool",
+      },
+    };
+    const safeBinSegment = {
+      raw: "jq .foo",
+      argv: ["jq", ".foo"],
+      resolution: {
+        rawExecutable: "jq",
+        resolvedPath: "/usr/bin/jq",
+        executableName: "jq",
+      },
+    };
+    const analysis = {
+      ok: true,
+      segments: [allowlistSegment, safeBinSegment],
+      chains: [[allowlistSegment], [safeBinSegment]],
+    };
+    const result = evaluateExecAllowlist({
+      analysis,
+      allowlist: [{ pattern: "/usr/bin/tool" }],
+      safeBins: normalizeSafeBins(["jq"]),
+      cwd: "/tmp",
+    });
+    if (process.platform === "win32") {
+      expect(result.allowlistSatisfied).toBe(false);
+      return;
+    }
+    expect(result.allowlistSatisfied).toBe(true);
+    expect(result.allowlistMatches.map((entry) => entry.pattern)).toEqual(["/usr/bin/tool"]);
+    expect(result.segmentSatisfiedBy).toEqual(["allowlist", "safeBins"]);
   });
 });
 
