@@ -1,5 +1,6 @@
 import path from "node:path";
 import { createSubsystemLogger } from "../../../logging/subsystem.js";
+import { resolveAzureFoundryApiVersionEnv } from "../../../providers/azure-foundry/env.js";
 import type { AudioTranscriptionRequest, AudioTranscriptionResult } from "../../types.js";
 import {
   assertOkOrThrowHttpError,
@@ -12,7 +13,7 @@ const log = createSubsystemLogger("azure-audio");
 
 const DEFAULT_AZURE_AUDIO_BASE_URL = "https://models.inference.ai.azure.com";
 const DEFAULT_AZURE_AUDIO_MODEL = "whisper-large-v3-turbo";
-const DEFAULT_AZURE_API_VERSION = "2024-12-01-preview";
+const DEFAULT_AZURE_API_VERSION = "2025-04-01-preview";
 
 function resolveModel(model?: string): string {
   const trimmed = model?.trim();
@@ -59,7 +60,9 @@ export async function transcribeAzureAudio(
   }
   // Ensure api-version is always present.
   if (!url.searchParams.has("api-version")) {
-    url.searchParams.set("api-version", DEFAULT_AZURE_API_VERSION);
+    const apiVersion =
+      resolveAzureFoundryApiVersionEnv(process.env)?.value || DEFAULT_AZURE_API_VERSION;
+    url.searchParams.set("api-version", apiVersion);
   }
 
   const form = new FormData();

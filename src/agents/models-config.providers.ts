@@ -2,6 +2,10 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { ModelDefinitionConfig } from "../config/types.models.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
+  resolveAzureFoundryApiKeyEnv,
+  resolveAzureFoundryEndpointEnv,
+} from "../providers/azure-foundry/env.js";
+import {
   DEFAULT_COPILOT_API_BASE_URL,
   resolveCopilotApiToken,
 } from "../providers/github-copilot-token.js";
@@ -967,7 +971,7 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "azure-foundry", store: authStore });
   if (azureFoundryKey) {
     const azureEndpoint =
-      process.env.AZURE_FOUNDRY_ENDPOINT?.trim() || "https://models.inference.ai.azure.com";
+      resolveAzureFoundryEndpointEnv(process.env)?.value || "https://models.inference.ai.azure.com";
     providers["azure-foundry"] = {
       ...buildAzureFoundryProvider(azureEndpoint),
       apiKey: azureFoundryKey,
@@ -1118,8 +1122,8 @@ export async function resolveImplicitAzureFoundryProvider(params: {
   const env = params.env ?? process.env;
   const discoveryConfig = params.config?.models?.azureFoundryDiscovery;
   const enabled = discoveryConfig?.enabled;
-  const hasApiKey = Boolean(env.AZURE_FOUNDRY_API_KEY?.trim());
   const authStore = ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false });
+  const hasApiKey = Boolean(resolveAzureFoundryApiKeyEnv(env)?.value);
   const hasProfile = listProfilesForProvider(authStore, "azure-foundry").length > 0;
 
   if (enabled === false) {
@@ -1131,9 +1135,12 @@ export async function resolveImplicitAzureFoundryProvider(params: {
 
   const endpoint =
     discoveryConfig?.endpoint?.trim() ||
-    env.AZURE_FOUNDRY_ENDPOINT?.trim() ||
+    resolveAzureFoundryEndpointEnv(env)?.value ||
     "https://models.inference.ai.azure.com";
-  const apiKey = env.AZURE_FOUNDRY_API_KEY?.trim() ?? "";
+  const apiKey =
+    resolveAzureFoundryApiKeyEnv(env)?.value ??
+    resolveApiKeyFromProfiles({ provider: "azure-foundry", store: authStore }) ??
+    "";
 
   if (!apiKey && !hasProfile) {
     return null;

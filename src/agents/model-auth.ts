@@ -4,6 +4,7 @@ import { formatCliCommand } from "../cli/command-format.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { ModelProviderAuthMode, ModelProviderConfig } from "../config/types.js";
 import { getShellEnvAppliedKeys } from "../infra/shell-env.js";
+import { resolveAzureFoundryApiKeyEnv } from "../providers/azure-foundry/env.js";
 import {
   normalizeOptionalSecretInput,
   normalizeSecretInput,
@@ -298,6 +299,17 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     return pick("HUGGINGFACE_HUB_TOKEN") ?? pick("HF_TOKEN");
   }
 
+  if (normalized === "azure-foundry") {
+    const resolved = resolveAzureFoundryApiKeyEnv(process.env);
+    if (!resolved) {
+      return null;
+    }
+    const source = applied.has(resolved.key)
+      ? `shell env: ${resolved.key}`
+      : `env: ${resolved.key}`;
+    return { apiKey: resolved.value, source };
+  }
+
   const envMap: Record<string, string> = {
     openai: "OPENAI_API_KEY",
     google: "GEMINI_API_KEY",
@@ -322,7 +334,6 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     qianfan: "QIANFAN_API_KEY",
     ollama: "OLLAMA_API_KEY",
     vllm: "VLLM_API_KEY",
-    "azure-foundry": "AZURE_FOUNDRY_API_KEY",
     kilocode: "KILOCODE_API_KEY",
   };
   const envVar = envMap[normalized];

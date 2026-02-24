@@ -255,6 +255,7 @@ export const TtsConfigSchema = z
         endpoint: z.string().optional(),
         model: z.string().optional(),
         voice: z.string().optional(),
+        apiVersion: z.string().optional(),
       })
       .strict()
       .optional(),

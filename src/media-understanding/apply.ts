@@ -478,7 +478,9 @@ export async function applyMediaUnderstanding(params: {
 
   const attachments = normalizeMediaAttachments(ctx);
   if (attachments.length > 0) {
-    const summary = attachments.map((a) => `${a.mime ?? "no-mime"}@${a.path ?? a.url ?? "no-path"}`).join(", ");
+    const summary = attachments
+      .map((a) => `${a.mime ?? "no-mime"}@${a.path ?? a.url ?? "no-path"}`)
+      .join(", ");
     console.warn(`[media-apply] Processing ${attachments.length} attachment(s): ${summary}`);
   }
   const providerRegistry = buildProviderRegistry(params.providers);

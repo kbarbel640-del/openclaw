@@ -640,17 +640,19 @@ export async function azureTTS(params: {
   endpoint: string;
   model: string;
   voice: string;
+  apiVersion: string;
   responseFormat: "mp3" | "opus" | "pcm";
   timeoutMs: number;
 }): Promise<Buffer> {
-  const { text, apiKey, endpoint, model, voice, responseFormat, timeoutMs } = params;
+  const { text, apiKey, endpoint, model, voice, apiVersion, responseFormat, timeoutMs } = params;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const baseUrl = endpoint.replace(/\/+$/, "");
-    const url = `${baseUrl}/openai/deployments/${encodeURIComponent(model)}/audio/speech?api-version=2024-12-01-preview`;
+    const encodedVersion = encodeURIComponent(apiVersion);
+    const url = `${baseUrl}/openai/deployments/${encodeURIComponent(model)}/audio/speech?api-version=${encodedVersion}`;
 
     const response = await fetch(url, {
       method: "POST",
