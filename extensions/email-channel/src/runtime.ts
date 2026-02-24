@@ -42,7 +42,16 @@ interface EmailProcessorState {
 const MAX_RETRY_ATTEMPTS = 3;
 
 function getStateFilePath(accountId: string): string {
-  return path.join(os.homedir(), ".openclaw", "extensions", "email", `state-${accountId}.json`);
+  // Store state files in the email-channel plugin directory
+  // This keeps all plugin-related files together
+  return path.join(
+    os.homedir(),
+    ".openclaw",
+    "extensions",
+    "email-channel",
+    "state",
+    `state-${accountId}.json`,
+  );
 }
 
 // Per-account runtime state

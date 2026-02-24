@@ -136,24 +136,34 @@ api.registerChannel({ plugin: emailPlugin });
 const config = cfg.channels?.email?.accounts?.default;
 ```
 
-## 📊 两个 email 目录的作用
+## 📊 插件目录结构
 
-### ~/.openclaw/extensions/email/
+### ~/.openclaw/extensions/email-channel/
 
 ```
-email/
-├── state.json              # 全局状态 (所有账户共享)
-└── state-default.json      # default 账户的状态
+email-channel/
+├── index.ts                # 插件入口
+├── package.json            # 插件配置
+├── node_modules/           # 依赖
+├── state/                  # 运行时状态目录
+│   ├── state-default.json  # default 账户的状态
+│   └── state-<account>.json # 其他账户的状态文件
+└── src/                    # 源代码
+    ├── channel.ts
+    └── runtime.ts
 ```
 
 **作用**:
 
+- ✅ 插件源代码
+- ✅ 依赖包
+- ✅ 被动态加载
 - ✅ 存储已处理的消息 ID（去重）
 - ✅ 记录最后处理时间戳
 - ✅ 重试计数器
 - ✅ 持久化，重启后恢复
 
-**格式**:
+**状态文件格式** (`state/state-default.json`):
 
 ```json
 {
@@ -167,24 +177,6 @@ email/
   }
 }
 ```
-
-### ~/.openclaw/extensions/email-channel/
-
-```
-email-channel/
-├── index.ts                # 插件入口
-├── package.json            # 插件配置
-├── node_modules/           # 依赖
-└── src/                    # 源代码
-    ├── channel.ts
-    └── runtime.ts
-```
-
-**作用**:
-
-- ✅ 插件源代码
-- ✅ 依赖包
-- ✅ 被动态加载
 
 ## 🔧 如何更新插件代码
 
@@ -347,16 +339,17 @@ cat ~/.openclaw/extensions/email/state.json | jq '.processedMessageIds | length'
 
 ### 关键目录
 
-| 目录                                    | 用途       | 内容                     |
-| --------------------------------------- | ---------- | ------------------------ |
-| `~/.openclaw/extensions/email-channel/` | 插件代码   | TypeScript 源码、依赖    |
-| `~/.openclaw/extensions/email/`         | 运行时状态 | 消息记录、去重数据       |
-| `~/.openclaw/openclaw.json`             | 用户配置   | IMAP/SMTP 配置、账户信息 |
+| 目录                                    | 用途     | 内容                              |
+| --------------------------------------- | -------- | --------------------------------- |
+| `~/.openclaw/extensions/email-channel/` | 插件目录 | TypeScript 源码、依赖、运行时状态 |
+| `~/.openclaw/openclaw.json`             | 用户配置 | IMAP/SMTP 配置、账户信息          |
 
-### 不要删除
+### 注意事项
 
-- ❌ `~/.openclaw/extensions/email/` - 会导致消息重复处理
-- ✅ 可以删除 `~/.openclaw/extensions/email-channel/` - 会重新加载
+- ✅ 所有文件都保存在 `~/.openclaw/extensions/email-channel/` 目录下
+- ✅ 状态文件保存在 `~/.openclaw/extensions/email-channel/state/` 子目录
+- ✅ 可以安全删除整个 `email-channel/` 目录并重新安装（会丢失状态）
+- ⚠️ 删除 `state/` 目录会导致消息重复处理
 
 ---
 
