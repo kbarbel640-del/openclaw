@@ -15,6 +15,9 @@ import { ElevateModal } from "./components/ElevateModal.js";
 import { InstallerWizard } from "./pages/installer/InstallerWizard.js";
 import { ConfigCenter } from "./pages/config/ConfigCenter.js";
 import { UserManagementPage } from "./pages/users/UserManagementPage.js";
+import { SessionsPage } from "./pages/SessionsPage.js";
+import { LogsPage } from "./pages/LogsPage.js";
+import { SkillsPage } from "./pages/SkillsPage.js";
 import type { AuthSession, OcccBridge } from "../shared/ipc-types.js";
 
 const occc = (window as unknown as { occc: OcccBridge }).occc;
@@ -264,15 +267,18 @@ export function App() {
         {/* Main Content */}
         <main className="main-content">
           {activePage === "dashboard" && <Dashboard />}
+          {activePage === "sessions" && <SessionsPage />}
+          {activePage === "logs" && <LogsPage />}
           {activePage === "installer" && (
             <InstallerWizard onComplete={() => setActivePage("dashboard")} />
           )}
           {activePage === "config" && <ConfigCenter />}
+          {activePage === "skills" && <SkillsPage />}
           {activePage === "users" && <UserManagementPage />}
-          {activePage !== "dashboard" && activePage !== "installer" && activePage !== "config" && activePage !== "users" && (
+          {activePage === "security" && (
             <PlaceholderPage
-              title={NAV_ITEMS.find((n) => n.id === activePage)?.label ?? ""}
-              description="Coming in a future phase."
+              title="Security Dashboard"
+              description="Security monitoring and threat detection coming soon."
             />
           )}
         </main>
