@@ -12,6 +12,19 @@ import { whatsappOutboundLog } from "./loggers.js";
 import type { WebInboundMsg } from "./types.js";
 import { elide } from "./util.js";
 
+/**
+ * Check if a text is a reasoning message that should not be delivered to WhatsApp.
+ * Reasoning messages are formatted as "Reasoning:\n..." and should be hidden from users
+ * unless explicitly enabled for the channel (WhatsApp doesn't support reasoning display yet).
+ */
+function isReasoningMessage(text: string | undefined): boolean {
+  if (!text) {
+    return false;
+  }
+  const trimmed = text.trimStart();
+  return trimmed.startsWith("Reasoning:");
+}
+
 export async function deliverWebReply(params: {
   replyResult: ReplyPayload;
   msg: WebInboundMsg;
@@ -28,6 +41,17 @@ export async function deliverWebReply(params: {
   tableMode?: MarkdownTableMode;
 }) {
   const { replyResult, msg, maxMediaBytes, textLimit, replyLogger, connectionId, skipLog } = params;
+
+  // Filter out reasoning messages from WhatsApp delivery (issue #25214)
+  // WhatsApp doesn't have a reasoning lane coordinator like Telegram,
+  // so reasoning messages would appear as normal visible messages.
+  if (isReasoningMessage(replyResult.text)) {
+    if (shouldLogVerbose()) {
+      logVerbose("Skipping reasoning message delivery to WhatsApp");
+    }
+    return;
+  }
+
   const replyStarted = Date.now();
   const tableMode = params.tableMode ?? "code";
   const chunkMode = params.chunkMode ?? "length";
