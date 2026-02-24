@@ -1,5 +1,5 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const TEST_GATEWAY_TOKEN = "test-gateway-token-1234567890";
@@ -115,6 +115,8 @@ vi.mock("../agents/openclaw-tools.js", () => {
 });
 
 const { handleToolsInvokeHttpRequest } = await import("./tools-invoke-http.js");
+const { resetGatewayHttpToolCircuitBreakers } =
+  await import("./tool-reliability/circuit-breaker.js");
 
 let pluginHttpHandlers: Array<(req: IncomingMessage, res: ServerResponse) => Promise<boolean>> = [];
 
@@ -165,6 +167,15 @@ afterAll(async () => {
 beforeEach(() => {
   delete process.env.OPENCLAW_GATEWAY_TOKEN;
   delete process.env.OPENCLAW_GATEWAY_PASSWORD;
+  delete process.env.OPENCLAW_TOOL_RELIABILITY_CB_ENABLED;
+  delete process.env.OPENCLAW_TOOL_RELIABILITY_CB_WINDOW_MS;
+  delete process.env.OPENCLAW_TOOL_RELIABILITY_CB_MIN_CALLS;
+  delete process.env.OPENCLAW_TOOL_RELIABILITY_CB_FAILURE_RATE;
+  delete process.env.OPENCLAW_TOOL_RELIABILITY_CB_CONSECUTIVE_FAILURES;
+  delete process.env.OPENCLAW_TOOL_RELIABILITY_CB_OPEN_MS;
+  delete process.env.OPENCLAW_TOOL_RELIABILITY_CB_HALF_OPEN_PROBES;
+  delete process.env.OPENCLAW_TOOL_RELIABILITY_CB_HALF_OPEN_SUCCESS_RATE;
+  resetGatewayHttpToolCircuitBreakers();
   pluginHttpHandlers = [];
   cfg = {};
 });
@@ -482,5 +493,46 @@ describe("POST /tools/invoke", () => {
     expect(crashBody.ok).toBe(false);
     expect(crashBody.error?.type).toBe("tool_error");
     expect(crashBody.error?.message).toBe("tool execution failed");
+  });
+
+  it("returns 503 when the HTTP tool circuit opens after repeated execution failures", async () => {
+    process.env.OPENCLAW_TOOL_RELIABILITY_CB_ENABLED = "1";
+    process.env.OPENCLAW_TOOL_RELIABILITY_CB_MIN_CALLS = "2";
+    process.env.OPENCLAW_TOOL_RELIABILITY_CB_FAILURE_RATE = "1";
+    process.env.OPENCLAW_TOOL_RELIABILITY_CB_CONSECUTIVE_FAILURES = "2";
+    process.env.OPENCLAW_TOOL_RELIABILITY_CB_OPEN_MS = "60000";
+
+    cfg = {
+      ...cfg,
+      agents: {
+        list: [{ id: "main", default: true, tools: { allow: ["tools_invoke_test"] } }],
+      },
+    };
+
+    const first = await invokeToolAuthed({
+      tool: "tools_invoke_test",
+      args: { mode: "crash" },
+      sessionKey: "main",
+    });
+    expect(first.status).toBe(500);
+
+    const second = await invokeToolAuthed({
+      tool: "tools_invoke_test",
+      args: { mode: "crash" },
+      sessionKey: "main",
+    });
+    expect(second.status).toBe(500);
+
+    const third = await invokeToolAuthed({
+      tool: "tools_invoke_test",
+      args: { mode: "crash" },
+      sessionKey: "main",
+    });
+    expect(third.status).toBe(503);
+
+    const thirdBody = await third.json();
+    expect(thirdBody.ok).toBe(false);
+    expect(thirdBody.error?.type).toBe("tool_error");
+    expect(String(thirdBody.error?.message ?? "")).toContain("circuit open");
   });
 });

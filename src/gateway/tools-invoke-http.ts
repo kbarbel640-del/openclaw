@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import { createOpenClawTools } from "../agents/openclaw-tools.js";
 import {
   resolveEffectiveToolPolicy,
@@ -23,7 +24,6 @@ import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { DEFAULT_GATEWAY_HTTP_TOOL_DENY } from "../security/dangerous-tools.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
-import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
 import {
   readJsonBodyOrError,
@@ -33,6 +33,10 @@ import {
   sendMethodNotAllowed,
 } from "./http-common.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
+import {
+  getGatewayHttpToolCircuitBreaker,
+  isGatewayHttpToolCircuitBreakerEnabled,
+} from "./tool-reliability/circuit-breaker.js";
 
 const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
 const MEMORY_TOOL_NAMES = new Set(["memory_search", "memory_get"]);
@@ -295,6 +299,22 @@ export async function handleToolsInvokeHttpRequest(
     return true;
   }
 
+  const circuitBreakerEnabled = isGatewayHttpToolCircuitBreakerEnabled();
+  const circuitBreaker = circuitBreakerEnabled ? getGatewayHttpToolCircuitBreaker(toolName) : null;
+
+  if (circuitBreaker && !circuitBreaker.allowCall()) {
+    sendJson(res, 503, {
+      ok: false,
+      error: {
+        type: "tool_error",
+        message: `tool circuit open for ${toolName}; retry after cooldown`,
+      },
+    });
+    return true;
+  }
+
+  const startedAt = Date.now();
+
   try {
     const toolArgs = mergeActionIntoArgsIfSupported({
       // oxlint-disable-next-line typescript/no-explicit-any
@@ -304,15 +324,19 @@ export async function handleToolsInvokeHttpRequest(
     });
     // oxlint-disable-next-line typescript/no-explicit-any
     const result = await (tool as any).execute?.(`http-${Date.now()}`, toolArgs);
+    circuitBreaker?.recordOutcome(true, Date.now() - startedAt);
     sendJson(res, 200, { ok: true, result });
   } catch (err) {
     if (isToolInputError(err)) {
+      // Bad input should not contribute to circuit failures.
+      circuitBreaker?.recordOutcome(true, Date.now() - startedAt);
       sendJson(res, 400, {
         ok: false,
         error: { type: "tool_error", message: getErrorMessage(err) || "invalid tool arguments" },
       });
       return true;
     }
+    circuitBreaker?.recordOutcome(false, Date.now() - startedAt);
     logWarn(`tools-invoke: tool execution failed: ${String(err)}`);
     sendJson(res, 500, {
       ok: false,
