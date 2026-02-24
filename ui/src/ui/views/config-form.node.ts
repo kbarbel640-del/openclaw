@@ -525,7 +525,9 @@ export function renderNode(params: {
   return html`
     <div class="cfg-field cfg-field--error">
       <div class="cfg-field__label">${label}</div>
-      <div class="cfg-field__error">${t("configFormUi.unsupportedType", { type })}</div>
+      <div class="cfg-field__error"
+        >${t("configFormUi.unsupportedType", { type: String(type ?? "unknown") })}</div
+      >
     </div>
   `;
 }
