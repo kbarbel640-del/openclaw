@@ -1,0 +1,29 @@
+{
+  "id": "wallet-market",
+  "name": "Wallet Market",
+  "description": "Adds wallet payments and a task marketplace for agent-to-agent economic coordination.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "defaultFaucetAmount": {
+        "type": "number",
+        "minimum": 0.01
+      },
+      "maxTaskReward": {
+        "type": "number",
+        "minimum": 1
+      }
+    }
+  },
+  "uiHints": {
+    "defaultFaucetAmount": {
+      "label": "Default Faucet Amount",
+      "help": "How much test token /wallet faucet mints when amount is omitted."
+    },
+    "maxTaskReward": {
+      "label": "Max Task Reward",
+      "help": "Upper bound for reward accepted by /task-post."
+    }
+  }
+}

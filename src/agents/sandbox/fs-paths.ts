@@ -210,8 +210,14 @@ function findMountByContainerPath(mounts: SandboxFsMount[], target: string): San
 
 function findMountByHostPath(mounts: SandboxFsMount[], target: string): SandboxFsMount | null {
   for (const mount of mounts) {
-    if (isPathInsideHost(mount.hostRoot, target)) {
+    const relation = classifyHostPathContainment(mount.hostRoot, target);
+    if (relation.kind === "inside") {
       return mount;
+    }
+    if (relation.kind === "symlink_escape") {
+      throw new Error(
+        `Symlink escapes sandbox mount root (${relation.canonicalRoot}): ${path.resolve(target)}`,
+      );
     }
   }
   return null;
@@ -225,10 +231,29 @@ function isPathInsidePosix(root: string, target: string): boolean {
   return !(rel.startsWith("..") || path.posix.isAbsolute(rel));
 }
 
-function isPathInsideHost(root: string, target: string): boolean {
-  const canonicalRoot = resolveSandboxHostPathViaExistingAncestor(path.resolve(root));
-  const canonicalTarget = resolveSandboxHostPathViaExistingAncestor(path.resolve(target));
-  const rel = path.relative(canonicalRoot, canonicalTarget);
+function classifyHostPathContainment(
+  root: string,
+  target: string,
+):
+  | { kind: "inside" }
+  | { kind: "outside" }
+  | { kind: "symlink_escape"; canonicalRoot: string; canonicalTarget: string } {
+  const lexicalRoot = path.resolve(root);
+  const lexicalTarget = path.resolve(target);
+  if (!isPathInside(lexicalRoot, lexicalTarget)) {
+    return { kind: "outside" };
+  }
+
+  const canonicalRoot = resolveSandboxHostPathViaExistingAncestor(lexicalRoot);
+  const canonicalTarget = resolveSandboxHostPathViaExistingAncestor(lexicalTarget);
+  if (isPathInside(canonicalRoot, canonicalTarget)) {
+    return { kind: "inside" };
+  }
+  return { kind: "symlink_escape", canonicalRoot, canonicalTarget };
+}
+
+function isPathInside(root: string, target: string): boolean {
+  const rel = path.relative(root, target);
   if (!rel) {
     return true;
   }
