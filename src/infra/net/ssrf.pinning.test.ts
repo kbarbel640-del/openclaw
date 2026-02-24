@@ -19,14 +19,27 @@ const makePinned = () => ({
   lookup: createPinnedLookup({ hostname: "example.com", addresses: ["93.184.216.34"] }),
 });
 
+function restoreEnvKey(key: string, saved: string | undefined): void {
+  if (saved === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = saved;
+  }
+}
+
 describe("createPinnedDispatcher proxy support", () => {
-  const savedEnv = { ...process.env };
+  const savedEnv = {
+    HTTPS_PROXY: process.env.HTTPS_PROXY,
+    https_proxy: process.env.https_proxy,
+    HTTP_PROXY: process.env.HTTP_PROXY,
+    http_proxy: process.env.http_proxy,
+  };
 
   afterEach(() => {
-    process.env.HTTPS_PROXY = savedEnv.HTTPS_PROXY;
-    process.env.https_proxy = savedEnv.https_proxy;
-    process.env.HTTP_PROXY = savedEnv.HTTP_PROXY;
-    process.env.http_proxy = savedEnv.http_proxy;
+    restoreEnvKey("HTTPS_PROXY", savedEnv.HTTPS_PROXY);
+    restoreEnvKey("https_proxy", savedEnv.https_proxy);
+    restoreEnvKey("HTTP_PROXY", savedEnv.HTTP_PROXY);
+    restoreEnvKey("http_proxy", savedEnv.http_proxy);
   });
 
   it("returns a plain Agent when no proxy env vars are set", () => {
