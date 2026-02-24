@@ -37,7 +37,7 @@ export function resolveIndicatorType(
 let lastHeartbeat: HeartbeatEventPayload | null = null;
 const listeners = new Set<(evt: HeartbeatEventPayload) => void>();
 
-export function emitHeartbeatEvent(evt: Omit<HeartbeatEventPayload, "ts">) {
+export function emitHeartbeatEvent(evt: Omit<HeartbeatEventPayload, "ts" | "id">) {
   const enriched: HeartbeatEventPayload = { id: crypto.randomUUID(), ts: Date.now(), ...evt };
   lastHeartbeat = enriched;
   for (const listener of listeners) {
