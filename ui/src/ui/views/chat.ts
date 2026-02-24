@@ -95,6 +95,7 @@ export type ChatProps = {
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
   basePath?: string;
+  detailPanelExpanded?: boolean;
 };
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
@@ -842,7 +843,7 @@ export function renderChat(props: ChatProps) {
       }
 
       <!-- Input bar -->
-      <div class="agent-chat__input">
+      <div class="agent-chat__input ${props.detailPanelExpanded ? "chat-input-bar--above-panel" : ""}">
         ${renderSlashMenu(requestUpdate, props)}
         ${renderAttachmentPreview(props)}
 

@@ -554,6 +554,7 @@ export function renderApp(state: AppViewState) {
           state.tab === "agents"
             ? renderAgents({
                 basePath: state.basePath ?? "",
+                detailPanelExpanded: state.agentDetailPanel.expanded,
                 loading: state.agentsLoading,
                 error: state.agentsError,
                 agentsList: state.agentsList,
@@ -1132,6 +1133,7 @@ export function renderApp(state: AppViewState) {
                 assistantName: state.assistantName,
                 assistantAvatar: state.assistantAvatar,
                 basePath: state.basePath ?? "",
+                detailPanelExpanded: state.agentDetailPanel.expanded,
               })
             : nothing
         }
