@@ -37,6 +37,47 @@ OpenClaw assumes the host and config boundary are trusted:
 - If someone can modify Gateway host state/config (`~/.openclaw`, including `openclaw.json`), treat them as a trusted operator.
 - Running one Gateway for multiple mutually untrusted/adversarial operators is **not a recommended setup**.
 - For mixed-trust teams, split trust boundaries with separate gateways (or at minimum separate OS users/hosts).
+- OpenClaw can run multiple gateway instances on one machine, but recommended operations favor clean trust-boundary separation.
+- Recommended default: one user per machine/host (or VPS), one gateway for that user, and one or more agents in that gateway.
+- If multiple users want OpenClaw, use one VPS/host per user.
+
+### Practical consequence (operator trust boundary)
+
+Inside one Gateway instance, authenticated operator access is a trusted control-plane role, not a per-user tenant role.
+
+- Operators with read/control-plane access can inspect gateway session metadata/history by design.
+- Session identifiers (`sessionKey`, session IDs, labels) are routing selectors, not authorization tokens.
+- Example: expecting per-operator isolation for methods like `sessions.list`, `sessions.preview`, or `chat.history` is outside this model.
+- If you need adversarial-user isolation, run separate gateways per trust boundary.
+- Multiple gateways on one machine are technically possible, but not the recommended baseline for multi-user isolation.
+
+## Personal assistant model (not a multi-tenant bus)
+
+OpenClaw is designed as a personal assistant security model: one trusted operator boundary, potentially many agents.
+
+- If several people can message one tool-enabled agent, each of them can steer that same permission set.
+- Per-user session/memory isolation helps privacy, but does not convert a shared agent into per-user host authorization.
+- If users may be adversarial to each other, run separate gateways (or separate OS users/hosts) per trust boundary.
+
+### Shared Slack workspace: real risk
+
+If "everyone in Slack can message the bot," the core risk is delegated tool authority:
+
+- any allowed sender can induce tool calls (`exec`, browser, network/file tools) within the agent's policy;
+- prompt/content injection from one sender can cause actions that affect shared state, devices, or outputs;
+- if one shared agent has sensitive credentials/files, any allowed sender can potentially drive exfiltration via tool usage.
+
+Use separate agents/gateways with minimal tools for team workflows; keep personal-data agents private.
+
+### Company-shared agent: acceptable pattern
+
+This is acceptable when everyone using that agent is in the same trust boundary (for example one company team) and the agent is strictly business-scoped.
+
+- run it on a dedicated machine/VM/container;
+- use a dedicated OS user + dedicated browser/profile/accounts for that runtime;
+- do not sign that runtime into personal Apple/Google accounts or personal password-manager/browser profiles.
+
+If you mix personal and company identities on the same runtime, you collapse the separation and increase personal-data exposure risk.
 
 ## Trust boundary matrix
 
@@ -57,6 +98,7 @@ These patterns are commonly reported and are usually closed as no-action unless 
 
 - Prompt-injection-only chains without a policy/auth/sandbox bypass.
 - Claims that assume hostile multi-tenant operation on one shared host/config.
+- Claims that classify normal operator read-path access (for example `sessions.list`/`sessions.preview`/`chat.history`) as IDOR in a shared-gateway setup.
 - Localhost-only deployment findings (for example HSTS on loopback-only gateway).
 - Discord inbound webhook signature findings for inbound paths that do not exist in this repo.
 - "Missing per-user authorization" findings that treat `sessionKey` as an auth token.
