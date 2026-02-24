@@ -49,6 +49,18 @@ export type ModelProviderConfig = {
   headers?: Record<string, string>;
   authHeader?: boolean;
   models: ModelDefinitionConfig[];
+  /**
+   * Enable WebSocket transport for OpenAI Responses API (`wss://api.openai.com/v1/responses`).
+   * Keeps a persistent connection for multi-turn tool-call workflows, sending only incremental
+   * inputs per turn using `previous_response_id`. Only applies when api="openai-responses".
+   * Default: false.
+   */
+  websocket?: boolean;
+  /**
+   * When websocket=true, send a warm-up `generate: false` event on connection open to
+   * pre-load the model before the first real turn. Default: false.
+   */
+  websocketWarmup?: boolean;
 };
 
 export type BedrockDiscoveryConfig = {

@@ -43,6 +43,7 @@ import { resolveImageSanitizationLimits } from "../../image-sanitization.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
 import { resolveDefaultModelForAgent } from "../../model-selection.js";
 import { createOllamaStreamFn, OLLAMA_NATIVE_BASE_URL } from "../../ollama-stream.js";
+import { createOpenAIWebSocketStreamFn, releaseWsSession } from "../../openai-ws-stream.js";
 import { resolveOwnerDisplaySetting } from "../../owner-display.js";
 import {
   isCloudCodeAssistFormatError,
@@ -724,6 +725,29 @@ export async function runEmbeddedAttempt(
           typeof providerConfig?.baseUrl === "string" ? providerConfig.baseUrl.trim() : "";
         const ollamaBaseUrl = modelBaseUrl || providerBaseUrl || OLLAMA_NATIVE_BASE_URL;
         activeSession.agent.streamFn = createOllamaStreamFn(ollamaBaseUrl);
+      } else if (
+        params.model.api === "openai-responses" &&
+        params.config?.models?.providers?.[params.provider]?.websocket === true
+      ) {
+        // OpenAI WebSocket mode: use a persistent WebSocket connection to
+        // wss://api.openai.com/v1/responses instead of HTTP POST.  Sends only
+        // incremental tool-result inputs with previous_response_id after the
+        // first turn, reducing per-turn overhead for long tool-call chains.
+        // Falls back to HTTP (streamSimple) automatically if the WS fails.
+        const wsApiKey = await params.authStorage.getApiKey(params.provider);
+        if (wsApiKey) {
+          activeSession.agent.streamFn = createOpenAIWebSocketStreamFn(wsApiKey, params.sessionId, {
+            signal: runAbortController.signal,
+          });
+          log.debug(
+            `[ws] WebSocket mode enabled: sessionId=${params.sessionId} provider=${params.provider}`,
+          );
+        } else {
+          log.warn(
+            `[ws] WebSocket mode configured but no API key for ${params.provider}; using HTTP`,
+          );
+          activeSession.agent.streamFn = streamSimple;
+        }
       } else {
         // Force a stable streamFn reference so vitest can reliably mock @mariozechner/pi-ai.
         activeSession.agent.streamFn = streamSimple;
@@ -1385,6 +1409,7 @@ export async function runEmbeddedAttempt(
         sessionManager,
       });
       session?.dispose();
+      releaseWsSession(params.sessionId);
       await sessionLock.release();
     }
   } finally {
