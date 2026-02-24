@@ -20,7 +20,7 @@ function resolveModel(model?: string): string {
 }
 
 /**
- * Build the transcription URL for Azure AI.
+ * Build the transcription URL for Azure Foundry.
  *
  * Two forms are supported:
  *

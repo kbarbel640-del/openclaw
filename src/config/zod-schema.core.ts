@@ -81,7 +81,7 @@ export const BedrockDiscoverySchema = z
   .strict()
   .optional();
 
-export const AzureAiDiscoverySchema = z
+export const AzureFoundryDiscoverySchema = z
   .object({
     enabled: z.boolean().optional(),
     endpoint: z.string().optional(),
@@ -98,7 +98,7 @@ export const ModelsConfigSchema = z
     mode: z.union([z.literal("merge"), z.literal("replace")]).optional(),
     providers: z.record(z.string(), ModelProviderSchema).optional(),
     bedrockDiscovery: BedrockDiscoverySchema,
-    azureAiDiscovery: AzureAiDiscoverySchema,
+    azureFoundryDiscovery: AzureFoundryDiscoverySchema,
   })
   .strict()
   .optional();

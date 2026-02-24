@@ -13,8 +13,11 @@ import {
   KILOCODE_MODEL_CATALOG,
 } from "../providers/kilocode-shared.js";
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
-import { discoverAzureAiModels } from "./azure-ai-discovery.js";
-import { AZURE_AI_MODEL_CATALOG, buildAzureAiModelDefinition } from "./azure-ai-models.js";
+import { discoverAzureFoundryModels } from "./azure-foundry-discovery.js";
+import {
+  AZURE_FOUNDRY_MODEL_CATALOG,
+  buildAzureFoundryModelDefinition,
+} from "./azure-foundry-models.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
 import {
   buildBytePlusModelDefinition,
@@ -679,12 +682,12 @@ function buildTogetherProvider(): ProviderConfig {
   };
 }
 
-function buildAzureAiProvider(endpoint: string): ProviderConfig {
+function buildAzureFoundryProvider(endpoint: string): ProviderConfig {
   const baseUrl = `${endpoint.replace(/\/+$/, "")}/openai/v1`;
   return {
     baseUrl,
     api: "openai-completions",
-    models: AZURE_AI_MODEL_CATALOG.map(buildAzureAiModelDefinition),
+    models: AZURE_FOUNDRY_MODEL_CATALOG.map(buildAzureFoundryModelDefinition),
   };
 }
 
@@ -959,15 +962,15 @@ export async function resolveImplicitProviders(params: {
     };
   }
 
-  const azureAiKey =
-    resolveEnvApiKeyVarName("azure-ai") ??
-    resolveApiKeyFromProfiles({ provider: "azure-ai", store: authStore });
-  if (azureAiKey) {
+  const azureFoundryKey =
+    resolveEnvApiKeyVarName("azure-foundry") ??
+    resolveApiKeyFromProfiles({ provider: "azure-foundry", store: authStore });
+  if (azureFoundryKey) {
     const azureEndpoint =
-      process.env.AZURE_AI_ENDPOINT?.trim() || "https://models.inference.ai.azure.com";
-    providers["azure-ai"] = {
-      ...buildAzureAiProvider(azureEndpoint),
-      apiKey: azureAiKey,
+      process.env.AZURE_FOUNDRY_ENDPOINT?.trim() || "https://models.inference.ai.azure.com";
+    providers["azure-foundry"] = {
+      ...buildAzureFoundryProvider(azureEndpoint),
+      apiKey: azureFoundryKey,
     };
   }
 
@@ -1107,17 +1110,17 @@ export async function resolveImplicitBedrockProvider(params: {
   } satisfies ProviderConfig;
 }
 
-export async function resolveImplicitAzureAiProvider(params: {
+export async function resolveImplicitAzureFoundryProvider(params: {
   agentDir: string;
   config?: OpenClawConfig;
   env?: NodeJS.ProcessEnv;
 }): Promise<ProviderConfig | null> {
   const env = params.env ?? process.env;
-  const discoveryConfig = params.config?.models?.azureAiDiscovery;
+  const discoveryConfig = params.config?.models?.azureFoundryDiscovery;
   const enabled = discoveryConfig?.enabled;
-  const hasApiKey = Boolean(env.AZURE_AI_API_KEY?.trim());
+  const hasApiKey = Boolean(env.AZURE_FOUNDRY_API_KEY?.trim());
   const authStore = ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false });
-  const hasProfile = listProfilesForProvider(authStore, "azure-ai").length > 0;
+  const hasProfile = listProfilesForProvider(authStore, "azure-foundry").length > 0;
 
   if (enabled === false) {
     return null;
@@ -1128,15 +1131,15 @@ export async function resolveImplicitAzureAiProvider(params: {
 
   const endpoint =
     discoveryConfig?.endpoint?.trim() ||
-    env.AZURE_AI_ENDPOINT?.trim() ||
+    env.AZURE_FOUNDRY_ENDPOINT?.trim() ||
     "https://models.inference.ai.azure.com";
-  const apiKey = env.AZURE_AI_API_KEY?.trim() ?? "";
+  const apiKey = env.AZURE_FOUNDRY_API_KEY?.trim() ?? "";
 
   if (!apiKey && !hasProfile) {
     return null;
   }
 
-  const models = await discoverAzureAiModels({
+  const models = await discoverAzureFoundryModels({
     endpoint,
     apiKey,
     config: discoveryConfig,

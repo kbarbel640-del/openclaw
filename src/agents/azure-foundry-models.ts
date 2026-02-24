@@ -1,13 +1,13 @@
 import type { ModelDefinitionConfig } from "../config/types.models.js";
 
-const AZURE_AI_ZERO_COST = {
+const AZURE_FOUNDRY_ZERO_COST = {
   input: 0,
   output: 0,
   cacheRead: 0,
   cacheWrite: 0,
 };
 
-export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
+export const AZURE_FOUNDRY_MODEL_CATALOG: ModelDefinitionConfig[] = [
   {
     id: "gpt-4o",
     name: "GPT-4o",
@@ -15,7 +15,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text", "image"],
     contextWindow: 128000,
     maxTokens: 16384,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "gpt-4o-mini",
@@ -24,7 +24,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text", "image"],
     contextWindow: 128000,
     maxTokens: 16384,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "gpt-4.1",
@@ -33,7 +33,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text", "image"],
     contextWindow: 1047576,
     maxTokens: 32768,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "gpt-4.1-mini",
@@ -42,7 +42,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text", "image"],
     contextWindow: 1047576,
     maxTokens: 32768,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "gpt-4.1-nano",
@@ -51,7 +51,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text", "image"],
     contextWindow: 1047576,
     maxTokens: 32768,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "o3-mini",
@@ -60,7 +60,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text"],
     contextWindow: 200000,
     maxTokens: 100000,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "o4-mini",
@@ -69,7 +69,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text", "image"],
     contextWindow: 200000,
     maxTokens: 100000,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "DeepSeek-R1",
@@ -78,7 +78,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text"],
     contextWindow: 131072,
     maxTokens: 8192,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "Phi-4",
@@ -87,7 +87,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text"],
     contextWindow: 16384,
     maxTokens: 4096,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "Mistral-large-2411",
@@ -96,7 +96,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text"],
     contextWindow: 131072,
     maxTokens: 8192,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "Meta-Llama-3.1-405B-Instruct",
@@ -105,7 +105,7 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text"],
     contextWindow: 131072,
     maxTokens: 8192,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
   {
     id: "Cohere-command-r-plus-08-2024",
@@ -114,12 +114,12 @@ export const AZURE_AI_MODEL_CATALOG: ModelDefinitionConfig[] = [
     input: ["text"],
     contextWindow: 131072,
     maxTokens: 4096,
-    cost: AZURE_AI_ZERO_COST,
+    cost: AZURE_FOUNDRY_ZERO_COST,
   },
 ];
 
-export function buildAzureAiModelDefinition(
-  model: (typeof AZURE_AI_MODEL_CATALOG)[number],
+export function buildAzureFoundryModelDefinition(
+  model: (typeof AZURE_FOUNDRY_MODEL_CATALOG)[number],
 ): ModelDefinitionConfig {
   return {
     id: model.id,

@@ -1,4 +1,4 @@
-# Azure AI Provider
+# Azure Foundry Provider
 
 This provider integrates Azure AI Foundry / Azure AI Inference models into OpenClaw.
 

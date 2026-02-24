@@ -6,7 +6,7 @@ import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import {
   normalizeProviders,
   type ProviderConfig,
-  resolveImplicitAzureAiProvider,
+  resolveImplicitAzureFoundryProvider,
   resolveImplicitBedrockProvider,
   resolveImplicitCopilotProvider,
   resolveImplicitProviders,
@@ -122,12 +122,12 @@ export async function ensureOpenClawModelsJson(
       ? mergeProviderModels(implicitBedrock, existing)
       : implicitBedrock;
   }
-  const implicitAzureAi = await resolveImplicitAzureAiProvider({ agentDir, config: cfg });
-  if (implicitAzureAi) {
-    const existing = providers["azure-ai"];
-    providers["azure-ai"] = existing
-      ? mergeProviderModels(implicitAzureAi, existing)
-      : implicitAzureAi;
+  const implicitAzureFoundry = await resolveImplicitAzureFoundryProvider({ agentDir, config: cfg });
+  if (implicitAzureFoundry) {
+    const existing = providers["azure-foundry"];
+    providers["azure-foundry"] = existing
+      ? mergeProviderModels(implicitAzureFoundry, existing)
+      : implicitAzureFoundry;
   }
   const implicitCopilot = await resolveImplicitCopilotProvider({ agentDir });
   if (implicitCopilot && !providers["github-copilot"]) {

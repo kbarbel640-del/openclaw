@@ -1,9 +1,9 @@
-import { AzureAIModelConfig } from "./types.js";
+import { AzureFoundryModelConfig } from "./types.js";
 
 const MAX_ERROR_CHARS = 300;
 
-export async function azureAIChatCompletion(
-  model: AzureAIModelConfig,
+export async function azureFoundryChatCompletion(
+  model: AzureFoundryModelConfig,
   messages: unknown[],
   opts: Record<string, unknown> = {},
 ) {
@@ -42,7 +42,7 @@ export async function azureAIChatCompletion(
       // ignore read failures
     }
     const suffix = detail ? `: ${detail}` : "";
-    throw new Error(`Azure AI chat completion failed (HTTP ${res.status})${suffix}`);
+    throw new Error(`Azure Foundry chat completion failed (HTTP ${res.status})${suffix}`);
   }
 
   return res.json();

@@ -1,7 +1,7 @@
 import type { ModelDefinitionConfig } from "../config/types.models.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 
-const log = createSubsystemLogger("azure-ai-discovery");
+const log = createSubsystemLogger("azure-foundry-discovery");
 
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
 const DEFAULT_CONTEXT_WINDOW = 32000;
@@ -13,7 +13,7 @@ const DEFAULT_COST = {
   cacheWrite: 0,
 };
 
-export type AzureAiDiscoveryConfig = {
+export type AzureFoundryDiscoveryConfig = {
   enabled?: boolean;
   endpoint?: string;
   providerFilter?: string[];
@@ -22,21 +22,21 @@ export type AzureAiDiscoveryConfig = {
   defaultMaxTokens?: number;
 };
 
-type AzureAiModelEntry = {
+type AzureFoundryModelEntry = {
   id?: string;
   name?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 };
 
-type AzureAiDiscoveryCacheEntry = {
+type AzureFoundryDiscoveryCacheEntry = {
   expiresAt: number;
   value?: ModelDefinitionConfig[];
   inFlight?: Promise<ModelDefinitionConfig[]>;
 };
 
-const discoveryCache = new Map<string, AzureAiDiscoveryCacheEntry>();
-let hasLoggedAzureAiError = false;
+const discoveryCache = new Map<string, AzureFoundryDiscoveryCacheEntry>();
+let hasLoggedAzureFoundryError = false;
 
 function normalizeProviderFilter(filter?: string[]): string[] {
   if (!filter || filter.length === 0) {
@@ -81,18 +81,18 @@ function inferInputModalities(modelId: string, modelName: string): Array<"text" 
   return ["text"];
 }
 
-function resolveDefaultContextWindow(config?: AzureAiDiscoveryConfig): number {
+function resolveDefaultContextWindow(config?: AzureFoundryDiscoveryConfig): number {
   const value = Math.floor(config?.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW);
   return value > 0 ? value : DEFAULT_CONTEXT_WINDOW;
 }
 
-function resolveDefaultMaxTokens(config?: AzureAiDiscoveryConfig): number {
+function resolveDefaultMaxTokens(config?: AzureFoundryDiscoveryConfig): number {
   const value = Math.floor(config?.defaultMaxTokens ?? DEFAULT_MAX_TOKENS);
   return value > 0 ? value : DEFAULT_MAX_TOKENS;
 }
 
 function toModelDefinition(
-  entry: AzureAiModelEntry,
+  entry: AzureFoundryModelEntry,
   defaults: { contextWindow: number; maxTokens: number },
 ): ModelDefinitionConfig | null {
   const id = entry.id?.trim();
@@ -111,15 +111,15 @@ function toModelDefinition(
   };
 }
 
-export function resetAzureAiDiscoveryCacheForTest(): void {
+export function resetAzureFoundryDiscoveryCacheForTest(): void {
   discoveryCache.clear();
-  hasLoggedAzureAiError = false;
+  hasLoggedAzureFoundryError = false;
 }
 
-export async function discoverAzureAiModels(params: {
+export async function discoverAzureFoundryModels(params: {
   endpoint: string;
   apiKey: string;
-  config?: AzureAiDiscoveryConfig;
+  config?: AzureFoundryDiscoveryConfig;
   now?: () => number;
   fetchFn?: typeof fetch;
 }): Promise<ModelDefinitionConfig[]> {
@@ -162,9 +162,9 @@ export async function discoverAzureAiModels(params: {
       },
     });
     if (!response.ok) {
-      throw new Error(`Azure AI model listing failed (${response.status})`);
+      throw new Error(`Azure Foundry model listing failed (${response.status})`);
     }
-    const body = (await response.json()) as { data?: AzureAiModelEntry[] };
+    const body = (await response.json()) as { data?: AzureFoundryModelEntry[] };
     const entries = body.data ?? [];
     const discovered: ModelDefinitionConfig[] = [];
     for (const entry of entries) {
@@ -202,9 +202,9 @@ export async function discoverAzureAiModels(params: {
     if (refreshIntervalSeconds > 0) {
       discoveryCache.delete(cacheKey);
     }
-    if (!hasLoggedAzureAiError) {
-      hasLoggedAzureAiError = true;
-      log.warn(`Failed to list Azure AI models: ${String(error)}`);
+    if (!hasLoggedAzureFoundryError) {
+      hasLoggedAzureFoundryError = true;
+      log.warn(`Failed to list Azure Foundry models: ${String(error)}`);
     }
     return [];
   }

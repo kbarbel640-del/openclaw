@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fetchMock = vi.fn();
 
 async function loadDiscovery() {
-  const mod = await import("./azure-ai-discovery.js");
-  mod.resetAzureAiDiscoveryCacheForTest();
+  const mod = await import("./azure-foundry-discovery.js");
+  mod.resetAzureFoundryDiscoveryCacheForTest();
   return mod;
 }
 
@@ -15,20 +15,20 @@ function mockModelsResponse(models: Array<{ id: string; name?: string }>) {
   });
 }
 
-describe("azure-ai-discovery", () => {
+describe("azure-foundry-discovery", () => {
   beforeEach(() => {
     fetchMock.mockReset();
   });
 
-  it("discovers models from Azure AI endpoint", async () => {
-    const { discoverAzureAiModels } = await loadDiscovery();
+  it("discovers models from Azure Foundry endpoint", async () => {
+    const { discoverAzureFoundryModels } = await loadDiscovery();
 
     mockModelsResponse([
       { id: "gpt-4o", name: "GPT-4o" },
       { id: "DeepSeek-R1", name: "DeepSeek R1" },
     ]);
 
-    const models = await discoverAzureAiModels({
+    const models = await discoverAzureFoundryModels({
       endpoint: "https://models.inference.ai.azure.com",
       apiKey: "test-key",
       fetchFn: fetchMock,
@@ -40,11 +40,11 @@ describe("azure-ai-discovery", () => {
   });
 
   it("sends api-key header", async () => {
-    const { discoverAzureAiModels } = await loadDiscovery();
+    const { discoverAzureFoundryModels } = await loadDiscovery();
 
     mockModelsResponse([{ id: "gpt-4o" }]);
 
-    await discoverAzureAiModels({
+    await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "my-secret-key",
       fetchFn: fetchMock,
@@ -59,14 +59,14 @@ describe("azure-ai-discovery", () => {
   });
 
   it("applies provider filter", async () => {
-    const { discoverAzureAiModels } = await loadDiscovery();
+    const { discoverAzureFoundryModels } = await loadDiscovery();
 
     mockModelsResponse([
       { id: "gpt-4o", name: "GPT-4o" },
       { id: "DeepSeek-R1", name: "DeepSeek R1" },
     ]);
 
-    const models = await discoverAzureAiModels({
+    const models = await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "key",
       config: { providerFilter: ["deepseek"] },
@@ -78,11 +78,11 @@ describe("azure-ai-discovery", () => {
   });
 
   it("uses configured defaults for context and max tokens", async () => {
-    const { discoverAzureAiModels } = await loadDiscovery();
+    const { discoverAzureFoundryModels } = await loadDiscovery();
 
     mockModelsResponse([{ id: "test-model", name: "Test Model" }]);
 
-    const models = await discoverAzureAiModels({
+    const models = await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "key",
       config: { defaultContextWindow: 64000, defaultMaxTokens: 8192 },
@@ -96,16 +96,16 @@ describe("azure-ai-discovery", () => {
   });
 
   it("caches results when refreshInterval is enabled", async () => {
-    const { discoverAzureAiModels } = await loadDiscovery();
+    const { discoverAzureFoundryModels } = await loadDiscovery();
 
     mockModelsResponse([{ id: "gpt-4o" }]);
 
-    await discoverAzureAiModels({
+    await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "key",
       fetchFn: fetchMock,
     });
-    await discoverAzureAiModels({
+    await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "key",
       fetchFn: fetchMock,
@@ -115,18 +115,18 @@ describe("azure-ai-discovery", () => {
   });
 
   it("skips cache when refreshInterval is 0", async () => {
-    const { discoverAzureAiModels } = await loadDiscovery();
+    const { discoverAzureFoundryModels } = await loadDiscovery();
 
     mockModelsResponse([{ id: "gpt-4o" }]);
     mockModelsResponse([{ id: "gpt-4o" }]);
 
-    await discoverAzureAiModels({
+    await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "key",
       config: { refreshInterval: 0 },
       fetchFn: fetchMock,
     });
-    await discoverAzureAiModels({
+    await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "key",
       config: { refreshInterval: 0 },
@@ -137,14 +137,14 @@ describe("azure-ai-discovery", () => {
   });
 
   it("returns empty array on API failure", async () => {
-    const { discoverAzureAiModels } = await loadDiscovery();
+    const { discoverAzureFoundryModels } = await loadDiscovery();
 
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 401,
     });
 
-    const models = await discoverAzureAiModels({
+    const models = await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "bad-key",
       fetchFn: fetchMock,
@@ -154,14 +154,14 @@ describe("azure-ai-discovery", () => {
   });
 
   it("infers reasoning support from model id", async () => {
-    const { discoverAzureAiModels } = await loadDiscovery();
+    const { discoverAzureFoundryModels } = await loadDiscovery();
 
     mockModelsResponse([
       { id: "o4-mini", name: "o4-mini" },
       { id: "gpt-4o", name: "GPT-4o" },
     ]);
 
-    const models = await discoverAzureAiModels({
+    const models = await discoverAzureFoundryModels({
       endpoint: "https://example.com",
       apiKey: "key",
       fetchFn: fetchMock,

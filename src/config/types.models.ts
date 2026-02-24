@@ -60,7 +60,7 @@ export type BedrockDiscoveryConfig = {
   defaultMaxTokens?: number;
 };
 
-export type AzureAiDiscoveryConfig = {
+export type AzureFoundryDiscoveryConfig = {
   enabled?: boolean;
   endpoint?: string;
   providerFilter?: string[];
@@ -73,5 +73,5 @@ export type ModelsConfig = {
   mode?: "merge" | "replace";
   providers?: Record<string, ModelProviderConfig>;
   bedrockDiscovery?: BedrockDiscoveryConfig;
-  azureAiDiscovery?: AzureAiDiscoveryConfig;
+  azureFoundryDiscovery?: AzureFoundryDiscoveryConfig;
 };

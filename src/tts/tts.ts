@@ -522,7 +522,7 @@ export function resolveTtsApiKey(
     return config.openai.apiKey || process.env.OPENAI_API_KEY;
   }
   if (provider === "azure") {
-    return config.azure.apiKey || process.env.AZURE_AI_API_KEY;
+    return config.azure.apiKey || process.env.AZURE_FOUNDRY_API_KEY;
   }
   return undefined;
 }
