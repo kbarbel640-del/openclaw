@@ -563,7 +563,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
   action: "sendDice",
   channel: "telegram",
   to: "123456789",
-  emoji: "🎲",       // 🎲 🎯 🏀 ⚽ 🎳 🎰 (default: 🎲)
+  emoji: "🎲", // 🎲 🎯 🏀 ⚽ 🎳 🎰 (default: 🎲)
 }
 ```
 
