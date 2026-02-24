@@ -122,6 +122,12 @@ export async function ensureOpenClawModelsJson(
     providers["github-copilot"] = implicitCopilot;
   }
 
+  for (const [key, cfg] of Object.entries(providers)) {
+    if (cfg.enabled === false) {
+      delete providers[key];
+    }
+  }
+
   if (Object.keys(providers).length === 0) {
     return { agentDir, wrote: false };
   }

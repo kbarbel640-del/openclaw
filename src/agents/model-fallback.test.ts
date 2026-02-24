@@ -650,6 +650,81 @@ describe("runWithModelFallback", () => {
     expect(result.provider).toBe("openai");
     expect(result.model).toBe("gpt-4.1-mini");
   });
+
+  it("skips disabled providers in fallback chain", async () => {
+    const cfg = makeCfg({
+      models: {
+        providers: {
+          anthropic: {
+            enabled: false,
+            baseUrl: "https://api.anthropic.com",
+            models: [],
+          },
+        },
+      },
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai/gpt-4.1-mini",
+            fallbacks: ["anthropic/claude-haiku-3-5"],
+          },
+        },
+      },
+    });
+
+    const calls: Array<{ provider: string; model: string }> = [];
+
+    await expect(
+      runWithModelFallback({
+        cfg,
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        run: async (provider, model) => {
+          calls.push({ provider, model });
+          throw Object.assign(new Error("nope"), { status: 401 });
+        },
+      }),
+    ).rejects.toThrow();
+
+    expect(calls).toEqual([{ provider: "openai", model: "gpt-4.1-mini" }]);
+  });
+
+  it("skips disabled primary provider and uses fallback", async () => {
+    const cfg = makeCfg({
+      models: {
+        providers: {
+          openai: {
+            enabled: false,
+            baseUrl: "https://api.openai.com",
+            models: [],
+          },
+        },
+      },
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai/gpt-4.1-mini",
+            fallbacks: ["anthropic/claude-haiku-3-5"],
+          },
+        },
+      },
+    });
+
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      run: async (provider, model) => {
+        if (provider === "anthropic") {
+          return "ok";
+        }
+        throw new Error(`unexpected: ${provider}/${model}`);
+      },
+    });
+
+    expect(result.result).toBe("ok");
+    expect(result.provider).toBe("anthropic");
+  });
 });
 
 describe("isAnthropicBillingError", () => {
