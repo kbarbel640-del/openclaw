@@ -21,6 +21,23 @@ export function ensureMemoryIndexSchema(params: {
       size INTEGER NOT NULL
     );
   `);
+  // Audit log: records every hash change detected during sync.
+  // Enables agents to answer "when did MEMORY.md last change?" and
+  // supports the integrity manifest (distinguishing agent edits from
+  // external tampering).
+  params.db.exec(`
+    CREATE TABLE IF NOT EXISTS file_changes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT NOT NULL,
+      old_hash TEXT,
+      new_hash TEXT NOT NULL,
+      changed_at INTEGER NOT NULL,
+      source TEXT NOT NULL DEFAULT 'unknown'
+    );
+  `);
+  params.db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_file_changes_path ON file_changes(path, changed_at DESC);`,
+  );
   params.db.exec(`
     CREATE TABLE IF NOT EXISTS chunks (
       id TEXT PRIMARY KEY,

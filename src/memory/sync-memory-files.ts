@@ -1,6 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { buildFileEntry, listMemoryFiles, type MemoryFileEntry } from "./internal.js";
+import { detectSuspiciousPatterns } from "../security/external-content.js";
+import { checkIntegrity } from "./integrity.js";
 
 const log = createSubsystemLogger("memory");
 
@@ -39,6 +41,9 @@ export async function syncMemoryFiles(params: {
     concurrency: params.concurrency,
   });
 
+  // Integrity check: warn if any memory file was modified outside the agent.
+  await checkIntegrity(params.workspaceDir, fileEntries);
+
   const activePaths = new Set(fileEntries.map((entry) => entry.path));
   if (params.progress) {
     params.progress.total += fileEntries.length;
@@ -62,6 +67,36 @@ export async function syncMemoryFiles(params: {
         });
       }
       return;
+    }
+    // Audit log: record the hash change so agents can query change history.
+    if (record?.hash !== entry.hash) {
+      try {
+        params.db
+          .prepare(
+            `INSERT INTO file_changes (path, old_hash, new_hash, changed_at, source)
+             VALUES (?, ?, ?, ?, ?)`,
+          )
+          .run(entry.path, record?.hash ?? null, entry.hash, Date.now(), "sync");
+      } catch {
+        // non-fatal: audit log failure should not block indexing
+      }
+    }
+    // Security: scan memory file content for suspicious/injection patterns
+    // before indexing. Memory files are the most trusted content source, so
+    // any injected instructions here would be treated as authoritative.
+    try {
+      const fs = await import("node:fs/promises");
+      const raw = await fs.readFile(entry.absPath, "utf-8");
+      const suspicious = detectSuspiciousPatterns(raw);
+      if (suspicious.length > 0) {
+        log.warn("suspicious patterns detected in memory file", {
+          path: entry.path,
+          count: suspicious.length,
+          patterns: suspicious.map((p) => p.slice(0, 80)),
+        });
+      }
+    } catch {
+      // non-fatal: if we can't read the file here, indexFile will handle it
     }
     await params.indexFile(entry);
     if (params.progress) {

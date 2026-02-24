@@ -5,6 +5,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs";
 import path from "node:path";
+import { detectSuspiciousPatterns } from "../../security/external-content.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type {
   ParsedSkillFrontmatter,
@@ -174,6 +175,18 @@ function loadSkillEntries(
     let frontmatter: ParsedSkillFrontmatter = {};
     try {
       const raw = fs.readFileSync(skill.filePath, "utf-8");
+      // Security: scan skill content for suspicious/injection patterns.
+      // Skills are injected directly into the agent's system prompt, so
+      // malicious instructions here would be treated as authoritative.
+      const suspicious = detectSuspiciousPatterns(raw);
+      if (suspicious.length > 0) {
+        skillsLogger.warn("suspicious patterns detected in skill file", {
+          path: skill.filePath,
+          name: skill.name,
+          count: suspicious.length,
+          patterns: suspicious.map((p) => p.slice(0, 80)),
+        });
+      }
       frontmatter = parseFrontmatter(raw);
     } catch {
       // ignore malformed skills
