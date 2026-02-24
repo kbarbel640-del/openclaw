@@ -2,6 +2,7 @@ export type HeartbeatIndicatorType = "ok" | "alert" | "error";
 
 export type HeartbeatEventPayload = {
   ts: number;
+  /** Unique Event ID */ id: string;
   status: "sent" | "ok-empty" | "ok-token" | "skipped" | "failed";
   to?: string;
   accountId?: string;
@@ -37,7 +38,7 @@ let lastHeartbeat: HeartbeatEventPayload | null = null;
 const listeners = new Set<(evt: HeartbeatEventPayload) => void>();
 
 export function emitHeartbeatEvent(evt: Omit<HeartbeatEventPayload, "ts">) {
-  const enriched: HeartbeatEventPayload = { ts: Date.now(), ...evt };
+  const enriched: HeartbeatEventPayload = { id: crypto.randomUUID(), ts: Date.now(), ...evt };
   lastHeartbeat = enriched;
   for (const listener of listeners) {
     try {
