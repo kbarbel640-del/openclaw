@@ -52,6 +52,17 @@
 - Run `pnpm check` before commits (lint + format)
 - Run `pnpm tsgo` for type checking
 
+## Lint Exclusions
+
+Build artifacts must be excluded from linting in `.oxlintrc.json#ignorePatterns`:
+
+- `dist/` — build output
+- `.vite/` — Vite/Electron Forge build cache
+- `*.bun-build` — Bun build artifacts
+- `node_modules/`, `vendor/`, `extensions/` — dependencies
+
+When adding new build tool output directories, add them to both `.oxlintrc.json#ignorePatterns` and `.gitignore`.
+
 ## Stack & Commands
 
 - **Package manager**: pnpm (`pnpm install`)
