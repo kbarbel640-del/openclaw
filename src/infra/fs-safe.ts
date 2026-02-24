@@ -62,13 +62,15 @@ async function openVerifiedLocalFile(filePath: string): Promise<SafeOpenResult> 
     if (!stat.isFile()) {
       throw new SafeOpenError("not-file", "not a file");
     }
-    if (stat.ino !== lstat.ino || stat.dev !== lstat.dev) {
+    const devMismatch = stat.dev !== lstat.dev && process.platform !== "win32";
+    if (stat.ino !== lstat.ino || devMismatch) {
       throw new SafeOpenError("path-mismatch", "path changed during read");
     }
 
     const realPath = await fs.realpath(filePath);
     const realStat = await fs.stat(realPath);
-    if (stat.ino !== realStat.ino || stat.dev !== realStat.dev) {
+    const realDevMismatch = stat.dev !== realStat.dev && process.platform !== "win32";
+    if (stat.ino !== realStat.ino || realDevMismatch) {
       throw new SafeOpenError("path-mismatch", "path mismatch");
     }
 
