@@ -220,6 +220,7 @@ export async function resolvePromptBuildHookResult(params: {
     prependContext: [promptBuildResult?.prependContext, legacyResult?.prependContext]
       .filter((value): value is string => Boolean(value))
       .join("\n\n"),
+    appendSystemPrompt: promptBuildResult?.appendSystemPrompt ?? legacyResult?.appendSystemPrompt,
   };
 }
 
@@ -1059,12 +1060,28 @@ export async function runEmbeddedAttempt(
               `hooks: prepended context to prompt (${hookResult.prependContext.length} chars)`,
             );
           }
+          // Save original system prompt before any overrides — appendSystemPrompt always
+          // appends to the original built-in prompt, not a potentially nuked one
+          const originalSystemPrompt = systemPromptText;
           const legacySystemPrompt =
             typeof hookResult?.systemPrompt === "string" ? hookResult.systemPrompt.trim() : "";
           if (legacySystemPrompt) {
             applySystemPromptOverrideToSession(activeSession, legacySystemPrompt);
             systemPromptText = legacySystemPrompt;
             log.debug(`hooks: applied systemPrompt override (${legacySystemPrompt.length} chars)`);
+          }
+          // Apply appendSystemPrompt from before_prompt_build (safe append, preserves built-in instructions)
+          // Uses the original system prompt as base, not the potentially overridden one
+          if (hookResult?.appendSystemPrompt) {
+            const base = originalSystemPrompt || systemPromptText;
+            const newSystemPrompt = base
+              ? `${base}\n\n${hookResult.appendSystemPrompt}`
+              : hookResult.appendSystemPrompt;
+            systemPromptText = newSystemPrompt;
+            activeSession.agent.setSystemPrompt(newSystemPrompt);
+            log.debug(
+              `hooks: appended to system prompt (${hookResult.appendSystemPrompt.length} chars)`,
+            );
           }
         }
 
@@ -1148,8 +1165,8 @@ export async function runEmbeddedAttempt(
           }
 
           if (hookRunner?.hasHooks("llm_input")) {
-            hookRunner
-              .runLlmInput(
+            try {
+              const llmInputResult = await hookRunner.runLlmInput(
                 {
                   runId: params.runId,
                   sessionId: params.sessionId,
@@ -1167,10 +1184,18 @@ export async function runEmbeddedAttempt(
                   workspaceDir: params.workspaceDir,
                   messageProvider: params.messageProvider ?? undefined,
                 },
-              )
-              .catch((err) => {
-                log.warn(`llm_input hook failed: ${String(err)}`);
-              });
+              );
+              // Apply appendSystemPrompt if returned by any handler
+              if (llmInputResult?.appendSystemPrompt) {
+                const newSystemPrompt = systemPromptText
+                  ? `${systemPromptText}\n\n${llmInputResult.appendSystemPrompt}`
+                  : llmInputResult.appendSystemPrompt;
+                systemPromptText = newSystemPrompt;
+                activeSession.agent.setSystemPrompt(newSystemPrompt);
+              }
+            } catch (err) {
+              log.warn(`llm_input hook failed: ${String(err)}`);
+            }
           }
 
           // Only pass images option if there are actually images to pass
