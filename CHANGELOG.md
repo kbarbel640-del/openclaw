@@ -11,6 +11,9 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Usage accounting: parse Moonshot/Kimi `cached_tokens` fields (including `prompt_tokens_details.cached_tokens`) into normalized cache-read usage metrics. (#25436) Thanks @Elarwei001.
+- Doctor/Sandbox: when sandbox mode is enabled but Docker is unavailable, surface a clear actionable warning (including failure impact and remediation) instead of a mild “skip checks” note. (#25438) Thanks @mcaxtr.
+- Config/Meta: accept numeric `meta.lastTouchedAt` timestamps and coerce them to ISO strings, preserving compatibility with agent edits that write `Date.now()` values. (#25491) Thanks @mcaxtr.
 - Auto-reply/Reset hooks: guarantee native `/new` and `/reset` flows emit command/reset hooks even on early-return command paths, with dedupe protection to avoid double hook emission. (#25459) Thanks @chilu18.
 - Hooks/Slug generator: resolve session slug model from the agent’s effective model (including defaults/fallback resolution) instead of raw agent-primary config only. (#25485) Thanks @SudeepMalipeddi.
 - Slack/DM routing: treat `D*` channel IDs as direct messages even when Slack sends an incorrect `channel_type`, preventing DM traffic from being misclassified as channel/group chats. (#25479) Thanks @mcaxtr.
@@ -21,6 +24,7 @@ Docs: https://docs.openclaw.ai
 - macOS/Menu bar: stop reusing the injector delegate for the "Usage cost (30 days)" submenu to prevent recursive submenu injection loops when opening cost history. (#25341) Thanks @yingchunbai.
 - Control UI/Chat images: harden image-open clicks against reverse tabnabbing by using opener isolation (`noopener,noreferrer` plus `window.opener = null`). (#18685) Thanks @Mariana-Codebase.
 - CLI/Doctor: correct stale recovery hints to use valid commands (`openclaw gateway status --deep` and `openclaw configure --section model`). (#24485) Thanks @chilu18.
+- Security/Sandbox: canonicalize bind-mount source paths via existing-ancestor realpath so symlink-parent + non-existent-leaf paths cannot bypass allowed-source-roots or blocked-path checks.
 
 ## 2026.2.23
 
