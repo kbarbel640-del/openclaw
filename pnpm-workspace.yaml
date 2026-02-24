@@ -11,6 +11,7 @@ onlyBuiltDependencies:
   - "@whiskeysockets/baileys"
   - authenticate-pam
   - esbuild
+  - node-datachannel
   - node-llama-cpp
   - protobufjs
   - sharp
