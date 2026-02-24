@@ -46,11 +46,14 @@ vi.mock("dingtalk-stream", () => {
     registerCallbackListener(
       topic: string,
       callback: (res: unknown) => Promise<void> | void,
-    ): void {
+    ): this {
       registeredCallbacks.set(topic, callback);
+      return this;
     }
 
-    registerAllEventListener(): void {}
+    registerAllEventListener(): this {
+      return this;
+    }
   }
 
   return { DWClient, EventAck, TOPIC_ROBOT, TOPIC_AI_GRAPH_API };
