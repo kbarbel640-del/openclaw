@@ -726,6 +726,35 @@ async function sendSubagentAnnounceDirectly(params: {
           timeoutMs: announceTimeoutMs,
         });
 
+        // FIX: Also inject agent turn so the main agent can act on the result.
+        // Path B previously returned here without triggering an agent turn,
+        // meaning the agent never saw the subagent's output. Now we inject
+        // the triggerMessage into the agent session so it gets a turn.
+        try {
+          const agentInjectOrigin = normalizeDeliveryContext(params.directOrigin);
+          const agentInjectThreadId =
+            agentInjectOrigin?.threadId != null && agentInjectOrigin.threadId !== ""
+              ? String(agentInjectOrigin.threadId)
+              : undefined;
+          await callGateway({
+            method: "agent",
+            params: {
+              sessionKey: canonicalRequesterSessionKey,
+              message: params.triggerMessage,
+              deliver: !params.requesterIsSubagent,
+              channel: params.requesterIsSubagent ? undefined : agentInjectOrigin?.channel,
+              accountId: params.requesterIsSubagent ? undefined : agentInjectOrigin?.accountId,
+              to: params.requesterIsSubagent ? undefined : agentInjectOrigin?.to,
+              threadId: params.requesterIsSubagent ? undefined : agentInjectThreadId,
+              idempotencyKey: params.directIdempotencyKey + "-agent",
+            },
+            expectFinal: true,
+            timeoutMs: announceTimeoutMs,
+          });
+        } catch {
+          // Best-effort: agent injection failure should not prevent delivery confirmation.
+        }
+
         return {
           delivered: true,
           path: "direct",
