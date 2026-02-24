@@ -169,7 +169,9 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
               <div class="field" style="margin-top: 10px;">
                 <span>API key</span>
                 <input
-                  type="password"
+                  type="text"
+                  class="cfg-input--masked"
+                  autocomplete="off"
                   .value=${apiKey}
                   @input=${(e: Event) =>
                     props.onEdit(skill.skillKey, (e.target as HTMLInputElement).value)}

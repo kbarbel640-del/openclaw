@@ -563,8 +563,9 @@ function renderTextInput(params: {
       ${renderTags(tags)}
       <div class="cfg-input-wrap">
         <input
-          type=${isSensitive ? "password" : inputType}
-          class="cfg-input"
+          type=${inputType}
+          class=${isSensitive ? "cfg-input cfg-input--masked" : "cfg-input"}
+          autocomplete="off"
           placeholder=${placeholder}
           .value=${displayValue == null ? "" : String(displayValue)}
           ?disabled=${disabled}

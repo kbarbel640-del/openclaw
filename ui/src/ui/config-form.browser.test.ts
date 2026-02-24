@@ -51,7 +51,7 @@ describe("config form renderer", () => {
       container,
     );
 
-    const tokenInput: HTMLInputElement | null = container.querySelector("input[type='password']");
+    const tokenInput: HTMLInputElement | null = container.querySelector("input.cfg-input--masked");
     expect(tokenInput).not.toBeNull();
     if (!tokenInput) {
       return;
