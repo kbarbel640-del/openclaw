@@ -2603,7 +2603,21 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     // memoryContext = await fetchMemories(userText); // Mem0 removed
   }
 
-  
+  // P0.1: 非阻塞 intent 分類 (在背景運行，不影響主路徑)
+  if (userText && intentClassifier) {
+    void (async () => {
+      try {
+        const hint = await intentClassifier.classify(userText);
+        if (hint && hint.intent) {
+          req.intent_hint = hint;
+          console.log(`[wrapper] #${reqId} intent classified: ${hint.intent}=${(hint.confidence || 0).toFixed(2)}`);
+        }
+      } catch (e) {
+        // 靜默失敗，不影響主路徑
+      }
+    })();
+  }
+
   // Priority 1.5: Financial Agent routing (between dev mode and CLI tools)
   
   // Priority 1.4: Taiwan Stock Real-time Analysis

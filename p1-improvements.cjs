@@ -9,7 +9,7 @@ async function withTimeout(fn, ms = 30000, label = 'tool') {
     return await fn(controller.signal);
   } catch (err) {
     if (controller.signal.aborted) {
-      throw new Error(`${label} timeout after ${ms}ms`);
+      throw new Error(`${label} timeout after ${ms}ms`, { cause: err });
     }
     throw err;
   } finally {
@@ -35,7 +35,8 @@ function logStructuredTiming(req, res) {
     method: req.method,
     latency: latency,
     phase: req.phase || 'unknown',
-    intent: req.intent_hint || null,
+    intent: req.intent_hint?.intent || null,
+    confidence: req.intent_hint?.confidence || null,
     tool: req.tool_name || null,
     status: res.statusCode || 0,
     ts: Date.now()
@@ -95,7 +96,7 @@ class CircuitBreaker {
 
   isCircuitOpen(toolName) {
     const f = this.toolFailures[toolName];
-    if (!f) return false;
+    if (!f) {return false;}
     if (Date.now() - f.firstFailAt > this.resetMs) {
       delete this.toolFailures[toolName];
       return false;
@@ -135,14 +136,56 @@ class HybridIntentClassifier {
   }
 
   async classify(message) {
-    // Simplified classification — real implementation would call Ollama
+    // Call Ollama for intent classification (non-blocking)
     // Returns: { intent: string, confidence: number }
-    // Only return hint if confidence >= threshold
     try {
-      const prompt = `Classify the intent of: "${message}"\n\nReturn JSON: {"intent": "category", "confidence": 0.0-1.0}`;
-      // Call Ollama here...
-      // For now, return placeholder
-      return { intent: 'unknown', confidence: 0 };
+      const http = require('http');
+      const body = JSON.stringify({
+        model: this.model,
+        messages: [
+          { role: 'system', content: 'Classify user intent. Reply ONLY with valid JSON: {"intent":"code|chat|email|web_search|stock|system_status|deploy|summarize|calendar|progress","confidence":0.0-1.0}' },
+          { role: 'user', content: message }
+        ],
+        stream: false,
+        temperature: 0.3
+      });
+
+      return new Promise((resolve) => {
+        const req = http.request({
+          hostname: 'localhost',
+          port: 11434,
+          path: '/api/chat',
+          method: 'POST',
+          timeout: 2000
+        }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.message?.content || '{}';
+              // Extract JSON from response (may have extra text)
+              const jsonMatch = content.match(/\{[^}]*"intent"[^}]*"confidence"[^}]*\}/);
+              const json = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+              const intent = json.intent || 'unknown';
+              const confidence = Math.min(1, Math.max(0, json.confidence || 0));
+              resolve({
+                intent: confidence >= this.confidenceThreshold ? intent : 'unknown',
+                confidence
+              });
+            } catch (e) {
+              resolve({ intent: 'unknown', confidence: 0 });
+            }
+          });
+        });
+        req.on('error', () => resolve({ intent: 'unknown', confidence: 0 }));
+        req.on('timeout', () => {
+          req.destroy();
+          resolve({ intent: 'unknown', confidence: 0 });
+        });
+        req.write(body);
+        req.end();
+      });
     } catch (e) {
       console.error('Intent classifier error:', e.message);
       return { intent: 'unknown', confidence: 0 };
