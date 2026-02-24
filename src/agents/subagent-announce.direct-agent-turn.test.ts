@@ -156,7 +156,7 @@ describe("direct completion path: agent turn after send", () => {
     expect(agentCall, "method:agent should still be called in non-completion mode").toBeDefined();
   });
 
-  it("the agent turn call has deliver:false so it does not double-deliver to the user", async () => {
+  it("the agent turn call has deliver:true so the gateway routes the model response to Telegram", async () => {
     await runSubagentAnnounceFlow({
       ...baseParams,
       childRunId: "run-direct-agent-turn-004",
@@ -171,6 +171,32 @@ describe("direct completion path: agent turn after send", () => {
     const agentCall = gatewayCalls.find(
       (c) => c.method === "agent" && c.expectFinal !== true,
     );
-    expect(agentCall?.params?.deliver).toBe(false);
+    // deliver:true is required — the gateway checks `request.deliver === true`
+    // explicitly. Without it (undefined === true → false) the model response
+    // is silently dropped and never sent to the user's Telegram chat.
+    // The method:'send' call above already delivered the completion summary;
+    // the agent turn with deliver:true lets the model respond naturally.
+    expect(agentCall?.params?.deliver).toBe(true);
+  });
+
+  it("the agent turn is fire-and-forget (no expectFinal) to avoid session deadlock", async () => {
+    await runSubagentAnnounceFlow({
+      ...baseParams,
+      childRunId: "run-direct-agent-turn-005",
+      expectsCompletionMessage: true,
+      requesterOrigin: {
+        channel: "telegram",
+        to: "channel:99999",
+        threadId: "99999",
+      },
+    });
+
+    const agentCall = gatewayCalls.find(
+      (c) => c.method === "agent" && c.expectFinal !== true,
+    );
+    // expectFinal must NOT be set — using it with await deadlocks because the
+    // gateway waits for the agent run to finish, but the session is already
+    // occupied by this announce flow.
+    expect(agentCall?.expectFinal).toBeFalsy();
   });
 });

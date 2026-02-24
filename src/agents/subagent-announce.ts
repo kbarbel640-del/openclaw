@@ -728,6 +728,18 @@ async function sendSubagentAnnounceDirectly(params: {
         // (e.g., send follow-up files, spawn the next subagent in a chain, etc.).
         // Uses a distinct idempotency key to avoid gateway dedup treating this as
         // a duplicate of the method:'send' call above.
+        //
+        // IMPORTANT: This call MUST be fire-and-forget (no await, no expectFinal).
+        // The announce flow runs inside the sub-agent completion lifecycle where the
+        // requester session is already occupied. Awaiting here deadlocks: the gateway
+        // waits for the agent run to finish, but the agent run can't start because
+        // the session is busy processing this very announce. Use .then/.catch so the
+        // call is enqueued but execution continues immediately.
+        //
+        // deliver:true is required so the gateway routes the model response back to
+        // the Telegram channel. Without it, undefined === true evaluates false and
+        // the reply is silently dropped.
+        //
         // See: https://github.com/openclaw/openclaw/issues/22099
         //      https://github.com/openclaw/openclaw/issues/22673
         //      https://github.com/openclaw/openclaw/issues/25042
@@ -736,12 +748,12 @@ async function sendSubagentAnnounceDirectly(params: {
             completionDirectOrigin?.threadId != null && completionDirectOrigin.threadId !== ""
               ? String(completionDirectOrigin.threadId)
               : undefined;
-          await callGateway({
+          callGateway({
             method: "agent",
             params: {
               sessionKey: canonicalRequesterSessionKey,
               message: params.triggerMessage,
-              deliver: false,
+              deliver: true,
               channel: completionChannel,
               accountId: completionDirectOrigin?.accountId,
               to: completionTo,
@@ -749,7 +761,15 @@ async function sendSubagentAnnounceDirectly(params: {
               idempotencyKey: `${params.directIdempotencyKey}-agent`,
             },
             timeoutMs: announceTimeoutMs,
-          });
+          })
+            .then(() => {
+              defaultRuntime.log?.("[subagent-announce] agent turn accepted after direct send");
+            })
+            .catch((err: unknown) => {
+              defaultRuntime.error?.(
+                `[subagent-announce] agent turn error after direct send: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            });
         }
 
         return {
