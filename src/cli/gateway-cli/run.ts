@@ -14,6 +14,7 @@ import { startGatewayServer } from "../../gateway/server.js";
 import type { GatewayWsLogStyle } from "../../gateway/ws-logging.js";
 import { setGatewayWsLogStyle } from "../../gateway/ws-logging.js";
 import { setVerbose } from "../../globals.js";
+import { configureGovernor } from "../../governor/governor.js";
 import { GatewayLockError } from "../../infra/gateway-lock.js";
 import { formatPortDiagnostics, inspectPortUsage } from "../../infra/ports.js";
 import { setConsoleSubsystemFilter, setConsoleTimestampPrefix } from "../../logging/console.js";
@@ -25,7 +26,6 @@ import { forceFreePortAndWait } from "../ports.js";
 import { ensureDevGatewayConfig } from "./dev.js";
 import { runGatewayLoop } from "./run-loop.js";
 import {
-import { configureGovernor } from "../../governor/governor.js";
   describeUnknownError,
   extractGatewayMiskeys,
   maybeExplainGatewayServiceStop,
@@ -103,7 +103,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
   // CyborgClaw SAFE MODE: enable Governor airlock when flagged.
   // Toggle with: CYBORGCLAW_SAFE_MODE=1
   const safeMode = String(process.env.CYBORGCLAW_SAFE_MODE || "").toLowerCase();
-  const governorEnabled = safeMode in {"1":1, "true":1, "yes":1, "on":1};
+  const governorEnabled = safeMode in { "1": 1, true: 1, yes: 1, on: 1 };
   if (governorEnabled) {
     configureGovernor({
       enabled: true,
