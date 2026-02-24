@@ -238,35 +238,11 @@ final class DevicePairingApprovalPrompter {
     }
 
     private func endActiveAlert() {
-        guard let alert = self.activeAlert else { return }
-        if let parent = alert.window.sheetParent {
-            parent.endSheet(alert.window, returnCode: .abort)
-        }
-        self.activeAlert = nil
-        self.activeRequestId = nil
+        PairingAlertSupport.endActiveAlert(activeAlert: &self.activeAlert, activeRequestId: &self.activeRequestId)
     }
 
     private func requireAlertHostWindow() -> NSWindow {
-        if let alertHostWindow {
-            return alertHostWindow
-        }
-
-        let window = AlertHostWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 1),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false)
-        window.title = ""
-        window.isReleasedWhenClosed = false
-        window.level = .floating
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        window.isOpaque = false
-        window.hasShadow = false
-        window.backgroundColor = .clear
-        window.ignoresMouseEvents = true
-
-        self.alertHostWindow = window
-        return window
+        PairingAlertSupport.requireAlertHostWindow(alertHostWindow: &self.alertHostWindow)
     }
 
     private func handle(push: GatewayPush) {
