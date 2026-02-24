@@ -90,7 +90,12 @@ export async function migrateNumberedFolders(opts?: {
         const destExists = await fs.promises.stat(destFile).catch(() => null);
         if (destExists) {
           const srcContent = await fs.promises.readFile(srcFile, "utf-8");
-          await fs.promises.appendFile(destFile, "\n" + srcContent, "utf-8");
+          // Strip header lines (# Chat: ... and ## date) to avoid duplicates when merging
+          const lines = srcContent.split("\n");
+          const firstDateIdx = lines.findIndex((l) => l.startsWith("## "));
+          const contentWithoutHeader =
+            firstDateIdx >= 0 ? lines.slice(firstDateIdx).join("\n") : srcContent;
+          await fs.promises.appendFile(destFile, "\n" + contentWithoutHeader, "utf-8");
           await fs.promises.unlink(srcFile);
         } else {
           await fs.promises.rename(srcFile, destFile);
