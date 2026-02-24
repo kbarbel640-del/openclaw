@@ -116,7 +116,12 @@ export function resolveSessionDeliveryTarget(params: {
   }
 
   const accountId = channel && channel === lastChannel ? lastAccountId : undefined;
-  const threadId = channel && channel === lastChannel ? lastThreadId : undefined;
+  // Heartbeat / cron announce delivery should not inherit the session's last
+  // thread context — otherwise proactive sends piggyback on whichever Slack
+  // thread happens to be active, causing unrelated content to appear inside
+  // an ongoing conversation.  See openclaw/openclaw#25730.
+  const isHeartbeat = params.mode === "heartbeat";
+  const threadId = !isHeartbeat && channel && channel === lastChannel ? lastThreadId : undefined;
   const mode = params.mode ?? (explicitTo ? "explicit" : "implicit");
 
   const resolvedThreadId = explicitThreadId ?? threadId;

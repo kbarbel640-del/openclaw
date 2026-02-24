@@ -175,6 +175,25 @@ describe("resolveSessionDeliveryTarget", () => {
     expect(resolved.threadId).toBe(999);
   });
 
+  it("does not inherit lastThreadId when mode is heartbeat (#25730)", () => {
+    const resolved = resolveSessionDeliveryTarget({
+      entry: {
+        sessionId: "sess-heartbeat-thread",
+        updatedAt: 1,
+        lastChannel: "slack",
+        lastTo: "user:U123",
+        lastThreadId: "1771959232.162799",
+      },
+      requestedChannel: "last",
+      mode: "heartbeat",
+    });
+
+    expect(resolved.threadId).toBeUndefined();
+    expect(resolved.lastThreadId).toBe("1771959232.162799");
+    expect(resolved.to).toBe("user:U123");
+    expect(resolved.channel).toBe("slack");
+  });
+
   it("falls back to a provided channel when requested is unsupported", () => {
     const resolved = resolveSessionDeliveryTarget({
       entry: {
