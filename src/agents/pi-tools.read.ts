@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { createEditTool, createReadTool, createWriteTool } from "@mariozechner/pi-coding-agent";
+import { withWorkspaceLock } from "../infra/workspace-lock-manager.js";
 import { detectMime } from "../media/mime.js";
 import { sniffMimeFromBase64 } from "../media/sniff-mime-from-base64.js";
 import type { ImageSanitizationLimits } from "./image-sanitization.js";
@@ -574,7 +575,9 @@ export function wrapToolMutationLock(tool: AnyAgentTool, root: string): AnyAgent
 
       await previous;
       try {
-        return await tool.execute(toolCallId, params, signal, onUpdate);
+        return await withWorkspaceLock(lockKey, { kind: "file" }, async () => {
+          return await tool.execute(toolCallId, params, signal, onUpdate);
+        });
       } finally {
         release?.();
         if (workspaceMutationLocks.get(lockKey) === current) {
