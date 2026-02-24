@@ -130,7 +130,8 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         shouldBypassMention,
       }),
     );
-  const statusReactionsEnabled = shouldAckReaction();
+  const statusReactionsConfig = cfg.messages?.statusReactions;
+  const statusReactionsEnabled = statusReactionsConfig?.enabled !== false && shouldAckReaction();
   const discordAdapter: StatusReactionAdapter = {
     setReaction: async (emoji) => {
       await reactMessageDiscord(messageChannelId, message.id, emoji, {
@@ -147,6 +148,8 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     enabled: statusReactionsEnabled,
     adapter: discordAdapter,
     initialEmoji: ackReaction,
+    emojis: statusReactionsConfig?.emojis,
+    timing: statusReactionsConfig?.timing,
     onError: (err) => {
       logAckFailure({
         log: logVerbose,
