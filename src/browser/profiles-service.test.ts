@@ -165,7 +165,7 @@ describe("BrowserProfilesService", () => {
       },
     });
 
-    fs.mkdirSync(path.dirname(userDataDir), { recursive: true });
+    fs.mkdirSync(userDataDir, { recursive: true });
 
     const service = createBrowserProfilesService(ctx);
     const result = await service.deleteProfile("custom");
