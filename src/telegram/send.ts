@@ -1325,8 +1325,7 @@ export async function sendDiceTelegram(
   const hasDiceParams = Object.keys(diceParams).length > 0;
 
   const result = await requestWithChatNotFound(
-    () =>
-      api.sendDice(chatId, resolvedEmoji, hasDiceParams ? diceParams : undefined),
+    () => api.sendDice(chatId, resolvedEmoji, hasDiceParams ? diceParams : undefined),
     "sendDice",
   );
 
