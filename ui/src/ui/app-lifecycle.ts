@@ -44,6 +44,10 @@ function handleCmdK(host: LifecycleHost, e: KeyboardEvent) {
     ).paletteOpen;
   }
   if (e.key === "Escape") {
+    // Let command palette close first if it is open
+    if ((host as unknown as { paletteOpen: boolean }).paletteOpen) {
+      return;
+    }
     const panel = (host as unknown as { agentDetailPanel: { open: boolean; expanded: boolean } })
       .agentDetailPanel;
     if (panel && panel.open) {
