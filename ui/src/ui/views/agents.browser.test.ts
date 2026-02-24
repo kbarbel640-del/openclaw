@@ -1,8 +1,9 @@
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import { renderAgents } from "./agents.ts";
+import type { AgentsProps } from "./agents.ts";
 
-function baseProps() {
+function baseProps(): AgentsProps {
   return {
     loading: false,
     error: null,
@@ -53,29 +54,32 @@ function baseProps() {
     toolsCatalogLoading: false,
     toolsCatalogError: null,
     toolsCatalogResult: null,
-    toolProfileId: null,
-    skillsLoading: false,
-    skillsError: null,
-    skillsReport: null,
+    agentSkillsLoading: false,
+    agentSkillsReport: null,
+    agentSkillsError: null,
+    agentSkillsAgentId: null,
+    skillsFilter: "",
     onRefresh: vi.fn(),
     onSelectAgent: vi.fn(),
     onSelectPanel: vi.fn(),
+    onLoadFiles: vi.fn(),
+    onSelectFile: vi.fn(),
+    onFileDraftChange: vi.fn(),
+    onFileReset: vi.fn(),
+    onFileSave: vi.fn(),
+    onToolsProfileChange: vi.fn(),
+    onToolsOverridesChange: vi.fn(),
     onConfigReload: vi.fn(),
     onConfigSave: vi.fn(),
     onModelChange: vi.fn(),
     onModelFallbacksChange: vi.fn(),
-    onLoadToolsCatalog: vi.fn(),
-    onSelectToolProfile: vi.fn(),
-    onLoadSkills: vi.fn(),
     onChannelsRefresh: vi.fn(),
     onCronRefresh: vi.fn(),
-    onCronAdd: vi.fn(),
-    onCronUpdate: vi.fn(),
-    onCronDelete: vi.fn(),
-    onAgentFilesLoad: vi.fn(),
-    onAgentFileSelect: vi.fn(),
-    onAgentFileSave: vi.fn(),
-    onAgentIdentityLoad: vi.fn(),
+    onSkillsFilterChange: vi.fn(),
+    onSkillsRefresh: vi.fn(),
+    onAgentSkillToggle: vi.fn(),
+    onAgentSkillsClear: vi.fn(),
+    onAgentSkillsDisableAll: vi.fn(),
   };
 }
 
