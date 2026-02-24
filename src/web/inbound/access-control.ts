@@ -173,41 +173,44 @@ export async function checkInboundAccessControl(params: {
       const allowed =
         dmHasWildcard ||
         (normalizedAllowFrom.length > 0 && normalizedAllowFrom.includes(candidate));
-      // Same-phone (owner) messages always allowed through to agent even if not in allowFrom.
+      // Same-phone (owner) not in allowFrom: send pairing reply when policy is pairing, then allow through.
+      if (!allowed && isSamePhone && dmPolicy === "pairing") {
+        if (!suppressPairingReply) {
+          const { code, created } = await upsertChannelPairingRequest({
+            channel: "whatsapp",
+            id: candidate,
+            accountId: account.accountId,
+            meta: { name: (params.pushName ?? "").trim() || undefined },
+          });
+          if (created) {
+            logVerbose(
+              `whatsapp pairing request sender=${candidate} name=${params.pushName ?? "unknown"}`,
+            );
+            try {
+              await params.sock.sendMessage(params.remoteJid, {
+                text: buildPairingReply({
+                  channel: "whatsapp",
+                  idLine: `Your WhatsApp phone number: ${candidate}`,
+                  code,
+                }),
+              });
+            } catch (err) {
+              logVerbose(`whatsapp pairing reply failed for ${candidate}: ${String(err)}`);
+            }
+          }
+        }
+        return {
+          allowed: true,
+          shouldMarkRead: true,
+          isSelfChat,
+          resolvedAccountId: account.accountId,
+        };
+      }
+      // Non-owner or non-pairing: block if not in allowFrom; never send pairing reply to non-owner.
       const effectiveAllowed = allowed || isSamePhone;
       if (!effectiveAllowed) {
         if (dmPolicy === "pairing") {
-          // Only send pairing reply to the owner (same number as linked account).
-          if (isSamePhone) {
-            if (suppressPairingReply) {
-              logVerbose(`Skipping pairing reply for historical DM from ${candidate}.`);
-            } else {
-              const { code, created } = await upsertChannelPairingRequest({
-                channel: "whatsapp",
-                id: candidate,
-                accountId: account.accountId,
-                meta: { name: (params.pushName ?? "").trim() || undefined },
-              });
-              if (created) {
-                logVerbose(
-                  `whatsapp pairing request sender=${candidate} name=${params.pushName ?? "unknown"}`,
-                );
-                try {
-                  await params.sock.sendMessage(params.remoteJid, {
-                    text: buildPairingReply({
-                      channel: "whatsapp",
-                      idLine: `Your WhatsApp phone number: ${candidate}`,
-                      code,
-                    }),
-                  });
-                } catch (err) {
-                  logVerbose(`whatsapp pairing reply failed for ${candidate}: ${String(err)}`);
-                }
-              }
-            }
-          } else {
-            logVerbose(`Skipping pairing reply for non-owner DM from ${candidate}.`);
-          }
+          logVerbose(`Skipping pairing reply for non-owner DM from ${candidate}.`);
         } else {
           logVerbose(`Blocked unauthorized sender ${candidate} (dmPolicy=${dmPolicy})`);
         }

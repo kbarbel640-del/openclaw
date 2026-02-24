@@ -91,7 +91,8 @@ describe("checkInboundAccessControl pairing grace", () => {
       remoteJid: "15550009999@s.whatsapp.net",
     });
 
-    expect(result.allowed).toBe(false);
+    // Owner (same number) gets pairing reply and message is allowed through to agent.
+    expect(result.allowed).toBe(true);
     expect(upsertPairingRequestMock).toHaveBeenCalled();
     expect(sendMessageMock).toHaveBeenCalled();
   });
