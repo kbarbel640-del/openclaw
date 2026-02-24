@@ -106,7 +106,8 @@ export function updateFileIntegrityHash(
 ): ConfigIntegrityStore {
   const dir = stateDir ?? resolveStateDir();
   const abs = path.isAbsolute(filePath) ? filePath : path.resolve(dir, filePath);
-  const relPath = path.relative(dir, abs);
+  // Normalize to forward slashes so store keys are consistent across platforms (Windows uses backslash).
+  const relPath = path.relative(dir, abs).split(path.sep).join("/");
 
   if (!fs.existsSync(abs)) {
     return store;
