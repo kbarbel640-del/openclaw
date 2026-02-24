@@ -1,0 +1,32 @@
+{
+  "id": "whatsapp-call",
+  "channels": ["whatsappcall"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean" },
+      "provider": { "type": "string", "enum": ["wati", "meta"] },
+      "watiBaseUrl": { "type": "string" },
+      "watiOutboundUrl": { "type": "string" },
+      "watiTenantId": { "type": "string" },
+      "watiApiToken": { "type": "string" },
+      "metaPhoneNumberId": { "type": "string" },
+      "metaAccessToken": { "type": "string" },
+      "metaGraphBaseUrl": { "type": "string" },
+      "openaiApiKey": { "type": "string" },
+      "openaiModel": { "type": "string" },
+      "voice": { "type": "string" },
+      "voiceSpeed": { "type": "number" },
+      "voiceLanguage": { "type": "string" },
+      "voiceGreeting": { "type": "string" },
+      "voiceInstructions": { "type": "string" },
+      "twilioAccountSid": { "type": "string" },
+      "twilioAuthToken": { "type": "string" },
+      "webhookUrl": { "type": "string" },
+      "appSecret": { "type": "string" },
+      "verifyToken": { "type": "string" },
+      "serviceUrl": { "type": "string" }
+    }
+  }
+}
