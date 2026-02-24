@@ -454,12 +454,6 @@ importers:
         specifier: workspace:*
         version: link:../..
 
-  extensions/notebooklm-sync:
-    devDependencies:
-      openclaw:
-        specifier: workspace:*
-        version: link:../..
-
   extensions/open-prose: {}
 
   extensions/signal:
