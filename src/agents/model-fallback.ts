@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
+import type { FailoverReason } from "./pi-embedded-helpers.js";
 import {
   resolveAgentModelFallbackValues,
   resolveAgentModelPrimaryValue,
@@ -25,7 +26,6 @@ import {
   resolveConfiguredModelRef,
   resolveModelRefFromString,
 } from "./model-selection.js";
-import type { FailoverReason } from "./pi-embedded-helpers.js";
 import { isLikelyContextOverflowError } from "./pi-embedded-helpers.js";
 
 type ModelCandidate = {
@@ -313,39 +313,50 @@ export async function runWithModelFallback<T>(params: {
 
       if (profileIds.length > 0 && !isAnyProfileAvailable) {
         // All profiles for this provider are in cooldown.
-        // For the primary model (i === 0), probe it if the soonest cooldown
-        // expiry is close or already past. This avoids staying on a fallback
-        // model long after the real rate-limit window clears.
-        const now = Date.now();
-        const probeThrottleKey = resolveProbeThrottleKey(candidate.provider, params.agentDir);
-        const shouldProbe = shouldProbePrimaryDuringCooldown({
-          isPrimary: i === 0,
-          hasFallbackCandidates,
-          now,
-          throttleKey: probeThrottleKey,
-          authStore,
-          profileIds,
-        });
-        if (!shouldProbe) {
-          const inferredReason =
-            resolveProfilesUnavailableReason({
-              store: authStore,
-              profileIds,
-              now,
-            }) ?? "rate_limit";
-          // Skip without attempting
-          attempts.push({
-            provider: candidate.provider,
-            model: candidate.model,
-            error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
-            reason: inferredReason,
+        //
+        // Primary model (i === 0): apply probe logic — skip unless a probe is
+        // warranted (cooldown nearly expired or already past). This avoids
+        // staying on a fallback long after the primary rate-limit window clears.
+        //
+        // Fallback models (i > 0): always attempt regardless of cooldown.
+        // We are already in fallback mode; silently skipping a fallback because
+        // its profiles happen to be cooled-down would prevent cross-provider
+        // traversal entirely (issue #23829). The inner runner handles per-profile
+        // cooldown errors and throws a FailoverError if all profiles fail, which
+        // the outer loop catches to try the next candidate.
+        if (i === 0) {
+          const now = Date.now();
+          const probeThrottleKey = resolveProbeThrottleKey(candidate.provider, params.agentDir);
+          const shouldProbe = shouldProbePrimaryDuringCooldown({
+            isPrimary: true,
+            hasFallbackCandidates,
+            now,
+            throttleKey: probeThrottleKey,
+            authStore,
+            profileIds,
           });
-          continue;
+          if (!shouldProbe) {
+            const inferredReason =
+              resolveProfilesUnavailableReason({
+                store: authStore,
+                profileIds,
+                now,
+              }) ?? "rate_limit";
+            // Skip primary without attempting
+            attempts.push({
+              provider: candidate.provider,
+              model: candidate.model,
+              error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
+              reason: inferredReason,
+            });
+            continue;
+          }
+          // Primary model probe: attempt it despite cooldown to detect recovery.
+          // If it fails, the error is caught below and we fall through to the
+          // next candidate as usual.
+          lastProbeAttempt.set(probeThrottleKey, now);
         }
-        // Primary model probe: attempt it despite cooldown to detect recovery.
-        // If it fails, the error is caught below and we fall through to the
-        // next candidate as usual.
-        lastProbeAttempt.set(probeThrottleKey, now);
+        // Fallback candidates (i > 0): fall through and attempt despite cooldown.
       }
     }
     try {
