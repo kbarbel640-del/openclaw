@@ -7,7 +7,6 @@ import type {
   CronJobPatch,
   CronPayload,
   CronPayloadPatch,
-  CronMessageChannel,
 } from "../types.js";
 import type { CronServiceState } from "./state.js";
 import { parseAbsoluteTimeMs } from "../parse.js";
@@ -317,7 +316,7 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   const effectivePayloadKind = patch.payload?.kind ?? job.payload.kind;
   if (!patch.delivery && effectivePayloadKind === "agentTurn" && patch.payload) {
     // Back-compat: legacy clients still update delivery via payload fields.
-    const legacyDeliveryPatch = buildLegacyDeliveryPatch(patch.payload as LegacyDeliveryFields);
+    const legacyDeliveryPatch = buildLegacyDeliveryPatch(patch.payload as Record<string, unknown>);
     if (
       legacyDeliveryPatch &&
       job.sessionTarget === "isolated" &&
@@ -408,15 +407,7 @@ function mergeCronPayload(existing: CronPayload, patch: CronPayloadPatch): CronP
   return next;
 }
 
-/** Fields used by legacy clients to update delivery via payload. */
-type LegacyDeliveryFields = {
-  deliver?: boolean;
-  to?: string;
-  channel?: CronMessageChannel;
-  bestEffortDeliver?: boolean;
-};
-
-function buildLegacyDeliveryPatch(payload: LegacyDeliveryFields): CronDeliveryPatch | null {
+function buildLegacyDeliveryPatch(payload: Record<string, unknown>): CronDeliveryPatch | null {
   const deliver = payload.deliver;
   const toRaw = typeof payload.to === "string" ? payload.to.trim() : "";
   const hasLegacyHints =
