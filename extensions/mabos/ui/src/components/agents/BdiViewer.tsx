@@ -1,146 +1,75 @@
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import {
-  Brain,
-  Sparkles,
-  Target,
-  Zap,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
-import type { AgentDetail } from "@/lib/types";
+import { Brain, Sparkles, Target, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { AgentDetail } from "@/lib/types";
 
-type BdiViewerProps = {
+type BdiSummaryProps = {
   agent: AgentDetail;
+  onClickSection?: (fileTab: string) => void;
 };
 
-type BdiSection = {
-  key: "beliefs" | "desires" | "goals" | "intentions";
+type BdiStat = {
   label: string;
   icon: LucideIcon;
   color: string;
   countKey: "beliefCount" | "desireCount" | "goalCount" | "intentionCount";
+  fileTab: string;
 };
 
-const sections: BdiSection[] = [
+const stats: BdiStat[] = [
   {
-    key: "beliefs",
     label: "Beliefs",
     icon: Brain,
     color: "var(--accent-blue)",
     countKey: "beliefCount",
+    fileTab: "Beliefs.md",
   },
   {
-    key: "desires",
     label: "Desires",
     icon: Sparkles,
     color: "var(--accent-purple)",
     countKey: "desireCount",
+    fileTab: "Desires.md",
   },
   {
-    key: "goals",
     label: "Goals",
     icon: Target,
     color: "var(--accent-green)",
     countKey: "goalCount",
+    fileTab: "Goals.md",
   },
   {
-    key: "intentions",
     label: "Intentions",
     icon: Zap,
     color: "var(--accent-orange)",
     countKey: "intentionCount",
+    fileTab: "Intentions.md",
   },
 ];
 
-function BdiSection({
-  section,
-  items,
-  count,
-}: {
-  section: BdiSection;
-  items: string[];
-  count: number;
-}) {
-  const [expanded, setExpanded] = useState(true);
-  const Icon = section.icon;
-
+export function BdiSummaryBar({ agent, onClickSection }: BdiSummaryProps) {
   return (
-    <div
-      className="rounded-lg border border-[var(--border-mabos)] overflow-hidden"
-      style={{
-        borderLeftWidth: "3px",
-        borderLeftColor: section.color,
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="flex items-center justify-center w-7 h-7 rounded-md"
-            style={{
-              backgroundColor: `color-mix(in srgb, ${section.color} 15%, transparent)`,
-            }}
+    <div className="flex items-center gap-1 px-2 py-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] overflow-x-auto">
+      {stats.map((stat, i) => {
+        const Icon = stat.icon;
+        const count = agent[stat.countKey];
+        return (
+          <button
+            key={stat.label}
+            type="button"
+            onClick={() => onClickSection?.(stat.fileTab)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-[var(--bg-hover)] transition-colors shrink-0 cursor-pointer"
           >
-            <Icon className="w-4 h-4" style={{ color: section.color }} />
-          </div>
-          <span className="text-sm font-medium text-[var(--text-primary)]">
-            {section.label}
-          </span>
-          <Badge
-            variant="outline"
-            className="border-[var(--border-mabos)] text-[var(--text-secondary)] text-[10px] px-1.5 py-0"
-          >
-            {count}
-          </Badge>
-        </div>
-        {expanded ? (
-          <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
-        ) : (
-          <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
-        )}
-      </button>
-      {expanded && (
-        <div className="px-4 py-3 space-y-2 bg-[var(--bg-card)]">
-          {items.length > 0 ? (
-            items.map((item, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-2 text-sm text-[var(--text-secondary)]"
-              >
-                <span
-                  className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
-                  style={{ backgroundColor: section.color }}
-                />
-                <span>{item}</span>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-[var(--text-muted)] italic">
-              No {section.label.toLowerCase()} recorded
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function BdiViewer({ agent }: BdiViewerProps) {
-  return (
-    <div className="space-y-3">
-      {sections.map((section) => (
-        <BdiSection
-          key={section.key}
-          section={section}
-          items={agent[section.key]}
-          count={agent[section.countKey]}
-        />
-      ))}
+            <Icon className="w-3.5 h-3.5" style={{ color: stat.color }} />
+            <span className="text-xs font-medium text-[var(--text-secondary)]">{stat.label}</span>
+            <span className="text-xs font-bold tabular-nums" style={{ color: stat.color }}>
+              {count}
+            </span>
+            {i < stats.length - 1 && (
+              <span className="text-[var(--border-mabos)] ml-1 select-none">|</span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
