@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   clearAllCaches,
+  createMoonshotCacheWrapper,
   getOrCreateCache,
   injectCacheRole,
   isMoonshotCacheEnabled,
@@ -209,6 +210,124 @@ describe("moonshot-cache", () => {
           ttl: 3600,
         }),
       ).rejects.toThrow("Moonshot cache creation failed (401)");
+    });
+  });
+
+  describe("createMoonshotCacheWrapper integration", () => {
+    it("injects cache role when sessionKey is provided", async () => {
+      // Mock successful cache creation
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: "cache-integration-test", tokens: 50 }),
+      });
+
+      // Track what the underlying streamFn receives
+      let receivedContext: unknown;
+      const mockStreamFn = vi.fn().mockImplementation((_model, context, _options) => {
+        receivedContext = context;
+        return Promise.resolve({ async *[Symbol.asyncIterator]() {} });
+      });
+
+      // Create wrapper with sessionKey
+      const wrapper = createMoonshotCacheWrapper(
+        mockStreamFn,
+        { enabled: true, ttl: 3600 },
+        "moonshot-v1-32k",
+        "test-session-key", // sessionKey passed via closure
+      );
+
+      // Call the wrapper
+      const model = { provider: "moonshot", baseUrl: "https://api.moonshot.cn/v1" };
+      const context = {
+        messages: [
+          { role: "system", content: "You are helpful." },
+          { role: "user", content: "Hello" },
+        ],
+      };
+      const options = { apiKey: "sk-test" };
+
+      await wrapper(model, context, options);
+
+      // Verify cache was created
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://api.moonshot.cn/v1/caching",
+        expect.objectContaining({ method: "POST" }),
+      );
+
+      // Verify the context was modified with cache role
+      expect(receivedContext).toBeDefined();
+      const modifiedMessages = (receivedContext as { messages: unknown[] }).messages;
+      expect(modifiedMessages[0]).toEqual({
+        role: "cache",
+        content: "cache_id=cache-integration-test;reset_ttl=3600",
+      });
+      // System message should be removed, user message preserved
+      expect(modifiedMessages[1]).toEqual({ role: "user", content: "Hello" });
+      expect(modifiedMessages).toHaveLength(2);
+    });
+
+    it("skips caching when apiKey is missing", async () => {
+      const mockStreamFn = vi
+        .fn()
+        .mockReturnValue(Promise.resolve({ async *[Symbol.asyncIterator]() {} }));
+
+      const wrapper = createMoonshotCacheWrapper(
+        mockStreamFn,
+        { enabled: true },
+        "moonshot-v1-32k",
+        "test-session",
+      );
+
+      const model = { provider: "moonshot" };
+      const context = {
+        messages: [{ role: "system", content: "System" }],
+      };
+
+      // No apiKey provided
+      await wrapper(model, context, {});
+
+      // Should not call cache API
+      expect(mockFetch).not.toHaveBeenCalled();
+      // Should still call underlying streamFn
+      expect(mockStreamFn).toHaveBeenCalled();
+    });
+
+    it("falls back gracefully on cache creation error", async () => {
+      // Mock cache creation failure
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => "Internal Server Error",
+      });
+
+      let receivedContext: unknown;
+      const mockStreamFn = vi.fn().mockImplementation((_model, context, _options) => {
+        receivedContext = context;
+        return Promise.resolve({ async *[Symbol.asyncIterator]() {} });
+      });
+
+      const wrapper = createMoonshotCacheWrapper(
+        mockStreamFn,
+        { enabled: true },
+        "moonshot-v1-32k",
+        "test-session",
+      );
+
+      const context = {
+        messages: [
+          { role: "system", content: "System" },
+          { role: "user", content: "Hello" },
+        ],
+      };
+
+      // Should not throw
+      await wrapper({ provider: "moonshot" }, context, { apiKey: "sk-test" });
+
+      // Should call underlying streamFn with original context (no cache injection)
+      expect(mockStreamFn).toHaveBeenCalled();
+      const messages = (receivedContext as { messages: unknown[] }).messages;
+      // Original messages preserved on error
+      expect(messages[0]).toEqual({ role: "system", content: "System" });
     });
   });
 });
