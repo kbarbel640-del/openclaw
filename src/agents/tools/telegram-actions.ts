@@ -347,6 +347,11 @@ export async function handleTelegramAction(
   }
 
   if (action === "sendDice") {
+    if (!isActionEnabled("dice", false)) {
+      throw new Error(
+        "Telegram dice actions are disabled. Set channels.telegram.actions.dice to true.",
+      );
+    }
     const to = readStringParam(params, "to", { required: true });
     const emoji = readStringParam(params, "emoji") ?? "🎲";
     const replyToMessageId = readNumberParam(params, "replyToMessageId", {
