@@ -4,9 +4,32 @@ Docs: https://docs.openclaw.ai
 
 ## Unreleased
 
+### Breaking
+
+- **BREAKING:** non-loopback Control UI now requires explicit `gateway.controlUi.allowedOrigins` (full origins). Startup fails closed when missing unless `gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback=true` is set to use Host-header origin fallback mode.
+
 ### Fixes
 
-- Security/Exec: harden `safeBins` long-option validation by rejecting unknown/ambiguous GNU long-option abbreviations and denying sort filesystem-dependent flags (`--random-source`, `--temporary-directory`, `-T`), closing safe-bin denylist bypasses. Thanks @jiseoung.
+- WhatsApp/Logging: redact outbound recipient identifiers in WhatsApp outbound + heartbeat logs and remove message/poll preview text from those log lines. (#24980) Thanks @coygeek.
+- WhatsApp/Auto-reply: send only final payloads to WhatsApp, suppress tool/block payload leakage (reasoning/thinking), and force block streaming off for WhatsApp dispatch so final-only delivery cannot cause silent turns. (#24962) Thanks @SidQin-cyber.
+- Telegram/Media SSRF: keep RFC2544 benchmark range (`198.18.0.0/15`) blocked by default, add an explicit SSRF-policy opt-in for Telegram media downloads, and keep other channels/URL fetch paths blocked. (#24982) Thanks @stakeswky.
+- Security/Shell env fallback: remove trusted-prefix shell-path fallback and only trust login shells explicitly registered in `/etc/shells`, defaulting to `/bin/sh` when `SHELL` is not registered. This ships in the next npm release. Thanks @tdjackey for reporting.
+- Security/Exec approvals: bind `host=node` approvals to explicit `nodeId`, reject cross-node replay of approved `system.run` requests, and include the target node in approval prompts. This ships in the next npm release. Thanks @tdjackey for reporting.
+- Security/Exec approvals: restore two-phase approval registration + wait-decision handling for gateway/node exec paths, requiring approval IDs to be registered before returning `approval-pending` and honoring server-assigned approval IDs during wait resolution to prevent orphaned `/approve` flows and immediate-return races (`ask:on-miss`). This ships in the next npm release. Thanks @vitalyis for reporting.
+- Security/Voice Call: harden Twilio webhook replay handling by preserving provider event IDs through normalization, adding bounded replay dedupe, and enforcing per-call turn-token matching for call-state transitions. This ships in the next npm release. Thanks @jiseoung for reporting.
+- Security/Export session HTML: escape raw HTML markdown tokens in the exported session viewer, harden tree/header metadata rendering against HTML injection, and sanitize image data-URL MIME types in export output to prevent stored XSS when opening exported HTML files. This ships in the next npm release. Thanks @allsmog for reporting.
+- Security/iOS deep links: require local confirmation (or trusted key) before forwarding `openclaw://agent` requests from iOS to gateway `agent.request`, and strip unkeyed delivery-routing fields to reduce exfiltration risk. This ships in the next npm release. Thanks @GCXWLP for reporting.
+- Security/Exec approvals: for non-default setups that enable `autoAllowSkills`, require pathless invocations plus trusted resolved-path matches so `./<skill-bin>`/absolute-path basename collisions cannot satisfy skill auto-allow checks under allowlist mode. This ships in the next npm release. Thanks @tdjackey for reporting.
+- Security/Commands: enforce sender-only matching for `commands.allowFrom` by blocking conversation-shaped `From` identities (`channel:`, `group:`, `thread:`, `@g.us`) while preserving direct-message fallback when sender fields are missing. Ships in the next npm release. Thanks @jiseoung.
+- Config/Kilo Gateway: Kilo provider flow now surfaces an updated list of models. (#24921) thanks @gumadeiras.
+- Security/Sandbox: enforce `tools.exec.applyPatch.workspaceOnly` and `tools.fs.workspaceOnly` for `apply_patch` in sandbox-mounted paths so writes/deletes cannot escape the workspace boundary via mounts like `/agent` unless explicitly opted out (`tools.exec.applyPatch.workspaceOnly=false`). This ships in the next npm release. Thanks @tdjackey for reporting.
+- Security/Config writes: block reserved prototype keys in account-id normalization and route account config resolution through own-key lookups, hardening `/allowlist` and account-scoped config paths against prototype-chain pollution.
+- Security/Exec: harden `safeBins` long-option validation by rejecting unknown/ambiguous GNU long-option abbreviations and denying sort filesystem-dependent flags (`--random-source`, `--temporary-directory`, `-T`), closing safe-bin denylist bypasses. This ships in the next npm release. Thanks @tdjackey and @jiseoung for reporting.
+- Security/Channels: unify dangerous name-matching policy checks (`dangerouslyAllowNameMatching`) across core and extension channels, share mutable-allowlist detectors between `openclaw doctor` and `openclaw security audit`, and scan all configured accounts (not only the default account) in channel security audit findings.
+- Security/Exec approvals: enforce canonical wrapper execution plans across allowlist analysis and runtime execution (node host + gateway host), fail closed on semantic `env` wrapper usage, and reject unknown short safe-bin flags to prevent `env -S/--split-string` interpretation-mismatch bypasses. This ships in the next npm release. Thanks @tdjackey for reporting.
+- Security/Exec approvals: recognize `busybox`/`toybox` shell applets in wrapper analysis and allow-always persistence, persist inner executables instead of multiplexer wrapper binaries, and fail closed when multiplexer unwrapping is unsafe to prevent allow-always bypasses. This ships in the next npm release. Thanks @jiseoung for reporting.
+- Security/Image tool: enforce `tools.fs.workspaceOnly` for sandboxed `image` path resolution so mounted out-of-workspace paths are blocked before media bytes are loaded/sent to vision providers. This ships in the next npm release. Thanks @tdjackey for reporting.
+- Security/Session export: harden exported HTML image rendering against data-URL attribute injection by validating image MIME/base64 fields, rejecting malformed base64 input in media ingestion paths, and dropping invalid tool-image payloads.
 
 ## 2026.2.23 (Unreleased)
 
@@ -19,6 +42,8 @@ Docs: https://docs.openclaw.ai
 - Sessions/Cron: harden session maintenance with `openclaw sessions cleanup`, per-agent store targeting, disk-budget controls (`session.maintenance.maxDiskBytes` / `highWaterBytes`), and safer transcript/archive cleanup + run-log retention behavior. (#24753) thanks @gumadeiras.
 
 ### Breaking
+
+- **BREAKING:** browser SSRF policy now defaults to trusted-network mode (`browser.ssrfPolicy.dangerouslyAllowPrivateNetwork=true` when unset), and canonical config uses `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` instead of `browser.ssrfPolicy.allowPrivateNetwork`. `openclaw doctor --fix` migrates the legacy key automatically.
 
 ### Fixes
 
@@ -57,8 +82,9 @@ Docs: https://docs.openclaw.ai
 - Gateway/WS: close repeated post-handshake `unauthorized role:*` request floods per connection and sample duplicate rejection logs, preventing a single misbehaving client from degrading gateway responsiveness. (#20168) Thanks @acy103, @vibecodooor, and @vincentkoc.
 - Gateway/Restart: treat child listener PIDs as owned by the service runtime PID during restart health checks to avoid false stale-process kills and restart timeouts on launchd/systemd. (#24696) Thanks @gumadeiras.
 - Config/Write: apply `unsetPaths` with immutable path-copy updates so config writes never mutate caller-provided objects, and harden `openclaw config get/set/unset` path traversal by rejecting prototype-key segments and inherited-property traversal. (#24134) thanks @frankekn.
+- Channels/WhatsApp: accept `channels.whatsapp.enabled` in config validation to match built-in channel auto-enable behavior, preventing `Unrecognized key: "enabled"` failures during channel setup. (#24263)
 - Security/Exec: detect obfuscated commands before exec allowlist decisions and require explicit approval for obfuscation patterns. (#8592) Thanks @CornBrother0x and @vincentkoc.
-- Security/ACP: harden ACP client permission auto-approval to require trusted core tool IDs, ignore untrusted `toolCall.kind` hints, and scope `read` auto-approval to the active working directory so unknown tool names and out-of-scope file reads always prompt.
+- Security/ACP: harden ACP client permission auto-approval to require trusted core tool IDs, ignore untrusted `toolCall.kind` hints, and scope `read` auto-approval to the active working directory so unknown tool names and out-of-scope file reads always prompt. This ships in the next npm release. Thanks @nedlir for reporting.
 - Security/Skills: escape user-controlled prompt, filename, and output-path values in `openai-image-gen` HTML gallery generation to prevent stored XSS in generated `index.html` output. (#12538) Thanks @CornBrother0x.
 - Security/Skills: harden `skill-creator` packaging by skipping symlink entries and rejecting files whose resolved paths escape the selected skill root. (#24260, #16959) Thanks @CornBrother0x and @vincentkoc.
 - Security/OTEL: redact sensitive values (API keys, tokens, credential fields) from diagnostics-otel log bodies, log attributes, and error/reason span fields before OTLP export. (#12542) Thanks @brandonwise.

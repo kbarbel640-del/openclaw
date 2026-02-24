@@ -2018,6 +2018,12 @@ See [Plugins](/tools/plugin).
     enabled: true,
     evaluateEnabled: true,
     defaultProfile: "chrome",
+    ssrfPolicy: {
+      dangerouslyAllowPrivateNetwork: true, // default trusted-network mode
+      // allowPrivateNetwork: true, // legacy alias
+      // hostnameAllowlist: ["*.example.com", "example.com"],
+      // allowedHostnames: ["localhost"],
+    },
     profiles: {
       openclaw: { cdpPort: 18800, color: "#FF4500" },
       work: { cdpPort: 18801, color: "#0066CC" },
@@ -2033,6 +2039,10 @@ See [Plugins](/tools/plugin).
 ```
 
 - `evaluateEnabled: false` disables `act:evaluate` and `wait --fn`.
+- `ssrfPolicy.dangerouslyAllowPrivateNetwork` defaults to `true` when unset (trusted-network model).
+- Set `ssrfPolicy.dangerouslyAllowPrivateNetwork: false` for strict public-only browser navigation.
+- `ssrfPolicy.allowPrivateNetwork` remains supported as a legacy alias.
+- In strict mode, use `ssrfPolicy.hostnameAllowlist` and `ssrfPolicy.allowedHostnames` for explicit exceptions.
 - Remote profiles are attach-only (start/stop/reset disabled).
 - Auto-detect order: default browser if Chromium-based → Chrome → Brave → Edge → Chromium → Chrome Canary.
 - Control service: loopback only (port derived from `gateway.port`, default `18791`).
@@ -2087,6 +2097,8 @@ See [Plugins](/tools/plugin).
       enabled: true,
       basePath: "/openclaw",
       // root: "dist/control-ui",
+      // allowedOrigins: ["https://control.example.com"], // required for non-loopback Control UI
+      // dangerouslyAllowHostHeaderOriginFallback: false, // dangerous Host-header origin fallback mode
       // allowInsecureAuth: false,
       // dangerouslyDisableDeviceAuth: false,
     },
@@ -2121,6 +2133,8 @@ See [Plugins](/tools/plugin).
 - `auth.rateLimit`: optional failed-auth limiter. Applies per client IP and per auth scope (shared-secret and device-token are tracked independently). Blocked attempts return `429` + `Retry-After`.
   - `auth.rateLimit.exemptLoopback` defaults to `true`; set `false` when you intentionally want localhost traffic rate-limited too (for test setups or strict proxy deployments).
 - `tailscale.mode`: `serve` (tailnet only, loopback bind) or `funnel` (public, requires auth).
+- `controlUi.allowedOrigins`: explicit browser-origin allowlist for Control UI/WebChat WebSocket connects. Required when Control UI is reachable on non-loopback binds.
+- `controlUi.dangerouslyAllowHostHeaderOriginFallback`: dangerous mode that enables Host-header origin fallback for deployments that intentionally rely on Host-header origin policy.
 - `remote.transport`: `ssh` (default) or `direct` (ws/wss). For `direct`, `remote.url` must be `ws://` or `wss://`.
 - `gateway.remote.token` is for remote CLI calls only; does not enable local gateway auth.
 - `trustedProxies`: reverse proxy IPs that terminate TLS. Only list proxies you control.
