@@ -12,16 +12,24 @@ function expectedSparkleVersion(shortVersion: string): string {
 }
 
 describe("appcast.xml", () => {
-  it("uses the expected Sparkle version for 2026.2.15", () => {
-    const appcast = readFileSync(APPCAST_URL, "utf8");
-    const shortVersion = "2026.2.15";
-    const items = Array.from(appcast.matchAll(/<item>[\s\S]*?<\/item>/g)).map((match) => match[0]);
-    const matchingItem = items.find((item) =>
-      item.includes(`<sparkle:shortVersionString>${shortVersion}</sparkle:shortVersionString>`),
-    );
+  const appcast = readFileSync(APPCAST_URL, "utf8");
+  const items = Array.from(appcast.matchAll(/<item>[\s\S]*?<\/item>/g)).map((match) => match[0]);
 
-    expect(matchingItem).toBeDefined();
-    const sparkleMatch = matchingItem?.match(/<sparkle:version>([^<]+)<\/sparkle:version>/);
-    expect(sparkleMatch?.[1]).toBe(expectedSparkleVersion(shortVersion));
+  it("every item uses the YYYYMMDD0 sparkle:version format", () => {
+    for (const item of items) {
+      const shortMatch = item.match(
+        /<sparkle:shortVersionString>([^<]+)<\/sparkle:shortVersionString>/,
+      );
+      const versionMatch = item.match(/<sparkle:version>([^<]+)<\/sparkle:version>/);
+      if (!shortMatch || !versionMatch) {
+        continue;
+      }
+
+      const shortVersion = shortMatch[1];
+      const actual = versionMatch[1];
+      expect(actual, `sparkle:version for ${shortVersion}`).toBe(
+        expectedSparkleVersion(shortVersion),
+      );
+    }
   });
 });
