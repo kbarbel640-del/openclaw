@@ -23,9 +23,7 @@ import { getQQBotRuntime } from "./runtime.js";
  * 用于预先分块长文本
  */
 function chunkText(text: string, limit: number): string[] {
-  if (text.length <= limit) {
-    return [text];
-  }
+  if (text.length <= limit) return [text];
 
   const chunks: string[] = [];
   let remaining = text;
@@ -78,34 +76,7 @@ export const qqbotPlugin: ChannelPlugin<ResolvedQQBotAccount> = {
   reload: { configPrefixes: ["channels.qqbot"] },
   // CLI onboarding wizard
   onboarding: qqbotOnboardingAdapter,
-  // 消息目标解析
-  messaging: {
-    normalizeTarget: (target) => {
-      // 支持格式: qqbot:c2c:xxx, qqbot:group:xxx, c2c:xxx, group:xxx, openid
-      const normalized = target.replace(/^qqbot:/i, "");
-      return { ok: true, to: normalized };
-    },
-    targetResolver: {
-      looksLikeId: (id) => {
-        // 先去掉 qqbot: 前缀
-        const normalized = id.replace(/^qqbot:/i, "");
-        // 支持 c2c:xxx, group:xxx, channel:xxx 格式
-        if (
-          normalized.startsWith("c2c:") ||
-          normalized.startsWith("group:") ||
-          normalized.startsWith("channel:")
-        ) {
-          return true;
-        }
-        // 支持纯 openid（32位十六进制）
-        if (/^[A-F0-9]{32}$/i.test(normalized)) {
-          return true;
-        }
-        return false;
-      },
-      hint: "c2c:<openid> or group:<groupOpenid>",
-    },
-  },
+  // messaging 定义在下方（合并了两处定义）
   config: {
     listAccountIds: (cfg) => listQQBotAccountIds(cfg),
     resolveAccount: (cfg, accountId) => resolveQQBotAccount(cfg, accountId),
@@ -135,6 +106,22 @@ export const qqbotPlugin: ChannelPlugin<ResolvedQQBotAccount> = {
       configured: Boolean(account?.appId && account?.clientSecret),
       tokenSource: account?.secretSource,
     }),
+    // 关键：解析 allowFrom 配置，用于命令授权
+    resolveAllowFrom: ({ cfg, accountId }: { cfg: OpenClawConfig; accountId?: string }) => {
+      const account = resolveQQBotAccount(cfg, accountId);
+      const allowFrom = account.config?.allowFrom ?? [];
+      console.log(
+        `[qqbot] resolveAllowFrom: accountId=${accountId}, allowFrom=${JSON.stringify(allowFrom)}`,
+      );
+      return allowFrom.map((entry: string | number) => String(entry));
+    },
+    // 格式化 allowFrom 条目（移除 qqbot: 前缀，统一大写）
+    formatAllowFrom: ({ allowFrom }: { allowFrom: Array<string | number> }) =>
+      allowFrom
+        .map((entry: string | number) => String(entry).trim())
+        .filter(Boolean)
+        .map((entry: string) => entry.replace(/^qqbot:/i, ""))
+        .map((entry: string) => entry.toUpperCase()), // QQ openid 是大写的
   },
   setup: {
     // 新增：规范化账户 ID
@@ -170,8 +157,76 @@ export const qqbotPlugin: ChannelPlugin<ResolvedQQBotAccount> = {
         clientSecret,
         clientSecretFile: input.tokenFile,
         name: input.name,
-        imageServerBaseUrl: input.imageServerBaseUrl,
       });
+    },
+  },
+  // Messaging 配置：用于解析目标地址
+  messaging: {
+    /**
+     * 规范化目标地址
+     * 支持以下格式：
+     * - qqbot:c2c:openid -> 私聊
+     * - qqbot:group:groupid -> 群聊
+     * - qqbot:channel:channelid -> 频道
+     * - c2c:openid -> 私聊
+     * - group:groupid -> 群聊
+     * - channel:channelid -> 频道
+     * - 纯 openid（32位十六进制）-> 私聊
+     */
+    normalizeTarget: (target: string) => {
+      // 去掉 qqbot: 前缀（如果有）
+      const id = target.replace(/^qqbot:/i, "");
+
+      // 检查是否是已知格式
+      if (id.startsWith("c2c:") || id.startsWith("group:") || id.startsWith("channel:")) {
+        return { ok: true, to: `qqbot:${id}` };
+      }
+
+      // 检查是否是纯 openid（32位十六进制，带连字符）
+      // QQ Bot OpenID 格式类似: 207A5B8339D01F6582911C014668B77B
+      const openIdPattern =
+        /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+      if (openIdPattern.test(id)) {
+        return { ok: true, to: `qqbot:c2c:${id}` };
+      }
+
+      // 不认识的格式
+      return {
+        ok: false,
+        error: `Invalid QQ Bot target format: "${target}". Expected: qqbot:c2c:openid, qqbot:group:groupid, or openid (UUID format)`,
+      };
+    },
+    /**
+     * 目标解析器配置
+     * 用于判断一个目标 ID 是否看起来像 QQ Bot 的格式
+     */
+    targetResolver: {
+      /**
+       * 判断目标 ID 是否可能是 QQ Bot 格式
+       * 支持以下格式：
+       * - qqbot:c2c:xxx
+       * - qqbot:group:xxx
+       * - qqbot:channel:xxx
+       * - c2c:xxx
+       * - group:xxx
+       * - channel:xxx
+       * - UUID 格式的 openid
+       */
+      looksLikeId: (id: string): boolean => {
+        // 带 qqbot: 前缀的格式
+        if (/^qqbot:(c2c|group|channel):/i.test(id)) {
+          return true;
+        }
+        // 不带前缀但有类型标识
+        if (/^(c2c|group|channel):/i.test(id)) {
+          return true;
+        }
+        // UUID 格式的 openid（QQ Bot 的用户/群 ID 格式）
+        const openIdPattern =
+          /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+        return openIdPattern.test(id);
+      },
+      hint: "QQ Bot 目标格式: qqbot:c2c:openid (私聊) 或 qqbot:group:groupid (群聊)",
     },
   },
   outbound: {

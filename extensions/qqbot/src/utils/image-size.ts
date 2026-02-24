@@ -13,7 +13,7 @@ export interface ImageSize {
 }
 
 /** 默认图片尺寸（当无法获取时使用） */
-export const DEFAULT_IMAGE_SIZE: ImageSize = { width: 512, height: 512 };
+const DEFAULT_IMAGE_SIZE: ImageSize = { width: 512, height: 512 };
 
 /**
  * 从 PNG 文件头解析图片尺寸
@@ -22,9 +22,7 @@ export const DEFAULT_IMAGE_SIZE: ImageSize = { width: 512, height: 512 };
  */
 function parsePngSize(buffer: Buffer): ImageSize | null {
   // PNG 签名: 89 50 4E 47 0D 0A 1A 0A
-  if (buffer.length < 24) {
-    return null;
-  }
+  if (buffer.length < 24) return null;
   if (buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4e || buffer[3] !== 0x47) {
     return null;
   }
@@ -40,9 +38,7 @@ function parsePngSize(buffer: Buffer): ImageSize | null {
  */
 function parseJpegSize(buffer: Buffer): ImageSize | null {
   // JPEG 签名: FF D8 FF
-  if (buffer.length < 4) {
-    return null;
-  }
+  if (buffer.length < 4) return null;
   if (buffer[0] !== 0xff || buffer[1] !== 0xd8) {
     return null;
   }
@@ -82,9 +78,7 @@ function parseJpegSize(buffer: Buffer): ImageSize | null {
  * GIF 文件头: GIF87a 或 GIF89a (6字节) + 宽度(2) + 高度(2)
  */
 function parseGifSize(buffer: Buffer): ImageSize | null {
-  if (buffer.length < 10) {
-    return null;
-  }
+  if (buffer.length < 10) return null;
   const signature = buffer.toString("ascii", 0, 6);
   if (signature !== "GIF87a" && signature !== "GIF89a") {
     return null;
@@ -99,9 +93,7 @@ function parseGifSize(buffer: Buffer): ImageSize | null {
  * WebP 文件头: RIFF(4) + 文件大小(4) + WEBP(4) + VP8/VP8L/VP8X(4) + ...
  */
 function parseWebpSize(buffer: Buffer): ImageSize | null {
-  if (buffer.length < 30) {
-    return null;
-  }
+  if (buffer.length < 30) return null;
 
   // 检查 RIFF 和 WEBP 签名
   const riff = buffer.toString("ascii", 0, 4);
@@ -149,7 +141,7 @@ function parseWebpSize(buffer: Buffer): ImageSize | null {
 /**
  * 从图片数据 Buffer 解析尺寸
  */
-export function parseImageSize(buffer: Buffer): ImageSize | null {
+function parseImageSize(buffer: Buffer): ImageSize | null {
   // 尝试各种格式
   return (
     parsePngSize(buffer) ?? parseJpegSize(buffer) ?? parseGifSize(buffer) ?? parseWebpSize(buffer)
@@ -160,10 +152,7 @@ export function parseImageSize(buffer: Buffer): ImageSize | null {
  * 从公网 URL 获取图片尺寸
  * 只下载前 64KB 数据，足够解析大部分图片格式的头部
  */
-export async function getImageSizeFromUrl(
-  url: string,
-  timeoutMs = 5000,
-): Promise<ImageSize | null> {
+async function getImageSizeFromUrl(url: string, timeoutMs = 5000): Promise<ImageSize | null> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -196,7 +185,7 @@ export async function getImageSizeFromUrl(
 
     return size;
   } catch (err) {
-    console.log(`[image-size] Error fetching ${url.slice(0, 60)}...: ${String(err)}`);
+    console.log(`[image-size] Error fetching ${url.slice(0, 60)}...: ${err}`);
     return null;
   }
 }
@@ -204,7 +193,7 @@ export async function getImageSizeFromUrl(
 /**
  * 从 Base64 Data URL 获取图片尺寸
  */
-export function getImageSizeFromDataUrl(dataUrl: string): ImageSize | null {
+function getImageSizeFromDataUrl(dataUrl: string): ImageSize | null {
   try {
     // 格式: data:image/png;base64,xxxxx
     const matches = dataUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
@@ -222,7 +211,7 @@ export function getImageSizeFromDataUrl(dataUrl: string): ImageSize | null {
 
     return size;
   } catch (err) {
-    console.log(`[image-size] Error parsing Base64: ${String(err)}`);
+    console.log(`[image-size] Error parsing Base64: ${err}`);
     return null;
   }
 }
@@ -263,16 +252,4 @@ export function formatQQBotMarkdownImage(url: string, size: ImageSize | null): s
  */
 export function hasQQBotImageSize(markdownImage: string): boolean {
   return /!\[#\d+px\s+#\d+px\]/.test(markdownImage);
-}
-
-/**
- * 从已有的 QQBot 格式 markdown 图片中提取尺寸
- * 格式: ![#宽px #高px](url)
- */
-export function extractQQBotImageSize(markdownImage: string): ImageSize | null {
-  const match = markdownImage.match(/!\[#(\d+)px\s+#(\d+)px\]/);
-  if (match) {
-    return { width: parseInt(match[1], 10), height: parseInt(match[2], 10) };
-  }
-  return null;
 }

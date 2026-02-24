@@ -24,7 +24,7 @@ export interface SessionState {
 }
 
 // Session 文件目录
-const SESSION_DIR = path.join(process.env.HOME || "/tmp", "clawd", "qqbot-data");
+const SESSION_DIR = path.join(process.env.HOME || "/tmp", ".openclaw", "qqbot", "sessions");
 
 // Session 过期时间（5分钟）- Resume 要求在断开后一定时间内恢复
 const SESSION_EXPIRE_TIME = 5 * 60 * 1000;
@@ -102,7 +102,7 @@ export function loadSession(accountId: string): SessionState | null {
     );
     return state;
   } catch (err) {
-    console.error(`[session-store] Failed to load session for ${accountId}: ${String(err)}`);
+    console.error(`[session-store] Failed to load session for ${accountId}: ${err}`);
     return null;
   }
 }
@@ -181,7 +181,7 @@ function doSaveSession(state: SessionState): void {
       `[session-store] Saved session for ${state.accountId}: sessionId=${state.sessionId}, lastSeq=${state.lastSeq}`,
     );
   } catch (err) {
-    console.error(`[session-store] Failed to save session for ${state.accountId}: ${String(err)}`);
+    console.error(`[session-store] Failed to save session for ${state.accountId}: ${err}`);
   }
 }
 
@@ -207,91 +207,6 @@ export function clearSession(accountId: string): void {
       console.log(`[session-store] Cleared session for ${accountId}`);
     }
   } catch (err) {
-    console.error(`[session-store] Failed to clear session for ${accountId}: ${String(err)}`);
+    console.error(`[session-store] Failed to clear session for ${accountId}: ${err}`);
   }
-}
-
-/**
- * 更新 lastSeq（轻量级更新）
- * @param accountId 账户 ID
- * @param lastSeq 最新的消息序号
- */
-export function updateLastSeq(accountId: string, lastSeq: number): void {
-  const existing = loadSession(accountId);
-  if (existing && existing.sessionId) {
-    saveSession({
-      ...existing,
-      lastSeq,
-    });
-  }
-}
-
-/**
- * 获取所有保存的 Session 状态
- */
-export function getAllSessions(): SessionState[] {
-  const sessions: SessionState[] = [];
-
-  try {
-    ensureDir();
-    const files = fs.readdirSync(SESSION_DIR);
-
-    for (const file of files) {
-      if (file.startsWith("session-") && file.endsWith(".json")) {
-        const filePath = path.join(SESSION_DIR, file);
-        try {
-          const data = fs.readFileSync(filePath, "utf-8");
-          const state = JSON.parse(data) as SessionState;
-          sessions.push(state);
-        } catch {
-          // 忽略解析错误
-        }
-      }
-    }
-  } catch {
-    // 目录不存在等错误
-  }
-
-  return sessions;
-}
-
-/**
- * 清理过期的 Session 文件
- */
-export function cleanupExpiredSessions(): number {
-  let cleaned = 0;
-
-  try {
-    ensureDir();
-    const files = fs.readdirSync(SESSION_DIR);
-    const now = Date.now();
-
-    for (const file of files) {
-      if (file.startsWith("session-") && file.endsWith(".json")) {
-        const filePath = path.join(SESSION_DIR, file);
-        try {
-          const data = fs.readFileSync(filePath, "utf-8");
-          const state = JSON.parse(data) as SessionState;
-
-          if (now - state.savedAt > SESSION_EXPIRE_TIME) {
-            fs.unlinkSync(filePath);
-            cleaned++;
-            console.log(`[session-store] Cleaned expired session: ${file}`);
-          }
-        } catch {
-          // 忽略解析错误，但也删除损坏的文件
-          try {
-            fs.unlinkSync(filePath);
-            cleaned++;
-          } catch {
-            // 忽略
-          }
-        }
-      }
-    }
-  } catch {
-    // 目录不存在等错误
-  }
-
-  return cleaned;
 }

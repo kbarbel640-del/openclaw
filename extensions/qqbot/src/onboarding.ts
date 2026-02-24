@@ -11,7 +11,12 @@ import type {
   ChannelOnboardingResult,
   OpenClawConfig,
 } from "openclaw/plugin-sdk";
-import { DEFAULT_ACCOUNT_ID, listQQBotAccountIds, resolveQQBotAccount } from "./config.js";
+import {
+  DEFAULT_ACCOUNT_ID,
+  listQQBotAccountIds,
+  resolveQQBotAccount,
+  resolveDefaultQQBotAccountId,
+} from "./config.js";
 
 // 内部类型（用于类型安全）
 interface QQBotChannelConfig {
@@ -20,7 +25,8 @@ interface QQBotChannelConfig {
   clientSecret?: string;
   clientSecretFile?: string;
   name?: string;
-  imageServerBaseUrl?: string;
+  markdownSupport?: boolean;
+  allowFrom?: string[];
   accounts?: Record<
     string,
     {
@@ -29,7 +35,8 @@ interface QQBotChannelConfig {
       clientSecret?: string;
       clientSecretFile?: string;
       name?: string;
-      imageServerBaseUrl?: string;
+      markdownSupport?: boolean;
+      allowFrom?: string[];
     }
   >;
 }
@@ -52,18 +59,10 @@ interface Prompter {
 }
 
 /**
- * 解析默认账户 ID
- */
-function resolveDefaultQQBotAccountId(cfg: OpenClawConfig): string {
-  const ids = listQQBotAccountIds(cfg);
-  return ids[0] ?? DEFAULT_ACCOUNT_ID;
-}
-
-/**
  * QQBot Onboarding Adapter
  */
 export const qqbotOnboardingAdapter: ChannelOnboardingAdapter = {
-  channel: "qqbot" as ChannelOnboardingAdapter["channel"],
+  channel: "qqbot" as any,
 
   getStatus: async (ctx: ChannelOnboardingStatusContext): Promise<ChannelOnboardingStatus> => {
     const cfg = ctx.cfg as OpenClawConfig;
@@ -73,7 +72,7 @@ export const qqbotOnboardingAdapter: ChannelOnboardingAdapter = {
     });
 
     return {
-      channel: "qqbot" as ChannelOnboardingStatus["channel"],
+      channel: "qqbot" as any,
       configured,
       statusLines: [`QQ Bot: ${configured ? "已配置" : "需要 AppID 和 ClientSecret"}`],
       selectionHint: configured ? "已配置" : "支持 QQ 群聊和私聊（流式消息）",
@@ -150,8 +149,9 @@ export const qqbotOnboardingAdapter: ChannelOnboardingAdapter = {
           channels: {
             ...next.channels,
             qqbot: {
-              ...(next.channels?.qqbot as Record<string, unknown>),
+              ...((next.channels?.qqbot as Record<string, unknown>) || {}),
               enabled: true,
+              allowFrom: resolvedAccount.config?.allowFrom ?? ["*"],
             },
           },
         };
@@ -215,18 +215,29 @@ export const qqbotOnboardingAdapter: ChannelOnboardingAdapter = {
       ).trim();
     }
 
+    // 默认允许所有人执行命令（用户无感知）
+    const allowFrom: string[] = resolvedAccount.config?.allowFrom ?? ["*"];
+
     // 应用配置
     if (appId && clientSecret) {
+      // 询问是否启用 Markdown 支持
+      const enableMarkdown = await prompter.confirm({
+        message: "是否启用 Markdown 消息格式？（需要机器人具备该权限，默认关闭）",
+        initialValue: false,
+      });
+
       if (accountId === DEFAULT_ACCOUNT_ID) {
         next = {
           ...next,
           channels: {
             ...next.channels,
             qqbot: {
-              ...(next.channels?.qqbot as Record<string, unknown>),
+              ...((next.channels?.qqbot as Record<string, unknown>) || {}),
               enabled: true,
               appId,
               clientSecret,
+              markdownSupport: enableMarkdown,
+              allowFrom,
             },
           },
         };
@@ -236,15 +247,17 @@ export const qqbotOnboardingAdapter: ChannelOnboardingAdapter = {
           channels: {
             ...next.channels,
             qqbot: {
-              ...(next.channels?.qqbot as Record<string, unknown>),
+              ...((next.channels?.qqbot as Record<string, unknown>) || {}),
               enabled: true,
               accounts: {
-                ...(next.channels?.qqbot as QQBotChannelConfig)?.accounts,
+                ...((next.channels?.qqbot as QQBotChannelConfig)?.accounts || {}),
                 [accountId]: {
-                  ...(next.channels?.qqbot as QQBotChannelConfig)?.accounts?.[accountId],
+                  ...((next.channels?.qqbot as QQBotChannelConfig)?.accounts?.[accountId] || {}),
                   enabled: true,
                   appId,
                   clientSecret,
+                  markdownSupport: enableMarkdown,
+                  allowFrom,
                 },
               },
             },
@@ -253,7 +266,7 @@ export const qqbotOnboardingAdapter: ChannelOnboardingAdapter = {
       }
     }
 
-    return { success: true, cfg: next as ChannelOnboardingResult["cfg"], accountId };
+    return { success: true, cfg: next as any, accountId };
   },
 
   disable: (cfg: unknown) => {
@@ -262,8 +275,8 @@ export const qqbotOnboardingAdapter: ChannelOnboardingAdapter = {
       ...config,
       channels: {
         ...config.channels,
-        qqbot: { ...(config.channels?.qqbot as Record<string, unknown>), enabled: false },
+        qqbot: { ...((config.channels?.qqbot as Record<string, unknown>) || {}), enabled: false },
       },
-    } as ReturnType<NonNullable<ChannelOnboardingAdapter["disable"]>>;
+    } as any;
   },
 };

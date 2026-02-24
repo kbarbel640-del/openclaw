@@ -28,7 +28,7 @@ export interface KnownUser {
 }
 
 // 存储文件路径
-const KNOWN_USERS_DIR = path.join(process.env.HOME || "/tmp", "clawd", "qqbot-data");
+const KNOWN_USERS_DIR = path.join(process.env.HOME || "/tmp", ".openclaw", "qqbot", "data");
 
 const KNOWN_USERS_FILE = path.join(KNOWN_USERS_DIR, "known-users.json");
 
@@ -73,7 +73,7 @@ function loadUsersFromFile(): Map<string, KnownUser> {
       console.log(`[known-users] Loaded ${usersCache.size} users from file`);
     }
   } catch (err) {
-    console.error(`[known-users] Failed to load users: ${String(err)}`);
+    console.error(`[known-users] Failed to load users: ${err}`);
     usersCache = new Map();
   }
 
@@ -84,9 +84,7 @@ function loadUsersFromFile(): Map<string, KnownUser> {
  * 保存用户数据到文件（节流版本）
  */
 function saveUsersToFile(): void {
-  if (!isDirty) {
-    return;
-  }
+  if (!isDirty) return;
 
   if (saveTimer) {
     return; // 已有定时器在等待
@@ -102,9 +100,7 @@ function saveUsersToFile(): void {
  * 实际执行保存
  */
 function doSaveUsersToFile(): void {
-  if (!usersCache || !isDirty) {
-    return;
-  }
+  if (!usersCache || !isDirty) return;
 
   try {
     ensureDir();
@@ -113,7 +109,7 @@ function doSaveUsersToFile(): void {
     isDirty = false;
     console.log(`[known-users] Saved ${users.length} users to file`);
   } catch (err) {
-    console.error(`[known-users] Failed to save users: ${String(err)}`);
+    console.error(`[known-users] Failed to save users: ${err}`);
   }
 }
 
@@ -265,7 +261,7 @@ export function getKnownUsersStats(accountId?: string): {
   activeIn24h: number;
   activeIn7d: number;
 } {
-  let users = listKnownUsers({ accountId });
+  const users = listKnownUsers({ accountId });
 
   const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
@@ -277,81 +273,4 @@ export function getKnownUsersStats(accountId?: string): {
     activeIn24h: users.filter((u) => now - u.lastSeenAt < day).length,
     activeIn7d: users.filter((u) => now - u.lastSeenAt < 7 * day).length,
   };
-}
-
-/**
- * 删除用户记录
- * @param accountId 机器人账户 ID
- * @param openid 用户 openid
- * @param type 消息类型
- * @param groupOpenid 群组 openid（可选）
- */
-export function removeKnownUser(
-  accountId: string,
-  openid: string,
-  type: "c2c" | "group" = "c2c",
-  groupOpenid?: string,
-): boolean {
-  const cache = loadUsersFromFile();
-  const key = makeUserKey({ accountId, openid, type, groupOpenid });
-
-  if (cache.has(key)) {
-    cache.delete(key);
-    isDirty = true;
-    saveUsersToFile();
-    console.log(`[known-users] Removed user ${openid}`);
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * 清除所有用户记录
- * @param accountId 机器人账户 ID（可选，不传则清除所有）
- */
-export function clearKnownUsers(accountId?: string): number {
-  const cache = loadUsersFromFile();
-  let count = 0;
-
-  if (accountId) {
-    // 只清除指定账户的用户
-    for (const [key, user] of cache.entries()) {
-      if (user.accountId === accountId) {
-        cache.delete(key);
-        count++;
-      }
-    }
-  } else {
-    // 清除所有
-    count = cache.size;
-    cache.clear();
-  }
-
-  if (count > 0) {
-    isDirty = true;
-    doSaveUsersToFile(); // 立即保存
-    console.log(`[known-users] Cleared ${count} users`);
-  }
-
-  return count;
-}
-
-/**
- * 获取用户的所有群组（某用户在哪些群里交互过）
- * @param accountId 机器人账户 ID
- * @param openid 用户 openid
- */
-export function getUserGroups(accountId: string, openid: string): string[] {
-  const users = listKnownUsers({ accountId, type: "group" });
-  return users.filter((u) => u.openid === openid && u.groupOpenid).map((u) => u.groupOpenid!);
-}
-
-/**
- * 获取群组的所有成员
- * @param accountId 机器人账户 ID
- * @param groupOpenid 群组 openid
- */
-export function getGroupMembers(accountId: string, groupOpenid: string): KnownUser[] {
-  return listKnownUsers({ accountId, type: "group" }).filter((u) => u.groupOpenid === groupOpenid);
 }

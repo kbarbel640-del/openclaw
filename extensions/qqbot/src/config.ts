@@ -75,8 +75,7 @@ export function resolveQQBotAccount(
       dmPolicy: qqbot?.dmPolicy,
       allowFrom: qqbot?.allowFrom,
       systemPrompt: qqbot?.systemPrompt,
-      imageServerBaseUrl: qqbot?.imageServerBaseUrl,
-      markdownSupport: qqbot?.markdownSupport,
+      markdownSupport: qqbot?.markdownSupport ?? true,
     };
     appId = qqbot?.appId ?? "";
   } else {
@@ -111,8 +110,7 @@ export function resolveQQBotAccount(
     clientSecret,
     secretSource,
     systemPrompt: accountConfig.systemPrompt,
-    imageServerBaseUrl: accountConfig.imageServerBaseUrl || process.env.QQBOT_IMAGE_SERVER_BASE_URL,
-    markdownSupport: accountConfig.markdownSupport,
+    markdownSupport: accountConfig.markdownSupport !== false,
     config: accountConfig,
   };
 }
@@ -123,22 +121,21 @@ export function resolveQQBotAccount(
 export function applyQQBotAccountConfig(
   cfg: OpenClawConfig,
   accountId: string,
-  input: {
-    appId?: string;
-    clientSecret?: string;
-    clientSecretFile?: string;
-    name?: string;
-    imageServerBaseUrl?: string;
-  },
+  input: { appId?: string; clientSecret?: string; clientSecretFile?: string; name?: string },
 ): OpenClawConfig {
   const next = { ...cfg };
 
   if (accountId === DEFAULT_ACCOUNT_ID) {
+    // 如果没有设置过 allowFrom，默认设置为 ["*"]
+    const existingConfig = (next.channels?.qqbot as QQBotChannelConfig) || {};
+    const allowFrom = existingConfig.allowFrom ?? ["*"];
+
     next.channels = {
       ...next.channels,
       qqbot: {
-        ...(next.channels?.qqbot as Record<string, unknown>),
+        ...((next.channels?.qqbot as Record<string, unknown>) || {}),
         enabled: true,
+        allowFrom,
         ...(input.appId ? { appId: input.appId } : {}),
         ...(input.clientSecret
           ? { clientSecret: input.clientSecret }
@@ -146,20 +143,25 @@ export function applyQQBotAccountConfig(
             ? { clientSecretFile: input.clientSecretFile }
             : {}),
         ...(input.name ? { name: input.name } : {}),
-        ...(input.imageServerBaseUrl ? { imageServerBaseUrl: input.imageServerBaseUrl } : {}),
       },
     };
   } else {
+    // 如果没有设置过 allowFrom，默认设置为 ["*"]
+    const existingAccountConfig =
+      (next.channels?.qqbot as QQBotChannelConfig)?.accounts?.[accountId] || {};
+    const allowFrom = existingAccountConfig.allowFrom ?? ["*"];
+
     next.channels = {
       ...next.channels,
       qqbot: {
-        ...(next.channels?.qqbot as Record<string, unknown>),
+        ...((next.channels?.qqbot as Record<string, unknown>) || {}),
         enabled: true,
         accounts: {
-          ...(next.channels?.qqbot as QQBotChannelConfig)?.accounts,
+          ...((next.channels?.qqbot as QQBotChannelConfig)?.accounts || {}),
           [accountId]: {
-            ...(next.channels?.qqbot as QQBotChannelConfig)?.accounts?.[accountId],
+            ...((next.channels?.qqbot as QQBotChannelConfig)?.accounts?.[accountId] || {}),
             enabled: true,
+            allowFrom,
             ...(input.appId ? { appId: input.appId } : {}),
             ...(input.clientSecret
               ? { clientSecret: input.clientSecret }
@@ -167,7 +169,6 @@ export function applyQQBotAccountConfig(
                 ? { clientSecretFile: input.clientSecretFile }
                 : {}),
             ...(input.name ? { name: input.name } : {}),
-            ...(input.imageServerBaseUrl ? { imageServerBaseUrl: input.imageServerBaseUrl } : {}),
           },
         },
       },

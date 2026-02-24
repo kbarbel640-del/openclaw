@@ -81,7 +81,6 @@ async function doFetchToken(appId: string, clientSecret: string): Promise<string
     console.error(`[qqbot-api] <<< Network error:`, err);
     throw new Error(
       `Network error getting access_token: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err },
     );
   }
 
@@ -105,7 +104,6 @@ async function doFetchToken(appId: string, clientSecret: string): Promise<string
     console.error(`[qqbot-api] <<< Parse error:`, err);
     throw new Error(
       `Failed to parse access_token response: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err },
     );
   }
 
@@ -180,23 +178,46 @@ export function getNextMsgSeq(msgId: string): number {
   return seqBaseTime + next;
 }
 
+// API 请求超时配置（毫秒）
+const DEFAULT_API_TIMEOUT = 30000; // 默认 30 秒
+const FILE_UPLOAD_TIMEOUT = 120000; // 文件上传 120 秒（2 分钟）
+
 /**
  * API 请求封装
+ * @param accessToken 访问令牌
+ * @param method 请求方法
+ * @param path 请求路径
+ * @param body 请求体
+ * @param timeoutMs 超时时间（毫秒），不传则根据请求类型自动选择
  */
 export async function apiRequest<T = unknown>(
   accessToken: string,
   method: string,
   path: string,
   body?: unknown,
+  timeoutMs?: number,
 ): Promise<T> {
   const url = `${API_BASE}${path}`;
   const headers: Record<string, string> = {
     Authorization: `QQBot ${accessToken}`,
     "Content-Type": "application/json",
   };
+
+  // 根据请求类型自动选择超时时间
+  // 文件上传接口 (/files) 使用更长的超时时间
+  const isFileUpload = path.includes("/files");
+  const timeout = timeoutMs ?? (isFileUpload ? FILE_UPLOAD_TIMEOUT : DEFAULT_API_TIMEOUT);
+
+  // 创建 AbortController 用于超时控制
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeout);
+
   const options: RequestInit = {
     method,
     headers,
+    signal: controller.signal,
   };
 
   if (body) {
@@ -204,7 +225,7 @@ export async function apiRequest<T = unknown>(
   }
 
   // 打印请求信息
-  console.log(`[qqbot-api] >>> ${method} ${url}`);
+  console.log(`[qqbot-api] >>> ${method} ${url} (timeout: ${timeout}ms)`);
   console.log(`[qqbot-api] >>> Headers:`, JSON.stringify(headers, null, 2));
   if (body) {
     console.log(`[qqbot-api] >>> Body:`, JSON.stringify(body, null, 2));
@@ -214,11 +235,15 @@ export async function apiRequest<T = unknown>(
   try {
     res = await fetch(url, options);
   } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      console.error(`[qqbot-api] <<< Request timeout after ${timeout}ms`);
+      throw new Error(`Request timeout [${path}]: exceeded ${timeout}ms`);
+    }
     console.error(`[qqbot-api] <<< Network error:`, err);
-    throw new Error(
-      `Network error [${path}]: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err },
-    );
+    throw new Error(`Network error [${path}]: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   // 打印响应头
@@ -239,7 +264,6 @@ export async function apiRequest<T = unknown>(
     console.error(`[qqbot-api] <<< Parse error:`, err);
     throw new Error(
       `Failed to parse response [${path}]: ${err instanceof Error ? err.message : String(err)}`,
-      { cause: err },
     );
   }
 
@@ -408,7 +432,7 @@ export async function sendProactiveC2CMessage(
 ): Promise<{ id: string; timestamp: number }> {
   const body = buildProactiveMessageBody(content);
   console.log(
-    `[qqbot-api] sendProactiveC2CMessage: openid=${openid}, msg_type=${String(body.msg_type)}, content_len=${content.length}`,
+    `[qqbot-api] sendProactiveC2CMessage: openid=${openid}, msg_type=${body.msg_type}, content_len=${content.length}`,
   );
   return apiRequest(accessToken, "POST", `/v2/users/${openid}/messages`, body);
 }
@@ -427,7 +451,7 @@ export async function sendProactiveGroupMessage(
 ): Promise<{ id: string; timestamp: string }> {
   const body = buildProactiveMessageBody(content);
   console.log(
-    `[qqbot-api] sendProactiveGroupMessage: group=${groupOpenid}, msg_type=${String(body.msg_type)}, content_len=${content.length}`,
+    `[qqbot-api] sendProactiveGroupMessage: group=${groupOpenid}, msg_type=${body.msg_type}, content_len=${content.length}`,
   );
   return apiRequest(accessToken, "POST", `/v2/groups/${groupOpenid}/messages`, body);
 }
@@ -736,12 +760,10 @@ export function startBackgroundTokenRefresh(
           await sleep(minRefreshIntervalMs, signal);
         }
       } catch (err) {
-        if (signal.aborted) {
-          break;
-        }
+        if (signal.aborted) break;
 
         // 刷新失败，等待后重试
-        log?.error?.(`[qqbot-api] Background token refresh failed: ${String(err)}`);
+        log?.error?.(`[qqbot-api] Background token refresh failed: ${err}`);
         await sleep(retryDelayMs, signal);
       }
     }

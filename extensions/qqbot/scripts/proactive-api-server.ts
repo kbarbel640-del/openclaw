@@ -16,7 +16,6 @@
  *   POST /broadcast     - 广播消息
  */
 
-import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import * as fs from "node:fs";
 import * as http from "node:http";
 import * as path from "node:path";
@@ -240,11 +239,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       }
 
       const cfg = loadConfig();
-      const result = await broadcastMessage(text, cfg as OpenClawConfig, {
-        type,
-        accountId,
-        limit,
-      });
+      const result = await broadcastMessage(text, cfg as any, { type, accountId, limit });
       sendJson(res, 200, result);
       return;
     }

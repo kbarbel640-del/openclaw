@@ -222,7 +222,7 @@ export function decodeCronPayload(message: string): {
     if (payload.type !== "cron_reminder") {
       return {
         isCronPayload: true,
-        error: `期望 type 为 cron_reminder，实际为 ${String(payload.type)}`,
+        error: `期望 type 为 cron_reminder，实际为 ${payload.type}`,
       };
     }
 

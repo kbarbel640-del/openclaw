@@ -1,34 +1,68 @@
 {
-  "name": "@openclaw/qqbot",
-  "version": "2026.2.3",
-  "description": "OpenClaw QQ Bot channel plugin",
+  "name": "@sliverp/qqbot",
+  "version": "2.0.0",
+  "homepage": "https://github.com/sliverp/qqbot",
+  "bin": {
+    "qqbot": "./bin/qqbot-cli.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src",
+    "skills",
+    "index.ts",
+    "tsconfig.json",
+    "openclaw.plugin.json",
+    "clawdbot.plugin.json",
+    "moltbot.plugin.json"
+  ],
   "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc || true",
+    "dev": "tsc --watch",
+    "prepack": "npm install --omit=dev"
+  },
   "dependencies": {
-    "openclaw": "workspace:*",
+    "silk-wasm": "^3.7.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "eslint": "^10.0.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  },
+  "peerDependencies": {
+    "clawdbot": "*",
+    "moltbot": "*",
+    "openclaw": "*"
+  },
+  "bundledDependencies": [
+    "silk-wasm",
+    "ws"
+  ],
+  "bundleDependencies": [
+    "silk-wasm",
+    "ws"
+  ],
+  "clawdbot": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "moltbot": {
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "openclaw": {
     "extensions": [
       "./index.ts"
-    ],
-    "channel": {
-      "id": "qqbot",
-      "label": "QQ Bot",
-      "selectionLabel": "QQ Bot (QQ Open Platform)",
-      "detailLabel": "QQ Bot",
-      "docsPath": "/channels/qqbot",
-      "docsLabel": "qqbot",
-      "blurb": "Connect to QQ via official QQ Bot API with streaming support.",
-      "order": 36,
-      "quickstartAllowFrom": true
-    },
-    "install": {
-      "npmSpec": "@openclaw/qqbot",
-      "localPath": "extensions/qqbot",
-      "defaultChoice": "npm"
-    }
+    ]
   }
 }
