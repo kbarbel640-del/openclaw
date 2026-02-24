@@ -420,6 +420,9 @@ export async function handleToolExecutionEnd(
     `embedded run tool end: runId=${ctx.params.runId} tool=${toolName} toolCallId=${toolCallId}`,
   );
 
+  // Safe to clear after awaiting: the gate is a chained promise covering all
+  // pending flushes, so whichever tool_execution_end awaits first waits for
+  // the entire chain. Subsequent ends see null but all flushes are already done.
   if (ctx.state.pendingFlushGate) {
     await ctx.state.pendingFlushGate;
     ctx.state.pendingFlushGate = null;
