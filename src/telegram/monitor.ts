@@ -165,6 +165,9 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         abortSignal: opts.abortSignal,
         publicUrl: opts.webhookUrl,
       });
+      await new Promise((resolve) =>
+        opts.abortSignal?.addEventListener("abort", resolve, { once: true }),
+      );
       return;
     }
 

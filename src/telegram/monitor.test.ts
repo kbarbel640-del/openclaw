@@ -114,7 +114,11 @@ describe("monitorTelegramProvider (grammY)", () => {
     Object.values(api).forEach((fn) => {
       fn?.mockReset?.();
     });
-    await monitorTelegramProvider({ token: "tok" });
+    const abort = new AbortController();
+    const monitorPromise = monitorTelegramProvider({ token: "tok", abortSignal: abort.signal });
+    for (let i = 0; i < 5 && !handlers.message; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
     expect(handlers.message).toBeDefined();
     await handlers.message?.({
       message: {
@@ -128,6 +132,8 @@ describe("monitorTelegramProvider (grammY)", () => {
     expect(api.sendMessage).toHaveBeenCalledWith(123, "echo:hi", {
       parse_mode: "HTML",
     });
+    abort.abort();
+    await monitorPromise;
   });
 
   it("uses agent maxConcurrent for runner concurrency", async () => {
@@ -137,7 +143,10 @@ describe("monitorTelegramProvider (grammY)", () => {
       channels: { telegram: {} },
     });
 
-    await monitorTelegramProvider({ token: "tok" });
+    const abort = new AbortController();
+    const monitorPromise = monitorTelegramProvider({ token: "tok", abortSignal: abort.signal });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(runSpy).toHaveBeenCalledWith(
       expect.anything(),
@@ -150,13 +159,17 @@ describe("monitorTelegramProvider (grammY)", () => {
         }),
       }),
     );
+    abort.abort();
+    await monitorPromise;
   });
 
   it("requires mention in groups by default", async () => {
     Object.values(api).forEach((fn) => {
       fn?.mockReset?.();
     });
-    await monitorTelegramProvider({ token: "tok" });
+    const abort = new AbortController();
+    const monitorPromise = monitorTelegramProvider({ token: "tok", abortSignal: abort.signal });
+    await Promise.resolve();
     await handlers.message?.({
       message: {
         message_id: 2,
@@ -167,6 +180,8 @@ describe("monitorTelegramProvider (grammY)", () => {
       getFile: vi.fn(async () => ({})),
     });
     expect(api.sendMessage).not.toHaveBeenCalled();
+    abort.abort();
+    await monitorPromise;
   });
 
   it("retries on recoverable network errors", async () => {
@@ -181,11 +196,17 @@ describe("monitorTelegramProvider (grammY)", () => {
         stop: vi.fn(),
       }));
 
-    await monitorTelegramProvider({ token: "tok" });
+    const abort = new AbortController();
+    const monitorPromise = monitorTelegramProvider({ token: "tok", abortSignal: abort.signal });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(computeBackoff).toHaveBeenCalled();
     expect(sleepWithAbort).toHaveBeenCalled();
     expect(runSpy).toHaveBeenCalledTimes(2);
+
+    abort.abort();
+    await monitorPromise;
   });
 
   it("surfaces non-recoverable errors", async () => {
@@ -198,11 +219,13 @@ describe("monitorTelegramProvider (grammY)", () => {
   });
 
   it("passes configured webhookHost to webhook listener", async () => {
-    await monitorTelegramProvider({
+    const abort = new AbortController();
+    const monitorPromise = monitorTelegramProvider({
       token: "tok",
       useWebhook: true,
       webhookUrl: "https://example.test/telegram",
       webhookSecret: "secret",
+      abortSignal: abort.signal,
       config: {
         agents: { defaults: { maxConcurrent: 2 } },
         channels: {
@@ -213,19 +236,25 @@ describe("monitorTelegramProvider (grammY)", () => {
       },
     });
 
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     expect(startTelegramWebhookSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         host: "0.0.0.0",
       }),
     );
     expect(runSpy).not.toHaveBeenCalled();
+    abort.abort();
+    await monitorPromise;
   });
 
   it("falls back to configured webhookSecret when not passed explicitly", async () => {
-    await monitorTelegramProvider({
+    const abort = new AbortController();
+    const monitorPromise = monitorTelegramProvider({
       token: "tok",
       useWebhook: true,
       webhookUrl: "https://example.test/telegram",
+      abortSignal: abort.signal,
       config: {
         agents: { defaults: { maxConcurrent: 2 } },
         channels: {
@@ -236,11 +265,15 @@ describe("monitorTelegramProvider (grammY)", () => {
       },
     });
 
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     expect(startTelegramWebhookSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         secret: "secret-from-config",
       }),
     );
     expect(runSpy).not.toHaveBeenCalled();
+    abort.abort();
+    await monitorPromise;
   });
 });

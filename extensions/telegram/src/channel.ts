@@ -409,6 +409,7 @@ export const telegramPlugin: ChannelPlugin<ResolvedTelegramAccount, TelegramProb
         webhookUrl: account.config.webhookUrl,
         webhookSecret: account.config.webhookSecret,
         webhookPath: account.config.webhookPath,
+        webhookPort: account.config.webhookPort,
         webhookHost: account.config.webhookHost,
       });
     },
