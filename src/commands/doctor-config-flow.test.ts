@@ -596,6 +596,27 @@ describe("doctor config flow", () => {
     expect(cfg.channels.googlechat.accounts.work.allowFrom).toBeUndefined();
   });
 
+  it("suppresses note output when quiet flag is set", async () => {
+    const noteSpy = vi.spyOn(noteModule, "note").mockImplementation(() => {});
+    try {
+      await runDoctorConfigWithInput({
+        config: {
+          bridge: { bind: "auto" },
+          agents: { list: [{ id: "pi" }] },
+        },
+        run: (args) =>
+          loadAndMaybeMigrateDoctorConfig({
+            ...args,
+            quiet: true,
+          }),
+      });
+
+      expect(noteSpy).not.toHaveBeenCalled();
+    } finally {
+      noteSpy.mockRestore();
+    }
+  });
+
   it("recovers from stale googlechat top-level allowFrom by repairing dm.allowFrom", async () => {
     const result = await runDoctorConfigWithInput({
       repair: true,

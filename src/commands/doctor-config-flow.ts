@@ -1677,19 +1677,22 @@ async function maybeMigrateLegacyConfig(): Promise<string[]> {
 export async function loadAndMaybeMigrateDoctorConfig(params: {
   options: DoctorOptions;
   confirm: (p: { message: string; initialValue: boolean }) => Promise<boolean>;
+  /** Suppress human-readable `note()` output (e.g. when the caller needs clean JSON on stdout). */
+  quiet?: boolean;
 }) {
   const shouldRepair = params.options.repair === true || params.options.yes === true;
+  const emit: typeof note = params.quiet ? () => {} : note;
   const stateDirResult = await autoMigrateLegacyStateDir({ env: process.env });
   if (stateDirResult.changes.length > 0) {
-    note(stateDirResult.changes.map((entry) => `- ${entry}`).join("\n"), "Doctor changes");
+    emit(stateDirResult.changes.map((entry) => `- ${entry}`).join("\n"), "Doctor changes");
   }
   if (stateDirResult.warnings.length > 0) {
-    note(stateDirResult.warnings.map((entry) => `- ${entry}`).join("\n"), "Doctor warnings");
+    emit(stateDirResult.warnings.map((entry) => `- ${entry}`).join("\n"), "Doctor warnings");
   }
 
   const legacyConfigChanges = await maybeMigrateLegacyConfig();
   if (legacyConfigChanges.length > 0) {
-    note(legacyConfigChanges.map((entry) => `- ${entry}`).join("\n"), "Doctor changes");
+    emit(legacyConfigChanges.map((entry) => `- ${entry}`).join("\n"), "Doctor changes");
   }
 
   let snapshot = await readConfigFileSnapshot();
@@ -1700,23 +1703,25 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
   let shouldWriteConfig = false;
   const fixHints: string[] = [];
   if (snapshot.exists && !snapshot.valid && snapshot.legacyIssues.length === 0) {
-    note("Config invalid; doctor will run with best-effort config.", "Config");
-    noteIncludeConfinementWarning(snapshot);
+    emit("Config invalid; doctor will run with best-effort config.", "Config");
+    if (!params.quiet) {
+      noteIncludeConfinementWarning(snapshot);
+    }
   }
   const warnings = snapshot.warnings ?? [];
   if (warnings.length > 0) {
     const lines = warnings.map((issue) => `- ${issue.path}: ${issue.message}`).join("\n");
-    note(lines, "Config warnings");
+    emit(lines, "Config warnings");
   }
 
   if (snapshot.legacyIssues.length > 0) {
-    note(
+    emit(
       snapshot.legacyIssues.map((issue) => `- ${issue.path}: ${issue.message}`).join("\n"),
       "Compatibility config keys detected",
     );
     const { config: migrated, changes } = migrateLegacyConfig(snapshot.parsed);
     if (changes.length > 0) {
-      note(changes.join("\n"), "Doctor changes");
+      emit(changes.join("\n"), "Doctor changes");
     }
     if (migrated) {
       candidate = migrated;
@@ -1736,7 +1741,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
   const normalized = normalizeCompatibilityConfigValues(candidate);
   if (normalized.changes.length > 0) {
-    note(normalized.changes.join("\n"), "Doctor changes");
+    emit(normalized.changes.join("\n"), "Doctor changes");
     candidate = normalized.config;
     pendingChanges = true;
     if (shouldRepair) {
@@ -1748,7 +1753,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
   const autoEnable = applyPluginAutoEnable({ config: candidate, env: process.env });
   if (autoEnable.changes.length > 0) {
-    note(autoEnable.changes.join("\n"), "Doctor changes");
+    emit(autoEnable.changes.join("\n"), "Doctor changes");
     candidate = autoEnable.config;
     pendingChanges = true;
     if (shouldRepair) {
@@ -1767,7 +1772,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
   if (shouldRepair) {
     const repair = await maybeRepairTelegramAllowFromUsernames(candidate);
     if (repair.changes.length > 0) {
-      note(repair.changes.join("\n"), "Doctor changes");
+      emit(repair.changes.join("\n"), "Doctor changes");
       candidate = repair.config;
       pendingChanges = true;
       cfg = repair.config;
@@ -1775,7 +1780,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
     const discordRepair = maybeRepairDiscordNumericIds(candidate);
     if (discordRepair.changes.length > 0) {
-      note(discordRepair.changes.join("\n"), "Doctor changes");
+      emit(discordRepair.changes.join("\n"), "Doctor changes");
       candidate = discordRepair.config;
       pendingChanges = true;
       cfg = discordRepair.config;
@@ -1783,7 +1788,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
     const allowFromRepair = maybeRepairOpenPolicyAllowFrom(candidate);
     if (allowFromRepair.changes.length > 0) {
-      note(allowFromRepair.changes.join("\n"), "Doctor changes");
+      emit(allowFromRepair.changes.join("\n"), "Doctor changes");
       candidate = allowFromRepair.config;
       pendingChanges = true;
       cfg = allowFromRepair.config;
@@ -1804,7 +1809,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
     const toolsBySenderRepair = maybeRepairLegacyToolsBySenderKeys(candidate);
     if (toolsBySenderRepair.changes.length > 0) {
-      note(toolsBySenderRepair.changes.join("\n"), "Doctor changes");
+      emit(toolsBySenderRepair.changes.join("\n"), "Doctor changes");
       candidate = toolsBySenderRepair.config;
       pendingChanges = true;
       cfg = toolsBySenderRepair.config;
@@ -1812,18 +1817,18 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
     const safeBinProfileRepair = maybeRepairExecSafeBinProfiles(candidate);
     if (safeBinProfileRepair.changes.length > 0) {
-      note(safeBinProfileRepair.changes.join("\n"), "Doctor changes");
+      emit(safeBinProfileRepair.changes.join("\n"), "Doctor changes");
       candidate = safeBinProfileRepair.config;
       pendingChanges = true;
       cfg = safeBinProfileRepair.config;
     }
     if (safeBinProfileRepair.warnings.length > 0) {
-      note(safeBinProfileRepair.warnings.join("\n"), "Doctor warnings");
+      emit(safeBinProfileRepair.warnings.join("\n"), "Doctor warnings");
     }
   } else {
     const hits = scanTelegramAllowFromUsernameEntries(candidate);
     if (hits.length > 0) {
-      note(
+      emit(
         [
           `- Telegram allowFrom contains ${hits.length} non-numeric entries (e.g. ${hits[0]?.entry ?? "@"}); Telegram authorization requires numeric sender IDs.`,
           `- Run "${formatCliCommand("openclaw doctor --fix")}" to auto-resolve @username entries to numeric IDs (requires a Telegram bot token).`,
@@ -1834,7 +1839,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
     const discordHits = scanDiscordNumericIdEntries(candidate);
     if (discordHits.length > 0) {
-      note(
+      emit(
         [
           `- Discord allowlists contain ${discordHits.length} numeric entries (e.g. ${discordHits[0]?.path}=${discordHits[0]?.entry}).`,
           `- Discord IDs must be strings; run "${formatCliCommand("openclaw doctor --fix")}" to convert numeric IDs to quoted strings.`,
@@ -1845,7 +1850,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
     const allowFromScan = maybeRepairOpenPolicyAllowFrom(candidate);
     if (allowFromScan.changes.length > 0) {
-      note(
+      emit(
         [
           ...allowFromScan.changes,
           `- Run "${formatCliCommand("openclaw doctor --fix")}" to add missing allowFrom wildcards.`,
@@ -1863,7 +1868,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     if (toolsBySenderHits.length > 0) {
       const sample = toolsBySenderHits[0];
       const sampleLabel = sample ? `${sample.pathLabel}.${sample.key}` : "toolsBySender";
-      note(
+      emit(
         [
           `- Found ${toolsBySenderHits.length} legacy untyped toolsBySender key${toolsBySenderHits.length === 1 ? "" : "s"} (for example ${sampleLabel}).`,
           "- Untyped sender keys are deprecated; use explicit prefixes (id:, e164:, username:, name:).",
@@ -1905,7 +1910,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
       lines.push(
         `- Run "${formatCliCommand("openclaw doctor --fix")}" to scaffold missing custom safeBinProfiles entries.`,
       );
-      note(lines.join("\n"), "Doctor warnings");
+      emit(lines.join("\n"), "Doctor warnings");
     }
 
     const safeBinTrustedDirHints = scanExecSafeBinTrustedDirHints(candidate);
@@ -1944,7 +1949,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
       flagPaths.length === 1
         ? flagPaths[0]
         : `${flagPaths[0]} (and ${flagPaths.length - 1} other scope flags)`;
-    note(
+    emit(
       [
         `- Found ${mutableAllowlistHits.length} mutable allowlist ${mutableAllowlistHits.length === 1 ? "entry" : "entries"} across ${channels.join(", ")} while name matching is disabled by default.`,
         exampleLines,
@@ -1963,9 +1968,9 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     pendingChanges = true;
     if (shouldRepair) {
       cfg = unknown.config;
-      note(lines, "Doctor changes");
+      emit(lines, "Doctor changes");
     } else {
-      note(lines, "Unknown config keys");
+      emit(lines, "Unknown config keys");
       fixHints.push('Run "openclaw doctor --fix" to remove these keys.');
     }
   }
@@ -1979,7 +1984,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
       cfg = candidate;
       shouldWriteConfig = true;
     } else if (fixHints.length > 0) {
-      note(fixHints.join("\n"), "Doctor");
+      emit(fixHints.join("\n"), "Doctor");
     }
   }
 
@@ -1987,7 +1992,9 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     shouldWriteConfig = true;
   }
 
-  noteOpencodeProviderOverrides(cfg);
+  if (!params.quiet) {
+    noteOpencodeProviderOverrides(cfg);
+  }
 
   return {
     cfg,
