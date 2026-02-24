@@ -94,6 +94,8 @@ export function resolveTranscriptPolicy(params: {
     (provider === "openrouter" || provider === "opencode" || provider === "kilocode") &&
     modelId.toLowerCase().includes("gemini");
   const isCopilotClaude = provider === "github-copilot" && modelId.toLowerCase().includes("claude");
+  const isAntigravityClaudeModel =
+    provider === "google-antigravity" && modelId.toLowerCase().includes("claude");
 
   // GitHub Copilot's Claude endpoints can reject persisted `thinking` blocks with
   // non-binary/non-base64 signatures (e.g. thinkingSignature: "reasoning_text").
@@ -120,7 +122,7 @@ export function resolveTranscriptPolicy(params: {
     sanitizeToolCallIds: !isOpenAi && sanitizeToolCallIds,
     toolCallIdMode,
     repairToolUseResultPairing,
-    preserveSignatures: false,
+    preserveSignatures: isAnthropic || isAntigravityClaudeModel,
     sanitizeThoughtSignatures: isOpenAi ? undefined : sanitizeThoughtSignatures,
     sanitizeThinkingSignatures: false,
     dropThinkingBlocks,
