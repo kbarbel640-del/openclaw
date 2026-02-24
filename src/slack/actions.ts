@@ -1,14 +1,14 @@
 import type { Block, KnownBlock, WebClient } from "@slack/web-api";
 import { loadConfig } from "../config/config.js";
 import { logVerbose } from "../globals.js";
-import { resolveSlackMedia } from "./monitor/media.js";
 import { resolveSlackAccount } from "./accounts.js";
 import { buildSlackBlocksFallbackText } from "./blocks-fallback.js";
 import { validateSlackBlocksArray } from "./blocks-input.js";
 import { createSlackWebClient } from "./client.js";
+import { resolveSlackMedia } from "./monitor/media.js";
+import type { SlackMediaResult } from "./monitor/media.js";
 import { sendMessageSlack } from "./send.js";
 import { resolveSlackBotToken } from "./token.js";
-import type { SlackMediaResult } from "./monitor/media.js";
 
 export type SlackActionClientOpts = {
   accountId?: string;
@@ -295,7 +295,13 @@ export async function downloadSlackFile(
   // Fetch fresh file metadata (includes a current url_private_download).
   const info = await client.files.info({ file: fileId });
   const file = info.file as
-    | { id?: string; name?: string; mimetype?: string; url_private?: string; url_private_download?: string }
+    | {
+        id?: string;
+        name?: string;
+        mimetype?: string;
+        url_private?: string;
+        url_private_download?: string;
+      }
     | undefined;
 
   if (!file?.url_private_download && !file?.url_private) {

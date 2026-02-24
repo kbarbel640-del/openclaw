@@ -29,7 +29,13 @@ import {
   readStringParam,
 } from "./common.js";
 
-const messagingActions = new Set(["sendMessage", "editMessage", "deleteMessage", "readMessages", "downloadFile"]);
+const messagingActions = new Set([
+  "sendMessage",
+  "editMessage",
+  "deleteMessage",
+  "readMessages",
+  "downloadFile",
+]);
 
 const reactionsActions = new Set(["react", "reactions"]);
 const pinActions = new Set(["pinMessage", "unpinMessage", "listPins"]);
@@ -279,7 +285,10 @@ export async function handleSlackAction(
           maxBytes,
         });
         if (!downloaded) {
-          return jsonResult({ ok: false, error: "File could not be downloaded (not found, too large, or inaccessible)." });
+          return jsonResult({
+            ok: false,
+            error: "File could not be downloaded (not found, too large, or inaccessible).",
+          });
         }
         return await imageResultFromFile({
           label: "slack-file",
