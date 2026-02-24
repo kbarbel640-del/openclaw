@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
-import { clearBootstrapSnapshot } from "../../agents/bootstrap-cache.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../../agents/pi-embedded.js";
 import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
 import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
@@ -13,14 +12,8 @@ import {
   type SessionEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
-import { unbindThreadBindingsBySessionKey } from "../../discord/monitor/thread-bindings.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
-import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
-import {
-  isSubagentSessionKey,
-  normalizeAgentId,
-  parseAgentSessionKey,
-} from "../../routing/session-key.js";
+import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-key.js";
 import {
   ErrorCodes,
   errorShape,
@@ -139,41 +132,6 @@ function archiveSessionTranscriptsForSession(params: {
   });
 }
 
-async function emitSessionUnboundLifecycleEvent(params: {
-  targetSessionKey: string;
-  reason: "session-reset" | "session-delete";
-  emitHooks?: boolean;
-}) {
-  const targetKind = isSubagentSessionKey(params.targetSessionKey) ? "subagent" : "acp";
-  unbindThreadBindingsBySessionKey({
-    targetSessionKey: params.targetSessionKey,
-    targetKind,
-    reason: params.reason,
-    sendFarewell: true,
-  });
-
-  if (params.emitHooks === false) {
-    return;
-  }
-
-  const hookRunner = getGlobalHookRunner();
-  if (!hookRunner?.hasHooks("subagent_ended")) {
-    return;
-  }
-  await hookRunner.runSubagentEnded(
-    {
-      targetSessionKey: params.targetSessionKey,
-      targetKind,
-      reason: params.reason,
-      sendFarewell: true,
-      outcome: params.reason === "session-reset" ? "reset" : "deleted",
-    },
-    {
-      childSessionKey: params.targetSessionKey,
-    },
-  );
-}
-
 async function ensureSessionRuntimeCleanup(params: {
   cfg: ReturnType<typeof loadConfig>;
   key: string;
@@ -186,7 +144,6 @@ async function ensureSessionRuntimeCleanup(params: {
     queueKeys.add(params.sessionId);
   }
   clearSessionQueues([...queueKeys]);
-  clearBootstrapSnapshot(params.target.canonicalKey);
   stopSubagentsForRequester({ cfg: params.cfg, requesterSessionKey: params.target.canonicalKey });
   if (!params.sessionId) {
     return undefined;
@@ -349,7 +306,6 @@ export const sessionsHandlers: GatewayRequestHandlers = {
 
     const { cfg, target, storePath } = resolveGatewaySessionTargetFromKey(key);
     const { entry } = loadSessionEntry(key);
-    const hadExistingEntry = Boolean(entry);
     const commandReason = p.reason === "new" ? "new" : "reset";
     const hookEvent = createInternalHookEvent(
       "command",
@@ -411,12 +367,6 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       agentId: target.agentId,
       reason: "reset",
     });
-    if (hadExistingEntry) {
-      await emitSessionUnboundLifecycleEvent({
-        targetSessionKey: target.canonicalKey ?? key,
-        reason: "session-reset",
-      });
-    }
     respond(true, { ok: true, key: target.canonicalKey, entry: next }, undefined);
   },
   "sessions.delete": async ({ params, respond, client, isWebchatConnect }) => {
@@ -447,40 +397,30 @@ export const sessionsHandlers: GatewayRequestHandlers = {
 
     const { entry } = loadSessionEntry(key);
     const sessionId = entry?.sessionId;
+    const existed = Boolean(entry);
     const cleanupError = await ensureSessionRuntimeCleanup({ cfg, key, target, sessionId });
     if (cleanupError) {
       respond(false, undefined, cleanupError);
       return;
     }
-    const deleted = await updateSessionStore(storePath, (store) => {
+    await updateSessionStore(storePath, (store) => {
       const { primaryKey } = migrateAndPruneSessionStoreKey({ cfg, key, store });
-      const hadEntry = Boolean(store[primaryKey]);
-      if (hadEntry) {
+      if (store[primaryKey]) {
         delete store[primaryKey];
       }
-      return hadEntry;
     });
 
-    const archived =
-      deleted && deleteTranscript
-        ? archiveSessionTranscriptsForSession({
-            sessionId,
-            storePath,
-            sessionFile: entry?.sessionFile,
-            agentId: target.agentId,
-            reason: "deleted",
-          })
-        : [];
-    if (deleted) {
-      const emitLifecycleHooks = p.emitLifecycleHooks !== false;
-      await emitSessionUnboundLifecycleEvent({
-        targetSessionKey: target.canonicalKey ?? key,
-        reason: "session-delete",
-        emitHooks: emitLifecycleHooks,
-      });
-    }
+    const archived = deleteTranscript
+      ? archiveSessionTranscriptsForSession({
+          sessionId,
+          storePath,
+          sessionFile: entry?.sessionFile,
+          agentId: target.agentId,
+          reason: "deleted",
+        })
+      : [];
 
-    respond(true, { ok: true, key: target.canonicalKey, deleted, archived }, undefined);
+    respond(true, { ok: true, key: target.canonicalKey, deleted: existed, archived }, undefined);
   },
   "sessions.compact": async ({ params, respond }) => {
     if (!assertValidParams(params, validateSessionsCompactParams, "sessions.compact", respond)) {
@@ -583,5 +523,47 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       },
       undefined,
     );
+  },
+
+  /**
+   * sessions.send - Internal method for delivering messages to sessions
+   * Used by A2A response routing to deliver skill_response/skill_timeout
+   */
+  "sessions.send": async ({ params, respond, context }) => {
+    const p = params as { sessionKey?: unknown; message?: unknown; deliver?: unknown };
+    const sessionKey = typeof p.sessionKey === "string" ? p.sessionKey.trim() : "";
+    const message = typeof p.message === "string" ? p.message : "";
+    // Note: deliver parameter reserved for future channel delivery enhancement
+
+    if (!sessionKey) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "sessionKey required"));
+      return;
+    }
+
+    if (!message) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "message required"));
+      return;
+    }
+
+    // Parse the message to determine event type
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(message);
+    } catch {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "message must be valid JSON"),
+      );
+      return;
+    }
+
+    const kind = typeof parsed.kind === "string" ? parsed.kind : "chat";
+    const event = kind === "skill_response" || kind === "skill_timeout" ? "skill_response" : "chat";
+
+    // Send to the target session via nodeSendToSession
+    context.nodeSendToSession(sessionKey, event, parsed);
+
+    respond(true, { ok: true, delivered: true }, undefined);
   },
 };
