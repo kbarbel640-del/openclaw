@@ -13,7 +13,11 @@ import {
   renderThemeToggle,
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
-import { triggerAvatarPicker, readFileAsDataUrl } from "./controllers/agent-avatar.ts";
+import {
+  triggerAvatarPicker,
+  readFileAsDataUrl,
+  uploadAgentAvatar,
+} from "./controllers/agent-avatar.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
@@ -1316,6 +1320,20 @@ export function renderApp(state: AppViewState) {
           }
           const dataUrl = await readFileAsDataUrl(file);
           state.agentDetailPanel = { ...state.agentDetailPanel, avatarPreview: dataUrl };
+          const agentId = state.agentDetailPanel.agentId;
+          if (agentId && state.client && state.connected) {
+            void uploadAgentAvatar(
+              {
+                client: state.client,
+                connected: state.connected,
+                uploading: false,
+                error: null,
+                previewUrl: null,
+              },
+              agentId,
+              file,
+            );
+          }
         },
         onFileDraftChange: (name, content) => {
           state.agentFileDrafts = { ...state.agentFileDrafts, [name]: content };
