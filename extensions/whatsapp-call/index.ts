@@ -1,10 +1,9 @@
-import type {
-  AnyAgentTool,
-  ChannelPlugin,
-  OpenClawPluginApi,
-  OpenClawPluginToolFactory,
-} from "openclaw/plugin-sdk";
+import type { AnyAgentTool, ChannelPlugin, OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import type {
+  OpenClawPluginToolContext,
+  OpenClawPluginToolFactory,
+} from "../../src/plugins/types.js";
 import { whatsappCallPlugin } from "./src/channel.js";
 import { resolveWhatsAppCallAccount } from "./src/config.js";
 import { setWhatsAppCallRuntime } from "./src/runtime.js";
@@ -76,7 +75,7 @@ const plugin = {
 
     // Agent tool — remote mode (HTTP) vs local mode (in-process)
     api.registerTool(
-      ((ctx) => {
+      ((ctx: OpenClawPluginToolContext) => {
         const account = resolveWhatsAppCallAccount(ctx.config ?? {});
 
         // Remote mode: serviceUrl configured → lightweight HTTP tool
