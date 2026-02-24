@@ -1,5 +1,5 @@
 import { fetch as realFetch } from "undici";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_AI_SNAPSHOT_MAX_CHARS } from "./constants.js";
 import {
   installAgentContractHooks,
@@ -159,5 +159,61 @@ describe("browser control server", () => {
       startRef: "3",
       endRef: "4",
     });
+  });
+
+  it("agent contract: navigate returns refreshed targetId after target swap", async () => {
+    const base = await startServerAndBase();
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    const originalFetchImpl = fetchMock.getMockImplementation();
+    let listCalls = 0;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (!u.includes("/json/list")) {
+        return await (originalFetchImpl as (url: string, init?: RequestInit) => Promise<Response>)(
+          url,
+          init,
+        );
+      }
+      listCalls += 1;
+      if (listCalls <= 2) {
+        return new Response(
+          JSON.stringify([
+            {
+              id: "abcd1234",
+              title: "Extension",
+              url: "chrome-extension://relay/options.html",
+              webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/abcd1234",
+              type: "page",
+            },
+          ]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response(
+        JSON.stringify([
+          {
+            id: "abcd1234",
+            title: "Extension",
+            url: "chrome-extension://relay/options.html",
+            webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/abcd1234",
+            type: "page",
+          },
+          {
+            id: "new9999",
+            title: "Example",
+            url: "https://example.com",
+            webSocketDebuggerUrl: "ws://127.0.0.1/devtools/page/new9999",
+            type: "page",
+          },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+
+    const nav = await postJson<{ ok: boolean; targetId?: string }>(`${base}/navigate`, {
+      url: "https://example.com",
+    });
+    expect(nav.ok).toBe(true);
+    expect(nav.targetId).toBe("new9999");
   });
 });

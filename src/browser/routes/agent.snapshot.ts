@@ -65,14 +65,42 @@ export function registerBrowserAgentSnapshotRoutes(
       ctx,
       targetId,
       feature: "navigate",
-      run: async ({ cdpUrl, tab, pw }) => {
+      run: async ({ cdpUrl, tab, pw, profileCtx }) => {
         const result = await pw.navigateViaPlaywright({
           cdpUrl,
           targetId: tab.targetId,
           url,
           ...withBrowserNavigationPolicy(ctx.state().resolved.ssrfPolicy),
         });
-        res.json({ ok: true, targetId: tab.targetId, ...result });
+        const resolveNavigatedTargetId = async (): Promise<string> => {
+          const fromTabs = async (): Promise<string | undefined> => {
+            const tabs = await profileCtx.listTabs().catch(() => []);
+            const pageTabs = tabs.filter((candidate) => (candidate.type ?? "page") === "page");
+            const movedTarget = pageTabs.find(
+              (candidate) => candidate.url === result.url && candidate.targetId !== tab.targetId,
+            );
+            if (movedTarget) {
+              return movedTarget.targetId;
+            }
+            const original = pageTabs.find((candidate) => candidate.targetId === tab.targetId);
+            if (original) {
+              return original.targetId;
+            }
+            const sameUrl = pageTabs.find((candidate) => candidate.url === result.url);
+            return sameUrl?.targetId;
+          };
+
+          const immediate = await fromTabs();
+          if (immediate) {
+            return immediate;
+          }
+          // Extension relay re-attach can lag behind renderer swap. Retry once.
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          return (await fromTabs()) ?? tab.targetId;
+        };
+
+        const targetIdAfterNavigate = await resolveNavigatedTargetId();
+        res.json({ ok: true, targetId: targetIdAfterNavigate, ...result });
       },
     });
   });
