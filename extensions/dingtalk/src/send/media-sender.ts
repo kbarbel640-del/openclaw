@@ -8,11 +8,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ResolvedDingTalkAccount } from "../accounts.js";
+import { uploadMediaToOAPI, detectMediaType } from "../api/media-upload.js";
+import { uploadMedia } from "../api/media.js";
 import type { TokenManager } from "../api/token-manager.js";
 import type { MediaItem } from "../media-protocol.js";
 import type { StreamLogger } from "../stream/types.js";
-import { uploadMediaToOAPI, detectMediaType } from "../api/media-upload.js";
-import { uploadMedia } from "../api/media.js";
 import { sendImageWithMediaIdViaSessionWebhook, type ReplyLogger } from "./reply.js";
 
 /**

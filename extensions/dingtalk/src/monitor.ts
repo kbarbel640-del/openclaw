@@ -4,7 +4,6 @@
 
 import { loadWebMedia, type OpenClawConfig, type PluginRuntime } from "openclaw/plugin-sdk";
 import type { ResolvedDingTalkAccount } from "./accounts.js";
-import type { ChatbotMessage, StreamClientHandle, StreamLogger } from "./stream/types.js";
 import { uploadMediaToOAPI } from "./api/media-upload.js";
 import { downloadMedia, uploadMedia } from "./api/media.js";
 import { sendFileMessage } from "./api/send-message.js";
@@ -20,6 +19,7 @@ import {
 } from "./send/reply.js";
 import { startDingTalkStreamClient } from "./stream/client.js";
 import { buildSessionKey, startsWithPrefix } from "./stream/message-parser.js";
+import type { ChatbotMessage, StreamClientHandle, StreamLogger } from "./stream/types.js";
 import { DEFAULT_DINGTALK_SYSTEM_PROMPT, buildSenderContext } from "./system-prompt.js";
 import { stripDirectiveTags, isOnlyDirectiveTags } from "./util/directive-tags.js";
 import { applyResponsePrefix, isGroupChatType, shouldEnforcePrefix } from "./util/prefix.js";

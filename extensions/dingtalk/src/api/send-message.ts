@@ -6,10 +6,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ResolvedDingTalkAccount } from "../accounts.js";
-import type { StreamLogger } from "../stream/types.js";
-import type { DingTalkActionCard } from "../types/channel-data.js";
 import { chunkText, chunkMarkdownText, normalizeForTextMessage } from "../send/chunker.js";
 import { convertMarkdownForDingTalk } from "../send/markdown.js";
+import type { StreamLogger } from "../stream/types.js";
+import type { DingTalkActionCard } from "../types/channel-data.js";
 import {
   isLocalPath,
   normalizeLocalPath,

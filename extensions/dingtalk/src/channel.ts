@@ -3,8 +3,6 @@
  */
 
 import type { ChannelPlugin, ChannelCapabilities, ChannelMeta } from "openclaw/plugin-sdk";
-import type { StreamLogger } from "./stream/types.js";
-import type { DingTalkChannelData } from "./types/channel-data.js";
 import {
   type ResolvedDingTalkAccount,
   listDingTalkAccountIds,
@@ -29,6 +27,8 @@ import { monitorDingTalkProvider } from "./monitor.js";
 import { probeDingTalk } from "./probe.js";
 import { getOrCreateTokenManager } from "./runtime.js";
 import { chunkMarkdownText } from "./send/chunker.js";
+import type { StreamLogger } from "./stream/types.js";
+import type { DingTalkChannelData } from "./types/channel-data.js";
 
 /**
  * Adapt clawdbot SubsystemLogger to StreamLogger interface.

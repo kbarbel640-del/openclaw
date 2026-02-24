@@ -7,14 +7,14 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ResolvedDingTalkAccount } from "../accounts.js";
-import type { TokenManager } from "../api/token-manager.js";
-import type { StreamLogger } from "../stream/types.js";
 import {
   isLocalPath,
   normalizeLocalPath,
   uploadMediaToOAPI,
   detectMediaType,
 } from "../api/media-upload.js";
+import type { TokenManager } from "../api/token-manager.js";
+import type { StreamLogger } from "../stream/types.js";
 
 /**
  * Regular expression to match Markdown images with local paths.

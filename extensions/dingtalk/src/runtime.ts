@@ -1,11 +1,11 @@
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import type { ResolvedDingTalkAccount } from "./accounts.js";
-import type { StreamLogger } from "./stream/types.js";
 import {
   createTokenManagerFromAccount,
   clearAllTokens,
   type TokenManager,
 } from "./api/token-manager.js";
+import type { StreamLogger } from "./stream/types.js";
 
 let runtime: PluginRuntime | null = null;
 

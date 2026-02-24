@@ -10,8 +10,8 @@ import {
   TOPIC_ROBOT,
   TOPIC_AI_GRAPH_API,
 } from "dingtalk-stream";
-import type { StreamClientHandle, StreamClientOptions } from "./types.js";
 import { extractChatbotMessage } from "./message-parser.js";
+import type { StreamClientHandle, StreamClientOptions } from "./types.js";
 
 /**
  * Start DingTalk Stream client using the official SDK.

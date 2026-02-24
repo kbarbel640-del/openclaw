@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { readFileSync } from "node:fs";
+import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import {
   type CoalesceConfig,
   type DingTalkConfig,
