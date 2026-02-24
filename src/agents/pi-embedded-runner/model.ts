@@ -78,7 +78,12 @@ export function resolveModel(
     // Otherwise, configured providers can default to a generic API and break specific transports.
     const forwardCompat = resolveForwardCompatModel(provider, modelId, modelRegistry);
     if (forwardCompat) {
-      return { model: forwardCompat, authStorage, modelRegistry };
+      const providerApiOverride = cfg?.models?.providers?.[provider]?.api;
+      const patched =
+        providerApiOverride && forwardCompat.api !== providerApiOverride
+          ? ({ ...forwardCompat, api: providerApiOverride } as Model<Api>)
+          : forwardCompat;
+      return { model: patched, authStorage, modelRegistry };
     }
     // OpenRouter is a pass-through proxy — any model ID available on OpenRouter
     // should work without being pre-registered in the local catalog.
@@ -120,7 +125,15 @@ export function resolveModel(
       modelRegistry,
     };
   }
-  return { model: normalizeModelCompat(model), authStorage, modelRegistry };
+  // Apply provider-level api override to built-in models (same as inline models at line 38).
+  // This allows `models.providers.anthropic.api: "anthropic-native"` to switch built-in
+  // Anthropic models to the native SDK transport without requiring inline model definitions.
+  let resolved = normalizeModelCompat(model);
+  const providerApiOverride = cfg?.models?.providers?.[provider]?.api;
+  if (providerApiOverride && resolved.api !== providerApiOverride) {
+    resolved = { ...resolved, api: providerApiOverride } as Model<Api>;
+  }
+  return { model: resolved, authStorage, modelRegistry };
 }
 
 /**
