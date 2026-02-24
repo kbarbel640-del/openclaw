@@ -445,6 +445,7 @@ export const OpenClawSchema = z
               })
               .strict()
               .optional(),
+            skipDevicePairing: z.boolean().optional(),
           })
           .strict()
           .optional(),
