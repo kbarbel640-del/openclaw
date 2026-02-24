@@ -250,7 +250,7 @@ git checkout main
 git pull
 ```
 
-## If you’re stuck
+## If you're stuck
 
 - Run `openclaw doctor` again and read the output carefully (it often tells you the fix).
 - Check: [Troubleshooting](/gateway/troubleshooting)

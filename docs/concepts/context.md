@@ -114,7 +114,7 @@ By default, OpenClaw injects a fixed set of workspace files (if present):
 
 Large files are truncated per-file using `agents.defaults.bootstrapMaxChars` (default `20000` chars). OpenClaw also enforces a total bootstrap injection cap across files with `agents.defaults.bootstrapTotalMaxChars` (default `150000` chars). `/context` shows **raw vs injected** sizes and whether truncation happened.
 
-## Skills: what’s injected vs loaded on-demand
+## Skills: what's injected vs loaded on-demand
 
 The system prompt includes a compact **skills list** (name + description + location). This list has real overhead.
 
@@ -129,7 +129,7 @@ Tools affect context in two ways:
 
 `/context detail` breaks down the biggest tool schemas so you can see what dominates.
 
-## Commands, directives, and “inline shortcuts”
+## Commands, directives, and "inline shortcuts"
 
 Slash commands are handled by the Gateway. There are a few different behaviors:
 

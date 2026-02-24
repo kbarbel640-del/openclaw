@@ -102,7 +102,7 @@ The index is always **rebuildable from Markdown**.
 
 ## Retain / Recall / Reflect (operational loop)
 
-### Retain: normalize daily logs into “facts”
+### Retain: normalize daily logs into "facts"
 
 Hindsight’s key insight that matters here: store **narrative, self-contained facts**, not tiny snippets.
 
@@ -188,7 +188,7 @@ Recommendation: **deep integration in OpenClaw**, but keep a separable core libr
 Shape:
 The memory tooling is intended to be a small CLI + library layer, but this is exploratory only.
 
-## “S-Collide” / SuCo: when to use it (research)
+## "S-Collide" / SuCo: when to use it (research)
 
 If “S-Collide” refers to **SuCo (Subspace Collision)**: it’s an ANN retrieval approach that targets strong recall/latency tradeoffs by using learned/structured collisions in subspaces (paper: arXiv 2411.14754, 2024).
 

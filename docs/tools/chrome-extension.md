@@ -162,7 +162,7 @@ Debugging: `openclaw sandbox explain`
 - Keep the Gateway and node host on the same tailnet; avoid exposing relay ports to LAN or public Internet.
 - Pair nodes intentionally; disable browser proxy routing if you don’t want remote control (`gateway.nodes.browser.mode="off"`).
 
-## How “extension path” works
+## How "extension path" works
 
 `openclaw browser extension path` prints the **installed** on-disk directory containing the extension files.
 

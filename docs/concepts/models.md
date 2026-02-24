@@ -58,7 +58,7 @@ to `zai/*`.
 Provider configuration examples (including OpenCode Zen) live in
 [/gateway/configuration](/gateway/configuration#opencode-zen-multi-model-proxy).
 
-## “Model is not allowed” (and why replies stop)
+## "Model is not allowed" (and why replies stop)
 
 If `agents.defaults.models` is set, it becomes the **allowlist** for `/model` and for
 session overrides. When a user selects a model that isn’t in that allowlist,

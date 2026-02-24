@@ -752,7 +752,7 @@ Avoid:
 - Exposing relay/control ports over LAN or public Internet.
 - Tailscale Funnel for browser control endpoints (public exposure).
 
-### 0.7) Secrets on disk (what’s sensitive)
+### 0.7) Secrets on disk (what's sensitive)
 
 Assume anything under `~/.openclaw/` (or `$OPENCLAW_STATE_DIR/`) may contain secrets or private data:
 

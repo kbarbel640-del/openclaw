@@ -185,7 +185,7 @@ Use the interactive config wizard to set MiniMax without editing JSON:
 
 ## Troubleshooting
 
-### “Unknown model: minimax/MiniMax-M2.1”
+### "Unknown model: minimax/MiniMax-M2.1"
 
 This usually means the **MiniMax provider isn’t configured** (no provider entry
 and no MiniMax auth profile/env key found). A fix for this detection is in
