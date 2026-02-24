@@ -1322,8 +1322,9 @@ export const registerTelegramHandlers = ({
         writeFile(join(workspaceDir, DEFAULT_USER_FILENAME),     userMd,     "utf-8"),
       ]);
       await ctx.reply(
-        `✅ Identity files saved.\n\n` +
-          `Restart the gateway for changes to take effect.`,
+        `✅ IDENTITY.md, SOUL.md, and USER.md have been written to your workspace` +
+          ` (any previous versions were replaced).\n\n` +
+          `Review the files before restarting the gateway to make sure everything looks right.`,
         { reply_markup: { remove_keyboard: true } },
       );
     } catch (err) {
