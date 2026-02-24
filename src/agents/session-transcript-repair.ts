@@ -225,12 +225,16 @@ export function repairToolCallInputs(
         continue;
       }
       if (isToolCallBlock(block)) {
-        const sanitized = sanitizeToolCallBlock(block);
-        if (sanitized !== block) {
-          changed = true;
-          messageChanged = true;
+        if ((block as { type?: unknown }).type === "toolCall") {
+          const sanitized = sanitizeToolCallBlock(block);
+          if (sanitized !== block) {
+            changed = true;
+            messageChanged = true;
+          }
+          nextContent.push(sanitized);
+          continue;
         }
-        nextContent.push(sanitized);
+        nextContent.push(block);
         continue;
       }
       nextContent.push(block);

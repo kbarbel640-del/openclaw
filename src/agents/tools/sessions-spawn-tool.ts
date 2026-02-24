@@ -17,7 +17,11 @@ import { optionalStringEnum } from "../schema/typebox.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
 import { getSubagentDepthFromSessionStore } from "../subagent-depth.js";
 import { countActiveRunsForSession, registerSubagentRun } from "../subagent-registry.js";
-import { SUBAGENT_SPAWN_MODES } from "../subagent-spawn.js";
+import {
+  SUBAGENT_SPAWN_ACCEPTED_NOTE,
+  SUBAGENT_SPAWN_MODES,
+  SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE,
+} from "../subagent-spawn.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
@@ -367,6 +371,7 @@ export function createSessionsSpawnTool(opts?: {
         normalizeModelSelection(modelOverride) ??
         normalizeModelSelection(targetAgentConfig?.subagents?.model) ??
         normalizeModelSelection(cfg.agents?.defaults?.subagents?.model) ??
+        normalizeModelSelection(resolveAgentModelPrimaryValue(targetAgentConfig?.model)) ??
         normalizeModelSelection(resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model)) ??
         normalizeModelSelection(`${runtimeDefaultModel.provider}/${runtimeDefaultModel.model}`);
 
@@ -757,6 +762,10 @@ export function createSessionsSpawnTool(opts?: {
 
       return jsonResult({
         status: "accepted",
+        note:
+          spawnMode === "session"
+            ? SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE
+            : SUBAGENT_SPAWN_ACCEPTED_NOTE,
         childSessionKey,
         runId: childRunId,
         mode: spawnMode,

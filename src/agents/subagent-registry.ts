@@ -662,14 +662,9 @@ async function finalizeSubagentCleanup(
     return;
   }
 
-  if (cleanup === "delete") {
-    subagentRuns.delete(runId);
-    persistSubagentRuns();
-    retryDeferredCompletedAnnounces(runId);
-    return;
-  }
-
   // Allow retry on the next wake if announce was deferred or failed.
+  // Applies to both keep/delete cleanup modes so delete-runs are only removed
+  // after a successful announce (or terminal give-up).
   entry.cleanupHandled = false;
   resumedRuns.delete(runId);
   persistSubagentRuns();
