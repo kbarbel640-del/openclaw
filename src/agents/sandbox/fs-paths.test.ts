@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -121,5 +123,38 @@ describe("resolveSandboxFsPathWithMounts", () => {
 
     expect(resolved.hostPath).toBe(path.join(path.resolve("/tmp/override"), "docs", "AGENTS.md"));
     expect(resolved.writable).toBe(false);
+  });
+
+  it("rejects lexical-inbound paths whose symlink target escapes mount root", async () => {
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-fs-paths-"));
+    const workspaceDir = path.join(stateDir, "workspace");
+    const outsideDir = path.join(stateDir, "outside");
+    const outsideFile = path.join(outsideDir, "secret.txt");
+
+    await fs.mkdir(workspaceDir, { recursive: true });
+    await fs.mkdir(outsideDir, { recursive: true });
+    await fs.writeFile(outsideFile, "classified");
+    await fs.symlink(outsideFile, path.join(workspaceDir, "link.txt"));
+
+    try {
+      expect(() =>
+        resolveSandboxFsPathWithMounts({
+          filePath: "link.txt",
+          cwd: workspaceDir,
+          defaultWorkspaceRoot: workspaceDir,
+          defaultContainerRoot: "/workspace",
+          mounts: [
+            {
+              hostRoot: workspaceDir,
+              containerRoot: "/workspace",
+              writable: true,
+              source: "workspace",
+            },
+          ],
+        }),
+      ).toThrow(/Symlink escapes sandbox mount root/);
+    } finally {
+      await fs.rm(stateDir, { recursive: true, force: true });
+    }
   });
 });
