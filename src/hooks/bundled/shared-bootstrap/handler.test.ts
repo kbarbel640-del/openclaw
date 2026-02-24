@@ -98,10 +98,10 @@ describe("shared-bootstrap hook", () => {
     await handler(event);
 
     expect(context.bootstrapFiles).toHaveLength(2);
-    expect(context.bootstrapFiles[0]!.name).toBe("SHARED_RULES.md");
-    expect(context.bootstrapFiles[0]!.content).toBe("shared rules");
-    expect(context.bootstrapFiles[1]!.name).toBe("SHARED_SOUL.md");
-    expect(context.bootstrapFiles[1]!.content).toBe("shared soul");
+    expect(context.bootstrapFiles[0].name).toBe("SHARED_RULES.md");
+    expect(context.bootstrapFiles[0].content).toBe("shared rules");
+    expect(context.bootstrapFiles[1].name).toBe("SHARED_SOUL.md");
+    expect(context.bootstrapFiles[1].content).toBe("shared soul");
   });
 
   it("sorts files alphabetically", async () => {
@@ -142,7 +142,7 @@ describe("shared-bootstrap hook", () => {
     await handler(event);
 
     expect(context.bootstrapFiles).toHaveLength(1);
-    expect(context.bootstrapFiles[0]!.name).toBe("SHARED_RULES.md");
+    expect(context.bootstrapFiles[0].name).toBe("SHARED_RULES.md");
   });
 
   it("throws when shared directory exists but is unreadable", async () => {
@@ -199,6 +199,6 @@ describe("shared-bootstrap hook", () => {
     await handler(event);
 
     expect(context.bootstrapFiles).toHaveLength(1);
-    expect(context.bootstrapFiles[0]!.name).toBe("SHARED_RULES.md");
+    expect(context.bootstrapFiles[0].name).toBe("SHARED_RULES.md");
   });
 });

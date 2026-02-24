@@ -20,7 +20,7 @@ function registerExtraBootstrapFileHook() {
         path: path.join(context.workspaceDir, "EXTRA.md"),
         content: "extra",
         missing: false,
-      } as unknown as WorkspaceBootstrapFile,
+      },
     ];
   });
 }
@@ -34,7 +34,7 @@ function registerMutatingPushHook() {
       path: path.join(context.workspaceDir, "SHARED_TEST.md"),
       content: "shared",
       missing: false,
-    } as unknown as WorkspaceBootstrapFile);
+    });
   });
 }
 

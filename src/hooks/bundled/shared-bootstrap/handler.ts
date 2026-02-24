@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { WorkspaceBootstrapFile } from "../../../agents/workspace.js";
 import { STATE_DIR } from "../../../config/paths.js";
 import { isAgentBootstrapEvent, type HookHandler } from "../../hooks.js";
 
@@ -21,7 +20,9 @@ const sharedBootstrapHook: HookHandler = async (event) => {
     throw err;
   }
 
-  const sharedFiles = entries.filter((f) => f.startsWith("SHARED_") && f.endsWith(".md")).sort();
+  const sharedFiles = entries
+    .filter((f) => f.startsWith("SHARED_") && f.endsWith(".md"))
+    .toSorted();
   if (sharedFiles.length === 0) {
     return;
   }
@@ -29,14 +30,12 @@ const sharedBootstrapHook: HookHandler = async (event) => {
   for (const file of sharedFiles) {
     const filePath = path.join(sharedDir, file);
     const content = await fs.readFile(filePath, "utf-8");
-    // Cast needed: WorkspaceBootstrapFileName is a narrow union of known names,
-    // but shared files use SHARED_* names by design.
     event.context.bootstrapFiles.push({
       name: file,
       path: filePath,
       content,
       missing: false,
-    } as WorkspaceBootstrapFile);
+    });
   }
 };
 
