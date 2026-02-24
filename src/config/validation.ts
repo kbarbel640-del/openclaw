@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { ZodIssue, ZodTypeAny } from "zod";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { CHANNEL_IDS, normalizeChatChannelId } from "../channels/registry.js";
 import {
@@ -21,6 +22,62 @@ import { applyAgentDefaults, applyModelDefaults, applySessionDefaults } from "./
 import { findLegacyConfigIssues } from "./legacy.js";
 import type { OpenClawConfig, ConfigValidationIssue } from "./types.js";
 import { OpenClawSchema } from "./zod-schema.js";
+
+type ConfigSchemaValidator = Pick<ZodTypeAny, "safeParse">;
+
+function mapZodIssues(issues: readonly ZodIssue[]): ConfigValidationIssue[] {
+  return issues.map((iss) => ({
+    path: iss.path.join("."),
+    message: iss.message,
+  }));
+}
+
+function hasUnrecognizedGatewayApertureIssue(issues: readonly ZodIssue[]): boolean {
+  return issues.some((issue) => {
+    if (issue.code !== "unrecognized_keys") {
+      return false;
+    }
+    if (issue.path.length !== 1 || issue.path[0] !== "gateway") {
+      return false;
+    }
+    return issue.keys.includes("aperture");
+  });
+}
+
+function removeGatewayApertureFromRawConfig(raw: unknown): unknown {
+  if (!isRecord(raw)) {
+    return raw;
+  }
+  const gatewayValue = raw.gateway;
+  if (!isRecord(gatewayValue) || !Object.prototype.hasOwnProperty.call(gatewayValue, "aperture")) {
+    return raw;
+  }
+  const { aperture: _drop, ...gatewayWithoutAperture } = gatewayValue;
+  return {
+    ...raw,
+    gateway: gatewayWithoutAperture,
+  };
+}
+
+function safeParseConfigWithGatewayApertureCompat(
+  raw: unknown,
+  schema: ConfigSchemaValidator,
+): ReturnType<ConfigSchemaValidator["safeParse"]> {
+  const firstParse = schema.safeParse(raw);
+  if (firstParse.success) {
+    return firstParse;
+  }
+  if (!hasUnrecognizedGatewayApertureIssue(firstParse.error.issues)) {
+    return firstParse;
+  }
+  const rawWithoutAperture = removeGatewayApertureFromRawConfig(raw);
+  if (rawWithoutAperture === raw) {
+    return firstParse;
+  }
+  // Compatibility: newer macOS builds may write gateway.aperture metadata
+  // before older CLI schemas recognize that field.
+  return schema.safeParse(rawWithoutAperture);
+}
 
 function isWorkspaceAvatarPath(value: string, workspaceDir: string): boolean {
   const workspaceRoot = path.resolve(workspaceDir);
@@ -85,6 +142,16 @@ function validateIdentityAvatar(config: OpenClawConfig): ConfigValidationIssue[]
 export function validateConfigObjectRaw(
   raw: unknown,
 ): { ok: true; config: OpenClawConfig } | { ok: false; issues: ConfigValidationIssue[] } {
+  return validateConfigObjectRawWithSchema(raw, OpenClawSchema);
+}
+
+/**
+ * Test seam for schema compatibility behavior.
+ */
+export function validateConfigObjectRawWithSchema(
+  raw: unknown,
+  schema: ConfigSchemaValidator,
+): { ok: true; config: OpenClawConfig } | { ok: false; issues: ConfigValidationIssue[] } {
   const legacyIssues = findLegacyConfigIssues(raw);
   if (legacyIssues.length > 0) {
     return {
@@ -95,14 +162,11 @@ export function validateConfigObjectRaw(
       })),
     };
   }
-  const validated = OpenClawSchema.safeParse(raw);
+  const validated = safeParseConfigWithGatewayApertureCompat(raw, schema);
   if (!validated.success) {
     return {
       ok: false,
-      issues: validated.error.issues.map((iss) => ({
-        path: iss.path.join("."),
-        message: iss.message,
-      })),
+      issues: mapZodIssues(validated.error.issues),
     };
   }
   const duplicates = findDuplicateAgentDirs(validated.data as OpenClawConfig);
