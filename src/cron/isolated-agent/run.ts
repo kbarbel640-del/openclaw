@@ -93,6 +93,42 @@ function resolveCronDeliveryBestEffort(job: CronJob): boolean {
   return false;
 }
 
+function resolveErrorOnlyPayloadOutcome(
+  payloads: Array<{
+    text?: string;
+    mediaUrl?: string;
+    mediaUrls?: string[];
+    isError?: boolean;
+  }>,
+): { status: "ok" | "error"; error?: string } {
+  let hasErrorPayload = false;
+  let hasNonErrorPayload = false;
+  let firstErrorText: string | undefined;
+  for (const payload of payloads) {
+    const text = typeof payload.text === "string" ? payload.text.trim() : "";
+    const hasMedia = Boolean(payload.mediaUrl) || (payload.mediaUrls?.length ?? 0) > 0;
+    const isDeliverable = text.length > 0 || hasMedia;
+    if (!isDeliverable) {
+      continue;
+    }
+    if (payload.isError === true) {
+      hasErrorPayload = true;
+      if (!firstErrorText && text) {
+        firstErrorText = text;
+      }
+      continue;
+    }
+    hasNonErrorPayload = true;
+  }
+  if (hasErrorPayload && !hasNonErrorPayload) {
+    return {
+      status: "error",
+      error: firstErrorText ?? "agent run produced an error response",
+    };
+  }
+  return { status: "ok" };
+}
+
 export type RunCronAgentTurnResult = {
   status: "ok" | "error" | "skipped";
   summary?: string;
@@ -452,6 +488,9 @@ export async function runCronIsolatedAgentTurn(params: {
   }
 
   const payloads = runResult.payloads ?? [];
+  const payloadOutcome = resolveErrorOnlyPayloadOutcome(payloads);
+  const runStatus: "ok" | "error" = payloadOutcome.status;
+  const runError = payloadOutcome.error;
 
   // Update token+model fields in the session store.
   {
@@ -527,7 +566,7 @@ export async function runCronIsolatedAgentTurn(params: {
         });
       }
       logWarn(`[cron:${params.job.id}] ${resolvedDelivery.error.message}`);
-      return withRunSession({ status: "ok", summary, outputText });
+      return withRunSession({ status: runStatus, summary, outputText, error: runError });
     }
     if (!resolvedDelivery.to) {
       const message = "cron delivery target is missing";
@@ -540,7 +579,7 @@ export async function runCronIsolatedAgentTurn(params: {
         });
       }
       logWarn(`[cron:${params.job.id}] ${message}`);
-      return withRunSession({ status: "ok", summary, outputText });
+      return withRunSession({ status: runStatus, summary, outputText, error: runError });
     }
     // Shared subagent announce flow is text-based; keep direct outbound delivery
     // for media/channel payloads so structured content is preserved.
@@ -589,7 +628,13 @@ export async function runCronIsolatedAgentTurn(params: {
           waitForCompletion: false,
           startedAt: runStartedAt,
           endedAt: runEndedAt,
-          outcome: { status: "ok" },
+          outcome:
+            runStatus === "error"
+              ? {
+                  status: "error",
+                  error: runError ?? "agent run produced an error response",
+                }
+              : { status: "ok" },
           announceType: "cron job",
         });
         if (!didAnnounce) {
@@ -613,5 +658,5 @@ export async function runCronIsolatedAgentTurn(params: {
     }
   }
 
-  return withRunSession({ status: "ok", summary, outputText });
+  return withRunSession({ status: runStatus, summary, outputText, error: runError });
 }
