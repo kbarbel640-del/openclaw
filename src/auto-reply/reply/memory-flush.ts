@@ -12,6 +12,11 @@ export const DEFAULT_MEMORY_FLUSH_PROMPT = [
   "Pre-compaction memory flush.",
   "Store durable memories now (use memory/YYYY-MM-DD.md; create memory/ if needed).",
   "IMPORTANT: If the file already exists, APPEND new content only and do not overwrite existing entries.",
+  "Additionally, write a session checkpoint to memory/checkpoints/YYYY-MM-DD-HHmm.md with:",
+  "  1. Current task context (what you were working on)",
+  "  2. Active decisions and open questions",
+  "  3. Key findings from this session segment",
+  "  4. Next steps to resume",
   `If nothing to store, reply with ${SILENT_REPLY_TOKEN}.`,
 ].join(" ");
 

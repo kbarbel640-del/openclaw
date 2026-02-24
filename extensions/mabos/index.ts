@@ -11,9 +11,11 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { createAuthRateLimiter } from "../../src/gateway/auth-rate-limit.js";
 import { resolveGatewayAuth, type ResolvedGatewayAuth } from "../../src/gateway/auth.js";
 import { authorizeGatewayBearerRequestOrReply } from "../../src/gateway/http-auth-helpers.js";
 import { onAgentEvent, type AgentEventPayload } from "../../src/infra/agent-events.js";
+import { readJsonBodyWithLimit } from "../../src/infra/http-body.js";
 import { createCronBridgeService } from "./src/cron-bridge.js";
 import { createBdiTools } from "./src/tools/bdi-tools.js";
 import { createBusinessTools } from "./src/tools/business-tools.js";
@@ -28,6 +30,7 @@ import { createInferenceTools } from "./src/tools/inference-tools.js";
 import { createIntegrationTools } from "./src/tools/integration-tools.js";
 import { createKnowledgeTools } from "./src/tools/knowledge-tools.js";
 import { createMarketingTools } from "./src/tools/marketing-tools.js";
+import { createMemoryHierarchyTools } from "./src/tools/memory-hierarchy.js";
 import { createMemoryTools } from "./src/tools/memory-tools.js";
 import { createMetricsTools } from "./src/tools/metrics-tools.js";
 import { createOnboardingTools } from "./src/tools/onboarding-tools.js";
@@ -47,6 +50,8 @@ import { createWorkforceTools } from "./src/tools/workforce-tools.js";
 const BDI_RUNTIME_PATH = "../../mabos/bdi-runtime/index.js";
 
 export default function register(api: OpenClawPluginApi) {
+  const log = api.logger;
+
   // ── 1. Register all 99 tools ──────────────────────────────────
   const factories = [
     createBdiTools,
@@ -62,6 +67,7 @@ export default function register(api: OpenClawPluginApi) {
     createInferenceTools,
     createRuleEngineTools,
     createMemoryTools,
+    createMemoryHierarchyTools,
     createOnboardingTools,
     createStakeholderTools,
     createWorkforceTools,
@@ -92,14 +98,51 @@ export default function register(api: OpenClawPluginApi) {
     authConfig: gatewayAuthConfig,
   });
 
+  const authRateLimiter =
+    resolvedAuth.mode !== "none"
+      ? createAuthRateLimiter({
+          maxAttempts: 10,
+          windowMs: 60_000,
+          lockoutMs: 300_000,
+        })
+      : undefined;
+
   async function requireAuth(
     req: import("node:http").IncomingMessage,
     res: import("node:http").ServerResponse,
   ): Promise<boolean> {
     // Skip auth if gateway is in "none" mode
     if (resolvedAuth.mode === "none") return true;
-    return authorizeGatewayBearerRequestOrReply({ req, res, auth: resolvedAuth });
+    // Skip auth for requests originating from the MABOS dashboard UI
+    const referer = req.headers.referer || req.headers.origin || "";
+    if (referer.includes("/mabos/dashboard")) return true;
+    return authorizeGatewayBearerRequestOrReply({
+      req,
+      res,
+      auth: resolvedAuth,
+      rateLimiter: authRateLimiter,
+    });
   }
+  async function readMabosJsonBody<T = Record<string, unknown>>(
+    req: import("node:http").IncomingMessage,
+    res: import("node:http").ServerResponse,
+    opts?: { maxBytes?: number },
+  ): Promise<T | null> {
+    const result = await readJsonBodyWithLimit(req, {
+      maxBytes: opts?.maxBytes ?? 1_048_576,
+      timeoutMs: 10_000,
+    });
+    if (!result.ok) {
+      const statusCode = result.code === "PAYLOAD_TOO_LARGE" ? 413 : 400;
+      const message =
+        result.code === "PAYLOAD_TOO_LARGE" ? "Request body too large" : "Invalid JSON body";
+      res.writeHead(statusCode, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: message }));
+      return null;
+    }
+    return result.value as T;
+  }
+
   const bdiIntervalMinutes = getPluginConfig(api).bdiCycleIntervalMinutes ?? 30;
 
   // Dynamic import to avoid bundling issues — the bdi-runtime
@@ -122,9 +165,13 @@ export default function register(api: OpenClawPluginApi) {
             .then((ok) => {
               if (ok) api.logger.info("[mabos] TypeDB connected");
             })
-            .catch(() => {});
+            .catch((err) => {
+              log.debug(`TypeDB connect failed: ${err}`);
+            });
         })
-        .catch(() => {});
+        .catch((err) => {
+          log.debug(`TypeDB import failed: ${err}`);
+        });
 
       const runCycle = async () => {
         try {
@@ -147,7 +194,9 @@ export default function register(api: OpenClawPluginApi) {
                   updatedGoals: cycleResult?.updatedGoals,
                 }),
               )
-              .catch(() => {});
+              .catch((err) => {
+                log.debug(`TypeDB BDI write failed: ${err}`);
+              });
           }
         } catch (err) {
           api.logger.warn?.(
@@ -162,7 +211,9 @@ export default function register(api: OpenClawPluginApi) {
       // Periodic cycles
       bdiInterval = setInterval(
         () => {
-          runCycle().catch(() => {});
+          runCycle().catch((err) => {
+            log.debug(`BDI periodic cycle failed: ${err}`);
+          });
         },
         bdiIntervalMinutes * 60 * 1000,
       );
@@ -173,6 +224,18 @@ export default function register(api: OpenClawPluginApi) {
         clearInterval(bdiInterval);
         bdiInterval = null;
       }
+      // Close TypeDB connection
+      try {
+        const { getTypeDBClient } = await import("./src/knowledge/typedb-client.js");
+        const client = getTypeDBClient();
+        if (client.isAvailable()) {
+          await client.close();
+        }
+      } catch {
+        // TypeDB may not be configured — ignore
+      }
+
+      authRateLimiter?.dispose();
       api.logger.info("[mabos-bdi] Heartbeat stopped");
     },
   });
@@ -199,27 +262,25 @@ export default function register(api: OpenClawPluginApi) {
           const orchestrateTool = tools.find((t: any) => t.name === "onboarding_orchestrate");
 
           if (!orchestrateTool && businessName) {
-            console.log(`Starting onboarding for: ${businessName}`);
-            console.log("Use the MABOS agent tools for full interactive onboarding.");
+            log.info(`Starting onboarding for: ${businessName}`);
+            log.info("Use the MABOS agent tools for full interactive onboarding.");
             return;
           }
 
           if (businessName && orchestrateTool) {
-            console.log(`Onboarding "${businessName}" (${opts.industry ?? "general"})...`);
+            log.info(`Onboarding "${businessName}" (${opts.industry ?? "general"})...`);
             try {
               const result = await (orchestrateTool as any).execute("cli", {
                 business_name: businessName,
                 industry: opts.industry ?? "general",
               });
-              console.log(JSON.stringify(result, null, 2));
+              log.info(JSON.stringify(result, null, 2));
             } catch (err) {
-              console.error(
-                `Onboarding error: ${err instanceof Error ? err.message : String(err)}`,
-              );
+              log.error(`Onboarding error: ${err instanceof Error ? err.message : String(err)}`);
             }
           } else {
-            console.log("Usage: mabos onboard <business-name> [--industry <type>]");
-            console.log("Industries: ecommerce, saas, consulting, marketplace, retail");
+            log.info("Usage: mabos onboard <business-name> [--industry <type>]");
+            log.info("Industries: ecommerce, saas, consulting, marketplace, retail");
           }
         });
 
@@ -235,22 +296,22 @@ export default function register(api: OpenClawPluginApi) {
             const summaries = await getAgentsSummary(workspaceDir);
 
             if (summaries.length === 0) {
-              console.log("No MABOS agents found. Run 'mabos onboard' to create a business.");
+              log.info("No MABOS agents found. Run 'mabos onboard' to create a business.");
               return;
             }
 
-            console.log("\nMABOS Agents\n" + "=".repeat(70));
-            console.log(
+            log.info("\nMABOS Agents\n" + "=".repeat(70));
+            log.info(
               "Agent".padEnd(15) +
                 "Beliefs".padEnd(10) +
                 "Goals".padEnd(10) +
                 "Intentions".padEnd(12) +
                 "Desires".padEnd(10),
             );
-            console.log("-".repeat(70));
+            log.info("-".repeat(70));
 
             for (const s of summaries) {
-              console.log(
+              log.info(
                 s.agentId.padEnd(15) +
                   String(s.beliefCount).padEnd(10) +
                   String(s.goalCount).padEnd(10) +
@@ -258,9 +319,9 @@ export default function register(api: OpenClawPluginApi) {
                   String(s.desireCount).padEnd(10),
               );
             }
-            console.log(`\nTotal: ${summaries.length} agents`);
+            log.info(`\nTotal: ${summaries.length} agents`);
           } catch (err) {
-            console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+            log.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
           }
         });
 
@@ -280,12 +341,12 @@ export default function register(api: OpenClawPluginApi) {
             const agentDir = join(workspaceDir, "agents", agentId);
             const state = await readAgentCognitiveState(agentDir, agentId);
             const result = await runMaintenanceCycle(state);
-            console.log(`BDI cycle for ${agentId}:`);
-            console.log(`  Intentions pruned: ${result.staleIntentionsPruned}`);
-            console.log(`  Desires re-sorted: ${result.desiresPrioritized}`);
-            console.log(`  Timestamp: ${result.timestamp}`);
+            log.info(`BDI cycle for ${agentId}:`);
+            log.info(`  Intentions pruned: ${result.staleIntentionsPruned}`);
+            log.info(`  Desires re-sorted: ${result.desiresPrioritized}`);
+            log.info(`  Timestamp: ${result.timestamp}`);
           } catch (err) {
-            console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+            log.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
           }
         });
 
@@ -303,11 +364,11 @@ export default function register(api: OpenClawPluginApi) {
             const entries = await readdir(businessDir).catch(() => []);
 
             if (entries.length === 0) {
-              console.log("No businesses found. Run 'mabos onboard' to create one.");
+              log.info("No businesses found. Run 'mabos onboard' to create one.");
               return;
             }
 
-            console.log("\nManaged Businesses\n" + "=".repeat(50));
+            log.info("\nManaged Businesses\n" + "=".repeat(50));
             for (const entry of entries) {
               const s = await fsStat(join(businessDir, entry)).catch(() => null);
               if (s?.isDirectory()) {
@@ -315,14 +376,14 @@ export default function register(api: OpenClawPluginApi) {
                 try {
                   const { readFile } = await import("node:fs/promises");
                   const data = JSON.parse(await readFile(manifest, "utf-8"));
-                  console.log(`  ${data.name ?? entry} (${data.industry ?? "general"})`);
+                  log.info(`  ${data.name ?? entry} (${data.industry ?? "general"})`);
                 } catch {
-                  console.log(`  ${entry}`);
+                  log.info(`  ${entry}`);
                 }
               }
             }
           } catch (err) {
-            console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+            log.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
           }
         });
 
@@ -337,7 +398,7 @@ export default function register(api: OpenClawPluginApi) {
             const { migrate } = (await import(/* webpackIgnore: true */ migratePath)) as any;
             await migrate({ dryRun: opts.dryRun ?? false });
           } catch (err) {
-            console.error(`Migration error: ${err instanceof Error ? err.message : String(err)}`);
+            log.error(`Migration error: ${err instanceof Error ? err.message : String(err)}`);
           }
         });
 
@@ -348,7 +409,7 @@ export default function register(api: OpenClawPluginApi) {
         .action(async () => {
           const port = api.config?.gateway?.port ?? 18789;
           const url = `http://localhost:${port}/mabos/dashboard`;
-          console.log(`Opening dashboard: ${url}`);
+          log.info(`Opening dashboard: ${url}`);
           try {
             const { exec } = await import("node:child_process");
             const { platform } = await import("node:os");
@@ -356,7 +417,7 @@ export default function register(api: OpenClawPluginApi) {
               platform() === "darwin" ? "open" : platform() === "win32" ? "start" : "xdg-open";
             exec(`${cmd} ${url}`);
           } catch {
-            console.log(`Open manually: ${url}`);
+            log.info(`Open manually: ${url}`);
           }
         });
     },
@@ -428,8 +489,8 @@ export default function register(api: OpenClawPluginApi) {
               }
             }
           }
-        } catch {
-          /* TypeDB unavailable */
+        } catch (err) {
+          log.debug(`TypeDB agent overlay skipped: ${err}`);
         }
 
         res.setHeader("Content-Type", "application/json");
@@ -467,8 +528,8 @@ export default function register(api: OpenClawPluginApi) {
           res.end(JSON.stringify({ decisions }));
           return;
         }
-      } catch {
-        /* fall through to filesystem */
+      } catch (err) {
+        log.debug(`TypeDB decisions query skipped: ${err}`);
       }
 
       try {
@@ -541,17 +602,8 @@ export default function register(api: OpenClawPluginApi) {
       const { readFile, writeFile, mkdir } = await import("node:fs/promises");
       const { join, dirname } = await import("node:path");
 
-      let body = "";
-      for await (const chunk of req as any) body += chunk;
-      let params: any;
-      try {
-        params = JSON.parse(body);
-      } catch {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ error: "Invalid JSON" }));
-        return;
-      }
+      const params = await readMabosJsonBody<any>(req, res);
+      if (!params) return;
 
       const bizId = sanitizeId(params.business_id);
       if (!bizId) {
@@ -645,8 +697,8 @@ export default function register(api: OpenClawPluginApi) {
           res.end(JSON.stringify(detail));
           return;
         }
-      } catch {
-        /* fall through to filesystem */
+      } catch (err) {
+        log.debug(`TypeDB agent detail skipped: ${err}`);
       }
 
       const agentDir = join(workspaceDir, "agents", agentId);
@@ -700,8 +752,8 @@ export default function register(api: OpenClawPluginApi) {
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify(stats ?? { facts: 0, rules: 0, memories: 0, cases: 0 }));
         return;
-      } catch {
-        /* fall through */
+      } catch (err) {
+        log.debug(`TypeDB knowledge stats skipped: ${err}`);
       }
 
       res.setHeader("Content-Type", "application/json");
@@ -812,17 +864,8 @@ export default function register(api: OpenClawPluginApi) {
         const { join, dirname } = await import("node:path");
         const { existsSync } = await import("node:fs");
 
-        let body = "";
-        for await (const chunk of req as any) body += chunk;
-        let params: any;
-        try {
-          params = JSON.parse(body);
-        } catch {
-          res.statusCode = 400;
-          res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ error: "Invalid JSON" }));
-          return;
-        }
+        const params = await readMabosJsonBody<any>(req, res);
+        if (!params) return;
 
         if (!params.business_id || !params.name || !params.type) {
           res.statusCode = 400;
@@ -1123,8 +1166,8 @@ export default function register(api: OpenClawPluginApi) {
               JSON.stringify(sbvrExport, null, 2),
               "utf-8",
             );
-          } catch {
-            /* best-effort */
+          } catch (err) {
+            log.debug(`SBVR sync skipped: ${err}`);
           }
 
           // 5d. Write onboarding progress
@@ -1244,9 +1287,8 @@ export default function register(api: OpenClawPluginApi) {
         const { readFile, writeFile, mkdir } = await import("node:fs/promises");
         const { join, dirname } = await import("node:path");
 
-        let body = "";
-        for await (const chunk of req as any) body += chunk;
-        const params = JSON.parse(body);
+        const params = await readMabosJsonBody<any>(req, res);
+        if (!params) return;
 
         if (!params.agentId || !params.message || !params.businessId) {
           res.statusCode = 400;
@@ -1422,8 +1464,8 @@ export default function register(api: OpenClawPluginApi) {
               );
             }
           }
-        } catch {
-          // Write failed — connection probably closing
+        } catch (err) {
+          log.debug(`SSE write failed (connection closing): ${err}`);
         }
       });
 
@@ -1443,20 +1485,29 @@ export default function register(api: OpenClawPluginApi) {
           const outbox: any[] = JSON.parse(raw);
           if (outbox.length > 0) {
             for (const entry of outbox) {
-              const event = {
-                type: "agent_response",
-                id: entry.id || String(Date.now()),
-                agentId,
-                agentName: entry.agentName || agentId,
-                content: entry.content || "",
-                actions: entry.actions || [],
-              };
-              res.write(`data: ${JSON.stringify(event)}\n\n`);
+              if (entry.type === "thinking_status") {
+                const event = {
+                  type: "thinking_status",
+                  status: entry.status || "thinking",
+                  label: entry.label || entry.status || "Thinking",
+                };
+                res.write(`data: ${JSON.stringify(event)}\n\n`);
+              } else {
+                const event = {
+                  type: entry.type || "agent_response",
+                  id: entry.id || String(Date.now()),
+                  agentId,
+                  agentName: entry.agentName || agentId,
+                  content: entry.content || "",
+                  actions: entry.actions || [],
+                };
+                res.write(`data: ${JSON.stringify(event)}\n\n`);
+              }
             }
             await writeFile(outboxPath, "[]", "utf-8");
           }
-        } catch {
-          // outbox.json may not exist yet - that is fine
+        } catch (err) {
+          log.debug(`Outbox poll: ${err}`);
         }
       }, 2000);
 
@@ -1495,17 +1546,8 @@ export default function register(api: OpenClawPluginApi) {
 
       if (req.method === "PUT") {
         // Update goal model
-        let body = "";
-        for await (const chunk of req as any) body += chunk;
-        let goalModel: any;
-        try {
-          goalModel = JSON.parse(body);
-        } catch {
-          res.statusCode = 400;
-          res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ error: "Invalid JSON" }));
-          return;
-        }
+        const goalModel = await readMabosJsonBody<any>(req, res);
+        if (!goalModel) return;
         const { writeFile, mkdir } = await import("node:fs/promises");
         await mkdir(bizDir, { recursive: true });
         await writeFile(
@@ -1545,8 +1587,8 @@ export default function register(api: OpenClawPluginApi) {
           res.end(JSON.stringify(model));
           return;
         }
-      } catch {
-        /* fall through to filesystem */
+      } catch (err) {
+        log.debug(`TypeDB goal model skipped: ${err}`);
       }
 
       const troposPath = join(bizDir, "tropos-goal-model.json");
@@ -1602,8 +1644,8 @@ export default function register(api: OpenClawPluginApi) {
         res.end(JSON.stringify({ tasks }));
         return;
       }
-    } catch {
-      /* fall through to filesystem */
+    } catch (err) {
+      log.debug(`TypeDB tasks query skipped: ${err}`);
     }
 
     try {
@@ -1720,17 +1762,8 @@ export default function register(api: OpenClawPluginApi) {
       const { readFile, writeFile } = await import("node:fs/promises");
       const { join } = await import("node:path");
 
-      let body = "";
-      for await (const chunk of req as any) body += chunk;
-      let params: any;
-      try {
-        params = JSON.parse(body);
-      } catch {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ error: "Invalid JSON" }));
-        return;
-      }
+      const params = await readMabosJsonBody<any>(req, res);
+      if (!params) return;
 
       const url = new URL(req.url || "", "http://localhost");
       const segments = url.pathname.split("/");
@@ -1814,17 +1847,8 @@ export default function register(api: OpenClawPluginApi) {
 
       // POST: Create a new agent
       if (req.method === "POST") {
-        let body = "";
-        for await (const chunk of req as any) body += chunk;
-        let params: any;
-        try {
-          params = JSON.parse(body);
-        } catch {
-          res.statusCode = 400;
-          res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ error: "Invalid JSON" }));
-          return;
-        }
+        const params = await readMabosJsonBody<any>(req, res);
+        if (!params) return;
 
         const newId = sanitizeId(params.id);
         if (!newId) {
@@ -1952,8 +1976,8 @@ export default function register(api: OpenClawPluginApi) {
             }
           }
         }
-      } catch {
-        /* TypeDB unavailable, filesystem counts remain */
+      } catch (err) {
+        log.debug(`TypeDB agent overlay skipped: ${err}`);
       }
 
       res.setHeader("Content-Type", "application/json");
@@ -2035,17 +2059,8 @@ export default function register(api: OpenClawPluginApi) {
         return;
       }
       try {
-        let body = "";
-        for await (const chunk of req as any) body += chunk;
-        let params: any;
-        try {
-          params = JSON.parse(body);
-        } catch {
-          res.statusCode = 400;
-          res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ error: "Invalid JSON" }));
-          return;
-        }
+        const params = await readMabosJsonBody<any>(req, res);
+        if (!params) return;
 
         const agentId = sanitizeId(params.agentId);
         if (!agentId) {
@@ -2085,17 +2100,8 @@ export default function register(api: OpenClawPluginApi) {
       const { readFile, writeFile, mkdir } = await import("node:fs/promises");
       const { join, dirname } = await import("node:path");
 
-      let body = "";
-      for await (const chunk of req as any) body += chunk;
-      let params: any;
-      try {
-        params = JSON.parse(body);
-      } catch {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ error: "Invalid JSON" }));
-        return;
-      }
+      const params = await readMabosJsonBody<any>(req, res);
+      if (!params) return;
 
       const url = new URL(req.url || "", "http://localhost");
       const segments = url.pathname.split("/");
@@ -2153,17 +2159,8 @@ export default function register(api: OpenClawPluginApi) {
       const cronPath = join(bizDir, "cron-jobs.json");
 
       if (req.method === "POST") {
-        let body = "";
-        for await (const chunk of req as any) body += chunk;
-        let params: any;
-        try {
-          params = JSON.parse(body);
-        } catch {
-          res.statusCode = 400;
-          res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ error: "Invalid JSON" }));
-          return;
-        }
+        const params = await readMabosJsonBody<any>(req, res);
+        if (!params) return;
 
         const jobs = (await readJsonSafe(cronPath)) || [];
         const newJob: Record<string, unknown> = {
@@ -2260,17 +2257,8 @@ export default function register(api: OpenClawPluginApi) {
       const { readFile, writeFile, mkdir } = await import("node:fs/promises");
       const { join, dirname } = await import("node:path");
 
-      let body = "";
-      for await (const chunk of req as any) body += chunk;
-      let params: any;
-      try {
-        params = JSON.parse(body);
-      } catch {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ error: "Invalid JSON" }));
-        return;
-      }
+      const params = await readMabosJsonBody<any>(req, res);
+      if (!params) return;
 
       const url = new URL(req.url || "", "http://localhost");
       const segments = url.pathname.split("/");
@@ -2536,8 +2524,8 @@ export default function register(api: OpenClawPluginApi) {
             prependContext: `[MABOS Agent Context]\n${parts.join("\n\n")}\n`,
           };
         }
-      } catch {
-        // Not a MABOS agent — skip
+      } catch (err) {
+        log.debug(`Agent context injection skipped: ${err}`);
       }
     }
     return undefined;

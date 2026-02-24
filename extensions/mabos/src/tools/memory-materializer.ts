@@ -151,6 +151,8 @@ export async function materializeMemoryItems(
     lines.push(`- **Importance:** ${item.importance}`);
     lines.push(`- **Source:** ${item.source}`);
     if (item.tags?.length) lines.push(`- **Tags:** ${item.tags.join(", ")}`);
+    if (item.derived_from?.length)
+      lines.push(`- **Derived from:** ${item.derived_from.join(", ")}`);
     lines.push(`- **Created:** ${item.created_at}`);
     lines.push("");
     lines.push(item.content);
@@ -160,8 +162,169 @@ export async function materializeMemoryItems(
   await writeMd(outPath, lines.join("\n"));
 }
 
+// ── R2: Hierarchical Memory Index materialization ──
+
+function getISOWeek(date: Date): { year: number; week: number } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return { year: d.getUTCFullYear(), week };
+}
+
+function getQuarter(month: number): number {
+  return Math.floor(month / 3) + 1;
+}
+
+export async function materializeWeeklySummary(
+  api: OpenClawPluginApi,
+  agentId: string,
+  weekStart: string,
+): Promise<void> {
+  const ws = resolveWorkspaceDir(api);
+  const memoryDir = join(ws, "agents", agentId, "memory");
+  const startDate = new Date(weekStart);
+  const { year, week } = getISOWeek(startDate);
+  const weekLabel = `${year}-W${String(week).padStart(2, "0")}`;
+  const outPath = join(memoryDir, "weekly", `${weekLabel}.md`);
+
+  const days: string[] = [];
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + d);
+    const dateStr = date.toISOString().split("T")[0];
+    const dayContent = await readMd(join(memoryDir, `${dateStr}.md`));
+    if (dayContent.trim()) {
+      days.push(`## ${dateStr}\n${dayContent.trim()}`);
+    }
+  }
+
+  if (days.length === 0) return;
+
+  const lines: string[] = [
+    `# Weekly Summary — ${weekLabel}`,
+    "",
+    `> Auto-generated weekly digest covering ${days.length} day(s).`,
+    "",
+    ...days.flatMap((d) => [d, ""]),
+  ];
+
+  await writeMd(outPath, lines.join("\n"));
+}
+
+export async function materializeMonthlySummary(
+  api: OpenClawPluginApi,
+  agentId: string,
+  month: string,
+): Promise<void> {
+  const ws = resolveWorkspaceDir(api);
+  const memoryDir = join(ws, "agents", agentId, "memory");
+  const outPath = join(memoryDir, "monthly", `${month}.md`);
+
+  // Read all weekly summaries for this month
+  const weeklyDir = join(memoryDir, "weekly");
+  let weeklyFiles: string[] = [];
+  try {
+    const { readdir } = await import("node:fs/promises");
+    const files = await readdir(weeklyDir);
+    weeklyFiles = files.filter((f) => f.endsWith(".md")).sort();
+  } catch {
+    // No weekly dir yet
+  }
+
+  // Filter to weeks that overlap with this month
+  const [yearStr, monthStr] = month.split("-");
+  const monthStart = new Date(`${month}-01`);
+  const nextMonth = new Date(monthStart);
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+  const sections: string[] = [];
+  for (const wf of weeklyFiles) {
+    const weekContent = await readMd(join(weeklyDir, wf));
+    if (weekContent.trim()) {
+      sections.push(`## ${wf.replace(".md", "")}\n${weekContent.trim()}`);
+    }
+  }
+
+  // Also read any daily logs directly for days not covered by weeklies
+  const { readdir } = await import("node:fs/promises");
+  let dailyFiles: string[] = [];
+  try {
+    const allFiles = await readdir(memoryDir);
+    dailyFiles = allFiles
+      .filter((f) => f.match(/^\d{4}-\d{2}-\d{2}\.md$/) && f.startsWith(month))
+      .sort();
+  } catch {
+    // No daily files
+  }
+
+  if (sections.length === 0 && dailyFiles.length === 0) return;
+
+  const lines: string[] = [
+    `# Monthly Summary — ${month}`,
+    "",
+    `> Auto-generated monthly digest.`,
+    "",
+  ];
+
+  if (sections.length > 0) {
+    lines.push("# Weekly Digests", "");
+    for (const s of sections) lines.push(s, "");
+  }
+
+  if (dailyFiles.length > 0) {
+    lines.push("# Daily Entries", "");
+    for (const df of dailyFiles) {
+      const dayContent = await readMd(join(memoryDir, df));
+      if (dayContent.trim()) {
+        lines.push(`## ${df.replace(".md", "")}`, dayContent.trim(), "");
+      }
+    }
+  }
+
+  await writeMd(outPath, lines.join("\n"));
+}
+
+export async function materializeQuarterlyReview(
+  api: OpenClawPluginApi,
+  agentId: string,
+  quarter: string,
+): Promise<void> {
+  const ws = resolveWorkspaceDir(api);
+  const memoryDir = join(ws, "agents", agentId, "memory");
+  const outPath = join(memoryDir, "quarterly", `${quarter}.md`);
+
+  // quarter format: "2026-Q1"
+  const [yearStr, qStr] = quarter.split("-Q");
+  const q = parseInt(qStr, 10);
+  const startMonth = (q - 1) * 3; // 0-indexed
+
+  const sections: string[] = [];
+  for (let m = startMonth; m < startMonth + 3; m++) {
+    const monthStr = `${yearStr}-${String(m + 1).padStart(2, "0")}`;
+    const monthlyPath = join(memoryDir, "monthly", `${monthStr}.md`);
+    const monthContent = await readMd(monthlyPath);
+    if (monthContent.trim()) {
+      sections.push(`## ${monthStr}\n${monthContent.trim()}`);
+    }
+  }
+
+  if (sections.length === 0) return;
+
+  const lines: string[] = [
+    `# Quarterly Review — ${quarter}`,
+    "",
+    `> Auto-generated quarterly review covering ${sections.length} month(s).`,
+    "",
+    ...sections.flatMap((s) => [s, ""]),
+  ];
+
+  await writeMd(outPath, lines.join("\n"));
+}
+
 /**
- * Run all three materializers in parallel. Failures are non-fatal.
+ * Run all materializers in parallel. Failures are non-fatal.
  */
 export async function materializeAll(api: OpenClawPluginApi, agentId: string): Promise<void> {
   await Promise.all([

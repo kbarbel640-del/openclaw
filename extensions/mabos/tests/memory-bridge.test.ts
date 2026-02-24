@@ -228,3 +228,194 @@ describe("Memory Bridge: Native Format", () => {
     assert.ok(content.includes("(plan-execution)"), "Should have plan-execution source");
   });
 });
+
+describe("R1: Recursive Memory Consolidation", () => {
+  const AGENT_ID = "r1-test-agent";
+
+  it("memory_consolidate with summarize=true groups related items", async () => {
+    // Store 5 related memories with overlapping tags
+    for (let i = 0; i < 5; i++) {
+      await callTool("memory_store_item", {
+        agent_id: AGENT_ID,
+        content: `Market analysis finding ${i + 1}: competitor ${i + 1} strategy`,
+        type: "observation",
+        importance: 0.8,
+        source: "inference",
+        tags: ["market", "competitor", `finding-${i + 1}`],
+      });
+    }
+
+    // Access them to meet consolidation criteria
+    await callTool("memory_recall", { agent_id: AGENT_ID, query: "market" });
+    await callTool("memory_recall", { agent_id: AGENT_ID, query: "market" });
+
+    // Consolidate with summarize=true
+    await callTool("memory_consolidate", {
+      agent_id: AGENT_ID,
+      min_importance: 0.6,
+      min_access_count: 2,
+      summarize: true,
+    });
+
+    // Verify long-term has consolidated summary
+    const storePath = join(tmpWorkspace, "agents", AGENT_ID, "memory-store.json");
+    const store = JSON.parse(await readFile(storePath, "utf-8"));
+
+    // Should have fewer items than 5 in long-term (grouped)
+    const ltItems = store.long_term;
+    assert.ok(ltItems.length > 0, "Should have long-term items");
+
+    // At least one item should have derived_from
+    const consolidated = ltItems.find((i: any) => i.derived_from && i.derived_from.length > 0);
+    assert.ok(consolidated, "Should have at least one consolidated item with derived_from");
+    assert.ok(
+      consolidated.derived_from.length >= 2,
+      "Consolidated item should reference multiple source memories",
+    );
+    assert.ok(
+      consolidated.content.includes("[Consolidated from"),
+      "Consolidated content should include merge marker",
+    );
+    assert.ok(consolidated.tags.includes("market"), "Consolidated item should have union of tags");
+  });
+
+  it("memory_consolidate with summarize=false preserves individual items", async () => {
+    const agent = "r1-no-summarize";
+
+    await callTool("memory_store_item", {
+      agent_id: agent,
+      content: "Individual item A",
+      type: "fact",
+      importance: 0.9,
+      source: "test",
+      tags: ["alpha"],
+    });
+    await callTool("memory_store_item", {
+      agent_id: agent,
+      content: "Individual item B",
+      type: "fact",
+      importance: 0.85,
+      source: "test",
+      tags: ["alpha"],
+    });
+
+    await callTool("memory_recall", { agent_id: agent, query: "Individual" });
+    await callTool("memory_recall", { agent_id: agent, query: "Individual" });
+
+    await callTool("memory_consolidate", {
+      agent_id: agent,
+      min_importance: 0.6,
+      min_access_count: 2,
+      summarize: false,
+    });
+
+    const storePath = join(tmpWorkspace, "agents", agent, "memory-store.json");
+    const store = JSON.parse(await readFile(storePath, "utf-8"));
+    const ltItems = store.long_term;
+
+    // Items should be promoted individually, no derived_from
+    assert.ok(ltItems.length >= 2, "Should have at least 2 individual items");
+    const hasConsolidated = ltItems.some((i: any) => i.derived_from && i.derived_from.length > 0);
+    assert.ok(!hasConsolidated, "No items should have derived_from when summarize=false");
+  });
+});
+
+describe("R3: Context-Aware Pre-Compaction Checkpoint", () => {
+  const AGENT_ID = "r3-test-agent";
+
+  it("memory_checkpoint creates structured checkpoint file", async () => {
+    await callTool("memory_checkpoint", {
+      agent_id: AGENT_ID,
+      context: "Implementing RLM-inspired memory enhancements",
+      decisions: ["Use Jaccard similarity for grouping", "Cap recursive depth at 3"],
+      findings: ["TypeDB integration is best-effort", "Materializer auto-indexes via chokidar"],
+      next_steps: ["Add tests", "Run integration verification"],
+      open_questions: ["Should weekly summaries auto-build on Sundays?"],
+    });
+
+    // Find checkpoint file
+    const checkpointDir = join(tmpWorkspace, "agents", AGENT_ID, "memory", "checkpoints");
+    assert.ok(existsSync(checkpointDir), "Checkpoint directory should exist");
+
+    const { readdir } = await import("node:fs/promises");
+    const files = await readdir(checkpointDir);
+    const mdFiles = files.filter((f: string) => f.endsWith(".md"));
+    assert.ok(mdFiles.length > 0, "Should have at least one checkpoint file");
+
+    const content = await readFile(join(checkpointDir, mdFiles[0]), "utf-8");
+    assert.ok(content.includes("# Session Checkpoint"), "Should have checkpoint header");
+    assert.ok(content.includes("## Current Task Context"), "Should have context section");
+    assert.ok(
+      content.includes("Implementing RLM-inspired memory enhancements"),
+      "Should contain the context",
+    );
+    assert.ok(content.includes("## Active Decisions"), "Should have decisions section");
+    assert.ok(content.includes("Use Jaccard similarity"), "Should contain a decision");
+    assert.ok(content.includes("## Key Findings"), "Should have findings section");
+    assert.ok(content.includes("## Next Steps"), "Should have next steps section");
+    assert.ok(content.includes("## Open Questions"), "Should have questions section");
+  });
+});
+
+describe("R4: Recursive Memory Search", () => {
+  const AGENT_ID = "r4-test-agent";
+
+  it("memory_recall with recursive_depth=1 discovers indirectly related items", async () => {
+    // Store A: related to "market"
+    await callTool("memory_store_item", {
+      agent_id: AGENT_ID,
+      content: "Market analysis shows strong demand in enterprise segment",
+      type: "observation",
+      importance: 0.7,
+      source: "test",
+      tags: ["market", "enterprise"],
+    });
+
+    // Store B: related to "enterprise" (indirect link to A)
+    await callTool("memory_store_item", {
+      agent_id: AGENT_ID,
+      content: "Enterprise customers prefer annual billing cycles with dedicated support",
+      type: "fact",
+      importance: 0.6,
+      source: "test",
+      tags: ["enterprise", "billing"],
+    });
+
+    // Store C: related to "billing" (indirect link via B)
+    await callTool("memory_store_item", {
+      agent_id: AGENT_ID,
+      content: "Annual billing revenue projection exceeds monthly by 40%",
+      type: "fact",
+      importance: 0.65,
+      source: "test",
+      tags: ["billing", "revenue"],
+    });
+
+    // Recursive search starting from "market" should find items beyond direct matches
+    const result = await callTool("memory_recall", {
+      agent_id: AGENT_ID,
+      query: "market",
+      recursive_depth: 1,
+      store: "all",
+    });
+
+    const text = result.content[0].text;
+    assert.ok(text.toLowerCase().includes("market analysis"), "Should find direct match");
+    // Depth annotation should appear
+    assert.ok(text.includes("depth:"), "Should include depth annotations");
+  });
+
+  it("memory_recall with recursive_depth=0 behaves like standard search", async () => {
+    const result = await callTool("memory_recall", {
+      agent_id: AGENT_ID,
+      query: "market",
+      recursive_depth: 0,
+      store: "all",
+    });
+
+    const text = result.content[0].text;
+    assert.ok(text.includes("market"), "Should find market-related items");
+    // Should NOT have depth annotations in non-recursive mode
+    assert.ok(!text.includes("depth:"), "Should not have depth annotations for depth=0");
+  });
+});

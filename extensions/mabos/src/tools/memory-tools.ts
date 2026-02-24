@@ -5,6 +5,11 @@
  * - Working memory: 7 items, immediate context (in-session)
  * - Short-term memory: 200 items, 2-hour TTL
  * - Long-term memory: Persistent, consolidated from short-term
+ *
+ * Enhancements:
+ * - R1: Recursive Memory Consolidation (grouping + summarization)
+ * - R3: Context-Aware Pre-Compaction (session checkpoints)
+ * - R4: Recursive Memory Search (iterative query refinement)
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -161,6 +166,8 @@ export async function writeNativeLongTermMemory(
   await writeMd(memPath, md);
 }
 
+// ── R1: derived_from field added for consolidation provenance ──
+
 type MemoryItem = {
   id: string;
   content: string;
@@ -171,6 +178,7 @@ type MemoryItem = {
   created_at: string;
   accessed_at: string;
   access_count: number;
+  derived_from?: string[]; // R1: IDs of source memories this was summarized from
 };
 
 type MemoryStore = {
@@ -202,6 +210,126 @@ function pruneExpired(items: MemoryItem[], ttlMs: number): MemoryItem[] {
   const cutoff = Date.now() - ttlMs;
   return items.filter((i) => new Date(i.created_at).getTime() > cutoff);
 }
+
+// ── R1: Recursive Memory Consolidation helpers ──
+
+function jaccardSimilarity(a: string[], b: string[]): number {
+  if (a.length === 0 && b.length === 0) return 0;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  const intersection = [...setA].filter((x) => setB.has(x)).length;
+  const union = new Set([...setA, ...setB]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function groupRelatedMemories(items: MemoryItem[]): MemoryItem[][] {
+  if (items.length === 0) return [];
+  const groups: MemoryItem[][] = [];
+  const assigned = new Set<string>();
+
+  for (const item of items) {
+    if (assigned.has(item.id)) continue;
+    const group: MemoryItem[] = [item];
+    assigned.add(item.id);
+
+    for (const other of items) {
+      if (assigned.has(other.id)) continue;
+      if (jaccardSimilarity(item.tags, other.tags) > 0.3) {
+        group.push(other);
+        assigned.add(other.id);
+      }
+    }
+    groups.push(group);
+  }
+  return groups;
+}
+
+function summarizeMemoryGroup(group: MemoryItem[]): MemoryItem {
+  if (group.length === 1) return group[0];
+
+  // Merge content into narrative
+  const contents = group.map((g) => g.content);
+  const mergedContent = `[Consolidated from ${group.length} memories] ${contents.join(" | ")}`;
+
+  // Compute max importance, union tags, collect source IDs
+  const maxImportance = Math.max(...group.map((g) => g.importance));
+  const allTags = [...new Set(group.flatMap((g) => g.tags))];
+  const derivedFrom = group.map((g) => g.id);
+  const latestDate = group.reduce(
+    (latest, g) => (g.created_at > latest ? g.created_at : latest),
+    group[0].created_at,
+  );
+
+  // Use type of the highest-importance item
+  const primaryItem = group.reduce(
+    (best, g) => (g.importance > best.importance ? g : best),
+    group[0],
+  );
+
+  return {
+    id: `M-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    content: mergedContent,
+    type: primaryItem.type,
+    importance: maxImportance,
+    source: "consolidation",
+    tags: allTags,
+    created_at: latestDate,
+    accessed_at: new Date().toISOString(),
+    access_count: 0,
+    derived_from: derivedFrom,
+  };
+}
+
+// ── R4: Recursive Memory Search ──
+
+async function recursiveMemorySearch(
+  api: OpenClawPluginApi,
+  agentId: string,
+  query: string,
+  maxDepth: number,
+  limit: number,
+  allItems: Array<MemoryItem & { _store: string }>,
+): Promise<Array<MemoryItem & { _store: string; _depth: number }>> {
+  const accumulatedIds = new Set<string>();
+  const results: Array<MemoryItem & { _store: string; _depth: number }> = [];
+  let currentQuery = query;
+
+  for (let depth = 0; depth <= maxDepth && results.length < limit; depth++) {
+    const q = currentQuery.toLowerCase();
+    const matching = allItems
+      .filter((i) => !accumulatedIds.has(i.id))
+      .filter(
+        (i) =>
+          i.content.toLowerCase().includes(q) || i.tags.some((t) => t.toLowerCase().includes(q)),
+      );
+
+    for (const m of matching) {
+      accumulatedIds.add(m.id);
+      results.push({ ...m, _depth: depth });
+    }
+
+    if (depth < maxDepth && matching.length > 0) {
+      // Extract new terms from results for query refinement
+      const queryTerms = new Set(q.split(/\s+/));
+      const newTerms = new Set<string>();
+      for (const item of matching.slice(0, 5)) {
+        const words = item.content
+          .toLowerCase()
+          .replace(/[^\w\s]/g, "")
+          .split(/\s+/)
+          .filter((w) => w.length > 3 && !queryTerms.has(w));
+        for (const w of words) newTerms.add(w);
+      }
+
+      if (newTerms.size === 0) break;
+      currentQuery = `${query} ${[...newTerms].slice(0, 3).join(" ")}`;
+    }
+  }
+
+  return results.slice(0, limit);
+}
+
+// ── Parameter schemas ──
 
 const MemoryStoreParams = Type.Object({
   agent_id: Type.String({ description: "Agent ID" }),
@@ -248,6 +376,12 @@ const MemoryRecallParams = Type.Object({
   ),
   limit: Type.Optional(Type.Number({ description: "Max results (default: 20)" })),
   min_importance: Type.Optional(Type.Number({ description: "Minimum importance filter" })),
+  recursive_depth: Type.Optional(
+    Type.Number({
+      description:
+        "Recursion depth for refined search. 0=direct (default), 1=search+refine+search, 2+=deeper. Max 3.",
+    }),
+  ),
 });
 
 const MemoryConsolidateParams = Type.Object({
@@ -259,11 +393,45 @@ const MemoryConsolidateParams = Type.Object({
     Type.Number({ description: "Minimum access count to promote (default: 2)" }),
   ),
   dry_run: Type.Optional(Type.Boolean({ description: "Preview without saving (default: false)" })),
+  summarize: Type.Optional(
+    Type.Boolean({ description: "Summarize related items during consolidation (default: true)" }),
+  ),
 });
 
 const MemoryStatusParams = Type.Object({
   agent_id: Type.String({ description: "Agent ID" }),
 });
+
+// R3: Context-Aware Pre-Compaction checkpoint schema
+const MemoryCheckpointParams = Type.Object({
+  agent_id: Type.String({ description: "Agent ID" }),
+  context: Type.String({ description: "Current task context" }),
+  decisions: Type.Optional(Type.Array(Type.String(), { description: "Active decisions" })),
+  findings: Type.Optional(Type.Array(Type.String(), { description: "Key findings" })),
+  next_steps: Type.Optional(Type.Array(Type.String(), { description: "Next steps" })),
+  open_questions: Type.Optional(Type.Array(Type.String(), { description: "Open questions" })),
+});
+
+// ── R3: Resolve latest checkpoint for continuity after compaction ──
+
+export async function resolveLatestCheckpoint(
+  api: OpenClawPluginApi,
+  agentId: string,
+): Promise<string | null> {
+  const checkpointDir = join(resolveWorkspaceDir(api), "agents", agentId, "memory", "checkpoints");
+  try {
+    const { readdir } = await import("node:fs/promises");
+    const files = await readdir(checkpointDir);
+    const mdFiles = files.filter((f) => f.endsWith(".md")).sort();
+    if (mdFiles.length === 0) return null;
+    const latestFile = mdFiles[mdFiles.length - 1];
+    return await readMd(join(checkpointDir, latestFile));
+  } catch {
+    return null;
+  }
+}
+
+// ── Tool factory ──
 
 export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
   return [
@@ -376,7 +544,8 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
     {
       name: "memory_recall",
       label: "Recall Memory",
-      description: "Search across memory stores for relevant items by query, type, or importance.",
+      description:
+        "Search across memory stores for relevant items by query, type, or importance. Supports recursive depth for iterative query refinement.",
       parameters: MemoryRecallParams,
       async execute(_id: string, params: Static<typeof MemoryRecallParams>) {
         const mem = await loadMemory(api, params.agent_id);
@@ -429,91 +598,117 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
         if (params.type) items = items.filter((i) => i.type === params.type);
         if (minImp > 0) items = items.filter((i) => i.importance >= minImp);
 
-        // ── Step D: Semantic search re-scoring + enrichment ──
+        // ── Step D: Query filtering (with optional recursive depth — R4) ──
+        const requestedDepth = Math.min(params.recursive_depth ?? 0, 3);
         let usedSemantic = false;
+        let usedRecursive = false;
+
         if (params.query) {
-          const semanticResults = await semanticRecall(
-            api,
-            params.agent_id,
-            params.query,
-            limit * 2,
-          );
+          if (requestedDepth > 0) {
+            // R4: Use recursive search (iterative deepening with query refinement)
+            usedRecursive = true;
+            const recursiveResults = await recursiveMemorySearch(
+              api,
+              params.agent_id,
+              params.query,
+              requestedDepth,
+              limit,
+              items,
+            );
+            // Sort by depth first (shallower = more directly relevant), then importance
+            recursiveResults.sort((a, b) => {
+              if (a._depth !== b._depth) return a._depth - b._depth;
+              return b.importance - a.importance;
+            });
+            // Replace items with recursive results (cast back for downstream compat)
+            items = recursiveResults;
+          } else {
+            // Original semantic + substring logic
+            const semanticResults = await semanticRecall(
+              api,
+              params.agent_id,
+              params.query,
+              limit * 2,
+            );
 
-          if (semanticResults && semanticResults.length > 0) {
-            usedSemantic = true;
-            // Build a map of semantic scores by content snippet for fuzzy matching
-            const semanticScoreMap = new Map<string, number>();
-            for (const sr of semanticResults) {
-              semanticScoreMap.set(sr.content.toLowerCase().trim(), sr.score);
-            }
-
-            // Re-score JSON items: if content matches a semantic result, boost with hybrid score
-            type ScoredItem = MemoryItem & { _store: string; _score: number };
-            const scored: ScoredItem[] = items.map((item) => {
-              const contentKey = item.content.toLowerCase().trim();
-              const semanticScore = semanticScoreMap.get(contentKey);
-              if (semanticScore !== undefined) {
-                // Blend: semantic score (0-1 range) weighted heavily + importance
-                return { ...item, _score: semanticScore * 0.7 + item.importance * 0.3 };
+            if (semanticResults && semanticResults.length > 0) {
+              usedSemantic = true;
+              // Build a map of semantic scores by content snippet for fuzzy matching
+              const semanticScoreMap = new Map<string, number>();
+              for (const sr of semanticResults) {
+                semanticScoreMap.set(sr.content.toLowerCase().trim(), sr.score);
               }
-              // Check for partial content overlap
-              let bestPartialScore = 0;
-              for (const [snippet, score] of semanticScoreMap) {
-                if (contentKey.includes(snippet) || snippet.includes(contentKey)) {
-                  bestPartialScore = Math.max(bestPartialScore, score * 0.5);
+
+              // Re-score JSON items: if content matches a semantic result, boost with hybrid score
+              type ScoredItem = MemoryItem & { _store: string; _score: number };
+              const scored: ScoredItem[] = items.map((item) => {
+                const contentKey = item.content.toLowerCase().trim();
+                const semanticScore = semanticScoreMap.get(contentKey);
+                if (semanticScore !== undefined) {
+                  // Blend: semantic score (0-1 range) weighted heavily + importance
+                  return { ...item, _score: semanticScore * 0.7 + item.importance * 0.3 };
+                }
+                // Check for partial content overlap
+                let bestPartialScore = 0;
+                for (const [snippet, score] of semanticScoreMap) {
+                  if (contentKey.includes(snippet) || snippet.includes(contentKey)) {
+                    bestPartialScore = Math.max(bestPartialScore, score * 0.5);
+                  }
+                }
+                if (bestPartialScore > 0) {
+                  return { ...item, _score: bestPartialScore * 0.7 + item.importance * 0.3 };
+                }
+                // No semantic match — use original importance × recency score
+                const recency =
+                  1 - (Date.now() - new Date(item.created_at).getTime()) / (24 * 60 * 60 * 1000);
+                return { ...item, _score: item.importance * 0.6 + recency * 0.4 };
+              });
+
+              // Also include semantic-only results (from materialized files) that don't match JSON items
+              const jsonContents = new Set(items.map((i) => i.content.toLowerCase().trim()));
+              for (const sr of semanticResults) {
+                const srKey = sr.content.toLowerCase().trim();
+                if (!jsonContents.has(srKey) && sr.content.trim()) {
+                  scored.push({
+                    id: sr.id,
+                    content: sr.content,
+                    type: "observation" as const,
+                    importance: sr.score,
+                    source: sr.source,
+                    tags: [],
+                    created_at: new Date().toISOString(),
+                    accessed_at: new Date().toISOString(),
+                    access_count: 0,
+                    _store: "semantic",
+                    _score: sr.score,
+                  });
                 }
               }
-              if (bestPartialScore > 0) {
-                return { ...item, _score: bestPartialScore * 0.7 + item.importance * 0.3 };
-              }
-              // No semantic match — use original importance × recency score
-              const recency =
-                1 - (Date.now() - new Date(item.created_at).getTime()) / (24 * 60 * 60 * 1000);
-              return { ...item, _score: item.importance * 0.6 + recency * 0.4 };
-            });
 
-            // Also include semantic-only results (from materialized files) that don't match JSON items
-            const jsonContents = new Set(items.map((i) => i.content.toLowerCase().trim()));
-            for (const sr of semanticResults) {
-              const srKey = sr.content.toLowerCase().trim();
-              if (!jsonContents.has(srKey) && sr.content.trim()) {
-                scored.push({
-                  id: sr.id,
-                  content: sr.content,
-                  type: "observation" as const,
-                  importance: sr.score,
-                  source: sr.source,
-                  tags: [],
-                  created_at: new Date().toISOString(),
-                  accessed_at: new Date().toISOString(),
-                  access_count: 0,
-                  _store: "semantic",
-                  _score: sr.score,
-                });
-              }
+              scored.sort((a, b) => b._score - a._score);
+              items = scored.slice(0, limit);
+            } else {
+              // Semantic search unavailable or returned nothing — fall back to substring
+              const q = params.query.toLowerCase();
+              items = items.filter(
+                (i) =>
+                  i.content.toLowerCase().includes(q) ||
+                  i.tags.some((t) => t.toLowerCase().includes(q)),
+              );
+              // Sort by importance × recency
+              items.sort((a, b) => {
+                const scoreA =
+                  a.importance * 0.6 +
+                  (1 - (Date.now() - new Date(a.created_at).getTime()) / (24 * 60 * 60 * 1000)) *
+                    0.4;
+                const scoreB =
+                  b.importance * 0.6 +
+                  (1 - (Date.now() - new Date(b.created_at).getTime()) / (24 * 60 * 60 * 1000)) *
+                    0.4;
+                return scoreB - scoreA;
+              });
+              items = items.slice(0, limit);
             }
-
-            scored.sort((a, b) => b._score - a._score);
-            items = scored.slice(0, limit);
-          } else {
-            // Semantic search unavailable or returned nothing — fall back to substring
-            const q = params.query.toLowerCase();
-            items = items.filter(
-              (i) =>
-                i.content.toLowerCase().includes(q) ||
-                i.tags.some((t) => t.toLowerCase().includes(q)),
-            );
-            // Sort by importance × recency
-            items.sort((a, b) => {
-              const scoreA =
-                a.importance * 0.6 +
-                (1 - (Date.now() - new Date(a.created_at).getTime()) / (24 * 60 * 60 * 1000)) * 0.4;
-              const scoreB =
-                b.importance * 0.6 +
-                (1 - (Date.now() - new Date(b.created_at).getTime()) / (24 * 60 * 60 * 1000)) * 0.4;
-              return scoreB - scoreA;
-            });
-            items = items.slice(0, limit);
           }
         } else {
           // No query — sort by importance × recency
@@ -546,13 +741,17 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
         if (items.length === 0) return textResult("No matching memories found.");
 
         const output = items
-          .map(
-            (i) =>
-              `- **${i.id}** [${i._store}] [${i.type}] (imp: ${i.importance}) — ${i.content}${i.tags.length ? ` [${i.tags.join(", ")}]` : ""}`,
-          )
+          .map((i) => {
+            const depthStr = (i as any)._depth !== undefined ? `, depth: ${(i as any)._depth}` : "";
+            return `- **${i.id}** [${i._store}] [${i.type}] (imp: ${i.importance}${depthStr}) — ${i.content}${i.tags.length ? ` [${i.tags.join(", ")}]` : ""}`;
+          })
           .join("\n");
 
-        const searchMethod = usedSemantic ? " (semantic)" : "";
+        const searchMethod = usedRecursive
+          ? ` (recursive, depth: ${requestedDepth})`
+          : usedSemantic
+            ? " (semantic)"
+            : "";
         return textResult(
           `## Memory Recall — ${params.agent_id}${searchMethod}\n\nFound ${items.length} items:\n\n${output}`,
         );
@@ -563,7 +762,7 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
       name: "memory_consolidate",
       label: "Consolidate Memory",
       description:
-        "Promote important short-term memories to long-term storage. Based on importance and access frequency.",
+        "Promote important short-term memories to long-term storage. Based on importance and access frequency. Optionally groups and summarizes related items (R1).",
       parameters: MemoryConsolidateParams,
       async execute(_id: string, params: Static<typeof MemoryConsolidateParams>) {
         const mem = await loadMemory(api, params.agent_id);
@@ -589,22 +788,34 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
 
         const allCandidates = [...candidates, ...workingCandidates];
 
-        if (params.dry_run) {
-          return textResult(`## Consolidation Preview — ${params.agent_id}
-
-Would promote ${allCandidates.length} items to long-term:
-${allCandidates.map((i) => `- ${i.id}: [${i.type}] ${i.content.slice(0, 80)}... (imp: ${i.importance}, accessed: ${i.access_count}×)`).join("\n")}`);
+        // R1: Optionally group and summarize related memories
+        const shouldSummarize = params.summarize !== false; // default true
+        let itemsToPromote: MemoryItem[];
+        if (shouldSummarize && allCandidates.length > 1) {
+          const groups = groupRelatedMemories(allCandidates);
+          itemsToPromote = groups.map((g) => summarizeMemoryGroup(g));
+        } else {
+          itemsToPromote = allCandidates;
         }
 
-        // Promote
+        if (params.dry_run) {
+          const summaryNote =
+            shouldSummarize && allCandidates.length > 1
+              ? `\n(${allCandidates.length} candidates grouped into ${itemsToPromote.length} items via summarization)`
+              : "";
+          return textResult(`## Consolidation Preview — ${params.agent_id}${summaryNote}
+
+Would promote ${itemsToPromote.length} items to long-term:
+${itemsToPromote.map((i) => `- ${i.id}: [${i.type}] ${i.content.slice(0, 80)}... (imp: ${i.importance}${i.derived_from ? `, derived from: ${i.derived_from.length} items` : ""})`).join("\n")}`);
+        }
+
+        // Promote: remove originals from short-term, add summarized items to long-term
         for (const c of candidates) {
           mem.short_term = mem.short_term.filter((i) => i.id !== c.id);
-          mem.long_term.push(c);
         }
-        for (const c of workingCandidates) {
-          // Don't remove from working — just copy to long-term
-          if (!mem.long_term.some((i) => i.id === c.id)) {
-            mem.long_term.push(c);
+        for (const item of itemsToPromote) {
+          if (!mem.long_term.some((i) => i.id === item.id)) {
+            mem.long_term.push(item);
           }
         }
 
@@ -614,7 +825,7 @@ ${allCandidates.map((i) => `- ${i.id}: [${i.type}] ${i.content.slice(0, 80)}... 
         await writeNativeLongTermMemory(
           api,
           params.agent_id,
-          allCandidates.map((c) => ({
+          itemsToPromote.map((c) => ({
             type: c.type,
             content: c.content,
             importance: c.importance,
@@ -626,7 +837,7 @@ ${allCandidates.map((i) => `- ${i.id}: [${i.type}] ${i.content.slice(0, 80)}... 
         try {
           const client = getTypeDBClient();
           if (client.isAvailable()) {
-            for (const c of allCandidates) {
+            for (const c of itemsToPromote) {
               const typeql = MemoryQueries.storeItem(params.agent_id, {
                 id: c.id,
                 content: c.content,
@@ -649,9 +860,13 @@ ${allCandidates.map((i) => `- ${i.id}: [${i.type}] ${i.content.slice(0, 80)}... 
         // Materialize to indexed Markdown for OpenClaw semantic search
         materializeMemoryItems(api, params.agent_id).catch(() => {});
 
+        const summaryInfo =
+          shouldSummarize && allCandidates.length > 1
+            ? ` (${allCandidates.length} candidates grouped into ${itemsToPromote.length} summarized items)`
+            : "";
         return textResult(`## Memory Consolidated — ${params.agent_id}
 
-Promoted ${allCandidates.length} items to long-term memory.
+Promoted ${itemsToPromote.length} items to long-term memory${summaryInfo}.
 - Working: ${mem.working.length}/${WORKING_LIMIT}
 - Short-term: ${mem.short_term.length}/${SHORT_TERM_LIMIT}
 - Long-term: ${mem.long_term.length} (persistent)`);
@@ -686,6 +901,61 @@ ${
 ${mem.long_term.length > 0 ? `Types: ${[...new Set(mem.long_term.map((i) => i.type))].join(", ")}` : "Empty."}
 
 **Version:** ${mem.version}`);
+      },
+    },
+
+    // R3: Context-Aware Pre-Compaction — Session Checkpoint
+    {
+      name: "memory_checkpoint",
+      label: "Session Checkpoint",
+      description:
+        "Write a structured session checkpoint for post-compaction continuity. Stores current task context, decisions, findings, and next steps.",
+      parameters: MemoryCheckpointParams,
+      async execute(_id: string, params: Static<typeof MemoryCheckpointParams>) {
+        const now = new Date();
+        const dateStr = now.toISOString().split("T")[0];
+        const timeStr = now.toISOString().split("T")[1].slice(0, 5).replace(":", "");
+        const checkpointPath = join(
+          resolveWorkspaceDir(api),
+          "agents",
+          params.agent_id,
+          "memory",
+          "checkpoints",
+          `${dateStr}-${timeStr}.md`,
+        );
+
+        const lines: string[] = [
+          `# Session Checkpoint — ${dateStr} ${now.toISOString().split("T")[1].slice(0, 5)} UTC`,
+          "",
+          "## Current Task Context",
+          params.context,
+          "",
+        ];
+
+        if (params.decisions?.length) {
+          lines.push("## Active Decisions");
+          for (const d of params.decisions) lines.push(`- ${d}`);
+          lines.push("");
+        }
+        if (params.findings?.length) {
+          lines.push("## Key Findings");
+          for (const f of params.findings) lines.push(`- ${f}`);
+          lines.push("");
+        }
+        if (params.next_steps?.length) {
+          lines.push("## Next Steps");
+          for (const s of params.next_steps) lines.push(`- ${s}`);
+          lines.push("");
+        }
+        if (params.open_questions?.length) {
+          lines.push("## Open Questions");
+          for (const q of params.open_questions) lines.push(`- ${q}`);
+          lines.push("");
+        }
+
+        await writeMd(checkpointPath, lines.join("\n"));
+
+        return textResult(`Checkpoint saved to memory/checkpoints/${dateStr}-${timeStr}.md`);
       },
     },
   ];
