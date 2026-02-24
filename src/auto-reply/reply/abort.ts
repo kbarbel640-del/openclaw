@@ -48,6 +48,7 @@ const ABORT_TRIGGERS = new Set([
   "halt",
   "anhalten",
   "aufhören",
+  "hör auf",
   "hoer auf",
   "stopp",
   "pare",
@@ -72,6 +73,7 @@ const TRAILING_ABORT_PUNCTUATION_RE = /[.!?…,，。;；:：'"’”)\]}]+$/u;
 
 function normalizeAbortTriggerText(text: string): string {
   return text
+    .normalize("NFC")
     .trim()
     .toLowerCase()
     .replace(/[’`]/g, "'")
