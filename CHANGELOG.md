@@ -72,7 +72,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
-- Security/Zero Trust Hardening: add defense-in-depth features under a unified `security` config namespace — credential encryption at rest (AES-256-GCM vault with OS keychain integration), per-sender sliding-window message rate limiting with cost budgets, SHA-256 config integrity verification to detect tampering, and plugin capability manifests with declare-and-enforce model for plugin permissions. Addresses threat model items T-ACCESS-003, T-IMPACT-002, T-PERSIST-001, T-PERSIST-003.
+- Security/Zero Trust Hardening: add defense-in-depth features — credential encryption at rest (AES-256-GCM vault with OS keychain integration), scoped and short-lived gateway tokens (HMAC-SHA256, role+scope+TTL, `osc_` prefix), per-sender sliding-window message rate limiting with cost budgets, SHA-256 config integrity verification to detect tampering, and plugin capability manifests with declare-and-enforce model for plugin permissions. Addresses threat model items T-ACCESS-003, T-IMPACT-002, T-PERSIST-001, T-PERSIST-003.
 - Providers/Kilo Gateway: add first-class `kilocode` provider support (auth, onboarding, implicit provider detection, model defaults, transcript/cache-ttl handling, and docs), with default model `kilocode/anthropic/claude-opus-4.6`. (#20212) Thanks @jrf0110 and @markijbema.
 - Providers/Vercel AI Gateway: accept Claude shorthand model refs (`vercel-ai-gateway/claude-*`) by normalizing to canonical Anthropic-routed model ids. (#23985) Thanks @sallyom, @markbooch, and @vincentkoc.
 - Docs/Prompt caching: add a dedicated prompt-caching reference covering `cacheRetention`, per-agent `params` merge precedence, Bedrock/OpenRouter behavior, and cache-ttl + heartbeat tuning. Thanks @svenssonaxel.
