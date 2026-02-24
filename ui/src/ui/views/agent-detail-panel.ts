@@ -178,7 +178,35 @@ export function renderAgentDetailPanel(props: AgentDetailPanelProps) {
           `,
         })}
 
-        <!-- D. Agent Config (from agent.json / openclaw config) -->
+        <!-- D. Goals, Projects & Workflows (Phase 2) -->
+        ${renderAgentSection({
+          id: "goals-projects",
+          title: "Goals, Projects & Workflows",
+          subtitle: "Active goals, assigned projects, and workflow configurations",
+          open: props.openSections.has("goals-projects"),
+          onToggle: props.onToggleSection,
+          content: html`
+            <div style="color: var(--muted); font-size: 0.85rem; line-height: 1.5">
+              <p style="margin: 0 0 8px">
+                Goals are derived from <strong>Goals.md</strong> in the BDI section above.
+              </p>
+              <p style="margin: 0 0 8px">
+                Project assignments and workflow configurations will be loaded from the ERP modules when the
+                gateway API is available.
+              </p>
+              <div class="agent-kv-grid" style="margin-top: 12px">
+                <div class="label">Projects Module</div>
+                <div class="value mono">mabos/erp/projects/</div>
+                <div class="label">Workflows Module</div>
+                <div class="value mono">mabos/erp/workflows/</div>
+                <div class="label">Status</div>
+                <div class="value">Pending gateway integration</div>
+              </div>
+            </div>
+          `,
+        })}
+
+        <!-- E. Agent Config (from agent.json / openclaw config) -->
         ${renderAgentSection({
           id: "config",
           title: "OpenClaw Agent Configuration",

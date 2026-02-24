@@ -127,6 +127,8 @@ Each rendered as an editable markdown section:
 - Workflow configurations (from \`mabos/erp/workflows/\`)
 - Knowledge topics related to the agent's role
 
+> **Phase 2:** Full implementation requires a gateway API endpoint to query per-agent ERP data from `mabos/erp/projects/` and `mabos/erp/workflows/` TypeScript modules. A placeholder section is included in the current panel.
+
 **E. OpenClaw Agent Configuration**
 
 - Agent config from \`agent.json\` manifest
