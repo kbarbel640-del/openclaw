@@ -236,7 +236,8 @@ describe("handleTelegramAction", () => {
       "🎰",
       expect.objectContaining({ token: "tok" }),
     );
-    const parsed = JSON.parse(result.content[0].text);
+    const first = result.content[0];
+    const parsed = JSON.parse("text" in first ? first.text : "");
     expect(parsed.ok).toBe(true);
     expect(parsed.emoji).toBe("🎲");
     expect(parsed.value).toBe(4);
