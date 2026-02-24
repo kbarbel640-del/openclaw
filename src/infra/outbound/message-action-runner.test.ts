@@ -348,6 +348,58 @@ describe("runMessageAction context isolation", () => {
     expect(result.channel).toBe("slack");
   });
 
+  it("treats Slack channel IDs in channel field as opaque targets in Slack context", async () => {
+    const result = await runDrySend({
+      cfg: slackConfig,
+      actionParams: {
+        channel: "C12345678",
+        message: "hi",
+      },
+      toolContext: { currentChannelProvider: "slack" },
+    });
+
+    expect(result.kind).toBe("send");
+    if (result.kind !== "send") {
+      throw new Error("expected send result");
+    }
+    expect(result.channel).toBe("slack");
+    expect(result.sendResult?.to).toBe("C12345678");
+  });
+
+  it("treats Slack channel IDs in channel field as opaque targets without tool context", async () => {
+    const result = await runDrySend({
+      cfg: slackConfig,
+      actionParams: {
+        channel: "C12345678",
+        message: "hi",
+      },
+    });
+
+    expect(result.kind).toBe("send");
+    if (result.kind !== "send") {
+      throw new Error("expected send result");
+    }
+    expect(result.channel).toBe("slack");
+    expect(result.sendResult?.to).toBe("C12345678");
+  });
+
+  it("still normalizes channel names and aliases", async () => {
+    const result = await runDrySend({
+      cfg: slackConfig,
+      actionParams: {
+        channel: "SlAcK",
+        target: "#C12345678",
+        message: "hi",
+      },
+    });
+
+    expect(result.kind).toBe("send");
+    if (result.kind !== "send") {
+      throw new Error("expected send result");
+    }
+    expect(result.channel).toBe("slack");
+  });
+
   it("blocks cross-provider sends by default", async () => {
     await expect(
       runDrySend({

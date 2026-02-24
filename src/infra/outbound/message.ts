@@ -103,13 +103,32 @@ export type MessagePollResult = {
   dryRun?: boolean;
 };
 
+function looksLikeSlackChannelId(raw?: string | null): boolean {
+  const s = raw?.trim();
+  // Slack channel IDs typically start with C or G and are uppercase alphanumeric.
+  // We must NOT lowercase these or normalize them.
+  return !!s && /^[CG][0-9A-Z]+$/.test(s);
+}
+
 async function resolveRequiredChannel(params: {
   cfg: OpenClawConfig;
   channel?: string;
 }): Promise<string> {
-  const channel = params.channel?.trim()
-    ? normalizeChannelId(params.channel)
-    : (await resolveMessageChannelSelection({ cfg: params.cfg })).channel;
+  const raw = params.channel?.trim();
+
+  // No explicit channel: use configured/default selection
+  if (!raw) {
+    return (await resolveMessageChannelSelection({ cfg: params.cfg })).channel;
+  }
+
+  // If this looks like a Slack channel ID, treat it as an opaque ID.
+  // Do NOT run it through normalizeChannelId (which lowercases).
+  if (looksLikeSlackChannelId(raw)) {
+    return raw;
+  }
+
+  // Otherwise, treat it as a logical channel id/name and normalize
+  const channel = normalizeChannelId(raw);
   if (!channel) {
     throw new Error(`Unknown channel: ${params.channel}`);
   }
