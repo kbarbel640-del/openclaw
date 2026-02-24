@@ -472,7 +472,14 @@ export function createBrowserTool(opts?: {
                 ? "efficient"
                 : undefined;
           const labels = typeof params.labels === "boolean" ? params.labels : undefined;
-          const refs = params.refs === "aria" || params.refs === "role" ? params.refs : undefined;
+          const selector = typeof params.selector === "string" ? params.selector.trim() : undefined;
+          const frame = typeof params.frame === "string" ? params.frame.trim() : undefined;
+          const requestedRefs =
+            params.refs === "aria" || params.refs === "role" ? params.refs : undefined;
+          // aria refs currently do not support selector/frame scoped snapshots.
+          // Downgrade to role refs instead of failing the entire tool call.
+          const refs =
+            requestedRefs === "aria" && (selector || frame) ? ("role" as const) : requestedRefs;
           const hasMaxChars = Object.hasOwn(params, "maxChars");
           const targetId = typeof params.targetId === "string" ? params.targetId.trim() : undefined;
           const limit =
@@ -500,8 +507,6 @@ export function createBrowserTool(opts?: {
             typeof params.depth === "number" && Number.isFinite(params.depth)
               ? params.depth
               : undefined;
-          const selector = typeof params.selector === "string" ? params.selector.trim() : undefined;
-          const frame = typeof params.frame === "string" ? params.frame.trim() : undefined;
           const snapshot = proxyRequest
             ? ((await proxyRequest({
                 method: "GET",

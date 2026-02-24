@@ -180,6 +180,25 @@ describe("browser tool snapshot maxChars", () => {
     );
   });
 
+  it("downgrades refs=aria to refs=role when selector scope is requested", async () => {
+    const tool = createBrowserTool();
+    await tool.execute?.("call-1", {
+      action: "snapshot",
+      snapshotFormat: "ai",
+      refs: "aria",
+      selector: "#searchbox",
+    });
+
+    expect(browserClientMocks.browserSnapshot).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        format: "ai",
+        refs: "role",
+        selector: "#searchbox",
+      }),
+    );
+  });
+
   it("uses config snapshot defaults when mode is not provided", async () => {
     configMocks.loadConfig.mockReturnValue({
       browser: { snapshotDefaults: { mode: "efficient" } },
