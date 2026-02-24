@@ -129,7 +129,7 @@ describe("sendMediaFeishu msg_type routing", () => {
     );
   });
 
-  it("uses msg_type=media for opus", async () => {
+  it("uses msg_type=audio for opus", async () => {
     await sendMediaFeishu({
       cfg: {} as any,
       to: "user:ou_target",
@@ -145,9 +145,28 @@ describe("sendMediaFeishu msg_type routing", () => {
 
     expect(messageCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ msg_type: "media" }),
+        data: expect.objectContaining({ msg_type: "audio" }),
       }),
     );
+  });
+
+  it("uses msg_type=audio when replying with opus", async () => {
+    await sendMediaFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      mediaBuffer: Buffer.from("audio"),
+      fileName: "reply.opus",
+      replyToMessageId: "om_parent",
+    });
+
+    expect(messageReplyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { message_id: "om_parent" },
+        data: expect.objectContaining({ msg_type: "audio" }),
+      }),
+    );
+
+    expect(messageCreateMock).not.toHaveBeenCalled();
   });
 
   it("uses msg_type=file for documents", async () => {
