@@ -620,7 +620,6 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     messagingToolSentTargets.length = 0;
     pendingMessagingTexts.clear();
     pendingMessagingTargets.clear();
-    pendingMessagingTargets.clear();
     resetAssistantMessageState(0);
     state.turnCount = 0;
     state.toolLoopHashes.length = 0;
