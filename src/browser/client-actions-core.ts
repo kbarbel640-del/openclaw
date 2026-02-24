@@ -90,10 +90,28 @@ export type BrowserDownloadPayload = {
 
 type BrowserDownloadResult = { ok: true; targetId: string; download: BrowserDownloadPayload };
 
+const DEFAULT_ROUTE_TIMEOUT_MS = 20_000;
+const DEFAULT_LONG_ACT_ROUTE_TIMEOUT_MS = 30_000;
+const ROUTE_TIMEOUT_HEADROOM_MS = 5_000;
+const MAX_ROUTE_TIMEOUT_MS = 180_000;
+
+function resolveRouteTimeoutMs(
+  requestedTimeoutMs: number | undefined,
+  fallbackTimeoutMs = DEFAULT_ROUTE_TIMEOUT_MS,
+): number {
+  if (typeof requestedTimeoutMs !== "number" || !Number.isFinite(requestedTimeoutMs)) {
+    return fallbackTimeoutMs;
+  }
+  const normalized = Math.max(500, Math.floor(requestedTimeoutMs));
+  const withHeadroom = normalized + ROUTE_TIMEOUT_HEADROOM_MS;
+  return Math.max(fallbackTimeoutMs, Math.min(MAX_ROUTE_TIMEOUT_MS, withHeadroom));
+}
+
 async function postDownloadRequest(
   baseUrl: string | undefined,
   route: "/wait/download" | "/download",
   body: Record<string, unknown>,
+  requestTimeoutMs: number | undefined,
   profile?: string,
 ): Promise<BrowserDownloadResult> {
   const q = buildProfileQuery(profile);
@@ -101,7 +119,7 @@ async function postDownloadRequest(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    timeoutMs: 20000,
+    timeoutMs: resolveRouteTimeoutMs(requestTimeoutMs),
   });
 }
 
@@ -142,7 +160,7 @@ export async function browserArmDialog(
       targetId: opts.targetId,
       timeoutMs: opts.timeoutMs,
     }),
-    timeoutMs: 20000,
+    timeoutMs: resolveRouteTimeoutMs(opts.timeoutMs),
   });
 }
 
@@ -170,7 +188,7 @@ export async function browserArmFileChooser(
       targetId: opts.targetId,
       timeoutMs: opts.timeoutMs,
     }),
-    timeoutMs: 20000,
+    timeoutMs: resolveRouteTimeoutMs(opts.timeoutMs),
   });
 }
 
@@ -191,6 +209,7 @@ export async function browserWaitForDownload(
       path: opts.path,
       timeoutMs: opts.timeoutMs,
     },
+    opts.timeoutMs,
     opts.profile,
   );
 }
@@ -214,6 +233,7 @@ export async function browserDownload(
       path: opts.path,
       timeoutMs: opts.timeoutMs,
     },
+    opts.timeoutMs,
     opts.profile,
   );
 }
@@ -224,11 +244,19 @@ export async function browserAct(
   opts?: { profile?: string },
 ): Promise<BrowserActResponse> {
   const q = buildProfileQuery(opts?.profile);
+  const requestTimeoutMs =
+    "timeoutMs" in req && typeof req.timeoutMs === "number" && Number.isFinite(req.timeoutMs)
+      ? req.timeoutMs
+      : undefined;
+  const defaultActTimeoutMs =
+    req.kind === "wait" || req.kind === "evaluate"
+      ? DEFAULT_LONG_ACT_ROUTE_TIMEOUT_MS
+      : DEFAULT_ROUTE_TIMEOUT_MS;
   return await fetchBrowserJson<BrowserActResponse>(withBaseUrl(baseUrl, `/act${q}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
-    timeoutMs: 20000,
+    timeoutMs: resolveRouteTimeoutMs(requestTimeoutMs, defaultActTimeoutMs),
   });
 }
 
