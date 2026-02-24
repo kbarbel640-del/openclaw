@@ -181,19 +181,21 @@ export function registerFeishuWikiTools(api: OpenClawPluginApi) {
     (ctx: OpenClawPluginToolContext) => {
       // Use config from execution context, fallback to registration config
       const config = ctx.config ?? api.config!;
-      
+
       // Helper to get client for a specific account (fallback to first if not found)
       const getClientForAccount = (accountId?: string): Lark.Client => {
         if (!accountId) {
           return createFeishuClient(firstAccount);
         }
-        
+
         const account = resolveFeishuAccount({ cfg: config, accountId });
         if (account.configured) {
           return createFeishuClient(account);
         }
-        
-        api.logger.warn?.(`feishu_wiki: Account "${accountId}" not found or not configured, falling back to default`);
+
+        api.logger.warn?.(
+          `feishu_wiki: Account "${accountId}" not found or not configured, falling back to default`,
+        );
         return createFeishuClient(firstAccount);
       };
 

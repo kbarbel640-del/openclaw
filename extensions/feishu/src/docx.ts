@@ -2,12 +2,12 @@ import { Readable } from "stream";
 import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts, resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { resolveToolsConfig } from "./tools-config.js";
-import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 
 // ============ Helpers ============
 
@@ -469,23 +469,30 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
       (ctx: OpenClawPluginToolContext) => {
         // Use config from execution context, fallback to registration config
         const config = ctx.config ?? api.config!;
-        
+
         // Helper to get client for a specific account (fallback to first if not found)
-        const getClientForAccount = (accountId?: string): { client: Lark.Client; mediaMaxBytes: number } => {
+        const getClientForAccount = (
+          accountId?: string,
+        ): { client: Lark.Client; mediaMaxBytes: number } => {
           if (!accountId) {
             // No account specified, use first (default behavior)
-            return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
+            return {
+              client: createFeishuClient(firstAccount),
+              mediaMaxBytes: defaultMediaMaxBytes,
+            };
           }
-          
+
           // Try to find the specific account using context config
           const account = resolveFeishuAccount({ cfg: config, accountId });
           if (account.configured) {
             const mediaMaxBytes = (account.config?.mediaMaxMb ?? 30) * 1024 * 1024;
             return { client: createFeishuClient(account), mediaMaxBytes };
           }
-          
+
           // Fallback to first account if specified account not found
-          api.logger.warn?.(`feishu_doc: Account "${accountId}" not found or not configured, falling back to default`);
+          api.logger.warn?.(
+            `feishu_doc: Account "${accountId}" not found or not configured, falling back to default`,
+          );
           return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
         };
 
@@ -538,19 +545,21 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
       (ctx: OpenClawPluginToolContext) => {
         // Use config from execution context, fallback to registration config
         const config = ctx.config ?? api.config!;
-        
+
         // Helper to get client for a specific account
         const getClientForAccount = (accountId?: string): Lark.Client => {
           if (!accountId) {
             return createFeishuClient(firstAccount);
           }
-          
+
           const account = resolveFeishuAccount({ cfg: config, accountId });
           if (account.configured) {
             return createFeishuClient(account);
           }
-          
-          api.logger.warn?.(`feishu_doc: Account "${accountId}" not found or not configured, falling back to default`);
+
+          api.logger.warn?.(
+            `feishu_doc: Account "${accountId}" not found or not configured, falling back to default`,
+          );
           return createFeishuClient(firstAccount);
         };
 
