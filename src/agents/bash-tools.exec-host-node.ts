@@ -16,7 +16,6 @@ import { buildNodeShellCommand } from "../infra/node-shell.js";
 import { logInfo } from "../logger.js";
 import { requestExecApprovalDecisionForHost } from "./bash-tools.exec-approval-request.js";
 import {
-  DEFAULT_APPROVAL_TIMEOUT_MS,
   createApprovalSlug,
   emitExecSystemEvent,
 } from "./bash-tools.exec-runtime.js";
@@ -180,68 +179,91 @@ export async function executeNodeHostCommand(
   if (requiresAsk) {
     const approvalId = crypto.randomUUID();
     const approvalSlug = createApprovalSlug(approvalId);
-    const expiresAtMs = Date.now() + DEFAULT_APPROVAL_TIMEOUT_MS;
     const contextKey = `exec:${approvalId}`;
     const noticeSeconds = Math.max(1, Math.round(params.approvalRunningNoticeMs / 1000));
     const warningText = params.warnings.length ? `${params.warnings.join("\n")}\n\n` : "";
 
-    void (async () => {
-      let decision: string | null = null;
-      try {
-        decision = await requestExecApprovalDecisionForHost({
+    let decision: string | null = null;
+    try {
+      decision = await requestExecApprovalDecisionForHost({
+        approvalId,
+        command: params.command,
+        workdir: params.workdir,
+        host: "node",
+        security: hostSecurity,
+        ask: hostAsk,
+        agentId: params.agentId,
+        sessionKey: params.sessionKey,
+      });
+    } catch {
+      emitExecSystemEvent(
+        `Exec denied (node=${nodeId} id=${approvalId}, approval-request-failed): ${params.command}`,
+        { sessionKey: params.notifySessionKey, contextKey },
+      );
+      return {
+        content: [{ type: "text", text: `${warningText}Exec approval request failed.` }],
+        details: {
+          status: "approval-pending",
           approvalId,
-          command: params.command,
-          workdir: params.workdir,
+          approvalSlug,
           host: "node",
-          security: hostSecurity,
-          ask: hostAsk,
-          agentId: params.agentId,
-          sessionKey: params.sessionKey,
-        });
-      } catch {
-        emitExecSystemEvent(
-          `Exec denied (node=${nodeId} id=${approvalId}, approval-request-failed): ${params.command}`,
-          { sessionKey: params.notifySessionKey, contextKey },
-        );
-        return;
-      }
+          command: params.command,
+          cwd: params.workdir,
+          nodeId,
+        },
+      };
+    }
 
-      let approvedByAsk = false;
-      let approvalDecision: "allow-once" | "allow-always" | null = null;
-      let deniedReason: string | null = null;
+    let approvedByAsk = false;
+    let approvalDecision: "allow-once" | "allow-always" | null = null;
+    let deniedReason: string | null = null;
 
-      if (decision === "deny") {
-        deniedReason = "user-denied";
-      } else if (!decision) {
-        if (obfuscation.detected) {
-          deniedReason = "approval-timeout (obfuscation-detected)";
-        } else if (askFallback === "full") {
-          approvedByAsk = true;
-          approvalDecision = "allow-once";
-        } else if (askFallback === "allowlist") {
-          // Defer allowlist enforcement to the node host.
-        } else {
-          deniedReason = "approval-timeout";
-        }
-      } else if (decision === "allow-once") {
+    if (decision === "deny") {
+      deniedReason = "user-denied";
+    } else if (!decision) {
+      if (obfuscation.detected) {
+        deniedReason = "approval-timeout (obfuscation-detected)";
+      } else if (askFallback === "full") {
         approvedByAsk = true;
         approvalDecision = "allow-once";
-      } else if (decision === "allow-always") {
-        approvedByAsk = true;
-        approvalDecision = "allow-always";
+      } else if (askFallback === "allowlist") {
+        // Defer allowlist enforcement to the node host.
+      } else {
+        deniedReason = "approval-timeout";
       }
+    } else if (decision === "allow-once") {
+      approvedByAsk = true;
+      approvalDecision = "allow-once";
+    } else if (decision === "allow-always") {
+      approvedByAsk = true;
+      approvalDecision = "allow-always";
+    }
 
-      if (deniedReason) {
-        emitExecSystemEvent(
-          `Exec denied (node=${nodeId} id=${approvalId}, ${deniedReason}): ${params.command}`,
-          {
-            sessionKey: params.notifySessionKey,
-            contextKey,
-          },
-        );
-        return;
-      }
+    if (deniedReason) {
+      emitExecSystemEvent(
+        `Exec denied (node=${nodeId} id=${approvalId}, ${deniedReason}): ${params.command}`,
+        {
+          sessionKey: params.notifySessionKey,
+          contextKey,
+        },
+      );
+      return {
+        content: [
+          { type: "text", text: `${warningText}Exec denied: ${deniedReason}` },
+        ],
+        details: {
+          status: "approval-pending",
+          approvalId,
+          approvalSlug,
+          host: "node",
+          command: params.command,
+          cwd: params.workdir,
+          nodeId,
+        },
+      };
+    }
 
+    void (async () => {
       let runningTimer: NodeJS.Timeout | null = null;
       if (params.approvalRunningNoticeMs > 0) {
         runningTimer = setTimeout(() => {
@@ -278,15 +300,14 @@ export async function executeNodeHostCommand(
         {
           type: "text",
           text:
-            `${warningText}Approval required (id ${approvalSlug}). ` +
-            "Approve to run; updates will arrive after completion.",
+            `${warningText}Approval granted (id ${approvalSlug}). ` +
+            "Command running; updates will arrive after completion.",
         },
       ],
       details: {
         status: "approval-pending",
         approvalId,
         approvalSlug,
-        expiresAtMs,
         host: "node",
         command: params.command,
         cwd: params.workdir,

@@ -20,7 +20,6 @@ import { logInfo } from "../logger.js";
 import { markBackgrounded, tail } from "./bash-process-registry.js";
 import { requestExecApprovalDecisionForHost } from "./bash-tools.exec-approval-request.js";
 import {
-  DEFAULT_APPROVAL_TIMEOUT_MS,
   DEFAULT_NOTIFY_TAIL_CHARS,
   createApprovalSlug,
   emitExecSystemEvent,
@@ -124,7 +123,6 @@ export async function processGatewayAllowlist(
   if (requiresAsk) {
     const approvalId = crypto.randomUUID();
     const approvalSlug = createApprovalSlug(approvalId);
-    const expiresAtMs = Date.now() + DEFAULT_APPROVAL_TIMEOUT_MS;
     const contextKey = `exec:${approvalId}`;
     const resolvedPath = allowlistEval.segments[0]?.resolution?.resolvedPath;
     const noticeSeconds = Math.max(1, Math.round(params.approvalRunningNoticeMs / 1000));
@@ -132,86 +130,112 @@ export async function processGatewayAllowlist(
       typeof params.timeoutSec === "number" ? params.timeoutSec : params.defaultTimeoutSec;
     const warningText = params.warnings.length ? `${params.warnings.join("\n")}\n\n` : "";
 
-    void (async () => {
-      let decision: string | null = null;
-      try {
-        decision = await requestExecApprovalDecisionForHost({
-          approvalId,
-          command: params.command,
-          workdir: params.workdir,
-          host: "gateway",
-          security: hostSecurity,
-          ask: hostAsk,
-          agentId: params.agentId,
-          resolvedPath,
-          sessionKey: params.sessionKey,
-        });
-      } catch {
-        emitExecSystemEvent(
-          `Exec denied (gateway id=${approvalId}, approval-request-failed): ${params.command}`,
-          {
-            sessionKey: params.notifySessionKey,
-            contextKey,
-          },
-        );
-        return;
-      }
-
-      let approvedByAsk = false;
-      let deniedReason: string | null = null;
-
-      if (decision === "deny") {
-        deniedReason = "user-denied";
-      } else if (!decision) {
-        if (obfuscation.detected) {
-          deniedReason = "approval-timeout (obfuscation-detected)";
-        } else if (askFallback === "full") {
-          approvedByAsk = true;
-        } else if (askFallback === "allowlist") {
-          if (!analysisOk || !allowlistSatisfied) {
-            deniedReason = "approval-timeout (allowlist-miss)";
-          } else {
-            approvedByAsk = true;
-          }
-        } else {
-          deniedReason = "approval-timeout";
-        }
-      } else if (decision === "allow-once") {
-        approvedByAsk = true;
-      } else if (decision === "allow-always") {
-        approvedByAsk = true;
-        if (hostSecurity === "allowlist") {
-          const patterns = resolveAllowAlwaysPatterns({
-            segments: allowlistEval.segments,
+    let decision: string | null = null;
+    try {
+      decision = await requestExecApprovalDecisionForHost({
+        approvalId,
+        command: params.command,
+        workdir: params.workdir,
+        host: "gateway",
+        security: hostSecurity,
+        ask: hostAsk,
+        agentId: params.agentId,
+        resolvedPath,
+        sessionKey: params.sessionKey,
+      });
+    } catch {
+      emitExecSystemEvent(
+        `Exec denied (gateway id=${approvalId}, approval-request-failed): ${params.command}`,
+        {
+          sessionKey: params.notifySessionKey,
+          contextKey,
+        },
+      );
+      return {
+        pendingResult: {
+          content: [{ type: "text", text: `${warningText}Exec approval request failed.` }],
+          details: {
+            status: "approval-pending",
+            approvalId,
+            approvalSlug,
+            host: "gateway",
+            command: params.command,
             cwd: params.workdir,
-            env: params.env,
-            platform: process.platform,
-          });
-          for (const pattern of patterns) {
-            if (pattern) {
-              addAllowlistEntry(approvals.file, params.agentId, pattern);
-            }
+          },
+        },
+      };
+    }
+
+    let approvedByAsk = false;
+    let deniedReason: string | null = null;
+
+    if (decision === "deny") {
+      deniedReason = "user-denied";
+    } else if (!decision) {
+      if (obfuscation.detected) {
+        deniedReason = "approval-timeout (obfuscation-detected)";
+      } else if (askFallback === "full") {
+        approvedByAsk = true;
+      } else if (askFallback === "allowlist") {
+        if (!analysisOk || !allowlistSatisfied) {
+          deniedReason = "approval-timeout (allowlist-miss)";
+        } else {
+          approvedByAsk = true;
+        }
+      } else {
+        deniedReason = "approval-timeout";
+      }
+    } else if (decision === "allow-once") {
+      approvedByAsk = true;
+    } else if (decision === "allow-always") {
+      approvedByAsk = true;
+      if (hostSecurity === "allowlist") {
+        const patterns = resolveAllowAlwaysPatterns({
+          segments: allowlistEval.segments,
+          cwd: params.workdir,
+          env: params.env,
+          platform: process.platform,
+        });
+        for (const pattern of patterns) {
+          if (pattern) {
+            addAllowlistEntry(approvals.file, params.agentId, pattern);
           }
         }
       }
+    }
 
-      if (hostSecurity === "allowlist" && (!analysisOk || !allowlistSatisfied) && !approvedByAsk) {
-        deniedReason = deniedReason ?? "allowlist-miss";
-      }
+    if (hostSecurity === "allowlist" && (!analysisOk || !allowlistSatisfied) && !approvedByAsk) {
+      deniedReason = deniedReason ?? "allowlist-miss";
+    }
 
-      if (deniedReason) {
-        emitExecSystemEvent(
-          `Exec denied (gateway id=${approvalId}, ${deniedReason}): ${params.command}`,
-          {
-            sessionKey: params.notifySessionKey,
-            contextKey,
+    if (deniedReason) {
+      emitExecSystemEvent(
+        `Exec denied (gateway id=${approvalId}, ${deniedReason}): ${params.command}`,
+        {
+          sessionKey: params.notifySessionKey,
+          contextKey,
+        },
+      );
+      return {
+        pendingResult: {
+          content: [
+            { type: "text", text: `${warningText}Exec denied: ${deniedReason}` },
+          ],
+          details: {
+            status: "approval-pending",
+            approvalId,
+            approvalSlug,
+            host: "gateway",
+            command: params.command,
+            cwd: params.workdir,
           },
-        );
-        return;
-      }
+        },
+      };
+    }
 
-      recordMatchedAllowlistUse(resolvedPath ?? undefined);
+    recordMatchedAllowlistUse(resolvedPath ?? undefined);
 
+    void (async () => {
       let run: Awaited<ReturnType<typeof runExecProcess>> | null = null;
       try {
         run = await runExecProcess({
@@ -273,15 +297,14 @@ export async function processGatewayAllowlist(
           {
             type: "text",
             text:
-              `${warningText}Approval required (id ${approvalSlug}). ` +
-              "Approve to run; updates will arrive after completion.",
+              `${warningText}Approval granted (id ${approvalSlug}). ` +
+              "Command running; updates will arrive after completion.",
           },
         ],
         details: {
           status: "approval-pending",
           approvalId,
           approvalSlug,
-          expiresAtMs,
           host: "gateway",
           command: params.command,
           cwd: params.workdir,
