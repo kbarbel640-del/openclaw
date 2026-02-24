@@ -51,6 +51,9 @@ export function registerSlackMessageEvents(params: {
       const message = event as SlackMessageEvent;
       if (message.subtype === "message_changed") {
         const changed = event as SlackMessageChangedEvent;
+        if (changed.message?.bot_id && ctx.botUserId && changed.message.user === ctx.botUserId) {
+          return;
+        }
         const channelId = changed.channel;
         const target = await resolveSlackChannelSystemEventTarget(channelId);
         if (!target) {
