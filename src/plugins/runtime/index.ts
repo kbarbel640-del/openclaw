@@ -100,6 +100,19 @@ import { fetchRemoteMedia } from "../../media/fetch.js";
 import { getImageMetadata, resizeToJpeg } from "../../media/image-ops.js";
 import { detectMime } from "../../media/mime.js";
 import { saveMediaBuffer } from "../../media/store.js";
+import {
+  listMessengerAccountIds,
+  normalizeAccountId as normalizeMessengerAccountId,
+  resolveDefaultMessengerAccountId,
+  resolveMessengerAccount,
+} from "../../messenger/accounts.js";
+import { monitorMessengerProvider } from "../../messenger/monitor.js";
+import { probeMessengerPage } from "../../messenger/probe.js";
+import {
+  sendMessageMessenger,
+  sendMediaMessenger,
+  sendSenderAction,
+} from "../../messenger/send.js";
 import { buildPairingReply } from "../../pairing/pairing-messages.js";
 import {
   readChannelAllowFromStore,
@@ -431,6 +444,17 @@ function createRuntimeChannel(): PluginRuntime["channel"] {
       createQuickReplyItems,
       buildTemplateMessageFromPayload,
       monitorLineProvider,
+    },
+    messenger: {
+      listMessengerAccountIds,
+      resolveDefaultMessengerAccountId,
+      resolveMessengerAccount,
+      normalizeAccountId: normalizeMessengerAccountId,
+      probeMessengerPage,
+      sendMessageMessenger,
+      sendMediaMessenger,
+      sendSenderAction,
+      monitorMessengerProvider,
     },
   };
 }
