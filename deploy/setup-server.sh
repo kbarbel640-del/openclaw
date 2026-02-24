@@ -41,10 +41,18 @@ if [ -n "${OPENCLAW_MODEL:-}" ]; then
 fi
 
 # Sandbox — isolate each session via Docker.
+# workspaceAccess=none still allows writes (patched in fa236a26e).
+# docker.network=bridge gives agents network access for API calls.
+# docker.readOnlyRoot=false needed for writable overlay in DinD.
+# prune.idleHours=1 cleans up idle sandbox containers after 1 hour.
 if command -v docker &>/dev/null && docker info &>/dev/null; then
   node openclaw.mjs config set agents.defaults.sandbox.mode all
   node openclaw.mjs config set agents.defaults.sandbox.scope session
   node openclaw.mjs config set agents.defaults.sandbox.workspaceAccess none
+  node openclaw.mjs config set agents.defaults.sandbox.sessionToolsVisibility all
+  node openclaw.mjs config set agents.defaults.sandbox.docker.network bridge
+  node openclaw.mjs config set agents.defaults.sandbox.docker.readOnlyRoot false
+  node openclaw.mjs config set agents.defaults.sandbox.prune.idleHours 1
 else
   echo "[setup] Docker not available, sandbox disabled."
   node openclaw.mjs config set agents.defaults.sandbox.mode off
