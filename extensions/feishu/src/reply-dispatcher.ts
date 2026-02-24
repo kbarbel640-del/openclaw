@@ -21,6 +21,11 @@ function shouldUseCard(text: string): boolean {
   return /```[\s\S]*?```/.test(text) || /\|.+\|[\r\n]+\|[-:| ]+\|/.test(text);
 }
 
+/** Format thinking/reasoning content for display in streaming card */
+function formatThinkingContent(text: string): string {
+  return `💭 **Thinking...**\n\n${text}`;
+}
+
 export type CreateFeishuReplyDispatcherParams = {
   cfg: ClawdbotConfig;
   agentId: string;
@@ -79,6 +84,8 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   let streaming: FeishuStreamingSession | null = null;
   let streamText = "";
   let lastPartial = "";
+  let reasoningText = "";
+  let isReasoning = false;
   let partialUpdateQueue: Promise<void> = Promise.resolve();
   let streamingStartPromise: Promise<void> | null = null;
 
@@ -216,6 +223,29 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
     replyOptions: {
       ...replyOptions,
       onModelSelected: prefixContext.onModelSelected,
+      onReasoningStream: streamingEnabled
+        ? (payload: ReplyPayload) => {
+            if (!payload.text) {
+              return;
+            }
+            reasoningText = payload.text;
+            isReasoning = true;
+            startStreaming();
+            partialUpdateQueue = partialUpdateQueue.then(async () => {
+              if (streamingStartPromise) {
+                await streamingStartPromise;
+              }
+              if (streaming?.isActive()) {
+                await streaming.update(formatThinkingContent(reasoningText));
+              }
+            });
+          }
+        : undefined,
+      onReasoningEnd: streamingEnabled
+        ? () => {
+            isReasoning = false;
+          }
+        : undefined,
       onPartialReply: streamingEnabled
         ? (payload: ReplyPayload) => {
             if (!payload.text || payload.text === lastPartial) {
