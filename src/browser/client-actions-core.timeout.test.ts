@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  fetchBrowserJson: vi.fn(async () => ({ ok: true, targetId: "t1" })),
+  fetchBrowserJson: vi.fn(async (_url: string, _init?: RequestInit & { timeoutMs?: number }) => ({
+    ok: true,
+    targetId: "t1",
+  })),
 }));
 
 vi.mock("./client-fetch.js", () => ({
@@ -17,10 +20,16 @@ import {
 } from "./client-actions-core.js";
 
 describe("client-actions-core timeout policy", () => {
+  const lastInit = (index = 0): RequestInit & { timeoutMs?: number } => {
+    const call = mocks.fetchBrowserJson.mock.calls[index];
+    expect(call).toBeDefined();
+    return call?.[1] ?? {};
+  };
+
   it("uses default route timeout when request timeout is not provided", async () => {
     mocks.fetchBrowserJson.mockClear();
     await browserAct("http://127.0.0.1:18791", { kind: "click", ref: "1" });
-    const init = mocks.fetchBrowserJson.mock.calls[0]?.[1] as { timeoutMs?: number };
+    const init = lastInit(0);
     expect(init.timeoutMs).toBe(20_000);
   });
 
@@ -31,7 +40,7 @@ describe("client-actions-core timeout policy", () => {
       timeMs: 30_000,
       timeoutMs: 30_000,
     });
-    const init = mocks.fetchBrowserJson.mock.calls[0]?.[1] as { timeoutMs?: number };
+    const init = lastInit(0);
     expect(init.timeoutMs).toBe(35_000);
   });
 
@@ -41,7 +50,7 @@ describe("client-actions-core timeout policy", () => {
       kind: "evaluate",
       fn: "() => document.title",
     });
-    const init = mocks.fetchBrowserJson.mock.calls[0]?.[1] as { timeoutMs?: number };
+    const init = lastInit(0);
     expect(init.timeoutMs).toBe(30_000);
   });
 
@@ -52,8 +61,8 @@ describe("client-actions-core timeout policy", () => {
       paths: ["/tmp/a.txt"],
       timeoutMs: 45_000,
     });
-    const first = mocks.fetchBrowserJson.mock.calls[0]?.[1] as { timeoutMs?: number };
-    const second = mocks.fetchBrowserJson.mock.calls[1]?.[1] as { timeoutMs?: number };
+    const first = lastInit(0);
+    const second = lastInit(1);
     expect(first.timeoutMs).toBe(45_000);
     expect(second.timeoutMs).toBe(50_000);
   });
@@ -66,8 +75,8 @@ describe("client-actions-core timeout policy", () => {
       path: "/tmp/dl.txt",
       timeoutMs: 70_000,
     });
-    const first = mocks.fetchBrowserJson.mock.calls[0]?.[1] as { timeoutMs?: number };
-    const second = mocks.fetchBrowserJson.mock.calls[1]?.[1] as { timeoutMs?: number };
+    const first = lastInit(0);
+    const second = lastInit(1);
     expect(first.timeoutMs).toBe(65_000);
     expect(second.timeoutMs).toBe(75_000);
   });

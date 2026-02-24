@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
     },
   })),
   startBrowserControlServiceFromConfig: vi.fn(async () => ({ ok: true })),
-  dispatch: vi.fn(async () => ({ status: 200, body: { ok: true } })),
+  dispatch: vi.fn<() => Promise<{ status: number; body: Record<string, unknown> }>>(async () => ({
+    status: 200,
+    body: { ok: true },
+  })),
 }));
 
 vi.mock("../config/config.js", async (importOriginal) => {
