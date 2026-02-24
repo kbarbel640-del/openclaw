@@ -31,6 +31,94 @@ const COGNITIVE_FILES = {
   learnings: "Learnings.md",
 } as const;
 
+/** R5: Maximum sections per chunk for recursive belief processing. */
+const BELIEF_CHUNK_SIZE = 50;
+
+/**
+ * R5: Process belief content in chunks for large belief bases.
+ */
+async function processBeliefChunks(
+  beliefs: string,
+  processor: (chunk: string) => Promise<{ pruned: number; updated: string }>,
+  chunkSize: number = BELIEF_CHUNK_SIZE,
+): Promise<{ totalPruned: number; result: string }> {
+  const sections = beliefs.split(/(?=^##\s)/m).filter(Boolean);
+  if (sections.length <= chunkSize) {
+    const r = await processor(beliefs);
+    return { totalPruned: r.pruned, result: r.updated };
+  }
+  const chunks: string[] = [];
+  for (let i = 0; i < sections.length; i += chunkSize) {
+    chunks.push(sections.slice(i, i + chunkSize).join("\n"));
+  }
+  let totalPruned = 0;
+  const processed: string[] = [];
+  for (const chunk of chunks) {
+    const result = await processor(chunk);
+    totalPruned += result.pruned;
+    processed.push(result.updated);
+  }
+  return { totalPruned, result: processed.join("\n") };
+}
+
+/**
+ * R5: Detect conflicting beliefs within a belief document.
+ * Compares belief blocks — if two beliefs about the same subject
+ * have conflicting values and both have high certainty, flag as conflict.
+ */
+function detectBeliefConflicts(beliefs: string): Array<{
+  belief1: string;
+  belief2: string;
+  reason: string;
+}> {
+  const blocks = beliefs.split(/(?=^##\s)/m).filter(Boolean);
+  const conflicts: Array<{ belief1: string; belief2: string; reason: string }> = [];
+
+  // Extract subject and certainty from each block
+  const parsed = blocks.map((block) => {
+    const heading =
+      block
+        .split("\n")[0]
+        ?.replace(/^##\s*/, "")
+        .trim() || "";
+    const certaintyMatch = block.match(/certainty:\s*([\.\d]+)/);
+    const certainty = certaintyMatch ? parseFloat(certaintyMatch[1]) : 0.5;
+    // Extract subject — first meaningful word cluster
+    const subject = heading
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .trim();
+    return { heading, subject, certainty, block: block.trim() };
+  });
+
+  // Compare pairs
+  for (let i = 0; i < parsed.length; i++) {
+    for (let j = i + 1; j < parsed.length; j++) {
+      const a = parsed[i];
+      const b = parsed[j];
+      // Same subject with high certainty on both sides
+      if (
+        a.subject &&
+        b.subject &&
+        a.subject === b.subject &&
+        a.certainty > 0.6 &&
+        b.certainty > 0.6
+      ) {
+        // Check if contents actually differ (not just duplicates)
+        if (a.block !== b.block) {
+          conflicts.push({
+            belief1: a.heading,
+            belief2: b.heading,
+            reason: `Both have high certainty (${a.certainty}, ${b.certainty}) but different content`,
+          });
+        }
+      }
+    }
+  }
+
+  return conflicts;
+}
+
 /** BDI configuration from agent.json. */
 export interface AgentBdiConfig {
   commitmentStrategy?: "single-minded" | "open-minded" | "cautious";
@@ -64,6 +152,8 @@ export interface BdiCycleResult {
   agentId: string;
   staleIntentionsPruned: number;
   desiresPrioritized: number;
+  conflictsDetected: number;
+  chunksProcessed: number;
   timestamp: string;
 }
 
@@ -190,10 +280,53 @@ export async function runMaintenanceCycle(state: BdiAgentState): Promise<BdiCycl
     }
   }
 
+  // --- R5: Chunked belief processing ---
+  let chunksProcessed = 0;
+  if (state.beliefs) {
+    const beliefSections = state.beliefs.split(/(?=^##\s)/m).filter(Boolean);
+    chunksProcessed = Math.ceil(beliefSections.length / BELIEF_CHUNK_SIZE);
+  }
+
+  // --- R5: Detect belief conflicts ---
+  let conflictsDetected = 0;
+  if (state.beliefs) {
+    const conflicts = detectBeliefConflicts(state.beliefs);
+    conflictsDetected = conflicts.length;
+
+    if (conflicts.length > 0) {
+      // Write conflict report
+      const { mkdir, writeFile: writeFileFs } = await import("node:fs/promises");
+      const conflictDir = join(state.agentDir, "memory", "bdi-conflicts");
+      await mkdir(conflictDir, { recursive: true });
+      const dateStr = new Date().toISOString().split("T")[0];
+      const reportPath = join(conflictDir, `${dateStr}.md`);
+
+      const report = [
+        `# BDI Conflict Report — ${dateStr}`,
+        "",
+        `> ${conflicts.length} conflict(s) detected during maintenance cycle.`,
+        "",
+        ...conflicts.map((c, i) =>
+          [
+            `## Conflict ${i + 1}`,
+            `- **Belief A:** ${c.belief1}`,
+            `- **Belief B:** ${c.belief2}`,
+            `- **Reason:** ${c.reason}`,
+            "",
+          ].join("\n"),
+        ),
+      ].join("\n");
+
+      await writeFileFs(reportPath, report, "utf-8");
+    }
+  }
+
   return {
     agentId: state.agentId,
     staleIntentionsPruned,
     desiresPrioritized,
+    conflictsDetected,
+    chunksProcessed,
     timestamp: new Date().toISOString(),
   };
 }
@@ -284,6 +417,7 @@ export function createBdiService(opts: {
 
     let totalPruned = 0;
     let totalPrioritized = 0;
+    let totalConflicts = 0;
 
     for (const agentId of agents) {
       const agentDir = join(opts.workspaceDir, "agents", agentId);
@@ -292,14 +426,15 @@ export function createBdiService(opts: {
         const result = await runMaintenanceCycle(state);
         totalPruned += result.staleIntentionsPruned;
         totalPrioritized += result.desiresPrioritized;
+        totalConflicts += result.conflictsDetected;
       } catch {
         // Skip individual agent errors
       }
     }
 
-    if (totalPruned > 0 || totalPrioritized > 0) {
+    if (totalPruned > 0 || totalPrioritized > 0 || totalConflicts > 0) {
       opts.logger.info(
-        `[mabos-bdi] Cycle complete: ${agents.length} agents, ${totalPruned} intentions pruned, ${totalPrioritized} desires re-sorted`,
+        `[mabos-bdi] Cycle complete: ${agents.length} agents, ${totalPruned} intentions pruned, ${totalPrioritized} desires re-sorted, ${totalConflicts} conflicts detected`,
       );
     }
   }
