@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
@@ -43,6 +44,7 @@ import {
   pickFallbackThinkingLevel,
   type FailoverReason,
 } from "../pi-embedded-helpers.js";
+import { extractAssistantText } from "../pi-embedded-utils.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../usage.js";
 import { redactRunIdentifier, resolveRunWorkspaceDir } from "../workspace-run.js";
 import { compactEmbeddedPiSessionDirect } from "./compact.js";
@@ -171,6 +173,38 @@ function resolveActiveErrorContext(params: {
   };
 }
 
+function resolveTextFailoverSignal(params: {
+  lastAssistant: AssistantMessage | undefined;
+}): { reason: FailoverReason; message: string } | null {
+  const assistant = params.lastAssistant;
+  if (!assistant || assistant.stopReason === "error" || assistant.errorMessage?.trim()) {
+    return null;
+  }
+  const content = Array.isArray(assistant.content) ? assistant.content : [];
+  const firstBlock = content[0] as { type?: string } | undefined;
+  if (content.length !== 1 || firstBlock?.type !== "text") {
+    return null;
+  }
+  const text = extractAssistantText(assistant).trim();
+  if (!text) {
+    return null;
+  }
+  if (text.length > 220) {
+    return null;
+  }
+  const sentenceCount = text.split(/[.!?]+(?:\s+|$)/).filter(Boolean).length;
+  if (sentenceCount > 3) {
+    return null;
+  }
+  const reason = classifyFailoverReason(text);
+  // Only treat explicit model-lifecycle errors as failover-worthy when they are
+  // returned as plain assistant text (stopReason=stop).
+  if (reason !== "unknown") {
+    return null;
+  }
+  return { reason, message: text };
+}
+
 export async function runEmbeddedPiAgent(
   params: RunEmbeddedPiAgentParams,
 ): Promise<EmbeddedPiRunResult> {
@@ -276,6 +310,9 @@ export async function runEmbeddedPiAgent(
       if (!model) {
         throw new Error(error ?? `Unknown model: ${provider}/${modelId}`);
       }
+      // Canonicalize runtime provider/model for downstream logs, hooks, and retries.
+      provider = model.provider ?? provider;
+      modelId = model.id ?? modelId;
 
       const ctxInfo = resolveContextWindowInfo({
         cfg: params.config,
@@ -872,6 +909,8 @@ export async function runEmbeddedPiAgent(
           const billingFailure = isBillingAssistantError(lastAssistant);
           const failoverFailure = isFailoverAssistantError(lastAssistant);
           const assistantFailoverReason = classifyFailoverReason(lastAssistant?.errorMessage ?? "");
+          const textFailoverSignal = resolveTextFailoverSignal({ lastAssistant });
+          const textFailoverReason = textFailoverSignal?.reason;
           const cloudCodeAssistFormatError = attempt.cloudCodeAssistFormatError;
           const imageDimensionError = parseImageDimensionError(lastAssistant?.errorMessage ?? "");
 
@@ -897,14 +936,15 @@ export async function runEmbeddedPiAgent(
           // Treat timeout as potential rate limit (Antigravity hangs on rate limit)
           // But exclude post-prompt compaction timeouts (model succeeded; no profile issue)
           const shouldRotate =
-            (!aborted && failoverFailure) || (timedOut && !timedOutDuringCompaction);
+            (!aborted && (failoverFailure || Boolean(textFailoverReason))) ||
+            (timedOut && !timedOutDuringCompaction);
 
           if (shouldRotate) {
             if (lastProfileId) {
               const reason =
                 timedOut || assistantFailoverReason === "timeout"
                   ? "timeout"
-                  : (assistantFailoverReason ?? "unknown");
+                  : (assistantFailoverReason ?? textFailoverReason ?? "unknown");
               await markAuthProfileFailure({
                 store: authStore,
                 profileId: lastProfileId,
@@ -952,12 +992,12 @@ export async function runEmbeddedPiAgent(
                         )
                       : authFailure
                         ? "LLM request unauthorized."
-                        : "LLM request failed.");
+                        : (textFailoverSignal?.message ?? "LLM request failed."));
               const status =
-                resolveFailoverStatus(assistantFailoverReason ?? "unknown") ??
+                resolveFailoverStatus(assistantFailoverReason ?? textFailoverReason ?? "unknown") ??
                 (isTimeoutErrorMessage(message) ? 408 : undefined);
               throw new FailoverError(message, {
-                reason: assistantFailoverReason ?? "unknown",
+                reason: assistantFailoverReason ?? textFailoverReason ?? "unknown",
                 provider: activeErrorContext.provider,
                 model: activeErrorContext.model,
                 profileId: lastProfileId,

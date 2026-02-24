@@ -296,6 +296,88 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
     }
   });
 
+  it("rotates when model-unavailable is returned as plain assistant text", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
+      await writeAuthStore(agentDir);
+      runEmbeddedAttemptMock
+        .mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: ["Gemini 3.1 Pro is not available on this version."],
+            lastAssistant: buildAssistant({
+              stopReason: "stop",
+              content: [
+                {
+                  type: "text",
+                  text: "Gemini 3.1 Pro is not available on this version. Please upgrade to the latest version.",
+                },
+              ],
+            }),
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeAttempt({
+            assistantTexts: ["ok"],
+            lastAssistant: buildAssistant({
+              stopReason: "stop",
+              content: [{ type: "text", text: "ok" }],
+            }),
+          }),
+        );
+
+      await runAutoPinnedOpenAiTurn({
+        agentDir,
+        workspaceDir,
+        sessionKey: "agent:test:model-unavailable-plain-text",
+        runId: "run:model-unavailable-plain-text",
+      });
+
+      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(2);
+      await expectProfileP2UsageUpdated(agentDir);
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not rotate when model-unavailable text is part of a long conversational answer", async () => {
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));
+    try {
+      await writeAuthStore(agentDir);
+      runEmbeddedAttemptMock.mockResolvedValueOnce(
+        makeAttempt({
+          assistantTexts: [
+            "If you see 'Gemini 3.1 Pro is not available on this version. Please upgrade to the latest version.', that means the provider endpoint and runtime are out of sync. In that case, update your model mapping to the canonical Gemini 3 Pro ID and keep a fallback list so execution can continue.",
+          ],
+          lastAssistant: buildAssistant({
+            stopReason: "stop",
+            content: [
+              {
+                type: "text",
+                text: "If you see 'Gemini 3.1 Pro is not available on this version. Please upgrade to the latest version.', that means the provider endpoint and runtime are out of sync. In that case, update your model mapping to the canonical Gemini 3 Pro ID and keep a fallback list so execution can continue.",
+              },
+            ],
+          }),
+        }),
+      );
+
+      await runAutoPinnedOpenAiTurn({
+        agentDir,
+        workspaceDir,
+        sessionKey: "agent:test:model-unavailable-conversation",
+        runId: "run:model-unavailable-conversation",
+      });
+
+      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
+      await expectProfileP2UsageUnchanged(agentDir);
+    } finally {
+      await fs.rm(agentDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   it("does not rotate for compaction timeouts", async () => {
     const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-"));
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-workspace-"));

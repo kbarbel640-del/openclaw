@@ -6,7 +6,7 @@ import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { buildModelAliasLines } from "../model-alias-lines.js";
 import { normalizeModelCompat } from "../model-compat.js";
 import { resolveForwardCompatModel } from "../model-forward-compat.js";
-import { normalizeProviderId } from "../model-selection.js";
+import { normalizeModelRef, normalizeProviderId } from "../model-selection.js";
 import {
   discoverAuthStorage,
   discoverModels,
@@ -19,6 +19,11 @@ type InlineProviderConfig = {
   baseUrl?: string;
   api?: ModelDefinitionConfig["api"];
   models?: ModelDefinitionConfig[];
+};
+
+const ANTIGRAVITY_GEMINI_LEGACY_COMPAT: Record<string, string> = {
+  "gemini-3-pro-high": "gemini-3.1-pro-high",
+  "gemini-3-pro-low": "gemini-3.1-pro-low",
 };
 
 export { buildModelAliasLines };
@@ -51,16 +56,35 @@ export function resolveModel(
   authStorage: AuthStorage;
   modelRegistry: ModelRegistry;
 } {
+  const normalizedRef = normalizeModelRef(provider, modelId);
+  const normalizedProvider = normalizedRef.provider;
+  const normalizedModelId = normalizedRef.model;
+  const modelCandidates = (() => {
+    const candidates = [normalizedModelId];
+    if (normalizedProvider !== "google-antigravity") {
+      return candidates;
+    }
+    const compat = ANTIGRAVITY_GEMINI_LEGACY_COMPAT[normalizedModelId.toLowerCase()];
+    if (compat && !candidates.includes(compat)) {
+      candidates.push(compat);
+    }
+    return candidates;
+  })();
   const resolvedAgentDir = agentDir ?? resolveOpenClawAgentDir();
   const authStorage = discoverAuthStorage(resolvedAgentDir);
   const modelRegistry = discoverModels(authStorage, resolvedAgentDir);
-  const model = modelRegistry.find(provider, modelId) as Model<Api> | null;
+  const model =
+    modelCandidates
+      .map((candidate) => modelRegistry.find(normalizedProvider, candidate) as Model<Api> | null)
+      .find(Boolean) ?? null;
   if (!model) {
     const providers = cfg?.models?.providers ?? {};
     const inlineModels = buildInlineProviderModels(providers);
-    const normalizedProvider = normalizeProviderId(provider);
+    const normalizedProviderId = normalizeProviderId(normalizedProvider);
     const inlineMatch = inlineModels.find(
-      (entry) => normalizeProviderId(entry.provider) === normalizedProvider && entry.id === modelId,
+      (entry) =>
+        normalizeProviderId(entry.provider) === normalizedProviderId &&
+        modelCandidates.includes(entry.id),
     );
     if (inlineMatch) {
       const normalized = normalizeModelCompat(inlineMatch as Model<Api>);
@@ -72,17 +96,24 @@ export function resolveModel(
     }
     // Forward-compat fallbacks must be checked BEFORE the generic providerCfg fallback.
     // Otherwise, configured providers can default to a generic API and break specific transports.
-    const forwardCompat = resolveForwardCompatModel(provider, modelId, modelRegistry);
+    const forwardCompat =
+      modelCandidates
+        .map((candidate) => resolveForwardCompatModel(normalizedProvider, candidate, modelRegistry))
+        .find(Boolean) ?? null;
     if (forwardCompat) {
       return { model: forwardCompat, authStorage, modelRegistry };
     }
-    const providerCfg = providers[provider];
-    if (providerCfg || modelId.startsWith("mock-")) {
+    const providerCfg =
+      providers[normalizedProvider] ??
+      Object.entries(providers).find(
+        ([key]) => normalizeProviderId(key) === normalizedProviderId,
+      )?.[1];
+    if (providerCfg || normalizedModelId.startsWith("mock-")) {
       const fallbackModel: Model<Api> = normalizeModelCompat({
-        id: modelId,
-        name: modelId,
+        id: normalizedModelId,
+        name: normalizedModelId,
         api: providerCfg?.api ?? "openai-responses",
-        provider,
+        provider: normalizedProvider,
         baseUrl: providerCfg?.baseUrl,
         reasoning: false,
         input: ["text"],

@@ -58,23 +58,23 @@ describe("model-selection", () => {
     it("normalizes antigravity gemini refs to latest antigravity model ids", () => {
       expect(parseModelRef("google-antigravity/gemini-3-pro", "openai")).toEqual({
         provider: "google-antigravity",
-        model: "gemini-3-pro-high",
+        model: "gemini-3.1-pro-high",
       });
       expect(parseModelRef("google-antigravity/gemini-3.1-pro", "openai")).toEqual({
         provider: "google-antigravity",
-        model: "gemini-3-pro-high",
+        model: "gemini-3.1-pro-high",
       });
       expect(parseModelRef("google-antigravity/gemini-3.1-pro-low", "openai")).toEqual({
         provider: "google-antigravity",
-        model: "gemini-3-pro-low",
+        model: "gemini-3.1-pro-low",
       });
       expect(parseModelRef("gemini-3.1-pro", "google-antigravity")).toEqual({
         provider: "google-antigravity",
-        model: "gemini-3-pro-high",
+        model: "gemini-3.1-pro-high",
       });
       expect(parseModelRef("gemini-3-pro-high", "google-antigravity")).toEqual({
         provider: "google-antigravity",
-        model: "gemini-3-pro-high",
+        model: "gemini-3.1-pro-high",
       });
     });
 
