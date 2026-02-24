@@ -607,7 +607,7 @@ function mapContainerPathToWorkspaceRoot(params: {
     return params.filePath;
   }
 
-  let candidate = params.filePath;
+  let candidate = params.filePath.startsWith("@") ? params.filePath.slice(1) : params.filePath;
   if (/^file:\/\//i.test(candidate)) {
     try {
       candidate = fileURLToPath(candidate);
