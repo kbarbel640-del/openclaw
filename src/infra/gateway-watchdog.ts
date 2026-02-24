@@ -140,7 +140,10 @@ export async function startGatewayWatchdog(opts: WatchdogOptions = {}): Promise<
   const cleanup = () => {
     process.removeListener("SIGTERM", onSigterm);
     process.removeListener("SIGINT", onSigint);
-    state.status = "stopped";
+    // Preserve terminal statuses like "gave-up"; only default to "stopped"
+    if (state.status !== "gave-up") {
+      state.status = "stopped";
+    }
     state.childPid = null;
     writeWatchdogState(state, opts.stateDir);
   };

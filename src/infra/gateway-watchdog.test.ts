@@ -200,7 +200,7 @@ describe("startGatewayWatchdog", () => {
     expect(spawnMock).toHaveBeenCalledTimes(3);
 
     const state = readWatchdogState(tmpDir);
-    expect(state?.status).toBe("stopped");
+    expect(state?.status).toBe("gave-up");
 
     vi.useRealTimers();
   });
