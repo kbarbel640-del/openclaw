@@ -78,6 +78,117 @@ function validateIdentityAvatar(config: OpenClawConfig): ConfigValidationIssue[]
   return issues;
 }
 
+function parseFiniteNumericString(value: unknown): number | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/**
+ * Older onboarding/config editor flows can persist model numeric fields as strings.
+ * Normalize these known fields before schema validation so local model setup does
+ * not fail with a generic "invalid config".
+ */
+function normalizeModelDefinitionNumericStrings(raw: unknown): unknown {
+  if (!isRecord(raw)) {
+    return raw;
+  }
+  const models = raw.models;
+  if (!isRecord(models)) {
+    return raw;
+  }
+  const providers = models.providers;
+  if (!isRecord(providers)) {
+    return raw;
+  }
+
+  let providersChanged = false;
+  const nextProviders: Record<string, unknown> = { ...providers };
+
+  for (const [providerId, providerValue] of Object.entries(providers)) {
+    if (!isRecord(providerValue)) {
+      continue;
+    }
+    const modelEntries = providerValue.models;
+    if (!Array.isArray(modelEntries)) {
+      continue;
+    }
+
+    let entryChanged = false;
+    const nextModelEntries = modelEntries.map((entry) => {
+      if (!isRecord(entry)) {
+        return entry;
+      }
+
+      let modelChanged = false;
+      let nextEntry: Record<string, unknown> = entry;
+      for (const key of ["contextWindow", "maxTokens"] as const) {
+        const parsed = parseFiniteNumericString(nextEntry[key]);
+        if (parsed === undefined || nextEntry[key] === parsed) {
+          continue;
+        }
+        if (!modelChanged) {
+          nextEntry = { ...nextEntry };
+          modelChanged = true;
+        }
+        nextEntry[key] = parsed;
+      }
+
+      const costValue = nextEntry.cost;
+      if (isRecord(costValue)) {
+        let costChanged = false;
+        let nextCost: Record<string, unknown> = costValue;
+        for (const key of ["input", "output", "cacheRead", "cacheWrite"] as const) {
+          const parsed = parseFiniteNumericString(nextCost[key]);
+          if (parsed === undefined || nextCost[key] === parsed) {
+            continue;
+          }
+          if (!costChanged) {
+            nextCost = { ...nextCost };
+            costChanged = true;
+          }
+          nextCost[key] = parsed;
+        }
+        if (costChanged) {
+          if (!modelChanged) {
+            nextEntry = { ...nextEntry };
+            modelChanged = true;
+          }
+          nextEntry.cost = nextCost;
+        }
+      }
+
+      if (modelChanged) {
+        entryChanged = true;
+      }
+      return nextEntry;
+    });
+
+    if (!entryChanged) {
+      continue;
+    }
+    nextProviders[providerId] = { ...providerValue, models: nextModelEntries };
+    providersChanged = true;
+  }
+
+  if (!providersChanged) {
+    return raw;
+  }
+  return {
+    ...raw,
+    models: {
+      ...models,
+      providers: nextProviders,
+    },
+  };
+}
+
 /**
  * Validates config without applying runtime defaults.
  * Use this when you need the raw validated config (e.g., for writing back to file).
@@ -85,7 +196,8 @@ function validateIdentityAvatar(config: OpenClawConfig): ConfigValidationIssue[]
 export function validateConfigObjectRaw(
   raw: unknown,
 ): { ok: true; config: OpenClawConfig } | { ok: false; issues: ConfigValidationIssue[] } {
-  const legacyIssues = findLegacyConfigIssues(raw);
+  const normalized = normalizeModelDefinitionNumericStrings(raw);
+  const legacyIssues = findLegacyConfigIssues(normalized);
   if (legacyIssues.length > 0) {
     return {
       ok: false,
@@ -95,7 +207,7 @@ export function validateConfigObjectRaw(
       })),
     };
   }
-  const validated = OpenClawSchema.safeParse(raw);
+  const validated = OpenClawSchema.safeParse(normalized);
   if (!validated.success) {
     return {
       ok: false,

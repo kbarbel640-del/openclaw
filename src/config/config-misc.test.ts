@@ -256,6 +256,83 @@ describe("model compat config schema", () => {
   });
 });
 
+describe("models.providers numeric string compatibility", () => {
+  it("accepts numeric strings for model numeric fields (vLLM setup compatibility)", () => {
+    const res = validateConfigObject({
+      models: {
+        mode: "merge",
+        providers: {
+          vllm: {
+            baseUrl: "http://127.0.0.1:8889/v1",
+            api: "openai-responses",
+            models: [
+              {
+                id: "Qwen2.5-32B-Instruct",
+                name: "Local Model",
+                reasoning: true,
+                input: ["text"],
+                contextWindow: "32000",
+                maxTokens: "5000",
+                cost: {
+                  input: "0",
+                  output: "0",
+                  cacheRead: "0",
+                  cacheWrite: "0",
+                },
+              },
+            ],
+          },
+        },
+      },
+      agents: {
+        defaults: {
+          model: {
+            primary: "vllm/Qwen2.5-32B-Instruct",
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      const model = res.config.models?.providers?.vllm?.models?.[0];
+      expect(model?.contextWindow).toBe(32000);
+      expect(model?.maxTokens).toBe(5000);
+      expect(model?.cost?.input).toBe(0);
+      expect(model?.cost?.output).toBe(0);
+      expect(model?.cost?.cacheRead).toBe(0);
+      expect(model?.cost?.cacheWrite).toBe(0);
+    }
+  });
+
+  it("still rejects non-numeric strings for numeric model fields", () => {
+    const res = validateConfigObject({
+      models: {
+        providers: {
+          vllm: {
+            baseUrl: "http://127.0.0.1:8889/v1",
+            api: "openai-responses",
+            models: [
+              {
+                id: "Qwen2.5-32B-Instruct",
+                name: "Local Model",
+                maxTokens: "not-a-number",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(
+        res.issues.some((issue) => issue.path === "models.providers.vllm.models.0.maxTokens"),
+      ).toBe(true);
+    }
+  });
+});
+
 describe("config paths", () => {
   it("rejects empty and blocked paths", () => {
     expect(parseConfigPath("")).toEqual({
