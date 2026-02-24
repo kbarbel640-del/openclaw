@@ -9,6 +9,7 @@
     <TargetFrameworks>net8.0</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOsPlatform('Windows'))">net8.0;net8.0-windows</TargetFrameworks>
     <UseWindowsForms Condition="'$(TargetFramework)' == 'net8.0-windows'">true</UseWindowsForms>
+    <ApplicationIcon Condition="'$(TargetFramework)' == 'net8.0-windows'">Tray/Assets/openclaw-claw.ico</ApplicationIcon>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -19,10 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Tray/Assets/openclaw-claw.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>openclaw-claw.ico</TargetPath>
-    </Content>
+    <EmbeddedResource Include="Tray/Assets/openclaw-claw.ico" LogicalName="OpenClaw.Node.Tray.Assets.openclaw-claw.ico" />
   </ItemGroup>
 
 </Project>

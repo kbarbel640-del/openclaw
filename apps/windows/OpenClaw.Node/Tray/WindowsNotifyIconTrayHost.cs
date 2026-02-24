@@ -307,24 +307,42 @@ namespace OpenClaw.Node.Tray
 
         private object? ResolveApplicationIcon()
         {
+            var iconType = Type.GetType("System.Drawing.Icon, System.Drawing")
+                ?? Type.GetType("System.Drawing.Icon, System.Drawing.Common");
+
+            try
+            {
+                var asm = typeof(WindowsNotifyIconTrayHost).Assembly;
+                const string iconResource = "OpenClaw.Node.Tray.Assets.openclaw-claw.ico";
+                using var stream = asm.GetManifestResourceStream(iconResource);
+                var streamCtor = iconType?.GetConstructor(new[] { typeof(Stream) });
+                if (stream != null && streamCtor != null)
+                {
+                    _log?.Invoke("[TRAY] Using embedded tray icon resource.");
+                    return streamCtor.Invoke(new object[] { stream });
+                }
+            }
+            catch (Exception ex)
+            {
+                _log?.Invoke($"[TRAY] Embedded icon load failed: {ex.Message}");
+            }
+
             try
             {
                 var iconPath = Path.Combine(AppContext.BaseDirectory, "openclaw-claw.ico");
                 if (File.Exists(iconPath))
                 {
-                    var iconType = Type.GetType("System.Drawing.Icon, System.Drawing")
-                        ?? Type.GetType("System.Drawing.Icon, System.Drawing.Common");
-                    var ctor = iconType?.GetConstructor(new[] { typeof(string) });
-                    if (ctor != null)
+                    var fileCtor = iconType?.GetConstructor(new[] { typeof(string) });
+                    if (fileCtor != null)
                     {
-                        _log?.Invoke($"[TRAY] Using custom icon: {iconPath}");
-                        return ctor.Invoke(new object[] { iconPath });
+                        _log?.Invoke($"[TRAY] Using custom icon file fallback: {iconPath}");
+                        return fileCtor.Invoke(new object[] { iconPath });
                     }
                 }
             }
             catch (Exception ex)
             {
-                _log?.Invoke($"[TRAY] Custom icon load failed: {ex.Message}");
+                _log?.Invoke($"[TRAY] Custom icon file load failed: {ex.Message}");
             }
 
             var iconsType = Type.GetType("System.Drawing.SystemIcons, System.Drawing")
