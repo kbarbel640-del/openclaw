@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { evaluateConfigMutation, evaluateSkillInstall, evaluateToolCall } from "./policy.evaluate.js";
+import {
+  evaluateConfigMutation,
+  evaluateSkillInstall,
+  evaluateToolCall,
+} from "./policy.evaluate.js";
 import type { PolicyManagerState } from "./policy.manager.js";
 import type { SignedPolicy } from "./policy.schema.js";
 

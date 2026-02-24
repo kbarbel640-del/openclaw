@@ -78,7 +78,10 @@ export function verifyEd25519Signature(params: {
   }
 }
 
-export function signEd25519Payload(params: { payload: string | Buffer; privateKey: string }): string {
+export function signEd25519Payload(params: {
+  payload: string | Buffer;
+  privateKey: string;
+}): string {
   const key = createEd25519PrivateKey(params.privateKey);
   const signature = crypto.sign(null, toPayloadBuffer(params.payload), key);
   return signature.toString("base64");

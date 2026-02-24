@@ -195,7 +195,9 @@ function denyConfigMutationByPolicy(params: {
   action: string;
   reason: string;
 }) {
-  params.log?.warn?.(`POLICY_DENY kind=config-mutation action=${params.action} reason=${params.reason}`);
+  params.log?.warn?.(
+    `POLICY_DENY kind=config-mutation action=${params.action} reason=${params.reason}`,
+  );
   params.respond(
     false,
     undefined,

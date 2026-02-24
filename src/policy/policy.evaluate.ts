@@ -368,7 +368,7 @@ export function evaluateConfigMutation(
   if (disableAttempt) {
     return {
       allow: false,
-      reason: 'policy.enabled disable attempt denied (missing allowPolicyDisable rule)',
+      reason: "policy.enabled disable attempt denied (missing allowPolicyDisable rule)",
     };
   }
   return {

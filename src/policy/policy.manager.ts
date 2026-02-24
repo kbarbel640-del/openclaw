@@ -69,7 +69,9 @@ function isExpiredPolicy(policy: SignedPolicy, nowMs: number): boolean {
   return nowMs > expiryTs;
 }
 
-async function computePolicyState(config: ResolvedPolicyRuntimeConfig): Promise<PolicyManagerState> {
+async function computePolicyState(
+  config: ResolvedPolicyRuntimeConfig,
+): Promise<PolicyManagerState> {
   const baseState: PolicyManagerState = {
     enabled: config.enabled,
     valid: true,
@@ -142,7 +144,12 @@ export async function getPolicyManagerState(opts?: {
   const resolved = resolvePolicyRuntimeConfig(opts?.config);
   const fingerprint = buildFingerprint(resolved);
   const nowMs = Date.now();
-  if (!opts?.forceReload && cache && cache.fingerprint === fingerprint && cache.expiresAtMs > nowMs) {
+  if (
+    !opts?.forceReload &&
+    cache &&
+    cache.fingerprint === fingerprint &&
+    cache.expiresAtMs > nowMs
+  ) {
     return cache.state;
   }
   const state = await computePolicyState(resolved);
@@ -154,7 +161,9 @@ export async function getPolicyManagerState(opts?: {
   return state;
 }
 
-export async function refreshPolicyManager(opts?: { config?: OpenClawConfig }): Promise<PolicyManagerState> {
+export async function refreshPolicyManager(opts?: {
+  config?: OpenClawConfig;
+}): Promise<PolicyManagerState> {
   return await getPolicyManagerState({ config: opts?.config, forceReload: true });
 }
 

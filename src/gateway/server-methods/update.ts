@@ -36,7 +36,9 @@ export const updateHandlers: GatewayRequestHandlers = {
     const policyDecision = evaluateConfigMutation("update.run", undefined, { state: policyState });
     if (!policyDecision.allow) {
       const reason = policyDecision.reason ?? "update.run denied";
-      context.logGateway?.warn?.(`POLICY_DENY kind=config-mutation action=update.run reason=${reason}`);
+      context.logGateway?.warn?.(
+        `POLICY_DENY kind=config-mutation action=update.run reason=${reason}`,
+      );
       respond(
         false,
         undefined,

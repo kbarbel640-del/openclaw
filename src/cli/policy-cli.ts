@@ -24,9 +24,7 @@ async function readKeyFile(keyPath: string): Promise<string> {
 }
 
 export function registerPolicyCli(program: Command) {
-  const policy = program
-    .command("policy")
-    .description("Sign and verify signed policy guardrails");
+  const policy = program.command("policy").description("Sign and verify signed policy guardrails");
 
   policy
     .command("sign")

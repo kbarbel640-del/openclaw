@@ -21,7 +21,9 @@ export async function requestPolicyApproval(params: {
   }
 
   const timeoutMs =
-    typeof params.timeoutMs === "number" && Number.isFinite(params.timeoutMs) && params.timeoutMs > 0
+    typeof params.timeoutMs === "number" &&
+    Number.isFinite(params.timeoutMs) &&
+    params.timeoutMs > 0
       ? Math.floor(params.timeoutMs)
       : DEFAULT_EXEC_APPROVAL_TIMEOUT_MS;
   const record = manager.create(
