@@ -74,15 +74,25 @@ export class ComposeOrchestrator {
     // 3. Pull image if not present
     const imagesPulled = await this.images.ensure(image, onProgress);
 
-    // 4. Start the gateway environment
-    await this.containers.createEnvironment({
-      configDir: config.configDir,
-      workspaceDir: config.workspaceDir,
-      gatewayToken: config.gatewayToken,
-      gatewayPort: config.gatewayPort ?? DEFAULT_GATEWAY_PORT,
-      bridgePort: config.bridgePort ?? DEFAULT_BRIDGE_PORT,
-      image,
-    });
+    // 4. Start the gateway environment using the network we just ensured
+    try {
+      await this.containers.createEnvironment({
+        configDir: config.configDir,
+        workspaceDir: config.workspaceDir,
+        gatewayToken: config.gatewayToken,
+        gatewayPort: config.gatewayPort ?? DEFAULT_GATEWAY_PORT,
+        bridgePort: config.bridgePort ?? DEFAULT_BRIDGE_PORT,
+        image,
+        network: ComposeOrchestrator.NETWORK_NAME,
+      });
+    } catch (err) {
+      // Rollback: remove the network we created if container setup fails.
+      // Volumes are preserved intentionally (data safety).
+      await this.networks.removeByName(ComposeOrchestrator.NETWORK_NAME).catch(() => {
+        // Best-effort cleanup; swallow rollback errors to surface the original error.
+      });
+      throw err;
+    }
 
     return { networkId, volumeNames, imagesPulled };
   }

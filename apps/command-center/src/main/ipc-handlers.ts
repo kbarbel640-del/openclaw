@@ -6,10 +6,16 @@
  */
 
 import { ipcMain } from "electron";
+import { totalmem } from "node:os";
 import { IPC_CHANNELS } from "../shared/ipc-types.js";
 import type { DockerEngineClient } from "./docker/engine-client.js";
 import type { ContainerManager } from "./docker/container-manager.js";
 import { EngineDetector } from "./docker/engine-detector.js";
+import { ImageManager } from "./docker/image-manager.js";
+import { NetworkManager } from "./docker/network-manager.js";
+import { VolumeManager } from "./docker/volume-manager.js";
+import { ComposeOrchestrator } from "./docker/compose-orchestrator.js";
+import type { StackConfig } from "./docker/compose-orchestrator.js";
 
 interface IpcDependencies {
   dockerClient: DockerEngineClient;
@@ -17,8 +23,19 @@ interface IpcDependencies {
 }
 
 export function registerIpcHandlers(deps: IpcDependencies): void {
-  const { dockerClient: _dockerClient, containerManager } = deps;
+  const { dockerClient, containerManager } = deps;
   const detector = new EngineDetector();
+
+  // Build orchestrator from the shared docker client (stateless wrappers)
+  const imageManager = new ImageManager(dockerClient);
+  const networkManager = new NetworkManager(dockerClient);
+  const volumeManager = new VolumeManager(dockerClient);
+  const orchestrator = new ComposeOrchestrator(
+    containerManager,
+    imageManager,
+    networkManager,
+    volumeManager,
+  );
 
   // ─── Docker Info ────────────────────────────────────────────────────────
 
@@ -32,12 +49,28 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     return containerManager.getEnvironmentStatus();
   });
 
+  ipcMain.handle(IPC_CHANNELS.ENV_CREATE, async (_event, rawConfig: unknown) => {
+    // Coerce the renderer payload to StackConfig (basic runtime validation)
+    const config = rawConfig as StackConfig;
+    await orchestrator.up(config);
+  });
+
   ipcMain.handle(IPC_CHANNELS.ENV_START, async () => {
     await containerManager.startEnvironment();
   });
 
   ipcMain.handle(IPC_CHANNELS.ENV_STOP, async () => {
     await containerManager.stopEnvironment();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ENV_DESTROY, async () => {
+    await orchestrator.down();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.ENV_LOGS, async (_event, containerId: unknown) => {
+    // Returns recent logs for a container identified by ID
+    if (typeof containerId !== "string") { return ""; }
+    return dockerClient.getContainerLogs(containerId, { tail: 200 });
   });
 
   // ─── System Validation ──────────────────────────────────────────────────
@@ -83,7 +116,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     });
 
     // Memory check
-    const totalMemGB = Math.round((require("node:os").totalmem() / 1024 / 1024 / 1024) * 10) / 10;
+    const totalMemGB = Math.round((totalmem() / 1024 / 1024 / 1024) * 10) / 10;
     checks.push({
       name: "Available Memory",
       description: "At least 4 GB RAM recommended",

@@ -114,6 +114,7 @@ export class DockerEngineClient {
     return this.docker.createNetwork({
       Name: name,
       Driver: "bridge",
+      CheckDuplicate: true,  // Prevent silent duplicate network creation
       Internal: false,
       Labels: { "ai.openclaw.managed": "true" },
     });

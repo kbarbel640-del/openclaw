@@ -31,7 +31,12 @@ export class ContainerManager {
   // ─── Environment Lifecycle ──────────────────────────────────────────────
 
   /**
-   * Create the full OpenClaw environment (network + gateway container).
+   * Create the gateway container and attach it to an existing network.
+   *
+   * Network and volume creation are the caller's responsibility (use
+   * ComposeOrchestrator.up() or InstallerEngine.install() which call
+   * NetworkManager/VolumeManager before this). Separating concerns prevents
+   * double-creation errors when the orchestrator already ensured them.
    */
   async createEnvironment(config: {
     configDir: string;
@@ -40,18 +45,15 @@ export class ContainerManager {
     gatewayPort?: number;
     bridgePort?: number;
     image?: string;
+    /** Name of the pre-existing network to attach to. Defaults to "openclaw-net". */
+    network?: string;
   }): Promise<void> {
     const image = config.image ?? OPENCLAW_IMAGE;
     const gatewayPort = config.gatewayPort ?? DEFAULT_GATEWAY_PORT;
     const bridgePort = config.bridgePort ?? DEFAULT_BRIDGE_PORT;
+    const network = config.network ?? "openclaw-net";
 
-    // 1. Create isolated network
-    await this.client.createNetwork("openclaw-net");
-
-    // 2. Create persistent volume for home directory
-    await this.client.createVolume("openclaw-home");
-
-    // 3. Create gateway container (the primary service)
+    // Create gateway container (the primary service) attached to the existing network
     const gateway = await this.client.createContainer({
       name: "openclaw-gateway",
       image,
@@ -74,7 +76,7 @@ export class ContainerManager {
         [config.configDir]: "/home/node/.openclaw",
         [config.workspaceDir]: "/home/node/.openclaw/workspace",
       },
-      network: "openclaw-net",
+      network,
       labels: roleLabel("gateway"),
     });
 
