@@ -362,6 +362,9 @@ async function completeSubagentRun(params: {
 }
 
 function startSubagentAnnounceCleanupFlow(runId: string, entry: SubagentRunRecord): boolean {
+  // Cancel any pending debounce timer from the lifecycle listener to avoid
+  // redundant timer fires when the gateway RPC path completes first.
+  cancelPendingCleanupTimer(runId);
   if (!beginSubagentCleanup(runId)) {
     return false;
   }
