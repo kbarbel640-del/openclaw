@@ -246,6 +246,47 @@ describe("CronService store migrations", () => {
     await store.cleanup();
   });
 
+  it("annotates missing-state jobs when payload is malformed", async () => {
+    const store = await makeStorePath();
+    await fs.mkdir(path.dirname(store.storePath), { recursive: true });
+    await fs.writeFile(
+      store.storePath,
+      JSON.stringify(
+        {
+          version: 1,
+          jobs: [
+            {
+              id: "legacy-missing-payload-no-state",
+              name: "legacy missing payload no state",
+              enabled: true,
+              createdAtMs: Date.parse("2026-02-01T12:00:00.000Z"),
+              updatedAtMs: Date.parse("2026-02-05T12:00:00.000Z"),
+              schedule: { kind: "cron", expr: "0 23 * * *", tz: "UTC" },
+              sessionTarget: "isolated",
+              wakeMode: "next-heartbeat",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const cron = await createStartedCron(store.storePath).start();
+
+    const jobs = await cron.list({ includeDisabled: true });
+    const job = jobs.find((entry) => entry.id === "legacy-missing-payload-no-state");
+    expect(job).toBeDefined();
+    expect(job?.enabled).toBe(false);
+    expect(job?.state.lastStatus).toBe("skipped");
+    expect(job?.state.lastError).toBe("invalid persisted cron job: missing or invalid payload");
+    expect(job?.state.nextRunAtMs).toBeUndefined();
+
+    cron.stop();
+    await store.cleanup();
+  });
+
   it("disables persisted agentTurn jobs with empty payload message and records a skip error", async () => {
     const store = await makeStorePath();
     await fs.mkdir(path.dirname(store.storePath), { recursive: true });

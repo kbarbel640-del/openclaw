@@ -230,12 +230,14 @@ function markInvalidPersistedPayload(raw: Record<string, unknown>) {
     mutated = true;
   }
 
-  const state =
+  let state =
     raw.state && typeof raw.state === "object" && !Array.isArray(raw.state)
       ? (raw.state as Record<string, unknown>)
       : null;
   if (!state) {
-    return mutated;
+    state = {};
+    raw.state = state;
+    mutated = true;
   }
 
   if (state.lastStatus !== "skipped") {
