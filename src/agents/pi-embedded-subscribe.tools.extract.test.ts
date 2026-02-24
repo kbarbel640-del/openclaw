@@ -35,4 +35,49 @@ describe("extractMessagingToolSend", () => {
     expect(result?.provider).toBe("slack");
     expect(result?.to).toBe("channel:C1");
   });
+
+  it("falls back to target when to is missing", () => {
+    const result = extractMessagingToolSend("message", {
+      action: "send",
+      channel: "telegram",
+      target: "456",
+    });
+
+    expect(result?.tool).toBe("message");
+    expect(result?.provider).toBe("telegram");
+    expect(result?.to).toBe("telegram:456");
+  });
+
+  it("falls back to channelId when to and target are missing", () => {
+    const result = extractMessagingToolSend("message", {
+      action: "send",
+      channel: "telegram",
+      channelId: "789",
+    });
+
+    expect(result?.tool).toBe("message");
+    expect(result?.provider).toBe("telegram");
+    expect(result?.to).toBe("telegram:789");
+  });
+
+  it("prefers to over target and channelId", () => {
+    const result = extractMessagingToolSend("message", {
+      action: "send",
+      channel: "telegram",
+      to: "111",
+      target: "222",
+      channelId: "333",
+    });
+
+    expect(result?.to).toBe("telegram:111");
+  });
+
+  it("returns undefined when none of to/target/channelId is set", () => {
+    const result = extractMessagingToolSend("message", {
+      action: "send",
+      channel: "telegram",
+    });
+
+    expect(result).toBeUndefined();
+  });
 });
