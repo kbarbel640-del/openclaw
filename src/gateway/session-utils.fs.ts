@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   formatSessionArchiveTimestamp,
+  loadSessionStore,
   parseSessionArchiveTimestamp,
   type SessionArchiveReason,
   resolveSessionFilePath,
@@ -226,6 +227,45 @@ export function archiveSessionTranscripts(opts: {
   return archived;
 }
 
+export function deleteSessionTranscripts(opts: {
+  sessionId: string;
+  storePath: string | undefined;
+  sessionFile?: string;
+  agentId?: string;
+  restrictToStoreDir?: boolean;
+}): { deleted: string[]; failed: string[] } {
+  const deleted: string[] = [];
+  const failed: string[] = [];
+  const storeDir =
+    opts.restrictToStoreDir && opts.storePath
+      ? canonicalizePathForComparison(path.dirname(opts.storePath))
+      : null;
+  for (const candidate of resolveSessionTranscriptCandidates(
+    opts.sessionId,
+    opts.storePath,
+    opts.sessionFile,
+    opts.agentId,
+  )) {
+    const candidatePath = canonicalizePathForComparison(candidate);
+    if (storeDir) {
+      const relative = path.relative(storeDir, candidatePath);
+      if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+        continue;
+      }
+    }
+    if (!fs.existsSync(candidatePath)) {
+      continue;
+    }
+    try {
+      fs.unlinkSync(candidatePath);
+      deleted.push(candidatePath);
+    } catch {
+      failed.push(candidatePath);
+    }
+  }
+  return { deleted, failed };
+}
+
 export async function cleanupArchivedSessionTranscripts(opts: {
   directories: string[];
   olderThanMs: number;
@@ -263,6 +303,100 @@ export async function cleanupArchivedSessionTranscripts(opts: {
   }
 
   return { removed, scanned };
+}
+
+export function detectOrphanTranscripts(opts: { sessionsDir: string; storePath: string }): {
+  orphanPaths: string[];
+  totalFiles: number;
+} {
+  const { sessionsDir, storePath } = opts;
+  if (!fs.existsSync(sessionsDir)) {
+    return { orphanPaths: [], totalFiles: 0 };
+  }
+  const store = loadSessionStore(storePath, { skipCache: true });
+  const sessionPathOpts = {
+    sessionsDir,
+    agentId: undefined as string | undefined,
+  };
+  const referencedPaths = new Set<string>();
+  for (const entry of Object.values(store)) {
+    if (!entry || typeof entry !== "object" || !("sessionId" in entry)) {
+      continue;
+    }
+    const sessionId = (entry as { sessionId?: string }).sessionId;
+    if (!sessionId) {
+      continue;
+    }
+    try {
+      const resolved = path.resolve(
+        resolveSessionFilePath(sessionId, entry as Record<string, unknown>, sessionPathOpts),
+      );
+      referencedPaths.add(resolved);
+    } catch {
+      // ignore invalid paths
+    }
+  }
+  const sessionDirEntries = fs.readdirSync(sessionsDir, { withFileTypes: true });
+  const orphanPaths: string[] = [];
+  let totalFiles = 0;
+  for (const entry of sessionDirEntries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+    if (!isPrimarySessionTranscriptFileName(entry.name)) {
+      continue;
+    }
+    totalFiles += 1;
+    const fullPath = canonicalizePathForComparison(path.join(sessionsDir, entry.name));
+    if (!referencedPaths.has(fullPath)) {
+      orphanPaths.push(fullPath);
+    }
+  }
+  return { orphanPaths, totalFiles };
+}
+
+function isPrimarySessionTranscriptFileName(name: string): boolean {
+  if (!name.endsWith(".jsonl")) {
+    return false;
+  }
+  const base = name.slice(0, -6);
+  return !base.includes(".");
+}
+
+export function cleanupOrphanTranscripts(opts: {
+  sessionsDir: string;
+  storePath: string;
+  threshold?: number;
+  log?: (msg: string) => void;
+}): { deleted: number; skipped: number; failed: number } {
+  const threshold = opts.threshold ?? 10;
+  const { orphanPaths, totalFiles } = detectOrphanTranscripts({
+    sessionsDir: opts.sessionsDir,
+    storePath: opts.storePath,
+  });
+  if (orphanPaths.length === 0) {
+    return { deleted: 0, skipped: 0, failed: 0 };
+  }
+  if (orphanPaths.length < threshold) {
+    opts.log?.(
+      `[orphan-cleanup] ${orphanPaths.length} orphan transcript(s) found, below threshold ${threshold}; skipping`,
+    );
+    return { deleted: 0, skipped: orphanPaths.length, failed: 0 };
+  }
+  opts.log?.(
+    `[orphan-cleanup] cleaning up ${orphanPaths.length} orphan transcript(s) (total files: ${totalFiles})`,
+  );
+  let deleted = 0;
+  let failed = 0;
+  for (const orphanPath of orphanPaths) {
+    try {
+      fs.unlinkSync(orphanPath);
+      deleted += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { deleted, skipped: 0, failed };
 }
 
 function jsonUtf8Bytes(value: unknown): number {

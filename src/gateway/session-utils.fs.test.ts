@@ -1,10 +1,13 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { createToolSummaryPreviewTranscriptLines } from "./session-preview.test-helpers.js";
 import {
   archiveSessionTranscripts,
+  cleanupOrphanTranscripts,
+  deleteSessionTranscripts,
+  detectOrphanTranscripts,
   readFirstUserMessageFromTranscript,
   readLastMessagePreviewFromTranscript,
   readSessionMessages,
@@ -785,5 +788,196 @@ describe("archiveSessionTranscripts", () => {
     expect(archived).toHaveLength(1);
     expect(archived[0]).toContain(".deleted.");
     expect(fs.existsSync(transcriptPath)).toBe(false);
+  });
+});
+
+describe("deleteSessionTranscripts", () => {
+  let tmpDir: string;
+  let storePath: string;
+
+  registerTempSessionStore("openclaw-delete-test-", (nextTmpDir, nextStorePath) => {
+    tmpDir = nextTmpDir;
+    storePath = nextStorePath;
+  });
+
+  test("deletes transcript files and returns paths", () => {
+    const sessionId = "sess-delete-1";
+    const transcriptPath = path.join(tmpDir, `${sessionId}.jsonl`);
+    fs.writeFileSync(transcriptPath, '{"type":"session"}\n', "utf-8");
+    expect(fs.existsSync(transcriptPath)).toBe(true);
+    const expectedDeletedPath = fs.realpathSync(transcriptPath);
+
+    const result = deleteSessionTranscripts({ sessionId, storePath });
+    expect(result.deleted).toHaveLength(1);
+    expect(result.deleted[0]).toBe(expectedDeletedPath);
+    expect(fs.existsSync(transcriptPath)).toBe(false);
+  });
+
+  test("returns empty array when no transcript exists", () => {
+    const result = deleteSessionTranscripts({
+      sessionId: "nonexistent-delete",
+      storePath,
+    });
+    expect(result.deleted).toEqual([]);
+  });
+
+  test("deletes from explicit sessionFile path", () => {
+    const sessionId = "sess-delete-explicit";
+    const customPath = path.join(tmpDir, "custom-delete.jsonl");
+    fs.writeFileSync(customPath, '{"type":"session"}\n', "utf-8");
+    const expectedDeletedPath = fs.realpathSync(customPath);
+
+    const result = deleteSessionTranscripts({
+      sessionId,
+      storePath: undefined,
+      sessionFile: customPath,
+    });
+    expect(result.deleted).toHaveLength(1);
+    expect(result.deleted[0]).toBe(expectedDeletedPath);
+    expect(fs.existsSync(customPath)).toBe(false);
+  });
+});
+
+describe("detectOrphanTranscripts", () => {
+  let tmpDir: string;
+  let storePath: string;
+
+  registerTempSessionStore("openclaw-orphan-detect-", (nextTmpDir, nextStorePath) => {
+    tmpDir = nextTmpDir;
+    storePath = nextStorePath;
+  });
+
+  beforeEach(() => {
+    for (const entry of fs.readdirSync(tmpDir, { withFileTypes: true })) {
+      if (entry.isFile()) {
+        fs.rmSync(path.join(tmpDir, entry.name), { force: true });
+      }
+    }
+  });
+
+  test("detects orphan transcripts not in sessions.json", () => {
+    const orphanId = "orphan-session";
+    const activeId = "active-session";
+    const orphanPath = path.join(tmpDir, `${orphanId}.jsonl`);
+    const activePath = path.join(tmpDir, `${activeId}.jsonl`);
+
+    fs.writeFileSync(orphanPath, '{"type":"session"}\n', "utf-8");
+    fs.writeFileSync(activePath, '{"type":"session"}\n', "utf-8");
+    fs.writeFileSync(
+      storePath,
+      JSON.stringify({ [activeId]: { sessionId: activeId, updatedAt: Date.now() } }),
+      "utf-8",
+    );
+    const expectedOrphanPath = fs.realpathSync(orphanPath);
+
+    const result = detectOrphanTranscripts({ sessionsDir: tmpDir, storePath });
+    expect(result.orphanPaths).toHaveLength(1);
+    expect(result.orphanPaths[0]).toBe(expectedOrphanPath);
+  });
+
+  test("returns empty array when all transcripts are registered", () => {
+    const sessionId = "registered-session";
+    const transcriptPath = path.join(tmpDir, `${sessionId}.jsonl`);
+    fs.writeFileSync(transcriptPath, '{"type":"session"}\n', "utf-8");
+    fs.writeFileSync(
+      storePath,
+      JSON.stringify({ [sessionId]: { sessionId, updatedAt: Date.now() } }),
+      "utf-8",
+    );
+
+    const result = detectOrphanTranscripts({ sessionsDir: tmpDir, storePath });
+    expect(result.orphanPaths).toEqual([]);
+  });
+
+  test("ignores archived .reset. and .deleted. files", () => {
+    const resetPath = path.join(tmpDir, "sess.reset.123.jsonl");
+    const deletedPath = path.join(tmpDir, "sess.deleted.456.jsonl");
+    fs.writeFileSync(resetPath, '{"type":"session"}\n', "utf-8");
+    fs.writeFileSync(deletedPath, '{"type":"session"}\n', "utf-8");
+
+    const result = detectOrphanTranscripts({ sessionsDir: tmpDir, storePath });
+    expect(result.orphanPaths).toEqual([]);
+  });
+
+  test("handles missing sessions.json gracefully", () => {
+    const orphanId = "orphan-no-store";
+    const orphanPath = path.join(tmpDir, `${orphanId}.jsonl`);
+    fs.writeFileSync(orphanPath, '{"type":"session"}\n', "utf-8");
+    fs.rmSync(storePath, { force: true });
+    const expectedOrphanPath = fs.realpathSync(orphanPath);
+
+    const result = detectOrphanTranscripts({ sessionsDir: tmpDir, storePath });
+    expect(result.orphanPaths).toHaveLength(1);
+    expect(result.orphanPaths[0]).toBe(expectedOrphanPath);
+  });
+});
+
+describe("cleanupOrphanTranscripts", () => {
+  let tmpDir: string;
+  let storePath: string;
+  let logMessages: string[];
+
+  registerTempSessionStore("openclaw-orphan-cleanup-", (nextTmpDir, nextStorePath) => {
+    tmpDir = nextTmpDir;
+    storePath = nextStorePath;
+  });
+
+  beforeEach(() => {
+    for (const entry of fs.readdirSync(tmpDir, { withFileTypes: true })) {
+      if (entry.isFile()) {
+        fs.rmSync(path.join(tmpDir, entry.name), { force: true });
+      }
+    }
+    logMessages = [];
+  });
+
+  test("deletes orphans when count exceeds threshold", () => {
+    for (let i = 0; i < 5; i++) {
+      const orphanPath = path.join(tmpDir, `orphan-${i}.jsonl`);
+      fs.writeFileSync(orphanPath, '{"type":"session"}\n', "utf-8");
+    }
+    fs.writeFileSync(storePath, JSON.stringify({}), "utf-8");
+
+    const result = cleanupOrphanTranscripts({
+      sessionsDir: tmpDir,
+      storePath,
+      threshold: 3,
+      log: (msg) => logMessages.push(msg),
+    });
+
+    expect(result.deleted).toBe(5);
+    for (let i = 0; i < 5; i++) {
+      expect(fs.existsSync(path.join(tmpDir, `orphan-${i}.jsonl`))).toBe(false);
+    }
+    expect(logMessages.length).toBeGreaterThan(0);
+  });
+
+  test("does nothing when orphan count below threshold", () => {
+    const orphanPath = path.join(tmpDir, "single-orphan.jsonl");
+    fs.writeFileSync(orphanPath, '{"type":"session"}\n', "utf-8");
+    fs.writeFileSync(storePath, JSON.stringify({}), "utf-8");
+
+    const result = cleanupOrphanTranscripts({
+      sessionsDir: tmpDir,
+      storePath,
+      threshold: 5,
+      log: (msg) => logMessages.push(msg),
+    });
+
+    expect(result.deleted).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(fs.existsSync(orphanPath)).toBe(true);
+    expect(logMessages.length).toBeGreaterThan(0);
+  });
+
+  test("handles missing sessions directory gracefully", () => {
+    const missingDir = path.join(tmpDir, "missing-sessions");
+    const result = cleanupOrphanTranscripts({
+      sessionsDir: missingDir,
+      storePath,
+      threshold: 1,
+      log: (msg) => logMessages.push(msg),
+    });
+    expect(result.deleted).toBe(0);
   });
 });

@@ -12,8 +12,10 @@ import {
   deleteMessageTelegram,
   editMessageTelegram,
   reactMessageTelegram,
+  sendDiceTelegram,
   sendMessageTelegram,
   sendStickerTelegram,
+  type TelegramDiceEmoji,
 } from "../../telegram/send.js";
 import { getCacheStats, searchStickers } from "../../telegram/sticker-cache.js";
 import { resolveTelegramToken } from "../../telegram/token.js";
@@ -369,6 +371,46 @@ export async function handleTelegramAction(
   if (action === "stickerCacheStats") {
     const stats = getCacheStats();
     return jsonResult({ ok: true, ...stats });
+  }
+
+  if (action === "sendDice") {
+    if (!isActionEnabled("sendDice")) {
+      throw new Error("Telegram sendDice is disabled.");
+    }
+    const to = readStringParam(params, "to", { required: true });
+    const emoji = readStringParam(params, "emoji");
+    if (emoji && !["🎲", "🎯", "🏀", "⚽", "🎳", "🎰"].includes(emoji)) {
+      throw new Error(`Invalid dice emoji: ${emoji}. Must be one of: 🎲 🎯 🏀 ⚽ 🎳 🎰`);
+    }
+    const validEmoji = emoji as TelegramDiceEmoji | undefined;
+    const replyToMessageId = readNumberParam(params, "replyToMessageId", {
+      integer: true,
+    });
+    const messageThreadId = readNumberParam(params, "messageThreadId", {
+      integer: true,
+    });
+    const silent = typeof params.silent === "boolean" ? params.silent : undefined;
+    const token = resolveTelegramToken(cfg, { accountId }).token;
+    if (!token) {
+      throw new Error(
+        "Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken.",
+      );
+    }
+    const result = await sendDiceTelegram(to, {
+      token,
+      accountId: accountId ?? undefined,
+      emoji: validEmoji,
+      replyToMessageId: replyToMessageId ?? undefined,
+      messageThreadId: messageThreadId ?? undefined,
+      silent,
+    });
+    return jsonResult({
+      ok: true,
+      messageId: result.messageId,
+      chatId: result.chatId,
+      emoji: result.emoji,
+      value: result.value,
+    });
   }
 
   if (action === "createForumTopic") {

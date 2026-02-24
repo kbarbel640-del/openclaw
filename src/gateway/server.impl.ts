@@ -262,6 +262,22 @@ export async function startGatewayServer(
     () => getTotalQueueSize() + getTotalPendingReplies() + getActiveEmbeddedRunCount(),
   );
   initSubagentRegistry();
+  if (!minimalTestGateway) {
+    void (async () => {
+      const { resolveStorePath } = await import("../config/sessions.js");
+      const { cleanupOrphanTranscripts } = await import("./session-utils.js");
+      const { resolveSessionTranscriptsDirForAgent } = await import("../config/sessions/paths.js");
+      const agentId = resolveDefaultAgentId(cfgAtStart);
+      const storePath = resolveStorePath(cfgAtStart.session?.store, { agentId });
+      const sessionsDir = resolveSessionTranscriptsDirForAgent(agentId);
+      cleanupOrphanTranscripts({
+        sessionsDir,
+        storePath,
+        threshold: 10,
+        log: (msg) => log.info(msg),
+      });
+    })().catch(() => {});
+  }
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
   const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
   const baseMethods = listGatewayMethods();
