@@ -18,7 +18,7 @@ describe("messengerPlugin", () => {
         },
       };
 
-      const result = messengerPlugin.config.deleteAccount({
+      const result = messengerPlugin.config!.deleteAccount!({
         cfg,
         accountId: "default",
       });
@@ -38,10 +38,10 @@ describe("messengerPlugin", () => {
   });
 
   describe("status.collectStatusIssues", () => {
-    const collect = messengerPlugin.status.collectStatusIssues;
+    const collect = messengerPlugin.status!.collectStatusIssues!;
 
     it("reports missing pageAccessToken", () => {
-      const issues = collect([
+      const issues = collect!([
         { accountId: "default", pageAccessToken: "", appSecret: "s", verifyToken: "v" },
       ] as never);
       expect(issues.some((i) => i.message.includes("page access token"))).toBe(true);
