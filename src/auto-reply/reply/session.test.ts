@@ -982,7 +982,7 @@ describe("prependSystemEvents", () => {
 
       enqueueSystemEvent("Model switched.", { sessionKey: "agent:main:main" });
 
-      const result = await prependSystemEvents({
+      const { body, systemBlock } = await prependSystemEvents({
         cfg: {} as OpenClawConfig,
         sessionKey: "agent:main:main",
         isMainSession: false,
@@ -991,7 +991,11 @@ describe("prependSystemEvents", () => {
       });
 
       expect(expectedTimestamp).toBeDefined();
-      expect(result).toContain(`System: [${expectedTimestamp}] Model switched.`);
+      // System events must be in systemBlock (for injection into system prompt),
+      // NOT in the user message body. (issue #21656)
+      expect(systemBlock).toContain(`System: [${expectedTimestamp}] Model switched.`);
+      expect(body).toBe("User: hi");
+      expect(body).not.toContain("System:");
     } finally {
       resetSystemEventsForTest();
       vi.useRealTimers();

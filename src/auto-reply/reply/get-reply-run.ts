@@ -257,9 +257,6 @@ export async function runPreparedReply(
   const inboundMetaPrompt = buildInboundMetaSystemPrompt(
     isNewSession ? sessionCtx : { ...sessionCtx, ThreadStarterBody: undefined },
   );
-  const extraSystemPrompt = [inboundMetaPrompt, groupChatContext, groupIntro, groupSystemPrompt]
-    .filter(Boolean)
-    .join("\n\n");
   const baseBody = sessionCtx.BodyStripped ?? sessionCtx.Body ?? "";
   // Use CommandBody/RawBody for bare reset detection (clean message without structural context).
   const rawBodyTrimmed = (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim();
@@ -319,13 +316,26 @@ export async function runPreparedReply(
   });
   const isGroupSession = sessionEntry?.chatType === "group" || sessionEntry?.chatType === "channel";
   const isMainSession = !isGroupSession && sessionKey === normalizeMainKey(sessionCfg?.mainKey);
-  prefixedBodyBase = await prependSystemEvents({
+  // Drain system events and inject them into the system prompt (not the user body).
+  // This prevents spoofing: an attacker sending "System: ..." via Telegram cannot
+  // make the agent treat it as a trusted internal event. (issue #21656)
+  const { body, systemBlock } = await prependSystemEvents({
     cfg,
     sessionKey,
     isMainSession,
     isNewSession,
     prefixedBodyBase,
   });
+  prefixedBodyBase = body;
+  const extraSystemPrompt = [
+    inboundMetaPrompt,
+    groupChatContext,
+    groupIntro,
+    groupSystemPrompt,
+    systemBlock,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   prefixedBodyBase = appendUntrustedContext(prefixedBodyBase, sessionCtx.UntrustedContext);
   const threadStarterBody = ctx.ThreadStarterBody?.trim();
   const threadHistoryBody = ctx.ThreadHistoryBody?.trim();

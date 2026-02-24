@@ -109,8 +109,12 @@ describe("extractReadPaths", () => {
 describe("auditPostCompactionReads", () => {
   const workspaceDir = "/Users/test/workspace";
 
-  it("passes when all required files are read", () => {
-    const readPaths = ["WORKFLOW_AUTO.md", "memory/2026-02-16.md"];
+  // WORKFLOW_AUTO.md was removed from DEFAULT_REQUIRED_READS (#22674/#21656):
+  // it doesn't exist by default in most workspaces, causing spurious audit warnings.
+  // The only default required read is the daily memory file pattern.
+
+  it("passes when daily memory file is read", () => {
+    const readPaths = ["memory/2026-02-16.md"];
     const result = auditPostCompactionReads(readPaths, workspaceDir);
 
     expect(result.passed).toBe(true);
@@ -121,16 +125,15 @@ describe("auditPostCompactionReads", () => {
     const result = auditPostCompactionReads([], workspaceDir);
 
     expect(result.passed).toBe(false);
-    expect(result.missingPatterns).toContain("WORKFLOW_AUTO.md");
+    expect(result.missingPatterns).not.toContain("WORKFLOW_AUTO.md");
     expect(result.missingPatterns.some((p) => p.includes("memory"))).toBe(true);
   });
 
   it("reports only missing files", () => {
-    const readPaths = ["WORKFLOW_AUTO.md"];
+    const readPaths = ["WORKFLOW_AUTO.md"]; // reading this no longer satisfies any default
     const result = auditPostCompactionReads(readPaths, workspaceDir);
 
     expect(result.passed).toBe(false);
-    expect(result.missingPatterns).not.toContain("WORKFLOW_AUTO.md");
     expect(result.missingPatterns.some((p) => p.includes("memory"))).toBe(true);
   });
 
@@ -138,13 +141,12 @@ describe("auditPostCompactionReads", () => {
     const readPaths = ["memory/2026-02-16.md"];
     const result = auditPostCompactionReads(readPaths, workspaceDir);
 
-    expect(result.passed).toBe(false);
-    expect(result.missingPatterns).toContain("WORKFLOW_AUTO.md");
-    expect(result.missingPatterns.length).toBe(1);
+    expect(result.passed).toBe(true);
+    expect(result.missingPatterns).toEqual([]);
   });
 
   it("normalizes relative paths when matching", () => {
-    const readPaths = ["./WORKFLOW_AUTO.md", "memory/2026-02-16.md"];
+    const readPaths = ["./memory/2026-02-16.md"];
     const result = auditPostCompactionReads(readPaths, workspaceDir);
 
     expect(result.passed).toBe(true);
@@ -152,10 +154,7 @@ describe("auditPostCompactionReads", () => {
   });
 
   it("normalizes absolute paths when matching", () => {
-    const readPaths = [
-      "/Users/test/workspace/WORKFLOW_AUTO.md",
-      "/Users/test/workspace/memory/2026-02-16.md",
-    ];
+    const readPaths = ["/Users/test/workspace/memory/2026-02-16.md"];
     const result = auditPostCompactionReads(readPaths, workspaceDir);
 
     expect(result.passed).toBe(true);
