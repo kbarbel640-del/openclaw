@@ -51,6 +51,20 @@ describe("exec approvals allowlist matching", () => {
     });
     expect(match).toBeNull();
   });
+
+  it("handles bare wildcard patterns", () => {
+    const baseResolution = {
+      rawExecutable: "rg",
+      resolvedPath: "/opt/homebrew/bin/rg",
+      executableName: "rg",
+    };
+
+    const starEntry = { pattern: "*" };
+    const doubleStarEntry = { pattern: "**" };
+
+    expect(matchAllowlist([starEntry], baseResolution)).toBe(starEntry);
+    expect(matchAllowlist([doubleStarEntry], baseResolution)).toBe(doubleStarEntry);
+  });
 });
 
 describe("mergeExecApprovalsSocketDefaults", () => {

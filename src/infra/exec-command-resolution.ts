@@ -232,6 +232,10 @@ export function matchAllowlist(
     if (!pattern) {
       continue;
     }
+    // A bare wildcard pattern like "*" or "**" should match any resolved path.
+    if (pattern === "*" || pattern === "**") {
+      return entry;
+    }
     const hasPath = pattern.includes("/") || pattern.includes("\\") || pattern.includes("~");
     if (!hasPath) {
       continue;
