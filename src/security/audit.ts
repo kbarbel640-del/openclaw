@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { isIP } from "node:net";
 import path from "node:path";
 import { resolveSandboxConfigForAgent } from "../agents/sandbox.js";
