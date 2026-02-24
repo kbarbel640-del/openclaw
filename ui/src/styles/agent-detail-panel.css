@@ -1,0 +1,280 @@
+/* ===========================================
+   Agent Detail Panel
+   =========================================== */
+
+/* --- Panel (docked right side) --- */
+.agent-detail-panel {
+  position: relative;
+  width: 420px;
+  min-width: 420px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+  transition: all 0.3s var(--ease-out);
+  z-index: 50;
+}
+
+/* --- Expanded (full-width overlay) --- */
+.agent-detail-panel--expanded {
+  position: fixed;
+  inset: 50px;
+  width: auto;
+  min-width: auto;
+  border-left: none;
+  border-radius: 12px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+  z-index: 200;
+}
+
+/* --- Overlay scrim behind expanded panel --- */
+.agent-detail-scrim {
+  display: none;
+}
+
+.agent-detail-scrim--visible {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 150;
+  animation: scrim-fade-in 0.2s ease-out;
+}
+
+@keyframes scrim-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* --- Fixed Header --- */
+.agent-detail-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+
+.agent-detail-header__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-detail-header__name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-detail-header__role {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.agent-detail-header__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* --- Scrollable Content --- */
+.agent-detail-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+/* --- Fixed Footer --- */
+.agent-detail-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+
+.agent-detail-footer__meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.agent-detail-footer__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- Avatar (2x size, clickable) --- */
+.agent-detail-avatar {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.agent-detail-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.agent-detail-avatar__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.agent-detail-avatar:hover .agent-detail-avatar__overlay {
+  opacity: 1;
+}
+
+.agent-detail-avatar__fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+/* --- Collapsible Section (Accordion) --- */
+.agent-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.agent-section__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.agent-section__toggle:hover {
+  background: var(--bg-hover);
+}
+
+.agent-section__chevron {
+  transition: transform 0.2s ease;
+  width: 16px;
+  height: 16px;
+}
+
+.agent-section--open .agent-section__chevron {
+  transform: rotate(90deg);
+}
+
+.agent-section__body {
+  display: none;
+  padding: 0 16px 16px;
+}
+
+.agent-section--open .agent-section__body {
+  display: block;
+}
+
+/* --- Markdown editor area --- */
+.agent-file-editor {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-accent);
+  color: var(--text);
+  resize: vertical;
+}
+
+.agent-file-editor:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* --- Chat input z-index override when panel expanded --- */
+.chat-input-bar--above-panel {
+  z-index: 300 !important;
+  position: fixed !important;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+/* --- KV grid for config display --- */
+.agent-kv-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.agent-kv-grid .label {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.agent-kv-grid .value {
+  color: var(--text);
+  word-break: break-word;
+}
+
+/* --- Status badge --- */
+.agent-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.agent-status-badge--active {
+  background: var(--ok-subtle);
+  color: var(--success);
+}
+
+.agent-status-badge--default {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
