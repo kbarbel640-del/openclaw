@@ -31,12 +31,13 @@ const {
   executeToolWithConcurrency,
   CircuitBreaker,
   HybridIntentClassifier,
+  KeywordMatcher,
 } = require("./p1-improvements.cjs");
 const {
   initializeLastDevProject,
   getLastDevProject,
   setLastDevProject,
-} = require("./lib/openclaw-p0.2-last-dev-project.js");
+} = require("./lib/openclaw-p0.2-last-dev-project.cjs");
 
 const UPSTREAM_HOST = "localhost";
 const UPSTREAM_PORT = 3456;
@@ -1290,54 +1291,81 @@ async function handleGmailUnsubscribe(reqId, userText, wantsStream, res) {
 
 // ─── Skill Intent Detection ────────────────────────────────────
 
-function detectSkillIntent(text) {
+// P1.2: Multi-intent Detection (支持檢測多個意圖)
+/**
+ * 檢測文本中的多個 skill 意圖，返回排序陣列
+ * @param {string} text - 用戶文本
+ * @returns {Array} 意圖陣列，按置信度降序排列
+ *   [{skillName, params, confidence}, ...]
+ */
+function detectMultiSkillIntent(text) {
   if (!text) {
-    return null;
+    return [];
   }
-  const lower = text.toLowerCase();
 
-  // Priority override: gmail/calendar operations beat web_search
+  const intents = [];
+  const lower = text.toLowerCase();
+  const matcher = new KeywordMatcher();
+
+  // Priority override: gmail/calendar operations with highest confidence
   const gmailActionWords = [
-    "刪除郵件",
-    "刪郵件",
-    "清理郵件",
-    "批量刪除",
-    "刪除垃圾",
-    "未讀郵件",
-    "查看郵件",
-    "寄信",
-    "發郵件",
-    "收件匣",
-    "過濾",
-    "過濾規則",
-    "封鎖寄件者",
-    "封鎖",
-    "取消訂閱",
-    "退訂",
-    "delete email",
-    "trash email",
-    "inbox",
-    "send email",
-    "filter",
-    "block sender",
-    "unsubscribe",
+    "刪除郵件", "刪郵件", "清理郵件", "批量刪除", "刪除垃圾",
+    "未讀郵件", "查看郵件", "寄信", "發郵件", "收件匣",
+    "過濾", "過濾規則", "封鎖寄件者", "封鎖", "取消訂閱", "退訂",
+    "delete email", "trash email", "inbox", "send email",
+    "filter", "block sender", "unsubscribe",
   ];
+
+  // Check gmail with high priority
   if (gmailActionWords.some((kw) => lower.includes(kw))) {
     const gws = SKILL_ROUTES.find((r) => r.name === "google_workspace");
     if (gws) {
-      return { skillName: gws.name, params: gws.buildParams(text) };
+      intents.push({
+        skillName: gws.name,
+        params: gws.buildParams(text),
+        confidence: 1.0, // 高優先級
+        priority: 10,
+      });
     }
   }
 
+  // Scan all routes with KeywordMatcher confidence scoring
   for (const route of SKILL_ROUTES) {
-    if (route.keywords.some((kw) => lower.includes(kw))) {
-      return {
+    if (route.name === "google_workspace" && intents.length > 0) {
+      continue; // 已處理
+    }
+
+    // 計算該 route 的置信度
+    const match = matcher.match(text, route.keywords, 'auto');
+    if (match.matched) {
+      intents.push({
         skillName: route.name,
         params: route.buildParams(text),
-      };
+        confidence: match.confidence,
+        priority: route.priority || 5, // 預設優先級
+      });
     }
   }
-  return null;
+
+  // 按優先級和置信度排序
+  intents.sort((a, b) => {
+    if (b.priority !== a.priority) {
+      return b.priority - a.priority;
+    }
+    return b.confidence - a.confidence;
+  });
+
+  return intents;
+}
+
+/**
+ * 向後相容的單意圖檢測（返回最高置信度意圖）
+ * @param {string} text - 用戶文本
+ * @returns {Object|null} 單個意圖或 null
+ */
+function detectSkillIntent(text) {
+  const intents = detectMultiSkillIntent(text);
+  return intents.length > 0 ? intents[0] : null;
 }
 
 // ─── CLI Tool Detection ───────────────────────────────────────
@@ -3339,6 +3367,55 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     }
   }
 
+
+  // Priority 0.7: Agent Orchestrator — @agent or task: prefix
+  {
+    const agentMatch = userText.match(/^(?:@agent\s+|task:\s*|agent:\s*)(.+)$/is);
+    if (agentMatch) {
+      const taskText = agentMatch[1].trim();
+      console.log(`[wrapper] #${reqId} AGENT_TASK: ${taskText.slice(0, 80)}`);
+      try {
+        const orchRes = await new Promise((resolve, reject) => {
+          const postData = JSON.stringify({ text: taskText, chatId: "150944774" });
+          const orchReq = http.request({
+            hostname: "127.0.0.1",
+            port: 7789,
+            path: "/telegram/message",
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(postData) },
+            timeout: 30000,
+          }, (r) => {
+            let body = "";
+            r.on("data", (c) => body += c);
+            r.on("end", () => {
+              try { resolve(JSON.parse(body)); } catch { resolve({ error: body }); }
+            });
+          });
+          orchReq.on("error", reject);
+          orchReq.on("timeout", () => { orchReq.destroy(); reject(new Error("timeout")); });
+          orchReq.write(postData);
+          orchReq.end();
+        });
+        let reply;
+        if (orchRes.tasks) {
+          const taskList = orchRes.tasks.map(t => `- ${t.id}: ${t.description.slice(0, 60)}${t.queued ? " (queued)" : ""}`).join("\n");
+          reply = `Agent task created:\n${taskList}`;
+        } else if (orchRes.status) {
+          const s = orchRes.status;
+          reply = `Orchestrator: ${s.running} running, ${s.active} active (max ${s.maxConcurrent})\n` +
+            s.tasks.map(t => `- ${t.id} [${t.status}] ${t.description}`).join("\n");
+        } else if (orchRes.error) {
+          reply = `Orchestrator error: ${orchRes.error}`;
+        } else {
+          reply = JSON.stringify(orchRes);
+        }
+        return sendDirectResponse(reqId, reply, wantsStream, res);
+      } catch (e) {
+        console.error(`[wrapper] #${reqId} agent_task error: ${e.message}`);
+        return sendDirectResponse(reqId, `Agent orchestrator error: ${e.message}`, wantsStream, res);
+      }
+    }
+  }
   // Priority 0.8: System monitor commands (Telegram) — before dev mode
   {
     const sysIntent = detectSystemIntent(userText);
@@ -4368,6 +4445,35 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ error: "Session bridge unavailable: " + e.message }));
     });
     req.pipe(bridgeReq);
+    return;
+  }
+
+  // Orchestrator forwarding (/orchestrate/* -> :7789)
+  if (req.url.startsWith("/orchestrate/")) {
+    const orchPath = req.url.replace("/orchestrate", "");
+    const orchOpts = {
+      hostname: "127.0.0.1",
+      port: 7789,
+      path: orchPath || "/health",
+      method: req.method,
+      headers: req.headers,
+      timeout: 120000,
+    };
+    const orchReq = http.request(orchOpts, (orchRes) => {
+      res.writeHead(orchRes.statusCode, orchRes.headers);
+      orchRes.pipe(res);
+    });
+    orchReq.on("error", (e) => {
+      console.error("[wrapper] orchestrator proxy error:", e.message);
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Orchestrator unavailable: " + e.message }));
+    });
+    orchReq.on("timeout", () => {
+      orchReq.destroy();
+      res.writeHead(504, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Orchestrator timeout" }));
+    });
+    req.pipe(orchReq);
     return;
   }
 
