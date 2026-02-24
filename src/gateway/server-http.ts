@@ -279,6 +279,8 @@ export function createHooksRequestHandler(
       return true;
     }
 
+    logHooks.info(`hook request: path=${subPath} method=${req.method} ip=${clientKey}`);
+
     const body = await readJsonBody(req, hooksConfig.maxBodyBytes);
     if (!body.ok) {
       const status =
