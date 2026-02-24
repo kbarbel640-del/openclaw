@@ -1,6 +1,6 @@
 ---
 name: push
-description: "Sync current branch with local/fork state, push safely to fork origin, and create/update a draft PR to openclaw/openclaw main. Includes PR template usage and embedding the original user prompt plus follow-ups from .codex/original-user-prompt.txt."
+description: "Sync current branch with local/fork state, push safely to fork origin, and create/update a draft PR to openclaw/openclaw main. Includes PR template usage and embedding original user prompts/follow-ups (without expanded skill dumps) from .codex/original-user-prompt.txt."
 user-invocable: true
 metadata:
   { "openclaw": { "requires": { "bins": ["git", "gh"] } } }
@@ -49,9 +49,15 @@ else
 fi
 ```
 
-### 2. Persist the original user prompt and follow-ups verbatim
+### 2. Persist the original user prompt and follow-ups (exclude expanded skills)
 
-Write the initial user prompt exactly as received. Then append every follow-up user prompt exactly as received, in chronological order. Use single-quoted heredocs so shell interpolation cannot alter content.
+Write only user-authored prompts in chronological order.
+
+- Keep the original user prompt and each follow-up prompt verbatim.
+- If a prompt contains skill invocation output, keep only the invocation/user text (for example `$push`).
+- Exclude auto-expanded skill payload blocks like `<skill> ... </skill>` from `.codex/original-user-prompt.txt`.
+
+Use single-quoted heredocs so shell interpolation cannot alter content.
 
 ```bash
 mkdir -p .codex
@@ -67,6 +73,18 @@ cat >> .codex/original-user-prompt.txt <<'EOF'
 
 <PASTE FOLLOW-UP USER PROMPT VERBATIM HERE>
 EOF
+```
+
+If your captured text accidentally includes expanded skill blocks, sanitize before PR creation:
+
+```bash
+awk '
+BEGIN { in_skill=0 }
+/^<skill>$/ { in_skill=1; next }
+/^<\/skill>$/ { in_skill=0; next }
+!in_skill { print }
+' .codex/original-user-prompt.txt > .codex/original-user-prompt.filtered.txt
+mv .codex/original-user-prompt.filtered.txt .codex/original-user-prompt.txt
 ```
 
 Ensure root `.gitignore` contains this exact line:
