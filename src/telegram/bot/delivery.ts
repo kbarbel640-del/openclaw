@@ -320,6 +320,10 @@ export async function resolveMedia(
       fetchImpl,
       filePathHint: filePath,
       maxBytes,
+      // Telegram file-download URLs resolve through Cloudflare/WARP which may
+      // return IPs in the RFC 2544 benchmarking range (198.18.0.0/15),
+      // triggering the SSRF guard. The hostname is trusted (bot-token scoped).
+      ssrfPolicy: { allowedHostnames: ["api.telegram.org"] },
     });
     const originalName = fetched.fileName ?? filePath;
     return saveMediaBuffer(fetched.buffer, fetched.contentType, "inbound", maxBytes, originalName);
