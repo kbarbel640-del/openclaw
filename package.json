@@ -227,6 +227,7 @@
   "pnpm": {
     "minimumReleaseAge": 2880,
     "overrides": {
+      "ip": "npm:@webpod/ip@0.6.1",
       "hono": "4.11.10",
       "fast-xml-parser": "5.3.6",
       "request": "npm:@cypress/request@3.0.10",
