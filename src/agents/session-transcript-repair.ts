@@ -4,6 +4,10 @@ import { extractToolCallsFromAssistant, extractToolResultId } from "./tool-call-
 const TOOL_CALL_NAME_MAX_CHARS = 64;
 const TOOL_CALL_NAME_RE = /^[A-Za-z0-9_-]+$/;
 
+// Anthropic API rejects tool_use / tool_result names exceeding 200 characters.
+// Truncate to this limit as a safety net before API submission.
+const TOOL_NAME_API_MAX_CHARS = 200;
+
 type ToolCallBlock = {
   type?: unknown;
   id?: unknown;
@@ -190,6 +194,73 @@ export function sanitizeToolCallInputs(
 
 export function sanitizeToolUseResultPairing(messages: AgentMessage[]): AgentMessage[] {
   return repairToolUseResultPairing(messages).messages;
+}
+
+/**
+ * Truncate tool names that exceed the API limit (200 chars) to prevent
+ * Anthropic API rejections. Applies to both toolCall blocks in assistant
+ * messages and toolName on toolResult messages.
+ *
+ * This guards against LLM-hallucinated tool names (e.g. entire command
+ * strings) that survive into the session transcript.
+ */
+export function sanitizeToolNameLengths(messages: AgentMessage[]): AgentMessage[] {
+  let changed = false;
+  const out: AgentMessage[] = [];
+
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object") {
+      out.push(msg);
+      continue;
+    }
+
+    // Truncate toolName on toolResult messages.
+    if (msg.role === "toolResult") {
+      const toolName = (msg as { toolName?: unknown }).toolName;
+      if (typeof toolName === "string" && toolName.length > TOOL_NAME_API_MAX_CHARS) {
+        changed = true;
+        out.push({
+          ...(msg as unknown as Record<string, unknown>),
+          toolName: toolName.slice(0, TOOL_NAME_API_MAX_CHARS),
+        } as AgentMessage);
+        continue;
+      }
+      out.push(msg);
+      continue;
+    }
+
+    // Truncate name on toolCall/toolUse/functionCall blocks in assistant messages.
+    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      let blockChanged = false;
+      const nextContent = msg.content.map((block: unknown) => {
+        if (!block || typeof block !== "object") {
+          return block;
+        }
+        const rec = block as { type?: unknown; name?: unknown };
+        if (
+          (rec.type === "toolCall" || rec.type === "toolUse" || rec.type === "functionCall") &&
+          typeof rec.name === "string" &&
+          rec.name.length > TOOL_NAME_API_MAX_CHARS
+        ) {
+          blockChanged = true;
+          return {
+            ...(block as Record<string, unknown>),
+            name: rec.name.slice(0, TOOL_NAME_API_MAX_CHARS),
+          };
+        }
+        return block;
+      });
+      if (blockChanged) {
+        changed = true;
+        out.push({ ...msg, content: nextContent } as AgentMessage);
+        continue;
+      }
+    }
+
+    out.push(msg);
+  }
+
+  return changed ? out : messages;
 }
 
 export type ToolUseRepairReport = {
