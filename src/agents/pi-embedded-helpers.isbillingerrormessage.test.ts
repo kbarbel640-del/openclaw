@@ -69,6 +69,19 @@ describe("isBillingErrorMessage", () => {
       expect(isBillingErrorMessage(sample)).toBe(false);
     }
   });
+  it("does not false-positive on long assistant responses mentioning billing keywords", () => {
+    const longResponse =
+      "Sure, I can help you set up the billing integration. " +
+      "The payment required for this service depends on your plan tier. " +
+      "You can check your credit balance in the dashboard under Plans & Billing. " +
+      "Here are the steps to upgrade your account and add insufficient credits protection: " +
+      "1. Go to Settings > Billing. 2. Click 'Add payment method'. " +
+      "3. Enter your card details. 4. Select a plan that fits your needs. " +
+      "The billing system supports automatic top-up when your balance runs low. " +
+      "Let me know if you need more details about the payment process or credit allocation.";
+    expect(longResponse.length).toBeGreaterThan(500);
+    expect(isBillingErrorMessage(longResponse)).toBe(false);
+  });
   it("still matches real HTTP 402 billing errors", () => {
     const realErrors = [
       "HTTP 402 Payment Required",

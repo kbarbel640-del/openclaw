@@ -708,6 +708,12 @@ export function isBillingErrorMessage(raw: string): boolean {
   if (!value) {
     return false;
   }
+  // Real billing errors from API providers are short status/error strings.
+  // Long text is likely legitimate assistant content that happens to mention
+  // billing-related keywords (see #25661).
+  if (raw.length > 500) {
+    return false;
+  }
   if (matchesErrorPatterns(value, ERROR_PATTERNS.billing)) {
     return true;
   }
