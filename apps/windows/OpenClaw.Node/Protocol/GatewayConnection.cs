@@ -117,8 +117,15 @@ namespace OpenClaw.Node.Protocol
             var buffer = new byte[16384];
             while (_webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
-                var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-                
+                using var ms = new System.IO.MemoryStream();
+                WebSocketReceiveResult result;
+                do
+                {
+                    result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                    if (result.MessageType == WebSocketMessageType.Close) break;
+                    ms.Write(buffer, 0, result.Count);
+                } while (!result.EndOfMessage);
+
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     var code = result.CloseStatus?.ToString() ?? "n/a";
@@ -133,7 +140,7 @@ namespace OpenClaw.Node.Protocol
                     break;
                 }
 
-                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                var message = Encoding.UTF8.GetString(ms.ToArray());
                 _ = Task.Run(() => ProcessMessageAsync(message, cancellationToken), cancellationToken);
             }
         }
