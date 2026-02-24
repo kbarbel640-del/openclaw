@@ -30,6 +30,13 @@ describe("resolveDefaultAgentWorkspaceDir", () => {
 
 const WORKSPACE_STATE_PATH_SEGMENTS = [".openclaw", "workspace-state.json"] as const;
 
+function formatDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 async function readOnboardingState(dir: string): Promise<{
   version: number;
   bootstrapSeededAt?: string;
@@ -101,6 +108,22 @@ describe("ensureAgentWorkspace", () => {
     const state = await readOnboardingState(tempDir);
     expect(state.bootstrapSeededAt).toBeUndefined();
     expect(state.onboardingCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("creates daily memory files for today and yesterday", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+
+    const now = new Date();
+    const yesterday = new Date(now.getTime());
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const todayPath = path.join(tempDir, "memory", `${formatDateLocal(now)}.md`);
+    const yesterdayPath = path.join(tempDir, "memory", `${formatDateLocal(yesterday)}.md`);
+
+    await expect(fs.access(todayPath)).resolves.toBeUndefined();
+    await expect(fs.access(yesterdayPath)).resolves.toBeUndefined();
   });
 });
 
