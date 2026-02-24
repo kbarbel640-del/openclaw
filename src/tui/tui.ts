@@ -570,6 +570,13 @@ export async function runTui(opts: TuiOptions) {
       return;
     }
     const elapsed = formatElapsed(statusStartedAt);
+    const contextBar = formatContextBar(
+      sessionInfo.totalTokens ?? null,
+      sessionInfo.contextTokens ?? null,
+      10,
+      { green: theme.success, yellow: theme.accent, red: theme.error },
+    );
+    const contextSuffix = contextBar ? `\n${contextBar}` : "";
 
     if (activityStatus === "waiting") {
       waitingTick++;
@@ -580,12 +587,12 @@ export async function runTui(opts: TuiOptions) {
           elapsed,
           connectionStatus,
           phrases: waitingPhrase ? [waitingPhrase] : undefined,
-        }),
+        }) + contextSuffix,
       );
       return;
     }
 
-    statusLoader.setMessage(`${activityStatus} • ${elapsed} | ${connectionStatus}`);
+    statusLoader.setMessage(`${activityStatus} • ${elapsed} | ${connectionStatus}${contextSuffix}`);
   };
 
   const startStatusTimer = () => {
