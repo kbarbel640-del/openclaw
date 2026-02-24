@@ -1,6 +1,12 @@
 # Email Channel Plugin for OpenClaw
 
-完整的 OpenClaw Email Channel 插件 - 通过 IMAP/SMTP 收发邮件
+**版本**: 1.1.0 | **状态**: ✅ 生产可用 | **许可证**: MIT
+
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-2026.2.0+-blue.svg)](https://github.com/openclaw/openclaw)
+[![Node.js](https://img.shields.io/badge/Node.js-18.0.0+-green.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org/)
+
+Send and receive email messages through OpenClaw using standard IMAP/SMTP protocols.
 
 ## ✨ 功能特性
 
@@ -339,3 +345,30 @@ OpenClaw Community
 **更新**: 2026-02-23
 **分支**: feature/email-channel
 **状态**: ✅ 生产就绪
+
+---
+
+## 📚 完整文档
+
+详细的用户手册和配置指南已创建在 `docs/` 目录：
+
+- **[用户手册](./docs/USER_MANUAL.md)** - 完整的安装、配置、部署和使用指南
+  - 详细的功能说明
+  - 常用邮箱配置示例
+  - 多账户配置
+  - 生产环境部署
+  - 故障排除指南
+  - 安全注意事项
+  - FAQ
+
+---
+
+## 🙏 致谢
+
+感谢所有贡献者和 OpenClaw 社区的支持！
+
+---
+
+**维护者**: OpenClaw Contributors  
+**最后更新**: 2026-02-24  
+**版本**: 1.1.0
