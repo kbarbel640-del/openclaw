@@ -167,7 +167,9 @@ export function loadPluginManifestRegistry(params: {
   const realpathCache = new Map<string, string>();
 
   for (const candidate of candidates) {
-    const manifestRes = loadPluginManifest(candidate.rootDir);
+    // Reuse the manifest loaded during discovery when available;
+    // fall back to reading from disk for candidates without a cached result.
+    const manifestRes = candidate.pluginManifestResult ?? loadPluginManifest(candidate.rootDir);
     if (!manifestRes.ok) {
       diagnostics.push({
         level: "error",
