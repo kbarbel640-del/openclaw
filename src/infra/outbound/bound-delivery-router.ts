@@ -46,6 +46,16 @@ function resolveBindingForRequester(
     return exactConversation;
   }
 
+  const parentConversationMatches = matchingChannelAccount.filter(
+    (entry) => entry.conversation.parentConversationId === requester.conversationId,
+  );
+  if (parentConversationMatches.length === 1) {
+    return parentConversationMatches[0] ?? null;
+  }
+  if (parentConversationMatches.length > 1) {
+    return null;
+  }
+
   if (matchingChannelAccount.length === 1) {
     return matchingChannelAccount[0] ?? null;
   }
