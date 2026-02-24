@@ -1,9 +1,10 @@
+import JSON5 from "json5";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import JSON5 from "json5";
+import type { OpenClawConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
 import { ensureOwnerDisplaySecret } from "../agents/owner-display.js";
 import { loadDotEnv } from "../infra/dotenv.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
@@ -41,7 +42,6 @@ import { normalizeConfigPaths } from "./normalize-paths.js";
 import { resolveConfigPath, resolveDefaultConfigCandidates, resolveStateDir } from "./paths.js";
 import { isBlockedObjectKey } from "./prototype-keys.js";
 import { applyConfigOverrides } from "./runtime-overrides.js";
-import type { OpenClawConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
 import {
   validateConfigObjectRawWithPlugins,
   validateConfigObjectWithPlugins,
@@ -936,6 +936,25 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         envSnapshotForRestore: readResolution.envSnapshotForRestore,
       };
     } catch (err) {
+      const nodeErr = err as NodeJS.ErrnoException;
+      let message: string;
+      if (nodeErr?.code === "EACCES") {
+        // Permission denied — common in Docker/container deployments where the
+        // config file is owned by root but the gateway runs as a non-root user.
+        const uid = process.getuid?.();
+        const uidHint = typeof uid === "number" ? String(uid) : "$(id -u)";
+        message = [
+          `read failed: ${String(err)}`,
+          ``,
+          `Config file is not readable by the current process. If running in a container`,
+          `or 1-click deployment, fix ownership with:`,
+          `  chown ${uidHint} "${configPath}"`,
+          `Then restart the gateway.`,
+        ].join("\n");
+        deps.logger.error(message);
+      } else {
+        message = `read failed: ${String(err)}`;
+      }
       return {
         snapshot: {
           path: configPath,
@@ -946,7 +965,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           valid: false,
           config: {},
           hash: hashConfigRaw(null),
-          issues: [{ path: "", message: `read failed: ${String(err)}` }],
+          issues: [{ path: "", message }],
           warnings: [],
           legacyIssues: [],
         },

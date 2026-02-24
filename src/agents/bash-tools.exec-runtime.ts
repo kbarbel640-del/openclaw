@@ -1,17 +1,17 @@
-import path from "node:path";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
+import path from "node:path";
 import type { ExecAsk, ExecHost, ExecSecurity } from "../infra/exec-approvals.js";
+import type { ProcessSession } from "./bash-process-registry.js";
+import type { ExecToolDetails } from "./bash-tools.exec-types.js";
+import type { BashSandboxConfig } from "./bash-tools.shared.js";
 import { requestHeartbeatNow } from "../infra/heartbeat-wake.js";
 import { isDangerousHostEnvVarName } from "../infra/host-env-security.js";
 import { mergePathPrepend } from "../infra/path-prepend.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
-import type { ProcessSession } from "./bash-process-registry.js";
-import type { ExecToolDetails } from "./bash-tools.exec-types.js";
-import type { BashSandboxConfig } from "./bash-tools.shared.js";
 export { applyPathPrepend, normalizePathPrepend } from "../infra/path-prepend.js";
-import { logWarn } from "../logger.js";
 import type { ManagedRun } from "../process/supervisor/index.js";
+import { logWarn } from "../logger.js";
 import { getProcessSupervisor } from "../process/supervisor/index.js";
 import {
   addSession,
@@ -482,7 +482,13 @@ export async function runExecProcess(opts: {
     .then((exit): ExecProcessOutcome => {
       const durationMs = Date.now() - startedAt;
       const isNormalExit = exit.reason === "exit";
-      const status: "completed" | "failed" = isNormalExit ? "completed" : "failed";
+      const exitCode = exit.exitCode ?? 0;
+      // Shell exit codes 126 (not executable) and 127 (command not found) are
+      // unrecoverable infrastructure failures that should surface as real errors
+      // rather than silently completing — e.g. `python: command not found`.
+      const isShellFailure = exitCode === 126 || exitCode === 127;
+      const status: "completed" | "failed" =
+        isNormalExit && !isShellFailure ? "completed" : "failed";
 
       markExited(session, exit.exitCode, exit.exitSignal, status);
       maybeNotifyOnExit(session, status);
@@ -491,7 +497,6 @@ export async function runExecProcess(opts: {
       }
       const aggregated = session.aggregated.trim();
       if (status === "completed") {
-        const exitCode = exit.exitCode ?? 0;
         const exitMsg = exitCode !== 0 ? `\n\n(Command exited with code ${exitCode})` : "";
         return {
           status: "completed",
@@ -502,8 +507,11 @@ export async function runExecProcess(opts: {
           timedOut: false,
         };
       }
-      const reason =
-        exit.reason === "overall-timeout"
+      const reason = isShellFailure
+        ? exitCode === 127
+          ? "Command not found"
+          : "Command not executable (permission denied)"
+        : exit.reason === "overall-timeout"
           ? typeof opts.timeoutSec === "number" && opts.timeoutSec > 0
             ? `Command timed out after ${opts.timeoutSec} seconds`
             : "Command timed out"

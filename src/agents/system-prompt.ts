@@ -1,11 +1,11 @@
 import { createHmac, createHash } from "node:crypto";
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
-import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import type { MemoryCitationsMode } from "../config/types.memory.js";
-import { listDeliverableMessageChannels } from "../utils/message-channel.js";
 import type { ResolvedTimeFormat } from "./date-time.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import type { EmbeddedSandboxInfo } from "./pi-embedded-runner/types.js";
+import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
+import { listDeliverableMessageChannels } from "../utils/message-channel.js";
 import { sanitizeForPromptLiteral } from "./sanitize-for-prompt.js";
 
 /**
@@ -17,14 +17,7 @@ import { sanitizeForPromptLiteral } from "./sanitize-for-prompt.js";
 export type PromptMode = "full" | "minimal" | "none";
 type OwnerIdDisplay = "raw" | "hash";
 
-function buildSkillsSection(params: {
-  skillsPrompt?: string;
-  isMinimal: boolean;
-  readToolName: string;
-}) {
-  if (params.isMinimal) {
-    return [];
-  }
+function buildSkillsSection(params: { skillsPrompt?: string; readToolName: string }) {
   const trimmed = params.skillsPrompt?.trim();
   if (!trimmed) {
     return [];
@@ -395,7 +388,6 @@ export function buildAgentSystemPrompt(params: {
   ];
   const skillsSection = buildSkillsSection({
     skillsPrompt,
-    isMinimal,
     readToolName,
   });
   const memorySection = buildMemorySection({

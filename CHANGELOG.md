@@ -8,9 +8,15 @@ Docs: https://docs.openclaw.ai
 
 - **BREAKING:** non-loopback Control UI now requires explicit `gateway.controlUi.allowedOrigins` (full origins). Startup fails closed when missing unless `gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback=true` is set to use Host-header origin fallback mode.
 
+### Changes
+
+- Subagents/Sessions: add `agents.defaults.subagents.runTimeoutSeconds` so `sessions_spawn` can inherit a configurable default timeout when the tool call omits `runTimeoutSeconds` (unset remains `0`, meaning no timeout). (#24594) Thanks @mitchmcalister.
+
 ### Fixes
 
 - Gateway/Browser control: load `src/browser/server.js` during browser-control startup so the control listener starts reliably when browser control is enabled. (#23974) Thanks @ieaves.
+- Browser/Chrome relay: harden debugger detach handling during full-page navigation with bounded auto-reattach retries and better cancellation behavior for user/devtools detaches. (#19766) Thanks @nishantkabra77.
+- Browser/Chrome extension options: validate relay `/json/version` payload shape and content type (not just HTTP status) to detect wrong-port gateway checks, and clarify relay port derivation for custom gateway ports (`gateway + 3`). (#22252) Thanks @krizpoon.
 - Onboarding/Custom providers: raise verification probe token budgets for OpenAI and Anthropic compatibility checks to avoid false negatives on strict provider defaults. (#24743) Thanks @Glucksberg.
 - WhatsApp/DM routing: only update main-session last-route state when DM traffic is bound to the main session, preserving isolated `dmScope` routing. (#24949) Thanks @kevinWangSheng.
 - Providers/OpenRouter: when thinking is explicitly off, avoid injecting `reasoning.effort` so reasoning-required models can use provider defaults instead of failing request validation. (#24863) Thanks @DevSecTim.
@@ -37,6 +43,8 @@ Docs: https://docs.openclaw.ai
 - Infra/Windows TOCTOU: handle Windows `dev=0` edge cases in same-file identity checks. (#24939)
 - Exec/Bash tools: clamp poll sleep duration to non-negative values in process polling loops. (#24889)
 - Subagents/Announce queue: add exponential backoff when queue-drain delivery fails to reduce retry storms. (#24783)
+- Sessions/Model overrides: keep stored sub-agent model overrides when `agents.defaults.models` is empty (allow-any mode) instead of resetting to defaults. (#21088) Thanks @Slats24.
+- Subagents/Registry: prune orphaned restored runs (missing child session/sessionId) before retry/announce resume to prevent zombie entries and stale completion retries, and clarify status output to report bootstrap-file presence semantics. (#24244) Thanks @HeMuling.
 - Config/Kilo Gateway: Kilo provider flow now surfaces an updated list of models. (#24921) thanks @gumadeiras.
 - Agents/Tool warnings: suppress `sessions_send` relay errors from chat-facing warning payloads to avoid leaking transient inter-session transport failures. (#24740) Thanks @Glucksberg.
 - WhatsApp/Logging: redact outbound recipient identifiers in WhatsApp outbound + heartbeat logs and remove message/poll preview text from those log lines. (#24980) Thanks @coygeek.
@@ -77,6 +85,7 @@ Docs: https://docs.openclaw.ai
 
 - Security/Config: redact sensitive-looking dynamic catchall keys in `config.get` snapshots (for example `env.*` and `skills.entries.*.env.*`) and preserve round-trip restore behavior for those redacted sentinels. Thanks @merc1305.
 - Tests/Vitest: tier local parallel worker defaults by host memory, keep gateway serial by default on non-high-memory hosts, and document a low-profile fallback command for memory-constrained land/gate runs to prevent local OOMs. (#24719) Thanks @ngutman.
+- WhatsApp/Group policy: fix `groupAllowFrom` sender filtering when `groupPolicy: "allowlist"` is set without explicit `groups` — previously all group messages were blocked even for allowlisted senders. (#24670)
 - Agents/Context pruning: extend `cache-ttl` eligibility to Moonshot/Kimi and ZAI/GLM providers (including OpenRouter model refs), so `contextPruning.mode: "cache-ttl"` is no longer silently skipped for those sessions. (#24497) Thanks @lailoo.
 - Tools/web_search: add `provider: "kimi"` (Moonshot) support with key/config schema wiring and a corrected two-step `$web_search` tool flow that echoes tool results before final synthesis, including citation extraction from search results. (#16616, #18822) Thanks @adshine.
 - Media understanding/Video: add a native Moonshot video provider and include Moonshot in auto video key detection, plus refactor video execution to honor `entry/config/provider` baseUrl+header precedence (matching audio behavior). (#12063) Thanks @xiaoyaner0201.

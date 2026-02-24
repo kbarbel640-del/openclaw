@@ -1,10 +1,11 @@
+import type { HeartbeatEventPayload } from "../infra/heartbeat-events.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { withProgress } from "../cli/progress.js";
 import { resolveGatewayPort } from "../config/config.js";
 import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
 import { info } from "../globals.js";
 import { formatTimeAgo } from "../infra/format-time/format-relative.ts";
-import type { HeartbeatEventPayload } from "../infra/heartbeat-events.js";
 import { formatUsageReportLines, loadProviderUsageSummary } from "../infra/provider-usage.js";
 import { normalizeUpdateChannel, resolveUpdateChannelDisplay } from "../infra/update-channels.js";
 import { formatGitInstallLabel } from "../infra/update-check.js";
@@ -14,7 +15,6 @@ import {
   resolveMemoryVectorState,
   type Tone,
 } from "../memory/status-format.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { runSecurityAudit } from "../security/audit.js";
 import { renderTable } from "../terminal/table.js";
 import { theme } from "../terminal/theme.js";
@@ -265,8 +265,8 @@ export async function statusCommand(
   const agentsValue = (() => {
     const pending =
       agentStatus.bootstrapPendingCount > 0
-        ? `${agentStatus.bootstrapPendingCount} bootstrapping`
-        : "no bootstraps";
+        ? `${agentStatus.bootstrapPendingCount} bootstrap file${agentStatus.bootstrapPendingCount === 1 ? "" : "s"} present`
+        : "no bootstrap files";
     const def = agentStatus.agents.find((a) => a.id === agentStatus.defaultId);
     const defActive = def?.lastActiveAgeMs != null ? formatTimeAgo(def.lastActiveAgeMs) : "unknown";
     const defSuffix = def ? ` · default ${def.id} active ${defActive}` : "";

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import { createOpenClawTools } from "../agents/openclaw-tools.js";
 import {
   resolveEffectiveToolPolicy,
@@ -23,7 +24,6 @@ import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { DEFAULT_GATEWAY_HTTP_TOOL_DENY } from "../security/dangerous-tools.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
-import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import { authorizeHttpGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
 import {
   readJsonBodyOrError,
@@ -213,6 +213,8 @@ export async function handleToolsInvokeHttpRequest(
     getHeader(req, "x-openclaw-message-channel") ?? "",
   );
   const accountId = getHeader(req, "x-openclaw-account-id")?.trim() || undefined;
+  const agentTo = getHeader(req, "x-openclaw-message-to")?.trim() || undefined;
+  const agentThreadId = getHeader(req, "x-openclaw-thread-id")?.trim() || undefined;
 
   const {
     agentId,
@@ -248,6 +250,8 @@ export async function handleToolsInvokeHttpRequest(
     agentSessionKey: sessionKey,
     agentChannel: messageChannel ?? undefined,
     agentAccountId: accountId,
+    agentTo,
+    agentThreadId,
     config: cfg,
     pluginToolAllowlist: collectExplicitAllowlist([
       profilePolicy,

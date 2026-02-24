@@ -1,17 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
-import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
+import type { OpenClawConfig } from "../config/config.js";
 import "../cron/isolated-agent.mocks.js";
+import type { RuntimeEnv } from "../runtime.js";
+import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
 import * as cliRunnerModule from "../agents/cli-runner.js";
 import { loadModelCatalog } from "../agents/model-catalog.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
-import type { OpenClawConfig } from "../config/config.js";
 import * as configModule from "../config/config.js";
 import * as sessionsModule from "../config/sessions.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { createOutboundTestPlugin, createTestRegistry } from "../test-utils/channel-plugins.js";
 import { agentCommand } from "./agent.js";
 
@@ -364,6 +364,48 @@ describe("agentCommand", () => {
         { provider: "anthropic", model: "claude-opus-4-5" },
         { provider: "openai", model: "gpt-5.2" },
       ]);
+    });
+  });
+
+  it("keeps stored session model override when models allowlist is empty", async () => {
+    await withTempHome(async (home) => {
+      const store = path.join(home, "sessions.json");
+      writeSessionStoreSeed(store, {
+        "agent:main:subagent:allow-any": {
+          sessionId: "session-allow-any",
+          updatedAt: Date.now(),
+          providerOverride: "openai",
+          modelOverride: "gpt-custom-foo",
+        },
+      });
+
+      mockConfig(home, store, {
+        model: { primary: "anthropic/claude-opus-4-5" },
+        models: {},
+      });
+
+      vi.mocked(loadModelCatalog).mockResolvedValueOnce([
+        { id: "claude-opus-4-5", name: "Opus", provider: "anthropic" },
+      ]);
+
+      await agentCommand(
+        {
+          message: "hi",
+          sessionKey: "agent:main:subagent:allow-any",
+        },
+        runtime,
+      );
+
+      const callArgs = vi.mocked(runEmbeddedPiAgent).mock.calls.at(-1)?.[0];
+      expect(callArgs?.provider).toBe("openai");
+      expect(callArgs?.model).toBe("gpt-custom-foo");
+
+      const saved = JSON.parse(fs.readFileSync(store, "utf-8")) as Record<
+        string,
+        { providerOverride?: string; modelOverride?: string }
+      >;
+      expect(saved["agent:main:subagent:allow-any"]?.providerOverride).toBe("openai");
+      expect(saved["agent:main:subagent:allow-any"]?.modelOverride).toBe("gpt-custom-foo");
     });
   });
 

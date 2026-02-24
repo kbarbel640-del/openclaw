@@ -1,8 +1,11 @@
 import { type Bot, GrammyError, InputFile } from "grammy";
-import { chunkMarkdownTextWithMode, type ChunkMode } from "../../auto-reply/chunk.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { ReplyToMode } from "../../config/config.js";
 import type { MarkdownTableMode } from "../../config/types.base.js";
+import type { RuntimeEnv } from "../../runtime.js";
+import type { TelegramInlineButtons } from "../button-types.js";
+import type { StickerMetadata, TelegramContext } from "./types.js";
+import { chunkMarkdownTextWithMode, type ChunkMode } from "../../auto-reply/chunk.js";
 import { danger, logVerbose, warn } from "../../globals.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { retryAsync } from "../../infra/retry.js";
@@ -10,10 +13,8 @@ import { mediaKindFromMime } from "../../media/constants.js";
 import { fetchRemoteMedia } from "../../media/fetch.js";
 import { isGifMedia } from "../../media/mime.js";
 import { saveMediaBuffer } from "../../media/store.js";
-import type { RuntimeEnv } from "../../runtime.js";
 import { loadWebMedia } from "../../web/media.js";
 import { withTelegramApiErrorLogging } from "../api-logging.js";
-import type { TelegramInlineButtons } from "../button-types.js";
 import { splitTelegramCaption } from "../caption.js";
 import {
   markdownToTelegramChunks,
@@ -30,14 +31,16 @@ import {
   resolveTelegramReplyId,
   type TelegramThreadSpec,
 } from "./helpers.js";
-import type { StickerMetadata, TelegramContext } from "./types.js";
 
 const PARSE_ERR_RE = /can't parse entities|parse entities|find end of the entity/i;
 const VOICE_FORBIDDEN_RE = /VOICE_MESSAGES_FORBIDDEN/;
 const FILE_TOO_BIG_RE = /file is too big/i;
 const TELEGRAM_MEDIA_SSRF_POLICY = {
+  // Telegram file downloads should trust api.telegram.org even when DNS/proxy
+  // resolution maps to private/internal ranges in restricted networks.
+  allowedHostnames: ["api.telegram.org"],
   allowRfc2544BenchmarkRange: true,
-} as const;
+};
 
 export async function deliverReplies(params: {
   replies: ReplyPayload[];
