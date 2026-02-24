@@ -12,8 +12,8 @@
 
 import { app } from "electron";
 import path from "node:path";
-import { createHmac, randomBytes, createCipheriv, createDecipheriv, timingSafeEqual } from "node:crypto";
-import type { UserRole, UserProfile } from "../../shared/ipc-types.js";
+import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv, timingSafeEqual } from "node:crypto";
+import type { AuditLogEntry, UserRole, UserProfile } from "../../shared/ipc-types.js";
 
 const DB_VERSION = 1;
 
@@ -26,6 +26,7 @@ interface UserRow {
   totp_secret_enc: string; // AES-256-GCM encrypted TOTP secret (base64)
   totp_enabled: number;    // 0 | 1 (SQLite boolean)
   biometric_enrolled: number;
+  recovery_codes_enc: string; // AES-256-GCM encrypted JSON array of SHA-256 hashes
   created_at: string;      // ISO timestamp
   last_login_at: string | null;
 }
@@ -94,6 +95,7 @@ export class AuthStore {
         totp_secret_enc TEXT NOT NULL DEFAULT '',
         totp_enabled INTEGER NOT NULL DEFAULT 0,
         biometric_enrolled INTEGER NOT NULL DEFAULT 0,
+        recovery_codes_enc TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         last_login_at TEXT
       );
@@ -270,6 +272,49 @@ export class AuthStore {
       .run(encrypted, userId);
   }
 
+  // ─── Recovery Codes ───────────────────────────────────────────────────
+
+  /** Hash a recovery code for storage (SHA-256 hex). */
+  private hashRecoveryCode(code: string): string {
+    return createHash("sha256").update(code.toUpperCase().replace(/-/g, "")).digest("hex");
+  }
+
+  /** Store recovery codes (encrypted). Hashes each code for one-time-use verification. */
+  async setRecoveryCodes(userId: string, codes: string[]): Promise<void> {
+    if (!this.db) {throw new Error("DB not initialized");}
+    const hashes = codes.map((c) => this.hashRecoveryCode(c));
+    const encrypted = this.encrypt(JSON.stringify(hashes));
+    this.db.prepare("UPDATE users SET recovery_codes_enc = ? WHERE id = ?")
+      .run(encrypted, userId);
+  }
+
+  /** Try a recovery code. Returns true and consumes the code if valid. */
+  async useRecoveryCode(userId: string, code: string): Promise<boolean> {
+    if (!this.db) { return false; }
+    const user = this.getUserById(userId);
+    if (!user || !user.recovery_codes_enc) { return false; }
+
+    let hashes: string[];
+    try {
+      hashes = JSON.parse(this.decrypt(user.recovery_codes_enc)) as string[];
+    } catch {
+      return false;
+    }
+
+    const inputHash = this.hashRecoveryCode(code);
+    const idx = hashes.findIndex((h) => h === inputHash);
+    if (idx === -1) { return false; }
+
+    // Remove the used code and re-encrypt
+    hashes.splice(idx, 1);
+    const encrypted = this.encrypt(JSON.stringify(hashes));
+    this.db.prepare("UPDATE users SET recovery_codes_enc = ? WHERE id = ?")
+      .run(encrypted, userId);
+
+    this.auditLog({ event: "recovery_code_used", userId, method: "recovery", success: true });
+    return true;
+  }
+
   /** Get a user DB row (internal use for auth-engine). */
   // Note: exposed as a method so auth-engine can read totp_enabled, biometric_enrolled
   getUserRowById(id: string): UserRow | null {
@@ -350,14 +395,7 @@ export class AuthStore {
   }
 
   /** Read audit log entries (most recent first). */
-  getAuditLog(limit = 100): {
-    id: string;
-    userId: string | null;
-    event: string;
-    method: string | null;
-    success: boolean;
-    timestamp: string;
-  }[] {
+  getAuditLog(limit = 100): AuditLogEntry[] {
     if (!this.db) {return [];}
     const rows = this.db
       .prepare(

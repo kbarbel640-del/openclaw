@@ -28,6 +28,36 @@ const bridge: OcccBridge = {
   elevate: (token?, totpCode?) =>
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_ELEVATE, token, totpCode),
 
+  // ─── Auth — First Run ──────────────────────────────────────────────────
+  isFirstRun: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_IS_FIRST_RUN),
+  createInitialUser: (username, password) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_CREATE_INITIAL_USER, username, password),
+  confirmTotp: (token, secret, code) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_CONFIRM_TOTP, token, secret, code),
+  isBiometricAvailable: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_BIOMETRIC_AVAILABLE),
+  enrollBiometric: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_ENROLL_BIOMETRIC, token),
+
+  // ─── Auth — User Management ───────────────────────────────────────────
+  listUsers: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_LIST_USERS, token),
+  createUser: (token, params) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_CREATE_USER, token, params),
+  updateUserRole: (token, userId, role) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_UPDATE_ROLE, token, userId, role),
+  resetUserPassword: (token, userId, newPassword) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_RESET_PASSWORD, token, userId, newPassword),
+  deleteUser: (token, userId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_DELETE_USER, token, userId),
+  getAuditLog: (token, limit?) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_AUDIT_LOG, token, limit),
+
+  // ─── Auth — Self-service ──────────────────────────────────────────────
+  changePassword: (token, currentPassword, newPassword) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_CHANGE_PASSWORD, token, currentPassword, newPassword),
+
   // ─── Environment ──────────────────────────────────────────────────────
   getEnvironmentStatus: (token) =>
     ipcRenderer.invoke(IPC_CHANNELS.ENV_STATUS, token),

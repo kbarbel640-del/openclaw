@@ -16,7 +16,7 @@ import { hasPermission } from "./rbac.js";
 
 export function registerAuthIpcHandlers(
   engine: AuthEngine,
-  sessions: SessionManager,
+  _sessions: SessionManager,
 ): void {
 
   // ─── Login / Logout ─────────────────────────────────────────────────
@@ -60,11 +60,11 @@ export function registerAuthIpcHandlers(
 
   // ─── First-Run Setup ─────────────────────────────────────────────────
 
-  ipcMain.handle("occc:auth:is-first-run", async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_IS_FIRST_RUN, async () => {
     return engine.isFirstRun();
   });
 
-  ipcMain.handle("occc:auth:create-initial-user", async (
+  ipcMain.handle(IPC_CHANNELS.AUTH_CREATE_INITIAL_USER, async (
     _event,
     username: string,
     password: string,
@@ -75,7 +75,7 @@ export function registerAuthIpcHandlers(
     return engine.createInitialUser({ username, password });
   });
 
-  ipcMain.handle("occc:auth:confirm-totp", async (
+  ipcMain.handle(IPC_CHANNELS.AUTH_CONFIRM_TOTP, async (
     _event,
     token: string,
     secret: string,
@@ -86,36 +86,27 @@ export function registerAuthIpcHandlers(
     return engine.confirmTotpSetup({ userId: session.userId, secret, code });
   });
 
-  ipcMain.handle("occc:auth:biometric-available", async () => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_BIOMETRIC_AVAILABLE, async () => {
     return engine.biometricAvailable();
   });
 
-  ipcMain.handle("occc:auth:enroll-biometric", async (_event, token: string) => {
-    // Biometric enrollment = user has verified biometric + we store the flag
-    // Touch ID enrollment happens at the OS level; we just track the flag.
+  ipcMain.handle(IPC_CHANNELS.AUTH_ENROLL_BIOMETRIC, async (_event, token: string) => {
     const session = engine.getSession(token);
     if (!session) {throw new Error("Unauthorized");}
-    // A biometric prompt is done before storing enrollment
-    const { promptBiometric: prompt } = await import("./biometric.js");
-    const result = await prompt("to enroll biometric for OpenClaw Command Center");
-    if (!result.ok) {return false;}
-
-    // Import AuthStore dynamically to update
-    // In a real DI setup the store would be injected here
-    return true; // Handled by engine in full DI setup
+    return engine.enrollBiometric(session.userId);
   });
 
   // ─── User Management (admin+ only) ───────────────────────────────────
 
-  ipcMain.handle("occc:auth:list-users", async (_event, token: string) => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_LIST_USERS, async (_event, token: string) => {
     const session = engine.getSession(token);
     if (!session || !hasPermission(session.role, "users:list")) {
       throw new Error("Unauthorized");
     }
-    return engine.store.listUsers();
+    return engine.listUsers();
   });
 
-  ipcMain.handle("occc:auth:create-user", async (
+  ipcMain.handle(IPC_CHANNELS.AUTH_CREATE_USER, async (
     _event,
     token: string,
     params: { username: string; role: string; password: string },
@@ -127,14 +118,14 @@ export function registerAuthIpcHandlers(
     if (!session.elevated) {
       throw new Error("Elevation required to create users");
     }
-    return engine.store.createUser({
+    return engine.createUser({
       username: params.username,
       role: params.role as import("../../shared/ipc-types.js").UserRole,
       password: params.password,
     });
   });
 
-  ipcMain.handle("occc:auth:update-role", async (
+  ipcMain.handle(IPC_CHANNELS.AUTH_UPDATE_ROLE, async (
     _event,
     token: string,
     userId: string,
@@ -151,10 +142,10 @@ export function registerAuthIpcHandlers(
     if (userId === session.userId && newRole !== session.role) {
       throw new Error("Cannot change your own role");
     }
-    return engine.store.updateUserRole(userId, newRole as import("../../shared/ipc-types.js").UserRole);
+    return engine.updateUserRole(userId, newRole as import("../../shared/ipc-types.js").UserRole);
   });
 
-  ipcMain.handle("occc:auth:reset-password", async (
+  ipcMain.handle(IPC_CHANNELS.AUTH_RESET_PASSWORD, async (
     _event,
     token: string,
     userId: string,
@@ -167,15 +158,10 @@ export function registerAuthIpcHandlers(
     if (!session.elevated) {
       throw new Error("Elevation required to reset passwords");
     }
-    // After reset, invalidate all sessions for that user
-    const result = await engine.store.resetPassword(userId, newPassword);
-    if (result.ok) {
-      sessions.invalidateAllForUser(userId);
-    }
-    return result;
+    return engine.resetPassword(userId, newPassword);
   });
 
-  ipcMain.handle("occc:auth:delete-user", async (
+  ipcMain.handle(IPC_CHANNELS.AUTH_DELETE_USER, async (
     _event,
     token: string,
     userId: string,
@@ -190,14 +176,10 @@ export function registerAuthIpcHandlers(
     if (userId === session.userId) {
       throw new Error("Cannot delete your own account");
     }
-    const result = engine.store.deleteUser(userId);
-    if (result.ok) {
-      sessions.invalidateAllForUser(userId);
-    }
-    return result;
+    return engine.deleteUser(userId);
   });
 
-  ipcMain.handle("occc:auth:audit-log", async (
+  ipcMain.handle(IPC_CHANNELS.AUTH_AUDIT_LOG, async (
     _event,
     token: string,
     limit?: number,
@@ -206,6 +188,21 @@ export function registerAuthIpcHandlers(
     if (!session || !hasPermission(session.role, "users:list")) {
       throw new Error("Unauthorized");
     }
-    return engine.store.getAuditLog(limit ?? 100);
+    return engine.getAuditLog(limit);
+  });
+
+  // ─── Self-service ───────────────────────────────────────────────────
+
+  ipcMain.handle(IPC_CHANNELS.AUTH_CHANGE_PASSWORD, async (
+    _event,
+    token: string,
+    currentPassword: string,
+    newPassword: string,
+  ) => {
+    const session = engine.getSession(token);
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+    return engine.changePassword(session.userId, currentPassword, newPassword);
   });
 }

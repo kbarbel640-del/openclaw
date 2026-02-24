@@ -14,19 +14,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../../App.js";
-import type { UserProfile, UserRole, OcccBridge } from "../../../shared/ipc-types.js";
+import type { UserProfile, UserRole, OcccBridge, AuditLogEntry } from "../../../shared/ipc-types.js";
 
 const occc = (window as unknown as { occc: OcccBridge }).occc;
-
-interface AuditLogEntry {
-  id: string;
-  userId: string | null;
-  username: string | null;
-  event: string;
-  method: string | null;
-  success: boolean;
-  timestamp: string;
-}
 
 const ROLES: UserRole[] = ["viewer", "operator", "admin", "super-admin"];
 
@@ -68,7 +58,7 @@ export function UserManagementPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await occc.invoke("occc:auth:list-users", token) as UserProfile[] | null;
+      const data = await occc.listUsers(token);
       setUsers(data ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load users");
@@ -80,7 +70,7 @@ export function UserManagementPage() {
   const loadAuditLog = useCallback(async () => {
     if (!token) {return;}
     try {
-      const data = await occc.invoke("occc:auth:audit-log", token, 200) as AuditLogEntry[] | null;
+      const data = await occc.getAuditLog(token, 200);
       setAuditLog(data ?? []);
     } catch {}
   }, [token]);
@@ -206,7 +196,7 @@ export function UserManagementPage() {
           onClose={() => setActiveModal(null)}
           onSubmit={async (params) => {
             await handleAction("create a new user", () =>
-              occc.invoke?.("occc:auth:create-user", token, params),
+              occc.createUser(token!, params),
             );
           }}
         />
@@ -218,7 +208,7 @@ export function UserManagementPage() {
           onClose={() => setActiveModal(null)}
           onSubmit={async (newRole) => {
             await handleAction(`change ${activeModal.user.username}'s role`, () =>
-              occc.invoke?.("occc:auth:update-role", token, activeModal.user.id, newRole),
+              occc.updateUserRole(token!, activeModal.user.id, newRole),
             );
           }}
         />
@@ -229,7 +219,7 @@ export function UserManagementPage() {
           onClose={() => setActiveModal(null)}
           onSubmit={async (newPassword) => {
             await handleAction(`reset ${activeModal.user.username}'s password`, () =>
-              occc.invoke?.("occc:auth:reset-password", token, activeModal.user.id, newPassword),
+              occc.resetUserPassword(token!, activeModal.user.id, newPassword),
             );
           }}
         />
@@ -240,7 +230,7 @@ export function UserManagementPage() {
           onClose={() => setActiveModal(null)}
           onConfirm={async () => {
             await handleAction(`delete user ${activeModal.user.username}`, () =>
-              occc.invoke?.("occc:auth:delete-user", token, activeModal.user.id),
+              occc.deleteUser(token!, activeModal.user.id),
             );
           }}
         />

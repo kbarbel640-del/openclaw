@@ -10,7 +10,14 @@
 
 import { authenticator } from "otplib";
 import { randomBytes } from "node:crypto";
-import type { AuthSession, UserProfile, UserRole } from "../../shared/ipc-types.js";
+import type {
+  AuditLogEntry,
+  AuthSession,
+  CreateUserParams,
+  MutationResult,
+  UserProfile,
+  UserRole,
+} from "../../shared/ipc-types.js";
 import type { AuthStore } from "./auth-store.js";
 import type { SessionManager } from "./session-manager.js";
 import { isBiometricAvailable, promptBiometric } from "./biometric.js";
@@ -40,12 +47,31 @@ interface PendingTotpLogin {
   expiresAt: number;
 }
 
+// ─── Login Rate Limiting ────────────────────────────────────────────────
+
+/** Max consecutive failed login attempts before lockout. */
+const MAX_FAILED_ATTEMPTS = 5;
+
+/** Lockout duration after too many failed attempts (15 minutes). */
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
+/** Number of recovery codes to generate per user. */
+const RECOVERY_CODE_COUNT = 8;
+
+interface LoginAttempt {
+  failures: number;
+  lockedUntil: number;
+}
+
 export class AuthEngine {
   /** Pending TOTP logins: nonce → state */
   private pendingLogins = new Map<string, PendingTotpLogin>();
 
+  /** Login attempt tracker: username (lowercased) → attempt state */
+  private loginAttempts = new Map<string, LoginAttempt>();
+
   constructor(
-    readonly store: AuthStore,
+    private readonly store: AuthStore,
     private readonly sessions: SessionManager,
   ) {
     // Configure otplib
@@ -62,11 +88,11 @@ export class AuthEngine {
     return !this.store.hasUsers();
   }
 
-  /** Create the initial Super Admin account. */
+  /** Create the initial Super Admin account with TOTP + recovery codes. */
   async createInitialUser(params: {
     username: string;
     password: string;
-  }): Promise<{ profile: UserProfile; totpSetup: TotpSetupInfo }> {
+  }): Promise<{ profile: UserProfile; totpSetup: TotpSetupInfo; recoveryCodes: string[] }> {
     const profile = await this.store.createUser({
       username: params.username,
       role: "super-admin",
@@ -75,7 +101,12 @@ export class AuthEngine {
 
     // Always set up TOTP for the Super Admin
     const totpSetup = await this.generateTotpSetup(params.username);
-    return { profile, totpSetup };
+
+    // Generate recovery codes
+    const recoveryCodes = this.generateRecoveryCodesList();
+    await this.store.setRecoveryCodes(profile.id, recoveryCodes);
+
+    return { profile, totpSetup, recoveryCodes };
   }
 
   // ─── Login ──────────────────────────────────────────────────────────
@@ -87,6 +118,13 @@ export class AuthEngine {
    * The caller must then call `verifyTotp()` to complete login.
    */
   async login(username: string, password: string): Promise<LoginResult & { nonce?: string }> {
+    // Check lockout before any work
+    const lockoutMs = this.lockoutRemaining(username);
+    if (lockoutMs > 0) {
+      this.store.auditLog({ event: "login_locked", userId: undefined, method: "password", success: false });
+      return { ok: false, reason: "account-locked" };
+    }
+
     const user = this.store.getUserByUsername(username);
     if (!user) {
       // Constant-time delay to prevent user enumeration
@@ -96,9 +134,13 @@ export class AuthEngine {
 
     const valid = await this.store.verifyPassword(user.id, password);
     if (!valid) {
+      this.recordLoginFailure(username);
       this.store.auditLog({ event: "login_failed", userId: user.id, method: "password", success: false });
       return { ok: false, reason: "invalid-credentials" };
     }
+
+    // Password correct — clear failed attempt counter
+    this.clearLoginAttempts(username);
 
     // If TOTP is enabled, return a pending-login nonce
     if (user.totp_enabled) {
@@ -127,12 +169,17 @@ export class AuthEngine {
     }
 
     const secret = this.store.getTotpSecret(pending.userId);
-    if (!secret) {return { ok: false, reason: "invalid-code" };}
+    if (!secret) { return { ok: false, reason: "invalid-code" }; }
 
     const valid = authenticator.verify({ token: code, secret });
     if (!valid) {
-      this.store.auditLog({ event: "totp_failed", userId: pending.userId, method: "totp", success: false });
-      return { ok: false, reason: "invalid-code" };
+      // Try recovery code as fallback
+      const recoveryUsed = await this.store.useRecoveryCode(pending.userId, code);
+      if (!recoveryUsed) {
+        this.store.auditLog({ event: "totp_failed", userId: pending.userId, method: "totp", success: false });
+        return { ok: false, reason: "invalid-code" };
+      }
+      this.store.auditLog({ event: "recovery_code_used", userId: pending.userId, method: "recovery", success: true });
     }
 
     this.pendingLogins.delete(nonce);
@@ -156,9 +203,8 @@ export class AuthEngine {
 
     const result = await promptBiometric("to sign in to OpenClaw Command Center");
     if (!result.ok) {
-      const reason = result.reason === "cancelled" ? "invalid-credentials" : "invalid-credentials";
       this.store.auditLog({ event: "biometric_login_failed", userId: user.id, method: "biometric", success: false });
-      return { ok: false, reason };
+      return { ok: false, reason: "invalid-credentials" };
     }
 
     const { session, token } = this.sessions.createSession(user.id, user.role);
@@ -236,13 +282,75 @@ export class AuthEngine {
     code: string;
   }): Promise<boolean> {
     const valid = authenticator.verify({ token: params.code, secret: params.secret });
-    if (!valid) {return false;}
+    if (!valid) { return false; }
 
-    // Re-create user with TOTP secret (or use a dedicated update method)
-    // For now: update via store method
     this.store.setTotpSecret(params.userId, params.secret);
     this.store.auditLog({ event: "totp_setup", userId: params.userId, method: "totp", success: true });
     return true;
+  }
+
+  // ─── Biometric Enrollment ─────────────────────────────────────────────
+
+  /** Enroll biometric for a user (prompt + store flag). */
+  async enrollBiometric(userId: string): Promise<boolean> {
+    const result = await promptBiometric("to enroll biometric for OpenClaw Command Center");
+    if (!result.ok) { return false; }
+    this.store.setBiometricEnrolled(userId, true);
+    this.store.auditLog({ event: "biometric_enrolled", userId, method: "biometric", success: true });
+    return true;
+  }
+
+  // ─── User Management Facade ───────────────────────────────────────────
+
+  /** List all users. */
+  listUsers(): UserProfile[] {
+    return this.store.listUsers();
+  }
+
+  /** Create a user (admin-initiated). */
+  async createUser(params: CreateUserParams): Promise<UserProfile> {
+    return this.store.createUser(params);
+  }
+
+  /** Update a user's role. */
+  updateUserRole(userId: string, newRole: UserRole): MutationResult {
+    return this.store.updateUserRole(userId, newRole);
+  }
+
+  /** Admin-initiated password reset. Invalidates target's sessions. */
+  async resetPassword(userId: string, newPassword: string): Promise<MutationResult> {
+    const result = await this.store.resetPassword(userId, newPassword);
+    if (result.ok) {
+      this.sessions.invalidateAllForUser(userId);
+    }
+    return result;
+  }
+
+  /** Delete a user. Invalidates target's sessions. */
+  deleteUser(userId: string): MutationResult {
+    const result = this.store.deleteUser(userId);
+    if (result.ok) {
+      this.sessions.invalidateAllForUser(userId);
+    }
+    return result;
+  }
+
+  /** Self-service password change (verifies current password first). */
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<MutationResult> {
+    const valid = await this.store.verifyPassword(userId, currentPassword);
+    if (!valid) {
+      return { ok: false, reason: "Current password is incorrect" };
+    }
+    const result = await this.store.resetPassword(userId, newPassword);
+    if (result.ok) {
+      this.store.auditLog({ event: "password_changed", userId, method: "self-service", success: true });
+    }
+    return result;
+  }
+
+  /** Get audit log entries. */
+  getAuditLog(limit?: number): AuditLogEntry[] {
+    return this.store.getAuditLog(limit ?? 100);
   }
 
   // ─── Session ─────────────────────────────────────────────────────────
@@ -261,6 +369,45 @@ export class AuthEngine {
 
   async biometricAvailable(): Promise<boolean> {
     return isBiometricAvailable();
+  }
+
+  // ─── Rate Limiting Helpers ────────────────────────────────────────────
+
+  /** Record a failed login attempt. Returns true if the account is now locked. */
+  private recordLoginFailure(username: string): boolean {
+    const key = username.toLowerCase();
+    const existing = this.loginAttempts.get(key) ?? { failures: 0, lockedUntil: 0 };
+    existing.failures++;
+    if (existing.failures >= MAX_FAILED_ATTEMPTS) {
+      existing.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+      this.store.auditLog({ event: "account_locked", method: "rate-limit", success: false });
+    }
+    this.loginAttempts.set(key, existing);
+    return existing.failures >= MAX_FAILED_ATTEMPTS;
+  }
+
+  /** Clear failed attempt counter on successful login. */
+  private clearLoginAttempts(username: string): void {
+    this.loginAttempts.delete(username.toLowerCase());
+  }
+
+  /** Check if an account is currently locked. Returns remaining lockout ms or 0. */
+  lockoutRemaining(username: string): number {
+    const entry = this.loginAttempts.get(username.toLowerCase());
+    if (!entry || entry.lockedUntil <= Date.now()) { return 0; }
+    return entry.lockedUntil - Date.now();
+  }
+
+  // ─── Recovery Code Helpers ────────────────────────────────────────────
+
+  /** Generate a list of human-readable recovery codes (XXXX-XXXX format). */
+  private generateRecoveryCodesList(): string[] {
+    const codes: string[] = [];
+    for (let i = 0; i < RECOVERY_CODE_COUNT; i++) {
+      const raw = randomBytes(4).toString("hex").toUpperCase();
+      codes.push(`${raw.slice(0, 4)}-${raw.slice(4, 8)}`);
+    }
+    return codes;
   }
 }
 

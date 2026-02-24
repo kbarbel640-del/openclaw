@@ -46,7 +46,7 @@ export function SetupAccount({ onComplete }: SetupAccountProps) {
 
     setLoading(true);
     try {
-      const result = await occc.invoke("occc:auth:create-initial-user", username, password) as { totpSetup: { secret: string; qrDataUrl: string; otpAuthUrl: string } };
+      const result = await occc.createInitialUser(username, password);
       setTotpSetup(result.totpSetup);
       setStep("totp-setup");
     } catch (err: unknown) {
@@ -69,7 +69,7 @@ export function SetupAccount({ onComplete }: SetupAccountProps) {
       const loginResult = await occc.login(username, password);
       if (!loginResult || !("token" in loginResult)) {throw new Error("Login failed after setup");}
 
-      const confirmed = await occc.invoke("occc:auth:confirm-totp", loginResult.token, totpSetup.secret, totpCode);
+      const confirmed = await occc.confirmTotp(loginResult.token, totpSetup.secret, totpCode);
       if (!confirmed) {
         setError("Invalid code. Scan the QR again and try.");
         setLoading(false);
@@ -91,7 +91,7 @@ export function SetupAccount({ onComplete }: SetupAccountProps) {
     if (!pendingSession) {return;}
     setLoading(true);
     try {
-      await occc.invoke("occc:auth:enroll-biometric", pendingSession.token);
+      await occc.enrollBiometric(pendingSession.token);
     } catch {
       // Non-fatal — biometric enrollment is optional
     } finally {

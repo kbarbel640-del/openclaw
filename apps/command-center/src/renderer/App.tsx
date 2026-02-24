@@ -75,7 +75,7 @@ export function App() {
   useEffect(() => {
     const init = async () => {
       try {
-        const firstRun = await occc.invoke?.("occc:auth:is-first-run") ?? false;
+        const firstRun = await occc.isFirstRun();
         if (firstRun) {
           setAppState("first-run");
           return;
@@ -102,8 +102,8 @@ export function App() {
   // Poll biometric availability once authenticated
   useEffect(() => {
     if (appState !== "authenticated") {return;}
-    occc.invoke("occc:auth:biometric-available")
-      .then((v) => setBiometricAvailable(v as boolean))
+    occc.isBiometricAvailable()
+      .then((v) => setBiometricAvailable(v))
       .catch(() => {});
   }, [appState]);
 

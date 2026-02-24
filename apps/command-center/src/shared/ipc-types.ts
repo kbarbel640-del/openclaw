@@ -114,6 +114,33 @@ export interface AuthSession {
   elevated: boolean;
 }
 
+export interface TotpSetupInfo {
+  secret: string;
+  otpAuthUrl: string;
+  qrDataUrl: string;
+}
+
+export interface CreateUserParams {
+  username: string;
+  role: UserRole;
+  password: string;
+}
+
+export interface MutationResult {
+  ok: boolean;
+  reason?: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  userId: string | null;
+  username: string | null;
+  event: string;
+  method: string | null;
+  success: boolean;
+  timestamp: string;
+}
+
 // ─── IPC Channel Definitions ────────────────────────────────────────────────
 
 /**
@@ -128,6 +155,24 @@ export const IPC_CHANNELS = {
   AUTH_LOGOUT: "occc:auth:logout",
   AUTH_SESSION: "occc:auth:session",
   AUTH_ELEVATE: "occc:auth:elevate",
+
+  // Auth — First Run
+  AUTH_IS_FIRST_RUN: "occc:auth:is-first-run",
+  AUTH_CREATE_INITIAL_USER: "occc:auth:create-initial-user",
+  AUTH_CONFIRM_TOTP: "occc:auth:confirm-totp",
+  AUTH_BIOMETRIC_AVAILABLE: "occc:auth:biometric-available",
+  AUTH_ENROLL_BIOMETRIC: "occc:auth:enroll-biometric",
+
+  // Auth — User Management
+  AUTH_LIST_USERS: "occc:auth:list-users",
+  AUTH_CREATE_USER: "occc:auth:create-user",
+  AUTH_UPDATE_ROLE: "occc:auth:update-role",
+  AUTH_RESET_PASSWORD: "occc:auth:reset-password",
+  AUTH_DELETE_USER: "occc:auth:delete-user",
+  AUTH_AUDIT_LOG: "occc:auth:audit-log",
+
+  // Auth — Self-service
+  AUTH_CHANGE_PASSWORD: "occc:auth:change-password",
 
   // Environment
   ENV_STATUS: "occc:env:status",
@@ -175,6 +220,24 @@ export interface OcccBridge {
   logout(token?: string): Promise<void>;
   getSession(token?: string): Promise<AuthSession | null>;
   elevate(token?: string, totpCode?: string): Promise<{ ok: boolean; reason?: string } | null>;
+
+  // Auth — First Run
+  isFirstRun(): Promise<boolean>;
+  createInitialUser(username: string, password: string): Promise<{ profile: UserProfile; totpSetup: TotpSetupInfo; recoveryCodes: string[] }>;
+  confirmTotp(token: string, secret: string, code: string): Promise<boolean>;
+  isBiometricAvailable(): Promise<boolean>;
+  enrollBiometric(token: string): Promise<boolean>;
+
+  // Auth — User Management (admin+, elevation required for mutations)
+  listUsers(token: string): Promise<UserProfile[]>;
+  createUser(token: string, params: CreateUserParams): Promise<UserProfile>;
+  updateUserRole(token: string, userId: string, role: UserRole): Promise<MutationResult>;
+  resetUserPassword(token: string, userId: string, newPassword: string): Promise<MutationResult>;
+  deleteUser(token: string, userId: string): Promise<MutationResult>;
+  getAuditLog(token: string, limit?: number): Promise<AuditLogEntry[]>;
+
+  // Auth — Self-service
+  changePassword(token: string, currentPassword: string, newPassword: string): Promise<MutationResult>;
 
   // Environment (session required; create/destroy require elevated session)
   getEnvironmentStatus(token: string): Promise<EnvironmentStatus>;

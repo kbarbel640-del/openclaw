@@ -31,10 +31,9 @@ export function LoginPage({ onAuthenticated, onFirstRun }: LoginPageProps) {
 
   // Check first-run and biometric availability on mount
   useEffect(() => {
-    const occcUnknown = occc as unknown as { invoke: (ch: string) => Promise<boolean> };
     void Promise.all([
-      occcUnknown.invoke("occc:auth:is-first-run"),
-      occcUnknown.invoke("occc:auth:biometric-available"),
+      occc.isFirstRun(),
+      occc.isBiometricAvailable(),
     ]).then(([firstRun, biometric]) => {
       setIsFirstRun(firstRun);
       setBiometricAvailable(biometric);
