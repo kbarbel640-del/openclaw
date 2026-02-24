@@ -1,0 +1,23 @@
+{
+  "id": "meeting-baas",
+  "name": "Meeting BaaS",
+  "description": "Record meetings on Google Meet, Zoom, and Microsoft Teams via the Meeting BaaS API.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "description": "Meeting BaaS API key"
+      },
+      "baseUrl": {
+        "type": "string",
+        "description": "Custom base URL for the Meeting BaaS API"
+      }
+    }
+  },
+  "uiHints": {
+    "apiKey": { "sensitive": true },
+    "baseUrl": { "advanced": true }
+  }
+}
