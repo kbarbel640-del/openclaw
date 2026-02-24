@@ -215,19 +215,24 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
           );
 
           // Forward to OpenClaw's message pipeline
-          await (
-            runtime.channel.reply as { handleInboundMessage?: (params: unknown) => Promise<void> }
-          ).handleInboundMessage?.({
-            channel: "nostr",
-            accountId: account.accountId,
-            senderId: senderPubkey,
-            chatType: "direct",
-            chatId: senderPubkey, // For DMs, chatId is the sender's pubkey
-            text,
-            reply: async (responseText: string) => {
-              await reply(responseText);
-            },
-          });
+          if (typeof runtime.channel.reply?.handleInboundMessage === 'function') {
+            await runtime.channel.reply.handleInboundMessage({
+              channel: "nostr",
+              accountId: account.accountId,
+              senderId: senderPubkey,
+              chatType: "direct",
+              chatId: senderPubkey,
+              text,
+              reply: async (responseText: string) => {
+                await reply(responseText);
+              },
+            });
+          } else {
+            ctx.log?.error?.(
+              `[${account.accountId}] Message routing not available - handleInboundMessage is not a function`,
+            );
+            throw new Error("Message routing not properly configured");
+          }
         },
         onError: (error, context) => {
           ctx.log?.error?.(`[${account.accountId}] Nostr error (${context}): ${error.message}`);
