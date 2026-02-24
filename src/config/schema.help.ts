@@ -896,6 +896,18 @@ export const FIELD_HELP: Record<string, string> = {
     "User-prompt template used for the pre-compaction memory flush turn when generating memory candidates. Use this only when you need custom extraction instructions beyond the default memory flush behavior.",
   "agents.defaults.compaction.memoryFlush.systemPrompt":
     "System-prompt override for the pre-compaction memory flush turn to control extraction style and safety constraints. Use carefully so custom instructions do not reduce memory quality or leak sensitive context.",
+  "agents.defaults.completionRetry":
+    "Retry transient LLM completion errors (overloaded, 529, 503, timeouts) with exponential backoff before falling over to the next auth profile or model.",
+  "agents.defaults.completionRetry.attempts":
+    "Max retry attempts for transient LLM errors before failover (default: 3).",
+  "agents.defaults.completionRetry.minDelayMs":
+    "Initial backoff delay in ms for LLM completion retries (default: 2000).",
+  "agents.defaults.completionRetry.maxDelayMs":
+    "Maximum backoff delay cap in ms for LLM completion retries (default: 30000).",
+  "agents.defaults.completionRetry.jitter":
+    "Jitter factor (0-1) applied to LLM completion retry delays (default: 0.1).",
+  "agents.defaults.completionRetry.timeoutMs":
+    "Total timeout across all LLM completion retry attempts in ms (default: 60000). Retries stop when elapsed time exceeds this value.",
   "agents.defaults.humanDelay.mode": 'Delay style for block replies ("off", "natural", "custom").',
   "agents.defaults.humanDelay.minMs": "Minimum delay in ms for custom humanDelay (default: 800).",
   "agents.defaults.humanDelay.maxMs": "Maximum delay in ms for custom humanDelay (default: 2500).",

@@ -890,6 +890,41 @@ export function isFailoverErrorMessage(raw: string): boolean {
   return classifyFailoverReason(raw) !== null;
 }
 
+/**
+ * Returns true if the error is transient and should be retried with backoff
+ * before falling over to the next auth profile.
+ * Auth, billing, format, and model_not_found errors are NOT retryable.
+ */
+export function isRetryableCompletionError(raw: string): boolean {
+  const reason = classifyFailoverReason(raw);
+  return reason === "timeout" || reason === "rate_limit";
+}
+
+const RETRY_AFTER_SECONDS_RE = /retry.after\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:s(?:ec(?:ond)?s?)?)?/i;
+const RETRY_AFTER_MS_RE = /retry.after\s*[:=]?\s*(\d+)\s*ms/i;
+
+/**
+ * Heuristically extract a Retry-After delay from an error message string.
+ * LLM SDK errors lose HTTP headers, so we parse common patterns from the
+ * error text (e.g. "retry after 30s", "retry_after: 5000ms").
+ */
+export function extractRetryAfterHintMs(raw: string): number | undefined {
+  if (!raw) {
+    return undefined;
+  }
+  const msMatch = raw.match(RETRY_AFTER_MS_RE);
+  if (msMatch?.[1]) {
+    const ms = Number.parseInt(msMatch[1], 10);
+    return Number.isFinite(ms) && ms > 0 ? ms : undefined;
+  }
+  const secMatch = raw.match(RETRY_AFTER_SECONDS_RE);
+  if (secMatch?.[1]) {
+    const sec = Number.parseFloat(secMatch[1]);
+    return Number.isFinite(sec) && sec > 0 ? Math.round(sec * 1000) : undefined;
+  }
+  return undefined;
+}
+
 export function isFailoverAssistantError(msg: AssistantMessage | undefined): boolean {
   if (!msg || msg.stopReason !== "error") {
     return false;

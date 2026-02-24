@@ -9,9 +9,43 @@ import type { EmbeddedRunAttemptResult } from "./pi-embedded-runner/run/types.js
 
 const runEmbeddedAttemptMock = vi.fn<(params: unknown) => Promise<EmbeddedRunAttemptResult>>();
 
+// Disable completion-retry logic so auth-profile rotation tests are unaffected.
+vi.mock("./pi-embedded-helpers.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("./pi-embedded-helpers.js")>();
+  return {
+    ...mod,
+    isRetryableCompletionError: vi.fn(() => false),
+    extractRetryAfterHintMs: vi.fn(() => undefined),
+  };
+});
+
+vi.mock("../utils.js", () => ({
+  sleep: vi.fn(async () => {}),
+}));
+
 vi.mock("./pi-embedded-runner/run/attempt.js", () => ({
   runEmbeddedAttempt: (params: unknown) => runEmbeddedAttemptMock(params),
 }));
+
+// Disable completion retry in auth-profile-rotation tests so that transient
+// errors fall through to the failover/rotation logic immediately.
+vi.mock("./pi-embedded-helpers.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("./pi-embedded-helpers.js")>();
+  return {
+    ...mod,
+    isRetryableCompletionError: vi.fn(() => false),
+    extractRetryAfterHintMs: vi.fn(() => undefined),
+  };
+});
+
+// Mock sleep so retry delays don't block tests, and provide resolveUserPath.
+vi.mock("../utils.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../utils.js")>();
+  return {
+    ...mod,
+    sleep: vi.fn(async () => {}),
+  };
+});
 
 vi.mock("./pi-embedded-runner/compact.js", () => ({
   compactEmbeddedPiSessionDirect: vi.fn(async () => {

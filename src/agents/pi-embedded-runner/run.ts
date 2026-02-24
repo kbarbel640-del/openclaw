@@ -2,10 +2,12 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import { resolveAgentModelFallbackValues } from "../../config/model-input.js";
+import type { CompletionRetryConfig } from "../../config/types.agent-defaults.js";
 import { generateSecureToken } from "../../infra/secure-random.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import type { PluginHookBeforeAgentStartResult } from "../../plugins/types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
+import { sleep } from "../../utils.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
 import { resolveOpenClawAgentDir } from "../agent-paths.js";
 import {
@@ -34,6 +36,7 @@ import { ensureOpenClawModelsJson } from "../models-config.js";
 import {
   formatBillingErrorMessage,
   classifyFailoverReason,
+  extractRetryAfterHintMs,
   formatAssistantErrorText,
   isAuthAssistantError,
   isBillingAssistantError,
@@ -41,6 +44,7 @@ import {
   isLikelyContextOverflowError,
   isFailoverAssistantError,
   isFailoverErrorMessage,
+  isRetryableCompletionError,
   parseImageSizeError,
   parseImageDimensionError,
   isRateLimitAssistantError,
@@ -118,6 +122,59 @@ function resolveMaxRunRetryIterations(profileCandidateCount: number): number {
     BASE_RUN_RETRY_ITERATIONS +
     Math.max(1, profileCandidateCount) * RUN_RETRY_ITERATIONS_PER_PROFILE;
   return Math.min(MAX_RUN_RETRY_ITERATIONS, Math.max(MIN_RUN_RETRY_ITERATIONS, scaled));
+}
+
+// Completion retry defaults for transient LLM errors (overloaded, 529, 503, timeouts).
+const COMPLETION_RETRY_DEFAULTS = {
+  attempts: 3,
+  minDelayMs: 2000,
+  maxDelayMs: 30_000,
+  jitter: 0.1,
+  timeoutMs: 60_000,
+} as const;
+
+type ResolvedCompletionRetryConfig = {
+  attempts: number;
+  minDelayMs: number;
+  maxDelayMs: number;
+  jitter: number;
+  timeoutMs: number;
+};
+
+function resolveCompletionRetryConfig(cfg?: CompletionRetryConfig): ResolvedCompletionRetryConfig {
+  const attempts = Math.max(1, Math.round(cfg?.attempts ?? COMPLETION_RETRY_DEFAULTS.attempts));
+  const minDelayMs = Math.max(
+    0,
+    Math.round(cfg?.minDelayMs ?? COMPLETION_RETRY_DEFAULTS.minDelayMs),
+  );
+  const maxDelayMs = Math.max(
+    minDelayMs,
+    Math.round(cfg?.maxDelayMs ?? COMPLETION_RETRY_DEFAULTS.maxDelayMs),
+  );
+  const jitter = Math.min(1, Math.max(0, cfg?.jitter ?? COMPLETION_RETRY_DEFAULTS.jitter));
+  const timeoutMs = Math.max(0, Math.round(cfg?.timeoutMs ?? COMPLETION_RETRY_DEFAULTS.timeoutMs));
+  return { attempts, minDelayMs, maxDelayMs, jitter, timeoutMs };
+}
+
+function computeCompletionRetryDelay(params: {
+  attempt: number;
+  minDelayMs: number;
+  maxDelayMs: number;
+  jitter: number;
+  retryAfterHintMs?: number;
+}): number {
+  const { attempt, minDelayMs, maxDelayMs, jitter, retryAfterHintMs } = params;
+  const baseDelay =
+    typeof retryAfterHintMs === "number" && retryAfterHintMs > 0
+      ? Math.max(retryAfterHintMs, minDelayMs)
+      : minDelayMs * 2 ** (attempt - 1);
+  let delay = Math.min(baseDelay, maxDelayMs);
+  if (jitter > 0) {
+    const offset = (Math.random() * 2 - 1) * jitter;
+    delay = Math.max(0, Math.round(delay * (1 + offset)));
+    delay = Math.min(Math.max(delay, minDelayMs), maxDelayMs);
+  }
+  return delay;
 }
 
 const hasUsageValues = (
@@ -513,6 +570,11 @@ export async function runEmbeddedPiAgent(
       let lastRunPromptUsage: ReturnType<typeof normalizeUsage> | undefined;
       let autoCompactionCount = 0;
       let runLoopIterations = 0;
+      const completionRetryConfig = resolveCompletionRetryConfig(
+        params.config?.agents?.defaults?.completionRetry,
+      );
+      let completionRetryAttempt = 0;
+      let completionRetryStartedAt: number | undefined;
       const maybeMarkAuthProfileFailure = async (failure: {
         profileId?: string;
         reason?: Parameters<typeof markAuthProfileFailure>[0]["reason"] | null;
@@ -899,6 +961,39 @@ export async function runEmbeddedPiAgent(
               };
             }
             const promptFailoverReason = classifyFailoverReason(errorText);
+            // Retry transient errors with exponential backoff before failover.
+            if (isRetryableCompletionError(errorText)) {
+              const now = Date.now();
+              if (!completionRetryStartedAt) {
+                completionRetryStartedAt = now;
+              }
+              const elapsed = now - completionRetryStartedAt;
+              if (
+                completionRetryAttempt < completionRetryConfig.attempts &&
+                elapsed < completionRetryConfig.timeoutMs &&
+                !params.abortSignal?.aborted
+              ) {
+                completionRetryAttempt += 1;
+                const retryAfterHintMs = extractRetryAfterHintMs(errorText);
+                const delayMs = computeCompletionRetryDelay({
+                  attempt: completionRetryAttempt,
+                  minDelayMs: completionRetryConfig.minDelayMs,
+                  maxDelayMs: completionRetryConfig.maxDelayMs,
+                  jitter: completionRetryConfig.jitter,
+                  retryAfterHintMs,
+                });
+                log.warn(
+                  `[completion-retry] transient error (prompt), retry ${completionRetryAttempt}/${completionRetryConfig.attempts} ` +
+                    `in ${delayMs}ms (elapsed=${elapsed}ms, timeout=${completionRetryConfig.timeoutMs}ms): ` +
+                    errorText.slice(0, 200),
+                );
+                await sleep(delayMs);
+                continue;
+              }
+              // Reset retry state before falling through to failover.
+              completionRetryAttempt = 0;
+              completionRetryStartedAt = undefined;
+            }
             await maybeMarkAuthProfileFailure({
               profileId: lastProfileId,
               reason: promptFailoverReason,
@@ -908,6 +1003,9 @@ export async function runEmbeddedPiAgent(
               promptFailoverReason !== "timeout" &&
               (await advanceAuthProfile())
             ) {
+              // Reset retry state for the new profile.
+              completionRetryAttempt = 0;
+              completionRetryStartedAt = undefined;
               continue;
             }
             const fallbackThinking = pickFallbackThinkingLevel({
@@ -980,6 +1078,45 @@ export async function runEmbeddedPiAgent(
             (!aborted && failoverFailure) || (timedOut && !timedOutDuringCompaction);
 
           if (shouldRotate) {
+            // Retry transient assistant errors with exponential backoff before failover.
+            const rotateErrorText = lastAssistant?.errorMessage ?? "";
+            if (
+              isRetryableCompletionError(rotateErrorText) ||
+              (timedOut && !timedOutDuringCompaction)
+            ) {
+              const retryErrorText = rotateErrorText || (timedOut ? "timeout" : "");
+              const now = Date.now();
+              if (!completionRetryStartedAt) {
+                completionRetryStartedAt = now;
+              }
+              const elapsed = now - completionRetryStartedAt;
+              if (
+                completionRetryAttempt < completionRetryConfig.attempts &&
+                elapsed < completionRetryConfig.timeoutMs &&
+                !params.abortSignal?.aborted
+              ) {
+                completionRetryAttempt += 1;
+                const retryAfterHintMs = extractRetryAfterHintMs(retryErrorText);
+                const delayMs = computeCompletionRetryDelay({
+                  attempt: completionRetryAttempt,
+                  minDelayMs: completionRetryConfig.minDelayMs,
+                  maxDelayMs: completionRetryConfig.maxDelayMs,
+                  jitter: completionRetryConfig.jitter,
+                  retryAfterHintMs,
+                });
+                log.warn(
+                  `[completion-retry] transient error (assistant), retry ${completionRetryAttempt}/${completionRetryConfig.attempts} ` +
+                    `in ${delayMs}ms (elapsed=${elapsed}ms, timeout=${completionRetryConfig.timeoutMs}ms): ` +
+                    retryErrorText.slice(0, 200),
+                );
+                await sleep(delayMs);
+                continue;
+              }
+              // Reset retry state before falling through to failover.
+              completionRetryAttempt = 0;
+              completionRetryStartedAt = undefined;
+            }
+
             if (lastProfileId) {
               const reason =
                 timedOut || assistantFailoverReason === "timeout"
@@ -1004,6 +1141,9 @@ export async function runEmbeddedPiAgent(
 
             const rotated = await advanceAuthProfile();
             if (rotated) {
+              // Reset retry state for the new profile.
+              completionRetryAttempt = 0;
+              completionRetryStartedAt = undefined;
               continue;
             }
 

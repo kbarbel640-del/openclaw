@@ -4,6 +4,7 @@ import { isCompactionFailureError, isLikelyContextOverflowError } from "../pi-em
 
 vi.mock("../../utils.js", () => ({
   resolveUserPath: vi.fn((p: string) => p),
+  sleep: vi.fn(async () => {}),
 }));
 
 import { log } from "./logger.js";

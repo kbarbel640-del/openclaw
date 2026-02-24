@@ -9,6 +9,7 @@ import {
   BlockStreamingChunkSchema,
   BlockStreamingCoalesceSchema,
   CliBackendSchema,
+  CompletionRetryConfigSchema,
   HumanDelaySchema,
   TypingModeSchema,
 } from "./zod-schema.core.js";
@@ -152,6 +153,7 @@ export const AgentDefaultsSchema = z
       .strict()
       .optional(),
     sandbox: AgentSandboxSchema,
+    completionRetry: CompletionRetryConfigSchema,
   })
   .strict()
   .optional();
