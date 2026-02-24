@@ -1,0 +1,18 @@
+{
+  "id": "openchat",
+  "channels": ["openchat"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "description": "The URL of the OpenChat API endpoint"
+      },
+      "token": {
+        "type": "string",
+        "description": "The authentication token for OpenChat"
+      }
+    }
+  }
+}
