@@ -1085,28 +1085,38 @@ export async function runEmbeddedPiAgent(
           // Timeout aborts can leave the run without any assistant payloads.
           // Emit an explicit timeout error instead of silently completing, so
           // callers do not lose the turn as an orphaned user message.
-          if (timedOut && !timedOutDuringCompaction && payloads.length === 0) {
-            return {
-              payloads: [
-                {
-                  text:
-                    "Request timed out before a response was generated. " +
-                    "Please try again, or increase `agents.defaults.timeoutSeconds` in your config.",
-                  isError: true,
+          // When partial payloads exist, append a timeout notice so the user
+          // knows the response is incomplete rather than the session appearing stuck.
+          if (timedOut && !timedOutDuringCompaction) {
+            if (payloads.length === 0) {
+              return {
+                payloads: [
+                  {
+                    text:
+                      "Request timed out before a response was generated. " +
+                      "Please try again, or increase `agents.defaults.timeoutSeconds` in your config.",
+                    isError: true,
+                  },
+                ],
+                meta: {
+                  durationMs: Date.now() - started,
+                  agentMeta,
+                  aborted,
+                  systemPromptReport: attempt.systemPromptReport,
                 },
-              ],
-              meta: {
-                durationMs: Date.now() - started,
-                agentMeta,
-                aborted,
-                systemPromptReport: attempt.systemPromptReport,
-              },
-              didSendViaMessagingTool: attempt.didSendViaMessagingTool,
-              messagingToolSentTexts: attempt.messagingToolSentTexts,
-              messagingToolSentMediaUrls: attempt.messagingToolSentMediaUrls,
-              messagingToolSentTargets: attempt.messagingToolSentTargets,
-              successfulCronAdds: attempt.successfulCronAdds,
-            };
+                didSendViaMessagingTool: attempt.didSendViaMessagingTool,
+                messagingToolSentTexts: attempt.messagingToolSentTexts,
+                messagingToolSentMediaUrls: attempt.messagingToolSentMediaUrls,
+                messagingToolSentTargets: attempt.messagingToolSentTargets,
+                successfulCronAdds: attempt.successfulCronAdds,
+              };
+            }
+            payloads.push({
+              text:
+                "\n\nThe request timed out and the response above may be incomplete. " +
+                "Please try again, or increase `agents.defaults.timeoutSeconds` in your config.",
+              isError: true,
+            });
           }
 
           log.debug(
