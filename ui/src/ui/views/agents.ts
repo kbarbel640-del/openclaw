@@ -322,32 +322,6 @@ function renderAgentHeader(
   `;
 }
 
-function renderAgentTabs(
-  active: AgentsPanel,
-  onSelect: (panel: AgentsPanel) => void,
-  counts: Record<string, number | null>,
-) {
-  const badge = agentBadgeText(agent.id, defaultId);
-  const displayName = normalizeAgentLabel(agent);
-  const subtitle = agent.identity?.theme?.trim() || "Agent workspace and routing.";
-  const emoji = resolveAgentEmoji(agent, agentIdentity);
-  return html`
-    <section class="card agent-header">
-      <div class="agent-header-main">
-        <div class="agent-avatar agent-avatar--lg">${emoji || displayName.slice(0, 1)}</div>
-        <div>
-          <div class="card-title">${displayName}</div>
-          <div class="card-sub">${subtitle}</div>
-        </div>
-      </div>
-      <div class="agent-header-meta">
-        <div class="mono">${agent.id}</div>
-        ${badge ? html`<span class="agent-pill">${badge}</span>` : nothing}
-      </div>
-    </section>
-  `;
-}
-
 function renderAgentTabs(active: AgentsPanel, onSelect: (panel: AgentsPanel) => void) {
   const tabs: Array<{ id: AgentsPanel; label: string }> = [
     { id: "overview", label: "Overview" },
