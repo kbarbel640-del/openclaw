@@ -485,7 +485,7 @@ export async function handleOpenResponsesHttpRequest(
             {
               type: "function_call",
               id: functionCallItemId,
-              call_id: functionCall.id,
+              call_id: functionCall.id.slice(0, 64),
               name: functionCall.name,
               arguments: functionCall.arguments,
             },
@@ -754,7 +754,7 @@ export async function handleOpenResponsesHttpRequest(
           const functionCallItem = {
             type: "function_call" as const,
             id: functionCallItemId,
-            call_id: functionCall.id,
+            call_id: functionCall.id.slice(0, 64),
             name: functionCall.name,
             arguments: functionCall.arguments,
           };
