@@ -251,6 +251,23 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("not agents_list");
   });
 
+  it("guides harness requests to ACP thread-bound spawns", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      toolNames: ["sessions_spawn", "subagents", "agents_list", "exec"],
+    });
+
+    expect(prompt).toContain(
+      'For requests like "do this in codex/claude code/gemini", treat it as ACP harness intent',
+    );
+    expect(prompt).toContain(
+      'On Discord, default ACP harness requests to thread-bound persistent sessions (`thread: true`, `mode: "session"`)',
+    );
+    expect(prompt).toContain(
+      "do not route ACP harness requests through `subagents`/`agents_list` or local PTY exec flows",
+    );
+  });
+
   it("preserves tool casing in the prompt", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",

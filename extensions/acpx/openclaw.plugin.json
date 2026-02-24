@@ -2,6 +2,7 @@
   "id": "acpx",
   "name": "ACPX Runtime",
   "description": "ACP runtime backend powered by the acpx CLI.",
+  "skills": ["./skills"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
