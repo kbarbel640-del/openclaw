@@ -934,8 +934,14 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       const snapshotConfig = normalizeConfigPaths(
         applyTalkApiKey(
           applyModelDefaults(
-            applyAgentDefaults(
-              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
+            applyCompactionDefaults(
+              applyContextPruningDefaults(
+                applyAgentDefaults(
+                  applySessionDefaults(
+                    applyLoggingDefaults(applyMessageDefaults(validated.config)),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
