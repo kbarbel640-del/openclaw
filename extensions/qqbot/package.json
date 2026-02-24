@@ -12,9 +12,7 @@
     "skills",
     "index.ts",
     "tsconfig.json",
-    "openclaw.plugin.json",
-    "clawdbot.plugin.json",
-    "moltbot.plugin.json"
+    "openclaw.plugin.json"
   ],
   "type": "module",
   "main": "dist/index.js",
@@ -25,15 +23,13 @@
     "prepack": "npm install --omit=dev"
   },
   "dependencies": {
-    "clawdbot": "*",
-    "moltbot": "*",
-    "openclaw": "*",
     "silk-wasm": "^3.7.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/ws": "^8.5.0",
+    "openclaw": "workspace:*",
     "typescript": "^5.9.3"
   },
   "bundledDependencies": [
@@ -44,16 +40,6 @@
     "silk-wasm",
     "ws"
   ],
-  "clawdbot": {
-    "extensions": [
-      "./index.ts"
-    ]
-  },
-  "moltbot": {
-    "extensions": [
-      "./index.ts"
-    ]
-  },
   "openclaw": {
     "extensions": [
       "./index.ts"

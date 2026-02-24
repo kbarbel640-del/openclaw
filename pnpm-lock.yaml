@@ -452,15 +452,6 @@ importers:
 
   extensions/qqbot:
     dependencies:
-      clawdbot:
-        specifier: '*'
-        version: 2026.1.24-3(@discordjs/opus@0.10.0)(@types/express@5.0.6)(audio-decode@2.2.3)(devtools-protocol@0.0.1589152)(opusscript@0.0.8)(typescript@5.9.3)
-      moltbot:
-        specifier: '*'
-        version: 0.1.0
-      openclaw:
-        specifier: '*'
-        version: 2026.2.23(@napi-rs/canvas@0.1.94)(@types/express@5.0.6)(audio-decode@2.2.3)(hono@4.11.10)(node-llama-cpp@3.15.1(typescript@5.9.3))
       silk-wasm:
         specifier: ^3.7.1
         version: 3.7.1
@@ -474,6 +465,9 @@ importers:
       '@types/ws':
         specifier: ^8.5.0
         version: 8.18.1
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
