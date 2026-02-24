@@ -543,6 +543,9 @@ function resolveMoonshotCacheConfig(
  * 2. Creates or retrieves a cache for them via /v1/caching API
  * 3. Injects `role: "cache"` with cache_id into the messages
  *
+ * The cache is resolved BEFORE calling the underlying stream to avoid
+ * race conditions with async onPayload callbacks.
+ *
  * @see https://github.com/Elarwei001/research_openclaw/blob/main/proposals/kimi-context-cache.md
  */
 function createMoonshotCacheWrapper(
@@ -581,45 +584,45 @@ function createMoonshotCacheWrapper(
       MOONSHOT_BASE_URLS[model.provider] ??
       MOONSHOT_BASE_URLS.moonshot;
 
-    // Wrap the stream call to inject cache
-    const originalOnPayload = options?.onPayload;
+    // Use async generator to resolve cache BEFORE streaming starts
+    // This avoids the race condition of async onPayload callbacks
+    async function* streamWithCache(): AsyncIterable<unknown> {
+      let modifiedContext = context;
 
-    return underlying(model, context, {
-      ...options,
-      onPayload: async (payload) => {
-        if (payload && typeof payload === "object") {
-          const payloadObj = payload as Record<string, unknown>;
-          const payloadMessages = payloadObj.messages;
+      try {
+        const cacheId = await getOrCreateCache({
+          sessionKey,
+          apiKey,
+          baseUrl,
+          model: modelId,
+          system: systemContent,
+          tools,
+          ttl,
+        });
 
-          if (Array.isArray(payloadMessages)) {
-            try {
-              const cacheId = await getOrCreateCache({
-                sessionKey,
-                apiKey,
-                baseUrl,
-                model: modelId,
-                system: systemContent,
-                tools,
-                ttl,
-              });
+        // Inject cache role into messages, replacing system message
+        const modifiedMessages = injectCacheRole(
+          messages as Array<{ role: string; content: unknown }>,
+          cacheId,
+          resetTtl,
+        );
 
-              // Replace messages with cache-injected version
-              payloadObj.messages = injectCacheRole(
-                payloadMessages as Array<{ role: string; content: unknown }>,
-                cacheId,
-                resetTtl,
-              );
+        modifiedContext = {
+          ...context,
+          messages: modifiedMessages,
+        };
 
-              log.debug(`[moonshot-cache] Injected cache ${cacheId} for session ${sessionKey}`);
-            } catch (err) {
-              // On cache error, fall back to normal request
-              log.warn(`[moonshot-cache] Cache error, falling back: ${String(err)}`);
-            }
-          }
-        }
-        originalOnPayload?.(payload);
-      },
-    });
+        log.debug(`[moonshot-cache] Injected cache ${cacheId} for session ${sessionKey}`);
+      } catch (err) {
+        // On cache error, fall back to normal request with original context
+        log.warn(`[moonshot-cache] Cache error, falling back: ${String(err)}`);
+      }
+
+      // Delegate to underlying stream with (possibly modified) context
+      yield* underlying(model, modifiedContext, options);
+    }
+
+    return streamWithCache();
   };
 }
 

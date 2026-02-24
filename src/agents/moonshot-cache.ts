@@ -48,11 +48,28 @@ type Message = {
 // State
 // ---------------------------------------------------------------------------
 
+// Maximum number of cached sessions to prevent memory leaks
+const MAX_CACHE_SIZE = 1000;
+
 // Cache store: sessionKey -> CacheEntry
 const cacheStore = new Map<string, CacheEntry>();
 
 // Inflight cache creation promises to avoid duplicate creation
 const inflightCreation = new Map<string, Promise<string>>();
+
+/**
+ * Evict oldest entries if cache exceeds max size.
+ * Uses simple FIFO eviction (Map maintains insertion order).
+ */
+function evictIfNeeded(): void {
+  while (cacheStore.size > MAX_CACHE_SIZE) {
+    const oldestKey = cacheStore.keys().next().value;
+    if (oldestKey) {
+      cacheStore.delete(oldestKey);
+      log.debug(`[moonshot-cache] Evicted oldest cache entry: ${oldestKey}`);
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -169,8 +186,10 @@ export async function getOrCreateCache(params: {
   // Create new cache with inflight lock
   const creationPromise = (async () => {
     try {
-      // Delete old cache if exists
+      // Delete old cache if exists and clear local entry immediately
+      // This prevents stale entries if createCache fails after deletion
       if (existing) {
+        cacheStore.delete(params.sessionKey);
         await deleteCache({
           apiKey: params.apiKey,
           baseUrl: params.baseUrl,
@@ -188,6 +207,7 @@ export async function getOrCreateCache(params: {
       });
 
       cacheStore.set(params.sessionKey, { cacheId, contentHash });
+      evictIfNeeded();
       return cacheId;
     } finally {
       inflightCreation.delete(params.sessionKey);
