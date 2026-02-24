@@ -15,6 +15,7 @@ import {
   readConfigFileSnapshot,
 } from "../config/config.js";
 import { collectProviderDangerousNameMatchingScopes } from "../config/dangerous-name-matching.js";
+import { resolveStateDir } from "../config/paths.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
 import { parseToolsBySenderTypedKey } from "../config/types.tools.js";
 import { resolveCommandResolutionFromArgv } from "../infra/exec-command-resolution.js";
@@ -1297,7 +1298,7 @@ async function maybeMigrateLegacyConfig(): Promise<string[]> {
     return changes;
   }
 
-  const targetDir = path.join(home, ".openclaw");
+  const targetDir = resolveStateDir(process.env, () => home);
   const targetPath = path.join(targetDir, "openclaw.json");
   try {
     await fs.access(targetPath);
