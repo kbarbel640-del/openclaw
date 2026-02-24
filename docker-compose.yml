@@ -44,3 +44,19 @@ services:
     tty: true
     init: true
     entrypoint: ["node", "dist/index.js"]
+
+  clawfeed:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - /Users/rexmacmini/Project/active_projects/clawfeed:/app
+      - clawfeed-data:/app/data
+    env_file:
+      - /Users/rexmacmini/Project/active_projects/clawfeed/.env
+    command: node src/server.mjs
+    ports:
+      - "127.0.0.1:8767:8767"
+    restart: unless-stopped
+
+volumes:
+  clawfeed-data:
