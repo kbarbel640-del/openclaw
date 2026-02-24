@@ -1286,7 +1286,7 @@ export const registerTelegramHandlers = ({
       return;
     }
     const raw = ctx.message.web_app_data?.data;
-    if (!raw) return;
+    if (!raw) { return; }
 
     let payload: { identityMd?: string; soulMd?: string; userMd?: string };
     try {
