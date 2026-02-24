@@ -50,6 +50,7 @@ Desktop command center for deep analysis, mobile-optimized monitoring for on-the
 **The 9 C-Suite Agents:** CEO, CFO, COO, CMO, CTO, HR Director, Legal Counsel, Strategy Officer, Knowledge Manager
 
 ---
+
 ## RLM-Inspired Memory System
 
 The MABOS memory subsystem implements five enhancements inspired by the [Recursive Language Models](https://arxiv.org/abs/2512.24601v2) paper (Zhang, Kraska, Khattab — Jan 2026), which demonstrates that treating context as a hierarchically navigable external environment enables LLMs to process inputs far beyond native context windows.
