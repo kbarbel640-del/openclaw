@@ -1066,6 +1066,17 @@ export async function runEmbeddedAttempt(
             systemPromptText = legacySystemPrompt;
             log.debug(`hooks: applied systemPrompt override (${legacySystemPrompt.length} chars)`);
           }
+          // Apply appendSystemPrompt from before_prompt_build (safe append, preserves built-in instructions)
+          if (hookResult?.appendSystemPrompt) {
+            const newSystemPrompt = systemPromptText
+              ? `${systemPromptText}\n\n${hookResult.appendSystemPrompt}`
+              : hookResult.appendSystemPrompt;
+            systemPromptText = newSystemPrompt;
+            activeSession.agent.setSystemPrompt(newSystemPrompt);
+            log.debug(
+              `hooks: appended to system prompt (${hookResult.appendSystemPrompt.length} chars)`,
+            );
+          }
         }
 
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
@@ -1148,8 +1159,8 @@ export async function runEmbeddedAttempt(
           }
 
           if (hookRunner?.hasHooks("llm_input")) {
-            hookRunner
-              .runLlmInput(
+            try {
+              const llmInputResult = await hookRunner.runLlmInput(
                 {
                   runId: params.runId,
                   sessionId: params.sessionId,
@@ -1167,10 +1178,18 @@ export async function runEmbeddedAttempt(
                   workspaceDir: params.workspaceDir,
                   messageProvider: params.messageProvider ?? undefined,
                 },
-              )
-              .catch((err) => {
-                log.warn(`llm_input hook failed: ${String(err)}`);
-              });
+              );
+              // Apply appendSystemPrompt if returned by any handler
+              if (llmInputResult?.appendSystemPrompt) {
+                const newSystemPrompt = systemPromptText
+                  ? `${systemPromptText}\n\n${llmInputResult.appendSystemPrompt}`
+                  : llmInputResult.appendSystemPrompt;
+                systemPromptText = newSystemPrompt;
+                activeSession.agent.setSystemPrompt(newSystemPrompt);
+              }
+            } catch (err) {
+              log.warn(`llm_input hook failed: ${String(err)}`);
+            }
           }
 
           // Only pass images option if there are actually images to pass
