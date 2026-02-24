@@ -8,7 +8,7 @@
  * - Agent activity metrics
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { OcccBridge } from "../../shared/ipc-types.js";
 import { useAuth } from "../App.js";
 
@@ -166,6 +166,7 @@ export function SessionsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={styles.searchInput}
+            aria-label="Search sessions by ID, agent, or channel"
           />
           
           <select 
@@ -250,8 +251,22 @@ function SessionCard({ session, onClick, onExport }: {
   onClick: () => void; 
   onExport: () => void;
 }) {
+  const [isHovered, setIsHovered] = React.useState(false);
+  
   return (
-    <div style={styles.sessionCard} onClick={onClick}>
+    <div 
+      style={{
+        ...styles.sessionCard,
+        borderColor: isHovered ? "var(--border-default)" : "var(--border-subtle)",
+        background: isHovered ? "var(--surface-hover)" : "var(--surface-1)"
+      }} 
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      role="button"
+      tabIndex={0}
+      aria-label={`View session ${session.sessionId.slice(0, 8)} details`}
+    >
       <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", flex: 1 }}>
         <div style={{
           ...styles.statusDot,
@@ -308,15 +323,33 @@ function SessionCard({ session, onClick, onExport }: {
 }
 
 function SessionDetailsModal({ session, onClose }: { session: SessionInfo; onClose: () => void }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    // Focus the modal when it opens
+    if (modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, []);
+  
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+      <div 
+        ref={modalRef}
+        style={styles.modalContent} 
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="session-modal-title"
+        aria-describedby="session-modal-content"
+        tabIndex={-1}
+      >
         <div style={styles.modalHeader}>
-          <h2>Session Details</h2>
-          <button onClick={onClose} style={styles.closeBtn}>✕</button>
+          <h2 id="session-modal-title">Session Details</h2>
+          <button onClick={onClose} style={styles.closeBtn} aria-label="Close dialog">✕</button>
         </div>
         
-        <div style={styles.modalBody}>
+        <div id="session-modal-content" style={styles.modalBody}>
           <div style={styles.detailRow}>
             <span style={styles.detailLabel}>Session ID</span>
             <span style={styles.detailValue}>{session.sessionId}</span>
@@ -470,11 +503,7 @@ const styles = {
     borderRadius: "10px",
     padding: "16px",
     cursor: "pointer",
-    transition: "all 150ms",
-    ':hover': {
-      borderColor: "var(--border-default)",
-      background: "var(--surface-hover)",
-    }
+    transition: "all 150ms"
   } as React.CSSProperties,
   
   statusDot: {

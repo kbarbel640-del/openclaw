@@ -236,7 +236,7 @@ export function LogsPage() {
           <div style={styles.filterGroup}>
             <span style={styles.filterLabel}>Level:</span>
             {LOG_LEVELS.map(({ level, label }) => (
-              <label key={level} style={styles.checkbox}>
+              <label key={level} style={styles.checkbox} aria-label={`Filter by ${label} level logs`}>
                 <input
                   type="checkbox"
                   checked={filter.levels.includes(level)}
@@ -256,7 +256,7 @@ export function LogsPage() {
           <div style={styles.filterGroup}>
             <span style={styles.filterLabel}>Source:</span>
             {LOG_SOURCES.map(({ source, label }) => (
-              <label key={source} style={styles.checkbox}>
+              <label key={source} style={styles.checkbox} aria-label={`Filter by ${label} source logs`}>
                 <input
                   type="checkbox"
                   checked={filter.sources.includes(source)}
@@ -279,12 +279,13 @@ export function LogsPage() {
             value={filter.searchQuery}
             onChange={(e) => setFilter(prev => ({ ...prev, searchQuery: e.target.value }))}
             style={styles.searchInput}
+            aria-label="Search log entries by message content, agent ID, or session ID"
           />
         </div>
 
         <div style={styles.controlsRight}>
           {/* View Options */}
-          <label style={styles.checkbox}>
+          <label style={styles.checkbox} aria-label="Show timestamps in log entries">
             <input
               type="checkbox"
               checked={filter.showTimestamp}
@@ -293,7 +294,7 @@ export function LogsPage() {
             <span>Timestamp</span>
           </label>
           
-          <label style={styles.checkbox}>
+          <label style={styles.checkbox} aria-label="Show metadata in log entries">
             <input
               type="checkbox"
               checked={filter.showMetadata}
@@ -302,7 +303,7 @@ export function LogsPage() {
             <span>Metadata</span>
           </label>
 
-          <label style={styles.checkbox}>
+          <label style={styles.checkbox} aria-label="Auto-scroll to new log entries">
             <input
               type="checkbox"
               checked={autoScroll}

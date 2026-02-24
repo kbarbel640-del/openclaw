@@ -9,7 +9,7 @@
  * - Allowlist management
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { OcccBridge } from "../../shared/ipc-types.js";
 import { useAuth } from "../App.js";
 
@@ -216,6 +216,7 @@ export function SkillsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={styles.searchInput}
+            aria-label="Search skills by name, description, or author"
           />
           
           <select 
@@ -400,15 +401,33 @@ function SkillCard({
 }
 
 function SkillDetailsModal({ skill, onClose }: { skill: SkillInfo; onClose: () => void }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    // Focus the modal when it opens
+    if (modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, []);
+  
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
-      <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+      <div 
+        ref={modalRef}
+        style={styles.modalContent} 
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="skill-modal-title"
+        aria-describedby="skill-modal-content"
+        tabIndex={-1}
+      >
         <div style={styles.modalHeader}>
-          <h2>{skill.name}</h2>
-          <button onClick={onClose} style={styles.closeBtn}>✕</button>
+          <h2 id="skill-modal-title">{skill.name}</h2>
+          <button onClick={onClose} style={styles.closeBtn} aria-label="Close dialog">✕</button>
         </div>
         
-        <div style={styles.modalBody}>
+        <div id="skill-modal-content" style={styles.modalBody}>
           <div style={styles.detailSection}>
             <h4 style={styles.sectionTitle}>Information</h4>
             <div style={styles.detailRow}>
