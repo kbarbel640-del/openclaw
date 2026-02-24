@@ -838,8 +838,9 @@ export async function sendStickerTelegram(
 
   const messageThreadId =
     opts.messageThreadId != null ? opts.messageThreadId : target.messageThreadId;
+  const isPrivateChat = Number(chatId) > 0;
   const threadSpec =
-    messageThreadId != null ? { id: messageThreadId, scope: "forum" as const } : undefined;
+    messageThreadId != null && !isPrivateChat ? { id: messageThreadId, scope: "forum" as const } : undefined;
   const threadIdParams = buildTelegramThreadParams(threadSpec);
   const threadParams: Record<string, number> = threadIdParams ? { ...threadIdParams } : {};
   if (opts.replyToMessageId != null) {
@@ -968,8 +969,9 @@ export async function sendPollTelegram(
 
   const messageThreadId =
     opts.messageThreadId != null ? opts.messageThreadId : target.messageThreadId;
+  const isPrivateChat = Number(chatId) > 0;
   const threadSpec =
-    messageThreadId != null ? { id: messageThreadId, scope: "forum" as const } : undefined;
+    messageThreadId != null && !isPrivateChat ? { id: messageThreadId, scope: "forum" as const } : undefined;
   const threadIdParams = buildTelegramThreadParams(threadSpec);
 
   // Build poll options as simple strings (Grammy accepts string[] or InputPollOption[])
