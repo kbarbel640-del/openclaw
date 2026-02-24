@@ -13,9 +13,10 @@ NODE_ENV = "production"
 OPENCLAW_PREFER_PNPM = "1"
 OPENCLAW_STATE_DIR = "/data"
 NODE_OPTIONS = "--max-old-space-size=1536"
+OPENCLAW_CONFIG_PATH = "/app/gateway.config.json"
 
 [processes]
-app = "node openclaw.mjs gateway --allow-unconfigured --port 3000 --bind lan --config gateway.config.json"
+app = "node openclaw.mjs gateway --allow-unconfigured --port 3000 --bind lan"
 
 [http_service]
 internal_port = 3000
