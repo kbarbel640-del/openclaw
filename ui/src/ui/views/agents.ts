@@ -9,12 +9,19 @@ import type {
   SkillStatusReport,
   ToolsCatalogResult,
 } from "../types.ts";
+import type {
+  OrchestrationLogsResult,
+  OrchestrationConfigResult,
+  HandoffTargetsResult,
+  SharedContextListResult,
+} from "../controllers/orchestration.ts";
 import {
   renderAgentFiles,
   renderAgentChannels,
   renderAgentCron,
 } from "./agents-panels-status-files.ts";
 import { renderAgentTools, renderAgentSkills } from "./agents-panels-tools-skills.ts";
+import { renderAgentOrchestration } from "./agent-orchestration.ts";
 import {
   agentBadgeText,
   buildAgentContext,
@@ -29,7 +36,7 @@ import {
   resolveModelPrimary,
 } from "./agents-utils.ts";
 
-export type AgentsPanel = "overview" | "files" | "tools" | "skills" | "channels" | "cron";
+export type AgentsPanel = "overview" | "files" | "tools" | "skills" | "channels" | "cron" | "orchestration";
 
 export type AgentsProps = {
   loading: boolean;
@@ -67,6 +74,18 @@ export type AgentsProps = {
   toolsCatalogError: string | null;
   toolsCatalogResult: ToolsCatalogResult | null;
   skillsFilter: string;
+  orchestrationLogsLoading: boolean;
+  orchestrationLogsError: string | null;
+  orchestrationLogsResult: OrchestrationLogsResult | null;
+  orchestrationConfigLoading: boolean;
+  orchestrationConfigError: string | null;
+  orchestrationConfigResult: OrchestrationConfigResult | null;
+  orchestrationHandoffTargetsLoading: boolean;
+  orchestrationHandoffTargetsError: string | null;
+  orchestrationHandoffTargetsResult: HandoffTargetsResult | null;
+  orchestrationSharedContextLoading: boolean;
+  orchestrationSharedContextError: string | null;
+  orchestrationSharedContextResult: SharedContextListResult | null;
   onRefresh: () => void;
   onSelectAgent: (agentId: string) => void;
   onSelectPanel: (panel: AgentsPanel) => void;
@@ -88,6 +107,10 @@ export type AgentsProps = {
   onAgentSkillToggle: (agentId: string, skillName: string, enabled: boolean) => void;
   onAgentSkillsClear: (agentId: string) => void;
   onAgentSkillsDisableAll: (agentId: string) => void;
+  onOrchestrationRefreshConfig: () => void;
+  onOrchestrationRefreshLogs: () => void;
+  onOrchestrationRefreshHandoffTargets: () => void;
+  onOrchestrationRefreshSharedContext: (scope: "session" | "global") => void;
 };
 
 export type AgentContext = {
@@ -285,6 +308,29 @@ export function renderAgents(props: AgentsProps) {
                       })
                     : nothing
                 }
+                ${
+                  props.activePanel === "orchestration"
+                    ? renderAgentOrchestration({
+                        agentId: selectedAgent.id,
+                        configLoading: props.orchestrationConfigLoading,
+                        configError: props.orchestrationConfigError,
+                        configResult: props.orchestrationConfigResult,
+                        logsLoading: props.orchestrationLogsLoading,
+                        logsError: props.orchestrationLogsError,
+                        logsResult: props.orchestrationLogsResult,
+                        handoffTargetsLoading: props.orchestrationHandoffTargetsLoading,
+                        handoffTargetsError: props.orchestrationHandoffTargetsError,
+                        handoffTargetsResult: props.orchestrationHandoffTargetsResult,
+                        sharedContextLoading: props.orchestrationSharedContextLoading,
+                        sharedContextError: props.orchestrationSharedContextError,
+                        sharedContextResult: props.orchestrationSharedContextResult,
+                        onRefreshConfig: props.onOrchestrationRefreshConfig,
+                        onRefreshLogs: props.onOrchestrationRefreshLogs,
+                        onRefreshHandoffTargets: props.onOrchestrationRefreshHandoffTargets,
+                        onRefreshSharedContext: props.onOrchestrationRefreshSharedContext,
+                      })
+                    : nothing
+                }
               `
         }
       </section>
@@ -326,6 +372,7 @@ function renderAgentTabs(active: AgentsPanel, onSelect: (panel: AgentsPanel) => 
     { id: "skills", label: "Skills" },
     { id: "channels", label: "Channels" },
     { id: "cron", label: "Cron Jobs" },
+    { id: "orchestration", label: "Orchestration" },
   ];
   return html`
     <div class="agent-tabs">
