@@ -22,7 +22,7 @@
     "directory": "extensions/email-channel"
   },
   "type": "module",
-  "main": "index.ts",
+  "main": "./src/index.ts",
   "dependencies": {
     "imap": "^0.8.19",
     "mailparser": "^3.6.9",
@@ -39,7 +39,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./src/index.ts"
     ]
   }
 }
