@@ -59,7 +59,7 @@ describe("i18n", () => {
     expect(t("common.health")).toBe("Sağlık");
     expect(t("common.version")).toBe("Sürüm");
     expect(t("nav.chat")).toBe("Sohbet");
-    expect(t("languages.tr")).toBe("Türkçe (Turkish)");
+    expect(t("languages.tr")).toBe("Türkçe (Türkçe)");
   });
 
   it("should save Turkish locale to localStorage", async () => {

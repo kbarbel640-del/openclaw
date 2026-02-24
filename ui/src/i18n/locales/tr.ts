@@ -121,6 +121,6 @@ export const tr: TranslationMap = {
     zhCN: "简体中文 (Basitleştirilmiş Çince)",
     zhTW: "繁體中文 (Geleneksel Çince)",
     ptBR: "Português (Brezilya Portekizcesi)",
-    tr: "Türkçe (Turkish)",
+    tr: "Türkçe (Türkçe)",
   },
 };
