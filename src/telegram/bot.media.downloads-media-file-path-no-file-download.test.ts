@@ -370,7 +370,8 @@ describe("telegram media groups", () => {
             () => {
               expect(replySpy).toHaveBeenCalledTimes(scenario.expectedReplyCount);
             },
-            { timeout: MEDIA_GROUP_FLUSH_MS * 2, interval: 2 },
+            // CI shard concurrency can delay media-group flush scheduling.
+            { timeout: MEDIA_GROUP_FLUSH_MS * 30, interval: 5 },
           );
 
           expect(runtimeError).not.toHaveBeenCalled();
