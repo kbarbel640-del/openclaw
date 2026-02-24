@@ -1,9 +1,9 @@
 ---
-summary: "Brave Search API setup for web_search"
+summary: "Baidu Search API setup for web_search"
 read_when:
-  - You want to use Brave Search for web_search
-  - You need a BRAVE_API_KEY or plan details
-title: "Brave Search"
+  - You want to use Baidu Search for web_search
+  - You need a BAIDU_SEARCH_API_KEY
+title: "Baidu Search"
 ---
 
 # Baidu Search API
