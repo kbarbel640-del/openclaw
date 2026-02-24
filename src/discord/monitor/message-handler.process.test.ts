@@ -427,9 +427,9 @@ describe("processDiscordMessage draft streaming", () => {
     expect(deliverDiscordReply).toHaveBeenCalledTimes(1);
   });
 
-  it("suppresses block-kind payload delivery to Discord", async () => {
+  it("suppresses reasoning block-kind payload delivery to Discord", async () => {
     dispatchInboundMessage.mockImplementationOnce(async (params?: DispatchInboundParams) => {
-      await params?.dispatcher.sendBlockReply({ text: "thinking..." });
+      await params?.dispatcher.sendBlockReply({ text: "thinking...", isReasoning: true });
       return { queuedFinal: false, counts: { final: 0, tool: 0, block: 1 } };
     });
 
@@ -439,6 +439,20 @@ describe("processDiscordMessage draft streaming", () => {
     await processDiscordMessage(ctx as any);
 
     expect(deliverDiscordReply).not.toHaveBeenCalled();
+  });
+
+  it("delivers non-reasoning block-kind payload to Discord", async () => {
+    dispatchInboundMessage.mockImplementationOnce(async (params?: DispatchInboundParams) => {
+      await params?.dispatcher.sendBlockReply({ text: "Hello from blockStreaming" });
+      return { queuedFinal: false, counts: { final: 0, tool: 0, block: 1 } };
+    });
+
+    const ctx = await createBaseContext({ discordConfig: { streamMode: "off" } });
+
+    // oxlint-disable-next-line typescript/no-explicit-any
+    await processDiscordMessage(ctx as any);
+
+    expect(deliverDiscordReply).toHaveBeenCalledTimes(1);
   });
 
   it("streams block previews using draft chunking", async () => {
