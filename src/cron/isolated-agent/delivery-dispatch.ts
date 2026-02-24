@@ -219,59 +219,6 @@ export async function dispatchCronDelivery(
       typeof params.job.name === "string" && params.job.name.trim()
         ? params.job.name.trim()
         : `cron:${params.job.id}`;
-    const initialSynthesizedText = synthesizedText.trim();
-    let activeSubagentRuns = countActiveDescendantRuns(params.agentSessionKey);
-    const expectedSubagentFollowup = expectsSubagentFollowup(initialSynthesizedText);
-    const hadActiveDescendants = activeSubagentRuns > 0;
-    if (activeSubagentRuns > 0 || expectedSubagentFollowup) {
-      let finalReply = await waitForDescendantSubagentSummary({
-        sessionKey: params.agentSessionKey,
-        initialReply: initialSynthesizedText,
-        timeoutMs: params.timeoutMs,
-        observedActiveDescendants: activeSubagentRuns > 0 || expectedSubagentFollowup,
-      });
-      activeSubagentRuns = countActiveDescendantRuns(params.agentSessionKey);
-      if (
-        !finalReply &&
-        activeSubagentRuns === 0 &&
-        (hadActiveDescendants || expectedSubagentFollowup)
-      ) {
-        finalReply = await readDescendantSubagentFallbackReply({
-          sessionKey: params.agentSessionKey,
-          runStartedAt: params.runStartedAt,
-        });
-      }
-      if (finalReply && activeSubagentRuns === 0) {
-        outputText = finalReply;
-        summary = pickSummaryFromOutput(finalReply) ?? summary;
-        synthesizedText = finalReply;
-        deliveryPayloads = [{ text: finalReply }];
-      }
-    }
-    if (activeSubagentRuns > 0) {
-      // Parent orchestration is still in progress; avoid announcing a partial
-      // update to the main requester.
-      return params.withRunSession({ status: "ok", summary, outputText, ...params.telemetry });
-    }
-    if (
-      (hadActiveDescendants || expectedSubagentFollowup) &&
-      synthesizedText.trim() === initialSynthesizedText &&
-      isLikelyInterimCronMessage(initialSynthesizedText) &&
-      initialSynthesizedText.toUpperCase() !== SILENT_REPLY_TOKEN.toUpperCase()
-    ) {
-      // Descendants existed but no post-orchestration synthesis arrived, so
-      // suppress stale parent text like "on it, pulling everything together".
-      return params.withRunSession({ status: "ok", summary, outputText, ...params.telemetry });
-    }
-    if (synthesizedText.toUpperCase() === SILENT_REPLY_TOKEN.toUpperCase()) {
-      return params.withRunSession({
-        status: "ok",
-        summary,
-        outputText,
-        delivered: true,
-        ...params.telemetry,
-      });
-    }
     try {
       if (params.isAborted()) {
         return params.withRunSession({
@@ -360,6 +307,88 @@ export async function dispatchCronDelivery(
           ...params.telemetry,
         }),
         delivered,
+        summary,
+        outputText,
+        synthesizedText,
+        deliveryPayloads,
+      };
+    }
+
+    // ── Pre-delivery: wait for subagent descendants & suppress stale output ──
+    const initialSynthesizedText = synthesizedText?.trim() ?? "";
+    let activeSubagentRuns = countActiveDescendantRuns(params.agentSessionKey);
+    const expectedSubagentFollowup = initialSynthesizedText
+      ? expectsSubagentFollowup(initialSynthesizedText)
+      : false;
+    const hadActiveDescendants = activeSubagentRuns > 0;
+
+    if (activeSubagentRuns > 0 || expectedSubagentFollowup) {
+      let finalReply = await waitForDescendantSubagentSummary({
+        sessionKey: params.agentSessionKey,
+        initialReply: initialSynthesizedText,
+        timeoutMs: params.timeoutMs,
+        observedActiveDescendants: activeSubagentRuns > 0 || expectedSubagentFollowup,
+      });
+      activeSubagentRuns = countActiveDescendantRuns(params.agentSessionKey);
+      if (
+        !finalReply &&
+        activeSubagentRuns === 0 &&
+        (hadActiveDescendants || expectedSubagentFollowup)
+      ) {
+        finalReply = await readDescendantSubagentFallbackReply({
+          sessionKey: params.agentSessionKey,
+          runStartedAt: params.runStartedAt,
+        });
+      }
+      if (finalReply && activeSubagentRuns === 0) {
+        outputText = finalReply;
+        summary = pickSummaryFromOutput(finalReply) ?? summary;
+        synthesizedText = finalReply;
+        deliveryPayloads = [{ text: finalReply }];
+      }
+    }
+
+    // Parent orchestration still in progress — avoid delivering a partial update.
+    if (activeSubagentRuns > 0) {
+      return {
+        result: params.withRunSession({ status: "ok", summary, outputText, ...params.telemetry }),
+        delivered,
+        summary,
+        outputText,
+        synthesizedText,
+        deliveryPayloads,
+      };
+    }
+
+    // Descendants existed but no post-orchestration synthesis arrived — suppress
+    // stale parent text like "on it, pulling everything together".
+    if (
+      (hadActiveDescendants || expectedSubagentFollowup) &&
+      synthesizedText?.trim() === initialSynthesizedText &&
+      isLikelyInterimCronMessage(initialSynthesizedText) &&
+      initialSynthesizedText.toUpperCase() !== SILENT_REPLY_TOKEN.toUpperCase()
+    ) {
+      return {
+        result: params.withRunSession({ status: "ok", summary, outputText, ...params.telemetry }),
+        delivered,
+        summary,
+        outputText,
+        synthesizedText,
+        deliveryPayloads,
+      };
+    }
+
+    // Honor silent reply token for all delivery modes.
+    if (synthesizedText && synthesizedText.toUpperCase() === SILENT_REPLY_TOKEN.toUpperCase()) {
+      return {
+        result: params.withRunSession({
+          status: "ok",
+          summary,
+          outputText,
+          delivered: true,
+          ...params.telemetry,
+        }),
+        delivered: true,
         summary,
         outputText,
         synthesizedText,
