@@ -116,6 +116,7 @@ function resolveExecConfig(params: { cfg?: OpenClawConfig; agentId?: string }) {
     timeoutSec: agentExec?.timeoutSec ?? globalExec?.timeoutSec,
     approvalRunningNoticeMs:
       agentExec?.approvalRunningNoticeMs ?? globalExec?.approvalRunningNoticeMs,
+    approvalTimeoutMs: agentExec?.approvalTimeoutMs ?? globalExec?.approvalTimeoutMs,
     cleanupMs: agentExec?.cleanupMs ?? globalExec?.cleanupMs,
     notifyOnExit: agentExec?.notifyOnExit ?? globalExec?.notifyOnExit,
     notifyOnExitEmptySuccess:
@@ -390,6 +391,7 @@ export function createOpenClawCodingTools(options?: {
     timeoutSec: options?.exec?.timeoutSec ?? execConfig.timeoutSec,
     approvalRunningNoticeMs:
       options?.exec?.approvalRunningNoticeMs ?? execConfig.approvalRunningNoticeMs,
+    approvalTimeoutMs: options?.exec?.approvalTimeoutMs ?? execConfig.approvalTimeoutMs,
     notifyOnExit: options?.exec?.notifyOnExit ?? execConfig.notifyOnExit,
     notifyOnExitEmptySuccess:
       options?.exec?.notifyOnExitEmptySuccess ?? execConfig.notifyOnExitEmptySuccess,

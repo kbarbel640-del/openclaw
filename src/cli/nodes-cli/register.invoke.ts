@@ -40,6 +40,7 @@ type ExecDefaults = {
   node?: string;
   pathPrepend?: string[];
   safeBins?: string[];
+  approvalTimeoutMs?: number;
 };
 
 function normalizeExecSecurity(value?: string | null): ExecSecurity | null {
@@ -71,6 +72,7 @@ function resolveExecDefaults(
           node: globalExec.node,
           pathPrepend: globalExec.pathPrepend,
           safeBins: globalExec.safeBins,
+          approvalTimeoutMs: globalExec.approvalTimeoutMs,
         }
       : undefined;
   }
@@ -81,6 +83,7 @@ function resolveExecDefaults(
     node: agentExec?.node ?? globalExec?.node,
     pathPrepend: agentExec?.pathPrepend ?? globalExec?.pathPrepend,
     safeBins: agentExec?.safeBins ?? globalExec?.safeBins,
+    approvalTimeoutMs: agentExec?.approvalTimeoutMs ?? globalExec?.approvalTimeoutMs,
   };
 }
 
@@ -236,7 +239,8 @@ export function registerNodesInvokeCommands(nodes: Command) {
           let approvalId: string | null = null;
           if (requiresAsk) {
             approvalId = crypto.randomUUID();
-            const approvalTimeoutMs = DEFAULT_EXEC_APPROVAL_TIMEOUT_MS;
+            const approvalTimeoutMs =
+              execDefaults?.approvalTimeoutMs ?? DEFAULT_EXEC_APPROVAL_TIMEOUT_MS;
             // The CLI transport timeout (opts.timeout) must be longer than the
             // gateway-side approval wait so the connection stays alive while the
             // user decides.  Without this override the default 35 s transport

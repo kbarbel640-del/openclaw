@@ -41,6 +41,7 @@ export type ExecuteNodeHostCommandParams = {
   timeoutSec?: number;
   defaultTimeoutSec: number;
   approvalRunningNoticeMs: number;
+  approvalTimeoutMs?: number;
   warnings: string[];
   notifySessionKey?: string;
   trustedSafeBinDirs?: ReadonlySet<string>;
@@ -186,7 +187,8 @@ export async function executeNodeHostCommand(
     const contextKey = `exec:${approvalId}`;
     const noticeSeconds = Math.max(1, Math.round(params.approvalRunningNoticeMs / 1000));
     const warningText = params.warnings.length ? `${params.warnings.join("\n")}\n\n` : "";
-    let expiresAtMs = Date.now() + DEFAULT_APPROVAL_TIMEOUT_MS;
+    const approvalTimeoutMs = params.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS;
+    let expiresAtMs = Date.now() + approvalTimeoutMs;
     let preResolvedDecision: string | null | undefined;
 
     try {
@@ -201,6 +203,7 @@ export async function executeNodeHostCommand(
         ask: hostAsk,
         agentId: params.agentId,
         sessionKey: params.sessionKey,
+        timeoutMs: approvalTimeoutMs,
       });
       expiresAtMs = registration.expiresAtMs;
       preResolvedDecision = registration.finalDecision;

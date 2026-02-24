@@ -238,6 +238,16 @@ export function resolveApprovalRunningNoticeMs(value?: number) {
   return Math.floor(value);
 }
 
+export function resolveApprovalTimeoutMs(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_APPROVAL_TIMEOUT_MS;
+  }
+  if (value <= 0) {
+    return DEFAULT_APPROVAL_TIMEOUT_MS;
+  }
+  return Math.floor(value);
+}
+
 export function emitExecSystemEvent(
   text: string,
   opts: { sessionKey?: string; contextKey?: string },
