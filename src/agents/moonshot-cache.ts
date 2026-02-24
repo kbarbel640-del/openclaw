@@ -37,6 +37,8 @@ type Message = { role: string; content: unknown };
 const MAX_CACHE_SIZE = 1000;
 /** Truncate hash to 16 hex chars (64 bits) - sufficient for cache key uniqueness */
 const HASH_LENGTH = 16;
+/** Base model name for caching API (only moonshot-v1 family supported) */
+const MOONSHOT_V1_CACHE_MODEL = "moonshot-v1";
 const cacheStore = new Map<string, CacheEntry>();
 const inflightCreation = new Map<string, Promise<string>>();
 
@@ -68,8 +70,8 @@ export function toCacheModelName(modelId: string): string | undefined {
   const name = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
 
   // Only moonshot-v1-* models support the caching API
-  if (name.startsWith("moonshot-v1")) {
-    return "moonshot-v1";
+  if (name.startsWith(MOONSHOT_V1_CACHE_MODEL)) {
+    return MOONSHOT_V1_CACHE_MODEL;
   }
 
   // Kimi K2 series does NOT support caching API (returns 400 "model family is invalid")
