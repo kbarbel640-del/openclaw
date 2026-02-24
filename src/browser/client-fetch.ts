@@ -1,6 +1,7 @@
 import { formatCliCommand } from "../cli/command-format.js";
 import { loadConfig } from "../config/config.js";
 import { isLoopbackHost } from "../gateway/net.js";
+import { retryHttpAsync } from "../infra/retry-http.js";
 import { getBridgeAuthForPort } from "./bridge-auth-registry.js";
 import { resolveBrowserControlAuth } from "./control-auth.js";
 import {
@@ -137,11 +138,9 @@ async function fetchHttpJson<T>(
 
   const t = setTimeout(() => ctrl.abort(new Error("timed out")), timeoutMs);
   try {
-    const res = await fetch(url, { ...init, signal: ctrl.signal });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(text || `HTTP ${res.status}`);
-    }
+    const res = await retryHttpAsync(() => fetch(url, { ...init, signal: ctrl.signal }), {
+      label: "browser-fetch-http-json",
+    });
     return (await res.json()) as T;
   } finally {
     clearTimeout(t);
