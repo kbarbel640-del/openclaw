@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { Message, ReactionTypeEmoji } from "@grammyjs/types";
 import { resolveAgentDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { hasControlCommand } from "../auto-reply/command-detection.js";
@@ -61,8 +63,6 @@ import {
 } from "./model-buttons.js";
 import { buildInlineKeyboard } from "./send.js";
 import { wasSentByBot } from "./sent-message-cache.js";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import {
   DEFAULT_IDENTITY_FILENAME,
   DEFAULT_SOUL_FILENAME,
@@ -1318,8 +1318,8 @@ export const registerTelegramHandlers = ({
       await mkdir(workspaceDir, { recursive: true });
       await Promise.all([
         writeFile(join(workspaceDir, DEFAULT_IDENTITY_FILENAME), identityMd, "utf-8"),
-        writeFile(join(workspaceDir, DEFAULT_SOUL_FILENAME),     soulMd,     "utf-8"),
-        writeFile(join(workspaceDir, DEFAULT_USER_FILENAME),     userMd,     "utf-8"),
+        writeFile(join(workspaceDir, DEFAULT_SOUL_FILENAME), soulMd, "utf-8"),
+        writeFile(join(workspaceDir, DEFAULT_USER_FILENAME), userMd, "utf-8"),
       ]);
       await ctx.reply(
         `✅ IDENTITY.md, SOUL.md, and USER.md have been written to your workspace` +
