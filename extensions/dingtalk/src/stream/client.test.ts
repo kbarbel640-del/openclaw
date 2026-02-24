@@ -7,6 +7,14 @@ import type { ChatbotMessage } from "./types.js";
 
 let registeredCallbacks: Map<string, (res: unknown) => Promise<void> | void> = new Map();
 let shouldConnectFail = false;
+type MockDWClientInstance = {
+  socketCallBackResponse: ReturnType<typeof vi.fn>;
+  sendGraphAPIResponse: ReturnType<typeof vi.fn>;
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+  options: Record<string, unknown>;
+};
+let lastDWClientInstance: MockDWClientInstance | null = null;
 
 // Mock dingtalk-stream before importing client
 vi.mock("dingtalk-stream", () => {
@@ -20,8 +28,6 @@ vi.mock("dingtalk-stream", () => {
   const TOPIC_AI_GRAPH_API = "/v1.0/graph/api/invoke";
 
   class DWClient {
-    static lastInstance: DWClient | null = null;
-
     socketCallBackResponse = vi.fn();
     sendGraphAPIResponse = vi.fn();
     connect = vi.fn().mockImplementation(() => {
@@ -33,7 +39,7 @@ vi.mock("dingtalk-stream", () => {
     disconnect = vi.fn();
 
     constructor(public options: Record<string, unknown>) {
-      DWClient.lastInstance = this;
+      lastDWClientInstance = this as unknown as MockDWClientInstance;
       registeredCallbacks = new Map();
     }
 
@@ -50,13 +56,13 @@ vi.mock("dingtalk-stream", () => {
   return { DWClient, EventAck, TOPIC_ROBOT, TOPIC_AI_GRAPH_API };
 });
 
-import { DWClient, TOPIC_ROBOT } from "dingtalk-stream";
+import { TOPIC_ROBOT } from "dingtalk-stream";
 import { startDingTalkStreamClient } from "./client.js";
 
 describe("startDingTalkStreamClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    DWClient.lastInstance = null;
+    lastDWClientInstance = null;
     registeredCallbacks = new Map();
     shouldConnectFail = false;
   });
@@ -72,8 +78,8 @@ describe("startDingTalkStreamClient", () => {
 
     expect(handle).toBeDefined();
     expect(handle.stop).toBeDefined();
-    expect(DWClient.lastInstance).not.toBeNull();
-    expect(DWClient.lastInstance?.connect).toHaveBeenCalled();
+    expect(lastDWClientInstance).not.toBeNull();
+    expect(lastDWClientInstance?.connect).toHaveBeenCalled();
   });
 
   it("registers robot message callback", async () => {
@@ -154,7 +160,7 @@ describe("startDingTalkStreamClient", () => {
 
     await robotCallback!(mockMessage);
 
-    expect(DWClient.lastInstance?.socketCallBackResponse).toHaveBeenCalledWith("msg-ack-test", {
+    expect(lastDWClientInstance?.socketCallBackResponse).toHaveBeenCalledWith("msg-ack-test", {
       status: "received",
     });
   });
@@ -228,7 +234,7 @@ describe("startDingTalkStreamClient", () => {
 
     handle.stop();
 
-    const instance = DWClient.lastInstance;
+    const instance = lastDWClientInstance;
     expect(instance).not.toBeNull();
     if (!instance) {
       throw new Error("Expected DWClient instance to exist");

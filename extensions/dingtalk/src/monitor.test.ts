@@ -1,3 +1,4 @@
+import type { DWClientDownStream } from "dingtalk-stream";
 /**
  * Tests for DingTalk monitor.
  */
@@ -14,22 +15,22 @@ vi.mock("dingtalk-stream", () => {
   const TOPIC_AI_GRAPH_API = "/v1.0/graph/api/invoke";
 
   class DWClient {
-    private callbacks = new Map<string, (res: unknown) => Promise<void> | void>();
+    private callbacks = new Map<string, (res: DWClientDownStream) => void>();
     socketCallBackResponse = vi.fn();
     sendGraphAPIResponse = vi.fn();
     connect = vi.fn().mockResolvedValue(undefined);
     disconnect = vi.fn();
 
-    registerCallbackListener(
-      topic: string,
-      callback: (res: unknown) => Promise<void> | void,
-    ): void {
+    registerCallbackListener(topic: string, callback: (res: DWClientDownStream) => void): this {
       this.callbacks.set(topic, callback);
+      return this;
     }
-    registerAllEventListener(): void {}
+    registerAllEventListener(): this {
+      return this;
+    }
 
     // Test helper
-    __simulateMessage(topic: string, message: unknown): Promise<void> | void | undefined {
+    __simulateMessage(topic: string, message: DWClientDownStream): void | undefined {
       const callback = this.callbacks.get(topic);
       if (callback) {
         return callback(message);
@@ -89,7 +90,7 @@ import { getDingTalkRuntime } from "./runtime.js";
 
 describe("monitorDingTalkProvider", () => {
   let mockFetch: ReturnType<typeof vi.fn>;
-  let capturedCallback: ((message: unknown) => Promise<void> | void) | undefined;
+  let capturedCallback: ((message: DWClientDownStream) => void) | undefined;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -104,13 +105,15 @@ describe("monitorDingTalkProvider", () => {
 
     // Capture the robot callback when client is created
     const { DWClient, TOPIC_ROBOT } = await import("dingtalk-stream");
-    vi.spyOn(DWClient.prototype, "registerCallbackListener").mockImplementation(
-      (topic: string, callback: (res: unknown) => Promise<void> | void) => {
-        if (topic === TOPIC_ROBOT) {
-          capturedCallback = callback;
-        }
-      },
-    );
+    vi.spyOn(DWClient.prototype, "registerCallbackListener").mockImplementation(function (
+      topic: string,
+      callback: (res: DWClientDownStream) => void,
+    ) {
+      if (topic === TOPIC_ROBOT) {
+        capturedCallback = callback;
+      }
+      return this;
+    });
   });
 
   afterEach(() => {
@@ -130,7 +133,7 @@ describe("monitorDingTalkProvider", () => {
       conversationType: string;
       conversationId: string;
     }> = {},
-  ) => ({
+  ): DWClientDownStream => ({
     type: "CALLBACK",
     headers: {
       topic: "/v1.0/im/bot/messages/get",
