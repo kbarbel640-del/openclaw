@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
@@ -231,7 +232,7 @@ export default function register(api: OpenClawPluginApi) {
       const outcome = await mutateStateSerialized((state) => {
         const result = transfer(state, actor, ESCROW_ACCOUNT, reward);
         if (!result.ok) return { ok: false, reason: result.reason } as const;
-        const id = `T${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
+        const id = `T${randomUUID().replace(/-/g, "").slice(0, 12)}`;
         state.tasks.unshift({
           id,
           title,
