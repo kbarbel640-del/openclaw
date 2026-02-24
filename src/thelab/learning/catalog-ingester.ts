@@ -317,6 +317,60 @@ export class CatalogIngester {
     return this.buildPhotoRecord(row);
   }
 
+  /**
+   * Extract a single photo record by its absolute file path.
+   *
+   * This is used by validation pipelines to map a known file on disk back to
+   * its develop settings and EXIF in the Lightroom catalog.
+   */
+  extractPhotoByFilePath(absoluteFilePath: string): CatalogPhotoRecord | null {
+    this.ensureOpen();
+
+    // Reconstruct the absolute path the same way buildPhotoRecord() does:
+    // path.join(root_path, path_from_root, file_name)
+    //
+    // In the catalog, `alf.pathFromRoot` typically includes a trailing slash,
+    // so concatenation is sufficient and avoids platform-dependent separators.
+    const query = `
+      SELECT
+        ai.id_local AS image_id,
+        alf.baseName AS file_name,
+        alf.pathFromRoot AS path_from_root,
+        arf.absolutePath AS root_path,
+        ai.rating,
+        ai.pick,
+        ai.captureTime,
+        ae.isoSpeedRating,
+        ae.focalLength,
+        ae.aperture,
+        ae.shutterSpeed,
+        ae.flashFired,
+        ae.cameraModelRef,
+        ae.lensRef,
+        ae.gpsLatitude,
+        ae.gpsLongitude,
+        ae.dateDay,
+        ds.text AS develop_text,
+        ds.digest
+      FROM Adobe_images ai
+      JOIN AgLibraryFile alf ON ai.rootFile = alf.id_local
+      JOIN AgLibraryFolder afld ON alf.folder = afld.id_local
+      JOIN AgLibraryRootFolder arf ON afld.rootFolder = arf.id_local
+      LEFT JOIN Adobe_imageProperties ae ON ai.id_local = ae.image
+      LEFT JOIN Adobe_imageDevelopSettings ds ON ai.id_local = ds.image
+      WHERE (arf.absolutePath || alf.pathFromRoot || alf.baseName) = ?
+      LIMIT 1
+    `;
+
+    const row = this.db!.prepare(query).get(absoluteFilePath) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) {
+      return null;
+    }
+    return this.buildPhotoRecord(row);
+  }
+
   private buildPhotoRecord(row: Record<string, unknown>): CatalogPhotoRecord {
     const rootPath = (row.root_path as string) ?? "";
     const pathFromRoot = (row.path_from_root as string) ?? "";

@@ -6,6 +6,7 @@
  * stays in src/thelab/; these are the tool wrappers.
  */
 
+import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import type { AnyAgentTool } from "../../../src/agents/tools/common.js";
 import { jsonResult } from "../../../src/agents/tools/common.js";
@@ -29,6 +30,15 @@ import {
   generateStyleReport,
   generateSessionReport,
 } from "../../../src/thelab/learning/style-report.js";
+import { LightroomController } from "../../../src/thelab/lightroom/controller.js";
+import { renderBPrimeMarkdown } from "../../../src/thelab/validation/bprime-render.js";
+import { runBPrimeValidation } from "../../../src/thelab/validation/bprime-runner.js";
+import {
+  profileToAdjustments,
+  mergeProfileWithVision,
+} from "../../../src/thelab/validation/profile-merge.js";
+import { generateCoverageArtifacts } from "../../../src/thelab/validation/toolkit.js";
+import { VisionTool } from "../../../src/thelab/vision/vision-tool.js";
 
 let styleDbInstance: StyleDatabase | null = null;
 
@@ -49,6 +59,8 @@ export function createSophieTools(): AnyAgentTool[] {
     createClassifySceneTool(),
     createGenerateReportTool(),
     createGetEditStatsTool(),
+    createValidateCoverageTool(),
+    createValidateBPrimeTool(),
     createCullImagesTool(),
     createGetCorrelationsTool(),
     createFindProfileTool(),
@@ -370,6 +382,226 @@ function createGetEditStatsTool(): AnyAgentTool {
         })),
         ready_to_edit: editCount >= 50 && highConfidence.length >= 3,
       });
+    },
+  };
+}
+
+function createValidateCoverageTool(): AnyAgentTool {
+  return {
+    name: "sophie_validate_coverage",
+    description:
+      "Validation A (fast): summarize scenario coverage and style coherence from the style database. " +
+      "Outputs a markdown report plus a canvas-ready HTML 'Accuracy Sheet' payload. " +
+      "No Lightroom writes; safe to run anytime.",
+    parameters: Type.Object({
+      db_path: Type.Optional(
+        Type.String({
+          description: "Path to the style database. Uses default if not provided.",
+        }),
+      ),
+      high_confidence_samples: Type.Optional(
+        Type.Number({
+          description: "Sample count required for HIGH confidence. Default 20.",
+        }),
+      ),
+      std_dev_warning_threshold: Type.Optional(
+        Type.Number({
+          description: "Warn when a slider's std dev exceeds this threshold. Default 1.0.",
+        }),
+      ),
+    }),
+    async execute(_id, params: Record<string, unknown>) {
+      const config = resolveConfigPaths({ ...DEFAULT_CONFIG });
+      const dbPath = (params.db_path as string) ?? config.learning.styleDbPath;
+
+      const artifacts = generateCoverageArtifacts(dbPath, {
+        highConfidenceSamples: (params.high_confidence_samples as number | undefined) ?? 20,
+        stdDevWarningThreshold: (params.std_dev_warning_threshold as number | undefined) ?? 1.0,
+      });
+
+      return jsonResult({
+        ok: true,
+        report: artifacts.report,
+        markdown: artifacts.markdown,
+        canvas: {
+          note: artifacts.canvas.note,
+          suggested_write_path: "docs/.local/sophie-validation-a-accuracy-sheet.html",
+          html: artifacts.canvas.html,
+          width: artifacts.canvas.width,
+          height: artifacts.canvas.height,
+          recommended_canvas_call: {
+            action: "present",
+            target: "file://<ABSOLUTE_PATH_TO_suggested_write_path>",
+            width: artifacts.canvas.width,
+            height: artifacts.canvas.height,
+          },
+        },
+      });
+    },
+  };
+}
+
+function createValidateBPrimeTool(): AnyAgentTool {
+  return {
+    name: "sophie_validate_bprime",
+    description:
+      "Validation B' (vision): compare Sophie's vision-informed slider deltas against the photographer's actual edits " +
+      "from the Lightroom catalog for a provided image list. " +
+      "Uses Lightroom Develop screen capture (primary) and local pixels fallback (secondary). " +
+      "No Lightroom writes; safe to run (but it will navigate images).",
+    parameters: Type.Object({
+      catalog_path: Type.Optional(
+        Type.String({
+          description:
+            "Path to the .lrcat file. If not provided, Sophie will try to auto-discover it.",
+        }),
+      ),
+      image_paths: Type.Array(Type.String(), {
+        description:
+          "Absolute paths to images to validate, in the same order they will be encountered in Lightroom Develop. " +
+          "B' assumes Lightroom is showing this sequence starting at the first image.",
+      }),
+      db_path: Type.Optional(
+        Type.String({
+          description: "Path to the style database. Uses default if not provided.",
+        }),
+      ),
+      pass_threshold: Type.Optional(
+        Type.Number({
+          description: "PASS if SLIDER_MATCH >= this threshold. Default 0.90.",
+        }),
+      ),
+    }),
+    async execute(_id, params: Record<string, unknown>) {
+      const imagePaths = params.image_paths as string[];
+      const passThreshold = (params.pass_threshold as number | undefined) ?? 0.9;
+
+      let catalogPath = params.catalog_path as string | undefined;
+      if (!catalogPath) {
+        const active = discoverActiveCatalog();
+        if (active) {
+          catalogPath = active.path;
+        } else {
+          const all = discoverCatalogs();
+          if (all.length > 0) {
+            catalogPath = all[0].path;
+          }
+        }
+      }
+
+      if (!catalogPath) {
+        return jsonResult({
+          ok: false,
+          error: "No Lightroom catalog found. Provide catalog_path.",
+        });
+      }
+
+      const config = resolveConfigPaths({ ...DEFAULT_CONFIG });
+      const dbPath = (params.db_path as string) ?? config.learning.styleDbPath;
+
+      const ingester = new CatalogIngester(catalogPath);
+      const styleDb = getStyleDb(dbPath);
+      const classifier = new SceneClassifier();
+
+      const lightroom = new LightroomController(config);
+      const vision = new VisionTool(config);
+
+      // Cache catalog lookups by path.
+      const photoCache = new Map<string, ReturnType<CatalogIngester["extractPhotoByFilePath"]>>();
+
+      try {
+        ingester.open();
+
+        await lightroom.initialize();
+        await lightroom.switchToDevelop();
+        await lightroom.navigateToFirstImage();
+
+        // Advance Lightroom after each successful capture to align with image_paths order.
+        let captureIndex = 0;
+
+        const result = await runBPrimeValidation(
+          {
+            imagePaths,
+            passThreshold,
+            profileTargetDir: config.vision.screenshotDir,
+            maxOutliers: 10,
+          },
+          {
+            getImageId: async (imagePathStr) =>
+              path.basename(imagePathStr, path.extname(imagePathStr)),
+            getTruthDeltaForPath: async (imagePathStr) => {
+              const rec =
+                photoCache.get(imagePathStr) ?? ingester.extractPhotoByFilePath(imagePathStr);
+              photoCache.set(imagePathStr, rec);
+              if (!rec) {
+                throw new Error("catalog_no_match");
+              }
+              if (!rec.hasBeenEdited) {
+                throw new Error("catalog_not_edited");
+              }
+              return CatalogIngester.computeEditDelta(rec.developSettings);
+            },
+            getProfileForPath: async (imagePathStr) => {
+              const rec =
+                photoCache.get(imagePathStr) ?? ingester.extractPhotoByFilePath(imagePathStr);
+              photoCache.set(imagePathStr, rec);
+              if (!rec) return null;
+              const classification = classifier.classifyFromExif(rec.exif);
+              return styleDb.findClosestProfile(classification);
+            },
+            captureScreen: async (label) => {
+              const screenshotPath = await lightroom.takeScreenshot(label);
+              captureIndex++;
+              if (captureIndex < imagePaths.length) {
+                await lightroom.navigateToNextImage();
+              }
+              return screenshotPath;
+            },
+            analyze: async ({ imageId, visionPath, targetPath, profile }) => {
+              const analysis = await vision.analyzeScreenshot(visionPath, targetPath);
+              const baseline = profileToAdjustments(profile);
+              const merged = mergeProfileWithVision(baseline, analysis);
+
+              const predicted: Record<string, number> = {};
+              for (const adj of merged.adjustments) {
+                predicted[adj.control] = adj.target_delta;
+              }
+
+              // If the vision model wants a human, we treat it as a hard fail
+              // (matches the "fail-closed" validation posture).
+              if (merged.flag_for_review) {
+                throw new Error(`flagged:${merged.flag_reason ?? "unknown"}`);
+              }
+
+              return predicted;
+            },
+          },
+        );
+
+        const markdown = renderBPrimeMarkdown({
+          generatedAt: new Date().toISOString(),
+          summary: result.summary,
+          outliers: result.outliers,
+        });
+
+        return jsonResult({
+          ok: true,
+          catalog: catalogPath,
+          db_path: dbPath,
+          summary: result.summary,
+          outliers: result.outliers,
+          markdown,
+          note: "B' assumes Lightroom Develop is currently showing the provided image_paths sequence starting at the first image.",
+        });
+      } catch (err) {
+        return jsonResult({
+          ok: false,
+          catalog: catalogPath,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        ingester.close();
+      }
     },
   };
 }

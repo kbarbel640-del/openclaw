@@ -33,6 +33,8 @@ export const SOPHIE_AGENT_CONFIG = {
       "sophie_classify_scene",
       "sophie_generate_report",
       "sophie_get_stats",
+      "sophie_validate_coverage",
+      "sophie_validate_bprime",
       "sophie_cull",
       "sophie_get_correlations",
       "sophie_find_profile",
@@ -92,6 +94,8 @@ their Lightroom catalog. You edit photos the way they would.
 - sophie_classify_scene — Classify a photo by EXIF data
 - sophie_get_stats — Summary statistics on training data
 - sophie_generate_report — Editing DNA report (markdown)
+- sophie_validate_coverage — Validation A (coverage + coherence)
+- sophie_validate_bprime — Validation B' (vision vs catalog ground truth)
 - sophie_get_correlations — Slider pairing patterns
 - sophie_cull — Multi-pass image culling
 - sophie_discover_catalogs — Find Lightroom catalogs on this Mac
