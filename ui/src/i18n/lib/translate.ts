@@ -18,7 +18,7 @@ class I18nManager {
     this.loadLocale();
   }
 
-  private loadLocale() {
+  private resolveInitialLocale(): Locale {
     const saved = localStorage.getItem("openclaw.i18n.locale");
     if (isSupportedLocale(saved)) {
       this.locale = saved;
@@ -34,6 +34,9 @@ class I18nManager {
         this.locale = "en";
       }
     }
+    // Use the normal locale setter so startup locale loading follows the same
+    // translation-loading + notify path as manual locale changes.
+    void this.setLocale(initialLocale);
   }
 
   public getLocale(): Locale {
@@ -41,12 +44,13 @@ class I18nManager {
   }
 
   public async setLocale(locale: Locale) {
-    if (this.locale === locale) {
+    const needsTranslationLoad = !this.translations[locale];
+    if (this.locale === locale && !needsTranslationLoad) {
       return;
     }
 
     // Lazy load translations if needed
-    if (!this.translations[locale]) {
+    if (needsTranslationLoad) {
       try {
         let module: Record<string, TranslationMap>;
         if (locale === "zh-CN") {
