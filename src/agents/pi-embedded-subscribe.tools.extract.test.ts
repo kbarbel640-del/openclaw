@@ -35,4 +35,16 @@ describe("extractMessagingToolSend", () => {
     expect(result?.provider).toBe("slack");
     expect(result?.to).toBe("channel:C1");
   });
+
+  it("tracks sends when message tool uses target instead of to", () => {
+    const result = extractMessagingToolSend("message", {
+      action: "send",
+      channel: "telegram",
+      target: "123",
+    });
+
+    expect(result?.tool).toBe("message");
+    expect(result?.provider).toBe("telegram");
+    expect(result?.to).toBe("telegram:123");
+  });
 });
