@@ -140,13 +140,6 @@ async function fetchHttpJson<T>(
   try {
     const res = await retryHttpAsync(() => fetch(url, { ...init, signal: ctrl.signal }), {
       label: "browser-fetch-http-json",
-      onResponse: async (r) => {
-        if (!r.ok) {
-          const text = await r.text().catch(() => "");
-          throw new Error(text || `HTTP ${r.status}`);
-        }
-        return r;
-      },
     });
     return (await res.json()) as T;
   } finally {

@@ -138,7 +138,7 @@ describe("loadModelCatalog", () => {
             },
           },
         },
-      } as unknown as OpenClawConfig,
+      } as OpenClawConfig,
     });
 
     expect(result).toContainEqual(
@@ -184,7 +184,7 @@ describe("loadModelCatalog", () => {
             },
           },
         },
-      } as unknown as OpenClawConfig,
+      } as OpenClawConfig,
     });
 
     expect(
@@ -232,7 +232,7 @@ describe("loadModelCatalog", () => {
             },
           },
         },
-      } as unknown as OpenClawConfig,
+      } as OpenClawConfig,
     });
 
     const matches = result.filter(

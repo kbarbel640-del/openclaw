@@ -2,7 +2,7 @@ import { Type } from "@sinclair/typebox";
 import type { OpenClawConfig } from "../../config/config.js";
 import { fetchWithSsrFGuard } from "../../infra/net/fetch-guard.js";
 import { SsrFBlockedError } from "../../infra/net/ssrf.js";
-import { isHttpRetryable } from "../../infra/retry-http.js";
+import { onRetry, isHttpRetryable } from "../../infra/retry-http.js";
 import { retryAsync } from "../../infra/retry.js";
 import { logDebug } from "../../logger.js";
 import { wrapExternalContent, wrapWebContent } from "../../security/external-content.js";
@@ -490,10 +490,7 @@ async function maybeFetchFirecrawlWebFetchPayload(
   const firecrawl = await retryAsync(async () => await fetchFirecrawlContent(firecrawlParams), {
     label: "web-fetch-firecrawl",
     shouldRetry: isHttpRetryable,
-    onRetry: (info) => {
-      const errMsg = info.err instanceof Error ? info.err.message : String(info.err);
-      console.warn(`[${info.label}] Retry ${info.attempt}/${info.maxAttempts} failed: ${errMsg}`);
-    },
+    onRetry: (info) => onRetry(console.warn, info),
   });
   const payload = buildFirecrawlWebFetchPayload({
     firecrawl,
@@ -549,12 +546,7 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
       {
         label: "web-fetch",
         shouldRetry: isHttpRetryable,
-        onRetry: (info) => {
-          const errMsg = info.err instanceof Error ? info.err.message : String(info.err);
-          console.warn(
-            `[${info.label}] Retry ${info.attempt}/${info.maxAttempts} failed: ${errMsg}`,
-          );
-        },
+        onRetry: (info) => onRetry(console.warn, info),
       },
     );
     res = result.response;
@@ -710,10 +702,7 @@ async function tryFirecrawlFallback(
     const firecrawl = await retryAsync(async () => await fetchFirecrawlContent(firecrawlParams), {
       label: "web-fetch-firecrawl-fallback",
       shouldRetry: isHttpRetryable,
-      onRetry: (info) => {
-        const errMsg = info.err instanceof Error ? info.err.message : String(info.err);
-        console.warn(`[${info.label}] Retry ${info.attempt}/${info.maxAttempts} failed: ${errMsg}`);
-      },
+      onRetry: (info) => onRetry(console.warn, info),
     });
     return { text: firecrawl.text, title: firecrawl.title };
   } catch {
