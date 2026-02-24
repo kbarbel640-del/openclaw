@@ -193,9 +193,9 @@ function resolveOAuthProviders(agentDir?: string): UsageProviderId[] {
   const providers = [
     "anthropic",
     "github-copilot",
-    "openai-codex",
     "google-antigravity",
     "google-gemini-cli",
+    "openai-codex",
   ] satisfies UsageProviderId[];
   const isOAuthLikeCredential = (id: string) => {
     const cred = store.profiles[id];
