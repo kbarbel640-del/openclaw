@@ -53,14 +53,45 @@ export type CronCriticScore = {
   note: string;
 };
 
+export type CronCriticMode = "score" | "redTeam";
+
+export type CronCriticSeverity = "none" | "low" | "medium" | "high" | "critical";
+
+export type CronCriticSeverityThreshold = Exclude<CronCriticSeverity, "none">;
+
+export type CronCriticRedTeamCategory =
+  | "leakage"
+  | "slippage_blindness"
+  | "unrealistic_assumptions"
+  | "hidden_coupling";
+
+export type CronCriticRedTeamCheck = {
+  category: CronCriticRedTeamCategory;
+  severity: CronCriticSeverity;
+  attackPrompt: string;
+  rationale: string;
+  evidence: string[];
+  recommendation: string;
+};
+
+export type CronCriticRedTeamReport = {
+  threshold: CronCriticSeverityThreshold;
+  maxSeverity: CronCriticSeverity;
+  failed: boolean;
+  checks: CronCriticRedTeamCheck[];
+  findings: CronCriticRedTeamCheck[];
+};
+
 export type CronCriticEvaluation = {
   version: "v1";
+  mode: CronCriticMode;
   spec: string;
   threshold: number;
   score: number;
   passed: boolean;
   outcome: "completed" | "needs_replan";
   scores: CronCriticScore[];
+  redTeam?: CronCriticRedTeamReport;
 };
 
 export type CronRunOutcome = {
