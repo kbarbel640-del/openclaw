@@ -1,17 +1,23 @@
 /**
  * OpenCode Zen model catalog with dynamic fetching, caching, and static fallback.
  *
- * OpenCode Zen is a $200/month subscription that provides proxy access to multiple
- * AI models (Claude, GPT, Gemini, etc.) through a single API endpoint.
+ * OpenCode Zen is a pay-as-you-go token-based API that provides access to curated
+ * models optimized for coding agents. It uses per-request billing with auto top-up.
+ *
+ * Note: OpenCode Black ($20/$100/$200/month subscriptions) is a separate product
+ * with flat-rate usage tiers. This module handles Zen, not Black.
  *
  * API endpoint: https://opencode.ai/zen/v1
  * Auth URL: https://opencode.ai/auth
  */
 
 import type { ModelApi, ModelDefinitionConfig } from "../config/types.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
+
+const log = createSubsystemLogger("opencode-zen-models");
 
 export const OPENCODE_ZEN_API_BASE_URL = "https://opencode.ai/zen/v1";
-export const OPENCODE_ZEN_DEFAULT_MODEL = "claude-opus-4-5";
+export const OPENCODE_ZEN_DEFAULT_MODEL = "claude-opus-4-6";
 export const OPENCODE_ZEN_DEFAULT_MODEL_REF = `opencode/${OPENCODE_ZEN_DEFAULT_MODEL}`;
 
 // Cache for fetched models (1 hour TTL)
@@ -21,19 +27,20 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * Model aliases for convenient shortcuts.
- * Users can use "opus" instead of "claude-opus-4-5", etc.
+ * Users can use "opus" instead of "claude-opus-4-6", etc.
  */
 export const OPENCODE_ZEN_MODEL_ALIASES: Record<string, string> = {
   // Claude
-  opus: "claude-opus-4-5",
+  opus: "claude-opus-4-6",
+  "opus-4.6": "claude-opus-4-6",
   "opus-4.5": "claude-opus-4-5",
-  "opus-4": "claude-opus-4-5",
+  "opus-4": "claude-opus-4-6",
 
   // Legacy Claude aliases (OpenCode Zen rotates model catalogs; keep old keys working).
-  sonnet: "claude-opus-4-5",
-  "sonnet-4": "claude-opus-4-5",
-  haiku: "claude-opus-4-5",
-  "haiku-3.5": "claude-opus-4-5",
+  sonnet: "claude-opus-4-6",
+  "sonnet-4": "claude-opus-4-6",
+  haiku: "claude-opus-4-6",
+  "haiku-3.5": "claude-opus-4-6",
 
   // GPT-5.x family
   gpt5: "gpt-5.2",
@@ -67,14 +74,9 @@ export const OPENCODE_ZEN_MODEL_ALIASES: Record<string, string> = {
   "gemini-2.5-pro": "gemini-3-pro",
   "gemini-2.5-flash": "gemini-3-flash",
 
-  // GLM (free + alpha)
-  glm: "glm-4.7-free",
-  "glm-free": "glm-4.7-free",
-  "alpha-glm": "alpha-glm-4.7",
-
-  // MiniMax
-  minimax: "minimax-m2.1-free",
-  "minimax-free": "minimax-m2.1-free",
+  // GLM (free)
+  glm: "glm-4.7",
+  "glm-free": "glm-4.7",
 };
 
 /**
@@ -87,18 +89,18 @@ export function resolveOpencodeZenAlias(modelIdOrAlias: string): string {
 }
 
 /**
- * OpenCode Zen routes models to different APIs based on model family.
+ * OpenCode Zen routes models to specific API shapes by family.
  */
 export function resolveOpencodeZenModelApi(modelId: string): ModelApi {
   const lower = modelId.toLowerCase();
-  if (lower.startsWith("claude-") || lower.startsWith("minimax") || lower.startsWith("alpha-gd4")) {
+  if (lower.startsWith("gpt-")) {
+    return "openai-responses";
+  }
+  if (lower.startsWith("claude-") || lower.startsWith("minimax-")) {
     return "anthropic-messages";
   }
   if (lower.startsWith("gemini-")) {
     return "google-generative-ai";
-  }
-  if (lower.startsWith("gpt-")) {
-    return "openai-responses";
   }
   return "openai-completions";
 }
@@ -124,9 +126,9 @@ const MODEL_COSTS: Record<
     cacheRead: 0.107,
     cacheWrite: 0,
   },
+  "claude-opus-4-6": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
   "claude-opus-4-5": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
   "gemini-3-pro": { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 0 },
-  "alpha-glm-4.7": { input: 0.6, output: 2.2, cacheRead: 0.6, cacheWrite: 0 },
   "gpt-5.1-codex-mini": {
     input: 0.25,
     output: 2,
@@ -134,7 +136,7 @@ const MODEL_COSTS: Record<
     cacheWrite: 0,
   },
   "gpt-5.1": { input: 1.07, output: 8.5, cacheRead: 0.107, cacheWrite: 0 },
-  "glm-4.7-free": { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  "glm-4.7": { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   "gemini-3-flash": { input: 0.5, output: 3, cacheRead: 0.05, cacheWrite: 0 },
   "gpt-5.1-codex-max": {
     input: 1.25,
@@ -142,7 +144,6 @@ const MODEL_COSTS: Record<
     cacheRead: 0.125,
     cacheWrite: 0,
   },
-  "minimax-m2.1-free": { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   "gpt-5.2": { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 0 },
 };
 
@@ -150,15 +151,14 @@ const DEFAULT_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "gpt-5.1-codex": 400000,
+  "claude-opus-4-6": 1000000,
   "claude-opus-4-5": 200000,
   "gemini-3-pro": 1048576,
-  "alpha-glm-4.7": 204800,
   "gpt-5.1-codex-mini": 400000,
   "gpt-5.1": 400000,
-  "glm-4.7-free": 204800,
+  "glm-4.7": 204800,
   "gemini-3-flash": 1048576,
   "gpt-5.1-codex-max": 400000,
-  "minimax-m2.1-free": 204800,
   "gpt-5.2": 400000,
 };
 
@@ -168,15 +168,14 @@ function getDefaultContextWindow(modelId: string): number {
 
 const MODEL_MAX_TOKENS: Record<string, number> = {
   "gpt-5.1-codex": 128000,
+  "claude-opus-4-6": 128000,
   "claude-opus-4-5": 64000,
   "gemini-3-pro": 65536,
-  "alpha-glm-4.7": 131072,
   "gpt-5.1-codex-mini": 128000,
   "gpt-5.1": 128000,
-  "glm-4.7-free": 131072,
+  "glm-4.7": 131072,
   "gemini-3-flash": 65536,
   "gpt-5.1-codex-max": 128000,
-  "minimax-m2.1-free": 131072,
   "gpt-5.2": 128000,
 };
 
@@ -206,15 +205,14 @@ function buildModelDefinition(modelId: string): ModelDefinitionConfig {
  */
 const MODEL_NAMES: Record<string, string> = {
   "gpt-5.1-codex": "GPT-5.1 Codex",
+  "claude-opus-4-6": "Claude Opus 4.6",
   "claude-opus-4-5": "Claude Opus 4.5",
   "gemini-3-pro": "Gemini 3 Pro",
-  "alpha-glm-4.7": "Alpha GLM-4.7",
   "gpt-5.1-codex-mini": "GPT-5.1 Codex Mini",
   "gpt-5.1": "GPT-5.1",
-  "glm-4.7-free": "GLM-4.7",
+  "glm-4.7": "GLM-4.7",
   "gemini-3-flash": "Gemini 3 Flash",
   "gpt-5.1-codex-max": "GPT-5.1 Codex Max",
-  "minimax-m2.1-free": "MiniMax M2.1",
   "gpt-5.2": "GPT-5.2",
 };
 
@@ -235,15 +233,14 @@ function formatModelName(modelId: string): string {
 export function getOpencodeZenStaticFallbackModels(): ModelDefinitionConfig[] {
   const modelIds = [
     "gpt-5.1-codex",
+    "claude-opus-4-6",
     "claude-opus-4-5",
     "gemini-3-pro",
-    "alpha-glm-4.7",
     "gpt-5.1-codex-mini",
     "gpt-5.1",
-    "glm-4.7-free",
+    "glm-4.7",
     "gemini-3-flash",
     "gpt-5.1-codex-max",
-    "minimax-m2.1-free",
     "gpt-5.2",
   ];
 
@@ -308,7 +305,7 @@ export async function fetchOpencodeZenModels(apiKey?: string): Promise<ModelDefi
 
     return models;
   } catch (error) {
-    console.warn(`[opencode-zen] Failed to fetch models, using static fallback: ${String(error)}`);
+    log.warn(`Failed to fetch models, using static fallback: ${String(error)}`);
     return getOpencodeZenStaticFallbackModels();
   }
 }

@@ -30,12 +30,6 @@
       "title": "Exec",
       "detailKeys": ["command"]
     },
-    "bash": {
-      "emoji": "🛠️",
-      "title": "Exec",
-      "label": "exec",
-      "detailKeys": ["command"]
-    },
     "process": {
       "emoji": "🧰",
       "title": "Process",
@@ -256,17 +250,34 @@
     "sessions_history": {
       "emoji": "🧾",
       "title": "Session History",
-      "detailKeys": ["sessionKey", "limit"]
+      "detailKeys": ["sessionKey", "limit", "includeTools"]
     },
     "sessions_send": {
       "emoji": "📨",
       "title": "Session Send",
-      "detailKeys": ["sessionKey", "timeoutSeconds"]
+      "detailKeys": ["label", "sessionKey", "agentId", "timeoutSeconds"]
     },
     "sessions_spawn": {
       "emoji": "🧑‍🔧",
       "title": "Sub-agent",
-      "detailKeys": ["label", "agentId", "runTimeoutSeconds", "cleanup"]
+      "detailKeys": [
+        "label",
+        "task",
+        "agentId",
+        "model",
+        "thinking",
+        "runTimeoutSeconds",
+        "cleanup"
+      ]
+    },
+    "subagents": {
+      "emoji": "🤖",
+      "title": "Subagents",
+      "actions": {
+        "list": { "label": "list", "detailKeys": ["recentMinutes"] },
+        "kill": { "label": "kill", "detailKeys": ["target"] },
+        "steer": { "label": "steer", "detailKeys": ["target"] }
+      }
     },
     "session_status": {
       "emoji": "📊",

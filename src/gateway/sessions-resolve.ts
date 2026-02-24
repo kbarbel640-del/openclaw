@@ -1,5 +1,5 @@
-import type { ClawdbotConfig } from "../config/config.js";
-import { loadSessionStore } from "../config/sessions.js";
+import type { OpenClawConfig } from "../config/config.js";
+import { loadSessionStore, updateSessionStore } from "../config/sessions.js";
 import { parseSessionLabel } from "../sessions/session-label.js";
 import {
   ErrorCodes,
@@ -10,44 +10,100 @@ import {
 import {
   listSessionsFromStore,
   loadCombinedSessionStoreForGateway,
+  pruneLegacyStoreKeys,
   resolveGatewaySessionStoreTarget,
 } from "./session-utils.js";
 
 export type SessionsResolveResult = { ok: true; key: string } | { ok: false; error: ErrorShape };
 
-export function resolveSessionKeyFromResolveParams(params: {
-  cfg: ClawdbotConfig;
+export async function resolveSessionKeyFromResolveParams(params: {
+  cfg: OpenClawConfig;
   p: SessionsResolveParams;
-}): SessionsResolveResult {
+}): Promise<SessionsResolveResult> {
   const { cfg, p } = params;
 
   const key = typeof p.key === "string" ? p.key.trim() : "";
   const hasKey = key.length > 0;
+  const sessionId = typeof p.sessionId === "string" ? p.sessionId.trim() : "";
+  const hasSessionId = sessionId.length > 0;
   const hasLabel = typeof p.label === "string" && p.label.trim().length > 0;
-  if (hasKey && hasLabel) {
+  const selectionCount = [hasKey, hasSessionId, hasLabel].filter(Boolean).length;
+  if (selectionCount > 1) {
     return {
       ok: false,
-      error: errorShape(ErrorCodes.INVALID_REQUEST, "Provide either key or label (not both)"),
+      error: errorShape(
+        ErrorCodes.INVALID_REQUEST,
+        "Provide either key, sessionId, or label (not multiple)",
+      ),
     };
   }
-  if (!hasKey && !hasLabel) {
+  if (selectionCount === 0) {
     return {
       ok: false,
-      error: errorShape(ErrorCodes.INVALID_REQUEST, "Either key or label is required"),
+      error: errorShape(ErrorCodes.INVALID_REQUEST, "Either key, sessionId, or label is required"),
     };
   }
 
   if (hasKey) {
     const target = resolveGatewaySessionStoreTarget({ cfg, key });
     const store = loadSessionStore(target.storePath);
-    const existingKey = target.storeKeys.find((candidate) => store[candidate]);
-    if (!existingKey) {
+    if (store[target.canonicalKey]) {
+      return { ok: true, key: target.canonicalKey };
+    }
+    const legacyKey = target.storeKeys.find((candidate) => store[candidate]);
+    if (!legacyKey) {
       return {
         ok: false,
         error: errorShape(ErrorCodes.INVALID_REQUEST, `No session found: ${key}`),
       };
     }
+    await updateSessionStore(target.storePath, (s) => {
+      const liveTarget = resolveGatewaySessionStoreTarget({ cfg, key, store: s });
+      const canonicalKey = liveTarget.canonicalKey;
+      // Migrate the first legacy entry to the canonical key.
+      if (!s[canonicalKey] && s[legacyKey]) {
+        s[canonicalKey] = s[legacyKey];
+      }
+      pruneLegacyStoreKeys({ store: s, canonicalKey, candidates: liveTarget.storeKeys });
+    });
     return { ok: true, key: target.canonicalKey };
+  }
+
+  if (hasSessionId) {
+    const { storePath, store } = loadCombinedSessionStoreForGateway(cfg);
+    const list = listSessionsFromStore({
+      cfg,
+      storePath,
+      store,
+      opts: {
+        includeGlobal: p.includeGlobal === true,
+        includeUnknown: p.includeUnknown === true,
+        spawnedBy: p.spawnedBy,
+        agentId: p.agentId,
+        search: sessionId,
+        limit: 8,
+      },
+    });
+    const matches = list.sessions.filter(
+      (session) => session.sessionId === sessionId || session.key === sessionId,
+    );
+    if (matches.length === 0) {
+      return {
+        ok: false,
+        error: errorShape(ErrorCodes.INVALID_REQUEST, `No session found: ${sessionId}`),
+      };
+    }
+    if (matches.length > 1) {
+      const keys = matches.map((session) => session.key).join(", ");
+      return {
+        ok: false,
+        error: errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `Multiple sessions found for sessionId: ${sessionId} (${keys})`,
+        ),
+      };
+    }
+    return { ok: true, key: String(matches[0]?.key ?? "") };
   }
 
   const parsedLabel = parseSessionLabel(p.label);

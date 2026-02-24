@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-
 import { getReplyFromConfig } from "./auto-reply/reply.js";
 import { applyTemplate } from "./auto-reply/templating.js";
 import { monitorWebChannel } from "./channel-web.js";
@@ -19,8 +18,9 @@ import {
 import { ensureBinary } from "./infra/binaries.js";
 import { loadDotEnv } from "./infra/dotenv.js";
 import { normalizeEnv } from "./infra/env.js";
+import { formatUncaughtError } from "./infra/errors.js";
 import { isMainModule } from "./infra/is-main.js";
-import { ensureClawdbotCliOnPath } from "./infra/path-env.js";
+import { ensureOpenClawCliOnPath } from "./infra/path-env.js";
 import {
   describePortOwner,
   ensurePortAvailable,
@@ -35,7 +35,7 @@ import { assertWebChannel, normalizeE164, toWhatsappJid } from "./utils.js";
 
 loadDotEnv({ quiet: true });
 normalizeEnv();
-ensureClawdbotCliOnPath();
+ensureOpenClawCliOnPath();
 
 // Capture all console output into structured logs while keeping stdout/stderr behavior.
 enableConsoleCapture();
@@ -82,15 +82,12 @@ if (isMain) {
   installUnhandledRejectionHandler();
 
   process.on("uncaughtException", (error) => {
-    console.error("[clawdbot] Uncaught exception:", error.stack ?? error.message);
+    console.error("[openclaw] Uncaught exception:", formatUncaughtError(error));
     process.exit(1);
   });
 
   void program.parseAsync(process.argv).catch((err) => {
-    console.error(
-      "[clawdbot] CLI failed:",
-      err instanceof Error ? (err.stack ?? err.message) : err,
-    );
+    console.error("[openclaw] CLI failed:", formatUncaughtError(err));
     process.exit(1);
   });
 }

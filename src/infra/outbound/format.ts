@@ -1,5 +1,6 @@
 import { getChannelPlugin } from "../../channels/plugins/index.js";
 import type { ChannelId } from "../../channels/plugins/types.js";
+import { getChatChannelMeta, normalizeChatChannelId } from "../../channels/registry.js";
 import type { OutboundDeliveryResult } from "./deliver.js";
 
 export type OutboundDeliveryJson = {
@@ -28,8 +29,17 @@ type OutboundDeliveryMeta = {
   meta?: Record<string, unknown>;
 };
 
-const resolveChannelLabel = (channel: string) =>
-  getChannelPlugin(channel as ChannelId)?.meta.label ?? channel;
+const resolveChannelLabel = (channel: string) => {
+  const pluginLabel = getChannelPlugin(channel as ChannelId)?.meta.label;
+  if (pluginLabel) {
+    return pluginLabel;
+  }
+  const normalized = normalizeChatChannelId(channel);
+  if (normalized) {
+    return getChatChannelMeta(normalized).label;
+  }
+  return channel;
+};
 
 export function formatOutboundDeliverySummary(
   channel: string,
@@ -42,10 +52,18 @@ export function formatOutboundDeliverySummary(
   const label = resolveChannelLabel(result.channel);
   const base = `✅ Sent via ${label}. Message ID: ${result.messageId}`;
 
-  if ("chatId" in result) return `${base} (chat ${result.chatId})`;
-  if ("channelId" in result) return `${base} (channel ${result.channelId})`;
-  if ("roomId" in result) return `${base} (room ${result.roomId})`;
-  if ("conversationId" in result) return `${base} (conversation ${result.conversationId})`;
+  if ("chatId" in result) {
+    return `${base} (chat ${result.chatId})`;
+  }
+  if ("channelId" in result) {
+    return `${base} (channel ${result.channelId})`;
+  }
+  if ("roomId" in result) {
+    return `${base} (room ${result.roomId})`;
+  }
+  if ("conversationId" in result) {
+    return `${base} (conversation ${result.conversationId})`;
+  }
   return base;
 }
 

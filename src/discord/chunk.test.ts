@@ -1,27 +1,6 @@
 import { describe, expect, it } from "vitest";
-
-import { chunkDiscordText } from "./chunk.js";
-
-function countLines(text: string) {
-  return text.split("\n").length;
-}
-
-function hasBalancedFences(chunk: string) {
-  let open: { markerChar: string; markerLen: number } | null = null;
-  for (const line of chunk.split("\n")) {
-    const match = line.match(/^( {0,3})(`{3,}|~{3,})(.*)$/);
-    if (!match) continue;
-    const marker = match[2];
-    if (!open) {
-      open = { markerChar: marker[0], markerLen: marker.length };
-      continue;
-    }
-    if (open.markerChar === marker[0] && marker.length >= open.markerLen) {
-      open = null;
-    }
-  }
-  return open === null;
-}
+import { countLines, hasBalancedFences } from "../test-utils/chunk-test-helpers.js";
+import { chunkDiscordText, chunkDiscordTextWithMode } from "./chunk.js";
 
 describe("chunkDiscordText", () => {
   it("splits tall messages even when under 2000 chars", () => {
@@ -49,6 +28,16 @@ describe("chunkDiscordText", () => {
 
     expect(chunks[0]).toContain("```js");
     expect(chunks.at(-1)).toContain("Done.");
+  });
+
+  it("keeps fenced blocks intact when chunkMode is newline", () => {
+    const text = "```js\nconst a = 1;\nconst b = 2;\n```\nAfter";
+    const chunks = chunkDiscordTextWithMode(text, {
+      maxChars: 2000,
+      maxLines: 50,
+      chunkMode: "newline",
+    });
+    expect(chunks).toEqual([text]);
   });
 
   it("reserves space for closing fences when chunking", () => {

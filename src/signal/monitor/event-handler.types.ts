@@ -1,6 +1,6 @@
 import type { HistoryEntry } from "../../auto-reply/reply/history.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import type { DmPolicy, GroupPolicy, SignalReactionNotificationMode } from "../../config/types.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import type { SignalSender } from "../identity.js";
@@ -16,10 +16,19 @@ export type SignalEnvelope = {
   reactionMessage?: SignalReactionMessage | null;
 };
 
+export type SignalMention = {
+  name?: string | null;
+  number?: string | null;
+  uuid?: string | null;
+  start?: number | null;
+  length?: number | null;
+};
+
 export type SignalDataMessage = {
   timestamp?: number;
   message?: string | null;
   attachments?: Array<SignalAttachment>;
+  mentions?: Array<SignalMention> | null;
   groupInfo?: {
     groupId?: string | null;
     groupName?: string | null;
@@ -60,7 +69,7 @@ export type SignalReceivePayload = {
 
 export type SignalEventHandlerDeps = {
   runtime: RuntimeEnv;
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   baseUrl: string;
   account?: string;
   accountId: string;
@@ -76,6 +85,8 @@ export type SignalEventHandlerDeps = {
   reactionAllowlist: string[];
   mediaMaxBytes: number;
   ignoreAttachments: boolean;
+  sendReadReceipts: boolean;
+  readReceiptsViaDaemon: boolean;
   fetchAttachment: (params: {
     baseUrl: string;
     account?: string;

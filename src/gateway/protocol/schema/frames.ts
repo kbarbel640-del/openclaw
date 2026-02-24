@@ -35,10 +35,28 @@ export const ConnectParamsSchema = Type.Object(
       { additionalProperties: false },
     ),
     caps: Type.Optional(Type.Array(NonEmptyString, { default: [] })),
+    commands: Type.Optional(Type.Array(NonEmptyString)),
+    permissions: Type.Optional(Type.Record(NonEmptyString, Type.Boolean())),
+    pathEnv: Type.Optional(Type.String()),
+    role: Type.Optional(NonEmptyString),
+    scopes: Type.Optional(Type.Array(NonEmptyString)),
+    device: Type.Optional(
+      Type.Object(
+        {
+          id: NonEmptyString,
+          publicKey: NonEmptyString,
+          signature: NonEmptyString,
+          signedAt: Type.Integer({ minimum: 0 }),
+          nonce: NonEmptyString,
+        },
+        { additionalProperties: false },
+      ),
+    ),
     auth: Type.Optional(
       Type.Object(
         {
           token: Type.Optional(Type.String()),
+          deviceToken: Type.Optional(Type.String()),
           password: Type.Optional(Type.String()),
         },
         { additionalProperties: false },
@@ -57,8 +75,6 @@ export const HelloOkSchema = Type.Object(
     server: Type.Object(
       {
         version: NonEmptyString,
-        commit: Type.Optional(NonEmptyString),
-        host: Type.Optional(NonEmptyString),
         connId: NonEmptyString,
       },
       { additionalProperties: false },
@@ -72,6 +88,17 @@ export const HelloOkSchema = Type.Object(
     ),
     snapshot: SnapshotSchema,
     canvasHostUrl: Type.Optional(NonEmptyString),
+    auth: Type.Optional(
+      Type.Object(
+        {
+          deviceToken: NonEmptyString,
+          role: NonEmptyString,
+          scopes: Type.Array(NonEmptyString),
+          issuedAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
+        },
+        { additionalProperties: false },
+      ),
+    ),
     policy: Type.Object(
       {
         maxPayload: Type.Integer({ minimum: 1 }),

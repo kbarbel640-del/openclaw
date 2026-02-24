@@ -1,7 +1,9 @@
 import {
   CombinedAutocompleteProvider,
   Container,
+  Key,
   Loader,
+  matchesKey,
   ProcessTerminal,
   Text,
   TUI,
@@ -22,6 +24,7 @@ import { editorTheme, theme } from "./theme/theme.js";
 import { createCommandHandlers } from "./tui-command-handlers.js";
 import { createEventHandlers } from "./tui-event-handlers.js";
 import { formatTokens } from "./tui-formatters.js";
+import { createLocalShellRunner } from "./tui-local-shell.js";
 import { createOverlayHandlers } from "./tui-overlays.js";
 import { createSessionActions } from "./tui-session-actions.js";
 import type {
@@ -31,9 +34,244 @@ import type {
   TuiOptions,
   TuiStateAccess,
 } from "./tui-types.js";
+import { buildWaitingStatusMessage, defaultWaitingPhrases } from "./tui-waiting.js";
 
 export { resolveFinalAssistantText } from "./tui-formatters.js";
 export type { TuiOptions } from "./tui-types.js";
+
+export function createEditorSubmitHandler(params: {
+  editor: {
+    setText: (value: string) => void;
+    addToHistory: (value: string) => void;
+  };
+  handleCommand: (value: string) => Promise<void> | void;
+  sendMessage: (value: string) => Promise<void> | void;
+  handleBangLine: (value: string) => Promise<void> | void;
+}) {
+  return (text: string) => {
+    const raw = text;
+    const value = raw.trim();
+    params.editor.setText("");
+
+    // Keep previous behavior: ignore empty/whitespace-only submissions.
+    if (!value) {
+      return;
+    }
+
+    // Bash mode: only if the very first character is '!' and it's not just '!'.
+    // IMPORTANT: use the raw (untrimmed) text so leading spaces do NOT trigger.
+    // Per requirement: a lone '!' should be treated as a normal message.
+    if (raw.startsWith("!") && raw !== "!") {
+      params.editor.addToHistory(raw);
+      void params.handleBangLine(raw);
+      return;
+    }
+
+    // Enable built-in editor prompt history navigation (up/down).
+    params.editor.addToHistory(value);
+
+    if (value.startsWith("/")) {
+      void params.handleCommand(value);
+      return;
+    }
+
+    void params.sendMessage(value);
+  };
+}
+
+export function shouldEnableWindowsGitBashPasteFallback(params?: {
+  platform?: string;
+  env?: NodeJS.ProcessEnv;
+}): boolean {
+  const platform = params?.platform ?? process.platform;
+  const env = params?.env ?? process.env;
+  const termProgram = (env.TERM_PROGRAM ?? "").toLowerCase();
+
+  // Some macOS terminals emit multiline paste as rapid single-line submits.
+  // Enable burst coalescing so pasted blocks stay as one user message.
+  if (platform === "darwin") {
+    if (termProgram.includes("iterm") || termProgram.includes("apple_terminal")) {
+      return true;
+    }
+    return false;
+  }
+
+  if (platform !== "win32") {
+    return false;
+  }
+
+  const msystem = (env.MSYSTEM ?? "").toUpperCase();
+  const shell = env.SHELL ?? "";
+  if (msystem.startsWith("MINGW") || msystem.startsWith("MSYS")) {
+    return true;
+  }
+  if (shell.toLowerCase().includes("bash")) {
+    return true;
+  }
+  return termProgram.includes("mintty");
+}
+
+export function createSubmitBurstCoalescer(params: {
+  submit: (value: string) => void;
+  enabled: boolean;
+  burstWindowMs?: number;
+  now?: () => number;
+  setTimer?: typeof setTimeout;
+  clearTimer?: typeof clearTimeout;
+}) {
+  const windowMs = Math.max(1, params.burstWindowMs ?? 50);
+  const now = params.now ?? (() => Date.now());
+  const setTimer = params.setTimer ?? setTimeout;
+  const clearTimer = params.clearTimer ?? clearTimeout;
+  let pending: string | null = null;
+  let pendingAt = 0;
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const clearFlushTimer = () => {
+    if (!flushTimer) {
+      return;
+    }
+    clearTimer(flushTimer);
+    flushTimer = null;
+  };
+
+  const flushPending = () => {
+    if (pending === null) {
+      return;
+    }
+    const value = pending;
+    pending = null;
+    pendingAt = 0;
+    clearFlushTimer();
+    params.submit(value);
+  };
+
+  const scheduleFlush = () => {
+    clearFlushTimer();
+    flushTimer = setTimer(() => {
+      flushPending();
+    }, windowMs);
+  };
+
+  return (value: string) => {
+    if (!params.enabled) {
+      params.submit(value);
+      return;
+    }
+    if (value.includes("\n")) {
+      flushPending();
+      params.submit(value);
+      return;
+    }
+    const ts = now();
+    if (pending === null) {
+      pending = value;
+      pendingAt = ts;
+      scheduleFlush();
+      return;
+    }
+    if (ts - pendingAt <= windowMs) {
+      pending = `${pending}\n${value}`;
+      pendingAt = ts;
+      scheduleFlush();
+      return;
+    }
+    flushPending();
+    pending = value;
+    pendingAt = ts;
+    scheduleFlush();
+  };
+}
+
+export function resolveTuiSessionKey(params: {
+  raw?: string;
+  sessionScope: SessionScope;
+  currentAgentId: string;
+  sessionMainKey: string;
+}) {
+  const trimmed = (params.raw ?? "").trim();
+  if (!trimmed) {
+    if (params.sessionScope === "global") {
+      return "global";
+    }
+    return buildAgentMainSessionKey({
+      agentId: params.currentAgentId,
+      mainKey: params.sessionMainKey,
+    });
+  }
+  if (trimmed === "global" || trimmed === "unknown") {
+    return trimmed;
+  }
+  if (trimmed.startsWith("agent:")) {
+    return trimmed;
+  }
+  return `agent:${params.currentAgentId}:${trimmed}`;
+}
+
+export function resolveGatewayDisconnectState(reason?: string): {
+  connectionStatus: string;
+  activityStatus: string;
+  pairingHint?: string;
+} {
+  const reasonLabel = reason?.trim() ? reason.trim() : "closed";
+  if (/pairing required/i.test(reasonLabel)) {
+    return {
+      connectionStatus: `gateway disconnected: ${reasonLabel}`,
+      activityStatus: "pairing required: run openclaw devices list",
+      pairingHint:
+        "Pairing required. Run `openclaw devices list`, approve your request ID, then reconnect.",
+    };
+  }
+  return {
+    connectionStatus: `gateway disconnected: ${reasonLabel}`,
+    activityStatus: "idle",
+  };
+}
+
+export function createBackspaceDeduper(params?: { dedupeWindowMs?: number; now?: () => number }) {
+  const dedupeWindowMs = Math.max(0, Math.floor(params?.dedupeWindowMs ?? 8));
+  const now = params?.now ?? (() => Date.now());
+  let lastBackspaceAt = -1;
+
+  return (data: string): string => {
+    if (!matchesKey(data, Key.backspace)) {
+      return data;
+    }
+    const ts = now();
+    if (lastBackspaceAt >= 0 && ts - lastBackspaceAt <= dedupeWindowMs) {
+      return "";
+    }
+    lastBackspaceAt = ts;
+    return data;
+  };
+}
+
+type CtrlCAction = "clear" | "warn" | "exit";
+
+export function resolveCtrlCAction(params: {
+  hasInput: boolean;
+  now: number;
+  lastCtrlCAt: number;
+  exitWindowMs?: number;
+}): { action: CtrlCAction; nextLastCtrlCAt: number } {
+  const exitWindowMs = Math.max(1, Math.floor(params.exitWindowMs ?? 1000));
+  if (params.hasInput) {
+    return {
+      action: "clear",
+      nextLastCtrlCAt: params.now,
+    };
+  }
+  if (params.now - params.lastCtrlCAt <= exitWindowMs) {
+    return {
+      action: "exit",
+      nextLastCtrlCAt: params.lastCtrlCAt,
+    };
+  }
+  return {
+    action: "warn",
+    nextLastCtrlCAt: params.now,
+  };
+}
 
 export async function runTui(opts: TuiOptions) {
   const config = loadConfig();
@@ -50,13 +288,18 @@ export async function runTui(opts: TuiOptions) {
   let activeChatRunId: string | null = null;
   let historyLoaded = false;
   let isConnected = false;
+  let wasDisconnected = false;
   let toolsExpanded = false;
   let showThinking = false;
+  let pairingHintShown = false;
+  const localRunIds = new Set<string>();
+
   const deliverDefault = opts.deliver ?? false;
   const autoMessage = opts.message?.trim();
   let autoMessageSent = false;
   let sessionInfo: SessionInfo = {};
   let lastCtrlCAt = 0;
+  let exitRequested = false;
   let activityStatus = "idle";
   let connectionStatus = "connecting";
   let statusTimeout: NodeJS.Timeout | null = null;
@@ -181,17 +424,49 @@ export async function runTui(opts: TuiOptions) {
     },
   };
 
+  const noteLocalRunId = (runId: string) => {
+    if (!runId) {
+      return;
+    }
+    localRunIds.add(runId);
+    if (localRunIds.size > 200) {
+      const [first] = localRunIds;
+      if (first) {
+        localRunIds.delete(first);
+      }
+    }
+  };
+
+  const forgetLocalRunId = (runId: string) => {
+    localRunIds.delete(runId);
+  };
+
+  const isLocalRunId = (runId: string) => localRunIds.has(runId);
+
+  const clearLocalRunIds = () => {
+    localRunIds.clear();
+  };
+
   const client = new GatewayChatClient({
     url: opts.url,
     token: opts.token,
     password: opts.password,
   });
 
+  const tui = new TUI(new ProcessTerminal());
+  const dedupeBackspace = createBackspaceDeduper();
+  tui.addInputListener((data) => {
+    const next = dedupeBackspace(data);
+    if (next.length === 0) {
+      return { consume: true };
+    }
+    return { data: next };
+  });
   const header = new Text("", 1, 0);
   const statusContainer = new Container();
   const footer = new Text("", 1, 0);
   const chatLog = new ChatLog();
-  const editor = new CustomEditor(editorTheme);
+  const editor = new CustomEditor(tui, editorTheme);
   const root = new Container();
   root.addChild(header);
   root.addChild(chatLog);
@@ -203,6 +478,7 @@ export async function runTui(opts: TuiOptions) {
     editor.setAutocompleteProvider(
       new CombinedAutocompleteProvider(
         getSlashCommands({
+          cfg: config,
           provider: sessionInfo.modelProvider,
           model: sessionInfo.model,
         }),
@@ -211,12 +487,13 @@ export async function runTui(opts: TuiOptions) {
     );
   };
 
-  const tui = new TUI(new ProcessTerminal());
   tui.addChild(root);
   tui.setFocus(editor);
 
   const formatSessionKey = (key: string) => {
-    if (key === "global" || key === "unknown") return key;
+    if (key === "global" || key === "unknown") {
+      return key;
+    }
     const parsed = parseAgentSessionKey(key);
     return parsed?.rest ?? key;
   };
@@ -227,17 +504,12 @@ export async function runTui(opts: TuiOptions) {
   };
 
   const resolveSessionKey = (raw?: string) => {
-    const trimmed = (raw ?? "").trim();
-    if (sessionScope === "global") return "global";
-    if (!trimmed) {
-      return buildAgentMainSessionKey({
-        agentId: currentAgentId,
-        mainKey: sessionMainKey,
-      });
-    }
-    if (trimmed === "global" || trimmed === "unknown") return trimmed;
-    if (trimmed.startsWith("agent:")) return trimmed;
-    return `agent:${currentAgentId}:${trimmed}`;
+    return resolveTuiSessionKey({
+      raw,
+      sessionScope,
+      currentAgentId,
+      sessionMainKey,
+    });
   };
 
   currentSessionKey = resolveSessionKey(initialSessionInput);
@@ -247,7 +519,7 @@ export async function runTui(opts: TuiOptions) {
     const agentLabel = formatAgentLabel(currentAgentId);
     header.setText(
       theme.header(
-        `clawdbot tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`,
+        `openclaw tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`,
       ),
     );
   };
@@ -258,14 +530,18 @@ export async function runTui(opts: TuiOptions) {
 
   const formatElapsed = (startMs: number) => {
     const totalSeconds = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
-    if (totalSeconds < 60) return `${totalSeconds}s`;
+    if (totalSeconds < 60) {
+      return `${totalSeconds}s`;
+    }
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}m ${seconds}s`;
   };
 
   const ensureStatusText = () => {
-    if (statusText) return;
+    if (statusText) {
+      return;
+    }
     statusContainer.clear();
     statusLoader?.stop();
     statusLoader = null;
@@ -274,7 +550,9 @@ export async function runTui(opts: TuiOptions) {
   };
 
   const ensureStatusLoader = () => {
-    if (statusLoader) return;
+    if (statusLoader) {
+      return;
+    }
     statusContainer.clear();
     statusText = null;
     statusLoader = new Loader(
@@ -286,24 +564,81 @@ export async function runTui(opts: TuiOptions) {
     statusContainer.addChild(statusLoader);
   };
 
+  let waitingTick = 0;
+  let waitingTimer: NodeJS.Timeout | null = null;
+  let waitingPhrase: string | null = null;
+
   const updateBusyStatusMessage = () => {
-    if (!statusLoader || !statusStartedAt) return;
+    if (!statusLoader || !statusStartedAt) {
+      return;
+    }
     const elapsed = formatElapsed(statusStartedAt);
+
+    if (activityStatus === "waiting") {
+      waitingTick++;
+      statusLoader.setMessage(
+        buildWaitingStatusMessage({
+          theme,
+          tick: waitingTick,
+          elapsed,
+          connectionStatus,
+          phrases: waitingPhrase ? [waitingPhrase] : undefined,
+        }),
+      );
+      return;
+    }
+
     statusLoader.setMessage(`${activityStatus} • ${elapsed} | ${connectionStatus}`);
   };
 
   const startStatusTimer = () => {
-    if (statusTimer) return;
+    if (statusTimer) {
+      return;
+    }
     statusTimer = setInterval(() => {
-      if (!busyStates.has(activityStatus)) return;
+      if (!busyStates.has(activityStatus)) {
+        return;
+      }
       updateBusyStatusMessage();
     }, 1000);
   };
 
   const stopStatusTimer = () => {
-    if (!statusTimer) return;
+    if (!statusTimer) {
+      return;
+    }
     clearInterval(statusTimer);
     statusTimer = null;
+  };
+
+  const startWaitingTimer = () => {
+    if (waitingTimer) {
+      return;
+    }
+
+    // Pick a phrase once per waiting session.
+    if (!waitingPhrase) {
+      const idx = Math.floor(Math.random() * defaultWaitingPhrases.length);
+      waitingPhrase = defaultWaitingPhrases[idx] ?? defaultWaitingPhrases[0] ?? "waiting";
+    }
+
+    waitingTick = 0;
+
+    waitingTimer = setInterval(() => {
+      if (activityStatus !== "waiting") {
+        return;
+      }
+      updateBusyStatusMessage();
+    }, 120);
+  };
+
+  const stopWaitingTimer = () => {
+    if (!waitingTimer) {
+      return;
+    }
+    clearInterval(waitingTimer);
+    waitingTimer = null;
+    waitingPhrase = null;
   };
 
   const renderStatus = () => {
@@ -313,11 +648,18 @@ export async function runTui(opts: TuiOptions) {
         statusStartedAt = Date.now();
       }
       ensureStatusLoader();
+      if (activityStatus === "waiting") {
+        stopStatusTimer();
+        startWaitingTimer();
+      } else {
+        stopWaitingTimer();
+        startStatusTimer();
+      }
       updateBusyStatusMessage();
-      startStatusTimer();
     } else {
       statusStartedAt = null;
       stopStatusTimer();
+      stopWaitingTimer();
       statusLoader?.stop();
       statusLoader = null;
       ensureStatusText();
@@ -330,7 +672,9 @@ export async function runTui(opts: TuiOptions) {
   const setConnectionStatus = (text: string, ttlMs?: number) => {
     connectionStatus = text;
     renderStatus();
-    if (statusTimeout) clearTimeout(statusTimeout);
+    if (statusTimeout) {
+      clearTimeout(statusTimeout);
+    }
     if (ttlMs && ttlMs > 0) {
       statusTimeout = setTimeout(() => {
         connectionStatus = isConnected ? "connected" : "disconnected";
@@ -361,17 +705,24 @@ export async function runTui(opts: TuiOptions) {
     const reasoning = sessionInfo.reasoningLevel ?? "off";
     const reasoningLabel =
       reasoning === "on" ? "reasoning" : reasoning === "stream" ? "reasoning:stream" : null;
-    footer.setText(
-      theme.dim(
-        `agent ${agentLabel} | session ${sessionLabel} | ${modelLabel} | think ${think} | verbose ${verbose}${reasoningLabel ? ` | ${reasoningLabel}` : ""} | ${tokens}`,
-      ),
-    );
+    const footerParts = [
+      `agent ${agentLabel}`,
+      `session ${sessionLabel}`,
+      modelLabel,
+      think !== "off" ? `think ${think}` : null,
+      verbose !== "off" ? `verbose ${verbose}` : null,
+      reasoningLabel,
+      tokens,
+    ].filter(Boolean);
+    footer.setText(theme.dim(footerParts.join(" | ")));
   };
 
   const { openOverlay, closeOverlay } = createOverlayHandlers(tui, editor);
 
   const initialSessionAgentId = (() => {
-    if (!initialSessionInput) return null;
+    if (!initialSessionInput) {
+      return null;
+    }
     const parsed = parseAgentSessionKey(initialSessionInput);
     return parsed ? normalizeAgentId(parsed.agentId) : null;
   })();
@@ -390,9 +741,16 @@ export async function runTui(opts: TuiOptions) {
     updateFooter,
     updateAutocompleteProvider,
     setActivityStatus,
+    clearLocalRunIds,
   });
-  const { refreshAgents, refreshSessionInfo, loadHistory, setSession, abortActive } =
-    sessionActions;
+  const {
+    refreshAgents,
+    refreshSessionInfo,
+    applySessionInfoFromPatch,
+    loadHistory,
+    setSession,
+    abortActive,
+  } = sessionActions;
 
   const { handleChatEvent, handleAgentEvent } = createEventHandlers({
     chatLog,
@@ -400,7 +758,21 @@ export async function runTui(opts: TuiOptions) {
     state,
     setActivityStatus,
     refreshSessionInfo,
+    loadHistory,
+    isLocalRunId,
+    forgetLocalRunId,
+    clearLocalRunIds,
   });
+
+  const requestExit = () => {
+    if (exitRequested) {
+      return;
+    }
+    exitRequested = true;
+    client.stop();
+    tui.stop();
+    process.exit(0);
+  };
 
   const { handleCommand, sendMessage, openModelSelector, openAgentSelector, openSessionSelector } =
     createCommandHandlers({
@@ -413,50 +785,65 @@ export async function runTui(opts: TuiOptions) {
       openOverlay,
       closeOverlay,
       refreshSessionInfo,
+      applySessionInfoFromPatch,
       loadHistory,
       setSession,
       refreshAgents,
       abortActive,
       setActivityStatus,
       formatSessionKey,
+      noteLocalRunId,
+      forgetLocalRunId,
+      requestExit,
     });
 
+  const { runLocalShellLine } = createLocalShellRunner({
+    chatLog,
+    tui,
+    openOverlay,
+    closeOverlay,
+  });
   updateAutocompleteProvider();
-  editor.onSubmit = (text) => {
-    const value = text.trim();
-    editor.setText("");
-    if (!value) return;
-    if (value.startsWith("/")) {
-      void handleCommand(value);
-      return;
-    }
-    void sendMessage(value);
-  };
+  const submitHandler = createEditorSubmitHandler({
+    editor,
+    handleCommand,
+    sendMessage,
+    handleBangLine: runLocalShellLine,
+  });
+  editor.onSubmit = createSubmitBurstCoalescer({
+    submit: submitHandler,
+    enabled: shouldEnableWindowsGitBashPasteFallback(),
+  });
 
   editor.onEscape = () => {
     void abortActive();
   };
-  editor.onCtrlC = () => {
+  const handleCtrlC = () => {
     const now = Date.now();
-    if (editor.getText().trim().length > 0) {
+    const decision = resolveCtrlCAction({
+      hasInput: editor.getText().trim().length > 0,
+      now,
+      lastCtrlCAt,
+    });
+    lastCtrlCAt = decision.nextLastCtrlCAt;
+    if (decision.action === "clear") {
       editor.setText("");
-      setActivityStatus("cleared input");
+      setActivityStatus("cleared input; press ctrl+c again to exit");
       tui.requestRender();
       return;
     }
-    if (now - lastCtrlCAt < 1000) {
-      client.stop();
-      tui.stop();
-      process.exit(0);
+    if (decision.action === "exit") {
+      requestExit();
+      return;
     }
-    lastCtrlCAt = now;
     setActivityStatus("press ctrl+c again to exit");
     tui.requestRender();
   };
+  editor.onCtrlC = () => {
+    handleCtrlC();
+  };
   editor.onCtrlD = () => {
-    client.stop();
-    tui.stop();
-    process.exit(0);
+    requestExit();
   };
   editor.onCtrlO = () => {
     toolsExpanded = !toolsExpanded;
@@ -479,26 +866,29 @@ export async function runTui(opts: TuiOptions) {
   };
 
   client.onEvent = (evt) => {
-    if (evt.event === "chat") handleChatEvent(evt.payload);
-    if (evt.event === "agent") handleAgentEvent(evt.payload);
+    if (evt.event === "chat") {
+      handleChatEvent(evt.payload);
+    }
+    if (evt.event === "agent") {
+      handleAgentEvent(evt.payload);
+    }
   };
 
   client.onConnected = () => {
     isConnected = true;
+    pairingHintShown = false;
+    const reconnected = wasDisconnected;
+    wasDisconnected = false;
     setConnectionStatus("connected");
     void (async () => {
       await refreshAgents();
       updateHeader();
-      if (!historyLoaded) {
-        await loadHistory();
-        setConnectionStatus("gateway connected", 4000);
-        tui.requestRender();
-        if (!autoMessageSent && autoMessage) {
-          autoMessageSent = true;
-          await sendMessage(autoMessage);
-        }
-      } else {
-        setConnectionStatus("gateway reconnected", 4000);
+      await loadHistory();
+      setConnectionStatus(reconnected ? "gateway reconnected" : "gateway connected", 4000);
+      tui.requestRender();
+      if (!autoMessageSent && autoMessage) {
+        autoMessageSent = true;
+        await sendMessage(autoMessage);
       }
       updateFooter();
       tui.requestRender();
@@ -507,9 +897,15 @@ export async function runTui(opts: TuiOptions) {
 
   client.onDisconnected = (reason) => {
     isConnected = false;
-    const reasonLabel = reason?.trim() ? reason.trim() : "closed";
-    setConnectionStatus(`gateway disconnected: ${reasonLabel}`, 5000);
-    setActivityStatus("idle");
+    wasDisconnected = true;
+    historyLoaded = false;
+    const disconnectState = resolveGatewayDisconnectState(reason);
+    setConnectionStatus(disconnectState.connectionStatus, 5000);
+    setActivityStatus(disconnectState.activityStatus);
+    if (disconnectState.pairingHint && !pairingHintShown) {
+      pairingHintShown = true;
+      chatLog.addSystem(disconnectState.pairingHint);
+    }
     updateFooter();
     tui.requestRender();
   };
@@ -522,6 +918,22 @@ export async function runTui(opts: TuiOptions) {
   updateHeader();
   setConnectionStatus("connecting");
   updateFooter();
+  const sigintHandler = () => {
+    handleCtrlC();
+  };
+  const sigtermHandler = () => {
+    requestExit();
+  };
+  process.on("SIGINT", sigintHandler);
+  process.on("SIGTERM", sigtermHandler);
   tui.start();
   client.start();
+  await new Promise<void>((resolve) => {
+    const finish = () => {
+      process.removeListener("SIGINT", sigintHandler);
+      process.removeListener("SIGTERM", sigtermHandler);
+      resolve();
+    };
+    process.once("exit", finish);
+  });
 }

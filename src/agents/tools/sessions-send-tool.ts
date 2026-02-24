@@ -1,14 +1,8 @@
 import crypto from "node:crypto";
-
 import { Type } from "@sinclair/typebox";
-
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
-import {
-  isSubagentSessionKey,
-  normalizeAgentId,
-  parseAgentSessionKey,
-} from "../../routing/session-key.js";
+import { normalizeAgentId, resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { SESSION_LABEL_MAX_LENGTH } from "../../sessions/session-label.js";
 import {
   type GatewayMessageChannel,
@@ -18,10 +12,13 @@ import { AGENT_LANE_NESTED } from "../lanes.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
+  createSessionVisibilityGuard,
+  createAgentToAgentPolicy,
   extractAssistantText,
-  resolveDisplaySessionKey,
-  resolveInternalSessionKey,
-  resolveMainSessionAlias,
+  isResolvedSessionVisibleToRequester,
+  resolveEffectiveSessionToolsVisibility,
+  resolveSessionReference,
+  resolveSandboxedSessionToolContext,
   stripToolMessages,
 } from "./sessions-helpers.js";
 import { buildAgentToAgentMessageContext, resolvePingPongTurns } from "./sessions-send-helpers.js";
@@ -50,37 +47,18 @@ export function createSessionsSendTool(opts?: {
       const params = args as Record<string, unknown>;
       const message = readStringParam(params, "message", { required: true });
       const cfg = loadConfig();
-      const { mainKey, alias } = resolveMainSessionAlias(cfg);
-      const visibility = cfg.agents?.defaults?.sandbox?.sessionToolsVisibility ?? "spawned";
-      const requesterInternalKey =
-        typeof opts?.agentSessionKey === "string" && opts.agentSessionKey.trim()
-          ? resolveInternalSessionKey({
-              key: opts.agentSessionKey,
-              alias,
-              mainKey,
-            })
-          : undefined;
-      const restrictToSpawned =
-        opts?.sandboxed === true &&
-        visibility === "spawned" &&
-        requesterInternalKey &&
-        !isSubagentSessionKey(requesterInternalKey);
-
-      const routingA2A = cfg.tools?.agentToAgent;
-      const a2aEnabled = routingA2A?.enabled === true;
-      const allowPatterns = Array.isArray(routingA2A?.allow) ? routingA2A.allow : [];
-      const matchesAllow = (agentId: string) => {
-        if (allowPatterns.length === 0) return true;
-        return allowPatterns.some((pattern) => {
-          const raw = String(pattern ?? "").trim();
-          if (!raw) return false;
-          if (raw === "*") return true;
-          if (!raw.includes("*")) return raw === agentId;
-          const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          const re = new RegExp(`^${escaped.replaceAll("\\*", ".*")}$`, "i");
-          return re.test(agentId);
+      const { mainKey, alias, effectiveRequesterKey, restrictToSpawned } =
+        resolveSandboxedSessionToolContext({
+          cfg,
+          agentSessionKey: opts?.agentSessionKey,
+          sandboxed: opts?.sandboxed,
         });
-      };
+
+      const a2aPolicy = createAgentToAgentPolicy(cfg);
+      const sessionVisibility = resolveEffectiveSessionToolsVisibility({
+        cfg,
+        sandboxed: opts?.sandboxed === true,
+      });
 
       const sessionKeyParam = readStringParam(params, "sessionKey");
       const labelParam = readStringParam(params, "label")?.trim() || undefined;
@@ -93,30 +71,14 @@ export function createSessionsSendTool(opts?: {
         });
       }
 
-      const listSessions = async (listParams: Record<string, unknown>) => {
-        const result = (await callGateway({
-          method: "sessions.list",
-          params: listParams,
-          timeoutMs: 10_000,
-        })) as { sessions?: Array<Record<string, unknown>> };
-        return Array.isArray(result?.sessions) ? result.sessions : [];
-      };
-
       let sessionKey = sessionKeyParam;
       if (!sessionKey && labelParam) {
-        const requesterAgentId = requesterInternalKey
-          ? normalizeAgentId(parseAgentSessionKey(requesterInternalKey)?.agentId)
-          : undefined;
+        const requesterAgentId = resolveAgentIdFromSessionKey(effectiveRequesterKey);
         const requestedAgentId = labelAgentIdParam
           ? normalizeAgentId(labelAgentIdParam)
           : undefined;
 
-        if (
-          restrictToSpawned &&
-          requestedAgentId &&
-          requesterAgentId &&
-          requestedAgentId !== requesterAgentId
-        ) {
+        if (restrictToSpawned && requestedAgentId && requestedAgentId !== requesterAgentId) {
           return jsonResult({
             runId: crypto.randomUUID(),
             status: "forbidden",
@@ -125,7 +87,7 @@ export function createSessionsSendTool(opts?: {
         }
 
         if (requesterAgentId && requestedAgentId && requestedAgentId !== requesterAgentId) {
-          if (!a2aEnabled) {
+          if (!a2aPolicy.enabled) {
             return jsonResult({
               runId: crypto.randomUUID(),
               status: "forbidden",
@@ -133,7 +95,7 @@ export function createSessionsSendTool(opts?: {
                 "Agent-to-agent messaging is disabled. Set tools.agentToAgent.enabled=true to allow cross-agent sends.",
             });
           }
-          if (!matchesAllow(requesterAgentId) || !matchesAllow(requestedAgentId)) {
+          if (!a2aPolicy.isAllowed(requesterAgentId, requestedAgentId)) {
             return jsonResult({
               runId: crypto.randomUUID(),
               status: "forbidden",
@@ -145,15 +107,15 @@ export function createSessionsSendTool(opts?: {
         const resolveParams: Record<string, unknown> = {
           label: labelParam,
           ...(requestedAgentId ? { agentId: requestedAgentId } : {}),
-          ...(restrictToSpawned ? { spawnedBy: requesterInternalKey } : {}),
+          ...(restrictToSpawned ? { spawnedBy: effectiveRequesterKey } : {}),
         };
         let resolvedKey = "";
         try {
-          const resolved = (await callGateway({
+          const resolved = await callGateway<{ key: string }>({
             method: "sessions.resolve",
             params: resolveParams,
             timeoutMs: 10_000,
-          })) as { key?: unknown };
+          });
           resolvedKey = typeof resolved?.key === "string" ? resolved.key.trim() : "";
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -161,7 +123,7 @@ export function createSessionsSendTool(opts?: {
             return jsonResult({
               runId: crypto.randomUUID(),
               status: "forbidden",
-              error: `Session not visible from this sandboxed agent session: label=${labelParam}`,
+              error: "Session not visible from this sandboxed agent session.",
             });
           }
           return jsonResult({
@@ -176,7 +138,7 @@ export function createSessionsSendTool(opts?: {
             return jsonResult({
               runId: crypto.randomUUID(),
               status: "forbidden",
-              error: `Session not visible from this sandboxed agent session: label=${labelParam}`,
+              error: "Session not visible from this sandboxed agent session.",
             });
           }
           return jsonResult({
@@ -195,33 +157,38 @@ export function createSessionsSendTool(opts?: {
           error: "Either sessionKey or label is required",
         });
       }
-
-      const resolvedKey = resolveInternalSessionKey({
-        key: sessionKey,
+      const resolvedSession = await resolveSessionReference({
+        sessionKey,
         alias,
         mainKey,
+        requesterInternalKey: effectiveRequesterKey,
+        restrictToSpawned,
       });
-
-      if (restrictToSpawned) {
-        const sessions = await listSessions({
-          includeGlobal: false,
-          includeUnknown: false,
-          limit: 500,
-          spawnedBy: requesterInternalKey,
+      if (!resolvedSession.ok) {
+        return jsonResult({
+          runId: crypto.randomUUID(),
+          status: resolvedSession.status,
+          error: resolvedSession.error,
         });
-        const ok = sessions.some((entry) => entry?.key === resolvedKey);
-        if (!ok) {
-          return jsonResult({
-            runId: crypto.randomUUID(),
-            status: "forbidden",
-            error: `Session not visible from this sandboxed agent session: ${sessionKey}`,
-            sessionKey: resolveDisplaySessionKey({
-              key: sessionKey,
-              alias,
-              mainKey,
-            }),
-          });
-        }
+      }
+      // Normalize sessionKey/sessionId input into a canonical session key.
+      const resolvedKey = resolvedSession.key;
+      const displayKey = resolvedSession.displayKey;
+      const resolvedViaSessionId = resolvedSession.resolvedViaSessionId;
+
+      const visible = await isResolvedSessionVisibleToRequester({
+        requesterSessionKey: effectiveRequesterKey,
+        targetSessionKey: resolvedKey,
+        restrictToSpawned,
+        resolvedViaSessionId,
+      });
+      if (!visible) {
+        return jsonResult({
+          runId: crypto.randomUUID(),
+          status: "forbidden",
+          error: `Session not visible from this sandboxed agent session: ${sessionKey}`,
+          sessionKey: displayKey,
+        });
       }
       const timeoutSeconds =
         typeof params.timeoutSeconds === "number" && Number.isFinite(params.timeoutSeconds)
@@ -231,34 +198,20 @@ export function createSessionsSendTool(opts?: {
       const announceTimeoutMs = timeoutSeconds === 0 ? 30_000 : timeoutMs;
       const idempotencyKey = crypto.randomUUID();
       let runId: string = idempotencyKey;
-      const displayKey = resolveDisplaySessionKey({
-        key: sessionKey,
-        alias,
-        mainKey,
+      const visibilityGuard = await createSessionVisibilityGuard({
+        action: "send",
+        requesterSessionKey: effectiveRequesterKey,
+        visibility: sessionVisibility,
+        a2aPolicy,
       });
-      const requesterAgentId = normalizeAgentId(
-        parseAgentSessionKey(requesterInternalKey)?.agentId,
-      );
-      const targetAgentId = normalizeAgentId(parseAgentSessionKey(resolvedKey)?.agentId);
-      const isCrossAgent = requesterAgentId !== targetAgentId;
-      if (isCrossAgent) {
-        if (!a2aEnabled) {
-          return jsonResult({
-            runId: crypto.randomUUID(),
-            status: "forbidden",
-            error:
-              "Agent-to-agent messaging is disabled. Set tools.agentToAgent.enabled=true to allow cross-agent sends.",
-            sessionKey: displayKey,
-          });
-        }
-        if (!matchesAllow(requesterAgentId) || !matchesAllow(targetAgentId)) {
-          return jsonResult({
-            runId: crypto.randomUUID(),
-            status: "forbidden",
-            error: "Agent-to-agent messaging denied by tools.agentToAgent.allow.",
-            sessionKey: displayKey,
-          });
-        }
+      const access = visibilityGuard.check(resolvedKey);
+      if (!access.allowed) {
+        return jsonResult({
+          runId: crypto.randomUUID(),
+          status: access.status,
+          error: access.error,
+          sessionKey: displayKey,
+        });
       }
 
       const agentMessageContext = buildAgentToAgentMessageContext({
@@ -274,6 +227,12 @@ export function createSessionsSendTool(opts?: {
         channel: INTERNAL_MESSAGE_CHANNEL,
         lane: AGENT_LANE_NESTED,
         extraSystemPrompt: agentMessageContext,
+        inputProvenance: {
+          kind: "inter_session",
+          sourceSessionKey: opts?.agentSessionKey,
+          sourceChannel: opts?.agentChannel,
+          sourceTool: "sessions_send",
+        },
       };
       const requesterSessionKey = opts?.agentSessionKey;
       const requesterChannel = opts?.agentChannel;
@@ -295,11 +254,11 @@ export function createSessionsSendTool(opts?: {
 
       if (timeoutSeconds === 0) {
         try {
-          const response = (await callGateway({
+          const response = await callGateway<{ runId: string }>({
             method: "agent",
             params: sendParams,
             timeoutMs: 10_000,
-          })) as { runId?: string; acceptedAt?: number };
+          });
           if (typeof response?.runId === "string" && response.runId) {
             runId = response.runId;
           }
@@ -323,11 +282,11 @@ export function createSessionsSendTool(opts?: {
       }
 
       try {
-        const response = (await callGateway({
+        const response = await callGateway<{ runId: string }>({
           method: "agent",
           params: sendParams,
           timeoutMs: 10_000,
-        })) as { runId?: string; acceptedAt?: number };
+        });
         if (typeof response?.runId === "string" && response.runId) {
           runId = response.runId;
         }
@@ -345,14 +304,14 @@ export function createSessionsSendTool(opts?: {
       let waitStatus: string | undefined;
       let waitError: string | undefined;
       try {
-        const wait = (await callGateway({
+        const wait = await callGateway<{ status?: string; error?: string }>({
           method: "agent.wait",
           params: {
             runId,
             timeoutMs,
           },
           timeoutMs: timeoutMs + 2000,
-        })) as { status?: string; error?: string };
+        });
         waitStatus = typeof wait?.status === "string" ? wait.status : undefined;
         waitError = typeof wait?.error === "string" ? wait.error : undefined;
       } catch (err) {
@@ -383,10 +342,10 @@ export function createSessionsSendTool(opts?: {
         });
       }
 
-      const history = (await callGateway({
+      const history = await callGateway<{ messages: Array<unknown> }>({
         method: "chat.history",
         params: { sessionKey: resolvedKey, limit: 50 },
-      })) as { messages?: unknown[] };
+      });
       const filtered = stripToolMessages(Array.isArray(history?.messages) ? history.messages : []);
       const last = filtered.length > 0 ? filtered[filtered.length - 1] : undefined;
       const reply = last ? extractAssistantText(last) : undefined;

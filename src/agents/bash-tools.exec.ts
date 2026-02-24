@@ -1,164 +1,157 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
-import { Type } from "@sinclair/typebox";
-
-import { requestHeartbeatNow } from "../infra/heartbeat-wake.js";
-import { enqueueSystemEvent } from "../infra/system-events.js";
+import { type ExecHost, maxAsk, minSecurity } from "../infra/exec-approvals.js";
+import { resolveExecSafeBinRuntimePolicy } from "../infra/exec-safe-bin-runtime-policy.js";
+import {
+  getShellPathFromLoginShell,
+  resolveShellEnvFallbackTimeoutMs,
+} from "../infra/shell-env.js";
 import { logInfo } from "../logger.js";
+import { parseAgentSessionKey, resolveAgentIdFromSessionKey } from "../routing/session-key.js";
+import { markBackgrounded } from "./bash-process-registry.js";
+import { processGatewayAllowlist } from "./bash-tools.exec-host-gateway.js";
+import { executeNodeHostCommand } from "./bash-tools.exec-host-node.js";
 import {
-  type ProcessSession,
-  type SessionStdin,
-  addSession,
-  appendOutput,
-  createSessionSlug,
-  markBackgrounded,
-  markExited,
-  tail,
-} from "./bash-process-registry.js";
-import type { BashSandboxConfig } from "./bash-tools.shared.js";
+  DEFAULT_MAX_OUTPUT,
+  DEFAULT_PATH,
+  DEFAULT_PENDING_MAX_OUTPUT,
+  applyPathPrepend,
+  applyShellPath,
+  normalizeExecAsk,
+  normalizeExecHost,
+  normalizeExecSecurity,
+  normalizePathPrepend,
+  renderExecHostLabel,
+  resolveApprovalRunningNoticeMs,
+  runExecProcess,
+  execSchema,
+  validateHostEnv,
+} from "./bash-tools.exec-runtime.js";
+import type {
+  ExecElevatedDefaults,
+  ExecToolDefaults,
+  ExecToolDetails,
+} from "./bash-tools.exec-types.js";
 import {
-  buildDockerExecArgs,
   buildSandboxEnv,
-  chunkString,
-  clampNumber,
+  clampWithDefault,
   coerceEnv,
-  killSession,
   readEnvInt,
   resolveSandboxWorkdir,
   resolveWorkdir,
   truncateMiddle,
 } from "./bash-tools.shared.js";
-import { getShellConfig, sanitizeBinaryOutput } from "./shell-utils.js";
-import { buildCursorPositionResponse, stripDsrRequests } from "./pty-dsr.js";
-
-const DEFAULT_MAX_OUTPUT = clampNumber(
-  readEnvInt("PI_BASH_MAX_OUTPUT_CHARS"),
-  30_000,
-  1_000,
-  150_000,
-);
-const DEFAULT_PENDING_MAX_OUTPUT = clampNumber(
-  readEnvInt("CLAWDBOT_BASH_PENDING_MAX_OUTPUT_CHARS"),
-  30_000,
-  1_000,
-  150_000,
-);
-const DEFAULT_PATH =
-  process.env.PATH ?? "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
-const DEFAULT_NOTIFY_TAIL_CHARS = 400;
-
-type PtyExitEvent = { exitCode: number; signal?: number };
-type PtyListener<T> = (event: T) => void;
-type PtyHandle = {
-  pid: number;
-  write: (data: string | Buffer) => void;
-  onData: (listener: PtyListener<string>) => void;
-  onExit: (listener: PtyListener<PtyExitEvent>) => void;
-};
-type PtySpawn = (
-  file: string,
-  args: string[] | string,
-  options: {
-    name?: string;
-    cols?: number;
-    rows?: number;
-    cwd?: string;
-    env?: Record<string, string>;
-  },
-) => PtyHandle;
-
-export type ExecToolDefaults = {
-  backgroundMs?: number;
-  timeoutSec?: number;
-  sandbox?: BashSandboxConfig;
-  elevated?: ExecElevatedDefaults;
-  allowBackground?: boolean;
-  scopeKey?: string;
-  sessionKey?: string;
-  notifyOnExit?: boolean;
-  cwd?: string;
-};
+import { assertSandboxPath } from "./sandbox-paths.js";
 
 export type { BashSandboxConfig } from "./bash-tools.shared.js";
+export type {
+  ExecElevatedDefaults,
+  ExecToolDefaults,
+  ExecToolDetails,
+} from "./bash-tools.exec-types.js";
 
-export type ExecElevatedDefaults = {
-  enabled: boolean;
-  allowed: boolean;
-  defaultLevel: "on" | "off";
-};
+function extractScriptTargetFromCommand(
+  command: string,
+): { kind: "python"; relOrAbsPath: string } | { kind: "node"; relOrAbsPath: string } | null {
+  const raw = command.trim();
+  if (!raw) {
+    return null;
+  }
 
-const execSchema = Type.Object({
-  command: Type.String({ description: "Shell command to execute" }),
-  workdir: Type.Optional(Type.String({ description: "Working directory (defaults to cwd)" })),
-  env: Type.Optional(Type.Record(Type.String(), Type.String())),
-  yieldMs: Type.Optional(
-    Type.Number({
-      description: "Milliseconds to wait before backgrounding (default 10000)",
-    }),
-  ),
-  background: Type.Optional(Type.Boolean({ description: "Run in background immediately" })),
-  timeout: Type.Optional(
-    Type.Number({
-      description: "Timeout in seconds (optional, kills process on expiry)",
-    }),
-  ),
-  pty: Type.Optional(
-    Type.Boolean({
-      description:
-        "Run in a pseudo-terminal (PTY) when available (TTY-required CLIs, coding agents)",
-    }),
-  ),
-  elevated: Type.Optional(
-    Type.Boolean({
-      description: "Run on the host with elevated permissions (if allowed)",
-    }),
-  ),
-});
+  // Intentionally simple parsing: we only support common forms like
+  //   python file.py
+  //   python3 -u file.py
+  //   node --experimental-something file.js
+  // If the command is more complex (pipes, heredocs, quoted paths with spaces), skip preflight.
+  const pythonMatch = raw.match(/^\s*(python3?|python)\s+(?:-[^\s]+\s+)*([^\s]+\.py)\b/i);
+  if (pythonMatch?.[2]) {
+    return { kind: "python", relOrAbsPath: pythonMatch[2] };
+  }
+  const nodeMatch = raw.match(/^\s*(node)\s+(?:--[^\s]+\s+)*([^\s]+\.js)\b/i);
+  if (nodeMatch?.[2]) {
+    return { kind: "node", relOrAbsPath: nodeMatch[2] };
+  }
 
-export type ExecToolDetails =
-  | {
-      status: "running";
-      sessionId: string;
-      pid?: number;
-      startedAt: number;
-      cwd?: string;
-      tail?: string;
-    }
-  | {
-      status: "completed" | "failed";
-      exitCode: number | null;
-      durationMs: number;
-      aggregated: string;
-      cwd?: string;
-    };
-
-function normalizeNotifyOutput(value: string) {
-  return value.replace(/\s+/g, " ").trim();
+  return null;
 }
 
-function maybeNotifyOnExit(session: ProcessSession, status: "completed" | "failed") {
-  if (!session.backgrounded || !session.notifyOnExit || session.exitNotified) return;
-  const sessionKey = session.sessionKey?.trim();
-  if (!sessionKey) return;
-  session.exitNotified = true;
-  const exitLabel = session.exitSignal
-    ? `signal ${session.exitSignal}`
-    : `code ${session.exitCode ?? 0}`;
-  const output = normalizeNotifyOutput(
-    tail(session.tail || session.aggregated || "", DEFAULT_NOTIFY_TAIL_CHARS),
-  );
-  const summary = output
-    ? `Exec ${status} (${session.id.slice(0, 8)}, ${exitLabel}) :: ${output}`
-    : `Exec ${status} (${session.id.slice(0, 8)}, ${exitLabel})`;
-  enqueueSystemEvent(summary, { sessionKey });
-  requestHeartbeatNow({ reason: `exec:${session.id}:exit` });
+async function validateScriptFileForShellBleed(params: {
+  command: string;
+  workdir: string;
+}): Promise<void> {
+  const target = extractScriptTargetFromCommand(params.command);
+  if (!target) {
+    return;
+  }
+
+  const absPath = path.isAbsolute(target.relOrAbsPath)
+    ? path.resolve(target.relOrAbsPath)
+    : path.resolve(params.workdir, target.relOrAbsPath);
+
+  // Best-effort: only validate if file exists and is reasonably small.
+  let stat: { isFile(): boolean; size: number };
+  try {
+    await assertSandboxPath({
+      filePath: absPath,
+      cwd: params.workdir,
+      root: params.workdir,
+    });
+    stat = await fs.stat(absPath);
+  } catch {
+    return;
+  }
+  if (!stat.isFile()) {
+    return;
+  }
+  if (stat.size > 512 * 1024) {
+    return;
+  }
+
+  const content = await fs.readFile(absPath, "utf-8");
+
+  // Common failure mode: shell env var syntax leaking into Python/JS.
+  // We deliberately match all-caps/underscore vars to avoid false positives with `$` as a JS identifier.
+  const envVarRegex = /\$[A-Z_][A-Z0-9_]{1,}/g;
+  const first = envVarRegex.exec(content);
+  if (first) {
+    const idx = first.index;
+    const before = content.slice(0, idx);
+    const line = before.split("\n").length;
+    const token = first[0];
+    throw new Error(
+      [
+        `exec preflight: detected likely shell variable injection (${token}) in ${target.kind} script: ${path.basename(
+          absPath,
+        )}:${line}.`,
+        target.kind === "python"
+          ? `In Python, use os.environ.get(${JSON.stringify(token.slice(1))}) instead of raw ${token}.`
+          : `In Node.js, use process.env[${JSON.stringify(token.slice(1))}] instead of raw ${token}.`,
+        "(If this is inside a string literal on purpose, escape it or restructure the code.)",
+      ].join("\n"),
+    );
+  }
+
+  // Another recurring pattern from the issue: shell commands accidentally emitted as JS.
+  if (target.kind === "node") {
+    const firstNonEmpty = content
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .find((l) => l.length > 0);
+    if (firstNonEmpty && /^NODE\b/.test(firstNonEmpty)) {
+      throw new Error(
+        `exec preflight: JS file starts with shell syntax (${firstNonEmpty}). ` +
+          `This looks like a shell command, not JavaScript.`,
+      );
+    }
+  }
 }
 
 export function createExecTool(
   defaults?: ExecToolDefaults,
-  // biome-ignore lint/suspicious/noExplicitAny: TypeBox schema type from pi-agent-core uses a different module instance.
+  // oxlint-disable-next-line typescript/no-explicit-any
 ): AgentTool<any, ExecToolDetails> {
-  const defaultBackgroundMs = clampNumber(
+  const defaultBackgroundMs = clampWithDefault(
     defaults?.backgroundMs ?? readEnvInt("PI_BASH_YIELD_MS"),
     10_000,
     10,
@@ -169,8 +162,39 @@ export function createExecTool(
     typeof defaults?.timeoutSec === "number" && defaults.timeoutSec > 0
       ? defaults.timeoutSec
       : 1800;
+  const defaultPathPrepend = normalizePathPrepend(defaults?.pathPrepend);
+  const {
+    safeBins,
+    safeBinProfiles,
+    trustedSafeBinDirs,
+    unprofiledSafeBins,
+    unprofiledInterpreterSafeBins,
+  } = resolveExecSafeBinRuntimePolicy({
+    local: {
+      safeBins: defaults?.safeBins,
+      safeBinTrustedDirs: defaults?.safeBinTrustedDirs,
+      safeBinProfiles: defaults?.safeBinProfiles,
+    },
+  });
+  if (unprofiledSafeBins.length > 0) {
+    logInfo(
+      `exec: ignoring unprofiled safeBins entries (${unprofiledSafeBins.toSorted().join(", ")}); use allowlist or define tools.exec.safeBinProfiles.<bin>`,
+    );
+  }
+  if (unprofiledInterpreterSafeBins.length > 0) {
+    logInfo(
+      `exec: interpreter/runtime binaries in safeBins (${unprofiledInterpreterSafeBins.join(", ")}) are unsafe without explicit hardened profiles; prefer allowlist entries`,
+    );
+  }
   const notifyOnExit = defaults?.notifyOnExit !== false;
+  const notifyOnExitEmptySuccess = defaults?.notifyOnExitEmptySuccess === true;
   const notifySessionKey = defaults?.sessionKey?.trim() || undefined;
+  const approvalRunningNoticeMs = resolveApprovalRunningNoticeMs(defaults?.approvalRunningNoticeMs);
+  // Derive agentId only when sessionKey is an agent session key.
+  const parsedAgentSession = parseAgentSessionKey(defaults?.sessionKey);
+  const agentId =
+    defaults?.agentId ??
+    (parsedAgentSession ? resolveAgentIdFromSessionKey(defaults?.sessionKey) : undefined);
 
   return {
     name: "exec",
@@ -188,6 +212,10 @@ export function createExecTool(
         timeout?: number;
         pty?: boolean;
         elevated?: boolean;
+        host?: string;
+        security?: string;
+        ask?: string;
+        node?: string;
       };
 
       if (!params.command) {
@@ -196,9 +224,8 @@ export function createExecTool(
 
       const maxOutput = DEFAULT_MAX_OUTPUT;
       const pendingMaxOutput = DEFAULT_PENDING_MAX_OUTPUT;
-      const startedAt = Date.now();
-      const sessionId = createSessionSlug();
       const warnings: string[] = [];
+      let execCommandOverride: string | undefined;
       const backgroundRequested = params.background === true;
       const yieldRequested = typeof params.yieldMs === "number";
       if (!allowBackground && (backgroundRequested || yieldRequested)) {
@@ -207,19 +234,46 @@ export function createExecTool(
       const yieldWindow = allowBackground
         ? backgroundRequested
           ? 0
-          : clampNumber(params.yieldMs ?? defaultBackgroundMs, defaultBackgroundMs, 10, 120_000)
+          : clampWithDefault(
+              params.yieldMs ?? defaultBackgroundMs,
+              defaultBackgroundMs,
+              10,
+              120_000,
+            )
         : null;
       const elevatedDefaults = defaults?.elevated;
-      const elevatedDefaultOn =
-        elevatedDefaults?.defaultLevel === "on" &&
-        elevatedDefaults.enabled &&
-        elevatedDefaults.allowed;
-      const elevatedRequested =
-        typeof params.elevated === "boolean" ? params.elevated : elevatedDefaultOn;
+      const elevatedAllowed = Boolean(elevatedDefaults?.enabled && elevatedDefaults.allowed);
+      const elevatedDefaultMode =
+        elevatedDefaults?.defaultLevel === "full"
+          ? "full"
+          : elevatedDefaults?.defaultLevel === "ask"
+            ? "ask"
+            : elevatedDefaults?.defaultLevel === "on"
+              ? "ask"
+              : "off";
+      const effectiveDefaultMode = elevatedAllowed ? elevatedDefaultMode : "off";
+      const elevatedMode =
+        typeof params.elevated === "boolean"
+          ? params.elevated
+            ? elevatedDefaultMode === "full"
+              ? "full"
+              : "ask"
+            : "off"
+          : effectiveDefaultMode;
+      const elevatedRequested = elevatedMode !== "off";
       if (elevatedRequested) {
         if (!elevatedDefaults?.enabled || !elevatedDefaults.allowed) {
           const runtime = defaults?.sandbox ? "sandboxed" : "direct";
           const gates: string[] = [];
+          const contextParts: string[] = [];
+          const provider = defaults?.messageProvider?.trim();
+          const sessionKey = defaults?.sessionKey?.trim();
+          if (provider) {
+            contextParts.push(`provider=${provider}`);
+          }
+          if (sessionKey) {
+            contextParts.push(`session=${sessionKey}`);
+          }
           if (!elevatedDefaults?.enabled) {
             gates.push("enabled (tools.elevated.enabled / agents.list[].tools.elevated.enabled)");
           } else {
@@ -231,23 +285,62 @@ export function createExecTool(
             [
               `elevated is not available right now (runtime=${runtime}).`,
               `Failing gates: ${gates.join(", ")}`,
+              contextParts.length > 0 ? `Context: ${contextParts.join(" ")}` : undefined,
               "Fix-it keys:",
               "- tools.elevated.enabled",
               "- tools.elevated.allowFrom.<provider>",
               "- agents.list[].tools.elevated.enabled",
               "- agents.list[].tools.elevated.allowFrom.<provider>",
-            ].join("\n"),
+            ]
+              .filter(Boolean)
+              .join("\n"),
           );
         }
-        logInfo(
-          `exec: elevated command (${sessionId.slice(0, 8)}) ${truncateMiddle(
-            params.command,
-            120,
-          )}`,
+      }
+      if (elevatedRequested) {
+        logInfo(`exec: elevated command ${truncateMiddle(params.command, 120)}`);
+      }
+      const configuredHost = defaults?.host ?? "sandbox";
+      const sandboxHostConfigured = defaults?.host === "sandbox";
+      const requestedHost = normalizeExecHost(params.host) ?? null;
+      let host: ExecHost = requestedHost ?? configuredHost;
+      if (!elevatedRequested && requestedHost && requestedHost !== configuredHost) {
+        throw new Error(
+          `exec host not allowed (requested ${renderExecHostLabel(requestedHost)}; ` +
+            `configure tools.exec.host=${renderExecHostLabel(configuredHost)} to allow).`,
         );
       }
+      if (elevatedRequested) {
+        host = "gateway";
+      }
 
-      const sandbox = elevatedRequested ? undefined : defaults?.sandbox;
+      const configuredSecurity = defaults?.security ?? (host === "sandbox" ? "deny" : "allowlist");
+      const requestedSecurity = normalizeExecSecurity(params.security);
+      let security = minSecurity(configuredSecurity, requestedSecurity ?? configuredSecurity);
+      if (elevatedRequested && elevatedMode === "full") {
+        security = "full";
+      }
+      const configuredAsk = defaults?.ask ?? "on-miss";
+      const requestedAsk = normalizeExecAsk(params.ask);
+      let ask = maxAsk(configuredAsk, requestedAsk ?? configuredAsk);
+      const bypassApprovals = elevatedRequested && elevatedMode === "full";
+      if (bypassApprovals) {
+        ask = "off";
+      }
+
+      const sandbox = host === "sandbox" ? defaults?.sandbox : undefined;
+      if (
+        host === "sandbox" &&
+        !sandbox &&
+        (sandboxHostConfigured || requestedHost === "sandbox")
+      ) {
+        throw new Error(
+          [
+            "exec host=sandbox is configured, but sandbox runtime is unavailable for this session.",
+            'Enable sandbox mode (`agents.defaults.sandbox.mode="non-main"` or `"all"`) or set tools.exec.host to "gateway"/"node".',
+          ].join("\n"),
+        );
+      }
       const rawWorkdir = params.workdir?.trim() || defaults?.cwd || process.cwd();
       let workdir = rawWorkdir;
       let containerWorkdir = sandbox?.containerWorkdir;
@@ -263,9 +356,16 @@ export function createExecTool(
         workdir = resolveWorkdir(rawWorkdir, warnings);
       }
 
-      const { shell, args: shellArgs } = getShellConfig();
       const baseEnv = coerceEnv(process.env);
+
+      // Logic: Sandbox gets raw env. Host (gateway/node) must pass validation.
+      // We validate BEFORE merging to prevent any dangerous vars from entering the stream.
+      if (host !== "sandbox" && params.env) {
+        validateHostEnv(params.env);
+      }
+
       const mergedEnv = params.env ? { ...baseEnv, ...params.env } : baseEnv;
+
       const env = sandbox
         ? buildSandboxEnv({
             defaultPath: DEFAULT_PATH,
@@ -274,241 +374,153 @@ export function createExecTool(
             containerWorkdir: containerWorkdir ?? sandbox.containerWorkdir,
           })
         : mergedEnv;
-      const usePty = params.pty === true && !sandbox;
-      let child: ChildProcessWithoutNullStreams | null = null;
-      let pty: PtyHandle | null = null;
-      let stdin: SessionStdin | undefined;
 
-      if (sandbox) {
-        child = spawn(
-          "docker",
-          buildDockerExecArgs({
-            containerName: sandbox.containerName,
-            command: params.command,
-            workdir: containerWorkdir ?? sandbox.containerWorkdir,
-            env,
-            tty: params.pty === true,
-          }),
-          {
-            cwd: workdir,
-            env: process.env,
-            detached: process.platform !== "win32",
-            stdio: ["pipe", "pipe", "pipe"],
-            windowsHide: true,
-          },
-        ) as ChildProcessWithoutNullStreams;
-        stdin = child.stdin;
-      } else if (usePty) {
-        const ptyModule = (await import("@lydell/node-pty")) as unknown as {
-          spawn?: PtySpawn;
-          default?: { spawn?: PtySpawn };
-        };
-        const spawnPty = ptyModule.spawn ?? ptyModule.default?.spawn;
-        if (!spawnPty) {
-          throw new Error("PTY support is unavailable (node-pty spawn not found).");
-        }
-        pty = spawnPty(shell, [...shellArgs, params.command], {
-          cwd: workdir,
-          env,
-          name: process.env.TERM ?? "xterm-256color",
-          cols: 120,
-          rows: 30,
+      if (!sandbox && host === "gateway" && !params.env?.PATH) {
+        const shellPath = getShellPathFromLoginShell({
+          env: process.env,
+          timeoutMs: resolveShellEnvFallbackTimeoutMs(process.env),
         });
-        stdin = {
-          destroyed: false,
-          write: (data, cb) => {
-            try {
-              pty?.write(data);
-              cb?.(null);
-            } catch (err) {
-              cb?.(err as Error);
-            }
-          },
-          end: () => {
-            try {
-              const eof = process.platform === "win32" ? "\x1a" : "\x04";
-              pty?.write(eof);
-            } catch {
-              // ignore EOF errors
-            }
-          },
-        };
-      } else {
-        child = spawn(shell, [...shellArgs, params.command], {
-          cwd: workdir,
-          env,
-          detached: process.platform !== "win32",
-          stdio: ["pipe", "pipe", "pipe"],
-          windowsHide: true,
-        }) as ChildProcessWithoutNullStreams;
-        stdin = child.stdin;
+        applyShellPath(env, shellPath);
       }
 
-      const session = {
-        id: sessionId,
+      // `tools.exec.pathPrepend` is only meaningful when exec runs locally (gateway) or in the sandbox.
+      // Node hosts intentionally ignore request-scoped PATH overrides, so don't pretend this applies.
+      if (host === "node" && defaultPathPrepend.length > 0) {
+        warnings.push(
+          "Warning: tools.exec.pathPrepend is ignored for host=node. Configure PATH on the node host/service instead.",
+        );
+      } else {
+        applyPathPrepend(env, defaultPathPrepend);
+      }
+
+      if (host === "node") {
+        return executeNodeHostCommand({
+          command: params.command,
+          workdir,
+          env,
+          requestedEnv: params.env,
+          requestedNode: params.node?.trim(),
+          boundNode: defaults?.node?.trim(),
+          sessionKey: defaults?.sessionKey,
+          agentId,
+          security,
+          ask,
+          timeoutSec: params.timeout,
+          defaultTimeoutSec,
+          approvalRunningNoticeMs,
+          warnings,
+          notifySessionKey,
+          trustedSafeBinDirs,
+        });
+      }
+
+      if (host === "gateway" && !bypassApprovals) {
+        const gatewayResult = await processGatewayAllowlist({
+          command: params.command,
+          workdir,
+          env,
+          pty: params.pty === true && !sandbox,
+          timeoutSec: params.timeout,
+          defaultTimeoutSec,
+          security,
+          ask,
+          safeBins,
+          safeBinProfiles,
+          agentId,
+          sessionKey: defaults?.sessionKey,
+          scopeKey: defaults?.scopeKey,
+          warnings,
+          notifySessionKey,
+          approvalRunningNoticeMs,
+          maxOutput,
+          pendingMaxOutput,
+          trustedSafeBinDirs,
+        });
+        if (gatewayResult.pendingResult) {
+          return gatewayResult.pendingResult;
+        }
+        execCommandOverride = gatewayResult.execCommandOverride;
+      }
+
+      const explicitTimeoutSec = typeof params.timeout === "number" ? params.timeout : null;
+      const backgroundTimeoutBypass =
+        allowBackground && explicitTimeoutSec === null && (backgroundRequested || yieldRequested);
+      const effectiveTimeout = backgroundTimeoutBypass
+        ? null
+        : (explicitTimeoutSec ?? defaultTimeoutSec);
+      const getWarningText = () => (warnings.length ? `${warnings.join("\n")}\n\n` : "");
+      const usePty = params.pty === true && !sandbox;
+
+      // Preflight: catch a common model failure mode (shell syntax leaking into Python/JS sources)
+      // before we execute and burn tokens in cron loops.
+      await validateScriptFileForShellBleed({ command: params.command, workdir });
+
+      const run = await runExecProcess({
         command: params.command,
+        execCommand: execCommandOverride,
+        workdir,
+        env,
+        sandbox,
+        containerWorkdir,
+        usePty,
+        warnings,
+        maxOutput,
+        pendingMaxOutput,
+        notifyOnExit,
+        notifyOnExitEmptySuccess,
         scopeKey: defaults?.scopeKey,
         sessionKey: notifySessionKey,
-        notifyOnExit,
-        exitNotified: false,
-        child: child ?? undefined,
-        stdin,
-        pid: child?.pid ?? pty?.pid,
-        startedAt,
-        cwd: workdir,
-        maxOutputChars: maxOutput,
-        pendingMaxOutputChars: pendingMaxOutput,
-        totalOutputChars: 0,
-        pendingStdout: [],
-        pendingStderr: [],
-        pendingStdoutChars: 0,
-        pendingStderrChars: 0,
-        aggregated: "",
-        tail: "",
-        exited: false,
-        exitCode: undefined as number | null | undefined,
-        exitSignal: undefined as NodeJS.Signals | number | null | undefined,
-        truncated: false,
-        backgrounded: false,
-      };
-      addSession(session);
+        timeoutSec: effectiveTimeout,
+        onUpdate,
+      });
 
-      let settled = false;
       let yielded = false;
       let yieldTimer: NodeJS.Timeout | null = null;
-      let timeoutTimer: NodeJS.Timeout | null = null;
-      let timeoutFinalizeTimer: NodeJS.Timeout | null = null;
-      let timedOut = false;
-      const timeoutFinalizeMs = 1000;
-      let rejectFn: ((err: Error) => void) | null = null;
-
-      const settle = (fn: () => void) => {
-        if (settled) return;
-        settled = true;
-        fn();
-      };
-
-      const effectiveTimeout =
-        typeof params.timeout === "number" ? params.timeout : defaultTimeoutSec;
-      const finalizeTimeout = () => {
-        if (session.exited) return;
-        markExited(session, null, "SIGKILL", "failed");
-        maybeNotifyOnExit(session, "failed");
-        if (settled || !rejectFn) return;
-        const aggregated = session.aggregated.trim();
-        const reason = `Command timed out after ${effectiveTimeout} seconds`;
-        const message = aggregated ? `${aggregated}\n\n${reason}` : reason;
-        settle(() => rejectFn?.(new Error(message)));
-      };
 
       // Tool-call abort should not kill backgrounded sessions; timeouts still must.
       const onAbortSignal = () => {
-        if (yielded || session.backgrounded) return;
-        killSession(session);
-      };
-
-      // Timeouts always terminate, even for backgrounded sessions.
-      const onTimeout = () => {
-        timedOut = true;
-        killSession(session);
-        if (!timeoutFinalizeTimer) {
-          timeoutFinalizeTimer = setTimeout(() => {
-            finalizeTimeout();
-          }, timeoutFinalizeMs);
+        if (yielded || run.session.backgrounded) {
+          return;
         }
+        run.kill();
       };
 
-      if (signal?.aborted) onAbortSignal();
-      else if (signal) {
+      if (signal?.aborted) {
+        onAbortSignal();
+      } else if (signal) {
         signal.addEventListener("abort", onAbortSignal, { once: true });
-      }
-      if (effectiveTimeout > 0) {
-        timeoutTimer = setTimeout(() => {
-          onTimeout();
-        }, effectiveTimeout * 1000);
-      }
-
-      const emitUpdate = () => {
-        if (!onUpdate) return;
-        const tailText = session.tail || session.aggregated;
-        const warningText = warnings.length ? `${warnings.join("\n")}\n\n` : "";
-        onUpdate({
-          content: [{ type: "text", text: warningText + (tailText || "") }],
-          details: {
-            status: "running",
-            sessionId,
-            pid: session.pid ?? undefined,
-            startedAt,
-            cwd: session.cwd,
-            tail: session.tail,
-          },
-        });
-      };
-
-      const handleStdout = (data: string) => {
-        const str = sanitizeBinaryOutput(data.toString());
-        for (const chunk of chunkString(str)) {
-          appendOutput(session, "stdout", chunk);
-          emitUpdate();
-        }
-      };
-
-      const handleStderr = (data: string) => {
-        const str = sanitizeBinaryOutput(data.toString());
-        for (const chunk of chunkString(str)) {
-          appendOutput(session, "stderr", chunk);
-          emitUpdate();
-        }
-      };
-
-      if (pty) {
-        const cursorResponse = buildCursorPositionResponse();
-        pty.onData((data) => {
-          const raw = data.toString();
-          const { cleaned, requests } = stripDsrRequests(raw);
-          if (requests > 0) {
-            for (let i = 0; i < requests; i += 1) {
-              pty.write(cursorResponse);
-            }
-          }
-          handleStdout(cleaned);
-        });
-      } else if (child) {
-        child.stdout.on("data", handleStdout);
-        child.stderr.on("data", handleStderr);
       }
 
       return new Promise<AgentToolResult<ExecToolDetails>>((resolve, reject) => {
-        rejectFn = reject;
-        const resolveRunning = () => {
-          settle(() =>
-            resolve({
-              content: [
-                {
-                  type: "text",
-                  text:
-                    `${warnings.length ? `${warnings.join("\n")}\n\n` : ""}` +
-                    `Command still running (session ${sessionId}, pid ${session.pid ?? "n/a"}). ` +
-                    "Use process (list/poll/log/write/kill/clear/remove) for follow-up.",
-                },
-              ],
-              details: {
-                status: "running",
-                sessionId,
-                pid: session.pid ?? undefined,
-                startedAt,
-                cwd: session.cwd,
-                tail: session.tail,
+        const resolveRunning = () =>
+          resolve({
+            content: [
+              {
+                type: "text",
+                text: `${getWarningText()}Command still running (session ${run.session.id}, pid ${
+                  run.session.pid ?? "n/a"
+                }). Use process (list/poll/log/write/kill/clear/remove) for follow-up.`,
               },
-            }),
-          );
-        };
+            ],
+            details: {
+              status: "running",
+              sessionId: run.session.id,
+              pid: run.session.pid ?? undefined,
+              startedAt: run.startedAt,
+              cwd: run.session.cwd,
+              tail: run.session.tail,
+            },
+          });
 
         const onYieldNow = () => {
-          if (yieldTimer) clearTimeout(yieldTimer);
-          if (settled) return;
+          if (yieldTimer) {
+            clearTimeout(yieldTimer);
+          }
+          if (yielded) {
+            return;
+          }
           yielded = true;
-          markBackgrounded(session);
+          markBackgrounded(run.session);
           resolveRunning();
         };
 
@@ -517,87 +529,53 @@ export function createExecTool(
             onYieldNow();
           } else {
             yieldTimer = setTimeout(() => {
-              if (settled) return;
+              if (yielded) {
+                return;
+              }
               yielded = true;
-              markBackgrounded(session);
+              markBackgrounded(run.session);
               resolveRunning();
             }, yieldWindow);
           }
         }
 
-        const handleExit = (code: number | null, exitSignal: NodeJS.Signals | number | null) => {
-          if (yieldTimer) clearTimeout(yieldTimer);
-          if (timeoutTimer) clearTimeout(timeoutTimer);
-          if (timeoutFinalizeTimer) clearTimeout(timeoutFinalizeTimer);
-          const durationMs = Date.now() - startedAt;
-          const wasSignal = exitSignal != null;
-          const isSuccess = code === 0 && !wasSignal && !signal?.aborted && !timedOut;
-          const status: "completed" | "failed" = isSuccess ? "completed" : "failed";
-          markExited(session, code, exitSignal, status);
-          maybeNotifyOnExit(session, status);
-          if (!session.child && session.stdin) {
-            session.stdin.destroyed = true;
-          }
-
-          if (yielded || session.backgrounded) return;
-
-          const aggregated = session.aggregated.trim();
-          if (!isSuccess) {
-            const reason = timedOut
-              ? `Command timed out after ${effectiveTimeout} seconds`
-              : wasSignal && exitSignal
-                ? `Command aborted by signal ${exitSignal}`
-                : code === null
-                  ? "Command aborted before exit code was captured"
-                  : `Command exited with code ${code}`;
-            const message = aggregated ? `${aggregated}\n\n${reason}` : reason;
-            settle(() => reject(new Error(message)));
-            return;
-          }
-
-          settle(() =>
+        run.promise
+          .then((outcome) => {
+            if (yieldTimer) {
+              clearTimeout(yieldTimer);
+            }
+            if (yielded || run.session.backgrounded) {
+              return;
+            }
+            if (outcome.status === "failed") {
+              reject(new Error(outcome.reason ?? "Command failed."));
+              return;
+            }
             resolve({
               content: [
                 {
                   type: "text",
-                  text:
-                    `${warnings.length ? `${warnings.join("\n")}\n\n` : ""}` +
-                    (aggregated || "(no output)"),
+                  text: `${getWarningText()}${outcome.aggregated || "(no output)"}`,
                 },
               ],
               details: {
                 status: "completed",
-                exitCode: code ?? 0,
-                durationMs,
-                aggregated,
-                cwd: session.cwd,
+                exitCode: outcome.exitCode ?? 0,
+                durationMs: outcome.durationMs,
+                aggregated: outcome.aggregated,
+                cwd: run.session.cwd,
               },
-            }),
-          );
-        };
-
-        // `exit` can fire before stdio fully flushes (notably on Windows).
-        // `close` waits for streams to close, so aggregated output is complete.
-        if (pty) {
-          pty.onExit((event) => {
-            const rawSignal = event.signal ?? null;
-            const normalizedSignal = rawSignal === 0 ? null : rawSignal;
-            handleExit(event.exitCode ?? null, normalizedSignal);
+            });
+          })
+          .catch((err) => {
+            if (yieldTimer) {
+              clearTimeout(yieldTimer);
+            }
+            if (yielded || run.session.backgrounded) {
+              return;
+            }
+            reject(err as Error);
           });
-        } else if (child) {
-          child.once("close", (code, exitSignal) => {
-            handleExit(code, exitSignal);
-          });
-
-          child.once("error", (err) => {
-            if (yieldTimer) clearTimeout(yieldTimer);
-            if (timeoutTimer) clearTimeout(timeoutTimer);
-            if (timeoutFinalizeTimer) clearTimeout(timeoutFinalizeTimer);
-            markExited(session, null, null, "failed");
-            maybeNotifyOnExit(session, "failed");
-            settle(() => reject(err));
-          });
-        }
       });
     },
   };

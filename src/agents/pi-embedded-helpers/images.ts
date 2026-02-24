@@ -1,5 +1,6 @@
 import type { AgentMessage, AgentToolResult } from "@mariozechner/pi-agent-core";
-
+import type { ImageSanitizationLimits } from "../image-sanitization.js";
+import type { ToolCallIdMode } from "../tool-call-id.js";
 import { sanitizeToolCallIdsForCloudCodeAssist } from "../tool-call-id.js";
 import { sanitizeContentBlocksImages } from "../tool-images.js";
 import { stripThoughtSignatures } from "./bootstrap.js";
@@ -10,41 +11,55 @@ export function isEmptyAssistantMessageContent(
   message: Extract<AgentMessage, { role: "assistant" }>,
 ): boolean {
   const content = message.content;
-  if (content == null) return true;
-  if (!Array.isArray(content)) return false;
+  if (content == null) {
+    return true;
+  }
+  if (!Array.isArray(content)) {
+    return false;
+  }
   return content.every((block) => {
-    if (!block || typeof block !== "object") return true;
+    if (!block || typeof block !== "object") {
+      return true;
+    }
     const rec = block as { type?: unknown; text?: unknown };
-    if (rec.type !== "text") return false;
+    if (rec.type !== "text") {
+      return false;
+    }
     return typeof rec.text !== "string" || rec.text.trim().length === 0;
   });
-}
-
-function isEmptyAssistantErrorMessage(
-  message: Extract<AgentMessage, { role: "assistant" }>,
-): boolean {
-  if (message.stopReason !== "error") return false;
-  return isEmptyAssistantMessageContent(message);
 }
 
 export async function sanitizeSessionMessagesImages(
   messages: AgentMessage[],
   label: string,
   options?: {
+    sanitizeMode?: "full" | "images-only";
     sanitizeToolCallIds?: boolean;
-    enforceToolCallLast?: boolean;
+    /**
+     * Mode for tool call ID sanitization:
+     * - "strict" (alphanumeric only)
+     * - "strict9" (alphanumeric only, length 9)
+     */
+    toolCallIdMode?: ToolCallIdMode;
     preserveSignatures?: boolean;
     sanitizeThoughtSignatures?: {
       allowBase64Only?: boolean;
       includeCamelCase?: boolean;
     };
-  },
+  } & ImageSanitizationLimits,
 ): Promise<AgentMessage[]> {
+  const sanitizeMode = options?.sanitizeMode ?? "full";
+  const allowNonImageSanitization = sanitizeMode === "full";
+  const imageSanitization = {
+    maxDimensionPx: options?.maxDimensionPx,
+    maxBytes: options?.maxBytes,
+  };
   // We sanitize historical session messages because Anthropic can reject a request
-  // if the transcript contains oversized base64 images (see MAX_IMAGE_DIMENSION_PX).
-  const sanitizedIds = options?.sanitizeToolCallIds
-    ? sanitizeToolCallIdsForCloudCodeAssist(messages)
-    : messages;
+  // if the transcript contains oversized base64 images (default max side 1200px).
+  const sanitizedIds =
+    allowNonImageSanitization && options?.sanitizeToolCallIds
+      ? sanitizeToolCallIdsForCloudCodeAssist(messages, options.toolCallIdMode)
+      : messages;
   const out: AgentMessage[] = [];
   for (const msg of sanitizedIds) {
     if (!msg || typeof msg !== "object") {
@@ -57,8 +72,9 @@ export async function sanitizeSessionMessagesImages(
       const toolMsg = msg as Extract<AgentMessage, { role: "toolResult" }>;
       const content = Array.isArray(toolMsg.content) ? toolMsg.content : [];
       const nextContent = (await sanitizeContentBlocksImages(
-        content as ContentBlock[],
+        content,
         label,
+        imageSanitization,
       )) as unknown as typeof toolMsg.content;
       out.push({ ...toolMsg, content: nextContent });
       continue;
@@ -71,6 +87,7 @@ export async function sanitizeSessionMessagesImages(
         const nextContent = (await sanitizeContentBlocksImages(
           content as unknown as ContentBlock[],
           label,
+          imageSanitization,
         )) as unknown as typeof userMsg.content;
         out.push({ ...userMsg, content: nextContent });
         continue;
@@ -79,41 +96,49 @@ export async function sanitizeSessionMessagesImages(
 
     if (role === "assistant") {
       const assistantMsg = msg as Extract<AgentMessage, { role: "assistant" }>;
-      if (isEmptyAssistantErrorMessage(assistantMsg)) {
+      if (assistantMsg.stopReason === "error") {
+        const content = assistantMsg.content;
+        if (Array.isArray(content)) {
+          const nextContent = (await sanitizeContentBlocksImages(
+            content as unknown as ContentBlock[],
+            label,
+            imageSanitization,
+          )) as unknown as typeof assistantMsg.content;
+          out.push({ ...assistantMsg, content: nextContent });
+        } else {
+          out.push(assistantMsg);
+        }
         continue;
       }
       const content = assistantMsg.content;
       if (Array.isArray(content)) {
+        if (!allowNonImageSanitization) {
+          const nextContent = (await sanitizeContentBlocksImages(
+            content as unknown as ContentBlock[],
+            label,
+            imageSanitization,
+          )) as unknown as typeof assistantMsg.content;
+          out.push({ ...assistantMsg, content: nextContent });
+          continue;
+        }
         const strippedContent = options?.preserveSignatures
           ? content // Keep signatures for Antigravity Claude
           : stripThoughtSignatures(content, options?.sanitizeThoughtSignatures); // Strip for Gemini
 
         const filteredContent = strippedContent.filter((block) => {
-          if (!block || typeof block !== "object") return true;
+          if (!block || typeof block !== "object") {
+            return true;
+          }
           const rec = block as { type?: unknown; text?: unknown };
-          if (rec.type !== "text" || typeof rec.text !== "string") return true;
+          if (rec.type !== "text" || typeof rec.text !== "string") {
+            return true;
+          }
           return rec.text.trim().length > 0;
         });
-
-        const normalizedContent = options?.enforceToolCallLast
-          ? (() => {
-              let lastToolIndex = -1;
-              for (let i = filteredContent.length - 1; i >= 0; i -= 1) {
-                const block = filteredContent[i];
-                if (!block || typeof block !== "object") continue;
-                const type = (block as { type?: unknown }).type;
-                if (type === "functionCall" || type === "toolUse" || type === "toolCall") {
-                  lastToolIndex = i;
-                  break;
-                }
-              }
-              if (lastToolIndex === -1) return filteredContent;
-              return filteredContent.slice(0, lastToolIndex + 1);
-            })()
-          : filteredContent;
         const finalContent = (await sanitizeContentBlocksImages(
-          normalizedContent as unknown as ContentBlock[],
+          filteredContent as unknown as ContentBlock[],
           label,
+          imageSanitization,
         )) as unknown as typeof assistantMsg.content;
         if (finalContent.length === 0) {
           continue;

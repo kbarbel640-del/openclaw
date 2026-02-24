@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { CliDeps } from "../cli/deps.js";
-import type { ClawdbotConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
+import type { OpenClawConfig } from "../config/config.js";
 import type { SessionEntry } from "../config/sessions.js";
+import type { RuntimeEnv } from "../runtime.js";
 
 const mocks = vi.hoisted(() => ({
   deliverOutboundPayloads: vi.fn(async () => []),
@@ -30,32 +29,54 @@ vi.mock("../infra/outbound/targets.js", async () => {
   };
 });
 
+const { deliverAgentCommandResult } = await import("./agent/delivery.js");
+
 describe("deliverAgentCommandResult", () => {
+  function createRuntime(): RuntimeEnv {
+    return {
+      log: vi.fn(),
+      error: vi.fn(),
+    } as unknown as RuntimeEnv;
+  }
+
+  function createResult(text = "hi") {
+    return {
+      payloads: [{ text }],
+      meta: { durationMs: 1 },
+    };
+  }
+
+  async function runDelivery(params: {
+    opts: Record<string, unknown>;
+    sessionEntry?: SessionEntry;
+    runtime?: RuntimeEnv;
+    resultText?: string;
+  }) {
+    const cfg = {} as OpenClawConfig;
+    const deps = {} as CliDeps;
+    const runtime = params.runtime ?? createRuntime();
+    const result = createResult(params.resultText);
+
+    await deliverAgentCommandResult({
+      cfg,
+      deps,
+      runtime,
+      opts: params.opts as never,
+      sessionEntry: params.sessionEntry,
+      result,
+      payloads: result.payloads,
+    });
+
+    return { runtime };
+  }
+
   beforeEach(() => {
     mocks.deliverOutboundPayloads.mockClear();
     mocks.resolveOutboundTarget.mockClear();
   });
 
   it("prefers explicit accountId for outbound delivery", async () => {
-    const cfg = {} as ClawdbotConfig;
-    const deps = {} as CliDeps;
-    const runtime = {
-      log: vi.fn(),
-      error: vi.fn(),
-    } as unknown as RuntimeEnv;
-    const sessionEntry = {
-      lastAccountId: "default",
-    } as SessionEntry;
-    const result = {
-      payloads: [{ text: "hi" }],
-      meta: {},
-    };
-
-    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
-    await deliverAgentCommandResult({
-      cfg,
-      deps,
-      runtime,
+    await runDelivery({
       opts: {
         message: "hello",
         deliver: true,
@@ -63,9 +84,9 @@ describe("deliverAgentCommandResult", () => {
         accountId: "kev",
         to: "+15551234567",
       },
-      sessionEntry,
-      result,
-      payloads: result.payloads,
+      sessionEntry: {
+        lastAccountId: "default",
+      } as SessionEntry,
     });
 
     expect(mocks.deliverOutboundPayloads).toHaveBeenCalledWith(
@@ -74,34 +95,16 @@ describe("deliverAgentCommandResult", () => {
   });
 
   it("falls back to session accountId for implicit delivery", async () => {
-    const cfg = {} as ClawdbotConfig;
-    const deps = {} as CliDeps;
-    const runtime = {
-      log: vi.fn(),
-      error: vi.fn(),
-    } as unknown as RuntimeEnv;
-    const sessionEntry = {
-      lastAccountId: "legacy",
-      lastChannel: "whatsapp",
-    } as SessionEntry;
-    const result = {
-      payloads: [{ text: "hi" }],
-      meta: {},
-    };
-
-    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
-    await deliverAgentCommandResult({
-      cfg,
-      deps,
-      runtime,
+    await runDelivery({
       opts: {
         message: "hello",
         deliver: true,
         channel: "whatsapp",
       },
-      sessionEntry,
-      result,
-      payloads: result.payloads,
+      sessionEntry: {
+        lastAccountId: "legacy",
+        lastChannel: "whatsapp",
+      } as SessionEntry,
     });
 
     expect(mocks.deliverOutboundPayloads).toHaveBeenCalledWith(
@@ -110,25 +113,7 @@ describe("deliverAgentCommandResult", () => {
   });
 
   it("does not infer accountId for explicit delivery targets", async () => {
-    const cfg = {} as ClawdbotConfig;
-    const deps = {} as CliDeps;
-    const runtime = {
-      log: vi.fn(),
-      error: vi.fn(),
-    } as unknown as RuntimeEnv;
-    const sessionEntry = {
-      lastAccountId: "legacy",
-    } as SessionEntry;
-    const result = {
-      payloads: [{ text: "hi" }],
-      meta: {},
-    };
-
-    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
-    await deliverAgentCommandResult({
-      cfg,
-      deps,
-      runtime,
+    await runDelivery({
       opts: {
         message: "hello",
         deliver: true,
@@ -136,9 +121,9 @@ describe("deliverAgentCommandResult", () => {
         to: "+15551234567",
         deliveryTargetMode: "explicit",
       },
-      sessionEntry,
-      result,
-      payloads: result.payloads,
+      sessionEntry: {
+        lastAccountId: "legacy",
+      } as SessionEntry,
     });
 
     expect(mocks.resolveOutboundTarget).toHaveBeenCalledWith(
@@ -150,34 +135,16 @@ describe("deliverAgentCommandResult", () => {
   });
 
   it("skips session accountId when channel differs", async () => {
-    const cfg = {} as ClawdbotConfig;
-    const deps = {} as CliDeps;
-    const runtime = {
-      log: vi.fn(),
-      error: vi.fn(),
-    } as unknown as RuntimeEnv;
-    const sessionEntry = {
-      lastAccountId: "legacy",
-      lastChannel: "telegram",
-    } as SessionEntry;
-    const result = {
-      payloads: [{ text: "hi" }],
-      meta: {},
-    };
-
-    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
-    await deliverAgentCommandResult({
-      cfg,
-      deps,
-      runtime,
+    await runDelivery({
       opts: {
         message: "hello",
         deliver: true,
         channel: "whatsapp",
       },
-      sessionEntry,
-      result,
-      payloads: result.payloads,
+      sessionEntry: {
+        lastAccountId: "legacy",
+        lastChannel: "telegram",
+      } as SessionEntry,
     });
 
     expect(mocks.resolveOutboundTarget).toHaveBeenCalledWith(
@@ -186,37 +153,66 @@ describe("deliverAgentCommandResult", () => {
   });
 
   it("uses session last channel when none is provided", async () => {
-    const cfg = {} as ClawdbotConfig;
-    const deps = {} as CliDeps;
-    const runtime = {
-      log: vi.fn(),
-      error: vi.fn(),
-    } as unknown as RuntimeEnv;
-    const sessionEntry = {
-      lastChannel: "telegram",
-      lastTo: "123",
-    } as SessionEntry;
-    const result = {
-      payloads: [{ text: "hi" }],
-      meta: {},
-    };
-
-    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
-    await deliverAgentCommandResult({
-      cfg,
-      deps,
-      runtime,
+    await runDelivery({
       opts: {
         message: "hello",
         deliver: true,
       },
-      sessionEntry,
-      result,
-      payloads: result.payloads,
+      sessionEntry: {
+        lastChannel: "telegram",
+        lastTo: "123",
+      } as SessionEntry,
     });
 
     expect(mocks.resolveOutboundTarget).toHaveBeenCalledWith(
       expect.objectContaining({ channel: "telegram", to: "123" }),
     );
+  });
+
+  it("uses reply overrides for delivery routing", async () => {
+    await runDelivery({
+      opts: {
+        message: "hello",
+        deliver: true,
+        to: "+15551234567",
+        replyTo: "#reports",
+        replyChannel: "slack",
+        replyAccountId: "ops",
+      },
+      sessionEntry: {
+        lastChannel: "telegram",
+        lastTo: "123",
+        lastAccountId: "legacy",
+      } as SessionEntry,
+    });
+
+    expect(mocks.resolveOutboundTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "slack", to: "#reports", accountId: "ops" }),
+    );
+  });
+
+  it("prefixes nested agent outputs with context", async () => {
+    const runtime = createRuntime();
+    await runDelivery({
+      runtime,
+      resultText: "ANNOUNCE_SKIP",
+      opts: {
+        message: "hello",
+        deliver: false,
+        lane: "nested",
+        sessionKey: "agent:main:main",
+        runId: "run-announce",
+        messageChannel: "webchat",
+      },
+      sessionEntry: undefined,
+    });
+
+    expect(runtime.log).toHaveBeenCalledTimes(1);
+    const line = String((runtime.log as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]);
+    expect(line).toContain("[agent:nested]");
+    expect(line).toContain("session=agent:main:main");
+    expect(line).toContain("run=run-announce");
+    expect(line).toContain("channel=webchat");
+    expect(line).toContain("ANNOUNCE_SKIP");
   });
 });

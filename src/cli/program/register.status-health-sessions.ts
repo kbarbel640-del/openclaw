@@ -1,12 +1,44 @@
 import type { Command } from "commander";
 import { healthCommand } from "../../commands/health.js";
+import { sessionsCleanupCommand } from "../../commands/sessions-cleanup.js";
 import { sessionsCommand } from "../../commands/sessions.js";
 import { statusCommand } from "../../commands/status.js";
 import { setVerbose } from "../../globals.js";
 import { defaultRuntime } from "../../runtime.js";
 import { formatDocsLink } from "../../terminal/links.js";
 import { theme } from "../../terminal/theme.js";
+import { runCommandWithRuntime } from "../cli-utils.js";
+import { formatHelpExamples } from "../help-format.js";
 import { parsePositiveIntOrUndefined } from "./helpers.js";
+
+function resolveVerbose(opts: { verbose?: boolean; debug?: boolean }): boolean {
+  return Boolean(opts.verbose || opts.debug);
+}
+
+function parseTimeoutMs(timeout: unknown): number | null | undefined {
+  const parsed = parsePositiveIntOrUndefined(timeout);
+  if (timeout !== undefined && parsed === undefined) {
+    defaultRuntime.error("--timeout must be a positive integer (milliseconds)");
+    defaultRuntime.exit(1);
+    return null;
+  }
+  return parsed;
+}
+
+async function runWithVerboseAndTimeout(
+  opts: { verbose?: boolean; debug?: boolean; timeout?: unknown },
+  action: (params: { verbose: boolean; timeoutMs: number | undefined }) => Promise<void>,
+): Promise<void> {
+  const verbose = resolveVerbose(opts);
+  setVerbose(verbose);
+  const timeoutMs = parseTimeoutMs(opts.timeout);
+  if (timeoutMs === null) {
+    return;
+  }
+  await runCommandWithRuntime(defaultRuntime, async () => {
+    await action({ verbose, timeoutMs });
+  });
+}
 
 export function registerStatusHealthSessionsCommands(program: Command) {
   program
@@ -21,46 +53,38 @@ export function registerStatusHealthSessionsCommands(program: Command) {
     .option("--debug", "Alias for --verbose", false)
     .addHelpText(
       "after",
-      `
-Examples:
-  clawdbot status                   # show linked account + session store summary
-  clawdbot status --all             # full diagnosis (read-only)
-  clawdbot status --json            # machine-readable output
-  clawdbot status --usage           # show model provider usage/quota snapshots
-  clawdbot status --deep            # run channel probes (WA + Telegram + Discord + Slack + Signal)
-  clawdbot status --deep --timeout 5000 # tighten probe timeout
-  clawdbot channels status          # gateway channel runtime + probes`,
+      () =>
+        `\n${theme.heading("Examples:")}\n${formatHelpExamples([
+          ["openclaw status", "Show channel health + session summary."],
+          ["openclaw status --all", "Full diagnosis (read-only)."],
+          ["openclaw status --json", "Machine-readable output."],
+          ["openclaw status --usage", "Show model provider usage/quota snapshots."],
+          [
+            "openclaw status --deep",
+            "Run channel probes (WA + Telegram + Discord + Slack + Signal).",
+          ],
+          ["openclaw status --deep --timeout 5000", "Tighten probe timeout."],
+        ])}`,
     )
     .addHelpText(
       "after",
       () =>
-        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/status", "docs.clawd.bot/cli/status")}\n`,
+        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/status", "docs.openclaw.ai/cli/status")}\n`,
     )
     .action(async (opts) => {
-      const verbose = Boolean(opts.verbose || opts.debug);
-      setVerbose(verbose);
-      const timeout = parsePositiveIntOrUndefined(opts.timeout);
-      if (opts.timeout !== undefined && timeout === undefined) {
-        defaultRuntime.error("--timeout must be a positive integer (milliseconds)");
-        defaultRuntime.exit(1);
-        return;
-      }
-      try {
+      await runWithVerboseAndTimeout(opts, async ({ verbose, timeoutMs }) => {
         await statusCommand(
           {
             json: Boolean(opts.json),
             all: Boolean(opts.all),
             deep: Boolean(opts.deep),
             usage: Boolean(opts.usage),
-            timeoutMs: timeout,
+            timeoutMs,
             verbose,
           },
           defaultRuntime,
         );
-      } catch (err) {
-        defaultRuntime.error(String(err));
-        defaultRuntime.exit(1);
-      }
+      });
     });
 
   program
@@ -73,54 +97,48 @@ Examples:
     .addHelpText(
       "after",
       () =>
-        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/health", "docs.clawd.bot/cli/health")}\n`,
+        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/health", "docs.openclaw.ai/cli/health")}\n`,
     )
     .action(async (opts) => {
-      const verbose = Boolean(opts.verbose || opts.debug);
-      setVerbose(verbose);
-      const timeout = parsePositiveIntOrUndefined(opts.timeout);
-      if (opts.timeout !== undefined && timeout === undefined) {
-        defaultRuntime.error("--timeout must be a positive integer (milliseconds)");
-        defaultRuntime.exit(1);
-        return;
-      }
-      try {
+      await runWithVerboseAndTimeout(opts, async ({ verbose, timeoutMs }) => {
         await healthCommand(
           {
             json: Boolean(opts.json),
-            timeoutMs: timeout,
+            timeoutMs,
             verbose,
           },
           defaultRuntime,
         );
-      } catch (err) {
-        defaultRuntime.error(String(err));
-        defaultRuntime.exit(1);
-      }
+      });
     });
 
-  program
+  const sessionsCmd = program
     .command("sessions")
     .description("List stored conversation sessions")
     .option("--json", "Output as JSON", false)
     .option("--verbose", "Verbose logging", false)
     .option("--store <path>", "Path to session store (default: resolved from config)")
+    .option("--agent <id>", "Agent id to inspect (default: configured default agent)")
+    .option("--all-agents", "Aggregate sessions across all configured agents", false)
     .option("--active <minutes>", "Only show sessions updated within the past N minutes")
     .addHelpText(
       "after",
-      `
-Examples:
-  clawdbot sessions                 # list all sessions
-  clawdbot sessions --active 120    # only last 2 hours
-  clawdbot sessions --json          # machine-readable output
-  clawdbot sessions --store ./tmp/sessions.json
-
-Shows token usage per session when the agent reports it; set agents.defaults.contextTokens to see % of your model window.`,
+      () =>
+        `\n${theme.heading("Examples:")}\n${formatHelpExamples([
+          ["openclaw sessions", "List all sessions."],
+          ["openclaw sessions --agent work", "List sessions for one agent."],
+          ["openclaw sessions --all-agents", "Aggregate sessions across agents."],
+          ["openclaw sessions --active 120", "Only last 2 hours."],
+          ["openclaw sessions --json", "Machine-readable output."],
+          ["openclaw sessions --store ./tmp/sessions.json", "Use a specific session store."],
+        ])}\n\n${theme.muted(
+          "Shows token usage per session when the agent reports it; set agents.defaults.contextTokens to cap the window and show %.",
+        )}`,
     )
     .addHelpText(
       "after",
       () =>
-        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/sessions", "docs.clawd.bot/cli/sessions")}\n`,
+        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/sessions", "docs.openclaw.ai/cli/sessions")}\n`,
     )
     .action(async (opts) => {
       setVerbose(Boolean(opts.verbose));
@@ -128,9 +146,61 @@ Shows token usage per session when the agent reports it; set agents.defaults.con
         {
           json: Boolean(opts.json),
           store: opts.store as string | undefined,
+          agent: opts.agent as string | undefined,
+          allAgents: Boolean(opts.allAgents),
           active: opts.active as string | undefined,
         },
         defaultRuntime,
       );
+    });
+  sessionsCmd.enablePositionalOptions();
+
+  sessionsCmd
+    .command("cleanup")
+    .description("Run session-store maintenance now")
+    .option("--store <path>", "Path to session store (default: resolved from config)")
+    .option("--agent <id>", "Agent id to maintain (default: configured default agent)")
+    .option("--all-agents", "Run maintenance across all configured agents", false)
+    .option("--dry-run", "Preview maintenance actions without writing", false)
+    .option("--enforce", "Apply maintenance even when configured mode is warn", false)
+    .option("--active-key <key>", "Protect this session key from budget-eviction")
+    .option("--json", "Output JSON", false)
+    .addHelpText(
+      "after",
+      () =>
+        `\n${theme.heading("Examples:")}\n${formatHelpExamples([
+          ["openclaw sessions cleanup --dry-run", "Preview stale/cap cleanup."],
+          ["openclaw sessions cleanup --enforce", "Apply maintenance now."],
+          ["openclaw sessions cleanup --agent work --dry-run", "Preview one agent store."],
+          ["openclaw sessions cleanup --all-agents --dry-run", "Preview all agent stores."],
+          [
+            "openclaw sessions cleanup --enforce --store ./tmp/sessions.json",
+            "Use a specific store.",
+          ],
+        ])}`,
+    )
+    .action(async (opts, command) => {
+      const parentOpts = command.parent?.opts() as
+        | {
+            store?: string;
+            agent?: string;
+            allAgents?: boolean;
+            json?: boolean;
+          }
+        | undefined;
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await sessionsCleanupCommand(
+          {
+            store: (opts.store as string | undefined) ?? parentOpts?.store,
+            agent: (opts.agent as string | undefined) ?? parentOpts?.agent,
+            allAgents: Boolean(opts.allAgents || parentOpts?.allAgents),
+            dryRun: Boolean(opts.dryRun),
+            enforce: Boolean(opts.enforce),
+            activeKey: opts.activeKey as string | undefined,
+            json: Boolean(opts.json || parentOpts?.json),
+          },
+          defaultRuntime,
+        );
+      });
     });
 }

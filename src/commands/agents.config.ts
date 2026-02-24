@@ -1,13 +1,16 @@
-import fs from "node:fs";
-import path from "node:path";
-
 import {
+  listAgentEntries,
   resolveAgentDir,
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
 } from "../agents/agent-scope.js";
-import { DEFAULT_IDENTITY_FILENAME } from "../agents/workspace.js";
-import type { ClawdbotConfig } from "../config/config.js";
+import type { AgentIdentityFile } from "../agents/identity-file.js";
+import {
+  identityHasValues,
+  loadAgentIdentityFromWorkspace,
+  parseIdentityMarkdown as parseIdentityMarkdownFile,
+} from "../agents/identity-file.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 
 export type AgentSummary = {
@@ -26,34 +29,24 @@ export type AgentSummary = {
   isDefault: boolean;
 };
 
-type AgentEntry = NonNullable<NonNullable<ClawdbotConfig["agents"]>["list"]>[number];
+type AgentEntry = NonNullable<NonNullable<OpenClawConfig["agents"]>["list"]>[number];
 
-type AgentIdentity = {
-  name?: string;
-  emoji?: string;
-  creature?: string;
-  vibe?: string;
-};
-
-export function listAgentEntries(cfg: ClawdbotConfig): AgentEntry[] {
-  const list = cfg.agents?.list;
-  if (!Array.isArray(list)) return [];
-  return list.filter((entry): entry is AgentEntry => Boolean(entry && typeof entry === "object"));
-}
+export type AgentIdentity = AgentIdentityFile;
+export { listAgentEntries };
 
 export function findAgentEntryIndex(list: AgentEntry[], agentId: string): number {
   const id = normalizeAgentId(agentId);
   return list.findIndex((entry) => normalizeAgentId(entry.id) === id);
 }
 
-function resolveAgentName(cfg: ClawdbotConfig, agentId: string) {
+function resolveAgentName(cfg: OpenClawConfig, agentId: string) {
   const entry = listAgentEntries(cfg).find(
     (agent) => normalizeAgentId(agent.id) === normalizeAgentId(agentId),
   );
   return entry?.name?.trim() || undefined;
 }
 
-function resolveAgentModel(cfg: ClawdbotConfig, agentId: string) {
+function resolveAgentModel(cfg: OpenClawConfig, agentId: string) {
   const entry = listAgentEntries(cfg).find(
     (agent) => normalizeAgentId(agent.id) === normalizeAgentId(agentId),
   );
@@ -63,44 +56,31 @@ function resolveAgentModel(cfg: ClawdbotConfig, agentId: string) {
     }
     if (typeof entry.model === "object") {
       const primary = entry.model.primary?.trim();
-      if (primary) return primary;
+      if (primary) {
+        return primary;
+      }
     }
   }
   const raw = cfg.agents?.defaults?.model;
-  if (typeof raw === "string") return raw;
+  if (typeof raw === "string") {
+    return raw;
+  }
   return raw?.primary?.trim() || undefined;
 }
 
-function parseIdentityMarkdown(content: string): AgentIdentity {
-  const identity: AgentIdentity = {};
-  const lines = content.split(/\r?\n/);
-  for (const line of lines) {
-    const match = line.match(/^\s*(?:-\s*)?([A-Za-z ]+):\s*(.+?)\s*$/);
-    if (!match) continue;
-    const label = match[1]?.trim().toLowerCase();
-    const value = match[2]?.trim();
-    if (!value) continue;
-    if (label === "name") identity.name = value;
-    if (label === "emoji") identity.emoji = value;
-    if (label === "creature") identity.creature = value;
-    if (label === "vibe") identity.vibe = value;
-  }
-  return identity;
+export function parseIdentityMarkdown(content: string): AgentIdentity {
+  return parseIdentityMarkdownFile(content);
 }
 
-function loadAgentIdentity(workspace: string): AgentIdentity | null {
-  const identityPath = path.join(workspace, DEFAULT_IDENTITY_FILENAME);
-  try {
-    const content = fs.readFileSync(identityPath, "utf-8");
-    const parsed = parseIdentityMarkdown(content);
-    if (!parsed.name && !parsed.emoji) return null;
-    return parsed;
-  } catch {
+export function loadAgentIdentity(workspace: string): AgentIdentity | null {
+  const parsed = loadAgentIdentityFromWorkspace(workspace);
+  if (!parsed) {
     return null;
   }
+  return identityHasValues(parsed) ? parsed : null;
 }
 
-export function buildAgentSummaries(cfg: ClawdbotConfig): AgentSummary[] {
+export function buildAgentSummaries(cfg: OpenClawConfig): AgentSummary[] {
   const defaultAgentId = normalizeAgentId(resolveDefaultAgentId(cfg));
   const configuredAgents = listAgentEntries(cfg);
   const orderedIds =
@@ -144,7 +124,7 @@ export function buildAgentSummaries(cfg: ClawdbotConfig): AgentSummary[] {
 }
 
 export function applyAgentConfig(
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   params: {
     agentId: string;
     name?: string;
@@ -152,7 +132,7 @@ export function applyAgentConfig(
     agentDir?: string;
     model?: string;
   },
-): ClawdbotConfig {
+): OpenClawConfig {
   const agentId = normalizeAgentId(params.agentId);
   const name = params.name?.trim();
   const list = listAgentEntries(cfg);
@@ -184,10 +164,10 @@ export function applyAgentConfig(
 }
 
 export function pruneAgentConfig(
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   agentId: string,
 ): {
-  config: ClawdbotConfig;
+  config: OpenClawConfig;
   removedBindings: number;
   removedAllow: number;
 } {

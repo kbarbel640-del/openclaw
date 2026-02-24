@@ -1,199 +1,160 @@
-import { describe, expect, it } from "vitest";
-
-import { resolveConfigSnapshotHash } from "../config/config.js";
-
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   connectOk,
   installGatewayTestHooks,
-  onceMessage,
+  rpcReq,
   startServerWithClient,
+  testState,
+  writeSessionStore,
 } from "./test-helpers.js";
 
-installGatewayTestHooks();
+installGatewayTestHooks({ scope: "suite" });
 
-describe("gateway config.patch", () => {
-  it("merges patches without clobbering unrelated config", async () => {
-    const { server, ws } = await startServerWithClient();
-    await connectOk(ws);
+let startedServer: Awaited<ReturnType<typeof startServerWithClient>> | null = null;
+let sharedTempRoot: string;
 
-    const setId = "req-set";
-    ws.send(
-      JSON.stringify({
-        type: "req",
-        id: setId,
-        method: "config.set",
-        params: {
-          raw: JSON.stringify({
-            gateway: { mode: "local" },
-            channels: { telegram: { botToken: "token-1" } },
-          }),
-        },
-      }),
-    );
-    const setRes = await onceMessage<{ ok: boolean }>(
-      ws,
-      (o) => o.type === "res" && o.id === setId,
-    );
-    expect(setRes.ok).toBe(true);
+function requireWs(): Awaited<ReturnType<typeof startServerWithClient>>["ws"] {
+  if (!startedServer) {
+    throw new Error("gateway test server not started");
+  }
+  return startedServer.ws;
+}
 
-    const getId = "req-get";
-    ws.send(
-      JSON.stringify({
-        type: "req",
-        id: getId,
-        method: "config.get",
-        params: {},
-      }),
-    );
-    const getRes = await onceMessage<{ ok: boolean; payload?: { hash?: string; raw?: string } }>(
-      ws,
-      (o) => o.type === "res" && o.id === getId,
-    );
-    expect(getRes.ok).toBe(true);
-    const baseHash = resolveConfigSnapshotHash({
-      hash: getRes.payload?.hash,
-      raw: getRes.payload?.raw,
+beforeAll(async () => {
+  sharedTempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-config-"));
+  startedServer = await startServerWithClient(undefined, { controlUiEnabled: true });
+  await connectOk(requireWs());
+});
+
+afterAll(async () => {
+  if (!startedServer) {
+    return;
+  }
+  startedServer.ws.close();
+  await startedServer.server.close();
+  startedServer = null;
+  await fs.rm(sharedTempRoot, { recursive: true, force: true });
+});
+
+async function resetTempDir(name: string): Promise<string> {
+  const dir = path.join(sharedTempRoot, name);
+  await fs.rm(dir, { recursive: true, force: true });
+  await fs.mkdir(dir, { recursive: true });
+  return dir;
+}
+
+describe("gateway config methods", () => {
+  it("rejects config.patch when raw is not an object", async () => {
+    const res = await rpcReq<{ ok?: boolean }>(requireWs(), "config.patch", {
+      raw: "[]",
     });
-    expect(typeof baseHash).toBe("string");
+    expect(res.ok).toBe(false);
+    expect(res.error?.message ?? "").toContain("raw must be an object");
+  });
+});
 
-    const patchId = "req-patch";
-    ws.send(
-      JSON.stringify({
-        type: "req",
-        id: patchId,
-        method: "config.patch",
-        params: {
-          raw: JSON.stringify({
-            channels: {
-              telegram: {
-                groups: {
-                  "*": { requireMention: false },
-                },
-              },
-            },
-          }),
-          baseHash,
+describe("gateway server sessions", () => {
+  it("filters sessions by agentId", async () => {
+    const dir = await resetTempDir("agents");
+    testState.sessionConfig = {
+      store: path.join(dir, "{agentId}", "sessions.json"),
+    };
+    testState.agentsConfig = {
+      list: [{ id: "home", default: true }, { id: "work" }],
+    };
+    const homeDir = path.join(dir, "home");
+    const workDir = path.join(dir, "work");
+    await fs.mkdir(homeDir, { recursive: true });
+    await fs.mkdir(workDir, { recursive: true });
+    await writeSessionStore({
+      storePath: path.join(homeDir, "sessions.json"),
+      agentId: "home",
+      entries: {
+        main: {
+          sessionId: "sess-home-main",
+          updatedAt: Date.now(),
         },
-      }),
-    );
-    const patchRes = await onceMessage<{ ok: boolean }>(
-      ws,
-      (o) => o.type === "res" && o.id === patchId,
-    );
-    expect(patchRes.ok).toBe(true);
+        "discord:group:dev": {
+          sessionId: "sess-home-group",
+          updatedAt: Date.now() - 1000,
+        },
+      },
+    });
+    await writeSessionStore({
+      storePath: path.join(workDir, "sessions.json"),
+      agentId: "work",
+      entries: {
+        main: {
+          sessionId: "sess-work-main",
+          updatedAt: Date.now(),
+        },
+      },
+    });
 
-    const get2Id = "req-get-2";
-    ws.send(
-      JSON.stringify({
-        type: "req",
-        id: get2Id,
-        method: "config.get",
-        params: {},
-      }),
-    );
-    const get2Res = await onceMessage<{
-      ok: boolean;
-      payload?: {
-        config?: { gateway?: { mode?: string }; channels?: { telegram?: { botToken?: string } } };
-      };
-    }>(ws, (o) => o.type === "res" && o.id === get2Id);
-    expect(get2Res.ok).toBe(true);
-    expect(get2Res.payload?.config?.gateway?.mode).toBe("local");
-    expect(get2Res.payload?.config?.channels?.telegram?.botToken).toBe("token-1");
+    const homeSessions = await rpcReq<{
+      sessions: Array<{ key: string }>;
+    }>(requireWs(), "sessions.list", {
+      includeGlobal: false,
+      includeUnknown: false,
+      agentId: "home",
+    });
+    expect(homeSessions.ok).toBe(true);
+    expect(homeSessions.payload?.sessions.map((s) => s.key).toSorted()).toEqual([
+      "agent:home:discord:group:dev",
+      "agent:home:main",
+    ]);
 
-    ws.close();
-    await server.close();
+    const workSessions = await rpcReq<{
+      sessions: Array<{ key: string }>;
+    }>(requireWs(), "sessions.list", {
+      includeGlobal: false,
+      includeUnknown: false,
+      agentId: "work",
+    });
+    expect(workSessions.ok).toBe(true);
+    expect(workSessions.payload?.sessions.map((s) => s.key)).toEqual(["agent:work:main"]);
   });
 
-  it("requires base hash when config exists", async () => {
-    const { server, ws } = await startServerWithClient();
-    await connectOk(ws);
+  it("resolves and patches main alias to default agent main key", async () => {
+    const dir = await resetTempDir("main-alias");
+    const storePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = storePath;
+    testState.agentsConfig = { list: [{ id: "ops", default: true }] };
+    testState.sessionConfig = { mainKey: "work" };
 
-    const setId = "req-set-2";
-    ws.send(
-      JSON.stringify({
-        type: "req",
-        id: setId,
-        method: "config.set",
-        params: {
-          raw: JSON.stringify({
-            gateway: { mode: "local" },
-          }),
+    await writeSessionStore({
+      storePath,
+      agentId: "ops",
+      mainKey: "work",
+      entries: {
+        main: {
+          sessionId: "sess-ops-main",
+          updatedAt: Date.now(),
         },
-      }),
-    );
-    const setRes = await onceMessage<{ ok: boolean }>(
-      ws,
-      (o) => o.type === "res" && o.id === setId,
-    );
-    expect(setRes.ok).toBe(true);
+      },
+    });
 
-    const patchId = "req-patch-2";
-    ws.send(
-      JSON.stringify({
-        type: "req",
-        id: patchId,
-        method: "config.patch",
-        params: {
-          raw: JSON.stringify({ gateway: { mode: "remote" } }),
-        },
-      }),
-    );
-    const patchRes = await onceMessage<{ ok: boolean; error?: { message?: string } }>(
-      ws,
-      (o) => o.type === "res" && o.id === patchId,
-    );
-    expect(patchRes.ok).toBe(false);
-    expect(patchRes.error?.message).toContain("base hash");
+    const resolved = await rpcReq<{ ok: true; key: string }>(requireWs(), "sessions.resolve", {
+      key: "main",
+    });
+    expect(resolved.ok).toBe(true);
+    expect(resolved.payload?.key).toBe("agent:ops:work");
 
-    ws.close();
-    await server.close();
-  });
+    const patched = await rpcReq<{ ok: true; key: string }>(requireWs(), "sessions.patch", {
+      key: "main",
+      thinkingLevel: "medium",
+    });
+    expect(patched.ok).toBe(true);
+    expect(patched.payload?.key).toBe("agent:ops:work");
 
-  it("requires base hash for config.set when config exists", async () => {
-    const { server, ws } = await startServerWithClient();
-    await connectOk(ws);
-
-    const setId = "req-set-3";
-    ws.send(
-      JSON.stringify({
-        type: "req",
-        id: setId,
-        method: "config.set",
-        params: {
-          raw: JSON.stringify({
-            gateway: { mode: "local" },
-          }),
-        },
-      }),
-    );
-    const setRes = await onceMessage<{ ok: boolean }>(
-      ws,
-      (o) => o.type === "res" && o.id === setId,
-    );
-    expect(setRes.ok).toBe(true);
-
-    const set2Id = "req-set-4";
-    ws.send(
-      JSON.stringify({
-        type: "req",
-        id: set2Id,
-        method: "config.set",
-        params: {
-          raw: JSON.stringify({
-            gateway: { mode: "remote" },
-          }),
-        },
-      }),
-    );
-    const set2Res = await onceMessage<{ ok: boolean; error?: { message?: string } }>(
-      ws,
-      (o) => o.type === "res" && o.id === set2Id,
-    );
-    expect(set2Res.ok).toBe(false);
-    expect(set2Res.error?.message).toContain("base hash");
-
-    ws.close();
-    await server.close();
+    const stored = JSON.parse(await fs.readFile(storePath, "utf-8")) as Record<
+      string,
+      { thinkingLevel?: string }
+    >;
+    expect(stored["agent:ops:work"]?.thinkingLevel).toBe("medium");
+    expect(stored.main).toBeUndefined();
   });
 });

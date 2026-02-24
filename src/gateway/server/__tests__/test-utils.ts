@@ -1,21 +1,11 @@
-import type { PluginRegistry } from "../../../plugins/registry.js";
+import { createEmptyPluginRegistry, type PluginRegistry } from "../../../plugins/registry.js";
 
 export const createTestRegistry = (overrides: Partial<PluginRegistry> = {}): PluginRegistry => {
-  const base: PluginRegistry = {
-    plugins: [],
-    tools: [],
-    channels: [],
-    providers: [],
-    gatewayHandlers: {},
-    httpHandlers: [],
-    cliRegistrars: [],
-    services: [],
-    diagnostics: [],
-  };
-  const merged = { ...base, ...overrides };
+  const merged = { ...createEmptyPluginRegistry(), ...overrides };
   return {
     ...merged,
     gatewayHandlers: merged.gatewayHandlers ?? {},
     httpHandlers: merged.httpHandlers ?? [],
+    httpRoutes: merged.httpRoutes ?? [],
   };
 };

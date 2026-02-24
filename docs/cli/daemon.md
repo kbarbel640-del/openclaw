@@ -1,20 +1,43 @@
 ---
-summary: "CLI reference for `clawdbot daemon` (install/uninstall/status for the Gateway service)"
+summary: "CLI reference for `openclaw daemon` (legacy alias for gateway service management)"
 read_when:
-  - You want to run the Gateway as a background service
-  - You’re debugging daemon install, status, or logs
+  - You still use `openclaw daemon ...` in scripts
+  - You need service lifecycle commands (install/start/stop/restart/status)
+title: "daemon"
 ---
 
-# `clawdbot daemon`
+# `openclaw daemon`
 
-Manage the Gateway daemon (background service).
+Legacy alias for Gateway service management commands.
 
-Related:
-- Gateway CLI: [Gateway](/cli/gateway)
-- macOS platform notes: [macOS](/platforms/macos)
+`openclaw daemon ...` maps to the same service control surface as `openclaw gateway ...` service commands.
 
-Tip: run `clawdbot daemon --help` for platform-specific flags.
+## Usage
 
-Notes:
-- `daemon status` supports `--json` for scripting.
-- `daemon install|uninstall|start|stop|restart` support `--json` for scripting (default output stays human-friendly).
+```bash
+openclaw daemon status
+openclaw daemon install
+openclaw daemon start
+openclaw daemon stop
+openclaw daemon restart
+openclaw daemon uninstall
+```
+
+## Subcommands
+
+- `status`: show service install state and probe Gateway health
+- `install`: install service (`launchd`/`systemd`/`schtasks`)
+- `uninstall`: remove service
+- `start`: start service
+- `stop`: stop service
+- `restart`: restart service
+
+## Common options
+
+- `status`: `--url`, `--token`, `--password`, `--timeout`, `--no-probe`, `--deep`, `--json`
+- `install`: `--port`, `--runtime <node|bun>`, `--token`, `--force`, `--json`
+- lifecycle (`uninstall|start|stop|restart`): `--json`
+
+## Prefer
+
+Use [`openclaw gateway`](/cli/gateway) for current docs and examples.

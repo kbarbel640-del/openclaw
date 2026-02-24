@@ -1,4 +1,4 @@
-import { getLogger, isFileLogLevelEnabled } from "./logging.js";
+import { getLogger, isFileLogLevelEnabled } from "./logging/logger.js";
 import { theme } from "./terminal/theme.js";
 
 let globalVerbose = false;
@@ -17,18 +17,24 @@ export function shouldLogVerbose() {
 }
 
 export function logVerbose(message: string) {
-  if (!shouldLogVerbose()) return;
+  if (!shouldLogVerbose()) {
+    return;
+  }
   try {
     getLogger().debug({ message }, "verbose");
   } catch {
     // ignore logger failures to avoid breaking verbose printing
   }
-  if (!globalVerbose) return;
+  if (!globalVerbose) {
+    return;
+  }
   console.log(theme.muted(message));
 }
 
 export function logVerboseConsole(message: string) {
-  if (!globalVerbose) return;
+  if (!globalVerbose) {
+    return;
+  }
   console.log(theme.muted(message));
 }
 

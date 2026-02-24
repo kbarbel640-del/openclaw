@@ -3,11 +3,8 @@ import type {
   BrowserActionPathResult,
   BrowserActionTabResult,
 } from "./client-actions-types.js";
+import { buildProfileQuery, withBaseUrl } from "./client-actions-url.js";
 import { fetchBrowserJson } from "./client-fetch.js";
-
-function buildProfileQuery(profile?: string): string {
-  return profile ? `?profile=${encodeURIComponent(profile)}` : "";
-}
 
 export type BrowserFormField = {
   ref: string;
@@ -75,7 +72,7 @@ export type BrowserActRequest =
       targetId?: string;
       timeoutMs?: number;
     }
-  | { kind: "evaluate"; fn: string; ref?: string; targetId?: string }
+  | { kind: "evaluate"; fn: string; ref?: string; targetId?: string; timeoutMs?: number }
   | { kind: "close"; targetId?: string };
 
 export type BrowserActResponse = {
@@ -91,12 +88,33 @@ export type BrowserDownloadPayload = {
   path: string;
 };
 
+type BrowserDownloadResult = { ok: true; targetId: string; download: BrowserDownloadPayload };
+
+async function postDownloadRequest(
+  baseUrl: string | undefined,
+  route: "/wait/download" | "/download",
+  body: Record<string, unknown>,
+  profile?: string,
+): Promise<BrowserDownloadResult> {
+  const q = buildProfileQuery(profile);
+  return await fetchBrowserJson<BrowserDownloadResult>(withBaseUrl(baseUrl, `${route}${q}`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    timeoutMs: 20000,
+  });
+}
+
 export async function browserNavigate(
-  baseUrl: string,
-  opts: { url: string; targetId?: string; profile?: string },
+  baseUrl: string | undefined,
+  opts: {
+    url: string;
+    targetId?: string;
+    profile?: string;
+  },
 ): Promise<BrowserActionTabResult> {
   const q = buildProfileQuery(opts.profile);
-  return await fetchBrowserJson<BrowserActionTabResult>(`${baseUrl}/navigate${q}`, {
+  return await fetchBrowserJson<BrowserActionTabResult>(withBaseUrl(baseUrl, `/navigate${q}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url: opts.url, targetId: opts.targetId }),
@@ -105,7 +123,7 @@ export async function browserNavigate(
 }
 
 export async function browserArmDialog(
-  baseUrl: string,
+  baseUrl: string | undefined,
   opts: {
     accept: boolean;
     promptText?: string;
@@ -115,7 +133,7 @@ export async function browserArmDialog(
   },
 ): Promise<BrowserActionOk> {
   const q = buildProfileQuery(opts.profile);
-  return await fetchBrowserJson<BrowserActionOk>(`${baseUrl}/hooks/dialog${q}`, {
+  return await fetchBrowserJson<BrowserActionOk>(withBaseUrl(baseUrl, `/hooks/dialog${q}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -129,7 +147,7 @@ export async function browserArmDialog(
 }
 
 export async function browserArmFileChooser(
-  baseUrl: string,
+  baseUrl: string | undefined,
   opts: {
     paths: string[];
     ref?: string;
@@ -141,7 +159,7 @@ export async function browserArmFileChooser(
   },
 ): Promise<BrowserActionOk> {
   const q = buildProfileQuery(opts.profile);
-  return await fetchBrowserJson<BrowserActionOk>(`${baseUrl}/hooks/file-chooser${q}`, {
+  return await fetchBrowserJson<BrowserActionOk>(withBaseUrl(baseUrl, `/hooks/file-chooser${q}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -157,33 +175,28 @@ export async function browserArmFileChooser(
 }
 
 export async function browserWaitForDownload(
-  baseUrl: string,
+  baseUrl: string | undefined,
   opts: {
     path?: string;
     targetId?: string;
     timeoutMs?: number;
     profile?: string;
   },
-): Promise<{ ok: true; targetId: string; download: BrowserDownloadPayload }> {
-  const q = buildProfileQuery(opts.profile);
-  return await fetchBrowserJson<{
-    ok: true;
-    targetId: string;
-    download: BrowserDownloadPayload;
-  }>(`${baseUrl}/wait/download${q}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+): Promise<BrowserDownloadResult> {
+  return await postDownloadRequest(
+    baseUrl,
+    "/wait/download",
+    {
       targetId: opts.targetId,
       path: opts.path,
       timeoutMs: opts.timeoutMs,
-    }),
-    timeoutMs: 20000,
-  });
+    },
+    opts.profile,
+  );
 }
 
 export async function browserDownload(
-  baseUrl: string,
+  baseUrl: string | undefined,
   opts: {
     ref: string;
     path: string;
@@ -191,32 +204,27 @@ export async function browserDownload(
     timeoutMs?: number;
     profile?: string;
   },
-): Promise<{ ok: true; targetId: string; download: BrowserDownloadPayload }> {
-  const q = buildProfileQuery(opts.profile);
-  return await fetchBrowserJson<{
-    ok: true;
-    targetId: string;
-    download: BrowserDownloadPayload;
-  }>(`${baseUrl}/download${q}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+): Promise<BrowserDownloadResult> {
+  return await postDownloadRequest(
+    baseUrl,
+    "/download",
+    {
       targetId: opts.targetId,
       ref: opts.ref,
       path: opts.path,
       timeoutMs: opts.timeoutMs,
-    }),
-    timeoutMs: 20000,
-  });
+    },
+    opts.profile,
+  );
 }
 
 export async function browserAct(
-  baseUrl: string,
+  baseUrl: string | undefined,
   req: BrowserActRequest,
   opts?: { profile?: string },
 ): Promise<BrowserActResponse> {
   const q = buildProfileQuery(opts?.profile);
-  return await fetchBrowserJson<BrowserActResponse>(`${baseUrl}/act${q}`, {
+  return await fetchBrowserJson<BrowserActResponse>(withBaseUrl(baseUrl, `/act${q}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
@@ -225,7 +233,7 @@ export async function browserAct(
 }
 
 export async function browserScreenshotAction(
-  baseUrl: string,
+  baseUrl: string | undefined,
   opts: {
     targetId?: string;
     fullPage?: boolean;
@@ -236,7 +244,7 @@ export async function browserScreenshotAction(
   },
 ): Promise<BrowserActionPathResult> {
   const q = buildProfileQuery(opts.profile);
-  return await fetchBrowserJson<BrowserActionPathResult>(`${baseUrl}/screenshot${q}`, {
+  return await fetchBrowserJson<BrowserActionPathResult>(withBaseUrl(baseUrl, `/screenshot${q}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

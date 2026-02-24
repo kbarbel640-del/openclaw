@@ -1,3 +1,4 @@
+import { buildChannelUiCatalog } from "../../channels/plugins/catalog.js";
 import { resolveChannelDefaultAccountId } from "../../channels/plugins/helpers.js";
 import {
   type ChannelId,
@@ -7,7 +8,7 @@ import {
 } from "../../channels/plugins/index.js";
 import { buildChannelAccountSnapshot } from "../../channels/plugins/status.js";
 import type { ChannelAccountSnapshot, ChannelPlugin } from "../../channels/plugins/types.js";
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig, readConfigFileSnapshot } from "../../config/config.js";
 import { getChannelActivity } from "../../infra/channel-activity.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
@@ -32,7 +33,7 @@ type ChannelLogoutPayload = {
 export async function logoutChannelAccount(params: {
   channelId: ChannelId;
   accountId?: string | null;
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   context: GatewayRequestContext;
   plugin: ChannelPlugin;
 }): Promise<ChannelLogoutPayload> {
@@ -97,7 +98,9 @@ export const channelsHandlers: GatewayRequestHandlers = {
       const defaultRuntime = runtime.channels[channelId];
       const raw =
         accounts?.[accountId] ?? (accountId === defaultAccountId ? defaultRuntime : undefined);
-      if (!raw) return undefined;
+      if (!raw) {
+        return undefined;
+      }
       return raw;
     };
 
@@ -170,7 +173,9 @@ export const channelsHandlers: GatewayRequestHandlers = {
           probe: probeResult,
           audit: auditResult,
         });
-        if (lastProbeAt) snapshot.lastProbeAt = lastProbeAt;
+        if (lastProbeAt) {
+          snapshot.lastProbeAt = lastProbeAt;
+        }
         const activity = getChannelActivity({
           channel: channelId as never,
           accountId,
@@ -188,10 +193,14 @@ export const channelsHandlers: GatewayRequestHandlers = {
       return { accounts, defaultAccountId, defaultAccount, resolvedAccounts };
     };
 
+    const uiCatalog = buildChannelUiCatalog(plugins);
     const payload: Record<string, unknown> = {
       ts: Date.now(),
-      channelOrder: plugins.map((plugin) => plugin.id),
-      channelLabels: Object.fromEntries(plugins.map((plugin) => [plugin.id, plugin.meta.label])),
+      channelOrder: uiCatalog.order,
+      channelLabels: uiCatalog.labels,
+      channelDetailLabels: uiCatalog.detailLabels,
+      channelSystemImages: uiCatalog.systemImages,
+      channelMeta: uiCatalog.entries,
       channels: {} as Record<string, unknown>,
       channelAccounts: {} as Record<string, unknown>,
       channelDefaultAccountId: {} as Record<string, unknown>,

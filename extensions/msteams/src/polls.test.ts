@@ -1,12 +1,16 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-
-import { describe, expect, it } from "vitest";
-
+import { beforeEach, describe, expect, it } from "vitest";
 import { buildMSTeamsPollCard, createMSTeamsPollStoreFs, extractMSTeamsPollVote } from "./polls.js";
+import { setMSTeamsRuntime } from "./runtime.js";
+import { msteamsRuntimeStub } from "./test-runtime.js";
 
 describe("msteams polls", () => {
+  beforeEach(() => {
+    setMSTeamsRuntime(msteamsRuntimeStub);
+  });
+
   it("builds poll cards with fallback text", () => {
     const card = buildMSTeamsPollCard({
       question: "Lunch?",
@@ -22,7 +26,7 @@ describe("msteams polls", () => {
   it("extracts poll votes from activity values", () => {
     const vote = extractMSTeamsPollVote({
       value: {
-        clawdbotPollId: "poll-1",
+        openclawPollId: "poll-1",
         choices: "0,1",
       },
     });
@@ -34,7 +38,7 @@ describe("msteams polls", () => {
   });
 
   it("stores and records poll votes", async () => {
-    const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "clawdbot-msteams-polls-"));
+    const home = await fs.promises.mkdtemp(path.join(os.tmpdir(), "openclaw-msteams-polls-"));
     const store = createMSTeamsPollStoreFs({ homedir: () => home });
     await store.createPoll({
       id: "poll-2",

@@ -1,21 +1,11 @@
 import {
-  buildBootstrapContextFiles,
   resolveBootstrapMaxChars,
+  resolveBootstrapTotalMaxChars,
 } from "../../agents/pi-embedded-helpers.js";
-import { createClawdbotCodingTools } from "../../agents/pi-tools.js";
-import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
-import { buildWorkspaceSkillSnapshot } from "../../agents/skills.js";
-import { getSkillsSnapshotVersion } from "../../agents/skills/refresh.js";
-import { buildAgentSystemPrompt } from "../../agents/system-prompt.js";
 import { buildSystemPromptReport } from "../../agents/system-prompt-report.js";
-import { buildToolSummaryMap } from "../../agents/tool-summaries.js";
-import {
-  filterBootstrapFilesForSession,
-  loadWorkspaceBootstrapFiles,
-} from "../../agents/workspace.js";
 import type { SessionSystemPromptReport } from "../../config/sessions/types.js";
-import { getRemoteSkillEligibility } from "../../infra/skills-remote.js";
 import type { ReplyPayload } from "../types.js";
+import { resolveCommandsSystemPromptBundle } from "./commands-system-prompt.js";
 import type { HandleCommandsParams } from "./commands-types.js";
 
 function estimateTokensFromChars(chars: number): number {
@@ -31,8 +21,12 @@ function formatCharsAndTokens(chars: number): string {
 }
 
 function parseContextArgs(commandBodyNormalized: string): string {
-  if (commandBodyNormalized === "/context") return "";
-  if (commandBodyNormalized.startsWith("/context ")) return commandBodyNormalized.slice(8).trim();
+  if (commandBodyNormalized === "/context") {
+    return "";
+  }
+  if (commandBodyNormalized.startsWith("/context ")) {
+    return commandBodyNormalized.slice(8).trim();
+  }
   return "";
 }
 
@@ -40,7 +34,7 @@ function formatListTop(
   entries: Array<{ name: string; value: number }>,
   cap: number,
 ): { lines: string[]; omitted: number } {
-  const sorted = [...entries].sort((a, b) => b.value - a.value);
+  const sorted = [...entries].toSorted((a, b) => b.value - a.value);
   const top = sorted.slice(0, cap);
   const omitted = Math.max(0, sorted.length - top.length);
   const lines = top.map((e) => `- ${e.name}: ${formatCharsAndTokens(e.value)}`);
@@ -51,86 +45,14 @@ async function resolveContextReport(
   params: HandleCommandsParams,
 ): Promise<SessionSystemPromptReport> {
   const existing = params.sessionEntry?.systemPromptReport;
-  if (existing && existing.source === "run") return existing;
+  if (existing && existing.source === "run") {
+    return existing;
+  }
 
-  const workspaceDir = params.workspaceDir;
   const bootstrapMaxChars = resolveBootstrapMaxChars(params.cfg);
-  const bootstrapFiles = filterBootstrapFilesForSession(
-    await loadWorkspaceBootstrapFiles(workspaceDir),
-    params.sessionKey,
-  );
-  const injectedFiles = buildBootstrapContextFiles(bootstrapFiles, {
-    maxChars: bootstrapMaxChars,
-  });
-  const skillsSnapshot = (() => {
-    try {
-      return buildWorkspaceSkillSnapshot(workspaceDir, {
-        config: params.cfg,
-        eligibility: { remote: getRemoteSkillEligibility() },
-        snapshotVersion: getSkillsSnapshotVersion(workspaceDir),
-      });
-    } catch {
-      return { prompt: "", skills: [], resolvedSkills: [] };
-    }
-  })();
-  const skillsPrompt = skillsSnapshot.prompt ?? "";
-  const sandboxRuntime = resolveSandboxRuntimeStatus({
-    cfg: params.cfg,
-    sessionKey: params.ctx.SessionKey ?? params.sessionKey,
-  });
-  const tools = (() => {
-    try {
-      return createClawdbotCodingTools({
-        config: params.cfg,
-        workspaceDir,
-        sessionKey: params.sessionKey,
-        messageProvider: params.command.channel,
-        modelProvider: params.provider,
-        modelId: params.model,
-      });
-    } catch {
-      return [];
-    }
-  })();
-  const toolSummaries = buildToolSummaryMap(tools);
-  const toolNames = tools.map((t) => t.name);
-  const runtimeInfo = {
-    host: "unknown",
-    os: "unknown",
-    arch: "unknown",
-    node: process.version,
-    model: `${params.provider}/${params.model}`,
-  };
-  const sandboxInfo = sandboxRuntime.sandboxed
-    ? {
-        enabled: true,
-        workspaceDir,
-        workspaceAccess: "rw" as const,
-        elevated: {
-          allowed: params.elevated.allowed,
-          defaultLevel: params.resolvedElevatedLevel === "off" ? ("off" as const) : ("on" as const),
-        },
-      }
-    : { enabled: false };
-
-  const systemPrompt = buildAgentSystemPrompt({
-    workspaceDir,
-    defaultThinkLevel: params.resolvedThinkLevel,
-    reasoningLevel: params.resolvedReasoningLevel,
-    extraSystemPrompt: undefined,
-    ownerNumbers: undefined,
-    reasoningTagHint: false,
-    toolNames,
-    toolSummaries,
-    modelAliasLines: [],
-    userTimezone: "",
-    userTime: "",
-    contextFiles: injectedFiles,
-    skillsPrompt,
-    heartbeatPrompt: undefined,
-    runtimeInfo,
-    sandboxInfo,
-  });
+  const bootstrapTotalMaxChars = resolveBootstrapTotalMaxChars(params.cfg);
+  const { systemPrompt, tools, skillsPrompt, bootstrapFiles, injectedFiles, sandboxRuntime } =
+    await resolveCommandsSystemPromptBundle(params);
 
   return buildSystemPromptReport({
     source: "estimate",
@@ -139,8 +61,9 @@ async function resolveContextReport(
     sessionKey: params.sessionKey,
     provider: params.provider,
     model: params.model,
-    workspaceDir,
+    workspaceDir: params.workspaceDir,
     bootstrapMaxChars,
+    bootstrapTotalMaxChars,
     sandbox: { mode: sandboxRuntime.mode, sandboxed: sandboxRuntime.sandboxed },
     systemPrompt,
     bootstrapFiles,
@@ -222,6 +145,37 @@ export async function buildContextReply(params: HandleCommandsParams): Promise<R
     typeof report.bootstrapMaxChars === "number"
       ? `${formatInt(report.bootstrapMaxChars)} chars`
       : "? chars";
+  const bootstrapTotalLabel =
+    typeof report.bootstrapTotalMaxChars === "number"
+      ? `${formatInt(report.bootstrapTotalMaxChars)} chars`
+      : "? chars";
+  const bootstrapMaxChars = report.bootstrapMaxChars;
+  const bootstrapTotalMaxChars = report.bootstrapTotalMaxChars;
+  const nonMissingBootstrapFiles = report.injectedWorkspaceFiles.filter((f) => !f.missing);
+  const truncatedBootstrapFiles = nonMissingBootstrapFiles.filter((f) => f.truncated);
+  const rawBootstrapChars = nonMissingBootstrapFiles.reduce((sum, file) => sum + file.rawChars, 0);
+  const injectedBootstrapChars = nonMissingBootstrapFiles.reduce(
+    (sum, file) => sum + file.injectedChars,
+    0,
+  );
+  const perFileOverLimitCount =
+    typeof bootstrapMaxChars === "number"
+      ? nonMissingBootstrapFiles.filter((f) => f.rawChars > bootstrapMaxChars).length
+      : 0;
+  const totalOverLimit =
+    typeof bootstrapTotalMaxChars === "number" && rawBootstrapChars > bootstrapTotalMaxChars;
+  const truncationCauseParts = [
+    perFileOverLimitCount > 0 ? `${perFileOverLimitCount} file(s) exceeded max/file` : null,
+    totalOverLimit ? "raw total exceeded max/total" : null,
+  ].filter(Boolean);
+  const bootstrapWarningLines =
+    truncatedBootstrapFiles.length > 0
+      ? [
+          `⚠ Bootstrap context is over configured limits: ${truncatedBootstrapFiles.length} file(s) truncated (${formatInt(rawBootstrapChars)} raw chars -> ${formatInt(injectedBootstrapChars)} injected chars).`,
+          ...(truncationCauseParts.length ? [`Causes: ${truncationCauseParts.join("; ")}.`] : []),
+          "Tip: increase `agents.defaults.bootstrapMaxChars` and/or `agents.defaults.bootstrapTotalMaxChars` if this truncation is not intentional.",
+        ]
+      : [];
 
   const totalsLine =
     session.totalTokens != null
@@ -243,7 +197,7 @@ export async function buildContextReply(params: HandleCommandsParams): Promise<R
     );
     const toolPropsLines = report.tools.entries
       .filter((t) => t.propertiesCount != null)
-      .sort((a, b) => (b.propertiesCount ?? 0) - (a.propertiesCount ?? 0))
+      .toSorted((a, b) => (b.propertiesCount ?? 0) - (a.propertiesCount ?? 0))
       .slice(0, 30)
       .map((t) => `- ${t.name}: ${t.propertiesCount} params`);
 
@@ -252,8 +206,10 @@ export async function buildContextReply(params: HandleCommandsParams): Promise<R
         "🧠 Context breakdown (detailed)",
         `Workspace: ${workspaceLabel}`,
         `Bootstrap max/file: ${bootstrapMaxLabel}`,
+        `Bootstrap max/total: ${bootstrapTotalLabel}`,
         sandboxLine,
         systemPromptLine,
+        ...(bootstrapWarningLines.length ? ["", ...bootstrapWarningLines] : []),
         "",
         "Injected workspace files:",
         ...fileLines,
@@ -289,8 +245,10 @@ export async function buildContextReply(params: HandleCommandsParams): Promise<R
       "🧠 Context breakdown",
       `Workspace: ${workspaceLabel}`,
       `Bootstrap max/file: ${bootstrapMaxLabel}`,
+      `Bootstrap max/total: ${bootstrapTotalLabel}`,
       sandboxLine,
       systemPromptLine,
+      ...(bootstrapWarningLines.length ? ["", ...bootstrapWarningLines] : []),
       "",
       "Injected workspace files:",
       ...fileLines,

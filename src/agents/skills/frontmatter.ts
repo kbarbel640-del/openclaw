@@ -1,152 +1,117 @@
 import type { Skill } from "@mariozechner/pi-coding-agent";
-
+import { parseFrontmatterBlock } from "../../markdown/frontmatter.js";
+import {
+  getFrontmatterString,
+  normalizeStringList,
+  parseOpenClawManifestInstallBase,
+  parseFrontmatterBool,
+  resolveOpenClawManifestBlock,
+  resolveOpenClawManifestInstall,
+  resolveOpenClawManifestOs,
+  resolveOpenClawManifestRequires,
+} from "../../shared/frontmatter.js";
 import type {
-  ClawdbotSkillMetadata,
+  OpenClawSkillMetadata,
   ParsedSkillFrontmatter,
   SkillEntry,
   SkillInstallSpec,
   SkillInvocationPolicy,
 } from "./types.js";
 
-function stripQuotes(value: string): string {
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
-  ) {
-    return value.slice(1, -1);
-  }
-  return value;
-}
-
 export function parseFrontmatter(content: string): ParsedSkillFrontmatter {
-  const frontmatter: ParsedSkillFrontmatter = {};
-  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  if (!normalized.startsWith("---")) return frontmatter;
-  const endIndex = normalized.indexOf("\n---", 3);
-  if (endIndex === -1) return frontmatter;
-  const block = normalized.slice(4, endIndex);
-  for (const line of block.split("\n")) {
-    const match = line.match(/^([\w-]+):\s*(.*)$/);
-    if (!match) continue;
-    const key = match[1];
-    const value = stripQuotes(match[2].trim());
-    if (!key || !value) continue;
-    frontmatter[key] = value;
-  }
-  return frontmatter;
-}
-
-function normalizeStringList(input: unknown): string[] {
-  if (!input) return [];
-  if (Array.isArray(input)) {
-    return input.map((value) => String(value).trim()).filter(Boolean);
-  }
-  if (typeof input === "string") {
-    return input
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-  }
-  return [];
+  return parseFrontmatterBlock(content);
 }
 
 function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
-  if (!input || typeof input !== "object") return undefined;
-  const raw = input as Record<string, unknown>;
-  const kindRaw =
-    typeof raw.kind === "string" ? raw.kind : typeof raw.type === "string" ? raw.type : "";
-  const kind = kindRaw.trim().toLowerCase();
-  if (kind !== "brew" && kind !== "node" && kind !== "go" && kind !== "uv") {
+  const parsed = parseOpenClawManifestInstallBase(input, ["brew", "node", "go", "uv", "download"]);
+  if (!parsed) {
     return undefined;
   }
-
+  const { raw } = parsed;
   const spec: SkillInstallSpec = {
-    kind: kind as SkillInstallSpec["kind"],
+    kind: parsed.kind as SkillInstallSpec["kind"],
   };
 
-  if (typeof raw.id === "string") spec.id = raw.id;
-  if (typeof raw.label === "string") spec.label = raw.label;
-  const bins = normalizeStringList(raw.bins);
-  if (bins.length > 0) spec.bins = bins;
-  if (typeof raw.formula === "string") spec.formula = raw.formula;
-  if (typeof raw.package === "string") spec.package = raw.package;
-  if (typeof raw.module === "string") spec.module = raw.module;
+  if (parsed.id) {
+    spec.id = parsed.id;
+  }
+  if (parsed.label) {
+    spec.label = parsed.label;
+  }
+  if (parsed.bins) {
+    spec.bins = parsed.bins;
+  }
+  const osList = normalizeStringList(raw.os);
+  if (osList.length > 0) {
+    spec.os = osList;
+  }
+  const formula = typeof raw.formula === "string" ? raw.formula.trim() : "";
+  if (formula) {
+    spec.formula = formula;
+  }
+  const cask = typeof raw.cask === "string" ? raw.cask.trim() : "";
+  if (!spec.formula && cask) {
+    spec.formula = cask;
+  }
+  if (typeof raw.package === "string") {
+    spec.package = raw.package;
+  }
+  if (typeof raw.module === "string") {
+    spec.module = raw.module;
+  }
+  if (typeof raw.url === "string") {
+    spec.url = raw.url;
+  }
+  if (typeof raw.archive === "string") {
+    spec.archive = raw.archive;
+  }
+  if (typeof raw.extract === "boolean") {
+    spec.extract = raw.extract;
+  }
+  if (typeof raw.stripComponents === "number") {
+    spec.stripComponents = raw.stripComponents;
+  }
+  if (typeof raw.targetDir === "string") {
+    spec.targetDir = raw.targetDir;
+  }
 
   return spec;
 }
 
-function getFrontmatterValue(frontmatter: ParsedSkillFrontmatter, key: string): string | undefined {
-  const raw = frontmatter[key];
-  return typeof raw === "string" ? raw : undefined;
-}
-
-function parseFrontmatterBool(value: string | undefined, fallback: boolean): boolean {
-  if (!value) return fallback;
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return fallback;
-  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
-    return false;
-  }
-  return fallback;
-}
-
-export function resolveClawdbotMetadata(
+export function resolveOpenClawMetadata(
   frontmatter: ParsedSkillFrontmatter,
-): ClawdbotSkillMetadata | undefined {
-  const raw = getFrontmatterValue(frontmatter, "metadata");
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw) as { clawdbot?: unknown };
-    if (!parsed || typeof parsed !== "object") return undefined;
-    const clawdbot = (parsed as { clawdbot?: unknown }).clawdbot;
-    if (!clawdbot || typeof clawdbot !== "object") return undefined;
-    const clawdbotObj = clawdbot as Record<string, unknown>;
-    const requiresRaw =
-      typeof clawdbotObj.requires === "object" && clawdbotObj.requires !== null
-        ? (clawdbotObj.requires as Record<string, unknown>)
-        : undefined;
-    const installRaw = Array.isArray(clawdbotObj.install) ? (clawdbotObj.install as unknown[]) : [];
-    const install = installRaw
-      .map((entry) => parseInstallSpec(entry))
-      .filter((entry): entry is SkillInstallSpec => Boolean(entry));
-    const osRaw = normalizeStringList(clawdbotObj.os);
-    return {
-      always: typeof clawdbotObj.always === "boolean" ? clawdbotObj.always : undefined,
-      emoji: typeof clawdbotObj.emoji === "string" ? clawdbotObj.emoji : undefined,
-      homepage: typeof clawdbotObj.homepage === "string" ? clawdbotObj.homepage : undefined,
-      skillKey: typeof clawdbotObj.skillKey === "string" ? clawdbotObj.skillKey : undefined,
-      primaryEnv: typeof clawdbotObj.primaryEnv === "string" ? clawdbotObj.primaryEnv : undefined,
-      os: osRaw.length > 0 ? osRaw : undefined,
-      requires: requiresRaw
-        ? {
-            bins: normalizeStringList(requiresRaw.bins),
-            anyBins: normalizeStringList(requiresRaw.anyBins),
-            env: normalizeStringList(requiresRaw.env),
-            config: normalizeStringList(requiresRaw.config),
-          }
-        : undefined,
-      install: install.length > 0 ? install : undefined,
-    };
-  } catch {
+): OpenClawSkillMetadata | undefined {
+  const metadataObj = resolveOpenClawManifestBlock({ frontmatter });
+  if (!metadataObj) {
     return undefined;
   }
+  const requires = resolveOpenClawManifestRequires(metadataObj);
+  const install = resolveOpenClawManifestInstall(metadataObj, parseInstallSpec);
+  const osRaw = resolveOpenClawManifestOs(metadataObj);
+  return {
+    always: typeof metadataObj.always === "boolean" ? metadataObj.always : undefined,
+    emoji: typeof metadataObj.emoji === "string" ? metadataObj.emoji : undefined,
+    homepage: typeof metadataObj.homepage === "string" ? metadataObj.homepage : undefined,
+    skillKey: typeof metadataObj.skillKey === "string" ? metadataObj.skillKey : undefined,
+    primaryEnv: typeof metadataObj.primaryEnv === "string" ? metadataObj.primaryEnv : undefined,
+    os: osRaw.length > 0 ? osRaw : undefined,
+    requires: requires,
+    install: install.length > 0 ? install : undefined,
+  };
 }
 
 export function resolveSkillInvocationPolicy(
   frontmatter: ParsedSkillFrontmatter,
 ): SkillInvocationPolicy {
   return {
-    userInvocable: parseFrontmatterBool(getFrontmatterValue(frontmatter, "user-invocable"), true),
+    userInvocable: parseFrontmatterBool(getFrontmatterString(frontmatter, "user-invocable"), true),
     disableModelInvocation: parseFrontmatterBool(
-      getFrontmatterValue(frontmatter, "disable-model-invocation"),
+      getFrontmatterString(frontmatter, "disable-model-invocation"),
       false,
     ),
   };
 }
 
 export function resolveSkillKey(skill: Skill, entry?: SkillEntry): string {
-  return entry?.clawdbot?.skillKey ?? skill.name;
+  return entry?.metadata?.skillKey ?? skill.name;
 }

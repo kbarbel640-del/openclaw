@@ -1,8 +1,13 @@
 import { spinner } from "@clack/prompts";
 import { createOscProgressController, supportsOscProgress } from "osc-progress";
+import {
+  clearActiveProgressLine,
+  registerActiveProgressLine,
+  unregisterActiveProgressLine,
+} from "../terminal/progress-line.js";
 import { theme } from "../terminal/theme.js";
 
-const DEFAULT_DELAY_MS = 300;
+const DEFAULT_DELAY_MS = 0;
 let activeProgress = 0;
 
 type ProgressOptions = {
@@ -12,7 +17,7 @@ type ProgressOptions = {
   enabled?: boolean;
   delayMs?: number;
   stream?: NodeJS.WriteStream;
-  fallback?: "spinner" | "none";
+  fallback?: "spinner" | "line" | "log" | "none";
 };
 
 export type ProgressReporter = {
@@ -36,15 +41,24 @@ const noopReporter: ProgressReporter = {
 };
 
 export function createCliProgress(options: ProgressOptions): ProgressReporter {
-  if (options.enabled === false) return noopReporter;
-  if (activeProgress > 0) return noopReporter;
+  if (options.enabled === false) {
+    return noopReporter;
+  }
+  if (activeProgress > 0) {
+    return noopReporter;
+  }
 
   const stream = options.stream ?? process.stderr;
-  if (!stream.isTTY) return noopReporter;
+  const isTty = stream.isTTY;
+  const allowLog = !isTty && options.fallback === "log";
+  if (!isTty && !allowLog) {
+    return noopReporter;
+  }
 
   const delayMs = typeof options.delayMs === "number" ? options.delayMs : DEFAULT_DELAY_MS;
-  const canOsc = supportsOscProgress(process.env, stream.isTTY);
-  const allowSpinner = options.fallback === undefined || options.fallback === "spinner";
+  const canOsc = isTty && supportsOscProgress(process.env, isTty);
+  const allowSpinner = isTty && (options.fallback === undefined || options.fallback === "spinner");
+  const allowLine = isTty && options.fallback === "line";
 
   let started = false;
   let label = options.label;
@@ -55,6 +69,9 @@ export function createCliProgress(options: ProgressOptions): ProgressReporter {
     options.indeterminate ?? (options.total === undefined || options.total === null);
 
   activeProgress += 1;
+  if (isTty) {
+    registerActiveProgressLine(stream);
+  }
 
   const controller = canOsc
     ? createOscProgressController({
@@ -65,21 +82,65 @@ export function createCliProgress(options: ProgressOptions): ProgressReporter {
     : null;
 
   const spin = allowSpinner ? spinner() : null;
+  const renderLine = allowLine
+    ? () => {
+        if (!started) {
+          return;
+        }
+        const suffix = indeterminate ? "" : ` ${percent}%`;
+        clearActiveProgressLine();
+        stream.write(`${theme.accent(label)}${suffix}`);
+      }
+    : null;
+  const renderLog = allowLog
+    ? (() => {
+        let lastLine = "";
+        let lastAt = 0;
+        const throttleMs = 250;
+        return () => {
+          if (!started) {
+            return;
+          }
+          const suffix = indeterminate ? "" : ` ${percent}%`;
+          const nextLine = `${label}${suffix}`;
+          const now = Date.now();
+          if (nextLine === lastLine && now - lastAt < throttleMs) {
+            return;
+          }
+          lastLine = nextLine;
+          lastAt = now;
+          stream.write(`${nextLine}\n`);
+        };
+      })()
+    : null;
   let timer: NodeJS.Timeout | null = null;
 
   const applyState = () => {
-    if (!started) return;
+    if (!started) {
+      return;
+    }
     if (controller) {
-      if (indeterminate) controller.setIndeterminate(label);
-      else controller.setPercent(label, percent);
+      if (indeterminate) {
+        controller.setIndeterminate(label);
+      } else {
+        controller.setPercent(label, percent);
+      }
     }
     if (spin) {
       spin.message(theme.accent(label));
     }
+    if (renderLine) {
+      renderLine();
+    }
+    if (renderLog) {
+      renderLog();
+    }
   };
 
   const start = () => {
-    if (started) return;
+    if (started) {
+      return;
+    }
     started = true;
     if (spin) {
       spin.start(theme.accent(label));
@@ -105,7 +166,9 @@ export function createCliProgress(options: ProgressOptions): ProgressReporter {
   };
 
   const tick = (delta = 1) => {
-    if (!total) return;
+    if (!total) {
+      return;
+    }
     completed = Math.min(total, completed + delta);
     const nextPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
     setPercent(nextPercent);
@@ -120,8 +183,16 @@ export function createCliProgress(options: ProgressOptions): ProgressReporter {
       activeProgress = Math.max(0, activeProgress - 1);
       return;
     }
-    if (controller) controller.clear();
-    if (spin) spin.stop();
+    if (controller) {
+      controller.clear();
+    }
+    if (spin) {
+      spin.stop();
+    }
+    clearActiveProgressLine();
+    if (isTty) {
+      unregisterActiveProgressLine(stream);
+    }
     activeProgress = Math.max(0, activeProgress - 1);
   };
 
@@ -146,8 +217,12 @@ export async function withProgressTotals<T>(
 ): Promise<T> {
   return await withProgress(options, async (progress) => {
     const update = ({ completed, total, label }: ProgressTotalsUpdate) => {
-      if (label) progress.setLabel(label);
-      if (!Number.isFinite(total) || total <= 0) return;
+      if (label) {
+        progress.setLabel(label);
+      }
+      if (!Number.isFinite(total) || total <= 0) {
+        return;
+      }
       progress.setPercent((completed / total) * 100);
     };
     return await work(update, progress);

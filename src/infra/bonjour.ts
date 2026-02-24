@@ -1,9 +1,8 @@
-import os from "node:os";
-
 import { logDebug, logWarn } from "../logger.js";
 import { getLogger } from "../logging.js";
 import { ignoreCiaoCancellationRejection } from "./bonjour-ciao.js";
 import { formatBonjourError } from "./bonjour-errors.js";
+import { isTruthyEnvValue } from "./env.js";
 import { registerUnhandledRejectionHandler } from "./unhandled-rejections.js";
 
 export type GatewayBonjourAdvertiser = {
@@ -14,29 +13,39 @@ export type GatewayBonjourAdvertiseOpts = {
   instanceName?: string;
   gatewayPort: number;
   sshPort?: number;
-  bridgePort?: number;
+  gatewayTlsEnabled?: boolean;
+  gatewayTlsFingerprintSha256?: string;
   canvasPort?: number;
-  bridgeTlsEnabled?: boolean;
-  bridgeTlsFingerprintSha256?: string;
   tailnetDns?: string;
   cliPath?: string;
+  /**
+   * Minimal mode - omit sensitive fields (cliPath, sshPort) from TXT records.
+   * Reduces information disclosure for better operational security.
+   */
+  minimal?: boolean;
 };
 
 function isDisabledByEnv() {
-  if (process.env.CLAWDBOT_DISABLE_BONJOUR === "1") return true;
-  if (process.env.NODE_ENV === "test") return true;
-  if (process.env.VITEST) return true;
+  if (isTruthyEnvValue(process.env.OPENCLAW_DISABLE_BONJOUR)) {
+    return true;
+  }
+  if (process.env.NODE_ENV === "test") {
+    return true;
+  }
+  if (process.env.VITEST) {
+    return true;
+  }
   return false;
 }
 
 function safeServiceName(name: string) {
   const trimmed = name.trim();
-  return trimmed.length > 0 ? trimmed : "Clawdbot";
+  return trimmed.length > 0 ? trimmed : "OpenClaw";
 }
 
 function prettifyInstanceName(name: string) {
   const normalized = name.trim().replace(/\s+/g, " ");
-  return normalized.replace(/\s+\(Clawdbot\)\s*$/i, "").trim() || normalized;
+  return normalized.replace(/\s+\(OpenClaw\)\s*$/i, "").trim() || normalized;
 }
 
 type BonjourService = {
@@ -85,16 +94,19 @@ export async function startGatewayBonjourAdvertiser(
   // mDNS service instance names are single DNS labels; dots in hostnames (like
   // `Mac.localdomain`) can confuse some resolvers/browsers and break discovery.
   // Keep only the first label and normalize away a trailing `.local`.
+  const hostnameRaw =
+    process.env.OPENCLAW_MDNS_HOSTNAME?.trim() ||
+    process.env.CLAWDBOT_MDNS_HOSTNAME?.trim() ||
+    "openclaw";
   const hostname =
-    os
-      .hostname()
+    hostnameRaw
       .replace(/\.local$/i, "")
       .split(".")[0]
-      .trim() || "clawdbot";
+      .trim() || "openclaw";
   const instanceName =
     typeof opts.instanceName === "string" && opts.instanceName.trim()
       ? opts.instanceName.trim()
-      : `${hostname} (Clawdbot)`;
+      : `${hostname} (OpenClaw)`;
   const displayName = prettifyInstanceName(instanceName);
 
   const txtBase: Record<string, string> = {
@@ -103,47 +115,49 @@ export async function startGatewayBonjourAdvertiser(
     lanHost: `${hostname}.local`,
     displayName,
   };
-  if (typeof opts.bridgePort === "number" && opts.bridgePort > 0) {
-    txtBase.bridgePort = String(opts.bridgePort);
+  if (opts.gatewayTlsEnabled) {
+    txtBase.gatewayTls = "1";
+    if (opts.gatewayTlsFingerprintSha256) {
+      txtBase.gatewayTlsSha256 = opts.gatewayTlsFingerprintSha256;
+    }
   }
   if (typeof opts.canvasPort === "number" && opts.canvasPort > 0) {
     txtBase.canvasPort = String(opts.canvasPort);
   }
-  if (opts.bridgeTlsEnabled) {
-    txtBase.bridgeTls = "1";
-    if (opts.bridgeTlsFingerprintSha256) {
-      txtBase.bridgeTlsSha256 = opts.bridgeTlsFingerprintSha256;
-    }
-  }
   if (typeof opts.tailnetDns === "string" && opts.tailnetDns.trim()) {
     txtBase.tailnetDns = opts.tailnetDns.trim();
   }
-  if (typeof opts.cliPath === "string" && opts.cliPath.trim()) {
+  // In minimal mode, omit cliPath to avoid exposing filesystem structure.
+  // This info can be obtained via the authenticated WebSocket if needed.
+  if (!opts.minimal && typeof opts.cliPath === "string" && opts.cliPath.trim()) {
     txtBase.cliPath = opts.cliPath.trim();
   }
 
   const services: Array<{ label: string; svc: BonjourService }> = [];
 
-  // Bridge beacon (used by macOS/iOS/Android nodes and the mac app onboarding flow).
-  if (typeof opts.bridgePort === "number" && opts.bridgePort > 0) {
-    const bridge = responder.createService({
-      name: safeServiceName(instanceName),
-      type: "clawdbot-bridge",
-      protocol: Protocol.TCP,
-      port: opts.bridgePort,
-      domain: "local",
-      hostname,
-      txt: {
-        ...txtBase,
-        sshPort: String(opts.sshPort ?? 22),
-        transport: "bridge",
-      },
-    });
-    services.push({
-      label: "bridge",
-      svc: bridge as unknown as BonjourService,
-    });
+  // Build TXT record for the gateway service.
+  // In minimal mode, omit sshPort to avoid advertising SSH availability.
+  const gatewayTxt: Record<string, string> = {
+    ...txtBase,
+    transport: "gateway",
+  };
+  if (!opts.minimal) {
+    gatewayTxt.sshPort = String(opts.sshPort ?? 22);
   }
+
+  const gateway = responder.createService({
+    name: safeServiceName(instanceName),
+    type: "openclaw-gw",
+    protocol: Protocol.TCP,
+    port: opts.gatewayPort,
+    domain: "local",
+    hostname,
+    txt: gatewayTxt,
+  });
+  services.push({
+    label: "gateway",
+    svc: gateway as unknown as BonjourService,
+  });
 
   let ciaoCancellationRejectionHandler: (() => void) | undefined;
   if (services.length > 0) {
@@ -155,9 +169,7 @@ export async function startGatewayBonjourAdvertiser(
   logDebug(
     `bonjour: starting (hostname=${hostname}, instance=${JSON.stringify(
       safeServiceName(instanceName),
-    )}, gatewayPort=${opts.gatewayPort}, bridgePort=${opts.bridgePort ?? 0}, sshPort=${
-      opts.sshPort ?? 22
-    })`,
+    )}, gatewayPort=${opts.gatewayPort}${opts.minimal ? ", minimal=true" : `, sshPort=${opts.sshPort ?? 22}`})`,
   );
 
   for (const { label, svc } of services) {
@@ -206,8 +218,12 @@ export async function startGatewayBonjourAdvertiser(
   const watchdog = setInterval(() => {
     for (const { label, svc } of services) {
       const stateUnknown = (svc as { serviceState?: unknown }).serviceState;
-      if (typeof stateUnknown !== "string") continue;
-      if (stateUnknown === "announced" || stateUnknown === "announcing") continue;
+      if (typeof stateUnknown !== "string") {
+        continue;
+      }
+      if (stateUnknown === "announced" || stateUnknown === "announcing") {
+        continue;
+      }
 
       let key = label;
       try {
@@ -217,7 +233,9 @@ export async function startGatewayBonjourAdvertiser(
       }
       const now = Date.now();
       const last = lastRepairAttempt.get(key) ?? 0;
-      if (now - last < 30_000) continue;
+      if (now - last < 30_000) {
+        continue;
+      }
       lastRepairAttempt.set(key, now);
 
       logWarn(

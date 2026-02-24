@@ -1,71 +1,33 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { Api, AssistantMessage, ImageContent, Model } from "@mariozechner/pi-ai";
-import type { discoverAuthStorage, discoverModels } from "@mariozechner/pi-coding-agent";
-
-import type { ReasoningLevel, ThinkLevel, VerboseLevel } from "../../../auto-reply/thinking.js";
-import type { ClawdbotConfig } from "../../../config/config.js";
-import type { ExecElevatedDefaults } from "../../bash-tools.js";
-import type { MessagingToolSend } from "../../pi-embedded-messaging.js";
-import type { BlockReplyChunking, ToolResultFormat } from "../../pi-embedded-subscribe.js";
-import type { SkillSnapshot } from "../../skills.js";
+import type { Api, AssistantMessage, Model } from "@mariozechner/pi-ai";
+import type { ThinkLevel } from "../../../auto-reply/thinking.js";
 import type { SessionSystemPromptReport } from "../../../config/sessions/types.js";
+import type { PluginHookBeforeAgentStartResult } from "../../../plugins/types.js";
+import type { MessagingToolSend } from "../../pi-embedded-messaging.js";
+import type { AuthStorage, ModelRegistry } from "../../pi-model-discovery.js";
+import type { NormalizedUsage } from "../../usage.js";
+import type { RunEmbeddedPiAgentParams } from "./params.js";
 
-type AuthStorage = ReturnType<typeof discoverAuthStorage>;
-type ModelRegistry = ReturnType<typeof discoverModels>;
+type EmbeddedRunAttemptBase = Omit<
+  RunEmbeddedPiAgentParams,
+  "provider" | "model" | "authProfileId" | "authProfileIdSource" | "thinkLevel" | "lane" | "enqueue"
+>;
 
-export type EmbeddedRunAttemptParams = {
-  sessionId: string;
-  sessionKey?: string;
-  messageChannel?: string;
-  messageProvider?: string;
-  agentAccountId?: string;
-  currentChannelId?: string;
-  currentThreadTs?: string;
-  replyToMode?: "off" | "first" | "all";
-  hasRepliedRef?: { value: boolean };
-  sessionFile: string;
-  workspaceDir: string;
-  agentDir?: string;
-  config?: ClawdbotConfig;
-  skillsSnapshot?: SkillSnapshot;
-  prompt: string;
-  images?: ImageContent[];
+export type EmbeddedRunAttemptParams = EmbeddedRunAttemptBase & {
   provider: string;
   modelId: string;
   model: Model<Api>;
   authStorage: AuthStorage;
   modelRegistry: ModelRegistry;
   thinkLevel: ThinkLevel;
-  verboseLevel?: VerboseLevel;
-  reasoningLevel?: ReasoningLevel;
-  toolResultFormat?: ToolResultFormat;
-  bashElevated?: ExecElevatedDefaults;
-  timeoutMs: number;
-  runId: string;
-  abortSignal?: AbortSignal;
-  shouldEmitToolResult?: () => boolean;
-  shouldEmitToolOutput?: () => boolean;
-  onPartialReply?: (payload: { text?: string; mediaUrls?: string[] }) => void | Promise<void>;
-  onAssistantMessageStart?: () => void | Promise<void>;
-  onBlockReply?: (payload: {
-    text?: string;
-    mediaUrls?: string[];
-    audioAsVoice?: boolean;
-  }) => void | Promise<void>;
-  onBlockReplyFlush?: () => void | Promise<void>;
-  blockReplyBreak?: "text_end" | "message_end";
-  blockReplyChunking?: BlockReplyChunking;
-  onReasoningStream?: (payload: { text?: string; mediaUrls?: string[] }) => void | Promise<void>;
-  onToolResult?: (payload: { text?: string; mediaUrls?: string[] }) => void | Promise<void>;
-  onAgentEvent?: (evt: { stream: string; data: Record<string, unknown> }) => void;
-  extraSystemPrompt?: string;
-  ownerNumbers?: string[];
-  enforceFinalTag?: boolean;
+  legacyBeforeAgentStartResult?: PluginHookBeforeAgentStartResult;
 };
 
 export type EmbeddedRunAttemptResult = {
   aborted: boolean;
   timedOut: boolean;
+  /** True if the timeout occurred while compaction was in progress or pending. */
+  timedOutDuringCompaction: boolean;
   promptError: unknown;
   sessionIdUsed: string;
   systemPromptReport?: SessionSystemPromptReport;
@@ -73,8 +35,21 @@ export type EmbeddedRunAttemptResult = {
   assistantTexts: string[];
   toolMetas: Array<{ toolName: string; meta?: string }>;
   lastAssistant: AssistantMessage | undefined;
+  lastToolError?: {
+    toolName: string;
+    meta?: string;
+    error?: string;
+    mutatingAction?: boolean;
+    actionFingerprint?: string;
+  };
   didSendViaMessagingTool: boolean;
   messagingToolSentTexts: string[];
+  messagingToolSentMediaUrls: string[];
   messagingToolSentTargets: MessagingToolSend[];
+  successfulCronAdds?: number;
   cloudCodeAssistFormatError: boolean;
+  attemptUsage?: NormalizedUsage;
+  compactionCount?: number;
+  /** Client tool call detected (OpenResponses hosted tools). */
+  clientToolCall?: { name: string; params: Record<string, unknown> };
 };

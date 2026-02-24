@@ -1,9 +1,8 @@
+import type { BaseProbeResult } from "openclaw/plugin-sdk";
 import { createMatrixClient, isBunRuntime } from "./client.js";
 
-export type MatrixProbe = {
-  ok: boolean;
+export type MatrixProbe = BaseProbeResult & {
   status?: number | null;
-  error?: string | null;
   elapsedMs: number;
   userId?: string | null;
 };
@@ -49,9 +48,10 @@ export async function probeMatrix(params: {
       accessToken: params.accessToken,
       localTimeoutMs: params.timeoutMs,
     });
-    const res = await client.whoami();
+    // @vector-im/matrix-bot-sdk uses getUserId() which calls whoami internally
+    const userId = await client.getUserId();
     result.ok = true;
-    result.userId = res.user_id ?? null;
+    result.userId = userId ?? null;
 
     result.elapsedMs = Date.now() - started;
     return result;
@@ -59,8 +59,8 @@ export async function probeMatrix(params: {
     return {
       ...result,
       status:
-        typeof err === "object" && err && "httpStatus" in err
-          ? Number((err as { httpStatus?: number }).httpStatus)
+        typeof err === "object" && err && "statusCode" in err
+          ? Number((err as { statusCode?: number }).statusCode)
           : result.status,
       error: err instanceof Error ? err.message : String(err),
       elapsedMs: Date.now() - started,

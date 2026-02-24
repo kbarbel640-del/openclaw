@@ -1,11 +1,20 @@
-import type { BlockStreamingCoalesceConfig, DmPolicy, GroupPolicy } from "./types.base.js";
+import type {
+  BlockStreamingCoalesceConfig,
+  DmPolicy,
+  GroupPolicy,
+  MarkdownConfig,
+} from "./types.base.js";
+import type { ChannelHeartbeatVisibilityConfig } from "./types.channels.js";
 import type { DmConfig } from "./types.messages.js";
+import type { GroupToolPolicyBySenderConfig, GroupToolPolicyConfig } from "./types.tools.js";
 
 export type IMessageAccountConfig = {
   /** Optional display name for this account (used in CLI/UI lists). */
   name?: string;
   /** Optional provider capability tags used for agent/runtime guidance. */
   capabilities?: string[];
+  /** Markdown formatting overrides (tables). */
+  markdown?: MarkdownConfig;
   /** Allow channel-initiated config writes (default: true). */
   configWrites?: boolean;
   /** If false, do not start this iMessage account. Default: true. */
@@ -14,7 +23,7 @@ export type IMessageAccountConfig = {
   cliPath?: string;
   /** Optional Messages db path override. */
   dbPath?: string;
-  /** Remote host for SCP when attachments live on a different machine (e.g., clawdbot@192.168.64.3). */
+  /** Remote SSH host token for SCP attachment fetches (`host` or `user@host`). */
   remoteHost?: string;
   /** Optional default send service (imessage|sms|auto). */
   service?: "imessage" | "sms" | "auto";
@@ -24,6 +33,8 @@ export type IMessageAccountConfig = {
   dmPolicy?: DmPolicy;
   /** Optional allowlist for inbound handles or chat_id targets. */
   allowFrom?: Array<string | number>;
+  /** Default delivery target for CLI --deliver when no explicit --reply-to is provided. */
+  defaultTo?: string;
   /** Optional allowlist for group senders or chat_id targets. */
   groupAllowFrom?: Array<string | number>;
   /**
@@ -41,10 +52,18 @@ export type IMessageAccountConfig = {
   dms?: Record<string, DmConfig>;
   /** Include attachments + reactions in watch payloads. */
   includeAttachments?: boolean;
+  /** Allowed local iMessage attachment roots (supports single-segment `*` wildcards). */
+  attachmentRoots?: string[];
+  /** Allowed remote iMessage attachment roots for SCP fetches (supports `*`). */
+  remoteAttachmentRoots?: string[];
   /** Max outbound media size in MB. */
   mediaMaxMb?: number;
+  /** Timeout for probe/RPC operations in milliseconds (default: 10000). */
+  probeTimeoutMs?: number;
   /** Outbound text chunk size (chars). Default: 4000. */
   textChunkLimit?: number;
+  /** Chunking mode: "length" (default) splits by size; "newline" splits on every newline. */
+  chunkMode?: "length" | "newline";
   blockStreaming?: boolean;
   /** Merge streamed block replies before sending. */
   blockStreamingCoalesce?: BlockStreamingCoalesceConfig;
@@ -52,8 +71,14 @@ export type IMessageAccountConfig = {
     string,
     {
       requireMention?: boolean;
+      tools?: GroupToolPolicyConfig;
+      toolsBySender?: GroupToolPolicyBySenderConfig;
     }
   >;
+  /** Heartbeat visibility settings for this channel. */
+  heartbeat?: ChannelHeartbeatVisibilityConfig;
+  /** Outbound response prefix override for this channel/account. */
+  responsePrefix?: string;
 };
 
 export type IMessageConfig = {

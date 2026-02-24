@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { ChannelDirectoryEntry } from "../../channels/plugins/types.js";
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { resetDirectoryCache, resolveMessagingTarget } from "./target-resolver.js";
 
 const mocks = vi.hoisted(() => ({
@@ -16,12 +15,12 @@ vi.mock("../../channels/plugins/index.js", () => ({
 }));
 
 describe("resolveMessagingTarget (directory fallback)", () => {
-  const cfg = {} as ClawdbotConfig;
+  const cfg = {} as OpenClawConfig;
 
   beforeEach(() => {
-    mocks.listGroups.mockReset();
-    mocks.listGroupsLive.mockReset();
-    mocks.getChannelPlugin.mockReset();
+    mocks.listGroups.mockClear();
+    mocks.listGroupsLive.mockClear();
+    mocks.getChannelPlugin.mockClear();
     resetDirectoryCache();
     mocks.getChannelPlugin.mockReturnValue({
       directory: {
@@ -32,7 +31,7 @@ describe("resolveMessagingTarget (directory fallback)", () => {
   });
 
   it("uses live directory fallback and caches the result", async () => {
-    const entry: ChannelDirectoryEntry = { id: "123456789", name: "support" };
+    const entry: ChannelDirectoryEntry = { kind: "group", id: "123456789", name: "support" };
     mocks.listGroups.mockResolvedValue([]);
     mocks.listGroupsLive.mockResolvedValue([entry]);
 

@@ -1,47 +1,146 @@
 import { createHash } from "node:crypto";
-
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 
-export function sanitizeToolCallId(id: string): string {
-  if (!id || typeof id !== "string") return "default_tool_id";
+export type ToolCallIdMode = "strict" | "strict9";
 
-  const cloudCodeAssistPatternReplacement = id.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const trimmedInvalidStartChars = cloudCodeAssistPatternReplacement.replace(
-    /^[^a-zA-Z0-9_-]+/,
-    "",
-  );
+const STRICT9_LEN = 9;
+const TOOL_CALL_TYPES = new Set(["toolCall", "toolUse", "functionCall"]);
 
-  return trimmedInvalidStartChars.length > 0 ? trimmedInvalidStartChars : "sanitized_tool_id";
-}
+export type ToolCallLike = {
+  id: string;
+  name?: string;
+};
 
-export function isValidCloudCodeAssistToolId(id: string): boolean {
-  if (!id || typeof id !== "string") return false;
-  return /^[a-zA-Z0-9_-]+$/.test(id);
-}
-
-function shortHash(text: string): string {
-  return createHash("sha1").update(text).digest("hex").slice(0, 8);
-}
-
-function makeUniqueToolId(params: { id: string; used: Set<string> }): string {
-  const MAX_LEN = 40;
-
-  const base = sanitizeToolCallId(params.id).slice(0, MAX_LEN);
-  if (!params.used.has(base)) return base;
-
-  const hash = shortHash(params.id);
-  const maxBaseLen = MAX_LEN - 1 - hash.length;
-  const clippedBase = base.length > maxBaseLen ? base.slice(0, maxBaseLen) : base;
-  const candidate = `${clippedBase}_${hash}`;
-  if (!params.used.has(candidate)) return candidate;
-
-  for (let i = 2; i < 1000; i += 1) {
-    const suffix = `_${i}`;
-    const next = `${candidate.slice(0, MAX_LEN - suffix.length)}${suffix}`;
-    if (!params.used.has(next)) return next;
+/**
+ * Sanitize a tool call ID to be compatible with various providers.
+ *
+ * - "strict" mode: only [a-zA-Z0-9]
+ * - "strict9" mode: only [a-zA-Z0-9], length 9 (Mistral tool call requirement)
+ */
+export function sanitizeToolCallId(id: string, mode: ToolCallIdMode = "strict"): string {
+  if (!id || typeof id !== "string") {
+    if (mode === "strict9") {
+      return "defaultid";
+    }
+    return "defaulttoolid";
   }
 
-  const ts = `_${Date.now()}`;
+  if (mode === "strict9") {
+    const alphanumericOnly = id.replace(/[^a-zA-Z0-9]/g, "");
+    if (alphanumericOnly.length >= STRICT9_LEN) {
+      return alphanumericOnly.slice(0, STRICT9_LEN);
+    }
+    if (alphanumericOnly.length > 0) {
+      return shortHash(alphanumericOnly, STRICT9_LEN);
+    }
+    return shortHash("sanitized", STRICT9_LEN);
+  }
+
+  // Some providers require strictly alphanumeric tool call IDs.
+  const alphanumericOnly = id.replace(/[^a-zA-Z0-9]/g, "");
+  return alphanumericOnly.length > 0 ? alphanumericOnly : "sanitizedtoolid";
+}
+
+export function extractToolCallsFromAssistant(
+  msg: Extract<AgentMessage, { role: "assistant" }>,
+): ToolCallLike[] {
+  const content = msg.content;
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  const toolCalls: ToolCallLike[] = [];
+  for (const block of content) {
+    if (!block || typeof block !== "object") {
+      continue;
+    }
+    const rec = block as { type?: unknown; id?: unknown; name?: unknown };
+    if (typeof rec.id !== "string" || !rec.id) {
+      continue;
+    }
+    if (typeof rec.type === "string" && TOOL_CALL_TYPES.has(rec.type)) {
+      toolCalls.push({
+        id: rec.id,
+        name: typeof rec.name === "string" ? rec.name : undefined,
+      });
+    }
+  }
+  return toolCalls;
+}
+
+export function extractToolResultId(
+  msg: Extract<AgentMessage, { role: "toolResult" }>,
+): string | null {
+  const toolCallId = (msg as { toolCallId?: unknown }).toolCallId;
+  if (typeof toolCallId === "string" && toolCallId) {
+    return toolCallId;
+  }
+  const toolUseId = (msg as { toolUseId?: unknown }).toolUseId;
+  if (typeof toolUseId === "string" && toolUseId) {
+    return toolUseId;
+  }
+  return null;
+}
+
+export function isValidCloudCodeAssistToolId(id: string, mode: ToolCallIdMode = "strict"): boolean {
+  if (!id || typeof id !== "string") {
+    return false;
+  }
+  if (mode === "strict9") {
+    return /^[a-zA-Z0-9]{9}$/.test(id);
+  }
+  // Strictly alphanumeric for providers with tighter tool ID constraints
+  return /^[a-zA-Z0-9]+$/.test(id);
+}
+
+function shortHash(text: string, length = 8): string {
+  return createHash("sha256").update(text).digest("hex").slice(0, length);
+}
+
+function makeUniqueToolId(params: { id: string; used: Set<string>; mode: ToolCallIdMode }): string {
+  if (params.mode === "strict9") {
+    const base = sanitizeToolCallId(params.id, params.mode);
+    const candidate = base.length >= STRICT9_LEN ? base.slice(0, STRICT9_LEN) : "";
+    if (candidate && !params.used.has(candidate)) {
+      return candidate;
+    }
+
+    for (let i = 0; i < 1000; i += 1) {
+      const hashed = shortHash(`${params.id}:${i}`, STRICT9_LEN);
+      if (!params.used.has(hashed)) {
+        return hashed;
+      }
+    }
+
+    return shortHash(`${params.id}:${Date.now()}`, STRICT9_LEN);
+  }
+
+  const MAX_LEN = 40;
+
+  const base = sanitizeToolCallId(params.id, params.mode).slice(0, MAX_LEN);
+  if (!params.used.has(base)) {
+    return base;
+  }
+
+  const hash = shortHash(params.id);
+  // Use separator based on mode: none for strict, underscore for non-strict variants
+  const separator = params.mode === "strict" ? "" : "_";
+  const maxBaseLen = MAX_LEN - separator.length - hash.length;
+  const clippedBase = base.length > maxBaseLen ? base.slice(0, maxBaseLen) : base;
+  const candidate = `${clippedBase}${separator}${hash}`;
+  if (!params.used.has(candidate)) {
+    return candidate;
+  }
+
+  for (let i = 2; i < 1000; i += 1) {
+    const suffix = params.mode === "strict" ? `x${i}` : `_${i}`;
+    const next = `${candidate.slice(0, MAX_LEN - suffix.length)}${suffix}`;
+    if (!params.used.has(next)) {
+      return next;
+    }
+  }
+
+  const ts = params.mode === "strict" ? `t${Date.now()}` : `_${Date.now()}`;
   return `${candidate.slice(0, MAX_LEN - ts.length)}${ts}`;
 }
 
@@ -50,11 +149,15 @@ function rewriteAssistantToolCallIds(params: {
   resolve: (id: string) => string;
 }): Extract<AgentMessage, { role: "assistant" }> {
   const content = params.message.content;
-  if (!Array.isArray(content)) return params.message;
+  if (!Array.isArray(content)) {
+    return params.message;
+  }
 
   let changed = false;
   const next = content.map((block) => {
-    if (!block || typeof block !== "object") return block;
+    if (!block || typeof block !== "object") {
+      return block;
+    }
     const rec = block as { type?: unknown; id?: unknown };
     const type = rec.type;
     const id = rec.id;
@@ -66,12 +169,16 @@ function rewriteAssistantToolCallIds(params: {
       return block;
     }
     const nextId = params.resolve(id);
-    if (nextId === id) return block;
+    if (nextId === id) {
+      return block;
+    }
     changed = true;
     return { ...(block as unknown as Record<string, unknown>), id: nextId };
   });
 
-  if (!changed) return params.message;
+  if (!changed) {
+    return params.message;
+  }
   return { ...params.message, content: next as typeof params.message.content };
 }
 
@@ -100,17 +207,29 @@ function rewriteToolResultIds(params: {
   } as Extract<AgentMessage, { role: "toolResult" }>;
 }
 
-export function sanitizeToolCallIdsForCloudCodeAssist(messages: AgentMessage[]): AgentMessage[] {
-  // Cloud Code Assist requires tool IDs matching ^[a-zA-Z0-9_-]+$.
-  // Sanitization can introduce collisions (e.g. `a|b` and `a:b` -> `a_b`).
+/**
+ * Sanitize tool call IDs for provider compatibility.
+ *
+ * @param messages - The messages to sanitize
+ * @param mode - "strict" (alphanumeric only) or "strict9" (alphanumeric length 9)
+ */
+export function sanitizeToolCallIdsForCloudCodeAssist(
+  messages: AgentMessage[],
+  mode: ToolCallIdMode = "strict",
+): AgentMessage[] {
+  // Strict mode: only [a-zA-Z0-9]
+  // Strict9 mode: only [a-zA-Z0-9], length 9 (Mistral tool call requirement)
+  // Sanitization can introduce collisions (e.g. `a|b` and `a:b` -> `ab`).
   // Fix by applying a stable, transcript-wide mapping and de-duping via suffix.
   const map = new Map<string, string>();
   const used = new Set<string>();
 
   const resolve = (id: string) => {
     const existing = map.get(id);
-    if (existing) return existing;
-    const next = makeUniqueToolId({ id, used });
+    if (existing) {
+      return existing;
+    }
+    const next = makeUniqueToolId({ id, used, mode });
     map.set(id, next);
     used.add(next);
     return next;
@@ -118,14 +237,18 @@ export function sanitizeToolCallIdsForCloudCodeAssist(messages: AgentMessage[]):
 
   let changed = false;
   const out = messages.map((msg) => {
-    if (!msg || typeof msg !== "object") return msg;
+    if (!msg || typeof msg !== "object") {
+      return msg;
+    }
     const role = (msg as { role?: unknown }).role;
     if (role === "assistant") {
       const next = rewriteAssistantToolCallIds({
         message: msg as Extract<AgentMessage, { role: "assistant" }>,
         resolve,
       });
-      if (next !== msg) changed = true;
+      if (next !== msg) {
+        changed = true;
+      }
       return next;
     }
     if (role === "toolResult") {
@@ -133,7 +256,9 @@ export function sanitizeToolCallIdsForCloudCodeAssist(messages: AgentMessage[]):
         message: msg as Extract<AgentMessage, { role: "toolResult" }>,
         resolve,
       });
-      if (next !== msg) changed = true;
+      if (next !== msg) {
+        changed = true;
+      }
       return next;
     }
     return msg;

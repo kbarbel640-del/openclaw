@@ -1,23 +1,23 @@
 import crypto from "node:crypto";
-import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
 import { isCliProvider } from "../../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import { resolveSandboxConfigForAgent, resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
-import type { ClawdbotConfig } from "../../config/config.js";
-import {
-  resolveAgentIdFromSessionKey,
-  type SessionEntry,
-  updateSessionStoreEntry,
-} from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/config.js";
+import { type SessionEntry, updateSessionStoreEntry } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
 import type { TemplateContext } from "../templating.js";
 import type { VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions } from "../types.js";
-import { buildThreadingToolContext, resolveEnforceFinalTag } from "./agent-runner-utils.js";
+import {
+  buildEmbeddedRunBaseParams,
+  buildEmbeddedRunContexts,
+  resolveModelFallbackOptions,
+} from "./agent-runner-utils.js";
 import {
   resolveMemoryFlushContextWindowTokens,
+  resolveMemoryFlushPromptForRun,
   resolveMemoryFlushSettings,
   shouldRunMemoryFlush,
 } from "./memory-flush.js";
@@ -25,7 +25,7 @@ import type { FollowupRun } from "./queue.js";
 import { incrementCompactionCount } from "./session-updates.js";
 
 export async function runMemoryFlushIfNeeded(params: {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   followupRun: FollowupRun;
   sessionCtx: TemplateContext;
   opts?: GetReplyOptions;
@@ -39,15 +39,21 @@ export async function runMemoryFlushIfNeeded(params: {
   isHeartbeat: boolean;
 }): Promise<SessionEntry | undefined> {
   const memoryFlushSettings = resolveMemoryFlushSettings(params.cfg);
-  if (!memoryFlushSettings) return params.sessionEntry;
+  if (!memoryFlushSettings) {
+    return params.sessionEntry;
+  }
 
   const memoryFlushWritable = (() => {
-    if (!params.sessionKey) return true;
+    if (!params.sessionKey) {
+      return true;
+    }
     const runtime = resolveSandboxRuntimeStatus({
       cfg: params.cfg,
       sessionKey: params.sessionKey,
     });
-    if (!runtime.sandboxed) return true;
+    if (!runtime.sandboxed) {
+      return true;
+    }
     const sandboxCfg = resolveSandboxConfigForAgent(params.cfg, runtime.agentId);
     return sandboxCfg.workspaceAccess === "rw";
   })();
@@ -69,7 +75,9 @@ export async function runMemoryFlushIfNeeded(params: {
       softThresholdTokens: memoryFlushSettings.softThresholdTokens,
     });
 
-  if (!shouldFlushMemory) return params.sessionEntry;
+  if (!shouldFlushMemory) {
+    return params.sessionEntry;
+  }
 
   let activeSessionEntry = params.sessionEntry;
   const activeSessionStore = params.sessionStore;
@@ -89,53 +97,40 @@ export async function runMemoryFlushIfNeeded(params: {
     .join("\n\n");
   try {
     await runWithModelFallback({
-      cfg: params.followupRun.run.config,
-      provider: params.followupRun.run.provider,
-      model: params.followupRun.run.model,
-      fallbacksOverride: resolveAgentModelFallbacksOverride(
-        params.followupRun.run.config,
-        resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey),
-      ),
-      run: (provider, model) =>
-        runEmbeddedPiAgent({
-          sessionId: params.followupRun.run.sessionId,
-          sessionKey: params.sessionKey,
-          messageProvider: params.sessionCtx.Provider?.trim().toLowerCase() || undefined,
-          agentAccountId: params.sessionCtx.AccountId,
-          // Provider threading context for tool auto-injection
-          ...buildThreadingToolContext({
-            sessionCtx: params.sessionCtx,
-            config: params.followupRun.run.config,
-            hasRepliedRef: params.opts?.hasRepliedRef,
-          }),
-          sessionFile: params.followupRun.run.sessionFile,
-          workspaceDir: params.followupRun.run.workspaceDir,
-          agentDir: params.followupRun.run.agentDir,
-          config: params.followupRun.run.config,
-          skillsSnapshot: params.followupRun.run.skillsSnapshot,
-          prompt: memoryFlushSettings.prompt,
-          extraSystemPrompt: flushSystemPrompt,
-          ownerNumbers: params.followupRun.run.ownerNumbers,
-          enforceFinalTag: resolveEnforceFinalTag(params.followupRun.run, provider),
+      ...resolveModelFallbackOptions(params.followupRun.run),
+      run: (provider, model) => {
+        const { authProfile, embeddedContext, senderContext } = buildEmbeddedRunContexts({
+          run: params.followupRun.run,
+          sessionCtx: params.sessionCtx,
+          hasRepliedRef: params.opts?.hasRepliedRef,
+          provider,
+        });
+        const runBaseParams = buildEmbeddedRunBaseParams({
+          run: params.followupRun.run,
           provider,
           model,
-          authProfileId: params.followupRun.run.authProfileId,
-          thinkLevel: params.followupRun.run.thinkLevel,
-          verboseLevel: params.followupRun.run.verboseLevel,
-          reasoningLevel: params.followupRun.run.reasoningLevel,
-          bashElevated: params.followupRun.run.bashElevated,
-          timeoutMs: params.followupRun.run.timeoutMs,
           runId: flushRunId,
+          authProfile,
+        });
+        return runEmbeddedPiAgent({
+          ...embeddedContext,
+          ...senderContext,
+          ...runBaseParams,
+          prompt: resolveMemoryFlushPromptForRun({
+            prompt: memoryFlushSettings.prompt,
+            cfg: params.cfg,
+          }),
+          extraSystemPrompt: flushSystemPrompt,
           onAgentEvent: (evt) => {
             if (evt.stream === "compaction") {
               const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
-              const willRetry = Boolean(evt.data.willRetry);
-              if (phase === "end" && !willRetry) {
+              if (phase === "end") {
                 memoryCompactionCompleted = true;
               }
             }
           },
-        }),
+        });
+      },
     });
     let memoryFlushCompactionCount =
       activeSessionEntry?.compactionCount ??

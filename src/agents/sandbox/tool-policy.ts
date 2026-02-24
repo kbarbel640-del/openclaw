@@ -1,5 +1,6 @@
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { resolveAgentConfig } from "../agent-scope.js";
+import { compileGlobPatterns, matchesAnyGlobPattern } from "../glob-pattern.js";
 import { expandToolGroups } from "../tool-policy.js";
 import { DEFAULT_TOOL_ALLOW, DEFAULT_TOOL_DENY } from "./constants.js";
 import type {
@@ -8,16 +9,31 @@ import type {
   SandboxToolPolicySource,
 } from "./types.js";
 
+function normalizeGlob(value: string) {
+  return value.trim().toLowerCase();
+}
+
 export function isToolAllowed(policy: SandboxToolPolicy, name: string) {
-  const deny = new Set(expandToolGroups(policy.deny));
-  if (deny.has(name.toLowerCase())) return false;
-  const allow = expandToolGroups(policy.allow);
-  if (allow.length === 0) return true;
-  return allow.includes(name.toLowerCase());
+  const normalized = normalizeGlob(name);
+  const deny = compileGlobPatterns({
+    raw: expandToolGroups(policy.deny ?? []),
+    normalize: normalizeGlob,
+  });
+  if (matchesAnyGlobPattern(normalized, deny)) {
+    return false;
+  }
+  const allow = compileGlobPatterns({
+    raw: expandToolGroups(policy.allow ?? []),
+    normalize: normalizeGlob,
+  });
+  if (allow.length === 0) {
+    return true;
+  }
+  return matchesAnyGlobPattern(normalized, allow);
 }
 
 export function resolveSandboxToolPolicyForAgent(
-  cfg?: ClawdbotConfig,
+  cfg?: OpenClawConfig,
   agentId?: string,
 ): SandboxToolPolicyResolved {
   const agentConfig = cfg && agentId ? resolveAgentConfig(cfg, agentId) : undefined;
@@ -73,6 +89,9 @@ export function resolveSandboxToolPolicyForAgent(
   // `image` is essential for multimodal workflows; always include it in sandboxed
   // sessions unless explicitly denied.
   if (
+    // Empty allowlist means "allow all" for `isToolAllowed`, so don't inject a
+    // single tool that would accidentally turn it into an explicit allowlist.
+    expandedAllow.length > 0 &&
     !expandedDeny.map((v) => v.toLowerCase()).includes("image") &&
     !expandedAllow.map((v) => v.toLowerCase()).includes("image")
   ) {

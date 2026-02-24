@@ -1,23 +1,15 @@
 # Changelog
 
-## 2026.1.16
+## 2026.2.22
 
 ### Changes
-- Version alignment with core Clawdbot release numbers.
 
-## 2026.1.15
-
-### Changes
-- Version alignment with core Clawdbot release numbers.
-
-## 2026.1.14
-
-### Changes
-- Version alignment with core Clawdbot release numbers.
+- Version alignment with core OpenClaw release numbers.
 
 ## 0.1.0
 
 ### Features
+
 - Zalo Bot API channel plugin with token-based auth (env/config/file).
 - Direct message support (DMs only) with pairing/allowlist/open/disabled policies.
 - Polling and webhook delivery modes.

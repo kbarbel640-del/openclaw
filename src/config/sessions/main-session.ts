@@ -12,7 +12,9 @@ export function resolveMainSessionKey(cfg?: {
   session?: { scope?: SessionScope; mainKey?: string };
   agents?: { list?: Array<{ id?: string; default?: boolean }> };
 }): string {
-  if (cfg?.session?.scope === "global") return "global";
+  if (cfg?.session?.scope === "global") {
+    return "global";
+  }
   const agents = cfg?.agents?.list ?? [];
   const defaultAgentId =
     agents.find((agent) => agent?.default)?.id ?? agents[0]?.id ?? DEFAULT_AGENT_ID;
@@ -35,13 +37,26 @@ export function resolveAgentMainSessionKey(params: {
   return buildAgentMainSessionKey({ agentId: params.agentId, mainKey });
 }
 
+export function resolveExplicitAgentSessionKey(params: {
+  cfg?: { session?: { scope?: SessionScope; mainKey?: string } };
+  agentId?: string | null;
+}): string | undefined {
+  const agentId = params.agentId?.trim();
+  if (!agentId) {
+    return undefined;
+  }
+  return resolveAgentMainSessionKey({ cfg: params.cfg, agentId });
+}
+
 export function canonicalizeMainSessionAlias(params: {
   cfg?: { session?: { scope?: SessionScope; mainKey?: string } };
   agentId: string;
   sessionKey: string;
 }): string {
   const raw = params.sessionKey.trim();
-  if (!raw) return raw;
+  if (!raw) {
+    return raw;
+  }
 
   const agentId = normalizeAgentId(params.agentId);
   const mainKey = normalizeMainKey(params.cfg?.session?.mainKey);
@@ -54,7 +69,11 @@ export function canonicalizeMainSessionAlias(params: {
   const isMainAlias =
     raw === "main" || raw === mainKey || raw === agentMainSessionKey || raw === agentMainAliasKey;
 
-  if (params.cfg?.session?.scope === "global" && isMainAlias) return "global";
-  if (isMainAlias) return agentMainSessionKey;
+  if (params.cfg?.session?.scope === "global" && isMainAlias) {
+    return "global";
+  }
+  if (isMainAlias) {
+    return agentMainSessionKey;
+  }
   return raw;
 }

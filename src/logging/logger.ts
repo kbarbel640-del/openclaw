@@ -1,25 +1,29 @@
 import fs from "node:fs";
 import path from "node:path";
-
 import { Logger as TsLogger } from "tslog";
-
-import { type ClawdbotConfig, loadConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.js";
+import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
+import { readLoggingConfig } from "./config.js";
 import type { ConsoleStyle } from "./console.js";
+import { resolveEnvLogLevelOverride } from "./env-log-level.js";
 import { type LogLevel, levelToMinLevel, normalizeLogLevel } from "./levels.js";
+import { resolveNodeRequireFromMeta } from "./node-require.js";
 import { loggingState } from "./state.js";
 
-// Pin to /tmp so mac Debug UI and docs match; os.tmpdir() can be a per-user
-// randomized path on macOS which made the “Open log” button a no-op.
-export const DEFAULT_LOG_DIR = "/tmp/clawdbot";
-export const DEFAULT_LOG_FILE = path.join(DEFAULT_LOG_DIR, "clawdbot.log"); // legacy single-file path
+export const DEFAULT_LOG_DIR = resolvePreferredOpenClawTmpDir();
+export const DEFAULT_LOG_FILE = path.join(DEFAULT_LOG_DIR, "openclaw.log"); // legacy single-file path
 
-const LOG_PREFIX = "clawdbot";
+const LOG_PREFIX = "openclaw";
 const LOG_SUFFIX = ".log";
 const MAX_LOG_AGE_MS = 24 * 60 * 60 * 1000; // 24h
+const DEFAULT_MAX_LOG_FILE_BYTES = 500 * 1024 * 1024; // 500 MB
+
+const requireConfig = resolveNodeRequireFromMeta(import.meta.url);
 
 export type LoggerSettings = {
   level?: LogLevel;
   file?: string;
+  maxFileBytes?: number;
   consoleLevel?: LogLevel;
   consoleStyle?: ConsoleStyle;
 };
@@ -29,26 +33,67 @@ type LogObj = { date?: Date } & Record<string, unknown>;
 type ResolvedSettings = {
   level: LogLevel;
   file: string;
+  maxFileBytes: number;
 };
 export type LoggerResolvedSettings = ResolvedSettings;
+export type LogTransportRecord = Record<string, unknown>;
+export type LogTransport = (logObj: LogTransportRecord) => void;
+
+const externalTransports = new Set<LogTransport>();
+
+function attachExternalTransport(logger: TsLogger<LogObj>, transport: LogTransport): void {
+  logger.attachTransport((logObj: LogObj) => {
+    if (!externalTransports.has(transport)) {
+      return;
+    }
+    try {
+      transport(logObj as LogTransportRecord);
+    } catch {
+      // never block on logging failures
+    }
+  });
+}
 
 function resolveSettings(): ResolvedSettings {
-  const cfg: ClawdbotConfig["logging"] | undefined =
-    (loggingState.overrideSettings as LoggerSettings | null) ?? loadConfig().logging;
-  const level = normalizeLogLevel(cfg?.level, "info");
+  let cfg: OpenClawConfig["logging"] | undefined =
+    (loggingState.overrideSettings as LoggerSettings | null) ?? readLoggingConfig();
+  if (!cfg) {
+    try {
+      const loaded = requireConfig?.("../config/config.js") as
+        | {
+            loadConfig?: () => OpenClawConfig;
+          }
+        | undefined;
+      cfg = loaded?.loadConfig?.().logging;
+    } catch {
+      cfg = undefined;
+    }
+  }
+  const defaultLevel =
+    process.env.VITEST === "true" && process.env.OPENCLAW_TEST_FILE_LOG !== "1" ? "silent" : "info";
+  const fromConfig = normalizeLogLevel(cfg?.level, defaultLevel);
+  const envLevel = resolveEnvLogLevelOverride();
+  const level = envLevel ?? fromConfig;
   const file = cfg?.file ?? defaultRollingPathForToday();
-  return { level, file };
+  const maxFileBytes = resolveMaxLogFileBytes(cfg?.maxFileBytes);
+  return { level, file, maxFileBytes };
 }
 
 function settingsChanged(a: ResolvedSettings | null, b: ResolvedSettings) {
-  if (!a) return true;
-  return a.level !== b.level || a.file !== b.file;
+  if (!a) {
+    return true;
+  }
+  return a.level !== b.level || a.file !== b.file || a.maxFileBytes !== b.maxFileBytes;
 }
 
 export function isFileLogLevelEnabled(level: LogLevel): boolean {
   const settings = (loggingState.cachedSettings as ResolvedSettings | null) ?? resolveSettings();
-  if (!loggingState.cachedSettings) loggingState.cachedSettings = settings;
-  if (settings.level === "silent") return false;
+  if (!loggingState.cachedSettings) {
+    loggingState.cachedSettings = settings;
+  }
+  if (settings.level === "silent") {
+    return false;
+  }
   return levelToMinLevel(level) <= levelToMinLevel(settings.level);
 }
 
@@ -58,8 +103,10 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
   if (isRollingPath(settings.file)) {
     pruneOldRollingLogs(path.dirname(settings.file));
   }
+  let currentFileBytes = getCurrentLogFileBytes(settings.file);
+  let warnedAboutSizeCap = false;
   const logger = new TsLogger<LogObj>({
-    name: "clawdbot",
+    name: "openclaw",
     minLevel: levelToMinLevel(settings.level),
     type: "hidden", // no ansi formatting
   });
@@ -68,13 +115,61 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
     try {
       const time = logObj.date?.toISOString?.() ?? new Date().toISOString();
       const line = JSON.stringify({ ...logObj, time });
-      fs.appendFileSync(settings.file, `${line}\n`, { encoding: "utf8" });
+      const payload = `${line}\n`;
+      const payloadBytes = Buffer.byteLength(payload, "utf8");
+      const nextBytes = currentFileBytes + payloadBytes;
+      if (nextBytes > settings.maxFileBytes) {
+        if (!warnedAboutSizeCap) {
+          warnedAboutSizeCap = true;
+          const warningLine = JSON.stringify({
+            time: new Date().toISOString(),
+            level: "warn",
+            subsystem: "logging",
+            message: `log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}`,
+          });
+          appendLogLine(settings.file, `${warningLine}\n`);
+          process.stderr.write(
+            `[openclaw] log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}\n`,
+          );
+        }
+        return;
+      }
+      if (appendLogLine(settings.file, payload)) {
+        currentFileBytes = nextBytes;
+      }
     } catch {
       // never block on logging failures
     }
   });
+  for (const transport of externalTransports) {
+    attachExternalTransport(logger, transport);
+  }
 
   return logger;
+}
+
+function resolveMaxLogFileBytes(raw: unknown): number {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  return DEFAULT_MAX_LOG_FILE_BYTES;
+}
+
+function getCurrentLogFileBytes(file: string): number {
+  try {
+    return fs.statSync(file).size;
+  } catch {
+    return 0;
+  }
+}
+
+function appendLogLine(file: string, line: string): boolean {
+  try {
+    fs.appendFileSync(file, line, { encoding: "utf8" });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function getLogger(): TsLogger<LogObj> {
@@ -154,8 +249,26 @@ export function resetLogger() {
   loggingState.overrideSettings = null;
 }
 
+export function registerLogTransport(transport: LogTransport): () => void {
+  externalTransports.add(transport);
+  const logger = loggingState.cachedLogger as TsLogger<LogObj> | null;
+  if (logger) {
+    attachExternalTransport(logger, transport);
+  }
+  return () => {
+    externalTransports.delete(transport);
+  };
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function defaultRollingPathForToday(): string {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = formatLocalDate(new Date());
   return path.join(DEFAULT_LOG_DIR, `${LOG_PREFIX}-${today}${LOG_SUFFIX}`);
 }
 
@@ -173,8 +286,12 @@ function pruneOldRollingLogs(dir: string): void {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     const cutoff = Date.now() - MAX_LOG_AGE_MS;
     for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      if (!entry.name.startsWith(`${LOG_PREFIX}-`) || !entry.name.endsWith(LOG_SUFFIX)) continue;
+      if (!entry.isFile()) {
+        continue;
+      }
+      if (!entry.name.startsWith(`${LOG_PREFIX}-`) || !entry.name.endsWith(LOG_SUFFIX)) {
+        continue;
+      }
       const fullPath = path.join(dir, entry.name);
       try {
         const stat = fs.statSync(fullPath);

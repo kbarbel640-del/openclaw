@@ -15,6 +15,9 @@ export const PresenceEntrySchema = Type.Object(
     tags: Type.Optional(Type.Array(NonEmptyString)),
     text: Type.Optional(Type.String()),
     ts: Type.Integer({ minimum: 0 }),
+    deviceId: Type.Optional(NonEmptyString),
+    roles: Type.Optional(Type.Array(NonEmptyString)),
+    scopes: Type.Optional(Type.Array(NonEmptyString)),
     instanceId: Type.Optional(NonEmptyString),
   },
   { additionalProperties: false },
@@ -49,6 +52,21 @@ export const SnapshotSchema = Type.Object(
     configPath: Type.Optional(NonEmptyString),
     stateDir: Type.Optional(NonEmptyString),
     sessionDefaults: Type.Optional(SessionDefaultsSchema),
+    authMode: Type.Optional(
+      Type.Union([
+        Type.Literal("none"),
+        Type.Literal("token"),
+        Type.Literal("password"),
+        Type.Literal("trusted-proxy"),
+      ]),
+    ),
+    updateAvailable: Type.Optional(
+      Type.Object({
+        currentVersion: NonEmptyString,
+        latestVersion: NonEmptyString,
+        channel: NonEmptyString,
+      }),
+    ),
   },
   { additionalProperties: false },
 );

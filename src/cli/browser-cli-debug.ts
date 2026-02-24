@@ -1,16 +1,30 @@
 import type { Command } from "commander";
-
-import { resolveBrowserControlUrl } from "../browser/client.js";
-import {
-  browserHighlight,
-  browserPageErrors,
-  browserRequests,
-  browserTraceStart,
-  browserTraceStop,
-} from "../browser/client-actions.js";
 import { danger } from "../globals.js";
 import { defaultRuntime } from "../runtime.js";
-import type { BrowserParentOpts } from "./browser-cli-shared.js";
+import { shortenHomePath } from "../utils.js";
+import { callBrowserRequest, type BrowserParentOpts } from "./browser-cli-shared.js";
+import { runCommandWithRuntime } from "./cli-utils.js";
+
+function runBrowserDebug(action: () => Promise<void>) {
+  return runCommandWithRuntime(defaultRuntime, action, (err) => {
+    defaultRuntime.error(danger(String(err)));
+    defaultRuntime.exit(1);
+  });
+}
+
+function resolveDebugQuery(params: {
+  targetId?: unknown;
+  clear?: unknown;
+  profile?: string;
+  filter?: unknown;
+}) {
+  return {
+    targetId: typeof params.targetId === "string" ? params.targetId.trim() || undefined : undefined,
+    filter: typeof params.filter === "string" ? params.filter.trim() || undefined : undefined,
+    clear: Boolean(params.clear),
+    profile: params.profile,
+  };
+}
 
 export function registerBrowserDebugCommands(
   browser: Command,
@@ -23,23 +37,27 @@ export function registerBrowserDebugCommands(
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .action(async (ref: string, opts, cmd) => {
       const parent = parentOpts(cmd);
-      const baseUrl = resolveBrowserControlUrl(parent?.url);
       const profile = parent?.browserProfile;
-      try {
-        const result = await browserHighlight(baseUrl, {
-          ref: ref.trim(),
-          targetId: opts.targetId?.trim() || undefined,
-          profile,
-        });
+      await runBrowserDebug(async () => {
+        const result = await callBrowserRequest(
+          parent,
+          {
+            method: "POST",
+            path: "/highlight",
+            query: profile ? { profile } : undefined,
+            body: {
+              ref: ref.trim(),
+              targetId: opts.targetId?.trim() || undefined,
+            },
+          },
+          { timeoutMs: 20000 },
+        );
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
         }
         defaultRuntime.log(`highlighted ${ref.trim()}`);
-      } catch (err) {
-        defaultRuntime.error(danger(String(err)));
-        defaultRuntime.exit(1);
-      }
+      });
     });
 
   browser
@@ -49,14 +67,23 @@ export function registerBrowserDebugCommands(
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .action(async (opts, cmd) => {
       const parent = parentOpts(cmd);
-      const baseUrl = resolveBrowserControlUrl(parent?.url);
       const profile = parent?.browserProfile;
-      try {
-        const result = await browserPageErrors(baseUrl, {
-          targetId: opts.targetId?.trim() || undefined,
-          clear: Boolean(opts.clear),
-          profile,
-        });
+      await runBrowserDebug(async () => {
+        const result = await callBrowserRequest<{
+          errors: Array<{ timestamp: string; name?: string; message: string }>;
+        }>(
+          parent,
+          {
+            method: "GET",
+            path: "/errors",
+            query: resolveDebugQuery({
+              targetId: opts.targetId,
+              clear: opts.clear,
+              profile,
+            }),
+          },
+          { timeoutMs: 20000 },
+        );
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
@@ -70,10 +97,7 @@ export function registerBrowserDebugCommands(
             .map((e) => `${e.timestamp} ${e.name ? `${e.name}: ` : ""}${e.message}`)
             .join("\n"),
         );
-      } catch (err) {
-        defaultRuntime.error(danger(String(err)));
-        defaultRuntime.exit(1);
-      }
+      });
     });
 
   browser
@@ -84,15 +108,31 @@ export function registerBrowserDebugCommands(
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .action(async (opts, cmd) => {
       const parent = parentOpts(cmd);
-      const baseUrl = resolveBrowserControlUrl(parent?.url);
       const profile = parent?.browserProfile;
-      try {
-        const result = await browserRequests(baseUrl, {
-          targetId: opts.targetId?.trim() || undefined,
-          filter: opts.filter?.trim() || undefined,
-          clear: Boolean(opts.clear),
-          profile,
-        });
+      await runBrowserDebug(async () => {
+        const result = await callBrowserRequest<{
+          requests: Array<{
+            timestamp: string;
+            method: string;
+            status?: number;
+            ok?: boolean;
+            url: string;
+            failureText?: string;
+          }>;
+        }>(
+          parent,
+          {
+            method: "GET",
+            path: "/requests",
+            query: resolveDebugQuery({
+              targetId: opts.targetId,
+              filter: opts.filter,
+              clear: opts.clear,
+              profile,
+            }),
+          },
+          { timeoutMs: 20000 },
+        );
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
@@ -111,10 +151,7 @@ export function registerBrowserDebugCommands(
             })
             .join("\n"),
         );
-      } catch (err) {
-        defaultRuntime.error(danger(String(err)));
-        defaultRuntime.exit(1);
-      }
+      });
     });
 
   const trace = browser.command("trace").description("Record a Playwright trace");
@@ -128,50 +165,61 @@ export function registerBrowserDebugCommands(
     .option("--sources", "Include sources (bigger traces)", false)
     .action(async (opts, cmd) => {
       const parent = parentOpts(cmd);
-      const baseUrl = resolveBrowserControlUrl(parent?.url);
       const profile = parent?.browserProfile;
-      try {
-        const result = await browserTraceStart(baseUrl, {
-          targetId: opts.targetId?.trim() || undefined,
-          screenshots: Boolean(opts.screenshots),
-          snapshots: Boolean(opts.snapshots),
-          sources: Boolean(opts.sources),
-          profile,
-        });
+      await runBrowserDebug(async () => {
+        const result = await callBrowserRequest(
+          parent,
+          {
+            method: "POST",
+            path: "/trace/start",
+            query: profile ? { profile } : undefined,
+            body: {
+              targetId: opts.targetId?.trim() || undefined,
+              screenshots: Boolean(opts.screenshots),
+              snapshots: Boolean(opts.snapshots),
+              sources: Boolean(opts.sources),
+            },
+          },
+          { timeoutMs: 20000 },
+        );
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
         }
         defaultRuntime.log("trace started");
-      } catch (err) {
-        defaultRuntime.error(danger(String(err)));
-        defaultRuntime.exit(1);
-      }
+      });
     });
 
   trace
     .command("stop")
     .description("Stop trace recording and write a .zip")
-    .option("--out <path>", "Output path for the trace zip")
+    .option(
+      "--out <path>",
+      "Output path within openclaw temp dir (e.g. trace.zip or /tmp/openclaw/trace.zip)",
+    )
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .action(async (opts, cmd) => {
       const parent = parentOpts(cmd);
-      const baseUrl = resolveBrowserControlUrl(parent?.url);
       const profile = parent?.browserProfile;
-      try {
-        const result = await browserTraceStop(baseUrl, {
-          targetId: opts.targetId?.trim() || undefined,
-          path: opts.out?.trim() || undefined,
-          profile,
-        });
+      await runBrowserDebug(async () => {
+        const result = await callBrowserRequest<{ path: string }>(
+          parent,
+          {
+            method: "POST",
+            path: "/trace/stop",
+            query: profile ? { profile } : undefined,
+            body: {
+              targetId: opts.targetId?.trim() || undefined,
+              path: opts.out?.trim() || undefined,
+            },
+          },
+          { timeoutMs: 20000 },
+        );
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
         }
-        defaultRuntime.log(`TRACE:${result.path}`);
-      } catch (err) {
-        defaultRuntime.error(danger(String(err)));
-        defaultRuntime.exit(1);
-      }
+        defaultRuntime.log(`TRACE:${shortenHomePath(result.path)}`);
+      });
     });
 }

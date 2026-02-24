@@ -8,25 +8,34 @@ plugins {
 }
 
 android {
-  namespace = "com.clawdbot.android"
+  namespace = "ai.openclaw.android"
   compileSdk = 36
 
   sourceSets {
     getByName("main") {
-      assets.srcDir(file("../../shared/ClawdbotKit/Sources/ClawdbotKit/Resources"))
+      assets.srcDir(file("../../shared/OpenClawKit/Sources/OpenClawKit/Resources"))
     }
   }
 
   defaultConfig {
-    applicationId = "com.clawdbot.android"
+    applicationId = "ai.openclaw.android"
     minSdk = 31
     targetSdk = 36
-    versionCode = 202601114
-    versionName = "2026.1.11-4"
+    versionCode = 202602230
+    versionName = "2026.2.23"
+    ndk {
+      // Support all major ABIs — native libs are tiny (~47 KB per ABI)
+      abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+    }
   }
 
   buildTypes {
     release {
+      isMinifyEnabled = true
+      isShrinkResources = true
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+    }
+    debug {
       isMinifyEnabled = false
     }
   }
@@ -43,12 +52,22 @@ android {
 
   packaging {
     resources {
-      excludes += "/META-INF/{AL2.0,LGPL2.1}"
+      excludes += setOf(
+        "/META-INF/{AL2.0,LGPL2.1}",
+        "/META-INF/*.version",
+        "/META-INF/LICENSE*.txt",
+        "DebugProbesKt.bin",
+        "kotlin-tooling-metadata.json",
+      )
     }
   }
 
   lint {
-    disable += setOf("IconLauncherShape")
+    disable += setOf(
+      "GradleDependency",
+      "IconLauncherShape",
+      "NewerVersionAvailable",
+    )
     warningsAsErrors = true
   }
 
@@ -65,7 +84,7 @@ androidComponents {
         val versionName = output.versionName.orNull ?: "0"
         val buildType = variant.buildType
 
-        val outputFileName = "clawdbot-${versionName}-${buildType}.apk"
+        val outputFileName = "openclaw-${versionName}-${buildType}.apk"
         output.outputFileName = outputFileName
       }
   }
@@ -90,6 +109,8 @@ dependencies {
   implementation("androidx.compose.ui:ui")
   implementation("androidx.compose.ui:ui-tooling-preview")
   implementation("androidx.compose.material3:material3")
+  // material-icons-extended pulled in full icon set (~20 MB DEX). Only ~18 icons used.
+  // R8 will tree-shake unused icons when minify is enabled on release builds.
   implementation("androidx.compose.material:material-icons-extended")
   implementation("androidx.navigation:navigation-compose:2.9.6")
 
@@ -103,6 +124,8 @@ dependencies {
 
   implementation("androidx.security:security-crypto:1.1.0")
   implementation("androidx.exifinterface:exifinterface:1.4.2")
+  implementation("com.squareup.okhttp3:okhttp:5.3.2")
+  implementation("org.bouncycastle:bcprov-jdk18on:1.83")
 
   // CameraX (for node.invoke camera.* parity)
   implementation("androidx.camera:camera-core:1.5.2")
@@ -112,7 +135,7 @@ dependencies {
   implementation("androidx.camera:camera-view:1.5.2")
 
   // Unicast DNS-SD (Wide-Area Bonjour) for tailnet discovery domains.
-  implementation("dnsjava:dnsjava:3.6.3")
+  implementation("dnsjava:dnsjava:3.6.4")
 
   testImplementation("junit:junit:4.13.2")
   testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

@@ -7,7 +7,7 @@ export type HookInstallSpec = {
   bins?: string[];
 };
 
-export type ClawdbotHookMetadata = {
+export type OpenClawHookMetadata = {
   always?: boolean;
   hookKey?: string;
   emoji?: string;
@@ -35,16 +35,19 @@ export type ParsedHookFrontmatter = Record<string, string>;
 export type Hook = {
   name: string;
   description: string;
-  source: "clawdbot-bundled" | "clawdbot-managed" | "clawdbot-workspace";
+  source: "openclaw-bundled" | "openclaw-managed" | "openclaw-workspace" | "openclaw-plugin";
+  pluginId?: string;
   filePath: string; // Path to HOOK.md
   baseDir: string; // Directory containing hook
   handlerPath: string; // Path to handler module (handler.ts/js)
 };
 
+export type HookSource = Hook["source"];
+
 export type HookEntry = {
   hook: Hook;
   frontmatter: ParsedHookFrontmatter;
-  clawdbot?: ClawdbotHookMetadata;
+  metadata?: OpenClawHookMetadata;
   invocation?: HookInvocationPolicy;
 };
 

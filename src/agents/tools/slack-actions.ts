@@ -1,6 +1,5 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { resolveSlackAccount } from "../../slack/accounts.js";
 import {
   deleteSlackMessage,
@@ -17,8 +16,16 @@ import {
   sendSlackMessage,
   unpinSlackMessage,
 } from "../../slack/actions.js";
+import { parseSlackBlocksInput } from "../../slack/blocks-input.js";
+import { parseSlackTarget, resolveSlackChannelId } from "../../slack/targets.js";
 import { withNormalizedTimestamp } from "../date-time.js";
-import { createActionGate, jsonResult, readReactionParams, readStringParam } from "./common.js";
+import {
+  createActionGate,
+  jsonResult,
+  readNumberParam,
+  readReactionParams,
+  readStringParam,
+} from "./common.js";
 
 const messagingActions = new Set(["sendMessage", "editMessage", "deleteMessage", "readMessages"]);
 
@@ -48,17 +55,24 @@ function resolveThreadTsFromContext(
   context: SlackActionContext | undefined,
 ): string | undefined {
   // Agent explicitly provided threadTs - use it
-  if (explicitThreadTs) return explicitThreadTs;
+  if (explicitThreadTs) {
+    return explicitThreadTs;
+  }
   // No context or missing required fields
-  if (!context?.currentThreadTs || !context?.currentChannelId) return undefined;
+  if (!context?.currentThreadTs || !context?.currentChannelId) {
+    return undefined;
+  }
 
-  // Normalize target (strip "channel:" prefix if present)
-  const normalizedTarget = targetChannel.startsWith("channel:")
-    ? targetChannel.slice("channel:".length)
-    : targetChannel;
+  const parsedTarget = parseSlackTarget(targetChannel, { defaultKind: "channel" });
+  if (!parsedTarget || parsedTarget.kind !== "channel") {
+    return undefined;
+  }
+  const normalizedTarget = parsedTarget.id;
 
   // Different channel - don't inject
-  if (normalizedTarget !== context.currentChannelId) return undefined;
+  if (normalizedTarget !== context.currentChannelId) {
+    return undefined;
+  }
 
   // Check replyToMode
   if (context.replyToMode === "all") {
@@ -71,11 +85,21 @@ function resolveThreadTsFromContext(
   return undefined;
 }
 
+function readSlackBlocksParam(params: Record<string, unknown>) {
+  return parseSlackBlocksInput(params.blocks);
+}
+
 export async function handleSlackAction(
   params: Record<string, unknown>,
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   context?: SlackActionContext,
 ): Promise<AgentToolResult<unknown>> {
+  const resolveChannelId = () =>
+    resolveSlackChannelId(
+      readStringParam(params, "channelId", {
+        required: true,
+      }),
+    );
   const action = readStringParam(params, "action", { required: true });
   const accountId = readStringParam(params, "accountId");
   const account = resolveSlackAccount({ cfg, accountId });
@@ -87,15 +111,21 @@ export async function handleSlackAction(
 
   // Choose the most appropriate token for Slack read/write operations.
   const getTokenForOperation = (operation: "read" | "write") => {
-    if (operation === "read") return userToken ?? botToken;
-    if (!allowUserWrites) return botToken;
+    if (operation === "read") {
+      return userToken ?? botToken;
+    }
+    if (!allowUserWrites) {
+      return botToken;
+    }
     return botToken ?? userToken;
   };
 
   const buildActionOpts = (operation: "read" | "write") => {
     const token = getTokenForOperation(operation);
     const tokenOverride = token && token !== botToken ? token : undefined;
-    if (!accountId && !tokenOverride) return undefined;
+    if (!accountId && !tokenOverride) {
+      return undefined;
+    }
     return {
       ...(accountId ? { accountId } : {}),
       ...(tokenOverride ? { token: tokenOverride } : {}),
@@ -109,7 +139,7 @@ export async function handleSlackAction(
     if (!isActionEnabled("reactions")) {
       throw new Error("Slack reactions are disabled.");
     }
-    const channelId = readStringParam(params, "channelId", { required: true });
+    const channelId = resolveChannelId();
     const messageId = readStringParam(params, "messageId", { required: true });
     if (action === "react") {
       const { emoji, remove, isEmpty } = readReactionParams(params, {
@@ -149,25 +179,33 @@ export async function handleSlackAction(
     switch (action) {
       case "sendMessage": {
         const to = readStringParam(params, "to", { required: true });
-        const content = readStringParam(params, "content", { required: true });
+        const content = readStringParam(params, "content", { allowEmpty: true });
         const mediaUrl = readStringParam(params, "mediaUrl");
+        const blocks = readSlackBlocksParam(params);
+        if (!content && !mediaUrl && !blocks) {
+          throw new Error("Slack sendMessage requires content, blocks, or mediaUrl.");
+        }
+        if (mediaUrl && blocks) {
+          throw new Error("Slack sendMessage does not support blocks with mediaUrl.");
+        }
         const threadTs = resolveThreadTsFromContext(
           readStringParam(params, "threadTs"),
           to,
           context,
         );
-        const result = await sendSlackMessage(to, content, {
+        const result = await sendSlackMessage(to, content ?? "", {
           ...writeOpts,
           mediaUrl: mediaUrl ?? undefined,
           threadTs: threadTs ?? undefined,
+          blocks,
         });
 
         // Keep "first" mode consistent even when the agent explicitly provided
         // threadTs: once we send a message to the current channel, consider the
         // first reply "used" so later tool calls don't auto-thread again.
         if (context?.hasRepliedRef && context.currentChannelId) {
-          const normalizedTarget = to.startsWith("channel:") ? to.slice("channel:".length) : to;
-          if (normalizedTarget === context.currentChannelId) {
+          const parsedTarget = parseSlackTarget(to, { defaultKind: "channel" });
+          if (parsedTarget?.kind === "channel" && parsedTarget.id === context.currentChannelId) {
             context.hasRepliedRef.value = true;
           }
         }
@@ -175,26 +213,27 @@ export async function handleSlackAction(
         return jsonResult({ ok: true, result });
       }
       case "editMessage": {
-        const channelId = readStringParam(params, "channelId", {
-          required: true,
-        });
+        const channelId = resolveChannelId();
         const messageId = readStringParam(params, "messageId", {
           required: true,
         });
-        const content = readStringParam(params, "content", {
-          required: true,
-        });
+        const content = readStringParam(params, "content", { allowEmpty: true });
+        const blocks = readSlackBlocksParam(params);
+        if (!content && !blocks) {
+          throw new Error("Slack editMessage requires content or blocks.");
+        }
         if (writeOpts) {
-          await editSlackMessage(channelId, messageId, content, writeOpts);
+          await editSlackMessage(channelId, messageId, content ?? "", {
+            ...writeOpts,
+            blocks,
+          });
         } else {
-          await editSlackMessage(channelId, messageId, content);
+          await editSlackMessage(channelId, messageId, content ?? "", { blocks });
         }
         return jsonResult({ ok: true });
       }
       case "deleteMessage": {
-        const channelId = readStringParam(params, "channelId", {
-          required: true,
-        });
+        const channelId = resolveChannelId();
         const messageId = readStringParam(params, "messageId", {
           required: true,
         });
@@ -206,19 +245,19 @@ export async function handleSlackAction(
         return jsonResult({ ok: true });
       }
       case "readMessages": {
-        const channelId = readStringParam(params, "channelId", {
-          required: true,
-        });
+        const channelId = resolveChannelId();
         const limitRaw = params.limit;
         const limit =
           typeof limitRaw === "number" && Number.isFinite(limitRaw) ? limitRaw : undefined;
         const before = readStringParam(params, "before");
         const after = readStringParam(params, "after");
+        const threadId = readStringParam(params, "threadId");
         const result = await readSlackMessages(channelId, {
           ...readOpts,
           limit,
           before: before ?? undefined,
           after: after ?? undefined,
+          threadId: threadId ?? undefined,
         });
         const messages = result.messages.map((message) =>
           withNormalizedTimestamp(
@@ -237,7 +276,7 @@ export async function handleSlackAction(
     if (!isActionEnabled("pins")) {
       throw new Error("Slack pins are disabled.");
     }
-    const channelId = readStringParam(params, "channelId", { required: true });
+    const channelId = resolveChannelId();
     if (action === "pinMessage") {
       const messageId = readStringParam(params, "messageId", {
         required: true,
@@ -290,8 +329,18 @@ export async function handleSlackAction(
     if (!isActionEnabled("emojiList")) {
       throw new Error("Slack emoji list is disabled.");
     }
-    const emojis = readOpts ? await listSlackEmojis(readOpts) : await listSlackEmojis();
-    return jsonResult({ ok: true, emojis });
+    const result = readOpts ? await listSlackEmojis(readOpts) : await listSlackEmojis();
+    const limit = readNumberParam(params, "limit", { integer: true });
+    if (limit != null && limit > 0 && result.emoji != null) {
+      const entries = Object.entries(result.emoji).toSorted(([a], [b]) => a.localeCompare(b));
+      if (entries.length > limit) {
+        return jsonResult({
+          ok: true,
+          emojis: { ...result, emoji: Object.fromEntries(entries.slice(0, limit)) },
+        });
+      }
+    }
+    return jsonResult({ ok: true, emojis: result });
   }
 
   throw new Error(`Unknown action: ${action}`);

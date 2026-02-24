@@ -1,140 +1,181 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
-import { createClawdbotTools } from "../agents/clawdbot-tools.js";
+import { afterAll, beforeAll, describe, expect, it, type Mock } from "vitest";
 import { resolveSessionTranscriptPath } from "../config/sessions.js";
 import { emitAgentEvent } from "../infra/agent-events.js";
+import { captureEnv } from "../test-utils/env.js";
 import {
   agentCommand,
   getFreePort,
   installGatewayTestHooks,
   startGatewayServer,
+  testState,
 } from "./test-helpers.js";
 
-installGatewayTestHooks();
+const { createOpenClawTools } = await import("../agents/openclaw-tools.js");
+
+installGatewayTestHooks({ scope: "suite" });
+
+let server: Awaited<ReturnType<typeof startGatewayServer>>;
+let gatewayPort: number;
+const gatewayToken = "test-token";
+let envSnapshot: ReturnType<typeof captureEnv>;
+
+type SessionSendTool = ReturnType<typeof createOpenClawTools>[number];
+const SESSION_SEND_E2E_TIMEOUT_MS = 10_000;
+let cachedSessionsSendTool: SessionSendTool | null = null;
+
+function getSessionsSendTool(): SessionSendTool {
+  if (cachedSessionsSendTool) {
+    return cachedSessionsSendTool;
+  }
+  const tool = createOpenClawTools().find((candidate) => candidate.name === "sessions_send");
+  if (!tool) {
+    throw new Error("missing sessions_send tool");
+  }
+  cachedSessionsSendTool = tool;
+  return cachedSessionsSendTool;
+}
+
+async function emitLifecycleAssistantReply(params: {
+  opts: unknown;
+  defaultSessionId: string;
+  includeTimestamp?: boolean;
+  resolveText: (extraSystemPrompt?: string) => string;
+}) {
+  const commandParams = params.opts as {
+    sessionId?: string;
+    runId?: string;
+    extraSystemPrompt?: string;
+  };
+  const sessionId = commandParams.sessionId ?? params.defaultSessionId;
+  const runId = commandParams.runId ?? sessionId;
+  const sessionFile = resolveSessionTranscriptPath(sessionId);
+  await fs.mkdir(path.dirname(sessionFile), { recursive: true });
+
+  const startedAt = Date.now();
+  emitAgentEvent({
+    runId,
+    stream: "lifecycle",
+    data: { phase: "start", startedAt },
+  });
+
+  const text = params.resolveText(commandParams.extraSystemPrompt);
+  const message = {
+    role: "assistant",
+    content: [{ type: "text", text }],
+    ...(params.includeTimestamp ? { timestamp: Date.now() } : {}),
+  };
+  await fs.appendFile(sessionFile, `${JSON.stringify({ message })}\n`, "utf8");
+
+  emitAgentEvent({
+    runId,
+    stream: "lifecycle",
+    data: { phase: "end", startedAt, endedAt: Date.now() },
+  });
+}
+
+beforeAll(async () => {
+  envSnapshot = captureEnv(["OPENCLAW_GATEWAY_PORT", "OPENCLAW_GATEWAY_TOKEN"]);
+  gatewayPort = await getFreePort();
+  testState.gatewayAuth = { mode: "token", token: gatewayToken };
+  process.env.OPENCLAW_GATEWAY_PORT = String(gatewayPort);
+  process.env.OPENCLAW_GATEWAY_TOKEN = gatewayToken;
+  const { approveDevicePairing, requestDevicePairing } = await import("../infra/device-pairing.js");
+  const { loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem } =
+    await import("../infra/device-identity.js");
+  const identity = loadOrCreateDeviceIdentity();
+  const pending = await requestDevicePairing({
+    deviceId: identity.deviceId,
+    publicKey: publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
+    clientId: "openclaw-cli",
+    clientMode: "cli",
+    role: "operator",
+    scopes: ["operator.admin", "operator.read", "operator.write", "operator.approvals"],
+    silent: false,
+  });
+  await approveDevicePairing(pending.request.requestId);
+  server = await startGatewayServer(gatewayPort);
+});
+
+afterAll(async () => {
+  await server.close();
+  envSnapshot.restore();
+});
 
 describe("sessions_send gateway loopback", () => {
   it("returns reply when lifecycle ends before agent.wait", async () => {
-    const port = await getFreePort();
-    const prevPort = process.env.CLAWDBOT_GATEWAY_PORT;
-    process.env.CLAWDBOT_GATEWAY_PORT = String(port);
-
-    const server = await startGatewayServer(port);
-    const spy = vi.mocked(agentCommand);
-    spy.mockImplementation(async (opts) => {
-      const params = opts as {
-        sessionId?: string;
-        runId?: string;
-        extraSystemPrompt?: string;
-      };
-      const sessionId = params.sessionId ?? "main";
-      const runId = params.runId ?? sessionId;
-      const sessionFile = resolveSessionTranscriptPath(sessionId);
-      await fs.mkdir(path.dirname(sessionFile), { recursive: true });
-
-      const startedAt = Date.now();
-      emitAgentEvent({
-        runId,
-        stream: "lifecycle",
-        data: { phase: "start", startedAt },
-      });
-
-      let text = "pong";
-      if (params.extraSystemPrompt?.includes("Agent-to-agent reply step")) {
-        text = "REPLY_SKIP";
-      } else if (params.extraSystemPrompt?.includes("Agent-to-agent announce step")) {
-        text = "ANNOUNCE_SKIP";
-      }
-      const message = {
-        role: "assistant",
-        content: [{ type: "text", text }],
-        timestamp: Date.now(),
-      };
-      await fs.appendFile(sessionFile, `${JSON.stringify({ message })}\n`, "utf8");
-
-      emitAgentEvent({
-        runId,
-        stream: "lifecycle",
-        data: {
-          phase: "end",
-          startedAt,
-          endedAt: Date.now(),
+    const spy = agentCommand as unknown as Mock<(opts: unknown) => Promise<void>>;
+    spy.mockImplementation(async (opts: unknown) =>
+      emitLifecycleAssistantReply({
+        opts,
+        defaultSessionId: "main",
+        includeTimestamp: true,
+        resolveText: (extraSystemPrompt) => {
+          if (extraSystemPrompt?.includes("Agent-to-agent reply step")) {
+            return "REPLY_SKIP";
+          }
+          if (extraSystemPrompt?.includes("Agent-to-agent announce step")) {
+            return "ANNOUNCE_SKIP";
+          }
+          return "pong";
         },
-      });
+      }),
+    );
+
+    const tool = getSessionsSendTool();
+
+    const result = await tool.execute("call-loopback", {
+      sessionKey: "main",
+      message: "ping",
+      timeoutSeconds: 5,
     });
+    const details = result.details as {
+      status?: string;
+      reply?: string;
+      sessionKey?: string;
+    };
+    expect(details.status).toBe("ok");
+    expect(details.reply).toBe("pong");
+    expect(details.sessionKey).toBe("main");
 
-    try {
-      const tool = createClawdbotTools().find((candidate) => candidate.name === "sessions_send");
-      if (!tool) throw new Error("missing sessions_send tool");
-
-      const result = await tool.execute("call-loopback", {
-        sessionKey: "main",
-        message: "ping",
-        timeoutSeconds: 5,
-      });
-      const details = result.details as {
-        status?: string;
-        reply?: string;
-        sessionKey?: string;
-      };
-      expect(details.status).toBe("ok");
-      expect(details.reply).toBe("pong");
-      expect(details.sessionKey).toBe("main");
-
-      const firstCall = spy.mock.calls[0]?.[0] as { lane?: string } | undefined;
-      expect(firstCall?.lane).toBe("nested");
-    } finally {
-      if (prevPort === undefined) {
-        delete process.env.CLAWDBOT_GATEWAY_PORT;
-      } else {
-        process.env.CLAWDBOT_GATEWAY_PORT = prevPort;
-      }
-      await server.close();
-    }
+    const firstCall = spy.mock.calls[0]?.[0] as
+      | { lane?: string; inputProvenance?: { kind?: string; sourceTool?: string } }
+      | undefined;
+    expect(firstCall?.lane).toBe("nested");
+    expect(firstCall?.inputProvenance).toMatchObject({
+      kind: "inter_session",
+      sourceTool: "sessions_send",
+    });
   });
 });
 
 describe("sessions_send label lookup", () => {
-  it("finds session by label and sends message", { timeout: 15_000 }, async () => {
-    const port = await getFreePort();
-    const prevPort = process.env.CLAWDBOT_GATEWAY_PORT;
-    process.env.CLAWDBOT_GATEWAY_PORT = String(port);
+  it(
+    "finds session by label and sends message",
+    { timeout: SESSION_SEND_E2E_TIMEOUT_MS },
+    async () => {
+      // This is an operator feature; enable broader session tool targeting for this test.
+      const configPath = process.env.OPENCLAW_CONFIG_PATH;
+      if (!configPath) {
+        throw new Error("OPENCLAW_CONFIG_PATH missing in gateway test environment");
+      }
+      await fs.mkdir(path.dirname(configPath), { recursive: true });
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({ tools: { sessions: { visibility: "all" } } }, null, 2) + "\n",
+        "utf-8",
+      );
 
-    const server = await startGatewayServer(port);
-    const spy = vi.mocked(agentCommand);
-    spy.mockImplementation(async (opts) => {
-      const params = opts as {
-        sessionId?: string;
-        runId?: string;
-        extraSystemPrompt?: string;
-      };
-      const sessionId = params.sessionId ?? "test-labeled";
-      const runId = params.runId ?? sessionId;
-      const sessionFile = resolveSessionTranscriptPath(sessionId);
-      await fs.mkdir(path.dirname(sessionFile), { recursive: true });
+      const spy = agentCommand as unknown as Mock<(opts: unknown) => Promise<void>>;
+      spy.mockImplementation(async (opts: unknown) =>
+        emitLifecycleAssistantReply({
+          opts,
+          defaultSessionId: "test-labeled",
+          resolveText: () => "labeled response",
+        }),
+      );
 
-      const startedAt = Date.now();
-      emitAgentEvent({
-        runId,
-        stream: "lifecycle",
-        data: { phase: "start", startedAt },
-      });
-
-      const text = "labeled response";
-      const message = {
-        role: "assistant",
-        content: [{ type: "text", text }],
-      };
-      await fs.appendFile(sessionFile, `${JSON.stringify({ message })}\n`, "utf8");
-
-      emitAgentEvent({
-        runId,
-        stream: "lifecycle",
-        data: { phase: "end", startedAt, endedAt: Date.now() },
-      });
-    });
-
-    try {
       // First, create a session with a label via sessions.patch
       const { callGateway } = await import("./call.js");
       await callGateway({
@@ -143,8 +184,7 @@ describe("sessions_send label lookup", () => {
         timeoutMs: 5000,
       });
 
-      const tool = createClawdbotTools().find((candidate) => candidate.name === "sessions_send");
-      if (!tool) throw new Error("missing sessions_send tool");
+      const tool = getSessionsSendTool();
 
       // Send using label instead of sessionKey
       const result = await tool.execute("call-by-label", {
@@ -160,70 +200,6 @@ describe("sessions_send label lookup", () => {
       expect(details.status).toBe("ok");
       expect(details.reply).toBe("labeled response");
       expect(details.sessionKey).toBe("agent:main:test-labeled-session");
-    } finally {
-      if (prevPort === undefined) {
-        delete process.env.CLAWDBOT_GATEWAY_PORT;
-      } else {
-        process.env.CLAWDBOT_GATEWAY_PORT = prevPort;
-      }
-      await server.close();
-    }
-  });
-
-  it("returns error when label not found", { timeout: 15_000 }, async () => {
-    const port = await getFreePort();
-    const prevPort = process.env.CLAWDBOT_GATEWAY_PORT;
-    process.env.CLAWDBOT_GATEWAY_PORT = String(port);
-
-    const server = await startGatewayServer(port);
-
-    try {
-      const tool = createClawdbotTools().find((candidate) => candidate.name === "sessions_send");
-      if (!tool) throw new Error("missing sessions_send tool");
-
-      const result = await tool.execute("call-missing-label", {
-        label: "nonexistent-label",
-        message: "hello",
-        timeoutSeconds: 5,
-      });
-      const details = result.details as { status?: string; error?: string };
-      expect(details.status).toBe("error");
-      expect(details.error).toContain("No session found with label");
-    } finally {
-      if (prevPort === undefined) {
-        delete process.env.CLAWDBOT_GATEWAY_PORT;
-      } else {
-        process.env.CLAWDBOT_GATEWAY_PORT = prevPort;
-      }
-      await server.close();
-    }
-  });
-
-  it("returns error when neither sessionKey nor label provided", { timeout: 15_000 }, async () => {
-    const port = await getFreePort();
-    const prevPort = process.env.CLAWDBOT_GATEWAY_PORT;
-    process.env.CLAWDBOT_GATEWAY_PORT = String(port);
-
-    const server = await startGatewayServer(port);
-
-    try {
-      const tool = createClawdbotTools().find((candidate) => candidate.name === "sessions_send");
-      if (!tool) throw new Error("missing sessions_send tool");
-
-      const result = await tool.execute("call-no-key", {
-        message: "hello",
-        timeoutSeconds: 5,
-      });
-      const details = result.details as { status?: string; error?: string };
-      expect(details.status).toBe("error");
-      expect(details.error).toContain("Either sessionKey or label is required");
-    } finally {
-      if (prevPort === undefined) {
-        delete process.env.CLAWDBOT_GATEWAY_PORT;
-      } else {
-        process.env.CLAWDBOT_GATEWAY_PORT = prevPort;
-      }
-      await server.close();
-    }
-  });
+    },
+  );
 });

@@ -1,43 +1,59 @@
 ---
-summary: "Use Moonshot AI (Kimi K2) with Clawdbot"
+summary: "Configure Moonshot K2 vs Kimi Coding (separate providers + keys)"
 read_when:
-  - You want to use Moonshot/Kimi models in Clawdbot
-  - You need the Moonshot auth + config example
+  - You want Moonshot K2 (Moonshot Open Platform) vs Kimi Coding setup
+  - You need to understand separate endpoints, keys, and model refs
+  - You want copy/paste config for either provider
+title: "Moonshot AI"
 ---
+
 # Moonshot AI (Kimi)
 
 Moonshot provides the Kimi API with OpenAI-compatible endpoints. Configure the
-provider and set the default model to `moonshot/kimi-k2-0905-preview`.
+provider and set the default model to `moonshot/kimi-k2.5`, or use
+Kimi Coding with `kimi-coding/k2p5`.
 
 Current Kimi K2 model IDs:
-{/* moonshot-kimi-k2-ids:start */}
+
+{/_moonshot-kimi-k2-ids:start_/ && null}
+
+- `kimi-k2.5`
 - `kimi-k2-0905-preview`
 - `kimi-k2-turbo-preview`
 - `kimi-k2-thinking`
 - `kimi-k2-thinking-turbo`
-{/* moonshot-kimi-k2-ids:end */}
+  {/_moonshot-kimi-k2-ids:end_/ && null}
 
 ```bash
-clawdbot onboard --auth-choice moonshot-api-key
+openclaw onboard --auth-choice moonshot-api-key
 ```
 
-## Config snippet
+Kimi Coding:
+
+```bash
+openclaw onboard --auth-choice kimi-code-api-key
+```
+
+Note: Moonshot and Kimi Coding are separate providers. Keys are not interchangeable, endpoints differ, and model refs differ (Moonshot uses `moonshot/...`, Kimi Coding uses `kimi-coding/...`).
+
+## Config snippet (Moonshot API)
 
 ```json5
 {
   env: { MOONSHOT_API_KEY: "sk-..." },
   agents: {
     defaults: {
-      model: { primary: "moonshot/kimi-k2-0905-preview" },
+      model: { primary: "moonshot/kimi-k2.5" },
       models: {
         // moonshot-kimi-k2-aliases:start
+        "moonshot/kimi-k2.5": { alias: "Kimi K2.5" },
         "moonshot/kimi-k2-0905-preview": { alias: "Kimi K2" },
         "moonshot/kimi-k2-turbo-preview": { alias: "Kimi K2 Turbo" },
         "moonshot/kimi-k2-thinking": { alias: "Kimi K2 Thinking" },
-        "moonshot/kimi-k2-thinking-turbo": { alias: "Kimi K2 Thinking Turbo" }
+        "moonshot/kimi-k2-thinking-turbo": { alias: "Kimi K2 Thinking Turbo" },
         // moonshot-kimi-k2-aliases:end
-      }
-    }
+      },
+    },
   },
   models: {
     mode: "merge",
@@ -49,13 +65,22 @@ clawdbot onboard --auth-choice moonshot-api-key
         models: [
           // moonshot-kimi-k2-models:start
           {
+            id: "kimi-k2.5",
+            name: "Kimi K2.5",
+            reasoning: false,
+            input: ["text"],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            contextWindow: 256000,
+            maxTokens: 8192,
+          },
+          {
             id: "kimi-k2-0905-preview",
             name: "Kimi K2 0905 Preview",
             reasoning: false,
             input: ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             contextWindow: 256000,
-            maxTokens: 8192
+            maxTokens: 8192,
           },
           {
             id: "kimi-k2-turbo-preview",
@@ -64,7 +89,7 @@ clawdbot onboard --auth-choice moonshot-api-key
             input: ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             contextWindow: 256000,
-            maxTokens: 8192
+            maxTokens: 8192,
           },
           {
             id: "kimi-k2-thinking",
@@ -73,7 +98,7 @@ clawdbot onboard --auth-choice moonshot-api-key
             input: ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             contextWindow: 256000,
-            maxTokens: 8192
+            maxTokens: 8192,
           },
           {
             id: "kimi-k2-thinking-turbo",
@@ -82,20 +107,36 @@ clawdbot onboard --auth-choice moonshot-api-key
             input: ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             contextWindow: 256000,
-            maxTokens: 8192
-          }
+            maxTokens: 8192,
+          },
           // moonshot-kimi-k2-models:end
-        ]
-      }
-    }
-  }
+        ],
+      },
+    },
+  },
+}
+```
+
+## Kimi Coding
+
+```json5
+{
+  env: { KIMI_API_KEY: "sk-..." },
+  agents: {
+    defaults: {
+      model: { primary: "kimi-coding/k2p5" },
+      models: {
+        "kimi-coding/k2p5": { alias: "Kimi K2.5" },
+      },
+    },
+  },
 }
 ```
 
 ## Notes
 
-- Model refs use `moonshot/<modelId>`.
+- Moonshot model refs use `moonshot/<modelId>`. Kimi Coding model refs use `kimi-coding/<modelId>`.
 - Override pricing and context metadata in `models.providers` if needed.
 - If Moonshot publishes different context limits for a model, adjust
   `contextWindow` accordingly.
-- Use `https://api.moonshot.cn/v1` if you need the China endpoint.
+- Use `https://api.moonshot.ai/v1` for the international endpoint, and `https://api.moonshot.cn/v1` for the China endpoint.

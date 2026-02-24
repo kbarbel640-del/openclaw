@@ -1,21 +1,35 @@
 # Bundled Hooks
 
-This directory contains hooks that ship with Clawdbot. These hooks are automatically discovered and can be enabled/disabled via CLI or configuration.
+This directory contains hooks that ship with OpenClaw. These hooks are automatically discovered and can be enabled/disabled via CLI or configuration.
 
 ## Available Hooks
 
 ### 💾 session-memory
 
-Automatically saves session context to memory when you issue `/new`.
+Automatically saves session context to memory when you issue `/new` or `/reset`.
 
-**Events**: `command:new`
+**Events**: `command:new`, `command:reset`
 **What it does**: Creates a dated memory file with LLM-generated slug based on conversation content.
-**Output**: `<workspace>/memory/YYYY-MM-DD-slug.md` (defaults to `~/clawd`)
+**Output**: `<workspace>/memory/YYYY-MM-DD-slug.md` (defaults to `~/.openclaw/workspace`)
 
 **Enable**:
 
 ```bash
-clawdbot hooks enable session-memory
+openclaw hooks enable session-memory
+```
+
+### 📎 bootstrap-extra-files
+
+Injects extra bootstrap files (for example monorepo `AGENTS.md`/`TOOLS.md`) during prompt assembly.
+
+**Events**: `agent:bootstrap`
+**What it does**: Expands configured workspace glob/path patterns and appends matching bootstrap files to injected context.
+**Output**: No files written; context is modified in-memory only.
+
+**Enable**:
+
+```bash
+openclaw hooks enable bootstrap-extra-files
 ```
 
 ### 📝 command-logger
@@ -24,12 +38,26 @@ Logs all command events to a centralized audit file.
 
 **Events**: `command` (all commands)
 **What it does**: Appends JSONL entries to command log file.
-**Output**: `~/.clawdbot/logs/commands.log`
+**Output**: `~/.openclaw/logs/commands.log`
 
 **Enable**:
 
 ```bash
-clawdbot hooks enable command-logger
+openclaw hooks enable command-logger
+```
+
+### 🚀 boot-md
+
+Runs `BOOT.md` whenever the gateway starts (after channels start).
+
+**Events**: `gateway:startup`
+**What it does**: Executes BOOT.md instructions via the agent runner.
+**Output**: Whatever the instructions request (for example, outbound messages).
+
+**Enable**:
+
+```bash
+openclaw hooks enable boot-md
 ```
 
 ## Hook Structure
@@ -53,9 +81,9 @@ session-memory/
 ---
 name: my-hook
 description: "Short description"
-homepage: https://docs.clawd.bot/hooks#my-hook
+homepage: https://docs.openclaw.ai/automation/hooks#my-hook
 metadata:
-  { "clawdbot": { "emoji": "🔗", "events": ["command:new"], "requires": { "bins": ["node"] } } }
+  { "openclaw": { "emoji": "🔗", "events": ["command:new"], "requires": { "bins": ["node"] } } }
 ---
 # Hook Title
 
@@ -79,7 +107,7 @@ Documentation goes here...
 To create your own hooks, place them in:
 
 - **Workspace hooks**: `<workspace>/hooks/` (highest precedence)
-- **Managed hooks**: `~/.clawdbot/hooks/` (shared across workspaces)
+- **Managed hooks**: `~/.openclaw/hooks/` (shared across workspaces)
 
 Custom hooks follow the same structure as bundled hooks.
 
@@ -88,31 +116,31 @@ Custom hooks follow the same structure as bundled hooks.
 List all hooks:
 
 ```bash
-clawdbot hooks list
+openclaw hooks list
 ```
 
 Show hook details:
 
 ```bash
-clawdbot hooks info session-memory
+openclaw hooks info session-memory
 ```
 
 Check hook status:
 
 ```bash
-clawdbot hooks check
+openclaw hooks check
 ```
 
 Enable/disable:
 
 ```bash
-clawdbot hooks enable session-memory
-clawdbot hooks disable command-logger
+openclaw hooks enable session-memory
+openclaw hooks disable command-logger
 ```
 
 ## Configuration
 
-Hooks can be configured in `~/.clawdbot/clawdbot.json`:
+Hooks can be configured in `~/.openclaw/openclaw.json`:
 
 ```json
 {
@@ -140,6 +168,8 @@ Currently supported events:
 - **command:new**: `/new` command specifically
 - **command:reset**: `/reset` command
 - **command:stop**: `/stop` command
+- **agent:bootstrap**: Before workspace bootstrap files are injected
+- **gateway:startup**: Gateway startup (after channels start)
 
 More event types coming soon (session lifecycle, agent errors, etc.).
 
@@ -149,7 +179,7 @@ Hook handlers receive an `InternalHookEvent` object:
 
 ```typescript
 interface InternalHookEvent {
-  type: "command" | "session" | "agent";
+  type: "command" | "session" | "agent" | "gateway";
   action: string; // e.g., 'new', 'reset', 'stop'
   sessionKey: string;
   context: Record<string, unknown>;
@@ -183,11 +213,11 @@ export default myHandler;
 Test your hooks by:
 
 1. Place hook in workspace hooks directory
-2. Restart gateway: `pkill -9 -f 'clawdbot.*gateway' && pnpm clawdbot gateway`
-3. Enable the hook: `clawdbot hooks enable my-hook`
+2. Restart gateway: `pkill -9 -f 'openclaw.*gateway' && pnpm openclaw gateway`
+3. Enable the hook: `openclaw hooks enable my-hook`
 4. Trigger the event (e.g., send `/new` command)
 5. Check gateway logs for hook execution
 
 ## Documentation
 
-Full documentation: https://docs.clawd.bot/hooks
+Full documentation: https://docs.openclaw.ai/automation/hooks

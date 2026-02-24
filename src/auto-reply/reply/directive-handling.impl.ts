@@ -1,56 +1,64 @@
-import { resolveAgentDir, resolveSessionAgentId } from "../../agents/agent-scope.js";
-import type { ModelAliasIndex } from "../../agents/model-selection.js";
+import {
+  resolveAgentConfig,
+  resolveAgentDir,
+  resolveSessionAgentId,
+} from "../../agents/agent-scope.js";
 import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { type SessionEntry, updateSessionStore } from "../../config/sessions.js";
+import type { ExecAsk, ExecHost, ExecSecurity } from "../../infra/exec-approvals.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { applyVerboseOverride } from "../../sessions/level-overrides.js";
+import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
 import { formatThinkingLevels, formatXHighModelHint, supportsXHighThinking } from "../thinking.js";
 import type { ReplyPayload } from "../types.js";
 import {
   maybeHandleModelDirectiveInfo,
   resolveModelSelectionFromDirective,
 } from "./directive-handling.model.js";
-import type { InlineDirectives } from "./directive-handling.parse.js";
+import type { HandleDirectiveOnlyParams } from "./directive-handling.params.js";
 import { maybeHandleQueueDirective } from "./directive-handling.queue-validation.js";
 import {
   formatDirectiveAck,
-  formatElevatedEvent,
   formatElevatedRuntimeHint,
   formatElevatedUnavailableText,
-  formatReasoningEvent,
+  enqueueModeSwitchEvents,
   withOptions,
 } from "./directive-handling.shared.js";
-import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "./directives.js";
+import type { ElevatedLevel, ReasoningLevel, ThinkLevel } from "./directives.js";
 
-export async function handleDirectiveOnly(params: {
-  cfg: ClawdbotConfig;
-  directives: InlineDirectives;
+function resolveExecDefaults(params: {
+  cfg: OpenClawConfig;
   sessionEntry?: SessionEntry;
-  sessionStore?: Record<string, SessionEntry>;
-  sessionKey: string;
-  storePath?: string;
-  elevatedEnabled: boolean;
-  elevatedAllowed: boolean;
-  elevatedFailures?: Array<{ gate: string; key: string }>;
-  messageProviderKey?: string;
-  defaultProvider: string;
-  defaultModel: string;
-  aliasIndex: ModelAliasIndex;
-  allowedModelKeys: Set<string>;
-  allowedModelCatalog: Awaited<
-    ReturnType<typeof import("../../agents/model-catalog.js").loadModelCatalog>
-  >;
-  resetModelOverride: boolean;
-  provider: string;
-  model: string;
-  initialModelLabel: string;
-  formatModelSwitchEvent: (label: string, alias?: string) => string;
-  currentThinkLevel?: ThinkLevel;
-  currentVerboseLevel?: VerboseLevel;
-  currentReasoningLevel?: ReasoningLevel;
-  currentElevatedLevel?: ElevatedLevel;
-}): Promise<ReplyPayload | undefined> {
+  agentId?: string;
+}): { host: ExecHost; security: ExecSecurity; ask: ExecAsk; node?: string } {
+  const globalExec = params.cfg.tools?.exec;
+  const agentExec = params.agentId
+    ? resolveAgentConfig(params.cfg, params.agentId)?.tools?.exec
+    : undefined;
+  return {
+    host:
+      (params.sessionEntry?.execHost as ExecHost | undefined) ??
+      (agentExec?.host as ExecHost | undefined) ??
+      (globalExec?.host as ExecHost | undefined) ??
+      "sandbox",
+    security:
+      (params.sessionEntry?.execSecurity as ExecSecurity | undefined) ??
+      (agentExec?.security as ExecSecurity | undefined) ??
+      (globalExec?.security as ExecSecurity | undefined) ??
+      "deny",
+    ask:
+      (params.sessionEntry?.execAsk as ExecAsk | undefined) ??
+      (agentExec?.ask as ExecAsk | undefined) ??
+      (globalExec?.ask as ExecAsk | undefined) ??
+      "on-miss",
+    node: params.sessionEntry?.execNode ?? agentExec?.node ?? globalExec?.node,
+  };
+}
+
+export async function handleDirectiveOnly(
+  params: HandleDirectiveOnlyParams,
+): Promise<ReplyPayload | undefined> {
   const {
     directives,
     sessionEntry,
@@ -97,8 +105,12 @@ export async function handleDirectiveOnly(params: {
     aliasIndex,
     allowedModelCatalog,
     resetModelOverride,
+    surface: params.surface,
+    sessionEntry,
   });
-  if (modelInfo) return modelInfo;
+  if (modelInfo) {
+    return modelInfo;
+  }
 
   const modelResolution = resolveModelSelectionFromDirective({
     directives,
@@ -111,7 +123,9 @@ export async function handleDirectiveOnly(params: {
     allowedModelCatalog,
     provider,
   });
-  if (modelResolution.errorText) return { text: modelResolution.errorText };
+  if (modelResolution.errorText) {
+    return { text: modelResolution.errorText };
+  }
   const modelSelection = modelResolution.modelSelection;
   const profileOverride = modelResolution.profileOverride;
 
@@ -169,7 +183,7 @@ export async function handleDirectiveOnly(params: {
       const level = currentElevatedLevel ?? "off";
       return {
         text: [
-          withOptions(`Current elevated level: ${level}.`, "on, off"),
+          withOptions(`Current elevated level: ${level}.`, "on, off, ask, full"),
           shouldHintDirectRuntime ? formatElevatedRuntimeHint() : null,
         ]
           .filter(Boolean)
@@ -177,7 +191,7 @@ export async function handleDirectiveOnly(params: {
       };
     }
     return {
-      text: `Unrecognized elevated level "${directives.rawElevatedLevel}". Valid levels: off, on.`,
+      text: `Unrecognized elevated level "${directives.rawElevatedLevel}". Valid levels: off, on, ask, full.`,
     };
   }
   if (directives.hasElevatedDirective && (!elevatedEnabled || !elevatedAllowed)) {
@@ -189,6 +203,42 @@ export async function handleDirectiveOnly(params: {
       }),
     };
   }
+  if (directives.hasExecDirective) {
+    if (directives.invalidExecHost) {
+      return {
+        text: `Unrecognized exec host "${directives.rawExecHost ?? ""}". Valid hosts: sandbox, gateway, node.`,
+      };
+    }
+    if (directives.invalidExecSecurity) {
+      return {
+        text: `Unrecognized exec security "${directives.rawExecSecurity ?? ""}". Valid: deny, allowlist, full.`,
+      };
+    }
+    if (directives.invalidExecAsk) {
+      return {
+        text: `Unrecognized exec ask "${directives.rawExecAsk ?? ""}". Valid: off, on-miss, always.`,
+      };
+    }
+    if (directives.invalidExecNode) {
+      return {
+        text: "Exec node requires a value.",
+      };
+    }
+    if (!directives.hasExecOptions) {
+      const execDefaults = resolveExecDefaults({
+        cfg: params.cfg,
+        sessionEntry,
+        agentId: activeAgentId,
+      });
+      const nodeLabel = execDefaults.node ? `node=${execDefaults.node}` : "node=(unset)";
+      return {
+        text: withOptions(
+          `Current exec defaults: host=${execDefaults.host}, security=${execDefaults.security}, ask=${execDefaults.ask}, ${nodeLabel}.`,
+          "host=sandbox|gateway|node, security=deny|allowlist|full, ask=off|on-miss|always, node=<id>",
+        ),
+      };
+    }
+  }
 
   const queueAck = maybeHandleQueueDirective({
     directives,
@@ -196,7 +246,9 @@ export async function handleDirectiveOnly(params: {
     channel: provider,
     sessionEntry,
   });
-  if (queueAck) return queueAck;
+  if (queueAck) {
+    return queueAck;
+  }
 
   if (
     directives.hasThinkDirective &&
@@ -216,110 +268,109 @@ export async function handleDirectiveOnly(params: {
     nextThinkLevel === "xhigh" &&
     !supportsXHighThinking(resolvedProvider, resolvedModel);
 
-  if (sessionEntry && sessionStore && sessionKey) {
-    const prevElevatedLevel =
-      currentElevatedLevel ??
-      (sessionEntry.elevatedLevel as ElevatedLevel | undefined) ??
-      (elevatedAllowed ? ("on" as ElevatedLevel) : ("off" as ElevatedLevel));
-    const prevReasoningLevel =
-      currentReasoningLevel ?? (sessionEntry.reasoningLevel as ReasoningLevel | undefined) ?? "off";
-    let elevatedChanged =
-      directives.hasElevatedDirective &&
-      directives.elevatedLevel !== undefined &&
-      elevatedEnabled &&
-      elevatedAllowed;
-    let reasoningChanged =
-      directives.hasReasoningDirective && directives.reasoningLevel !== undefined;
-    if (directives.hasThinkDirective && directives.thinkLevel) {
-      if (directives.thinkLevel === "off") delete sessionEntry.thinkingLevel;
-      else sessionEntry.thinkingLevel = directives.thinkLevel;
+  const prevElevatedLevel =
+    currentElevatedLevel ??
+    (sessionEntry.elevatedLevel as ElevatedLevel | undefined) ??
+    (elevatedAllowed ? ("on" as ElevatedLevel) : ("off" as ElevatedLevel));
+  const prevReasoningLevel =
+    currentReasoningLevel ?? (sessionEntry.reasoningLevel as ReasoningLevel | undefined) ?? "off";
+  let elevatedChanged =
+    directives.hasElevatedDirective &&
+    directives.elevatedLevel !== undefined &&
+    elevatedEnabled &&
+    elevatedAllowed;
+  let reasoningChanged =
+    directives.hasReasoningDirective && directives.reasoningLevel !== undefined;
+  if (directives.hasThinkDirective && directives.thinkLevel) {
+    sessionEntry.thinkingLevel = directives.thinkLevel;
+  }
+  if (shouldDowngradeXHigh) {
+    sessionEntry.thinkingLevel = "high";
+  }
+  if (directives.hasVerboseDirective && directives.verboseLevel) {
+    applyVerboseOverride(sessionEntry, directives.verboseLevel);
+  }
+  if (directives.hasReasoningDirective && directives.reasoningLevel) {
+    if (directives.reasoningLevel === "off") {
+      // Persist explicit off so it overrides model-capability defaults.
+      sessionEntry.reasoningLevel = "off";
+    } else {
+      sessionEntry.reasoningLevel = directives.reasoningLevel;
     }
-    if (shouldDowngradeXHigh) {
-      sessionEntry.thinkingLevel = "high";
+    reasoningChanged =
+      directives.reasoningLevel !== prevReasoningLevel && directives.reasoningLevel !== undefined;
+  }
+  if (directives.hasElevatedDirective && directives.elevatedLevel) {
+    // Unlike other toggles, elevated defaults can be "on".
+    // Persist "off" explicitly so `/elevated off` actually overrides defaults.
+    sessionEntry.elevatedLevel = directives.elevatedLevel;
+    elevatedChanged =
+      elevatedChanged ||
+      (directives.elevatedLevel !== prevElevatedLevel && directives.elevatedLevel !== undefined);
+  }
+  if (directives.hasExecDirective && directives.hasExecOptions) {
+    if (directives.execHost) {
+      sessionEntry.execHost = directives.execHost;
     }
-    if (directives.hasVerboseDirective && directives.verboseLevel) {
-      applyVerboseOverride(sessionEntry, directives.verboseLevel);
+    if (directives.execSecurity) {
+      sessionEntry.execSecurity = directives.execSecurity;
     }
-    if (directives.hasReasoningDirective && directives.reasoningLevel) {
-      if (directives.reasoningLevel === "off") delete sessionEntry.reasoningLevel;
-      else sessionEntry.reasoningLevel = directives.reasoningLevel;
-      reasoningChanged =
-        directives.reasoningLevel !== prevReasoningLevel && directives.reasoningLevel !== undefined;
+    if (directives.execAsk) {
+      sessionEntry.execAsk = directives.execAsk;
     }
-    if (directives.hasElevatedDirective && directives.elevatedLevel) {
-      // Unlike other toggles, elevated defaults can be "on".
-      // Persist "off" explicitly so `/elevated off` actually overrides defaults.
-      sessionEntry.elevatedLevel = directives.elevatedLevel;
-      elevatedChanged =
-        elevatedChanged ||
-        (directives.elevatedLevel !== prevElevatedLevel && directives.elevatedLevel !== undefined);
+    if (directives.execNode) {
+      sessionEntry.execNode = directives.execNode;
     }
-    if (modelSelection) {
-      if (modelSelection.isDefault) {
-        delete sessionEntry.providerOverride;
-        delete sessionEntry.modelOverride;
-      } else {
-        sessionEntry.providerOverride = modelSelection.provider;
-        sessionEntry.modelOverride = modelSelection.model;
-      }
-      if (profileOverride) {
-        sessionEntry.authProfileOverride = profileOverride;
-        sessionEntry.authProfileOverrideSource = "user";
-        delete sessionEntry.authProfileOverrideCompactionCount;
-      } else if (directives.hasModelDirective) {
-        delete sessionEntry.authProfileOverride;
-        delete sessionEntry.authProfileOverrideSource;
-        delete sessionEntry.authProfileOverrideCompactionCount;
-      }
+  }
+  if (modelSelection) {
+    applyModelOverrideToSessionEntry({
+      entry: sessionEntry,
+      selection: modelSelection,
+      profileOverride,
+    });
+  }
+  if (directives.hasQueueDirective && directives.queueReset) {
+    delete sessionEntry.queueMode;
+    delete sessionEntry.queueDebounceMs;
+    delete sessionEntry.queueCap;
+    delete sessionEntry.queueDrop;
+  } else if (directives.hasQueueDirective) {
+    if (directives.queueMode) {
+      sessionEntry.queueMode = directives.queueMode;
     }
-    if (directives.hasQueueDirective && directives.queueReset) {
-      delete sessionEntry.queueMode;
-      delete sessionEntry.queueDebounceMs;
-      delete sessionEntry.queueCap;
-      delete sessionEntry.queueDrop;
-    } else if (directives.hasQueueDirective) {
-      if (directives.queueMode) sessionEntry.queueMode = directives.queueMode;
-      if (typeof directives.debounceMs === "number") {
-        sessionEntry.queueDebounceMs = directives.debounceMs;
-      }
-      if (typeof directives.cap === "number") {
-        sessionEntry.queueCap = directives.cap;
-      }
-      if (directives.dropPolicy) {
-        sessionEntry.queueDrop = directives.dropPolicy;
-      }
+    if (typeof directives.debounceMs === "number") {
+      sessionEntry.queueDebounceMs = directives.debounceMs;
     }
-    sessionEntry.updatedAt = Date.now();
-    sessionStore[sessionKey] = sessionEntry;
-    if (storePath) {
-      await updateSessionStore(storePath, (store) => {
-        store[sessionKey] = sessionEntry;
-      });
+    if (typeof directives.cap === "number") {
+      sessionEntry.queueCap = directives.cap;
     }
-    if (modelSelection) {
-      const nextLabel = `${modelSelection.provider}/${modelSelection.model}`;
-      if (nextLabel !== initialModelLabel) {
-        enqueueSystemEvent(formatModelSwitchEvent(nextLabel, modelSelection.alias), {
-          sessionKey,
-          contextKey: `model:${nextLabel}`,
-        });
-      }
+    if (directives.dropPolicy) {
+      sessionEntry.queueDrop = directives.dropPolicy;
     }
-    if (elevatedChanged) {
-      const nextElevated = (sessionEntry.elevatedLevel ?? "off") as ElevatedLevel;
-      enqueueSystemEvent(formatElevatedEvent(nextElevated), {
+  }
+  sessionEntry.updatedAt = Date.now();
+  sessionStore[sessionKey] = sessionEntry;
+  if (storePath) {
+    await updateSessionStore(storePath, (store) => {
+      store[sessionKey] = sessionEntry;
+    });
+  }
+  if (modelSelection) {
+    const nextLabel = `${modelSelection.provider}/${modelSelection.model}`;
+    if (nextLabel !== initialModelLabel) {
+      enqueueSystemEvent(formatModelSwitchEvent(nextLabel, modelSelection.alias), {
         sessionKey,
-        contextKey: "mode:elevated",
-      });
-    }
-    if (reasoningChanged) {
-      const nextReasoning = (sessionEntry.reasoningLevel ?? "off") as ReasoningLevel;
-      enqueueSystemEvent(formatReasoningEvent(nextReasoning), {
-        sessionKey,
-        contextKey: "mode:reasoning",
+        contextKey: `model:${nextLabel}`,
       });
     }
   }
+  enqueueModeSwitchEvents({
+    enqueueSystemEvent,
+    sessionEntry,
+    sessionKey,
+    elevatedChanged,
+    reasoningChanged,
+  });
 
   const parts: string[] = [];
   if (directives.hasThinkDirective && directives.thinkLevel) {
@@ -351,9 +402,31 @@ export async function handleDirectiveOnly(params: {
     parts.push(
       directives.elevatedLevel === "off"
         ? formatDirectiveAck("Elevated mode disabled.")
-        : formatDirectiveAck("Elevated mode enabled."),
+        : directives.elevatedLevel === "full"
+          ? formatDirectiveAck("Elevated mode set to full (auto-approve).")
+          : formatDirectiveAck("Elevated mode set to ask (approvals may still apply)."),
     );
-    if (shouldHintDirectRuntime) parts.push(formatElevatedRuntimeHint());
+    if (shouldHintDirectRuntime) {
+      parts.push(formatElevatedRuntimeHint());
+    }
+  }
+  if (directives.hasExecDirective && directives.hasExecOptions) {
+    const execParts: string[] = [];
+    if (directives.execHost) {
+      execParts.push(`host=${directives.execHost}`);
+    }
+    if (directives.execSecurity) {
+      execParts.push(`security=${directives.execSecurity}`);
+    }
+    if (directives.execAsk) {
+      execParts.push(`ask=${directives.execAsk}`);
+    }
+    if (directives.execNode) {
+      execParts.push(`node=${directives.execNode}`);
+    }
+    if (execParts.length > 0) {
+      parts.push(formatDirectiveAck(`Exec defaults set (${execParts.join(", ")}).`));
+    }
   }
   if (shouldDowngradeXHigh) {
     parts.push(
@@ -387,6 +460,8 @@ export async function handleDirectiveOnly(params: {
     parts.push(formatDirectiveAck(`Queue drop set to ${directives.dropPolicy}.`));
   }
   const ack = parts.join(" ").trim();
-  if (!ack && directives.hasStatusDirective) return undefined;
+  if (!ack && directives.hasStatusDirective) {
+    return undefined;
+  }
   return { text: ack || "OK." };
 }

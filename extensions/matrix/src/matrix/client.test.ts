@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import type { CoreConfig } from "../types.js";
 import { resolveMatrixConfig } from "./client.js";
 
@@ -32,6 +31,7 @@ describe("resolveMatrixConfig", () => {
       password: "cfg-pass",
       deviceName: "CfgDevice",
       initialSyncLimit: 5,
+      encryption: false,
     });
   });
 
@@ -51,5 +51,6 @@ describe("resolveMatrixConfig", () => {
     expect(resolved.password).toBe("env-pass");
     expect(resolved.deviceName).toBe("EnvDevice");
     expect(resolved.initialSyncLimit).toBeUndefined();
+    expect(resolved.encryption).toBe(false);
   });
 });

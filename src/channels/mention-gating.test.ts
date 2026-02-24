@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-
-import { resolveMentionGating } from "./mention-gating.js";
+import { resolveMentionGating, resolveMentionGatingWithBypass } from "./mention-gating.js";
 
 describe("resolveMentionGating", () => {
   it("combines explicit, implicit, and bypass mentions", () => {
@@ -34,5 +33,35 @@ describe("resolveMentionGating", () => {
       wasMentioned: false,
     });
     expect(res.shouldSkip).toBe(false);
+  });
+});
+
+describe("resolveMentionGatingWithBypass", () => {
+  it.each([
+    {
+      name: "enables bypass when control commands are authorized",
+      commandAuthorized: true,
+      shouldBypassMention: true,
+      shouldSkip: false,
+    },
+    {
+      name: "does not bypass when control commands are not authorized",
+      commandAuthorized: false,
+      shouldBypassMention: false,
+      shouldSkip: true,
+    },
+  ])("$name", ({ commandAuthorized, shouldBypassMention, shouldSkip }) => {
+    const res = resolveMentionGatingWithBypass({
+      isGroup: true,
+      requireMention: true,
+      canDetectMention: true,
+      wasMentioned: false,
+      hasAnyMention: false,
+      allowTextCommands: true,
+      hasControlCommand: true,
+      commandAuthorized,
+    });
+    expect(res.shouldBypassMention).toBe(shouldBypassMention);
+    expect(res.shouldSkip).toBe(shouldSkip);
   });
 });

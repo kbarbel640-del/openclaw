@@ -9,6 +9,9 @@ export type {
   ChannelCommandAdapter,
   ChannelConfigAdapter,
   ChannelDirectoryAdapter,
+  ChannelResolveKind,
+  ChannelResolveResult,
+  ChannelResolverAdapter,
   ChannelElevatedAdapter,
   ChannelGatewayAdapter,
   ChannelGatewayContext,
@@ -28,6 +31,7 @@ export type {
 export type {
   ChannelAccountSnapshot,
   ChannelAccountState,
+  ChannelAgentPromptAdapter,
   ChannelAgentTool,
   ChannelAgentToolFactory,
   ChannelCapabilities,
@@ -54,6 +58,8 @@ export type {
   ChannelThreadingContext,
   ChannelThreadingToolContext,
   ChannelToolSend,
+  BaseProbeResult,
+  BaseTokenResolution,
 } from "./types.core.js";
 
 export type { ChannelPlugin } from "./types.plugin.js";

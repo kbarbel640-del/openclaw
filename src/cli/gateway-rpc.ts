@@ -15,7 +15,7 @@ export function addGatewayClientOptions(cmd: Command) {
   return cmd
     .option("--url <url>", "Gateway WebSocket URL (defaults to gateway.remote.url when configured)")
     .option("--token <token>", "Gateway token (if required)")
-    .option("--timeout <ms>", "Timeout in ms", "10000")
+    .option("--timeout <ms>", "Timeout in ms", "30000")
     .option("--expect-final", "Wait for final response (agent)", false);
 }
 
@@ -23,13 +23,14 @@ export async function callGatewayFromCli(
   method: string,
   opts: GatewayRpcOpts,
   params?: unknown,
-  extra?: { expectFinal?: boolean },
+  extra?: { expectFinal?: boolean; progress?: boolean },
 ) {
+  const showProgress = extra?.progress ?? opts.json !== true;
   return await withProgress(
     {
       label: `Gateway ${method}`,
       indeterminate: true,
-      enabled: opts.json !== true,
+      enabled: showProgress,
     },
     async () =>
       await callGateway({

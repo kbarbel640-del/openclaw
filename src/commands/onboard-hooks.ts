@@ -1,20 +1,21 @@
-import type { ClawdbotConfig } from "../config/config.js";
+import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { formatCliCommand } from "../cli/command-format.js";
+import type { OpenClawConfig } from "../config/config.js";
+import { buildWorkspaceHookStatus } from "../hooks/hooks-status.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
-import { buildWorkspaceHookStatus } from "../hooks/hooks-status.js";
-import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 
 export async function setupInternalHooks(
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   runtime: RuntimeEnv,
   prompter: WizardPrompter,
-): Promise<ClawdbotConfig> {
+): Promise<OpenClawConfig> {
   await prompter.note(
     [
       "Hooks let you automate actions when agent commands are issued.",
-      "Example: Save session context to memory when you issue /new.",
+      "Example: Save session context to memory when you issue /new or /reset.",
       "",
-      "Learn more: https://docs.clawd.bot/hooks",
+      "Learn more: https://docs.openclaw.ai/automation/hooks",
     ].join("\n"),
     "Hooks",
   );
@@ -23,10 +24,10 @@ export async function setupInternalHooks(
   const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
   const report = buildWorkspaceHookStatus(workspaceDir, { config: cfg });
 
-  // Filter for eligible and recommended hooks (session-memory is recommended)
-  const recommendedHooks = report.hooks.filter((h) => h.eligible && h.name === "session-memory");
+  // Show every eligible hook so users can opt in during onboarding.
+  const eligibleHooks = report.hooks.filter((h) => h.eligible);
 
-  if (recommendedHooks.length === 0) {
+  if (eligibleHooks.length === 0) {
     await prompter.note(
       "No eligible hooks found. You can configure hooks later in your config.",
       "No Hooks Available",
@@ -38,7 +39,7 @@ export async function setupInternalHooks(
     message: "Enable hooks?",
     options: [
       { value: "__skip__", label: "Skip for now" },
-      ...recommendedHooks.map((hook) => ({
+      ...eligibleHooks.map((hook) => ({
         value: hook.name,
         label: `${hook.emoji ?? "🔗"} ${hook.name}`,
         hint: hook.description,
@@ -57,7 +58,7 @@ export async function setupInternalHooks(
     entries[name] = { enabled: true };
   }
 
-  const next: ClawdbotConfig = {
+  const next: OpenClawConfig = {
     ...cfg,
     hooks: {
       ...cfg.hooks,
@@ -73,9 +74,9 @@ export async function setupInternalHooks(
       `Enabled ${selected.length} hook${selected.length > 1 ? "s" : ""}: ${selected.join(", ")}`,
       "",
       "You can manage hooks later with:",
-      "  clawdbot hooks list",
-      "  clawdbot hooks enable <name>",
-      "  clawdbot hooks disable <name>",
+      `  ${formatCliCommand("openclaw hooks list")}`,
+      `  ${formatCliCommand("openclaw hooks enable <name>")}`,
+      `  ${formatCliCommand("openclaw hooks disable <name>")}`,
     ].join("\n"),
     "Hooks Configured",
   );

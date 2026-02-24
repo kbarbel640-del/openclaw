@@ -1,8 +1,9 @@
 import { resolveGatewayPort } from "../../config/config.js";
-import type { ClawdbotConfig, ConfigFileSnapshot } from "../../config/types.js";
+import type { OpenClawConfig, ConfigFileSnapshot } from "../../config/types.js";
 import type { GatewayProbeResult } from "../../gateway/probe.js";
 import { pickPrimaryTailnetIPv4 } from "../../infra/tailnet.js";
 import { colorize, theme } from "../../terminal/theme.js";
+import { pickGatewaySelfPresence } from "../gateway-presence.js";
 
 type TargetKind = "explicit" | "configRemote" | "localLoopback" | "sshTunnel";
 
@@ -40,11 +41,6 @@ export type GatewayConfigSummary = {
     remotePasswordConfigured: boolean;
     tailscaleMode: string | null;
   };
-  bridge: {
-    enabled: boolean | null;
-    bind: string | null;
-    port: number | null;
-  };
   discovery: {
     wideAreaEnabled: boolean | null;
   };
@@ -57,7 +53,9 @@ function parseIntOrNull(value: unknown): number | null {
       : typeof value === "number" || typeof value === "bigint"
         ? String(value)
         : "";
-  if (!s) return null;
+  if (!s) {
+    return null;
+  }
   const n = Number.parseInt(s, 10);
   return Number.isFinite(n) ? n : null;
 }
@@ -69,7 +67,9 @@ export function parseTimeoutMs(raw: unknown, fallbackMs: number): number {
       : typeof raw === "number" || typeof raw === "bigint"
         ? String(raw)
         : "";
-  if (!value) return fallbackMs;
+  if (!value) {
+    return fallbackMs;
+  }
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(`invalid --timeout: ${value}`);
@@ -79,19 +79,27 @@ export function parseTimeoutMs(raw: unknown, fallbackMs: number): number {
 
 function normalizeWsUrl(value: string): string | null {
   const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (!trimmed.startsWith("ws://") && !trimmed.startsWith("wss://")) return null;
+  if (!trimmed) {
+    return null;
+  }
+  if (!trimmed.startsWith("ws://") && !trimmed.startsWith("wss://")) {
+    return null;
+  }
   return trimmed;
 }
 
-export function resolveTargets(cfg: ClawdbotConfig, explicitUrl?: string): GatewayStatusTarget[] {
+export function resolveTargets(cfg: OpenClawConfig, explicitUrl?: string): GatewayStatusTarget[] {
   const targets: GatewayStatusTarget[] = [];
   const add = (t: GatewayStatusTarget) => {
-    if (!targets.some((x) => x.url === t.url)) targets.push(t);
+    if (!targets.some((x) => x.url === t.url)) {
+      targets.push(t);
+    }
   };
 
   const explicit = typeof explicitUrl === "string" ? normalizeWsUrl(explicitUrl) : null;
-  if (explicit) add({ id: "explicit", kind: "explicit", url: explicit, active: true });
+  if (explicit) {
+    add({ id: "explicit", kind: "explicit", url: explicit, active: true });
+  }
 
   const remoteUrl =
     typeof cfg.gateway?.remote?.url === "string" ? normalizeWsUrl(cfg.gateway.remote.url) : null;
@@ -116,20 +124,28 @@ export function resolveTargets(cfg: ClawdbotConfig, explicitUrl?: string): Gatew
 }
 
 export function resolveProbeBudgetMs(overallMs: number, kind: TargetKind): number {
-  if (kind === "localLoopback") return Math.min(800, overallMs);
-  if (kind === "sshTunnel") return Math.min(2000, overallMs);
+  if (kind === "localLoopback") {
+    return Math.min(800, overallMs);
+  }
+  if (kind === "sshTunnel") {
+    return Math.min(2000, overallMs);
+  }
   return Math.min(1500, overallMs);
 }
 
 export function sanitizeSshTarget(value: unknown): string | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    return null;
+  }
   const trimmed = value.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
   return trimmed.replace(/^ssh\\s+/, "");
 }
 
 export function resolveAuthForTarget(
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   target: GatewayStatusTarget,
   overrides: { token?: string; password?: string },
 ): { token?: string; password?: string } {
@@ -139,7 +155,7 @@ export function resolveAuthForTarget(
     return { token: tokenOverride, password: passwordOverride };
   }
 
-  if (target.kind === "configRemote") {
+  if (target.kind === "configRemote" || target.kind === "sshTunnel") {
     const token =
       typeof cfg.gateway?.remote?.token === "string" ? cfg.gateway.remote.token.trim() : "";
     const remotePassword = (cfg.gateway?.remote as { password?: unknown } | undefined)?.password;
@@ -150,8 +166,8 @@ export function resolveAuthForTarget(
     };
   }
 
-  const envToken = process.env.CLAWDBOT_GATEWAY_TOKEN?.trim() || "";
-  const envPassword = process.env.CLAWDBOT_GATEWAY_PASSWORD?.trim() || "";
+  const envToken = process.env.OPENCLAW_GATEWAY_TOKEN?.trim() || "";
+  const envPassword = process.env.OPENCLAW_GATEWAY_PASSWORD?.trim() || "";
   const cfgToken =
     typeof cfg.gateway?.auth?.token === "string" ? cfg.gateway.auth.token.trim() : "";
   const cfgPassword =
@@ -163,23 +179,7 @@ export function resolveAuthForTarget(
   };
 }
 
-export function pickGatewaySelfPresence(
-  presence: unknown,
-): { host?: string; ip?: string; version?: string; platform?: string } | null {
-  if (!Array.isArray(presence)) return null;
-  const entries = presence as Array<Record<string, unknown>>;
-  const self =
-    entries.find((e) => e.mode === "gateway" && e.reason === "self") ??
-    entries.find((e) => typeof e.text === "string" && String(e.text).startsWith("Gateway:")) ??
-    null;
-  if (!self) return null;
-  return {
-    host: typeof self.host === "string" ? self.host : undefined,
-    ip: typeof self.ip === "string" ? self.ip : undefined,
-    version: typeof self.version === "string" ? self.version : undefined,
-    platform: typeof self.platform === "string" ? self.platform : undefined,
-  };
-}
+export { pickGatewaySelfPresence };
 
 export function extractConfigSummary(snapshotUnknown: unknown): GatewayConfigSummary {
   const snap = snapshotUnknown as Partial<ConfigFileSnapshot> | null;
@@ -191,7 +191,6 @@ export function extractConfigSummary(snapshotUnknown: unknown): GatewayConfigSum
 
   const cfg = (snap?.config ?? {}) as Record<string, unknown>;
   const gateway = (cfg.gateway ?? {}) as Record<string, unknown>;
-  const bridge = (cfg.bridge ?? {}) as Record<string, unknown>;
   const discovery = (cfg.discovery ?? {}) as Record<string, unknown>;
   const wideArea = (discovery.wideArea ?? {}) as Record<string, unknown>;
 
@@ -210,10 +209,6 @@ export function extractConfigSummary(snapshotUnknown: unknown): GatewayConfigSum
     typeof remote.token === "string" ? remote.token.trim().length > 0 : false;
   const remotePasswordConfigured =
     typeof remote.password === "string" ? String(remote.password).trim().length > 0 : false;
-
-  const bridgeEnabled = typeof bridge.enabled === "boolean" ? bridge.enabled : null;
-  const bridgeBind = typeof bridge.bind === "string" ? bridge.bind : null;
-  const bridgePort = parseIntOrNull(bridge.port);
 
   const wideAreaEnabled = typeof wideArea.enabled === "boolean" ? wideArea.enabled : null;
 
@@ -245,12 +240,11 @@ export function extractConfigSummary(snapshotUnknown: unknown): GatewayConfigSum
       remotePasswordConfigured,
       tailscaleMode: typeof tailscale.mode === "string" ? tailscale.mode : null,
     },
-    bridge: { enabled: bridgeEnabled, bind: bridgeBind, port: bridgePort },
     discovery: { wideAreaEnabled },
   };
 }
 
-export function buildNetworkHints(cfg: ClawdbotConfig) {
+export function buildNetworkHints(cfg: OpenClawConfig) {
   const tailnetIPv4 = pickPrimaryTailnetIPv4();
   const port = resolveGatewayPort(cfg);
   return {

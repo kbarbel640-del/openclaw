@@ -1,15 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { discordOutbound } from "../../channels/plugins/outbound/discord.js";
+import { imessageOutbound } from "../../channels/plugins/outbound/imessage.js";
+import { signalOutbound } from "../../channels/plugins/outbound/signal.js";
+import { slackOutbound } from "../../channels/plugins/outbound/slack.js";
+import { telegramOutbound } from "../../channels/plugins/outbound/telegram.js";
+import { whatsappOutbound } from "../../channels/plugins/outbound/whatsapp.js";
 import type { ChannelOutboundAdapter, ChannelPlugin } from "../../channels/plugins/types.js";
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import type { PluginRegistry } from "../../plugins/registry.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
+import { createOutboundTestPlugin, createTestRegistry } from "../../test-utils/channel-plugins.js";
+import { createIMessageTestPlugin } from "../../test-utils/imessage-test-plugin.js";
 import { SILENT_REPLY_TOKEN } from "../tokens.js";
 
 const mocks = vi.hoisted(() => ({
   sendMessageDiscord: vi.fn(async () => ({ messageId: "m1", channelId: "c1" })),
   sendMessageIMessage: vi.fn(async () => ({ messageId: "ok" })),
-  sendMessageMSTeams: vi.fn(async () => ({
+  sendMessageMSTeams: vi.fn(async (_params: unknown) => ({
     messageId: "m1",
     conversationId: "c1",
   })),
@@ -37,6 +44,7 @@ vi.mock("../../telegram/send.js", () => ({
 }));
 vi.mock("../../web/outbound.js", () => ({
   sendMessageWhatsApp: mocks.sendMessageWhatsApp,
+  sendPollWhatsApp: mocks.sendMessageWhatsApp,
 }));
 vi.mock("../../infra/outbound/deliver.js", async () => {
   const actual = await vi.importActual<typeof import("../../infra/outbound/deliver.js")>(
@@ -53,9 +61,54 @@ const actualDeliver = await vi.importActual<typeof import("../../infra/outbound/
 
 const { routeReply } = await import("./route-reply.js");
 
+const createRegistry = (channels: PluginRegistry["channels"]): PluginRegistry => ({
+  plugins: [],
+  tools: [],
+  hooks: [],
+  typedHooks: [],
+  commands: [],
+  channels,
+  providers: [],
+  gatewayHandlers: {},
+  httpHandlers: [],
+  httpRoutes: [],
+  cliRegistrars: [],
+  services: [],
+  diagnostics: [],
+});
+
+const createMSTeamsOutbound = (): ChannelOutboundAdapter => ({
+  deliveryMode: "direct",
+  sendText: async ({ cfg, to, text }) => {
+    const result = await mocks.sendMessageMSTeams({ cfg, to, text });
+    return { channel: "msteams", ...result };
+  },
+  sendMedia: async ({ cfg, to, text, mediaUrl }) => {
+    const result = await mocks.sendMessageMSTeams({ cfg, to, text, mediaUrl });
+    return { channel: "msteams", ...result };
+  },
+});
+
+const createMSTeamsPlugin = (params: { outbound: ChannelOutboundAdapter }): ChannelPlugin => ({
+  id: "msteams",
+  meta: {
+    id: "msteams",
+    label: "Microsoft Teams",
+    selectionLabel: "Microsoft Teams (Bot Framework)",
+    docsPath: "/channels/msteams",
+    blurb: "Bot Framework; enterprise support.",
+  },
+  capabilities: { chatTypes: ["direct"] },
+  config: {
+    listAccountIds: () => [],
+    resolveAccount: () => ({}),
+  },
+  outbound: params.outbound,
+});
+
 describe("routeReply", () => {
   beforeEach(() => {
-    setActivePluginRegistry(emptyRegistry);
+    setActivePluginRegistry(defaultRegistry);
     mocks.deliverOutboundPayloads.mockImplementation(actualDeliver.deliverOutboundPayloads);
   });
 
@@ -118,8 +171,8 @@ describe("routeReply", () => {
   it("applies responsePrefix when routing", async () => {
     mocks.sendMessageSlack.mockClear();
     const cfg = {
-      messages: { responsePrefix: "[clawdbot]" },
-    } as unknown as ClawdbotConfig;
+      messages: { responsePrefix: "[openclaw]" },
+    } as unknown as OpenClawConfig;
     await routeReply({
       payload: { text: "hi" },
       channel: "slack",
@@ -128,7 +181,7 @@ describe("routeReply", () => {
     });
     expect(mocks.sendMessageSlack).toHaveBeenCalledWith(
       "channel:C123",
-      "[clawdbot] hi",
+      "[openclaw] hi",
       expect.any(Object),
     );
   });
@@ -145,7 +198,7 @@ describe("routeReply", () => {
         ],
       },
       messages: {},
-    } as unknown as ClawdbotConfig;
+    } as unknown as OpenClawConfig;
     await routeReply({
       payload: { text: "hi" },
       channel: "slack",
@@ -154,6 +207,22 @@ describe("routeReply", () => {
       cfg,
     });
     expect(mocks.sendMessageSlack).toHaveBeenCalledWith("channel:C123", "hi", expect.any(Object));
+  });
+
+  it("uses threadId for Slack when replyToId is missing", async () => {
+    mocks.sendMessageSlack.mockClear();
+    await routeReply({
+      payload: { text: "hi" },
+      channel: "slack",
+      to: "channel:C123",
+      threadId: "456.789",
+      cfg: {} as never,
+    });
+    expect(mocks.sendMessageSlack).toHaveBeenCalledWith(
+      "channel:C123",
+      "hi",
+      expect.objectContaining({ threadTs: "456.789" }),
+    );
   });
 
   it("passes thread id to Telegram sends", async () => {
@@ -199,6 +268,22 @@ describe("routeReply", () => {
       "channel:C123",
       "hi",
       expect.objectContaining({ threadTs: "1710000000.0001" }),
+    );
+  });
+
+  it("uses threadId as threadTs for Slack when replyToId is missing", async () => {
+    mocks.sendMessageSlack.mockClear();
+    await routeReply({
+      payload: { text: "hi" },
+      channel: "slack",
+      to: "channel:C123",
+      threadId: "1710000000.9999",
+      cfg: {} as never,
+    });
+    expect(mocks.sendMessageSlack).toHaveBeenCalledWith(
+      "channel:C123",
+      "hi",
+      expect.objectContaining({ threadTs: "1710000000.9999" }),
     );
   });
 
@@ -260,7 +345,7 @@ describe("routeReply", () => {
           enabled: true,
         },
       },
-    } as unknown as ClawdbotConfig;
+    } as unknown as OpenClawConfig;
     await routeReply({
       payload: { text: "hi" },
       channel: "msteams",
@@ -294,47 +379,74 @@ describe("routeReply", () => {
       }),
     );
   });
-});
 
-const createRegistry = (channels: PluginRegistry["channels"]): PluginRegistry => ({
-  plugins: [],
-  tools: [],
-  channels,
-  providers: [],
-  gatewayHandlers: {},
-  httpHandlers: [],
-  cliRegistrars: [],
-  services: [],
-  diagnostics: [],
+  it("skips mirror data when mirror is false", async () => {
+    mocks.deliverOutboundPayloads.mockResolvedValue([]);
+    await routeReply({
+      payload: { text: "hi" },
+      channel: "slack",
+      to: "channel:C123",
+      sessionKey: "agent:main:main",
+      mirror: false,
+      cfg: {} as never,
+    });
+    expect(mocks.deliverOutboundPayloads).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mirror: undefined,
+      }),
+    );
+  });
 });
 
 const emptyRegistry = createRegistry([]);
-
-const createMSTeamsOutbound = (): ChannelOutboundAdapter => ({
-  deliveryMode: "direct",
-  sendText: async ({ cfg, to, text }) => {
-    const result = await mocks.sendMessageMSTeams({ cfg, to, text });
-    return { channel: "msteams", ...result };
+const defaultRegistry = createTestRegistry([
+  {
+    pluginId: "discord",
+    plugin: createOutboundTestPlugin({
+      id: "discord",
+      outbound: discordOutbound,
+      label: "Discord",
+    }),
+    source: "test",
   },
-  sendMedia: async ({ cfg, to, text, mediaUrl }) => {
-    const result = await mocks.sendMessageMSTeams({ cfg, to, text, mediaUrl });
-    return { channel: "msteams", ...result };
+  {
+    pluginId: "slack",
+    plugin: createOutboundTestPlugin({ id: "slack", outbound: slackOutbound, label: "Slack" }),
+    source: "test",
   },
-});
-
-const createMSTeamsPlugin = (params: { outbound: ChannelOutboundAdapter }): ChannelPlugin => ({
-  id: "msteams",
-  meta: {
-    id: "msteams",
-    label: "Microsoft Teams",
-    selectionLabel: "Microsoft Teams (Bot Framework)",
-    docsPath: "/channels/msteams",
-    blurb: "Bot Framework; enterprise support.",
+  {
+    pluginId: "telegram",
+    plugin: createOutboundTestPlugin({
+      id: "telegram",
+      outbound: telegramOutbound,
+      label: "Telegram",
+    }),
+    source: "test",
   },
-  capabilities: { chatTypes: ["direct"] },
-  config: {
-    listAccountIds: () => [],
-    resolveAccount: () => ({}),
+  {
+    pluginId: "whatsapp",
+    plugin: createOutboundTestPlugin({
+      id: "whatsapp",
+      outbound: whatsappOutbound,
+      label: "WhatsApp",
+    }),
+    source: "test",
   },
-  outbound: params.outbound,
-});
+  {
+    pluginId: "signal",
+    plugin: createOutboundTestPlugin({ id: "signal", outbound: signalOutbound, label: "Signal" }),
+    source: "test",
+  },
+  {
+    pluginId: "imessage",
+    plugin: createIMessageTestPlugin({ outbound: imessageOutbound }),
+    source: "test",
+  },
+  {
+    pluginId: "msteams",
+    plugin: createMSTeamsPlugin({
+      outbound: createMSTeamsOutbound(),
+    }),
+    source: "test",
+  },
+]);

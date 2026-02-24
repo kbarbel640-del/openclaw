@@ -1,104 +1,88 @@
 // swift-tools-version: 6.2
-// Package manifest for the Clawdbot macOS companion (menu bar app + IPC library).
+// Package manifest for the OpenClaw macOS companion (menu bar app + IPC library).
 
 import PackageDescription
 
 let package = Package(
-    name: "Clawdbot",
+    name: "OpenClaw",
     platforms: [
         .macOS(.v15),
     ],
     products: [
-        .library(name: "ClawdbotIPC", targets: ["ClawdbotIPC"]),
-        .library(name: "ClawdbotDiscovery", targets: ["ClawdbotDiscovery"]),
-        .executable(name: "Clawdbot", targets: ["Clawdbot"]),
-        .executable(name: "clawdbot-mac-discovery", targets: ["ClawdbotDiscoveryCLI"]),
-        .executable(name: "clawdbot-mac-wizard", targets: ["ClawdbotWizardCLI"]),
+        .library(name: "OpenClawIPC", targets: ["OpenClawIPC"]),
+        .library(name: "OpenClawDiscovery", targets: ["OpenClawDiscovery"]),
+        .executable(name: "OpenClaw", targets: ["OpenClaw"]),
+        .executable(name: "openclaw-mac", targets: ["OpenClawMacCLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/orchetect/MenuBarExtraAccess", exact: "1.2.2"),
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.1.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.8.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1"),
-        .package(path: "../shared/ClawdbotKit"),
+        .package(url: "https://github.com/steipete/Peekaboo.git", branch: "main"),
+        .package(path: "../shared/OpenClawKit"),
         .package(path: "../../Swabble"),
-        .package(path: "../../Peekaboo/Core/PeekabooCore"),
-        .package(path: "../../Peekaboo/Core/PeekabooAutomationKit"),
     ],
     targets: [
         .target(
-            name: "ClawdbotProtocol",
-            dependencies: [],
-            path: "Sources/ClawdbotProtocol",
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency"),
-            ]),
-        .target(
-            name: "ClawdbotIPC",
+            name: "OpenClawIPC",
             dependencies: [],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .target(
-            name: "ClawdbotDiscovery",
+            name: "OpenClawDiscovery",
             dependencies: [
-                .product(name: "ClawdbotKit", package: "ClawdbotKit"),
+                .product(name: "OpenClawKit", package: "OpenClawKit"),
             ],
-            path: "Sources/ClawdbotDiscovery",
+            path: "Sources/OpenClawDiscovery",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .executableTarget(
-            name: "Clawdbot",
+            name: "OpenClaw",
             dependencies: [
-                "ClawdbotIPC",
-                "ClawdbotDiscovery",
-                "ClawdbotProtocol",
-                .product(name: "ClawdbotKit", package: "ClawdbotKit"),
-                .product(name: "ClawdbotChatUI", package: "ClawdbotKit"),
+                "OpenClawIPC",
+                "OpenClawDiscovery",
+                .product(name: "OpenClawKit", package: "OpenClawKit"),
+                .product(name: "OpenClawChatUI", package: "OpenClawKit"),
+                .product(name: "OpenClawProtocol", package: "OpenClawKit"),
                 .product(name: "SwabbleKit", package: "swabble"),
                 .product(name: "MenuBarExtraAccess", package: "MenuBarExtraAccess"),
                 .product(name: "Subprocess", package: "swift-subprocess"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "Sparkle", package: "Sparkle"),
-                .product(name: "PeekabooBridge", package: "PeekabooCore"),
-                .product(name: "PeekabooAutomationKit", package: "PeekabooAutomationKit"),
+                .product(name: "PeekabooBridge", package: "Peekaboo"),
+                .product(name: "PeekabooAutomationKit", package: "Peekaboo"),
             ],
             exclude: [
                 "Resources/Info.plist",
             ],
             resources: [
-                .copy("Resources/Clawdbot.icns"),
+                .copy("Resources/OpenClaw.icns"),
                 .copy("Resources/DeviceModels"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .executableTarget(
-            name: "ClawdbotDiscoveryCLI",
+            name: "OpenClawMacCLI",
             dependencies: [
-                "ClawdbotDiscovery",
+                "OpenClawDiscovery",
+                .product(name: "OpenClawKit", package: "OpenClawKit"),
+                .product(name: "OpenClawProtocol", package: "OpenClawKit"),
             ],
-            path: "Sources/ClawdbotDiscoveryCLI",
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency"),
-            ]),
-        .executableTarget(
-            name: "ClawdbotWizardCLI",
-            dependencies: [
-                "ClawdbotProtocol",
-            ],
-            path: "Sources/ClawdbotWizardCLI",
+            path: "Sources/OpenClawMacCLI",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .testTarget(
-            name: "ClawdbotIPCTests",
+            name: "OpenClawIPCTests",
             dependencies: [
-                "ClawdbotIPC",
-                "Clawdbot",
-                "ClawdbotDiscovery",
-                "ClawdbotProtocol",
+                "OpenClawIPC",
+                "OpenClaw",
+                "OpenClawDiscovery",
+                .product(name: "OpenClawProtocol", package: "OpenClawKit"),
                 .product(name: "SwabbleKit", package: "swabble"),
             ],
             swiftSettings: [

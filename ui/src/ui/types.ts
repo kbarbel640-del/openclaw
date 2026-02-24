@@ -1,11 +1,25 @@
+export type UpdateAvailable = import("../../../src/infra/update-startup.js").UpdateAvailable;
+
 export type ChannelsStatusSnapshot = {
   ts: number;
   channelOrder: string[];
   channelLabels: Record<string, string>;
+  channelDetailLabels?: Record<string, string>;
+  channelSystemImages?: Record<string, string>;
+  channelMeta?: ChannelUiMetaEntry[];
   channels: Record<string, unknown>;
   channelAccounts: Record<string, ChannelAccountSnapshot[]>;
   channelDefaultAccountId: Record<string, string>;
 };
+
+export type ChannelUiMetaEntry = {
+  id: string;
+  label: string;
+  detailLabel: string;
+  systemImage?: string;
+};
+
+export const CRON_CHANNEL_LAST = "last";
 
 export type ChannelAccountSnapshot = {
   accountId: string;
@@ -29,6 +43,11 @@ export type ChannelAccountSnapshot = {
   tokenSource?: string | null;
   botTokenSource?: string | null;
   appTokenSource?: string | null;
+  credentialSource?: string | null;
+  audienceType?: string | null;
+  audience?: string | null;
+  webhookPath?: string | null;
+  webhookUrl?: string | null;
   baseUrl?: string | null;
   allowUnmentionedGroups?: boolean | null;
   cliPath?: string | null;
@@ -121,6 +140,28 @@ export type DiscordStatus = {
   lastProbeAt?: number | null;
 };
 
+export type GoogleChatProbe = {
+  ok: boolean;
+  status?: number | null;
+  error?: string | null;
+  elapsedMs?: number | null;
+};
+
+export type GoogleChatStatus = {
+  configured: boolean;
+  credentialSource?: string | null;
+  audienceType?: string | null;
+  audience?: string | null;
+  webhookPath?: string | null;
+  webhookUrl?: string | null;
+  running: boolean;
+  lastStartAt?: number | null;
+  lastStopAt?: number | null;
+  lastError?: string | null;
+  probe?: GoogleChatProbe | null;
+  lastProbeAt?: number | null;
+};
+
 export type SlackBot = {
   id?: string | null;
   name?: string | null;
@@ -188,6 +229,27 @@ export type IMessageStatus = {
   lastProbeAt?: number | null;
 };
 
+export type NostrProfile = {
+  name?: string | null;
+  displayName?: string | null;
+  about?: string | null;
+  picture?: string | null;
+  banner?: string | null;
+  website?: string | null;
+  nip05?: string | null;
+  lud16?: string | null;
+};
+
+export type NostrStatus = {
+  configured: boolean;
+  publicKey?: string | null;
+  running: boolean;
+  lastStartAt?: number | null;
+  lastStopAt?: number | null;
+  lastError?: string | null;
+  profile?: NostrProfile | null;
+};
+
 export type MSTeamsProbe = {
   ok: boolean;
   error?: string | null;
@@ -224,6 +286,7 @@ export type ConfigSnapshot = {
 export type ConfigUiHint = {
   label?: string;
   help?: string;
+  tags?: string[];
   group?: string;
   order?: number;
   advanced?: boolean;
@@ -249,6 +312,8 @@ export type PresenceEntry = {
   platform?: string | null;
   deviceFamily?: string | null;
   modelIdentifier?: string | null;
+  roles?: string[] | null;
+  scopes?: string[] | null;
   mode?: string | null;
   lastInputSeconds?: number | null;
   reason?: string | null;
@@ -259,6 +324,89 @@ export type PresenceEntry = {
 export type GatewaySessionsDefaults = {
   model: string | null;
   contextTokens: number | null;
+};
+
+export type GatewayAgentRow = {
+  id: string;
+  name?: string;
+  identity?: {
+    name?: string;
+    theme?: string;
+    emoji?: string;
+    avatar?: string;
+    avatarUrl?: string;
+  };
+};
+
+export type AgentsListResult = {
+  defaultId: string;
+  mainKey: string;
+  scope: string;
+  agents: GatewayAgentRow[];
+};
+
+export type ToolCatalogProfile = {
+  id: "minimal" | "coding" | "messaging" | "full";
+  label: string;
+};
+
+export type ToolCatalogEntry = {
+  id: string;
+  label: string;
+  description: string;
+  source: "core" | "plugin";
+  pluginId?: string;
+  optional?: boolean;
+  defaultProfiles: Array<"minimal" | "coding" | "messaging" | "full">;
+};
+
+export type ToolCatalogGroup = {
+  id: string;
+  label: string;
+  source: "core" | "plugin";
+  pluginId?: string;
+  tools: ToolCatalogEntry[];
+};
+
+export type ToolsCatalogResult = {
+  agentId: string;
+  profiles: ToolCatalogProfile[];
+  groups: ToolCatalogGroup[];
+};
+
+export type AgentIdentityResult = {
+  agentId: string;
+  name: string;
+  avatar: string;
+  emoji?: string;
+};
+
+export type AgentFileEntry = {
+  name: string;
+  path: string;
+  missing: boolean;
+  size?: number;
+  updatedAtMs?: number;
+  content?: string;
+};
+
+export type AgentsFilesListResult = {
+  agentId: string;
+  workspace: string;
+  files: AgentFileEntry[];
+};
+
+export type AgentsFilesGetResult = {
+  agentId: string;
+  workspace: string;
+  file: AgentFileEntry;
+};
+
+export type AgentsFilesSetResult = {
+  ok: true;
+  agentId: string;
+  workspace: string;
+  file: AgentFileEntry;
 };
 
 export type GatewaySessionRow = {
@@ -308,10 +456,20 @@ export type SessionsPatchResult = {
   };
 };
 
+export type {
+  CostUsageDailyEntry,
+  CostUsageSummary,
+  SessionsUsageEntry,
+  SessionsUsageResult,
+  SessionsUsageTotals,
+  SessionUsageTimePoint,
+  SessionUsageTimeSeries,
+} from "./usage-types.ts";
+
 export type CronSchedule =
-  | { kind: "at"; atMs: number }
+  | { kind: "at"; at: string }
   | { kind: "every"; everyMs: number; anchorMs?: number }
-  | { kind: "cron"; expr: string; tz?: string };
+  | { kind: "cron"; expr: string; tz?: string; staggerMs?: number };
 
 export type CronSessionTarget = "main" | "isolated";
 export type CronWakeMode = "next-heartbeat" | "now";
@@ -321,24 +479,16 @@ export type CronPayload =
   | {
       kind: "agentTurn";
       message: string;
+      model?: string;
       thinking?: string;
       timeoutSeconds?: number;
-      deliver?: boolean;
-      provider?:
-        | "last"
-        | "whatsapp"
-        | "telegram"
-        | "discord"
-        | "slack"
-        | "signal"
-        | "imessage"
-        | "msteams";
-      to?: string;
-      bestEffortDeliver?: boolean;
     };
 
-export type CronIsolation = {
-  postToMainPrefix?: string;
+export type CronDelivery = {
+  mode: "none" | "announce" | "webhook";
+  channel?: string;
+  to?: string;
+  bestEffort?: boolean;
 };
 
 export type CronJobState = {
@@ -363,7 +513,7 @@ export type CronJob = {
   sessionTarget: CronSessionTarget;
   wakeMode: CronWakeMode;
   payload: CronPayload;
-  isolation?: CronIsolation;
+  delivery?: CronDelivery;
   state?: CronJobState;
 };
 
@@ -373,18 +523,60 @@ export type CronStatus = {
   nextWakeAtMs?: number | null;
 };
 
+export type CronJobsEnabledFilter = "all" | "enabled" | "disabled";
+export type CronJobsSortBy = "nextRunAtMs" | "updatedAtMs" | "name";
+export type CronSortDir = "asc" | "desc";
+export type CronRunsStatusFilter = "all" | "ok" | "error" | "skipped";
+export type CronRunsStatusValue = "ok" | "error" | "skipped";
+export type CronDeliveryStatus = "delivered" | "not-delivered" | "unknown" | "not-requested";
+export type CronRunScope = "job" | "all";
+
 export type CronRunLogEntry = {
   ts: number;
   jobId: string;
-  status: "ok" | "error" | "skipped";
+  jobName?: string;
+  status?: CronRunsStatusValue;
   durationMs?: number;
   error?: string;
   summary?: string;
+  deliveryStatus?: CronDeliveryStatus;
+  deliveryError?: string;
+  delivered?: boolean;
+  runAtMs?: number;
+  nextRunAtMs?: number;
+  model?: string;
+  provider?: string;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    cache_read_tokens?: number;
+    cache_write_tokens?: number;
+  };
+  sessionId?: string;
+  sessionKey?: string;
+};
+
+export type CronJobsListResult = {
+  jobs?: CronJob[];
+  total?: number;
+  offset?: number;
+  limit?: number;
+  hasMore?: boolean;
+  nextOffset?: number | null;
+};
+
+export type CronRunsResult = {
+  entries?: CronRunLogEntry[];
+  total?: number;
+  offset?: number;
+  limit?: number;
+  hasMore?: boolean;
+  nextOffset?: number | null;
 };
 
 export type SkillsStatusConfigCheck = {
   path: string;
-  value: unknown;
   satisfied: boolean;
 };
 
@@ -402,6 +594,7 @@ export type SkillStatusEntry = {
   filePath: string;
   baseDir: string;
   skillKey: string;
+  bundled?: boolean;
   primaryEnv?: string;
   emoji?: string;
   homepage?: string;
@@ -435,13 +628,7 @@ export type StatusSummary = Record<string, unknown>;
 
 export type HealthSnapshot = Record<string, unknown>;
 
-export type LogLevel =
-  | "trace"
-  | "debug"
-  | "info"
-  | "warn"
-  | "error"
-  | "fatal";
+export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 
 export type LogEntry = {
   raw: string;

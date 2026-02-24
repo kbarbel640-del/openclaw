@@ -1,140 +1,83 @@
 import { describe, expect, it } from "vitest";
+import type { AuthProfileStore } from "../agents/auth-profiles.js";
+import {
+  buildAuthChoiceGroups,
+  buildAuthChoiceOptions,
+  formatAuthChoiceChoicesForCli,
+} from "./auth-choice-options.js";
 
-import { type AuthProfileStore, CLAUDE_CLI_PROFILE_ID } from "../agents/auth-profiles.js";
-import { buildAuthChoiceOptions } from "./auth-choice-options.js";
+const EMPTY_STORE: AuthProfileStore = { version: 1, profiles: {} };
+
+function getOptions(includeSkip = false) {
+  return buildAuthChoiceOptions({
+    store: EMPTY_STORE,
+    includeSkip,
+  });
+}
 
 describe("buildAuthChoiceOptions", () => {
-  it("includes GitHub Copilot", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: false,
-      platform: "linux",
-    });
+  it("includes core and provider-specific auth choices", () => {
+    const options = getOptions();
 
-    expect(options.find((opt) => opt.value === "github-copilot")).toBeDefined();
-  });
-  it("includes Claude Code CLI option on macOS even when missing", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "darwin",
-    });
-
-    const claudeCli = options.find((opt) => opt.value === "claude-cli");
-    expect(claudeCli).toBeDefined();
-    expect(claudeCli?.hint).toBe("requires Keychain access");
-  });
-
-  it("skips missing Claude Code CLI option off macOS", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "linux",
-    });
-
-    expect(options.find((opt) => opt.value === "claude-cli")).toBeUndefined();
+    for (const value of [
+      "github-copilot",
+      "token",
+      "zai-api-key",
+      "xiaomi-api-key",
+      "minimax-api",
+      "minimax-api-key-cn",
+      "minimax-api-lightning",
+      "moonshot-api-key",
+      "moonshot-api-key-cn",
+      "kimi-code-api-key",
+      "together-api-key",
+      "ai-gateway-api-key",
+      "cloudflare-ai-gateway-api-key",
+      "synthetic-api-key",
+      "chutes",
+      "qwen-portal",
+      "xai-api-key",
+      "mistral-api-key",
+      "volcengine-api-key",
+      "byteplus-api-key",
+      "vllm",
+    ]) {
+      expect(options.some((opt) => opt.value === value)).toBe(true);
+    }
   });
 
-  it("uses token hint when Claude Code CLI credentials exist", () => {
-    const store: AuthProfileStore = {
-      version: 1,
-      profiles: {
-        [CLAUDE_CLI_PROFILE_ID]: {
-          type: "token",
-          provider: "anthropic",
-          token: "token",
-          expires: Date.now() + 60 * 60 * 1000,
-        },
-      },
-    };
+  it("builds cli help choices from the same catalog", () => {
+    const options = getOptions(true);
+    const cliChoices = formatAuthChoiceChoicesForCli({
+      includeLegacyAliases: false,
+      includeSkip: true,
+    }).split("|");
 
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "darwin",
-    });
-
-    const claudeCli = options.find((opt) => opt.value === "claude-cli");
-    expect(claudeCli?.hint).toContain("token ok");
+    for (const option of options) {
+      expect(cliChoices).toContain(option.value);
+    }
   });
 
-  it("includes Z.AI (GLM) auth choice", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "darwin",
-    });
+  it("can include legacy aliases in cli help choices", () => {
+    const cliChoices = formatAuthChoiceChoicesForCli({
+      includeLegacyAliases: true,
+      includeSkip: true,
+    }).split("|");
 
-    expect(options.some((opt) => opt.value === "zai-api-key")).toBe(true);
+    expect(cliChoices).toContain("setup-token");
+    expect(cliChoices).toContain("oauth");
+    expect(cliChoices).toContain("claude-cli");
+    expect(cliChoices).toContain("codex-cli");
   });
 
-  it("includes MiniMax auth choice", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
+  it("shows Chutes in grouped provider selection", () => {
+    const { groups } = buildAuthChoiceGroups({
+      store: EMPTY_STORE,
       includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "darwin",
     });
+    const chutesGroup = groups.find((group) => group.value === "chutes");
 
-    expect(options.some((opt) => opt.value === "minimax-api")).toBe(true);
-    expect(options.some((opt) => opt.value === "minimax-api-lightning")).toBe(true);
-  });
-
-  it("includes Moonshot auth choice", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "darwin",
-    });
-
-    expect(options.some((opt) => opt.value === "moonshot-api-key")).toBe(true);
-  });
-
-  it("includes Vercel AI Gateway auth choice", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "darwin",
-    });
-
-    expect(options.some((opt) => opt.value === "ai-gateway-api-key")).toBe(true);
-  });
-
-  it("includes Synthetic auth choice", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "darwin",
-    });
-
-    expect(options.some((opt) => opt.value === "synthetic-api-key")).toBe(true);
-  });
-
-  it("includes Chutes OAuth auth choice", () => {
-    const store: AuthProfileStore = { version: 1, profiles: {} };
-    const options = buildAuthChoiceOptions({
-      store,
-      includeSkip: false,
-      includeClaudeCliIfMissing: true,
-      platform: "darwin",
-    });
-
-    expect(options.some((opt) => opt.value === "chutes")).toBe(true);
+    expect(chutesGroup).toBeDefined();
+    expect(chutesGroup?.options.some((opt) => opt.value === "chutes")).toBe(true);
   });
 });

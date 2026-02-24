@@ -1,32 +1,84 @@
 import { detectBinary } from "../../../commands/onboard-helpers.js";
-import type { ClawdbotConfig } from "../../../config/config.js";
-import type { DmPolicy } from "../../../config/types.js";
+import type { OpenClawConfig } from "../../../config/config.js";
 import {
   listIMessageAccountIds,
   resolveDefaultIMessageAccountId,
   resolveIMessageAccount,
 } from "../../../imessage/accounts.js";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../../../routing/session-key.js";
+import { normalizeIMessageHandle } from "../../../imessage/targets.js";
 import { formatDocsLink } from "../../../terminal/links.js";
+import type { WizardPrompter } from "../../../wizard/prompts.js";
 import type { ChannelOnboardingAdapter, ChannelOnboardingDmPolicy } from "../onboarding-types.js";
-import { addWildcardAllowFrom, promptAccountId } from "./helpers.js";
+import {
+  parseOnboardingEntriesAllowingWildcard,
+  patchChannelConfigForAccount,
+  promptParsedAllowFromForScopedChannel,
+  resolveAccountIdForConfigure,
+  setChannelDmPolicyWithAllowFrom,
+  setOnboardingChannelEnabled,
+} from "./helpers.js";
 
 const channel = "imessage" as const;
 
-function setIMessageDmPolicy(cfg: ClawdbotConfig, dmPolicy: DmPolicy) {
-  const allowFrom =
-    dmPolicy === "open" ? addWildcardAllowFrom(cfg.channels?.imessage?.allowFrom) : undefined;
-  return {
-    ...cfg,
-    channels: {
-      ...cfg.channels,
-      imessage: {
-        ...cfg.channels?.imessage,
-        dmPolicy,
-        ...(allowFrom ? { allowFrom } : {}),
-      },
+export function parseIMessageAllowFromEntries(raw: string): { entries: string[]; error?: string } {
+  return parseOnboardingEntriesAllowingWildcard(raw, (entry) => {
+    const lower = entry.toLowerCase();
+    if (lower.startsWith("chat_id:")) {
+      const id = entry.slice("chat_id:".length).trim();
+      if (!/^\d+$/.test(id)) {
+        return { error: `Invalid chat_id: ${entry}` };
+      }
+      return { value: entry };
+    }
+    if (lower.startsWith("chat_guid:")) {
+      if (!entry.slice("chat_guid:".length).trim()) {
+        return { error: "Invalid chat_guid entry" };
+      }
+      return { value: entry };
+    }
+    if (lower.startsWith("chat_identifier:")) {
+      if (!entry.slice("chat_identifier:".length).trim()) {
+        return { error: "Invalid chat_identifier entry" };
+      }
+      return { value: entry };
+    }
+    if (!normalizeIMessageHandle(entry)) {
+      return { error: `Invalid handle: ${entry}` };
+    }
+    return { value: entry };
+  });
+}
+
+async function promptIMessageAllowFrom(params: {
+  cfg: OpenClawConfig;
+  prompter: WizardPrompter;
+  accountId?: string;
+}): Promise<OpenClawConfig> {
+  return promptParsedAllowFromForScopedChannel({
+    cfg: params.cfg,
+    channel: "imessage",
+    accountId: params.accountId,
+    defaultAccountId: resolveDefaultIMessageAccountId(params.cfg),
+    prompter: params.prompter,
+    noteTitle: "iMessage allowlist",
+    noteLines: [
+      "Allowlist iMessage DMs by handle or chat target.",
+      "Examples:",
+      "- +15555550123",
+      "- user@example.com",
+      "- chat_id:123",
+      "- chat_guid:... or chat_identifier:...",
+      "Multiple entries: comma-separated.",
+      `Docs: ${formatDocsLink("/imessage", "imessage")}`,
+    ],
+    message: "iMessage allowFrom (handle or chat_id)",
+    placeholder: "+15555550123, user@example.com, chat_id:123",
+    parseEntries: parseIMessageAllowFromEntries,
+    getExistingAllowFrom: ({ cfg, accountId }) => {
+      const resolved = resolveIMessageAccount({ cfg, accountId });
+      return resolved.config.allowFrom ?? [];
     },
-  };
+  });
 }
 
 const dmPolicy: ChannelOnboardingDmPolicy = {
@@ -35,7 +87,13 @@ const dmPolicy: ChannelOnboardingDmPolicy = {
   policyKey: "channels.imessage.dmPolicy",
   allowFromKey: "channels.imessage.allowFrom",
   getCurrent: (cfg) => cfg.channels?.imessage?.dmPolicy ?? "pairing",
-  setPolicy: (cfg, policy) => setIMessageDmPolicy(cfg, policy),
+  setPolicy: (cfg, policy) =>
+    setChannelDmPolicyWithAllowFrom({
+      cfg,
+      channel: "imessage",
+      dmPolicy: policy,
+    }),
+  promptAllowFrom: promptIMessageAllowFrom,
 };
 
 export const imessageOnboardingAdapter: ChannelOnboardingAdapter = {
@@ -65,21 +123,16 @@ export const imessageOnboardingAdapter: ChannelOnboardingAdapter = {
     };
   },
   configure: async ({ cfg, prompter, accountOverrides, shouldPromptAccountIds }) => {
-    const imessageOverride = accountOverrides.imessage?.trim();
     const defaultIMessageAccountId = resolveDefaultIMessageAccountId(cfg);
-    let imessageAccountId = imessageOverride
-      ? normalizeAccountId(imessageOverride)
-      : defaultIMessageAccountId;
-    if (shouldPromptAccountIds && !imessageOverride) {
-      imessageAccountId = await promptAccountId({
-        cfg,
-        prompter,
-        label: "iMessage",
-        currentId: imessageAccountId,
-        listAccountIds: listIMessageAccountIds,
-        defaultAccountId: defaultIMessageAccountId,
-      });
-    }
+    const imessageAccountId = await resolveAccountIdForConfigure({
+      cfg,
+      prompter,
+      label: "iMessage",
+      accountOverride: accountOverrides.imessage,
+      shouldPromptAccountIds,
+      listAccountIds: listIMessageAccountIds,
+      defaultAccountId: defaultIMessageAccountId,
+    });
 
     let next = cfg;
     const resolvedAccount = resolveIMessageAccount({
@@ -101,44 +154,18 @@ export const imessageOnboardingAdapter: ChannelOnboardingAdapter = {
     }
 
     if (resolvedCliPath) {
-      if (imessageAccountId === DEFAULT_ACCOUNT_ID) {
-        next = {
-          ...next,
-          channels: {
-            ...next.channels,
-            imessage: {
-              ...next.channels?.imessage,
-              enabled: true,
-              cliPath: resolvedCliPath,
-            },
-          },
-        };
-      } else {
-        next = {
-          ...next,
-          channels: {
-            ...next.channels,
-            imessage: {
-              ...next.channels?.imessage,
-              enabled: true,
-              accounts: {
-                ...next.channels?.imessage?.accounts,
-                [imessageAccountId]: {
-                  ...next.channels?.imessage?.accounts?.[imessageAccountId],
-                  enabled: next.channels?.imessage?.accounts?.[imessageAccountId]?.enabled ?? true,
-                  cliPath: resolvedCliPath,
-                },
-              },
-            },
-          },
-        };
-      }
+      next = patchChannelConfigForAccount({
+        cfg: next,
+        channel: "imessage",
+        accountId: imessageAccountId,
+        patch: { cliPath: resolvedCliPath },
+      });
     }
 
     await prompter.note(
       [
         "This is still a work in progress.",
-        "Ensure Clawdbot has Full Disk Access to Messages DB.",
+        "Ensure OpenClaw has Full Disk Access to Messages DB.",
         "Grant Automation permission for Messages when prompted.",
         "List chats with: imsg chats --limit 20",
         `Docs: ${formatDocsLink("/imessage", "imessage")}`,
@@ -149,11 +176,5 @@ export const imessageOnboardingAdapter: ChannelOnboardingAdapter = {
     return { cfg: next, accountId: imessageAccountId };
   },
   dmPolicy,
-  disable: (cfg) => ({
-    ...cfg,
-    channels: {
-      ...cfg.channels,
-      imessage: { ...cfg.channels?.imessage, enabled: false },
-    },
-  }),
+  disable: (cfg) => setOnboardingChannelEnabled(cfg, channel, false),
 };

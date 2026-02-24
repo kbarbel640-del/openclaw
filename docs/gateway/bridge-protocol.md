@@ -1,19 +1,22 @@
 ---
-summary: "Bridge protocol (nodes): TCP JSONL, pairing, scoped RPC"
+summary: "Bridge protocol (legacy nodes): TCP JSONL, pairing, scoped RPC"
 read_when:
   - Building or debugging node clients (iOS/Android/macOS node mode)
   - Investigating pairing or bridge auth failures
   - Auditing the node surface exposed by the gateway
+title: "Bridge Protocol"
 ---
 
-# Bridge protocol (Node transport)
+# Bridge protocol (legacy node transport)
 
-The Bridge protocol is a **narrow, authenticated** transport for nodes
-(iOS/Android/macOS node mode). It keeps the Gateway WS control plane loopback‑only
-and exposes only a scoped set of methods for nodes.
+The Bridge protocol is a **legacy** node transport (TCP JSONL). New node clients
+should use the unified Gateway WebSocket protocol instead.
 
-If you are building an operator client (CLI, web UI, automations), use the
+If you are building an operator or node client, use the
 [Gateway protocol](/gateway/protocol).
+
+**Note:** Current OpenClaw builds no longer ship the TCP bridge listener; this document is kept for historical reference.
+Legacy `bridge.*` config keys are no longer part of the config schema.
 
 ## Why we have both
 
@@ -29,38 +32,55 @@ If you are building an operator client (CLI, web UI, automations), use the
 
 - TCP, one JSON object per line (JSONL).
 - Optional TLS (when `bridge.tls.enabled` is true).
-- Gateway owns the listener (default `18790`).
+- Legacy default listener port was `18790` (current builds do not start a TCP bridge).
 
 When TLS is enabled, discovery TXT records include `bridgeTls=1` plus
-`bridgeTlsSha256` so nodes can pin the certificate.
+`bridgeTlsSha256` as a non-secret hint. Note that Bonjour/mDNS TXT records are
+unauthenticated; clients must not treat the advertised fingerprint as an
+authoritative pin without explicit user intent or other out-of-band verification.
 
 ## Handshake + pairing
 
-1) Client sends `hello` with node metadata + token (if already paired).  
-2) If not paired, gateway replies `error` (`NOT_PAIRED`/`UNAUTHORIZED`).  
-3) Client sends `pair-request`.  
-4) Gateway waits for approval, then sends `pair-ok` and `hello-ok`.
+1. Client sends `hello` with node metadata + token (if already paired).
+2. If not paired, gateway replies `error` (`NOT_PAIRED`/`UNAUTHORIZED`).
+3. Client sends `pair-request`.
+4. Gateway waits for approval, then sends `pair-ok` and `hello-ok`.
 
 `hello-ok` returns `serverName` and may include `canvasHostUrl`.
 
 ## Frames
 
 Client → Gateway:
-- `req` / `res`: scoped gateway RPC (chat, sessions, config, health, voicewake)
-- `event`: node signals (voice transcript, agent request, chat subscribe)
+
+- `req` / `res`: scoped gateway RPC (chat, sessions, config, health, voicewake, skills.bins)
+- `event`: node signals (voice transcript, agent request, chat subscribe, exec lifecycle)
 
 Gateway → Client:
+
 - `invoke` / `invoke-res`: node commands (`canvas.*`, `camera.*`, `screen.record`,
   `location.get`, `sms.send`)
 - `event`: chat updates for subscribed sessions
 - `ping` / `pong`: keepalive
 
-Exact allowlist is enforced in `src/gateway/server-bridge.ts`.
+Legacy allowlist enforcement lived in `src/gateway/server-bridge.ts` (removed).
+
+## Exec lifecycle events
+
+Nodes can emit `exec.finished` or `exec.denied` events to surface system.run activity.
+These are mapped to system events in the gateway. (Legacy nodes may still emit `exec.started`.)
+
+Payload fields (all optional unless noted):
+
+- `sessionKey` (required): agent session to receive the system event.
+- `runId`: unique exec id for grouping.
+- `command`: raw or formatted command string.
+- `exitCode`, `timedOut`, `success`, `output`: completion details (finished only).
+- `reason`: denial reason (denied only).
 
 ## Tailnet usage
 
 - Bind the bridge to a tailnet IP: `bridge.bind: "tailnet"` in
-  `~/.clawdbot/clawdbot.json`.
+  `~/.openclaw/openclaw.json`.
 - Clients connect via MagicDNS name or tailnet IP.
 - Bonjour does **not** cross networks; use manual host/port or wide-area DNS‑SD
   when needed.

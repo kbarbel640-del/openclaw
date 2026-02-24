@@ -10,6 +10,7 @@ export type MediaAttachment = {
   url?: string;
   mime?: string;
   index: number;
+  alreadyTranscribed?: boolean;
 };
 
 export type MediaUnderstandingOutput = {
@@ -97,7 +98,7 @@ export type ImageDescriptionRequest = {
   profile?: string;
   preferredProfile?: string;
   agentDir: string;
-  cfg: import("../config/config.js").ClawdbotConfig;
+  cfg: import("../config/config.js").OpenClawConfig;
 };
 
 export type ImageDescriptionResult = {

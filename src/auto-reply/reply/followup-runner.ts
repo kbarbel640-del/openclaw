@@ -4,12 +4,7 @@ import { lookupContextTokens } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
-import { hasNonzeroUsage } from "../../agents/usage.js";
-import {
-  resolveAgentIdFromSessionKey,
-  type SessionEntry,
-  updateSessionStoreEntry,
-} from "../../config/sessions.js";
+import { resolveAgentIdFromSessionKey, type SessionEntry } from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
 import { logVerbose } from "../../globals.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
@@ -18,17 +13,19 @@ import { stripHeartbeatToken } from "../heartbeat.js";
 import type { OriginatingChannelType } from "../templating.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../tokens.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
+import { resolveRunAuthProfile } from "./agent-runner-utils.js";
 import type { FollowupRun } from "./queue.js";
 import {
   applyReplyThreading,
   filterMessagingToolDuplicates,
+  filterMessagingToolMediaDuplicates,
   shouldSuppressMessagingToolReplies,
 } from "./reply-payloads.js";
 import { resolveReplyToMode } from "./reply-threading.js";
 import { isRoutableChannel, routeReply } from "./route-reply.js";
-import { incrementCompactionCount } from "./session-updates.js";
-import type { TypingController } from "./typing.js";
+import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
 import { createTypingSignaler } from "./typing-mode.js";
+import type { TypingController } from "./typing.js";
 
 export function createFollowupRunner(params: {
   opts?: GetReplyOptions;
@@ -116,7 +113,6 @@ export function createFollowupRunner(params: {
   };
 
   return async (queued: FollowupRun) => {
-    await typingSignals.signalRunStart();
     try {
       const runId = crypto.randomUUID();
       if (queued.run.sessionKey) {
@@ -134,17 +130,31 @@ export function createFollowupRunner(params: {
           cfg: queued.run.config,
           provider: queued.run.provider,
           model: queued.run.model,
+          agentDir: queued.run.agentDir,
           fallbacksOverride: resolveAgentModelFallbacksOverride(
             queued.run.config,
             resolveAgentIdFromSessionKey(queued.run.sessionKey),
           ),
-          run: (provider, model) =>
-            runEmbeddedPiAgent({
+          run: (provider, model) => {
+            const authProfile = resolveRunAuthProfile(queued.run, provider);
+            return runEmbeddedPiAgent({
               sessionId: queued.run.sessionId,
               sessionKey: queued.run.sessionKey,
+              agentId: queued.run.agentId,
               messageProvider: queued.run.messageProvider,
               agentAccountId: queued.run.agentAccountId,
+              messageTo: queued.originatingTo,
+              messageThreadId: queued.originatingThreadId,
+              groupId: queued.run.groupId,
+              groupChannel: queued.run.groupChannel,
+              groupSpace: queued.run.groupSpace,
+              senderId: queued.run.senderId,
+              senderName: queued.run.senderName,
+              senderUsername: queued.run.senderUsername,
+              senderE164: queued.run.senderE164,
+              senderIsOwner: queued.run.senderIsOwner,
               sessionFile: queued.run.sessionFile,
+              agentDir: queued.run.agentDir,
               workspaceDir: queued.run.workspaceDir,
               config: queued.run.config,
               skillsSnapshot: queued.run.skillsSnapshot,
@@ -154,23 +164,27 @@ export function createFollowupRunner(params: {
               enforceFinalTag: queued.run.enforceFinalTag,
               provider,
               model,
-              authProfileId: queued.run.authProfileId,
+              ...authProfile,
               thinkLevel: queued.run.thinkLevel,
               verboseLevel: queued.run.verboseLevel,
               reasoningLevel: queued.run.reasoningLevel,
+              suppressToolErrorWarnings: opts?.suppressToolErrorWarnings,
+              execOverrides: queued.run.execOverrides,
               bashElevated: queued.run.bashElevated,
               timeoutMs: queued.run.timeoutMs,
               runId,
               blockReplyBreak: queued.run.blockReplyBreak,
               onAgentEvent: (evt) => {
-                if (evt.stream !== "compaction") return;
+                if (evt.stream !== "compaction") {
+                  return;
+                }
                 const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
-                const willRetry = Boolean(evt.data.willRetry);
-                if (phase === "end" && !willRetry) {
+                if (phase === "end") {
                   autoCompactionCompleted = true;
                 }
               },
-            }),
+            });
+          },
         });
         runResult = fallbackResult.result;
         fallbackProvider = fallbackResult.provider;
@@ -181,14 +195,43 @@ export function createFollowupRunner(params: {
         return;
       }
 
+      const usage = runResult.meta?.agentMeta?.usage;
+      const promptTokens = runResult.meta?.agentMeta?.promptTokens;
+      const modelUsed = runResult.meta?.agentMeta?.model ?? fallbackModel ?? defaultModel;
+      const contextTokensUsed =
+        agentCfgContextTokens ??
+        lookupContextTokens(modelUsed) ??
+        sessionEntry?.contextTokens ??
+        DEFAULT_CONTEXT_TOKENS;
+
+      if (storePath && sessionKey) {
+        await persistRunSessionUsage({
+          storePath,
+          sessionKey,
+          usage,
+          lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
+          promptTokens,
+          modelUsed,
+          providerUsed: fallbackProvider,
+          contextTokensUsed,
+          logLabel: "followup",
+        });
+      }
+
       const payloadArray = runResult.payloads ?? [];
-      if (payloadArray.length === 0) return;
+      if (payloadArray.length === 0) {
+        return;
+      }
       const sanitizedPayloads = payloadArray.flatMap((payload) => {
         const text = payload.text;
-        if (!text || !text.includes("HEARTBEAT_OK")) return [payload];
+        if (!text || !text.includes("HEARTBEAT_OK")) {
+          return [payload];
+        }
         const stripped = stripHeartbeatToken(text, { mode: "message" });
         const hasMedia = Boolean(payload.mediaUrl) || (payload.mediaUrls?.length ?? 0) > 0;
-        if (stripped.shouldSkip && !hasMedia) return [];
+        if (stripped.shouldSkip && !hasMedia) {
+          return [];
+        }
         return [{ ...payload, text: stripped.text }];
       });
       const replyToChannel =
@@ -198,6 +241,7 @@ export function createFollowupRunner(params: {
         queued.run.config,
         replyToChannel,
         queued.originatingAccountId,
+        queued.originatingChatType,
       );
 
       const replyTaggedPayloads: ReplyPayload[] = applyReplyThreading({
@@ -210,78 +254,36 @@ export function createFollowupRunner(params: {
         payloads: replyTaggedPayloads,
         sentTexts: runResult.messagingToolSentTexts ?? [],
       });
+      const mediaFilteredPayloads = filterMessagingToolMediaDuplicates({
+        payloads: dedupedPayloads,
+        sentMediaUrls: runResult.messagingToolSentMediaUrls ?? [],
+      });
       const suppressMessagingToolReplies = shouldSuppressMessagingToolReplies({
         messageProvider: queued.run.messageProvider,
         messagingToolSentTargets: runResult.messagingToolSentTargets,
         originatingTo: queued.originatingTo,
         accountId: queued.run.agentAccountId,
       });
-      const finalPayloads = suppressMessagingToolReplies ? [] : dedupedPayloads;
+      const finalPayloads = suppressMessagingToolReplies ? [] : mediaFilteredPayloads;
 
-      if (finalPayloads.length === 0) return;
+      if (finalPayloads.length === 0) {
+        return;
+      }
 
       if (autoCompactionCompleted) {
-        const count = await incrementCompactionCount({
+        const count = await incrementRunCompactionCount({
           sessionEntry,
           sessionStore,
           sessionKey,
           storePath,
+          lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
+          contextTokensUsed,
         });
         if (queued.run.verboseLevel && queued.run.verboseLevel !== "off") {
           const suffix = typeof count === "number" ? ` (count ${count})` : "";
           finalPayloads.unshift({
             text: `🧹 Auto-compaction complete${suffix}.`,
           });
-        }
-      }
-
-      if (storePath && sessionKey) {
-        const usage = runResult.meta.agentMeta?.usage;
-        const modelUsed = runResult.meta.agentMeta?.model ?? fallbackModel ?? defaultModel;
-        const contextTokensUsed =
-          agentCfgContextTokens ??
-          lookupContextTokens(modelUsed) ??
-          sessionEntry?.contextTokens ??
-          DEFAULT_CONTEXT_TOKENS;
-
-        if (hasNonzeroUsage(usage)) {
-          try {
-            await updateSessionStoreEntry({
-              storePath,
-              sessionKey,
-              update: async (entry) => {
-                const input = usage.input ?? 0;
-                const output = usage.output ?? 0;
-                const promptTokens = input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
-                return {
-                  inputTokens: input,
-                  outputTokens: output,
-                  totalTokens: promptTokens > 0 ? promptTokens : (usage.total ?? input),
-                  modelProvider: fallbackProvider ?? entry.modelProvider,
-                  model: modelUsed,
-                  contextTokens: contextTokensUsed ?? entry.contextTokens,
-                  updatedAt: Date.now(),
-                };
-              },
-            });
-          } catch (err) {
-            logVerbose(`failed to persist followup usage update: ${String(err)}`);
-          }
-        } else if (modelUsed || contextTokensUsed) {
-          try {
-            await updateSessionStoreEntry({
-              storePath,
-              sessionKey,
-              update: async (entry) => ({
-                modelProvider: fallbackProvider ?? entry.modelProvider,
-                model: modelUsed ?? entry.model,
-                contextTokens: contextTokensUsed ?? entry.contextTokens,
-                updatedAt: Date.now(),
-              }),
-            });
-          } catch (err) {
-            logVerbose(`failed to persist followup model/context update: ${String(err)}`);
-          }
         }
       }
 

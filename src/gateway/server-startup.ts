@@ -5,22 +5,33 @@ import {
   resolveConfiguredModelRef,
   resolveHooksGmailModel,
 } from "../agents/model-selection.js";
+import { resolveAgentSessionDirs } from "../agents/session-dirs.js";
+import { cleanStaleLockFiles } from "../agents/session-write-lock.js";
 import type { CliDeps } from "../cli/deps.js";
 import type { loadConfig } from "../config/config.js";
-import { startGmailWatcher } from "../hooks/gmail-watcher.js";
-import { clearInternalHooks } from "../hooks/internal-hooks.js";
+import { resolveStateDir } from "../config/paths.js";
+import { startGmailWatcherWithLogs } from "../hooks/gmail-watcher-lifecycle.js";
+import {
+  clearInternalHooks,
+  createInternalHookEvent,
+  triggerInternalHook,
+} from "../hooks/internal-hooks.js";
 import { loadInternalHooks } from "../hooks/loader.js";
-import type { loadClawdbotPlugins } from "../plugins/loader.js";
+import { isTruthyEnvValue } from "../infra/env.js";
+import type { loadOpenClawPlugins } from "../plugins/loader.js";
 import { type PluginServicesHandle, startPluginServices } from "../plugins/services.js";
 import { startBrowserControlServerIfEnabled } from "./server-browser.js";
 import {
   scheduleRestartSentinelWake,
   shouldWakeFromRestartSentinel,
 } from "./server-restart-sentinel.js";
+import { startGatewayMemoryBackend } from "./server-startup-memory.js";
+
+const SESSION_LOCK_STALE_MS = 30 * 60 * 1000;
 
 export async function startGatewaySidecars(params: {
   cfg: ReturnType<typeof loadConfig>;
-  pluginRegistry: ReturnType<typeof loadClawdbotPlugins>;
+  pluginRegistry: ReturnType<typeof loadOpenClawPlugins>;
   defaultWorkspaceDir: string;
   deps: CliDeps;
   startChannels: () => Promise<void>;
@@ -33,7 +44,22 @@ export async function startGatewaySidecars(params: {
   logChannels: { info: (msg: string) => void; error: (msg: string) => void };
   logBrowser: { error: (msg: string) => void };
 }) {
-  // Start clawd browser control server (unless disabled via config).
+  try {
+    const stateDir = resolveStateDir(process.env);
+    const sessionDirs = await resolveAgentSessionDirs(stateDir);
+    for (const sessionsDir of sessionDirs) {
+      await cleanStaleLockFiles({
+        sessionsDir,
+        staleMs: SESSION_LOCK_STALE_MS,
+        removeStale: true,
+        log: { warn: (message) => params.log.warn(message) },
+      });
+    }
+  } catch (err) {
+    params.log.warn(`session lock cleanup failed on startup: ${String(err)}`);
+  }
+
+  // Start OpenClaw browser control server (unless disabled via config).
   let browserControl: Awaited<ReturnType<typeof startBrowserControlServerIfEnabled>> = null;
   try {
     browserControl = await startBrowserControlServerIfEnabled();
@@ -42,22 +68,10 @@ export async function startGatewaySidecars(params: {
   }
 
   // Start Gmail watcher if configured (hooks.gmail.account).
-  if (process.env.CLAWDBOT_SKIP_GMAIL_WATCHER !== "1") {
-    try {
-      const gmailResult = await startGmailWatcher(params.cfg);
-      if (gmailResult.started) {
-        params.logHooks.info("gmail watcher started");
-      } else if (
-        gmailResult.reason &&
-        gmailResult.reason !== "hooks not enabled" &&
-        gmailResult.reason !== "no gmail account configured"
-      ) {
-        params.logHooks.warn(`gmail watcher not started: ${gmailResult.reason}`);
-      }
-    } catch (err) {
-      params.logHooks.error(`gmail watcher failed to start: ${String(err)}`);
-    }
-  }
+  await startGmailWatcherWithLogs({
+    cfg: params.cfg,
+    log: params.logHooks,
+  });
 
   // Validate hooks.gmail.model if configured.
   if (params.cfg.hooks?.gmail?.model) {
@@ -107,9 +121,10 @@ export async function startGatewaySidecars(params: {
   }
 
   // Launch configured channels so gateway replies via the surface the message came from.
-  // Tests can opt out via CLAWDBOT_SKIP_CHANNELS (or legacy CLAWDBOT_SKIP_PROVIDERS).
+  // Tests can opt out via OPENCLAW_SKIP_CHANNELS (or legacy OPENCLAW_SKIP_PROVIDERS).
   const skipChannels =
-    process.env.CLAWDBOT_SKIP_CHANNELS === "1" || process.env.CLAWDBOT_SKIP_PROVIDERS === "1";
+    isTruthyEnvValue(process.env.OPENCLAW_SKIP_CHANNELS) ||
+    isTruthyEnvValue(process.env.OPENCLAW_SKIP_PROVIDERS);
   if (!skipChannels) {
     try {
       await params.startChannels();
@@ -118,8 +133,19 @@ export async function startGatewaySidecars(params: {
     }
   } else {
     params.logChannels.info(
-      "skipping channel start (CLAWDBOT_SKIP_CHANNELS=1 or CLAWDBOT_SKIP_PROVIDERS=1)",
+      "skipping channel start (OPENCLAW_SKIP_CHANNELS=1 or OPENCLAW_SKIP_PROVIDERS=1)",
     );
+  }
+
+  if (params.cfg.hooks?.internal?.enabled) {
+    setTimeout(() => {
+      const hookEvent = createInternalHookEvent("gateway", "startup", "gateway:startup", {
+        cfg: params.cfg,
+        deps: params.deps,
+        workspaceDir: params.defaultWorkspaceDir,
+      });
+      void triggerInternalHook(hookEvent);
+    }, 250);
   }
 
   let pluginServices: PluginServicesHandle | null = null;
@@ -132,6 +158,10 @@ export async function startGatewaySidecars(params: {
   } catch (err) {
     params.log.warn(`plugin services failed to start: ${String(err)}`);
   }
+
+  void startGatewayMemoryBackend({ cfg: params.cfg, log: params.log }).catch((err) => {
+    params.log.warn(`qmd memory startup initialization failed: ${String(err)}`);
+  });
 
   if (shouldWakeFromRestartSentinel()) {
     setTimeout(() => {

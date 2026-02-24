@@ -1,9 +1,30 @@
-import { describe, expect, it, vi } from "vitest";
-
-import type { ClawdbotConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { OpenClawConfig } from "../config/config.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
+import { setDefaultChannelPluginRegistryForTests } from "./channel-test-helpers.js";
 import { setupChannels } from "./onboard-channels.js";
+import { createExitThrowingRuntime, createWizardPrompter } from "./test-wizard-helpers.js";
+
+function createPrompter(overrides: Partial<WizardPrompter>): WizardPrompter {
+  return createWizardPrompter(
+    {
+      progress: vi.fn(() => ({ update: vi.fn(), stop: vi.fn() })),
+      ...overrides,
+    },
+    { defaultSelect: "__done__" },
+  );
+}
+
+function createUnexpectedPromptGuards() {
+  return {
+    multiselect: vi.fn(async () => {
+      throw new Error("unexpected multiselect");
+    }),
+    text: vi.fn(async ({ message }: { message: string }) => {
+      throw new Error(`unexpected text prompt: ${message}`);
+    }) as unknown as WizardPrompter["text"],
+  };
+}
 
 vi.mock("node:fs/promises", () => ({
   default: {
@@ -22,6 +43,9 @@ vi.mock("./onboard-helpers.js", () => ({
 }));
 
 describe("setupChannels", () => {
+  beforeEach(() => {
+    setDefaultChannelPluginRegistryForTests();
+  });
   it("QuickStart uses single-select (no multiselect) and doesn't prompt for Telegram token when WhatsApp is chosen", async () => {
     const select = vi.fn(async () => "whatsapp");
     const multiselect = vi.fn(async () => {
@@ -37,26 +61,15 @@ describe("setupChannels", () => {
       throw new Error(`unexpected text prompt: ${message}`);
     });
 
-    const prompter: WizardPrompter = {
-      intro: vi.fn(async () => {}),
-      outro: vi.fn(async () => {}),
-      note: vi.fn(async () => {}),
-      select,
+    const prompter = createPrompter({
+      select: select as unknown as WizardPrompter["select"],
       multiselect,
       text: text as unknown as WizardPrompter["text"],
-      confirm: vi.fn(async () => false),
-      progress: vi.fn(() => ({ update: vi.fn(), stop: vi.fn() })),
-    };
+    });
 
-    const runtime: RuntimeEnv = {
-      log: vi.fn(),
-      error: vi.fn(),
-      exit: vi.fn((code: number) => {
-        throw new Error(`exit:${code}`);
-      }),
-    };
+    const runtime = createExitThrowingRuntime();
 
-    await setupChannels({} as ClawdbotConfig, runtime, prompter, {
+    await setupChannels({} as OpenClawConfig, runtime, prompter, {
       skipConfirm: true,
       quickstartDefaults: true,
       forceAllowFromChannels: ["whatsapp"],
@@ -68,37 +81,52 @@ describe("setupChannels", () => {
     expect(multiselect).not.toHaveBeenCalled();
   });
 
+  it("shows explicit dmScope config command in channel primer", async () => {
+    const note = vi.fn(async (_message?: string, _title?: string) => {});
+    const select = vi.fn(async () => "__done__");
+    const { multiselect, text } = createUnexpectedPromptGuards();
+
+    const prompter = createPrompter({
+      note,
+      select: select as unknown as WizardPrompter["select"],
+      multiselect,
+      text,
+    });
+
+    const runtime = createExitThrowingRuntime();
+
+    await setupChannels({} as OpenClawConfig, runtime, prompter, {
+      skipConfirm: true,
+    });
+
+    const sawPrimer = note.mock.calls.some(
+      ([message, title]) =>
+        title === "How channels work" &&
+        String(message).includes('config set session.dmScope "per-channel-peer"'),
+    );
+    expect(sawPrimer).toBe(true);
+    expect(multiselect).not.toHaveBeenCalled();
+  });
+
   it("prompts for configured channel action and skips configuration when told to skip", async () => {
     const select = vi.fn(async ({ message }: { message: string }) => {
-      if (message === "Select channel (QuickStart)") return "telegram";
-      if (message.includes("already configured")) return "skip";
+      if (message === "Select channel (QuickStart)") {
+        return "telegram";
+      }
+      if (message.includes("already configured")) {
+        return "skip";
+      }
       throw new Error(`unexpected select prompt: ${message}`);
     });
-    const multiselect = vi.fn(async () => {
-      throw new Error("unexpected multiselect");
-    });
-    const text = vi.fn(async ({ message }: { message: string }) => {
-      throw new Error(`unexpected text prompt: ${message}`);
-    });
+    const { multiselect, text } = createUnexpectedPromptGuards();
 
-    const prompter: WizardPrompter = {
-      intro: vi.fn(async () => {}),
-      outro: vi.fn(async () => {}),
-      note: vi.fn(async () => {}),
-      select,
+    const prompter = createPrompter({
+      select: select as unknown as WizardPrompter["select"],
       multiselect,
-      text: text as unknown as WizardPrompter["text"],
-      confirm: vi.fn(async () => false),
-      progress: vi.fn(() => ({ update: vi.fn(), stop: vi.fn() })),
-    };
+      text,
+    });
 
-    const runtime: RuntimeEnv = {
-      log: vi.fn(),
-      error: vi.fn(),
-      exit: vi.fn((code: number) => {
-        throw new Error(`exit:${code}`);
-      }),
-    };
+    const runtime = createExitThrowingRuntime();
 
     await setupChannels(
       {
@@ -107,7 +135,7 @@ describe("setupChannels", () => {
             botToken: "token",
           },
         },
-      } as ClawdbotConfig,
+      } as OpenClawConfig,
       runtime,
       prompter,
       {
@@ -136,30 +164,21 @@ describe("setupChannels", () => {
         expect(telegram?.hint).toContain("disabled");
         return selectionCount === 1 ? "telegram" : "__done__";
       }
-      if (message.includes("already configured")) return "skip";
+      if (message.includes("already configured")) {
+        return "skip";
+      }
       return "__done__";
     });
     const multiselect = vi.fn(async () => {
       throw new Error("unexpected multiselect");
     });
-    const prompter: WizardPrompter = {
-      intro: vi.fn(async () => {}),
-      outro: vi.fn(async () => {}),
-      note: vi.fn(async () => {}),
-      select,
+    const prompter = createPrompter({
+      select: select as unknown as WizardPrompter["select"],
       multiselect,
-      text: vi.fn(async () => ""),
-      confirm: vi.fn(async () => false),
-      progress: vi.fn(() => ({ update: vi.fn(), stop: vi.fn() })),
-    };
+      text: vi.fn(async () => "") as unknown as WizardPrompter["text"],
+    });
 
-    const runtime: RuntimeEnv = {
-      log: vi.fn(),
-      error: vi.fn(),
-      exit: vi.fn((code: number) => {
-        throw new Error(`exit:${code}`);
-      }),
-    };
+    const runtime = createExitThrowingRuntime();
 
     await setupChannels(
       {
@@ -169,7 +188,7 @@ describe("setupChannels", () => {
             enabled: false,
           },
         },
-      } as ClawdbotConfig,
+      } as OpenClawConfig,
       runtime,
       prompter,
       {

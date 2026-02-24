@@ -1,17 +1,24 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-
 import { resolveDefaultAgentWorkspaceDir } from "../agents/workspace.js";
-import type { ClawdbotConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
-import { resolveHomeDir, resolveUserPath } from "../utils.js";
+import { resolveHomeDir, resolveUserPath, shortenHomeInString } from "../utils.js";
 
 export type RemovalResult = {
   ok: boolean;
   skipped?: boolean;
 };
 
-export function collectWorkspaceDirs(cfg: ClawdbotConfig | undefined): string[] {
+export type CleanupResolvedPaths = {
+  stateDir: string;
+  configPath: string;
+  oauthDir: string;
+  configInsideState: boolean;
+  oauthInsideState: boolean;
+};
+
+export function collectWorkspaceDirs(cfg: OpenClawConfig | undefined): string[] {
   const dirs = new Set<string>();
   const defaults = cfg?.agents?.defaults;
   if (typeof defaults?.workspace === "string" && defaults.workspace.trim()) {
@@ -30,18 +37,41 @@ export function collectWorkspaceDirs(cfg: ClawdbotConfig | undefined): string[] 
   return [...dirs];
 }
 
+export function buildCleanupPlan(params: {
+  cfg: OpenClawConfig | undefined;
+  stateDir: string;
+  configPath: string;
+  oauthDir: string;
+}): {
+  configInsideState: boolean;
+  oauthInsideState: boolean;
+  workspaceDirs: string[];
+} {
+  return {
+    configInsideState: isPathWithin(params.configPath, params.stateDir),
+    oauthInsideState: isPathWithin(params.oauthDir, params.stateDir),
+    workspaceDirs: collectWorkspaceDirs(params.cfg),
+  };
+}
+
 export function isPathWithin(child: string, parent: string): boolean {
   const relative = path.relative(parent, child);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function isUnsafeRemovalTarget(target: string): boolean {
-  if (!target.trim()) return true;
+  if (!target.trim()) {
+    return true;
+  }
   const resolved = path.resolve(target);
   const root = path.parse(resolved).root;
-  if (resolved === root) return true;
+  if (resolved === root) {
+    return true;
+  }
   const home = resolveHomeDir();
-  if (home && resolved === path.resolve(home)) return true;
+  if (home && resolved === path.resolve(home)) {
+    return true;
+  }
   return false;
 }
 
@@ -50,24 +80,63 @@ export async function removePath(
   runtime: RuntimeEnv,
   opts?: { dryRun?: boolean; label?: string },
 ): Promise<RemovalResult> {
-  if (!target?.trim()) return { ok: false, skipped: true };
+  if (!target?.trim()) {
+    return { ok: false, skipped: true };
+  }
   const resolved = path.resolve(target);
   const label = opts?.label ?? resolved;
+  const displayLabel = shortenHomeInString(label);
   if (isUnsafeRemovalTarget(resolved)) {
-    runtime.error(`Refusing to remove unsafe path: ${label}`);
+    runtime.error(`Refusing to remove unsafe path: ${displayLabel}`);
     return { ok: false };
   }
   if (opts?.dryRun) {
-    runtime.log(`[dry-run] remove ${label}`);
+    runtime.log(`[dry-run] remove ${displayLabel}`);
     return { ok: true, skipped: true };
   }
   try {
     await fs.rm(resolved, { recursive: true, force: true });
-    runtime.log(`Removed ${label}`);
+    runtime.log(`Removed ${displayLabel}`);
     return { ok: true };
   } catch (err) {
-    runtime.error(`Failed to remove ${label}: ${String(err)}`);
+    runtime.error(`Failed to remove ${displayLabel}: ${String(err)}`);
     return { ok: false };
+  }
+}
+
+export async function removeStateAndLinkedPaths(
+  cleanup: CleanupResolvedPaths,
+  runtime: RuntimeEnv,
+  opts?: { dryRun?: boolean },
+): Promise<void> {
+  await removePath(cleanup.stateDir, runtime, {
+    dryRun: opts?.dryRun,
+    label: cleanup.stateDir,
+  });
+  if (!cleanup.configInsideState) {
+    await removePath(cleanup.configPath, runtime, {
+      dryRun: opts?.dryRun,
+      label: cleanup.configPath,
+    });
+  }
+  if (!cleanup.oauthInsideState) {
+    await removePath(cleanup.oauthDir, runtime, {
+      dryRun: opts?.dryRun,
+      label: cleanup.oauthDir,
+    });
+  }
+}
+
+export async function removeWorkspaceDirs(
+  workspaceDirs: readonly string[],
+  runtime: RuntimeEnv,
+  opts?: { dryRun?: boolean },
+): Promise<void> {
+  for (const workspace of workspaceDirs) {
+    await removePath(workspace, runtime, {
+      dryRun: opts?.dryRun,
+      label: workspace,
+    });
   }
 }
 

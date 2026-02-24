@@ -3,10 +3,12 @@ summary: "Global voice wake words (Gateway-owned) and how they sync across nodes
 read_when:
   - Changing voice wake words behavior or defaults
   - Adding new node platforms that need wake word sync
+title: "Voice Wake"
 ---
+
 # Voice Wake (Global Wake Words)
 
-Clawdbot treats **wake words as a single global list** owned by the **Gateway**.
+OpenClaw treats **wake words as a single global list** owned by the **Gateway**.
 
 - There are **no per-node custom wake words**.
 - **Any node/app UI may edit** the list; changes are persisted by the Gateway and broadcast to everyone.
@@ -16,12 +18,12 @@ Clawdbot treats **wake words as a single global list** owned by the **Gateway**.
 
 Wake words are stored on the gateway machine at:
 
-- `~/.clawdbot/settings/voicewake.json`
+- `~/.openclaw/settings/voicewake.json`
 
 Shape:
 
 ```json
-{ "triggers": ["clawd", "claude", "computer"], "updatedAtMs": 1730000000000 }
+{ "triggers": ["openclaw", "claude", "computer"], "updatedAtMs": 1730000000000 }
 ```
 
 ## Protocol
@@ -32,6 +34,7 @@ Shape:
 - `voicewake.set` with params `{ triggers: string[] }` → `{ triggers: string[] }`
 
 Notes:
+
 - Triggers are normalized (trimmed, empties dropped). Empty lists fall back to defaults.
 - Limits are enforced for safety (count/length caps).
 
@@ -40,8 +43,9 @@ Notes:
 - `voicewake.changed` payload `{ triggers: string[] }`
 
 Who receives it:
+
 - All WebSocket clients (macOS app, WebChat, etc.)
-- All connected bridge nodes (iOS/Android), and also on node connect as an initial “current state” push.
+- All connected nodes (iOS/Android), and also on node connect as an initial “current state” push.
 
 ## Client behavior
 
@@ -53,9 +57,9 @@ Who receives it:
 ### iOS node
 
 - Uses the global list for `VoiceWakeManager` trigger detection.
-- Editing Wake Words in Settings calls `voicewake.set` (over the bridge) and also keeps local wake-word detection responsive.
+- Editing Wake Words in Settings calls `voicewake.set` (over the Gateway WS) and also keeps local wake-word detection responsive.
 
 ### Android node
 
 - Exposes a Wake Words editor in Settings.
-- Calls `voicewake.set` over the bridge so edits sync everywhere.
+- Calls `voicewake.set` over the Gateway WS so edits sync everywhere.

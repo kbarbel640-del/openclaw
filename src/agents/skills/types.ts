@@ -2,15 +2,21 @@ import type { Skill } from "@mariozechner/pi-coding-agent";
 
 export type SkillInstallSpec = {
   id?: string;
-  kind: "brew" | "node" | "go" | "uv";
+  kind: "brew" | "node" | "go" | "uv" | "download";
   label?: string;
   bins?: string[];
+  os?: string[];
   formula?: string;
   package?: string;
   module?: string;
+  url?: string;
+  archive?: string;
+  extract?: boolean;
+  stripComponents?: number;
+  targetDir?: string;
 };
 
-export type ClawdbotSkillMetadata = {
+export type OpenClawSkillMetadata = {
   always?: boolean;
   skillKey?: string;
   primaryEnv?: string;
@@ -31,10 +37,23 @@ export type SkillInvocationPolicy = {
   disableModelInvocation: boolean;
 };
 
+export type SkillCommandDispatchSpec = {
+  kind: "tool";
+  /** Name of the tool to invoke (AnyAgentTool.name). */
+  toolName: string;
+  /**
+   * How to forward user-provided args to the tool.
+   * - raw: forward the raw args string (no core parsing).
+   */
+  argMode?: "raw";
+};
+
 export type SkillCommandSpec = {
   name: string;
   skillName: string;
   description: string;
+  /** Optional deterministic dispatch behavior for this command. */
+  dispatch?: SkillCommandDispatchSpec;
 };
 
 export type SkillsInstallPreferences = {
@@ -47,7 +66,7 @@ export type ParsedSkillFrontmatter = Record<string, string>;
 export type SkillEntry = {
   skill: Skill;
   frontmatter: ParsedSkillFrontmatter;
-  clawdbot?: ClawdbotSkillMetadata;
+  metadata?: OpenClawSkillMetadata;
   invocation?: SkillInvocationPolicy;
 };
 
@@ -62,7 +81,9 @@ export type SkillEligibilityContext = {
 
 export type SkillSnapshot = {
   prompt: string;
-  skills: Array<{ name: string; primaryEnv?: string }>;
+  skills: Array<{ name: string; primaryEnv?: string; requiredEnv?: string[] }>;
+  /** Normalized agent-level filter used to build this snapshot; undefined means unrestricted. */
+  skillFilter?: string[];
   resolvedSkills?: Skill[];
   version?: number;
 };

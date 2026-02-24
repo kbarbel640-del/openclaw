@@ -1,3 +1,9 @@
+import {
+  applyChannelMatchMeta,
+  buildChannelKeyCandidates,
+  resolveChannelEntryMatchWithFallback,
+  type ChannelMatchSource,
+} from "../../channels/channel-config.js";
 import type { SlackReactionNotificationMode } from "../../config/config.js";
 import type { SlackMessageEvent } from "../types.js";
 import { allowListMatches, normalizeAllowListLower, normalizeSlackSlug } from "./allow-list.js";
@@ -9,11 +15,27 @@ export type SlackChannelConfigResolved = {
   users?: Array<string | number>;
   skills?: string[];
   systemPrompt?: string;
+  matchKey?: string;
+  matchSource?: ChannelMatchSource;
 };
+
+export type SlackChannelConfigEntry = {
+  enabled?: boolean;
+  allow?: boolean;
+  requireMention?: boolean;
+  allowBots?: boolean;
+  users?: Array<string | number>;
+  skills?: string[];
+  systemPrompt?: string;
+};
+
+export type SlackChannelConfigEntries = Record<string, SlackChannelConfigEntry>;
 
 function firstDefined<T>(...values: Array<T | undefined>) {
   for (const value of values) {
-    if (typeof value !== "undefined") return value;
+    if (typeof value !== "undefined") {
+      return value;
+    }
   }
   return undefined;
 }
@@ -25,21 +47,29 @@ export function shouldEmitSlackReactionNotification(params: {
   userId: string;
   userName?: string | null;
   allowlist?: Array<string | number> | null;
+  allowNameMatching?: boolean;
 }) {
   const { mode, botId, messageAuthorId, userId, userName, allowlist } = params;
   const effectiveMode = mode ?? "own";
-  if (effectiveMode === "off") return false;
+  if (effectiveMode === "off") {
+    return false;
+  }
   if (effectiveMode === "own") {
-    if (!botId || !messageAuthorId) return false;
+    if (!botId || !messageAuthorId) {
+      return false;
+    }
     return messageAuthorId === botId;
   }
   if (effectiveMode === "allowlist") {
-    if (!Array.isArray(allowlist) || allowlist.length === 0) return false;
+    if (!Array.isArray(allowlist) || allowlist.length === 0) {
+      return false;
+    }
     const users = normalizeAllowListLower(allowlist);
     return allowListMatches({
       allowList: users,
       id: userId,
       name: userName ?? undefined,
+      allowNameMatching: params.allowNameMatching,
     });
   }
   return true;
@@ -58,18 +88,7 @@ export function resolveSlackChannelLabel(params: { channelId?: string; channelNa
 export function resolveSlackChannelConfig(params: {
   channelId: string;
   channelName?: string;
-  channels?: Record<
-    string,
-    {
-      enabled?: boolean;
-      allow?: boolean;
-      requireMention?: boolean;
-      allowBots?: boolean;
-      users?: Array<string | number>;
-      skills?: string[];
-      systemPrompt?: string;
-    }
-  >;
+  channels?: SlackChannelConfigEntries;
   defaultRequireMention?: boolean;
 }): SlackChannelConfigResolved | null {
   const { channelId, channelName, channels, defaultRequireMention } = params;
@@ -77,31 +96,18 @@ export function resolveSlackChannelConfig(params: {
   const keys = Object.keys(entries);
   const normalizedName = channelName ? normalizeSlackSlug(channelName) : "";
   const directName = channelName ? channelName.trim() : "";
-  const candidates = [
+  const candidates = buildChannelKeyCandidates(
     channelId,
-    channelName ? `#${directName}` : "",
+    channelName ? `#${directName}` : undefined,
     directName,
     normalizedName,
-  ].filter(Boolean);
-
-  let matched:
-    | {
-        enabled?: boolean;
-        allow?: boolean;
-        requireMention?: boolean;
-        allowBots?: boolean;
-        users?: Array<string | number>;
-        skills?: string[];
-        systemPrompt?: string;
-      }
-    | undefined;
-  for (const candidate of candidates) {
-    if (candidate && entries[candidate]) {
-      matched = entries[candidate];
-      break;
-    }
-  }
-  const fallback = entries["*"];
+  );
+  const match = resolveChannelEntryMatchWithFallback({
+    entries,
+    keys: candidates,
+    wildcardKey: "*",
+  });
+  const { entry: matched, wildcardEntry: fallback } = match;
 
   const requireMentionDefault = defaultRequireMention ?? true;
   if (keys.length === 0) {
@@ -122,7 +128,15 @@ export function resolveSlackChannelConfig(params: {
   const users = firstDefined(resolved.users, fallback?.users);
   const skills = firstDefined(resolved.skills, fallback?.skills);
   const systemPrompt = firstDefined(resolved.systemPrompt, fallback?.systemPrompt);
-  return { allowed, requireMention, allowBots, users, skills, systemPrompt };
+  const result: SlackChannelConfigResolved = {
+    allowed,
+    requireMention,
+    allowBots,
+    users,
+    skills,
+    systemPrompt,
+  };
+  return applyChannelMatchMeta(result, match);
 }
 
 export type { SlackMessageEvent };

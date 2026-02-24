@@ -1,8 +1,10 @@
-import { WebClient } from "@slack/web-api";
-
+import type { Block, KnownBlock, WebClient } from "@slack/web-api";
 import { loadConfig } from "../config/config.js";
 import { logVerbose } from "../globals.js";
 import { resolveSlackAccount } from "./accounts.js";
+import { buildSlackBlocksFallbackText } from "./blocks-fallback.js";
+import { validateSlackBlocksArray } from "./blocks-input.js";
+import { createSlackWebClient } from "./client.js";
 import { sendMessageSlack } from "./send.js";
 import { resolveSlackBotToken } from "./token.js";
 
@@ -56,7 +58,7 @@ function normalizeEmoji(raw: string) {
 
 async function getClient(opts: SlackActionClientOpts = {}) {
   const token = resolveToken(opts.token, opts.accountId);
-  return opts.client ?? new WebClient(token);
+  return opts.client ?? createSlackWebClient(token);
 }
 
 async function resolveBotUserId(client: WebClient) {
@@ -106,13 +108,17 @@ export async function removeOwnSlackReactions(
   const toRemove = new Set<string>();
   for (const reaction of reactions ?? []) {
     const name = reaction?.name;
-    if (!name) continue;
+    if (!name) {
+      continue;
+    }
     const users = reaction?.users ?? [];
     if (users.includes(userId)) {
       toRemove.add(name);
     }
   }
-  if (toRemove.size === 0) return [];
+  if (toRemove.size === 0) {
+    return [];
+  }
   await Promise.all(
     Array.from(toRemove, (name) =>
       client.reactions.remove({
@@ -143,7 +149,11 @@ export async function listSlackReactions(
 export async function sendSlackMessage(
   to: string,
   content: string,
-  opts: SlackActionClientOpts & { mediaUrl?: string; threadTs?: string } = {},
+  opts: SlackActionClientOpts & {
+    mediaUrl?: string;
+    threadTs?: string;
+    blocks?: (Block | KnownBlock)[];
+  } = {},
 ) {
   return await sendMessageSlack(to, content, {
     accountId: opts.accountId,
@@ -151,6 +161,7 @@ export async function sendSlackMessage(
     mediaUrl: opts.mediaUrl,
     client: opts.client,
     threadTs: opts.threadTs,
+    blocks: opts.blocks,
   });
 }
 
@@ -158,13 +169,16 @@ export async function editSlackMessage(
   channelId: string,
   messageId: string,
   content: string,
-  opts: SlackActionClientOpts = {},
+  opts: SlackActionClientOpts & { blocks?: (Block | KnownBlock)[] } = {},
 ) {
   const client = await getClient(opts);
+  const blocks = opts.blocks == null ? undefined : validateSlackBlocksArray(opts.blocks);
+  const trimmedContent = content.trim();
   await client.chat.update({
     channel: channelId,
     ts: messageId,
-    text: content,
+    text: trimmedContent || (blocks ? buildSlackBlocksFallbackText(blocks) : " "),
+    ...(blocks ? { blocks } : {}),
   });
 }
 
@@ -186,9 +200,29 @@ export async function readSlackMessages(
     limit?: number;
     before?: string;
     after?: string;
+    threadId?: string;
   } = {},
 ): Promise<{ messages: SlackMessageSummary[]; hasMore: boolean }> {
   const client = await getClient(opts);
+
+  // Use conversations.replies for thread messages, conversations.history for channel messages.
+  if (opts.threadId) {
+    const result = await client.conversations.replies({
+      channel: channelId,
+      ts: opts.threadId,
+      limit: opts.limit,
+      latest: opts.before,
+      oldest: opts.after,
+    });
+    return {
+      // conversations.replies includes the parent message; drop it for replies-only reads.
+      messages: (result.messages ?? []).filter(
+        (message) => (message as SlackMessageSummary)?.ts !== opts.threadId,
+      ) as SlackMessageSummary[],
+      hasMore: Boolean(result.has_more),
+    };
+  }
+
   const result = await client.conversations.history({
     channel: channelId,
     limit: opts.limit,

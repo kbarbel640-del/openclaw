@@ -1,28 +1,31 @@
 import { type Api, completeSimple, type Model } from "@mariozechner/pi-ai";
-import { discoverAuthStorage, discoverModels } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../config/config.js";
-import { resolveClawdbotAgentDir } from "./agent-paths.js";
+import { isTruthyEnvValue } from "../infra/env.js";
+import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import {
   collectAnthropicApiKeys,
   isAnthropicBillingError,
   isAnthropicRateLimitError,
 } from "./live-auth-keys.js";
 import { isModernModelRef } from "./live-model-filter.js";
-import { getApiKeyForModel } from "./model-auth.js";
-import { ensureClawdbotModelsJson } from "./models-config.js";
+import { getApiKeyForModel, requireApiKey } from "./model-auth.js";
+import { ensureOpenClawModelsJson } from "./models-config.js";
 import { isRateLimitErrorMessage } from "./pi-embedded-helpers/errors.js";
+import { discoverAuthStorage, discoverModels } from "./pi-model-discovery.js";
 
-const LIVE = process.env.LIVE === "1" || process.env.CLAWDBOT_LIVE_TEST === "1";
-const DIRECT_ENABLED = Boolean(process.env.CLAWDBOT_LIVE_MODELS?.trim());
-const REQUIRE_PROFILE_KEYS = process.env.CLAWDBOT_LIVE_REQUIRE_PROFILE_KEYS === "1";
+const LIVE = isTruthyEnvValue(process.env.LIVE) || isTruthyEnvValue(process.env.OPENCLAW_LIVE_TEST);
+const DIRECT_ENABLED = Boolean(process.env.OPENCLAW_LIVE_MODELS?.trim());
+const REQUIRE_PROFILE_KEYS = isTruthyEnvValue(process.env.OPENCLAW_LIVE_REQUIRE_PROFILE_KEYS);
 
 const describeLive = LIVE ? describe : describe.skip;
 
-function parseProviderFilter(raw?: string): Set<string> | null {
+function parseCsvFilter(raw?: string): Set<string> | null {
   const trimmed = raw?.trim();
-  if (!trimmed || trimmed === "all") return null;
+  if (!trimmed || trimmed === "all") {
+    return null;
+  }
   const ids = trimmed
     .split(",")
     .map((s) => s.trim())
@@ -30,14 +33,12 @@ function parseProviderFilter(raw?: string): Set<string> | null {
   return ids.length ? new Set(ids) : null;
 }
 
+function parseProviderFilter(raw?: string): Set<string> | null {
+  return parseCsvFilter(raw);
+}
+
 function parseModelFilter(raw?: string): Set<string> | null {
-  const trimmed = raw?.trim();
-  if (!trimmed || trimmed === "all") return null;
-  const ids = trimmed
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return ids.length ? new Set(ids) : null;
+  return parseCsvFilter(raw);
 }
 
 function logProgress(message: string): void {
@@ -46,19 +47,38 @@ function logProgress(message: string): void {
 
 function isGoogleModelNotFoundError(err: unknown): boolean {
   const msg = String(err);
-  if (!/not found/i.test(msg)) return false;
-  if (/models\/.+ is not found for api version/i.test(msg)) return true;
-  if (/"status"\\s*:\\s*"NOT_FOUND"/.test(msg)) return true;
-  if (/"code"\\s*:\\s*404/.test(msg)) return true;
+  if (!/not found/i.test(msg)) {
+    return false;
+  }
+  if (/\b404\b/.test(msg)) {
+    return true;
+  }
+  if (/models\/.+ is not found for api version/i.test(msg)) {
+    return true;
+  }
+  if (/"status"\\s*:\\s*"NOT_FOUND"/.test(msg)) {
+    return true;
+  }
+  if (/"code"\\s*:\\s*404/.test(msg)) {
+    return true;
+  }
   return false;
 }
 
 function isModelNotFoundErrorMessage(raw: string): boolean {
   const msg = raw.trim();
-  if (!msg) return false;
-  if (/\b404\b/.test(msg) && /not[_-]?found/i.test(msg)) return true;
-  if (/not_found_error/i.test(msg)) return true;
-  if (/model:\s*[a-z0-9._-]+/i.test(msg) && /not[_-]?found/i.test(msg)) return true;
+  if (!msg) {
+    return false;
+  }
+  if (/\b404\b/.test(msg) && /not[_-]?found/i.test(msg)) {
+    return true;
+  }
+  if (/not_found_error/i.test(msg)) {
+    return true;
+  }
+  if (/model:\s*[a-z0-9._-]+/i.test(msg) && /not[_-]?found/i.test(msg)) {
+    return true;
+  }
   return false;
 }
 
@@ -67,9 +87,15 @@ function isChatGPTUsageLimitErrorMessage(raw: string): boolean {
   return msg.includes("hit your chatgpt usage limit") && msg.includes("try again in");
 }
 
+function isInstructionsRequiredError(raw: string): boolean {
+  return /instructions are required/i.test(raw);
+}
+
 function toInt(value: string | undefined, fallback: number): number {
   const trimmed = value?.trim();
-  if (!trimmed) return fallback;
+  if (!trimmed) {
+    return fallback;
+  }
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -77,10 +103,14 @@ function toInt(value: string | undefined, fallback: number): number {
 function resolveTestReasoning(
   model: Model<Api>,
 ): "minimal" | "low" | "medium" | "high" | "xhigh" | undefined {
-  if (!model.reasoning) return undefined;
+  if (!model.reasoning) {
+    return undefined;
+  }
   const id = model.id.toLowerCase();
   if (model.provider === "openai" || model.provider === "openai-codex") {
-    if (id.includes("pro")) return "high";
+    if (id.includes("pro")) {
+      return "high";
+    }
     return "medium";
   }
   return "low";
@@ -110,7 +140,7 @@ async function completeOkWithRetry(params: {
   apiKey: string;
   timeoutMs: number;
 }) {
-  const runOnce = async () => {
+  const runOnce = async (maxTokens: number) => {
     const res = await completeSimpleWithTimeout(
       params.model,
       {
@@ -125,7 +155,7 @@ async function completeOkWithRetry(params: {
       {
         apiKey: params.apiKey,
         reasoning: resolveTestReasoning(params.model),
-        maxTokens: 64,
+        maxTokens,
       },
       params.timeoutMs,
     );
@@ -136,9 +166,13 @@ async function completeOkWithRetry(params: {
     return { res, text };
   };
 
-  const first = await runOnce();
-  if (first.text.length > 0) return first;
-  return await runOnce();
+  const first = await runOnce(64);
+  if (first.text.length > 0) {
+    return first;
+  }
+  // Some providers (for example Moonshot Kimi and MiniMax M2.5) may emit
+  // reasoning blocks first and only return text once token budget is higher.
+  return await runOnce(256);
 }
 
 describeLive("live models (profile keys)", () => {
@@ -146,10 +180,10 @@ describeLive("live models (profile keys)", () => {
     "completes across selected models",
     async () => {
       const cfg = loadConfig();
-      await ensureClawdbotModelsJson(cfg);
+      await ensureOpenClawModelsJson(cfg);
       if (!DIRECT_ENABLED) {
         logProgress(
-          "[live-models] skipping (set CLAWDBOT_LIVE_MODELS=modern|all|<list>; all=modern)",
+          "[live-models] skipping (set OPENCLAW_LIVE_MODELS=modern|all|<list>; all=modern)",
         );
         return;
       }
@@ -159,18 +193,18 @@ describeLive("live models (profile keys)", () => {
         logProgress(`[live-models] anthropic keys loaded: ${anthropicKeys.length}`);
       }
 
-      const agentDir = resolveClawdbotAgentDir();
+      const agentDir = resolveOpenClawAgentDir();
       const authStorage = discoverAuthStorage(agentDir);
       const modelRegistry = discoverModels(authStorage, agentDir);
-      const models = modelRegistry.getAll() as Array<Model<Api>>;
+      const models = modelRegistry.getAll();
 
-      const rawModels = process.env.CLAWDBOT_LIVE_MODELS?.trim();
+      const rawModels = process.env.OPENCLAW_LIVE_MODELS?.trim();
       const useModern = rawModels === "modern" || rawModels === "all";
       const useExplicit = Boolean(rawModels) && !useModern;
       const filter = useExplicit ? parseModelFilter(rawModels) : null;
       const allowNotFoundSkip = useModern;
-      const providers = parseProviderFilter(process.env.CLAWDBOT_LIVE_PROVIDERS);
-      const perModelTimeoutMs = toInt(process.env.CLAWDBOT_LIVE_MODEL_TIMEOUT_MS, 30_000);
+      const providers = parseProviderFilter(process.env.OPENCLAW_LIVE_PROVIDERS);
+      const perModelTimeoutMs = toInt(process.env.OPENCLAW_LIVE_MODEL_TIMEOUT_MS, 30_000);
 
       const failures: Array<{ model: string; error: string }> = [];
       const skipped: Array<{ model: string; reason: string }> = [];
@@ -180,9 +214,13 @@ describeLive("live models (profile keys)", () => {
       }> = [];
 
       for (const model of models) {
-        if (providers && !providers.has(model.provider)) continue;
+        if (providers && !providers.has(model.provider)) {
+          continue;
+        }
         const id = `${model.provider}/${model.id}`;
-        if (filter && !filter.has(id)) continue;
+        if (filter && !filter.has(id)) {
+          continue;
+        }
         if (!filter && useModern) {
           if (!isModernModelRef({ provider: model.provider, id: model.id })) {
             continue;
@@ -225,7 +263,7 @@ describeLive("live models (profile keys)", () => {
           const apiKey =
             model.provider === "anthropic" && anthropicKeys.length > 0
               ? anthropicKeys[attempt]
-              : apiKeyInfo.apiKey;
+              : requireApiKey(apiKeyInfo, model.provider);
           try {
             // Special regression: OpenAI requires replayed `reasoning` items for tool-only turns.
             if (
@@ -379,6 +417,18 @@ describeLive("live models (profile keys)", () => {
             if (
               ok.text.length === 0 &&
               allowNotFoundSkip &&
+              (model.provider === "minimax" || model.provider === "zai")
+            ) {
+              skipped.push({
+                model: id,
+                reason: "no text returned (provider returned empty content)",
+              });
+              logProgress(`${progressLabel}: skip (empty response)`);
+              break;
+            }
+            if (
+              ok.text.length === 0 &&
+              allowNotFoundSkip &&
               (model.provider === "google-antigravity" || model.provider === "openai-codex")
             ) {
               skipped.push({
@@ -410,7 +460,10 @@ describeLive("live models (profile keys)", () => {
               logProgress(`${progressLabel}: skip (anthropic billing)`);
               break;
             }
-            if (model.provider === "google" && isGoogleModelNotFoundError(err)) {
+            if (
+              (model.provider === "google" || model.provider === "google-gemini-cli") &&
+              isGoogleModelNotFoundError(err)
+            ) {
               skipped.push({ model: id, reason: message });
               logProgress(`${progressLabel}: skip (google model not found)`);
               break;
@@ -422,6 +475,15 @@ describeLive("live models (profile keys)", () => {
             ) {
               skipped.push({ model: id, reason: message });
               logProgress(`${progressLabel}: skip (minimax empty response)`);
+              break;
+            }
+            if (
+              allowNotFoundSkip &&
+              (model.provider === "minimax" || model.provider === "zai") &&
+              isRateLimitErrorMessage(message)
+            ) {
+              skipped.push({ model: id, reason: message });
+              logProgress(`${progressLabel}: skip (rate limit)`);
               break;
             }
             if (
@@ -440,6 +502,15 @@ describeLive("live models (profile keys)", () => {
             ) {
               skipped.push({ model: id, reason: message });
               logProgress(`${progressLabel}: skip (chatgpt usage limit)`);
+              break;
+            }
+            if (
+              allowNotFoundSkip &&
+              model.provider === "openai-codex" &&
+              isInstructionsRequiredError(message)
+            ) {
+              skipped.push({ model: id, reason: message });
+              logProgress(`${progressLabel}: skip (instructions required)`);
               break;
             }
             logProgress(`${progressLabel}: failed`);

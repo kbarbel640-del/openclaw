@@ -9,9 +9,7 @@
 
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-
 import { WebSocket, WebSocketServer } from "ws";
-
 import type {
   OpenAIRealtimeSTTProvider,
   RealtimeSTTSession,
@@ -23,12 +21,24 @@ import type {
 export interface MediaStreamConfig {
   /** STT provider for transcription */
   sttProvider: OpenAIRealtimeSTTProvider;
+  /** Close sockets that never send a valid `start` frame within this window. */
+  preStartTimeoutMs?: number;
+  /** Max concurrent pre-start sockets. */
+  maxPendingConnections?: number;
+  /** Max concurrent pre-start sockets from a single source IP. */
+  maxPendingConnectionsPerIp?: number;
+  /** Max total open sockets (pending + active sessions). */
+  maxConnections?: number;
+  /** Validate whether to accept a media stream for the given call ID */
+  shouldAcceptStream?: (params: { callId: string; streamSid: string; token?: string }) => boolean;
   /** Callback when transcript is received */
   onTranscript?: (callId: string, transcript: string) => void;
   /** Callback for partial transcripts (streaming UI) */
   onPartialTranscript?: (callId: string, partial: string) => void;
   /** Callback when stream connects */
   onConnect?: (callId: string, streamSid: string) => void;
+  /** Callback when speech starts (barge-in) */
+  onSpeechStart?: (callId: string) => void;
   /** Callback when stream disconnects */
   onDisconnect?: (callId: string) => void;
 }
@@ -43,6 +53,23 @@ interface StreamSession {
   sttSession: RealtimeSTTSession;
 }
 
+type TtsQueueEntry = {
+  playFn: (signal: AbortSignal) => Promise<void>;
+  controller: AbortController;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+};
+
+type PendingConnection = {
+  ip: string;
+  timeout: ReturnType<typeof setTimeout>;
+};
+
+const DEFAULT_PRE_START_TIMEOUT_MS = 5000;
+const DEFAULT_MAX_PENDING_CONNECTIONS = 32;
+const DEFAULT_MAX_PENDING_CONNECTIONS_PER_IP = 4;
+const DEFAULT_MAX_CONNECTIONS = 128;
+
 /**
  * Manages WebSocket connections for Twilio media streams.
  */
@@ -50,9 +77,28 @@ export class MediaStreamHandler {
   private wss: WebSocketServer | null = null;
   private sessions = new Map<string, StreamSession>();
   private config: MediaStreamConfig;
+  /** Pending sockets that have upgraded but not yet sent an accepted `start` frame. */
+  private pendingConnections = new Map<WebSocket, PendingConnection>();
+  /** Pending socket count per remote IP for pre-auth throttling. */
+  private pendingByIp = new Map<string, number>();
+  private preStartTimeoutMs: number;
+  private maxPendingConnections: number;
+  private maxPendingConnectionsPerIp: number;
+  private maxConnections: number;
+  /** TTS playback queues per stream (serialize audio to prevent overlap) */
+  private ttsQueues = new Map<string, TtsQueueEntry[]>();
+  /** Whether TTS is currently playing per stream */
+  private ttsPlaying = new Map<string, boolean>();
+  /** Active TTS playback controllers per stream */
+  private ttsActiveControllers = new Map<string, AbortController>();
 
   constructor(config: MediaStreamConfig) {
     this.config = config;
+    this.preStartTimeoutMs = config.preStartTimeoutMs ?? DEFAULT_PRE_START_TIMEOUT_MS;
+    this.maxPendingConnections = config.maxPendingConnections ?? DEFAULT_MAX_PENDING_CONNECTIONS;
+    this.maxPendingConnectionsPerIp =
+      config.maxPendingConnectionsPerIp ?? DEFAULT_MAX_PENDING_CONNECTIONS_PER_IP;
+    this.maxConnections = config.maxConnections ?? DEFAULT_MAX_CONNECTIONS;
   }
 
   /**
@@ -64,6 +110,12 @@ export class MediaStreamHandler {
       this.wss.on("connection", (ws, req) => this.handleConnection(ws, req));
     }
 
+    const currentConnections = this.wss.clients.size;
+    if (currentConnections >= this.maxConnections) {
+      this.rejectUpgrade(socket, 503, "Too many media stream connections");
+      return;
+    }
+
     this.wss.handleUpgrade(request, socket, head, (ws) => {
       this.wss?.emit("connection", ws, request);
     });
@@ -72,11 +124,15 @@ export class MediaStreamHandler {
   /**
    * Handle new WebSocket connection from Twilio.
    */
-  private async handleConnection(
-    ws: WebSocket,
-    _request: IncomingMessage,
-  ): Promise<void> {
+  private async handleConnection(ws: WebSocket, _request: IncomingMessage): Promise<void> {
     let session: StreamSession | null = null;
+    const streamToken = this.getStreamToken(_request);
+    const ip = this.getClientIp(_request);
+
+    if (!this.registerPendingConnection(ws, ip)) {
+      ws.close(1013, "Too many pending media stream connections");
+      return;
+    }
 
     ws.on("message", async (data: Buffer) => {
       try {
@@ -88,7 +144,10 @@ export class MediaStreamHandler {
             break;
 
           case "start":
-            session = await this.handleStart(ws, message);
+            session = await this.handleStart(ws, message, streamToken);
+            if (session) {
+              this.clearPendingConnection(ws);
+            }
             break;
 
           case "media":
@@ -112,6 +171,7 @@ export class MediaStreamHandler {
     });
 
     ws.on("close", () => {
+      this.clearPendingConnection(ws);
       if (session) {
         this.handleStop(session);
       }
@@ -128,13 +188,30 @@ export class MediaStreamHandler {
   private async handleStart(
     ws: WebSocket,
     message: TwilioMediaMessage,
-  ): Promise<StreamSession> {
+    streamToken?: string,
+  ): Promise<StreamSession | null> {
     const streamSid = message.streamSid || "";
     const callSid = message.start?.callSid || "";
 
-    console.log(
-      `[MediaStream] Stream started: ${streamSid} (call: ${callSid})`,
-    );
+    // Prefer token from start message customParameters (set via TwiML <Parameter>),
+    // falling back to query string token. Twilio strips query params from WebSocket
+    // URLs but reliably delivers <Parameter> values in customParameters.
+    const effectiveToken = message.start?.customParameters?.token ?? streamToken;
+
+    console.log(`[MediaStream] Stream started: ${streamSid} (call: ${callSid})`);
+    if (!callSid) {
+      console.warn("[MediaStream] Missing callSid; closing stream");
+      ws.close(1008, "Missing callSid");
+      return null;
+    }
+    if (
+      this.config.shouldAcceptStream &&
+      !this.config.shouldAcceptStream({ callId: callSid, streamSid, token: effectiveToken })
+    ) {
+      console.warn(`[MediaStream] Rejecting stream for unknown call: ${callSid}`);
+      ws.close(1008, "Unknown call");
+      return null;
+    }
 
     // Create STT session
     const sttSession = this.config.sttProvider.createSession();
@@ -146,6 +223,10 @@ export class MediaStreamHandler {
 
     sttSession.onTranscript((transcript) => {
       this.config.onTranscript?.(callSid, transcript);
+    });
+
+    sttSession.onSpeechStart(() => {
+      this.config.onSpeechStart?.(callSid);
     });
 
     const session: StreamSession = {
@@ -162,10 +243,7 @@ export class MediaStreamHandler {
 
     // Connect to OpenAI STT (non-blocking, log errors but don't fail the call)
     sttSession.connect().catch((err) => {
-      console.warn(
-        `[MediaStream] STT connection failed (TTS still works):`,
-        err.message,
-      );
+      console.warn(`[MediaStream] STT connection failed (TTS still works):`, err.message);
     });
 
     return session;
@@ -177,9 +255,85 @@ export class MediaStreamHandler {
   private handleStop(session: StreamSession): void {
     console.log(`[MediaStream] Stream stopped: ${session.streamSid}`);
 
+    this.clearTtsState(session.streamSid);
     session.sttSession.close();
     this.sessions.delete(session.streamSid);
     this.config.onDisconnect?.(session.callId);
+  }
+
+  private getStreamToken(request: IncomingMessage): string | undefined {
+    if (!request.url || !request.headers.host) {
+      return undefined;
+    }
+    try {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      return url.searchParams.get("token") ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private getClientIp(request: IncomingMessage): string {
+    return request.socket.remoteAddress || "unknown";
+  }
+
+  private registerPendingConnection(ws: WebSocket, ip: string): boolean {
+    if (this.pendingConnections.size >= this.maxPendingConnections) {
+      console.warn("[MediaStream] Rejecting connection: pending connection limit reached");
+      return false;
+    }
+
+    const pendingForIp = this.pendingByIp.get(ip) ?? 0;
+    if (pendingForIp >= this.maxPendingConnectionsPerIp) {
+      console.warn(`[MediaStream] Rejecting connection: pending per-IP limit reached (${ip})`);
+      return false;
+    }
+
+    const timeout = setTimeout(() => {
+      if (!this.pendingConnections.has(ws)) {
+        return;
+      }
+      console.warn(
+        `[MediaStream] Closing pre-start idle connection after ${this.preStartTimeoutMs}ms (${ip})`,
+      );
+      ws.close(1008, "Start timeout");
+    }, this.preStartTimeoutMs);
+
+    timeout.unref?.();
+    this.pendingConnections.set(ws, { ip, timeout });
+    this.pendingByIp.set(ip, pendingForIp + 1);
+    return true;
+  }
+
+  private clearPendingConnection(ws: WebSocket): void {
+    const pending = this.pendingConnections.get(ws);
+    if (!pending) {
+      return;
+    }
+
+    clearTimeout(pending.timeout);
+    this.pendingConnections.delete(ws);
+
+    const current = this.pendingByIp.get(pending.ip) ?? 0;
+    if (current <= 1) {
+      this.pendingByIp.delete(pending.ip);
+      return;
+    }
+    this.pendingByIp.set(pending.ip, current - 1);
+  }
+
+  private rejectUpgrade(socket: Duplex, statusCode: 429 | 503, message: string): void {
+    const statusText = statusCode === 429 ? "Too Many Requests" : "Service Unavailable";
+    const body = `${message}\n`;
+    socket.write(
+      `HTTP/1.1 ${statusCode} ${statusText}\r\n` +
+        "Connection: close\r\n" +
+        "Content-Type: text/plain; charset=utf-8\r\n" +
+        `Content-Length: ${Buffer.byteLength(body)}\r\n` +
+        "\r\n" +
+        body,
+    );
+    socket.destroy();
   }
 
   /**
@@ -229,12 +383,47 @@ export class MediaStreamHandler {
   }
 
   /**
+   * Queue a TTS operation for sequential playback.
+   * Only one TTS operation plays at a time per stream to prevent overlap.
+   */
+  async queueTts(streamSid: string, playFn: (signal: AbortSignal) => Promise<void>): Promise<void> {
+    const queue = this.getTtsQueue(streamSid);
+    let resolveEntry: () => void;
+    let rejectEntry: (error: unknown) => void;
+    const promise = new Promise<void>((resolve, reject) => {
+      resolveEntry = resolve;
+      rejectEntry = reject;
+    });
+
+    queue.push({
+      playFn,
+      controller: new AbortController(),
+      resolve: resolveEntry!,
+      reject: rejectEntry!,
+    });
+
+    if (!this.ttsPlaying.get(streamSid)) {
+      void this.processQueue(streamSid);
+    }
+
+    return promise;
+  }
+
+  /**
+   * Clear TTS queue and interrupt current playback (barge-in).
+   */
+  clearTtsQueue(streamSid: string): void {
+    const queue = this.getTtsQueue(streamSid);
+    queue.length = 0;
+    this.ttsActiveControllers.get(streamSid)?.abort();
+    this.clearAudio(streamSid);
+  }
+
+  /**
    * Get active session by call ID.
    */
   getSessionByCallId(callId: string): StreamSession | undefined {
-    return [...this.sessions.values()].find(
-      (session) => session.callId === callId,
-    );
+    return [...this.sessions.values()].find((session) => session.callId === callId);
   }
 
   /**
@@ -242,10 +431,68 @@ export class MediaStreamHandler {
    */
   closeAll(): void {
     for (const session of this.sessions.values()) {
+      this.clearTtsState(session.streamSid);
       session.sttSession.close();
       session.ws.close();
     }
     this.sessions.clear();
+  }
+
+  private getTtsQueue(streamSid: string): TtsQueueEntry[] {
+    const existing = this.ttsQueues.get(streamSid);
+    if (existing) {
+      return existing;
+    }
+    const queue: TtsQueueEntry[] = [];
+    this.ttsQueues.set(streamSid, queue);
+    return queue;
+  }
+
+  /**
+   * Process the TTS queue for a stream.
+   * Uses iterative approach to avoid stack accumulation from recursion.
+   */
+  private async processQueue(streamSid: string): Promise<void> {
+    this.ttsPlaying.set(streamSid, true);
+
+    while (true) {
+      const queue = this.ttsQueues.get(streamSid);
+      if (!queue || queue.length === 0) {
+        this.ttsPlaying.set(streamSid, false);
+        this.ttsActiveControllers.delete(streamSid);
+        return;
+      }
+
+      const entry = queue.shift()!;
+      this.ttsActiveControllers.set(streamSid, entry.controller);
+
+      try {
+        await entry.playFn(entry.controller.signal);
+        entry.resolve();
+      } catch (error) {
+        if (entry.controller.signal.aborted) {
+          entry.resolve();
+        } else {
+          console.error("[MediaStream] TTS playback error:", error);
+          entry.reject(error);
+        }
+      } finally {
+        if (this.ttsActiveControllers.get(streamSid) === entry.controller) {
+          this.ttsActiveControllers.delete(streamSid);
+        }
+      }
+    }
+  }
+
+  private clearTtsState(streamSid: string): void {
+    const queue = this.ttsQueues.get(streamSid);
+    if (queue) {
+      queue.length = 0;
+    }
+    this.ttsActiveControllers.get(streamSid)?.abort();
+    this.ttsActiveControllers.delete(streamSid);
+    this.ttsPlaying.delete(streamSid);
+    this.ttsQueues.delete(streamSid);
   }
 }
 
@@ -261,6 +508,7 @@ interface TwilioMediaMessage {
     accountSid: string;
     callSid: string;
     tracks: string[];
+    customParameters?: Record<string, string>;
     mediaFormat: {
       encoding: string;
       sampleRate: number;

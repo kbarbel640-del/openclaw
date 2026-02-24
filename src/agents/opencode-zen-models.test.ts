@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import {
   getOpencodeZenStaticFallbackModels,
   OPENCODE_ZEN_MODEL_ALIASES,
@@ -9,12 +8,12 @@ import {
 
 describe("resolveOpencodeZenAlias", () => {
   it("resolves opus alias", () => {
-    expect(resolveOpencodeZenAlias("opus")).toBe("claude-opus-4-5");
+    expect(resolveOpencodeZenAlias("opus")).toBe("claude-opus-4-6");
   });
 
   it("keeps legacy aliases working", () => {
-    expect(resolveOpencodeZenAlias("sonnet")).toBe("claude-opus-4-5");
-    expect(resolveOpencodeZenAlias("haiku")).toBe("claude-opus-4-5");
+    expect(resolveOpencodeZenAlias("sonnet")).toBe("claude-opus-4-6");
+    expect(resolveOpencodeZenAlias("haiku")).toBe("claude-opus-4-6");
     expect(resolveOpencodeZenAlias("gpt4")).toBe("gpt-5.1");
     expect(resolveOpencodeZenAlias("o1")).toBe("gpt-5.2");
     expect(resolveOpencodeZenAlias("gemini-2.5")).toBe("gemini-3-pro");
@@ -33,18 +32,19 @@ describe("resolveOpencodeZenAlias", () => {
   });
 
   it("is case-insensitive", () => {
-    expect(resolveOpencodeZenAlias("OPUS")).toBe("claude-opus-4-5");
+    expect(resolveOpencodeZenAlias("OPUS")).toBe("claude-opus-4-6");
     expect(resolveOpencodeZenAlias("Gpt5")).toBe("gpt-5.2");
   });
 });
 
 describe("resolveOpencodeZenModelApi", () => {
   it("maps APIs by model family", () => {
-    expect(resolveOpencodeZenModelApi("claude-opus-4-5")).toBe("anthropic-messages");
-    expect(resolveOpencodeZenModelApi("minimax-m2.1-free")).toBe("anthropic-messages");
+    expect(resolveOpencodeZenModelApi("claude-opus-4-6")).toBe("anthropic-messages");
     expect(resolveOpencodeZenModelApi("gemini-3-pro")).toBe("google-generative-ai");
     expect(resolveOpencodeZenModelApi("gpt-5.2")).toBe("openai-responses");
-    expect(resolveOpencodeZenModelApi("glm-4.7-free")).toBe("openai-completions");
+    expect(resolveOpencodeZenModelApi("alpha-gd4")).toBe("openai-completions");
+    expect(resolveOpencodeZenModelApi("big-pickle")).toBe("openai-completions");
+    expect(resolveOpencodeZenModelApi("glm-4.7")).toBe("openai-completions");
     expect(resolveOpencodeZenModelApi("some-unknown-model")).toBe("openai-completions");
   });
 });
@@ -53,19 +53,19 @@ describe("getOpencodeZenStaticFallbackModels", () => {
   it("returns an array of models", () => {
     const models = getOpencodeZenStaticFallbackModels();
     expect(Array.isArray(models)).toBe(true);
-    expect(models.length).toBe(11);
+    expect(models.length).toBe(10);
   });
 
-  it("includes Claude, GPT, Gemini, GLM, and MiniMax models", () => {
+  it("includes Claude, GPT, Gemini, and GLM models", () => {
     const models = getOpencodeZenStaticFallbackModels();
     const ids = models.map((m) => m.id);
 
+    expect(ids).toContain("claude-opus-4-6");
     expect(ids).toContain("claude-opus-4-5");
     expect(ids).toContain("gpt-5.2");
     expect(ids).toContain("gpt-5.1-codex");
     expect(ids).toContain("gemini-3-pro");
-    expect(ids).toContain("glm-4.7-free");
-    expect(ids).toContain("minimax-m2.1-free");
+    expect(ids).toContain("glm-4.7");
   });
 
   it("returns valid ModelDefinitionConfig objects", () => {
@@ -84,16 +84,16 @@ describe("getOpencodeZenStaticFallbackModels", () => {
 
 describe("OPENCODE_ZEN_MODEL_ALIASES", () => {
   it("has expected aliases", () => {
-    expect(OPENCODE_ZEN_MODEL_ALIASES.opus).toBe("claude-opus-4-5");
+    expect(OPENCODE_ZEN_MODEL_ALIASES.opus).toBe("claude-opus-4-6");
     expect(OPENCODE_ZEN_MODEL_ALIASES.codex).toBe("gpt-5.1-codex");
     expect(OPENCODE_ZEN_MODEL_ALIASES.gpt5).toBe("gpt-5.2");
     expect(OPENCODE_ZEN_MODEL_ALIASES.gemini).toBe("gemini-3-pro");
-    expect(OPENCODE_ZEN_MODEL_ALIASES.glm).toBe("glm-4.7-free");
-    expect(OPENCODE_ZEN_MODEL_ALIASES.minimax).toBe("minimax-m2.1-free");
+    expect(OPENCODE_ZEN_MODEL_ALIASES.glm).toBe("glm-4.7");
+    expect(OPENCODE_ZEN_MODEL_ALIASES["opus-4.5"]).toBe("claude-opus-4-5");
 
     // Legacy aliases (kept for backward compatibility).
-    expect(OPENCODE_ZEN_MODEL_ALIASES.sonnet).toBe("claude-opus-4-5");
-    expect(OPENCODE_ZEN_MODEL_ALIASES.haiku).toBe("claude-opus-4-5");
+    expect(OPENCODE_ZEN_MODEL_ALIASES.sonnet).toBe("claude-opus-4-6");
+    expect(OPENCODE_ZEN_MODEL_ALIASES.haiku).toBe("claude-opus-4-6");
     expect(OPENCODE_ZEN_MODEL_ALIASES.gpt4).toBe("gpt-5.1");
     expect(OPENCODE_ZEN_MODEL_ALIASES.o1).toBe("gpt-5.2");
     expect(OPENCODE_ZEN_MODEL_ALIASES["gemini-2.5"]).toBe("gemini-3-pro");

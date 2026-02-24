@@ -1,15 +1,11 @@
 import type { Command } from "commander";
-import {
-  isNixMode,
-  loadConfig,
-  migrateLegacyConfig,
-  readConfigFileSnapshot,
-  writeConfigFile,
-} from "../../config/config.js";
-import { danger } from "../../globals.js";
-import { autoMigrateLegacyState } from "../../infra/state-migrations.js";
+import { setVerbose } from "../../globals.js";
+import { isTruthyEnvValue } from "../../infra/env.js";
+import type { LogLevel } from "../../logging/levels.js";
 import { defaultRuntime } from "../../runtime.js";
+import { getCommandPath, getVerboseFlag, hasHelpOrVersion } from "../argv.js";
 import { emitCliBanner } from "../banner.js";
+import { resolveCliName } from "../cli-name.js";
 
 function setProcessTitleForCommand(actionCommand: Command) {
   let current: Command = actionCommand;
@@ -17,60 +13,76 @@ function setProcessTitleForCommand(actionCommand: Command) {
     current = current.parent;
   }
   const name = current.name();
-  if (!name || name === "clawdbot") return;
-  process.title = `clawdbot-${name}`;
+  const cliName = resolveCliName();
+  if (!name || name === cliName) {
+    return;
+  }
+  process.title = `${cliName}-${name}`;
+}
+
+// Commands that need channel plugins loaded
+const PLUGIN_REQUIRED_COMMANDS = new Set([
+  "message",
+  "channels",
+  "directory",
+  "configure",
+  "onboard",
+]);
+
+function getRootCommand(command: Command): Command {
+  let current = command;
+  while (current.parent) {
+    current = current.parent;
+  }
+  return current;
+}
+
+function getCliLogLevel(actionCommand: Command): LogLevel | undefined {
+  const root = getRootCommand(actionCommand);
+  if (typeof root.getOptionValueSource !== "function") {
+    return undefined;
+  }
+  if (root.getOptionValueSource("logLevel") !== "cli") {
+    return undefined;
+  }
+  const logLevel = root.opts<Record<string, unknown>>().logLevel;
+  return typeof logLevel === "string" ? (logLevel as LogLevel) : undefined;
 }
 
 export function registerPreActionHooks(program: Command, programVersion: string) {
   program.hook("preAction", async (_thisCommand, actionCommand) => {
     setProcessTitleForCommand(actionCommand);
-    emitCliBanner(programVersion);
-    if (actionCommand.name() === "doctor") return;
-    const snapshot = await readConfigFileSnapshot();
-    if (snapshot.legacyIssues.length === 0) return;
-    if (isNixMode) {
-      defaultRuntime.error(
-        danger(
-          "Legacy config entries detected while running in Nix mode. Update your Nix config to the latest schema and retry.",
-        ),
-      );
-      process.exit(1);
-    }
-    const migrated = migrateLegacyConfig(snapshot.parsed);
-    if (migrated.config) {
-      await writeConfigFile(migrated.config);
-      if (migrated.changes.length > 0) {
-        defaultRuntime.log(
-          `Migrated legacy config entries:\n${migrated.changes
-            .map((entry) => `- ${entry}`)
-            .join("\n")}`,
-        );
-      }
+    const argv = process.argv;
+    if (hasHelpOrVersion(argv)) {
       return;
     }
-    const issues = snapshot.legacyIssues
-      .map((issue) => `- ${issue.path}: ${issue.message}`)
-      .join("\n");
-    defaultRuntime.error(
-      danger(
-        `Legacy config entries detected. Run "clawdbot doctor" (or ask your agent) to migrate.\n${issues}`,
-      ),
-    );
-    process.exit(1);
-  });
-
-  program.hook("preAction", async (_thisCommand, actionCommand) => {
-    if (actionCommand.name() === "doctor") return;
-    const snapshot = await readConfigFileSnapshot();
-    if (snapshot.exists && !snapshot.valid) {
-      defaultRuntime.error(`Config invalid at ${snapshot.path}.`);
-      for (const issue of snapshot.issues) {
-        defaultRuntime.error(`- ${issue.path || "<root>"}: ${issue.message}`);
-      }
-      defaultRuntime.error("Run `clawdbot doctor` to repair, then retry.");
-      process.exit(1);
+    const commandPath = getCommandPath(argv, 2);
+    const hideBanner =
+      isTruthyEnvValue(process.env.OPENCLAW_HIDE_BANNER) ||
+      commandPath[0] === "update" ||
+      commandPath[0] === "completion" ||
+      (commandPath[0] === "plugins" && commandPath[1] === "update");
+    if (!hideBanner) {
+      emitCliBanner(programVersion);
     }
-    const cfg = loadConfig();
-    await autoMigrateLegacyState({ cfg });
+    const verbose = getVerboseFlag(argv, { includeDebug: true });
+    setVerbose(verbose);
+    const cliLogLevel = getCliLogLevel(actionCommand);
+    if (cliLogLevel) {
+      process.env.OPENCLAW_LOG_LEVEL = cliLogLevel;
+    }
+    if (!verbose) {
+      process.env.NODE_NO_WARNINGS ??= "1";
+    }
+    if (commandPath[0] === "doctor" || commandPath[0] === "completion") {
+      return;
+    }
+    const { ensureConfigReady } = await import("./config-guard.js");
+    await ensureConfigReady({ runtime: defaultRuntime, commandPath });
+    // Load plugins for commands that need channel access
+    if (PLUGIN_REQUIRED_COMMANDS.has(commandPath[0])) {
+      const { ensurePluginRegistryLoaded } = await import("../plugin-registry.js");
+      ensurePluginRegistryLoaded();
+    }
   });
 }

@@ -1,13 +1,14 @@
 import type { Command } from "commander";
-import { randomIdempotencyKey } from "../../gateway/call.js";
 import { defaultRuntime } from "../../runtime.js";
+import { shortenHomePath } from "../../utils.js";
 import {
   parseScreenRecordPayload,
   screenRecordTempPath,
   writeScreenRecordToFile,
 } from "../nodes-screen.js";
 import { parseDurationMs } from "../parse-duration.js";
-import { callGatewayCli, nodesCallOpts, resolveNodeId } from "./rpc.js";
+import { runNodesCommand } from "./cli-utils.js";
+import { buildNodeInvokeParams, callGatewayCli, nodesCallOpts, resolveNodeId } from "./rpc.js";
 import type { NodesRpcOpts } from "./types.js";
 
 export function registerNodesScreenCommands(nodes: Command) {
@@ -27,7 +28,7 @@ export function registerNodesScreenCommands(nodes: Command) {
       .option("--out <path>", "Output path")
       .option("--invoke-timeout <ms>", "Node invoke timeout in ms (default 120000)", "120000")
       .action(async (opts: NodesRpcOpts & { out?: string }) => {
-        try {
+        await runNodesCommand("screen record", async () => {
           const nodeId = await resolveNodeId(opts, String(opts.node ?? ""));
           const durationMs = parseDurationMs(opts.duration ?? "");
           const screenIndex = Number.parseInt(String(opts.screen ?? "0"), 10);
@@ -36,7 +37,7 @@ export function registerNodesScreenCommands(nodes: Command) {
             ? Number.parseInt(String(opts.invokeTimeout), 10)
             : undefined;
 
-          const invokeParams: Record<string, unknown> = {
+          const invokeParams = buildNodeInvokeParams({
             nodeId,
             command: "screen.record",
             params: {
@@ -46,13 +47,10 @@ export function registerNodesScreenCommands(nodes: Command) {
               format: "mp4",
               includeAudio: opts.audio !== false,
             },
-            idempotencyKey: randomIdempotencyKey(),
-          };
-          if (typeof timeoutMs === "number" && Number.isFinite(timeoutMs)) {
-            invokeParams.timeoutMs = timeoutMs;
-          }
+            timeoutMs,
+          });
 
-          const raw = (await callGatewayCli("node.invoke", opts, invokeParams)) as unknown;
+          const raw = await callGatewayCli("node.invoke", opts, invokeParams);
           const res = typeof raw === "object" && raw !== null ? (raw as { payload?: unknown }) : {};
           const parsed = parseScreenRecordPayload(res.payload);
           const filePath = opts.out ?? screenRecordTempPath({ ext: parsed.format || "mp4" });
@@ -76,11 +74,8 @@ export function registerNodesScreenCommands(nodes: Command) {
             );
             return;
           }
-          defaultRuntime.log(`MEDIA:${written.path}`);
-        } catch (err) {
-          defaultRuntime.error(`nodes screen record failed: ${String(err)}`);
-          defaultRuntime.exit(1);
-        }
+          defaultRuntime.log(`MEDIA:${shortenHomePath(written.path)}`);
+        });
       }),
     { timeoutMs: 180_000 },
   );

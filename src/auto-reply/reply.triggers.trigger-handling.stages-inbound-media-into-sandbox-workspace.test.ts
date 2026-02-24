@@ -1,176 +1,104 @@
 import fs from "node:fs/promises";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
+import {
+  createSandboxMediaContexts,
+  createSandboxMediaStageConfig,
+  withSandboxMediaTempHome,
+} from "./stage-sandbox-media.test-harness.js";
 
-vi.mock("../agents/pi-embedded.js", () => ({
-  abortEmbeddedPiRun: vi.fn().mockReturnValue(false),
-  compactEmbeddedPiSession: vi.fn(),
-  runEmbeddedPiAgent: vi.fn(),
-  queueEmbeddedPiMessage: vi.fn().mockReturnValue(false),
-  resolveEmbeddedSessionLane: (key: string) => `session:${key.trim() || "main"}`,
-  isEmbeddedPiRunActive: vi.fn().mockReturnValue(false),
-  isEmbeddedPiRunStreaming: vi.fn().mockReturnValue(false),
+const sandboxMocks = vi.hoisted(() => ({
+  ensureSandboxWorkspaceForSession: vi.fn(),
+}));
+const childProcessMocks = vi.hoisted(() => ({
+  spawn: vi.fn(),
 }));
 
-const usageMocks = vi.hoisted(() => ({
-  loadProviderUsageSummary: vi.fn().mockResolvedValue({
-    updatedAt: 0,
-    providers: [],
-  }),
-  formatUsageSummaryLine: vi.fn().mockReturnValue("📊 Usage: Claude 80% left"),
-  resolveUsageProviderId: vi.fn((provider: string) => provider.split("/")[0]),
-}));
+vi.mock("../agents/sandbox.js", () => sandboxMocks);
+vi.mock("node:child_process", () => childProcessMocks);
 
-vi.mock("../infra/provider-usage.js", () => usageMocks);
-
-const modelCatalogMocks = vi.hoisted(() => ({
-  loadModelCatalog: vi.fn().mockResolvedValue([
-    {
-      provider: "anthropic",
-      id: "claude-opus-4-5",
-      name: "Claude Opus 4.5",
-      contextWindow: 200000,
-    },
-    {
-      provider: "openrouter",
-      id: "anthropic/claude-opus-4-5",
-      name: "Claude Opus 4.5 (OpenRouter)",
-      contextWindow: 200000,
-    },
-    { provider: "openai", id: "gpt-4.1-mini", name: "GPT-4.1 mini" },
-    { provider: "openai", id: "gpt-5.2", name: "GPT-5.2" },
-    { provider: "openai-codex", id: "gpt-5.2", name: "GPT-5.2 (Codex)" },
-    { provider: "minimax", id: "MiniMax-M2.1", name: "MiniMax M2.1" },
-  ]),
-  resetModelCatalogCacheForTest: vi.fn(),
-}));
-
-vi.mock("../agents/model-catalog.js", () => modelCatalogMocks);
-
-import { resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
-import { abortEmbeddedPiRun, runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { ensureSandboxWorkspaceForSession } from "../agents/sandbox.js";
-import { resolveAgentIdFromSessionKey, resolveSessionKey } from "../config/sessions.js";
-import { getReplyFromConfig } from "./reply.js";
-
-const _MAIN_SESSION_KEY = "agent:main:main";
-
-const webMocks = vi.hoisted(() => ({
-  webAuthExists: vi.fn().mockResolvedValue(true),
-  getWebAuthAgeMs: vi.fn().mockReturnValue(120_000),
-  readWebSelfId: vi.fn().mockReturnValue({ e164: "+1999" }),
-}));
-
-vi.mock("../web/session.js", () => webMocks);
-
-async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
-  return withTempHomeBase(
-    async (home) => {
-      vi.mocked(runEmbeddedPiAgent).mockClear();
-      vi.mocked(abortEmbeddedPiRun).mockClear();
-      return await fn(home);
-    },
-    { prefix: "clawdbot-triggers-" },
-  );
-}
-
-function _makeCfg(home: string) {
-  return {
-    agents: {
-      defaults: {
-        model: "anthropic/claude-opus-4-5",
-        workspace: join(home, "clawd"),
-      },
-    },
-    channels: {
-      whatsapp: {
-        allowFrom: ["*"],
-      },
-    },
-    session: { store: join(home, "sessions.json") },
-  };
-}
+import { stageSandboxMedia } from "./reply/stage-sandbox-media.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  childProcessMocks.spawn.mockClear();
 });
 
-describe("trigger handling", () => {
-  it("stages inbound media into the sandbox workspace", { timeout: 15_000 }, async () => {
-    await withTempHome(async (home) => {
-      const inboundDir = join(home, ".clawdbot", "media", "inbound");
-      await fs.mkdir(inboundDir, { recursive: true });
-      const mediaPath = join(inboundDir, "photo.jpg");
-      await fs.writeFile(mediaPath, "test");
-
-      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
-        payloads: [{ text: "ok" }],
-        meta: {
-          durationMs: 1,
-          agentMeta: { sessionId: "s", provider: "p", model: "m" },
-        },
+describe("stageSandboxMedia", () => {
+  it("stages allowed media and blocks unsafe paths", async () => {
+    await withSandboxMediaTempHome("openclaw-triggers-", async (home) => {
+      const cfg = createSandboxMediaStageConfig(home);
+      const workspaceDir = join(home, "openclaw");
+      const sandboxDir = join(home, "sandboxes", "session");
+      vi.mocked(ensureSandboxWorkspaceForSession).mockResolvedValue({
+        workspaceDir: sandboxDir,
+        containerWorkdir: "/work",
       });
 
-      const cfg = {
-        agents: {
-          defaults: {
-            model: "anthropic/claude-opus-4-5",
-            workspace: join(home, "clawd"),
-            sandbox: {
-              mode: "non-main" as const,
-              workspaceRoot: join(home, "sandboxes"),
-            },
-          },
-        },
-        channels: {
-          whatsapp: {
-            allowFrom: ["*"],
-          },
-        },
-        session: {
-          store: join(home, "sessions.json"),
-        },
-      };
+      {
+        const inboundDir = join(home, ".openclaw", "media", "inbound");
+        await fs.mkdir(inboundDir, { recursive: true });
+        const mediaPath = join(inboundDir, "photo.jpg");
+        await fs.writeFile(mediaPath, "test");
+        const { ctx, sessionCtx } = createSandboxMediaContexts(mediaPath);
 
-      const ctx = {
-        Body: "hi",
-        From: "whatsapp:group:demo",
-        To: "+2000",
-        ChatType: "group" as const,
-        Provider: "whatsapp" as const,
-        MediaPath: mediaPath,
-        MediaType: "image/jpeg",
-        MediaUrl: mediaPath,
-      };
+        await stageSandboxMedia({
+          ctx,
+          sessionCtx,
+          cfg,
+          sessionKey: "agent:main:main",
+          workspaceDir,
+        });
 
-      const res = await getReplyFromConfig(ctx, {}, cfg);
-      const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toBe("ok");
-      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
-
-      const prompt = vi.mocked(runEmbeddedPiAgent).mock.calls[0]?.[0]?.prompt ?? "";
-      const stagedPath = `media/inbound/${basename(mediaPath)}`;
-      expect(prompt).toContain(stagedPath);
-      expect(prompt).not.toContain(mediaPath);
-
-      const sessionKey = resolveSessionKey(
-        cfg.session?.scope ?? "per-sender",
-        ctx,
-        cfg.session?.mainKey,
-      );
-      const agentId = resolveAgentIdFromSessionKey(sessionKey);
-      const sandbox = await ensureSandboxWorkspaceForSession({
-        config: cfg,
-        sessionKey,
-        workspaceDir: resolveAgentWorkspaceDir(cfg, agentId),
-      });
-      expect(sandbox).not.toBeNull();
-      if (!sandbox) {
-        throw new Error("Expected sandbox to be set");
+        const stagedPath = `media/inbound/${basename(mediaPath)}`;
+        expect(ctx.MediaPath).toBe(stagedPath);
+        expect(sessionCtx.MediaPath).toBe(stagedPath);
+        expect(ctx.MediaUrl).toBe(stagedPath);
+        expect(sessionCtx.MediaUrl).toBe(stagedPath);
+        await expect(
+          fs.stat(join(sandboxDir, "media", "inbound", basename(mediaPath))),
+        ).resolves.toBeTruthy();
       }
-      const stagedFullPath = join(sandbox.workspaceDir, "media", "inbound", basename(mediaPath));
-      await expect(fs.stat(stagedFullPath)).resolves.toBeTruthy();
+
+      {
+        const sensitiveFile = join(home, "secrets.txt");
+        await fs.writeFile(sensitiveFile, "SENSITIVE DATA");
+        const { ctx, sessionCtx } = createSandboxMediaContexts(sensitiveFile);
+
+        await stageSandboxMedia({
+          ctx,
+          sessionCtx,
+          cfg,
+          sessionKey: "agent:main:main",
+          workspaceDir,
+        });
+
+        await expect(
+          fs.stat(join(sandboxDir, "media", "inbound", basename(sensitiveFile))),
+        ).rejects.toThrow();
+        expect(ctx.MediaPath).toBe(sensitiveFile);
+      }
+
+      {
+        childProcessMocks.spawn.mockClear();
+        const { ctx, sessionCtx } = createSandboxMediaContexts("/etc/passwd");
+        ctx.Provider = "imessage";
+        ctx.MediaRemoteHost = "user@gateway-host";
+        sessionCtx.Provider = "imessage";
+        sessionCtx.MediaRemoteHost = "user@gateway-host";
+
+        await stageSandboxMedia({
+          ctx,
+          sessionCtx,
+          cfg,
+          sessionKey: "agent:main:main",
+          workspaceDir,
+        });
+
+        expect(childProcessMocks.spawn).not.toHaveBeenCalled();
+        expect(ctx.MediaPath).toBe("/etc/passwd");
+      }
     });
   });
 });

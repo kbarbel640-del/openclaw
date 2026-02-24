@@ -1,28 +1,35 @@
-import type { ClawdbotConfig } from "../../../src/config/types.js";
-import type { getChildLogger as getChildLoggerFn } from "../../../src/logging.js";
+import {
+  resolveChannelMediaMaxBytes,
+  type OpenClawConfig,
+  type PluginRuntime,
+} from "openclaw/plugin-sdk";
+import type { MSTeamsAccessTokenProvider } from "./attachments/types.js";
+import { createMSTeamsConversationStoreFs } from "./conversation-store-fs.js";
 import type {
   MSTeamsConversationStore,
   StoredConversationReference,
 } from "./conversation-store.js";
-import { createMSTeamsConversationStoreFs } from "./conversation-store-fs.js";
 import type { MSTeamsAdapter } from "./messenger.js";
+import { getMSTeamsRuntime } from "./runtime.js";
 import { createMSTeamsAdapter, loadMSTeamsSdkWithAuth } from "./sdk.js";
 import { resolveMSTeamsCredentials } from "./token.js";
 
-let _log: ReturnType<typeof getChildLoggerFn> | undefined;
-const getLog = async (): Promise<ReturnType<typeof getChildLoggerFn>> => {
-  if (_log) return _log;
-  const { getChildLogger } = await import("../logging.js");
-  _log = getChildLogger({ name: "msteams:send" });
-  return _log;
-};
+export type MSTeamsConversationType = "personal" | "groupChat" | "channel";
 
 export type MSTeamsProactiveContext = {
   appId: string;
   conversationId: string;
   ref: StoredConversationReference;
   adapter: MSTeamsAdapter;
-  log: Awaited<ReturnType<typeof getLog>>;
+  log: ReturnType<PluginRuntime["logging"]["getChildLogger"]>;
+  /** The type of conversation: personal (1:1), groupChat, or channel */
+  conversationType: MSTeamsConversationType;
+  /** Token provider for Graph API / OneDrive operations */
+  tokenProvider: MSTeamsAccessTokenProvider;
+  /** SharePoint site ID for file uploads in group chats/channels */
+  sharePointSiteId?: string;
+  /** Resolved media max bytes from config (default: 100MB) */
+  mediaMaxBytes?: number;
 };
 
 /**
@@ -71,17 +78,21 @@ async function findConversationReference(recipient: {
 } | null> {
   if (recipient.type === "conversation") {
     const ref = await recipient.store.get(recipient.id);
-    if (ref) return { conversationId: recipient.id, ref };
+    if (ref) {
+      return { conversationId: recipient.id, ref };
+    }
     return null;
   }
 
   const found = await recipient.store.findByUserId(recipient.id);
-  if (!found) return null;
+  if (!found) {
+    return null;
+  }
   return { conversationId: found.conversationId, ref: found.reference };
 }
 
 export async function resolveMSTeamsSendContext(params: {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   to: string;
 }): Promise<MSTeamsProactiveContext> {
   const msteamsCfg = params.cfg.channels?.msteams;
@@ -109,10 +120,35 @@ export async function resolveMSTeamsSendContext(params: {
   }
 
   const { conversationId, ref } = found;
-  const log = await getLog();
+  const core = getMSTeamsRuntime();
+  const log = core.logging.getChildLogger({ name: "msteams:send" });
 
   const { sdk, authConfig } = await loadMSTeamsSdkWithAuth(creds);
   const adapter = createMSTeamsAdapter(authConfig, sdk);
+
+  // Create token provider for Graph API / OneDrive operations
+  const tokenProvider = new sdk.MsalTokenProvider(authConfig) as MSTeamsAccessTokenProvider;
+
+  // Determine conversation type from stored reference
+  const storedConversationType = ref.conversation?.conversationType?.toLowerCase() ?? "";
+  let conversationType: MSTeamsConversationType;
+  if (storedConversationType === "personal") {
+    conversationType = "personal";
+  } else if (storedConversationType === "channel") {
+    conversationType = "channel";
+  } else {
+    // groupChat, or unknown defaults to groupChat behavior
+    conversationType = "groupChat";
+  }
+
+  // Get SharePoint site ID from config (required for file uploads in group chats/channels)
+  const sharePointSiteId = msteamsCfg.sharePointSiteId;
+
+  // Resolve media max bytes from config
+  const mediaMaxBytes = resolveChannelMediaMaxBytes({
+    cfg: params.cfg,
+    resolveChannelLimitMb: ({ cfg }) => cfg.channels?.msteams?.mediaMaxMb,
+  });
 
   return {
     appId: creds.appId,
@@ -120,5 +156,9 @@ export async function resolveMSTeamsSendContext(params: {
     ref,
     adapter: adapter as unknown as MSTeamsAdapter,
     log,
+    conversationType,
+    tokenProvider,
+    sharePointSiteId,
+    mediaMaxBytes,
   };
 }

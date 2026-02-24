@@ -3,29 +3,42 @@ export type BrowserProfileConfig = {
   cdpPort?: number;
   /** CDP URL for this profile (use for remote Chrome). */
   cdpUrl?: string;
-  /** Profile driver (default: clawd). */
-  driver?: "clawd" | "extension";
+  /** Profile driver (default: openclaw). */
+  driver?: "openclaw" | "extension";
   /** Profile color (hex). Auto-assigned at creation. */
   color: string;
 };
+export type BrowserSnapshotDefaults = {
+  /** Default snapshot mode (applies when mode is not provided). */
+  mode?: "efficient";
+};
+export type BrowserSsrFPolicyConfig = {
+  /** Legacy alias for private-network access. Prefer dangerouslyAllowPrivateNetwork. */
+  allowPrivateNetwork?: boolean;
+  /** If true, permit browser navigation to private/internal networks. Default: true */
+  dangerouslyAllowPrivateNetwork?: boolean;
+  /**
+   * Explicitly allowed hostnames (exact-match), including blocked names like localhost.
+   * Example: ["localhost", "metadata.internal"]
+   */
+  allowedHostnames?: string[];
+  /**
+   * Hostname allowlist patterns for browser navigation.
+   * Supports exact hosts and "*.example.com" wildcard subdomains.
+   */
+  hostnameAllowlist?: string[];
+};
 export type BrowserConfig = {
   enabled?: boolean;
-  /** Base URL of the clawd browser control server. Default: http://127.0.0.1:18791 */
-  controlUrl?: string;
-  /**
-   * Shared token for the browser control server.
-   * If set, clients must send `Authorization: Bearer <token>`.
-   *
-   * Prefer `CLAWDBOT_BROWSER_CONTROL_TOKEN` env for ephemeral setups; use this for "works after reboot".
-   */
-  controlToken?: string;
-  /** Base URL of the CDP endpoint. Default: controlUrl with port + 1. */
+  /** If false, disable browser act:evaluate (arbitrary JS). Default: true */
+  evaluateEnabled?: boolean;
+  /** Base URL of the CDP endpoint (for remote browsers). Default: loopback CDP on the derived port. */
   cdpUrl?: string;
   /** Remote CDP HTTP timeout (ms). Default: 1500. */
   remoteCdpTimeoutMs?: number;
   /** Remote CDP WebSocket handshake timeout (ms). Default: max(remoteCdpTimeoutMs * 2, 2000). */
   remoteCdpHandshakeTimeoutMs?: number;
-  /** Accent color for the clawd browser profile (hex). Default: #FF4500 */
+  /** Accent color for the openclaw browser profile (hex). Default: #FF4500 */
   color?: string;
   /** Override the browser executable path (all platforms). */
   executablePath?: string;
@@ -39,4 +52,14 @@ export type BrowserConfig = {
   defaultProfile?: string;
   /** Named browser profiles with explicit CDP ports or URLs. */
   profiles?: Record<string, BrowserProfileConfig>;
+  /** Default snapshot options (applied by the browser tool/CLI when unset). */
+  snapshotDefaults?: BrowserSnapshotDefaults;
+  /** SSRF policy for browser navigation/open-tab operations. */
+  ssrfPolicy?: BrowserSsrFPolicyConfig;
+  /**
+   * Additional Chrome launch arguments.
+   * Useful for stealth flags, window size overrides, or custom user-agent strings.
+   * Example: ["--window-size=1920,1080", "--disable-infobars"]
+   */
+  extraArgs?: string[];
 };

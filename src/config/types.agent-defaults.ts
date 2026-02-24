@@ -1,20 +1,19 @@
+import type { ChannelId } from "../channels/plugins/types.js";
+import type { AgentModelConfig, AgentSandboxConfig } from "./types.agents-shared.js";
 import type {
   BlockStreamingChunkConfig,
   BlockStreamingCoalesceConfig,
   HumanDelayConfig,
   TypingMode,
 } from "./types.base.js";
-import type {
-  SandboxBrowserSettings,
-  SandboxDockerSettings,
-  SandboxPruneSettings,
-} from "./types.sandbox.js";
 import type { MemorySearchConfig } from "./types.tools.js";
 
 export type AgentModelEntryConfig = {
   alias?: string;
   /** Provider-specific API parameters (e.g., GLM-4.7 thinking mode). */
   params?: Record<string, unknown>;
+  /** Enable streaming for this model (default: true, false for Ollama to avoid SDK issue #1205). */
+  streaming?: boolean;
 };
 
 export type AgentModelListConfig = {
@@ -23,7 +22,9 @@ export type AgentModelListConfig = {
 };
 
 export type AgentContextPruningConfig = {
-  mode?: "off" | "adaptive" | "aggressive";
+  mode?: "off" | "cache-ttl";
+  /** TTL to consider cache expired (duration string, default unit: minutes). */
+  ttl?: string;
   keepLastAssistants?: number;
   softTrimRatio?: number;
   hardClearRatio?: number;
@@ -86,26 +87,70 @@ export type CliBackendConfig = {
   imageMode?: "repeat" | "list";
   /** Serialize runs for this CLI. */
   serialize?: boolean;
+  /** Runtime reliability tuning for this backend's process lifecycle. */
+  reliability?: {
+    /** No-output watchdog tuning (fresh vs resumed runs). */
+    watchdog?: {
+      /** Fresh/new sessions (non-resume). */
+      fresh?: {
+        /** Fixed watchdog timeout in ms (overrides ratio when set). */
+        noOutputTimeoutMs?: number;
+        /** Fraction of overall timeout used when fixed timeout is not set. */
+        noOutputTimeoutRatio?: number;
+        /** Lower bound for computed watchdog timeout. */
+        minMs?: number;
+        /** Upper bound for computed watchdog timeout. */
+        maxMs?: number;
+      };
+      /** Resume sessions. */
+      resume?: {
+        /** Fixed watchdog timeout in ms (overrides ratio when set). */
+        noOutputTimeoutMs?: number;
+        /** Fraction of overall timeout used when fixed timeout is not set. */
+        noOutputTimeoutRatio?: number;
+        /** Lower bound for computed watchdog timeout. */
+        minMs?: number;
+        /** Upper bound for computed watchdog timeout. */
+        maxMs?: number;
+      };
+    };
+  };
 };
 
 export type AgentDefaultsConfig = {
-  /** Primary model and fallbacks (provider/model). */
-  model?: AgentModelListConfig;
-  /** Optional image-capable model and fallbacks (provider/model). */
-  imageModel?: AgentModelListConfig;
+  /** Primary model and fallbacks (provider/model). Accepts string or {primary,fallbacks}. */
+  model?: AgentModelConfig;
+  /** Optional image-capable model and fallbacks (provider/model). Accepts string or {primary,fallbacks}. */
+  imageModel?: AgentModelConfig;
   /** Model catalog with optional aliases (full provider/model keys). */
   models?: Record<string, AgentModelEntryConfig>;
   /** Agent working directory (preferred). Used as the default cwd for agent runs. */
   workspace?: string;
+  /** Optional repository root for system prompt runtime line (overrides auto-detect). */
+  repoRoot?: string;
   /** Skip bootstrap (BOOTSTRAP.md creation, etc.) for pre-configured deployments. */
   skipBootstrap?: boolean;
   /** Max chars for injected bootstrap files before truncation (default: 20000). */
   bootstrapMaxChars?: number;
+  /** Max total chars across all injected bootstrap files (default: 150000). */
+  bootstrapTotalMaxChars?: number;
   /** Optional IANA timezone for the user (used in system prompt; defaults to host timezone). */
   userTimezone?: string;
   /** Time format in system prompt: auto (OS preference), 12-hour, or 24-hour. */
   timeFormat?: "auto" | "12" | "24";
-  /** Optional display-only context window override (used for % in status UIs). */
+  /**
+   * Envelope timestamp timezone: "utc" (default), "local", "user", or an IANA timezone string.
+   */
+  envelopeTimezone?: string;
+  /**
+   * Include absolute timestamps in message envelopes ("on" | "off", default: "on").
+   */
+  envelopeTimestamp?: "on" | "off";
+  /**
+   * Include elapsed time in message envelopes ("on" | "off", default: "on").
+   */
+  envelopeElapsed?: "on" | "off";
+  /** Optional context window cap (used for runtime estimates + status %). */
   contextTokens?: number;
   /** Optional CLI backends for text-only fallback (claude-cli, etc.). */
   cliBackends?: Record<string, CliBackendConfig>;
@@ -120,7 +165,7 @@ export type AgentDefaultsConfig = {
   /** Default verbose level when no /verbose directive is present. */
   verboseDefault?: "off" | "on" | "full";
   /** Default elevated level when no /elevated directive is present. */
-  elevatedDefault?: "off" | "on";
+  elevatedDefault?: "off" | "on" | "ask" | "full";
   /** Default block streaming level when no override is present. */
   blockStreamingDefault?: "off" | "on";
   /**
@@ -141,6 +186,11 @@ export type AgentDefaultsConfig = {
   timeoutSeconds?: number;
   /** Max inbound media size in MB for agent-visible attachments (text note or future image attach). */
   mediaMaxMb?: number;
+  /**
+   * Max image side length (pixels) when sanitizing base64 image payloads in transcripts/tool results.
+   * Default: 1200.
+   */
+  imageMaxDimensionPx?: number;
   typingIntervalSeconds?: number;
   /** Typing indicator start mode (never|instant|thinking|message). */
   typingMode?: TypingMode;
@@ -148,25 +198,31 @@ export type AgentDefaultsConfig = {
   heartbeat?: {
     /** Heartbeat interval (duration string, default unit: minutes; default: 30m). */
     every?: string;
+    /** Optional active-hours window (local time); heartbeats run only inside this window. */
+    activeHours?: {
+      /** Start time (24h, HH:MM). Inclusive. */
+      start?: string;
+      /** End time (24h, HH:MM). Exclusive. Use "24:00" for end-of-day. */
+      end?: string;
+      /** Timezone for the window ("user", "local", or IANA TZ id). Default: "user". */
+      timezone?: string;
+    };
     /** Heartbeat model override (provider/model). */
     model?: string;
-    /** Delivery target (last|whatsapp|telegram|discord|slack|msteams|signal|imessage|none). */
-    target?:
-      | "last"
-      | "whatsapp"
-      | "telegram"
-      | "discord"
-      | "slack"
-      | "msteams"
-      | "signal"
-      | "imessage"
-      | "none";
-    /** Optional delivery override (E.164 for WhatsApp, chat id for Telegram). */
+    /** Session key for heartbeat runs ("main" or explicit session key). */
+    session?: string;
+    /** Delivery target ("last", "none", or a channel id). */
+    target?: "last" | "none" | ChannelId;
+    /** Optional delivery override (E.164 for WhatsApp, chat id for Telegram). Supports :topic:NNN suffix for Telegram topics. */
     to?: string;
+    /** Optional account id for multi-account channels. */
+    accountId?: string;
     /** Override the heartbeat prompt body (default: "Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK."). */
     prompt?: string;
     /** Max chars allowed after HEARTBEAT_OK before delivery (default: 30). */
     ackMaxChars?: number;
+    /** Suppress tool error warning payloads during heartbeat runs. */
+    suppressToolErrorWarnings?: boolean;
     /**
      * When enabled, deliver the model's reasoning payload for heartbeat runs (when available)
      * as a separate message prefixed with `Reasoning:` (same as `/reasoning on`).
@@ -181,41 +237,23 @@ export type AgentDefaultsConfig = {
   subagents?: {
     /** Max concurrent sub-agent runs (global lane: "subagent"). Default: 1. */
     maxConcurrent?: number;
+    /** Maximum depth allowed for sessions_spawn chains. Default behavior: 1 (no nested spawns). */
+    maxSpawnDepth?: number;
+    /** Maximum active children a single requester session may spawn. Default behavior: 5. */
+    maxChildrenPerAgent?: number;
     /** Auto-archive sub-agent sessions after N minutes (default: 60). */
     archiveAfterMinutes?: number;
     /** Default model selection for spawned sub-agents (string or {primary,fallbacks}). */
-    model?: string | { primary?: string; fallbacks?: string[] };
+    model?: AgentModelConfig;
+    /** Default thinking level for spawned sub-agents (e.g. "off", "low", "medium", "high"). */
+    thinking?: string;
+    /** Default run timeout in seconds for spawned sub-agents (0 = no timeout). */
+    runTimeoutSeconds?: number;
+    /** Gateway timeout in ms for sub-agent announce delivery calls (default: 60000). */
+    announceTimeoutMs?: number;
   };
   /** Optional sandbox settings for non-main sessions. */
-  sandbox?: {
-    /** Enable sandboxing for sessions. */
-    mode?: "off" | "non-main" | "all";
-    /**
-     * Agent workspace access inside the sandbox.
-     * - "none": do not mount the agent workspace into the container; use a sandbox workspace under workspaceRoot
-     * - "ro": mount the agent workspace read-only; disables write/edit tools
-     * - "rw": mount the agent workspace read/write; enables write/edit tools
-     */
-    workspaceAccess?: "none" | "ro" | "rw";
-    /**
-     * Session tools visibility for sandboxed sessions.
-     * - "spawned": only allow session tools to target sessions spawned from this session (default)
-     * - "all": allow session tools to target any session
-     */
-    sessionToolsVisibility?: "spawned" | "all";
-    /** Container/workspace scope for sandbox isolation. */
-    scope?: "session" | "agent" | "shared";
-    /** Legacy alias for scope ("session" when true, "shared" when false). */
-    perSession?: boolean;
-    /** Root directory for sandbox workspaces. */
-    workspaceRoot?: string;
-    /** Docker-specific sandbox settings. */
-    docker?: SandboxDockerSettings;
-    /** Optional sandboxed browser settings. */
-    browser?: SandboxBrowserSettings;
-    /** Auto-prune sandbox containers. */
-    prune?: SandboxPruneSettings;
-  };
+  sandbox?: AgentSandboxConfig;
 };
 
 export type AgentCompactionMode = "default" | "safeguard";
@@ -223,8 +261,14 @@ export type AgentCompactionMode = "default" | "safeguard";
 export type AgentCompactionConfig = {
   /** Compaction summarization mode. */
   mode?: AgentCompactionMode;
+  /** Pi reserve tokens target before floor enforcement. */
+  reserveTokens?: number;
+  /** Pi keepRecentTokens budget used for cut-point selection. */
+  keepRecentTokens?: number;
   /** Minimum reserve tokens enforced for Pi compaction (0 disables the floor). */
   reserveTokensFloor?: number;
+  /** Max share of context window for history during safeguard pruning (0.1–0.9, default 0.5). */
+  maxHistoryShare?: number;
   /** Pre-compaction memory flush (agentic turn). Default: enabled. */
   memoryFlush?: AgentCompactionMemoryFlushConfig;
 };

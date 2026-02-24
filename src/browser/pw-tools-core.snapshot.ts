@@ -1,16 +1,21 @@
-import type { Page } from "playwright-core";
-
+import type { SsrFPolicy } from "../infra/net/ssrf.js";
 import { type AriaSnapshotNode, formatAriaSnapshot, type RawAXNode } from "./cdp.js";
+import {
+  assertBrowserNavigationAllowed,
+  assertBrowserNavigationResultAllowed,
+  withBrowserNavigationPolicy,
+} from "./navigation-guard.js";
 import {
   buildRoleSnapshotFromAiSnapshot,
   buildRoleSnapshotFromAriaSnapshot,
   getRoleSnapshotStats,
   type RoleSnapshotOptions,
+  type RoleRefMap,
 } from "./pw-role-snapshot.js";
 import {
   ensurePageState,
   getPageForTargetId,
-  rememberRoleRefsForTarget,
+  storeRoleRefsForTarget,
   type WithSnapshotForAI,
 } from "./pw-session.js";
 
@@ -43,7 +48,7 @@ export async function snapshotAiViaPlaywright(opts: {
   targetId?: string;
   timeoutMs?: number;
   maxChars?: number;
-}): Promise<{ snapshot: string; truncated?: boolean }> {
+}): Promise<{ snapshot: string; truncated?: boolean; refs: RoleRefMap }> {
   const page = await getPageForTargetId({
     cdpUrl: opts.cdpUrl,
     targetId: opts.targetId,
@@ -65,11 +70,21 @@ export async function snapshotAiViaPlaywright(opts: {
     typeof maxChars === "number" && Number.isFinite(maxChars) && maxChars > 0
       ? Math.floor(maxChars)
       : undefined;
+  let truncated = false;
   if (limit && snapshot.length > limit) {
     snapshot = `${snapshot.slice(0, limit)}\n\n[...TRUNCATED - page too large]`;
-    return { snapshot, truncated: true };
+    truncated = true;
   }
-  return { snapshot };
+
+  const built = buildRoleSnapshotFromAiSnapshot(snapshot);
+  storeRoleRefsForTarget({
+    page,
+    cdpUrl: opts.cdpUrl,
+    targetId: opts.targetId,
+    refs: built.refs,
+    mode: "aria",
+  });
+  return truncated ? { snapshot, truncated, refs: built.refs } : { snapshot, refs: built.refs };
 }
 
 export async function snapshotRoleViaPlaywright(opts: {
@@ -88,7 +103,7 @@ export async function snapshotRoleViaPlaywright(opts: {
     cdpUrl: opts.cdpUrl,
     targetId: opts.targetId,
   });
-  const state = ensurePageState(page);
+  ensurePageState(page);
 
   if (opts.refsMode === "aria") {
     if (opts.selector?.trim() || opts.frameSelector?.trim()) {
@@ -103,17 +118,13 @@ export async function snapshotRoleViaPlaywright(opts: {
       track: "response",
     });
     const built = buildRoleSnapshotFromAiSnapshot(String(result?.full ?? ""), opts.options);
-    state.roleRefs = built.refs;
-    state.roleRefsFrameSelector = undefined;
-    state.roleRefsMode = "aria";
-    if (opts.targetId) {
-      rememberRoleRefsForTarget({
-        cdpUrl: opts.cdpUrl,
-        targetId: opts.targetId,
-        refs: built.refs,
-        mode: "aria",
-      });
-    }
+    storeRoleRefsForTarget({
+      page,
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      refs: built.refs,
+      mode: "aria",
+    });
     return {
       snapshot: built.snapshot,
       refs: built.refs,
@@ -133,18 +144,14 @@ export async function snapshotRoleViaPlaywright(opts: {
 
   const ariaSnapshot = await locator.ariaSnapshot();
   const built = buildRoleSnapshotFromAriaSnapshot(String(ariaSnapshot ?? ""), opts.options);
-  state.roleRefs = built.refs;
-  state.roleRefsFrameSelector = frameSelector || undefined;
-  state.roleRefsMode = "role";
-  if (opts.targetId) {
-    rememberRoleRefsForTarget({
-      cdpUrl: opts.cdpUrl,
-      targetId: opts.targetId,
-      refs: built.refs,
-      frameSelector: frameSelector || undefined,
-      mode: "role",
-    });
-  }
+  storeRoleRefsForTarget({
+    page,
+    cdpUrl: opts.cdpUrl,
+    targetId: opts.targetId,
+    refs: built.refs,
+    frameSelector: frameSelector || undefined,
+    mode: "role",
+  });
   return {
     snapshot: built.snapshot,
     refs: built.refs,
@@ -157,15 +164,27 @@ export async function navigateViaPlaywright(opts: {
   targetId?: string;
   url: string;
   timeoutMs?: number;
+  ssrfPolicy?: SsrFPolicy;
 }): Promise<{ url: string }> {
   const url = String(opts.url ?? "").trim();
-  if (!url) throw new Error("url is required");
+  if (!url) {
+    throw new Error("url is required");
+  }
+  await assertBrowserNavigationAllowed({
+    url,
+    ...withBrowserNavigationPolicy(opts.ssrfPolicy),
+  });
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
   await page.goto(url, {
     timeout: Math.max(1000, Math.min(120_000, opts.timeoutMs ?? 20_000)),
   });
-  return { url: page.url() };
+  const finalUrl = page.url();
+  await assertBrowserNavigationResultAllowed({
+    url: finalUrl,
+    ...withBrowserNavigationPolicy(opts.ssrfPolicy),
+  });
+  return { url: finalUrl };
 }
 
 export async function resizeViewportViaPlaywright(opts: {
@@ -197,6 +216,6 @@ export async function pdfViaPlaywright(opts: {
 }): Promise<{ buffer: Buffer }> {
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
-  const buffer = await (page as Page).pdf({ printBackground: true });
+  const buffer = await page.pdf({ printBackground: true });
   return { buffer };
 }

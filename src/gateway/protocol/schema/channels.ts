@@ -1,11 +1,57 @@
 import { Type } from "@sinclair/typebox";
-
 import { NonEmptyString } from "./primitives.js";
 
 export const TalkModeParamsSchema = Type.Object(
   {
     enabled: Type.Boolean(),
     phase: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const TalkConfigParamsSchema = Type.Object(
+  {
+    includeSecrets: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+export const TalkConfigResultSchema = Type.Object(
+  {
+    config: Type.Object(
+      {
+        talk: Type.Optional(
+          Type.Object(
+            {
+              voiceId: Type.Optional(Type.String()),
+              voiceAliases: Type.Optional(Type.Record(Type.String(), Type.String())),
+              modelId: Type.Optional(Type.String()),
+              outputFormat: Type.Optional(Type.String()),
+              apiKey: Type.Optional(Type.String()),
+              interruptOnSpeech: Type.Optional(Type.Boolean()),
+            },
+            { additionalProperties: false },
+          ),
+        ),
+        session: Type.Optional(
+          Type.Object(
+            {
+              mainKey: Type.Optional(Type.String()),
+            },
+            { additionalProperties: false },
+          ),
+        ),
+        ui: Type.Optional(
+          Type.Object(
+            {
+              seamColor: Type.Optional(Type.String()),
+            },
+            { additionalProperties: false },
+          ),
+        ),
+      },
+      { additionalProperties: false },
+    ),
   },
   { additionalProperties: false },
 );
@@ -55,11 +101,24 @@ export const ChannelAccountSnapshotSchema = Type.Object(
   { additionalProperties: true },
 );
 
+export const ChannelUiMetaSchema = Type.Object(
+  {
+    id: NonEmptyString,
+    label: NonEmptyString,
+    detailLabel: NonEmptyString,
+    systemImage: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
 export const ChannelsStatusResultSchema = Type.Object(
   {
     ts: Type.Integer({ minimum: 0 }),
     channelOrder: Type.Array(NonEmptyString),
     channelLabels: Type.Record(NonEmptyString, NonEmptyString),
+    channelDetailLabels: Type.Optional(Type.Record(NonEmptyString, NonEmptyString)),
+    channelSystemImages: Type.Optional(Type.Record(NonEmptyString, NonEmptyString)),
+    channelMeta: Type.Optional(Type.Array(ChannelUiMetaSchema)),
     channels: Type.Record(NonEmptyString, Type.Unknown()),
     channelAccounts: Type.Record(NonEmptyString, Type.Array(ChannelAccountSnapshotSchema)),
     channelDefaultAccountId: Type.Record(NonEmptyString, NonEmptyString),

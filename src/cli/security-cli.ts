@@ -1,12 +1,13 @@
-import chalk from "chalk";
 import type { Command } from "commander";
-
 import { loadConfig } from "../config/config.js";
 import { defaultRuntime } from "../runtime.js";
 import { runSecurityAudit } from "../security/audit.js";
 import { fixSecurityFootguns } from "../security/fix.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { isRich, theme } from "../terminal/theme.js";
+import { shortenHomeInString, shortenHomePath } from "../utils.js";
+import { formatCliCommand } from "./command-format.js";
+import { formatHelpExamples } from "./help-format.js";
 
 type SecurityAuditOptions = {
   json?: boolean;
@@ -29,11 +30,16 @@ function formatSummary(summary: { critical: number; warn: number; info: number }
 export function registerSecurityCli(program: Command) {
   const security = program
     .command("security")
-    .description("Security tools (audit)")
+    .description("Audit local config and state for common security foot-guns")
     .addHelpText(
       "after",
       () =>
-        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/security", "docs.clawd.bot/cli/security")}\n`,
+        `\n${theme.heading("Examples:")}\n${formatHelpExamples([
+          ["openclaw security audit", "Run a local security audit."],
+          ["openclaw security audit --deep", "Include best-effort live Gateway probe checks."],
+          ["openclaw security audit --fix", "Apply safe remediations and file-permission fixes."],
+          ["openclaw security audit --json", "Output machine-readable JSON."],
+        ])}\n\n${theme.muted("Docs:")} ${formatDocsLink("/cli/security", "docs.openclaw.ai/cli/security")}\n`,
     );
 
   security
@@ -65,36 +71,55 @@ export function registerSecurityCli(program: Command) {
       const muted = (text: string) => (rich ? theme.muted(text) : text);
 
       const lines: string[] = [];
-      lines.push(heading("Clawdbot security audit"));
+      lines.push(heading("OpenClaw security audit"));
       lines.push(muted(`Summary: ${formatSummary(report.summary)}`));
-      lines.push(muted(`Run deeper: clawdbot security audit --deep`));
+      lines.push(muted(`Run deeper: ${formatCliCommand("openclaw security audit --deep")}`));
 
       if (opts.fix) {
-        lines.push(muted(`Fix: clawdbot security audit --fix`));
+        lines.push(muted(`Fix: ${formatCliCommand("openclaw security audit --fix")}`));
         if (!fixResult) {
           lines.push(muted("Fixes: failed to apply (unexpected error)"));
         } else if (
           fixResult.errors.length === 0 &&
           fixResult.changes.length === 0 &&
-          fixResult.actions.every((a) => a.ok === false)
+          fixResult.actions.every((a) => !a.ok)
         ) {
           lines.push(muted("Fixes: no changes applied"));
         } else {
           lines.push("");
           lines.push(heading("FIX"));
           for (const change of fixResult.changes) {
-            lines.push(muted(`  ${change}`));
+            lines.push(muted(`  ${shortenHomeInString(change)}`));
           }
           for (const action of fixResult.actions) {
-            const mode = action.mode.toString(8).padStart(3, "0");
-            if (action.ok) lines.push(muted(`  chmod ${mode} ${action.path}`));
-            else if (action.skipped)
-              lines.push(muted(`  skip chmod ${mode} ${action.path} (${action.skipped})`));
-            else if (action.error)
-              lines.push(muted(`  chmod ${mode} ${action.path} failed: ${action.error}`));
+            if (action.kind === "chmod") {
+              const mode = action.mode.toString(8).padStart(3, "0");
+              if (action.ok) {
+                lines.push(muted(`  chmod ${mode} ${shortenHomePath(action.path)}`));
+              } else if (action.skipped) {
+                lines.push(
+                  muted(`  skip chmod ${mode} ${shortenHomePath(action.path)} (${action.skipped})`),
+                );
+              } else if (action.error) {
+                lines.push(
+                  muted(`  chmod ${mode} ${shortenHomePath(action.path)} failed: ${action.error}`),
+                );
+              }
+              continue;
+            }
+            const command = shortenHomeInString(action.command);
+            if (action.ok) {
+              lines.push(muted(`  ${command}`));
+            } else if (action.skipped) {
+              lines.push(muted(`  skip ${command} (${action.skipped})`));
+            } else if (action.error) {
+              lines.push(muted(`  ${command} failed: ${action.error}`));
+            }
           }
           if (fixResult.errors.length > 0) {
-            for (const err of fixResult.errors) lines.push(muted(`  error: ${err}`));
+            for (const err of fixResult.errors) {
+              lines.push(muted(`  error: ${shortenHomeInString(err)}`));
+            }
           }
         }
       }
@@ -104,7 +129,9 @@ export function registerSecurityCli(program: Command) {
 
       const render = (sev: "critical" | "warn" | "info") => {
         const list = bySeverity(sev);
-        if (list.length === 0) return;
+        if (list.length === 0) {
+          return;
+        }
         const label =
           sev === "critical"
             ? rich
@@ -120,9 +147,11 @@ export function registerSecurityCli(program: Command) {
         lines.push("");
         lines.push(heading(label));
         for (const f of list) {
-          lines.push(`${chalk.gray(f.checkId)} ${f.title}`);
+          lines.push(`${theme.muted(f.checkId)} ${f.title}`);
           lines.push(`  ${f.detail}`);
-          if (f.remediation?.trim()) lines.push(`  ${muted(`Fix: ${f.remediation.trim()}`)}`);
+          if (f.remediation?.trim()) {
+            lines.push(`  ${muted(`Fix: ${f.remediation.trim()}`)}`);
+          }
         }
       };
 

@@ -1,5 +1,6 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { DiscordActionConfig } from "../../config/config.js";
+import { readDiscordComponentSpec } from "../../discord/components.js";
 import {
   createThreadDiscord,
   deleteMessageDiscord,
@@ -15,11 +16,17 @@ import {
   removeOwnReactionsDiscord,
   removeReactionDiscord,
   searchMessagesDiscord,
+  sendDiscordComponentMessage,
   sendMessageDiscord,
   sendPollDiscord,
   sendStickerDiscord,
+  sendVoiceMessageDiscord,
   unpinMessageDiscord,
 } from "../../discord/send.js";
+import type { DiscordSendComponents, DiscordSendEmbeds } from "../../discord/send.shared.js";
+import { resolveDiscordChannelId } from "../../discord/targets.js";
+import { withNormalizedTimestamp } from "../date-time.js";
+import { assertMediaNotDataUrl } from "../sandbox-paths.js";
 import {
   type ActionGate,
   jsonResult,
@@ -27,7 +34,6 @@ import {
   readStringArrayParam,
   readStringParam,
 } from "./common.js";
-import { withNormalizedTimestamp } from "../date-time.js";
 
 function parseDiscordMessageLink(link: string) {
   const normalized = link.trim();
@@ -50,9 +56,21 @@ export async function handleDiscordMessagingAction(
   action: string,
   params: Record<string, unknown>,
   isActionEnabled: ActionGate<DiscordActionConfig>,
+  options?: {
+    mediaLocalRoots?: readonly string[];
+  },
 ): Promise<AgentToolResult<unknown>> {
+  const resolveChannelId = () =>
+    resolveDiscordChannelId(
+      readStringParam(params, "channelId", {
+        required: true,
+      }),
+    );
+  const accountId = readStringParam(params, "accountId");
   const normalizeMessage = (message: unknown) => {
-    if (!message || typeof message !== "object") return message;
+    if (!message || typeof message !== "object") {
+      return message;
+    }
     return withNormalizedTimestamp(
       message as Record<string, unknown>,
       (message as { timestamp?: unknown }).timestamp,
@@ -63,9 +81,7 @@ export async function handleDiscordMessagingAction(
       if (!isActionEnabled("reactions")) {
         throw new Error("Discord reactions are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
+      const channelId = resolveChannelId();
       const messageId = readStringParam(params, "messageId", {
         required: true,
       });
@@ -73,23 +89,31 @@ export async function handleDiscordMessagingAction(
         removeErrorMessage: "Emoji is required to remove a Discord reaction.",
       });
       if (remove) {
-        await removeReactionDiscord(channelId, messageId, emoji);
+        if (accountId) {
+          await removeReactionDiscord(channelId, messageId, emoji, { accountId });
+        } else {
+          await removeReactionDiscord(channelId, messageId, emoji);
+        }
         return jsonResult({ ok: true, removed: emoji });
       }
       if (isEmpty) {
-        const removed = await removeOwnReactionsDiscord(channelId, messageId);
+        const removed = accountId
+          ? await removeOwnReactionsDiscord(channelId, messageId, { accountId })
+          : await removeOwnReactionsDiscord(channelId, messageId);
         return jsonResult({ ok: true, removed: removed.removed });
       }
-      await reactMessageDiscord(channelId, messageId, emoji);
+      if (accountId) {
+        await reactMessageDiscord(channelId, messageId, emoji, { accountId });
+      } else {
+        await reactMessageDiscord(channelId, messageId, emoji);
+      }
       return jsonResult({ ok: true, added: emoji });
     }
     case "reactions": {
       if (!isActionEnabled("reactions")) {
         throw new Error("Discord reactions are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
+      const channelId = resolveChannelId();
       const messageId = readStringParam(params, "messageId", {
         required: true,
       });
@@ -97,6 +121,7 @@ export async function handleDiscordMessagingAction(
       const limit =
         typeof limitRaw === "number" && Number.isFinite(limitRaw) ? limitRaw : undefined;
       const reactions = await fetchReactionsDiscord(channelId, messageId, {
+        ...(accountId ? { accountId } : {}),
         limit,
       });
       return jsonResult({ ok: true, reactions });
@@ -111,7 +136,10 @@ export async function handleDiscordMessagingAction(
         required: true,
         label: "stickerIds",
       });
-      await sendStickerDiscord(to, stickerIds, { content });
+      await sendStickerDiscord(to, stickerIds, {
+        ...(accountId ? { accountId } : {}),
+        content,
+      });
       return jsonResult({ ok: true });
     }
     case "poll": {
@@ -137,7 +165,7 @@ export async function handleDiscordMessagingAction(
       await sendPollDiscord(
         to,
         { question, options: answers, maxSelections, durationHours },
-        { content },
+        { ...(accountId ? { accountId } : {}), content },
       );
       return jsonResult({ ok: true });
     }
@@ -145,10 +173,10 @@ export async function handleDiscordMessagingAction(
       if (!isActionEnabled("permissions")) {
         throw new Error("Discord permissions are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
-      const permissions = await fetchChannelPermissionsDiscord(channelId);
+      const channelId = resolveChannelId();
+      const permissions = accountId
+        ? await fetchChannelPermissionsDiscord(channelId, { accountId })
+        : await fetchChannelPermissionsDiscord(channelId);
       return jsonResult({ ok: true, permissions });
     }
     case "fetchMessage": {
@@ -170,7 +198,9 @@ export async function handleDiscordMessagingAction(
           "Discord message fetch requires guildId, channelId, and messageId (or a valid messageLink).",
         );
       }
-      const message = await fetchMessageDiscord(channelId, messageId);
+      const message = accountId
+        ? await fetchMessageDiscord(channelId, messageId, { accountId })
+        : await fetchMessageDiscord(channelId, messageId);
       return jsonResult({
         ok: true,
         message: normalizeMessage(message),
@@ -183,10 +213,8 @@ export async function handleDiscordMessagingAction(
       if (!isActionEnabled("messages")) {
         throw new Error("Discord message reads are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
-      const messages = await readMessagesDiscord(channelId, {
+      const channelId = resolveChannelId();
+      const query = {
         limit:
           typeof params.limit === "number" && Number.isFinite(params.limit)
             ? params.limit
@@ -194,7 +222,10 @@ export async function handleDiscordMessagingAction(
         before: readStringParam(params, "before"),
         after: readStringParam(params, "after"),
         around: readStringParam(params, "around"),
-      });
+      };
+      const messages = accountId
+        ? await readMessagesDiscord(channelId, query, { accountId })
+        : await readMessagesDiscord(channelId, query);
       return jsonResult({
         ok: true,
         messages: messages.map((message) => normalizeMessage(message)),
@@ -205,17 +236,86 @@ export async function handleDiscordMessagingAction(
         throw new Error("Discord message sends are disabled.");
       }
       const to = readStringParam(params, "to", { required: true });
+      const asVoice = params.asVoice === true;
+      const silent = params.silent === true;
+      const rawComponents = params.components;
+      const componentSpec =
+        rawComponents && typeof rawComponents === "object" && !Array.isArray(rawComponents)
+          ? readDiscordComponentSpec(rawComponents)
+          : null;
+      const components: DiscordSendComponents | undefined =
+        Array.isArray(rawComponents) || typeof rawComponents === "function"
+          ? (rawComponents as DiscordSendComponents)
+          : undefined;
       const content = readStringParam(params, "content", {
-        required: true,
+        required: !asVoice && !componentSpec && !components,
+        allowEmpty: true,
       });
-      const mediaUrl = readStringParam(params, "mediaUrl");
+      const mediaUrl =
+        readStringParam(params, "mediaUrl", { trim: false }) ??
+        readStringParam(params, "path", { trim: false }) ??
+        readStringParam(params, "filePath", { trim: false });
+      const filename = readStringParam(params, "filename");
       const replyTo = readStringParam(params, "replyTo");
-      const embeds =
-        Array.isArray(params.embeds) && params.embeds.length > 0 ? params.embeds : undefined;
-      const result = await sendMessageDiscord(to, content, {
+      const rawEmbeds = params.embeds;
+      const embeds: DiscordSendEmbeds | undefined = Array.isArray(rawEmbeds)
+        ? (rawEmbeds as DiscordSendEmbeds)
+        : undefined;
+      const sessionKey = readStringParam(params, "__sessionKey");
+      const agentId = readStringParam(params, "__agentId");
+
+      if (componentSpec) {
+        if (asVoice) {
+          throw new Error("Discord components cannot be sent as voice messages.");
+        }
+        if (embeds?.length) {
+          throw new Error("Discord components cannot include embeds.");
+        }
+        const normalizedContent = content?.trim() ? content : undefined;
+        const payload = componentSpec.text
+          ? componentSpec
+          : { ...componentSpec, text: normalizedContent };
+        const result = await sendDiscordComponentMessage(to, payload, {
+          ...(accountId ? { accountId } : {}),
+          silent,
+          replyTo: replyTo ?? undefined,
+          sessionKey: sessionKey ?? undefined,
+          agentId: agentId ?? undefined,
+          mediaUrl: mediaUrl ?? undefined,
+          filename: filename ?? undefined,
+        });
+        return jsonResult({ ok: true, result, components: true });
+      }
+
+      // Handle voice message sending
+      if (asVoice) {
+        if (!mediaUrl) {
+          throw new Error(
+            "Voice messages require a media file reference (mediaUrl, path, or filePath).",
+          );
+        }
+        if (content && content.trim()) {
+          throw new Error(
+            "Voice messages cannot include text content (Discord limitation). Remove the content parameter.",
+          );
+        }
+        assertMediaNotDataUrl(mediaUrl);
+        const result = await sendVoiceMessageDiscord(to, mediaUrl, {
+          ...(accountId ? { accountId } : {}),
+          replyTo,
+          silent,
+        });
+        return jsonResult({ ok: true, result, voiceMessage: true });
+      }
+
+      const result = await sendMessageDiscord(to, content ?? "", {
+        ...(accountId ? { accountId } : {}),
         mediaUrl,
+        mediaLocalRoots: options?.mediaLocalRoots,
         replyTo,
+        components,
         embeds,
+        silent,
       });
       return jsonResult({ ok: true, result });
     }
@@ -223,52 +323,53 @@ export async function handleDiscordMessagingAction(
       if (!isActionEnabled("messages")) {
         throw new Error("Discord message edits are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
+      const channelId = resolveChannelId();
       const messageId = readStringParam(params, "messageId", {
         required: true,
       });
       const content = readStringParam(params, "content", {
         required: true,
       });
-      const message = await editMessageDiscord(channelId, messageId, {
-        content,
-      });
+      const message = accountId
+        ? await editMessageDiscord(channelId, messageId, { content }, { accountId })
+        : await editMessageDiscord(channelId, messageId, { content });
       return jsonResult({ ok: true, message });
     }
     case "deleteMessage": {
       if (!isActionEnabled("messages")) {
         throw new Error("Discord message deletes are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
+      const channelId = resolveChannelId();
       const messageId = readStringParam(params, "messageId", {
         required: true,
       });
-      await deleteMessageDiscord(channelId, messageId);
+      if (accountId) {
+        await deleteMessageDiscord(channelId, messageId, { accountId });
+      } else {
+        await deleteMessageDiscord(channelId, messageId);
+      }
       return jsonResult({ ok: true });
     }
     case "threadCreate": {
       if (!isActionEnabled("threads")) {
         throw new Error("Discord threads are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
+      const channelId = resolveChannelId();
       const name = readStringParam(params, "name", { required: true });
       const messageId = readStringParam(params, "messageId");
+      const content = readStringParam(params, "content");
       const autoArchiveMinutesRaw = params.autoArchiveMinutes;
       const autoArchiveMinutes =
         typeof autoArchiveMinutesRaw === "number" && Number.isFinite(autoArchiveMinutesRaw)
           ? autoArchiveMinutesRaw
           : undefined;
-      const thread = await createThreadDiscord(channelId, {
-        name,
-        messageId,
-        autoArchiveMinutes,
-      });
+      const thread = accountId
+        ? await createThreadDiscord(
+            channelId,
+            { name, messageId, autoArchiveMinutes, content },
+            { accountId },
+          )
+        : await createThreadDiscord(channelId, { name, messageId, autoArchiveMinutes, content });
       return jsonResult({ ok: true, thread });
     }
     case "threadList": {
@@ -286,29 +387,40 @@ export async function handleDiscordMessagingAction(
         typeof params.limit === "number" && Number.isFinite(params.limit)
           ? params.limit
           : undefined;
-      const threads = await listThreadsDiscord({
-        guildId,
-        channelId,
-        includeArchived,
-        before,
-        limit,
-      });
+      const threads = accountId
+        ? await listThreadsDiscord(
+            {
+              guildId,
+              channelId,
+              includeArchived,
+              before,
+              limit,
+            },
+            { accountId },
+          )
+        : await listThreadsDiscord({
+            guildId,
+            channelId,
+            includeArchived,
+            before,
+            limit,
+          });
       return jsonResult({ ok: true, threads });
     }
     case "threadReply": {
       if (!isActionEnabled("threads")) {
         throw new Error("Discord threads are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
+      const channelId = resolveChannelId();
       const content = readStringParam(params, "content", {
         required: true,
       });
       const mediaUrl = readStringParam(params, "mediaUrl");
       const replyTo = readStringParam(params, "replyTo");
       const result = await sendMessageDiscord(`channel:${channelId}`, content, {
+        ...(accountId ? { accountId } : {}),
         mediaUrl,
+        mediaLocalRoots: options?.mediaLocalRoots,
         replyTo,
       });
       return jsonResult({ ok: true, result });
@@ -317,36 +429,40 @@ export async function handleDiscordMessagingAction(
       if (!isActionEnabled("pins")) {
         throw new Error("Discord pins are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
+      const channelId = resolveChannelId();
       const messageId = readStringParam(params, "messageId", {
         required: true,
       });
-      await pinMessageDiscord(channelId, messageId);
+      if (accountId) {
+        await pinMessageDiscord(channelId, messageId, { accountId });
+      } else {
+        await pinMessageDiscord(channelId, messageId);
+      }
       return jsonResult({ ok: true });
     }
     case "unpinMessage": {
       if (!isActionEnabled("pins")) {
         throw new Error("Discord pins are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
+      const channelId = resolveChannelId();
       const messageId = readStringParam(params, "messageId", {
         required: true,
       });
-      await unpinMessageDiscord(channelId, messageId);
+      if (accountId) {
+        await unpinMessageDiscord(channelId, messageId, { accountId });
+      } else {
+        await unpinMessageDiscord(channelId, messageId);
+      }
       return jsonResult({ ok: true });
     }
     case "listPins": {
       if (!isActionEnabled("pins")) {
         throw new Error("Discord pins are disabled.");
       }
-      const channelId = readStringParam(params, "channelId", {
-        required: true,
-      });
-      const pins = await listPinsDiscord(channelId);
+      const channelId = resolveChannelId();
+      const pins = accountId
+        ? await listPinsDiscord(channelId, { accountId })
+        : await listPinsDiscord(channelId);
       return jsonResult({ ok: true, pins: pins.map((pin) => normalizeMessage(pin)) });
     }
     case "searchMessages": {
@@ -369,13 +485,24 @@ export async function handleDiscordMessagingAction(
           : undefined;
       const channelIdList = [...(channelIds ?? []), ...(channelId ? [channelId] : [])];
       const authorIdList = [...(authorIds ?? []), ...(authorId ? [authorId] : [])];
-      const results = await searchMessagesDiscord({
-        guildId,
-        content,
-        channelIds: channelIdList.length ? channelIdList : undefined,
-        authorIds: authorIdList.length ? authorIdList : undefined,
-        limit,
-      });
+      const results = accountId
+        ? await searchMessagesDiscord(
+            {
+              guildId,
+              content,
+              channelIds: channelIdList.length ? channelIdList : undefined,
+              authorIds: authorIdList.length ? authorIdList : undefined,
+              limit,
+            },
+            { accountId },
+          )
+        : await searchMessagesDiscord({
+            guildId,
+            content,
+            channelIds: channelIdList.length ? channelIdList : undefined,
+            authorIds: authorIdList.length ? authorIdList : undefined,
+            limit,
+          });
       if (!results || typeof results !== "object") {
         return jsonResult({ ok: true, results });
       }

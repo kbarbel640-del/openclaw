@@ -1,6 +1,7 @@
-const KEY = "clawdbot.control.settings.v1";
+const KEY = "openclaw.control.settings.v1";
 
-import type { ThemeMode } from "./theme";
+import { isSupportedLocale } from "../i18n/index.ts";
+import type { ThemeMode } from "./theme.ts";
 
 export type UiSettings = {
   gatewayUrl: string;
@@ -9,10 +10,11 @@ export type UiSettings = {
   lastActiveSessionKey: string;
   theme: ThemeMode;
   chatFocusMode: boolean;
+  chatShowThinking: boolean;
   splitRatio: number; // Sidebar split ratio (0.4 to 0.7, default 0.6)
-  useNewChatLayout: boolean; // Slack-style grouped messages layout
   navCollapsed: boolean; // Collapsible sidebar state
   navGroupsCollapsed: Record<string, boolean>; // Which nav groups are collapsed
+  locale?: string;
 };
 
 export function loadSettings(): UiSettings {
@@ -28,15 +30,17 @@ export function loadSettings(): UiSettings {
     lastActiveSessionKey: "main",
     theme: "system",
     chatFocusMode: false,
+    chatShowThinking: true,
     splitRatio: 0.6,
-    useNewChatLayout: true, // Enabled by default
     navCollapsed: false,
     navGroupsCollapsed: {},
   };
 
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return defaults;
+    if (!raw) {
+      return defaults;
+    }
     const parsed = JSON.parse(raw) as Partial<UiSettings>;
     return {
       gatewayUrl:
@@ -49,41 +53,33 @@ export function loadSettings(): UiSettings {
           ? parsed.sessionKey.trim()
           : defaults.sessionKey,
       lastActiveSessionKey:
-        typeof parsed.lastActiveSessionKey === "string" &&
-        parsed.lastActiveSessionKey.trim()
+        typeof parsed.lastActiveSessionKey === "string" && parsed.lastActiveSessionKey.trim()
           ? parsed.lastActiveSessionKey.trim()
-          : (typeof parsed.sessionKey === "string" &&
-              parsed.sessionKey.trim()) ||
+          : (typeof parsed.sessionKey === "string" && parsed.sessionKey.trim()) ||
             defaults.lastActiveSessionKey,
       theme:
-        parsed.theme === "light" ||
-        parsed.theme === "dark" ||
-        parsed.theme === "system"
+        parsed.theme === "light" || parsed.theme === "dark" || parsed.theme === "system"
           ? parsed.theme
           : defaults.theme,
       chatFocusMode:
-        typeof parsed.chatFocusMode === "boolean"
-          ? parsed.chatFocusMode
-          : defaults.chatFocusMode,
+        typeof parsed.chatFocusMode === "boolean" ? parsed.chatFocusMode : defaults.chatFocusMode,
+      chatShowThinking:
+        typeof parsed.chatShowThinking === "boolean"
+          ? parsed.chatShowThinking
+          : defaults.chatShowThinking,
       splitRatio:
         typeof parsed.splitRatio === "number" &&
         parsed.splitRatio >= 0.4 &&
         parsed.splitRatio <= 0.7
           ? parsed.splitRatio
           : defaults.splitRatio,
-      useNewChatLayout:
-        typeof parsed.useNewChatLayout === "boolean"
-          ? parsed.useNewChatLayout
-          : defaults.useNewChatLayout,
       navCollapsed:
-        typeof parsed.navCollapsed === "boolean"
-          ? parsed.navCollapsed
-          : defaults.navCollapsed,
+        typeof parsed.navCollapsed === "boolean" ? parsed.navCollapsed : defaults.navCollapsed,
       navGroupsCollapsed:
-        typeof parsed.navGroupsCollapsed === "object" &&
-        parsed.navGroupsCollapsed !== null
+        typeof parsed.navGroupsCollapsed === "object" && parsed.navGroupsCollapsed !== null
           ? parsed.navGroupsCollapsed
           : defaults.navGroupsCollapsed,
+      locale: isSupportedLocale(parsed.locale) ? parsed.locale : undefined,
     };
   } catch {
     return defaults;

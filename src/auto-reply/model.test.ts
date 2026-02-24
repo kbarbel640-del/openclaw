@@ -10,11 +10,17 @@ describe("extractModelDirective", () => {
       expect(result.cleaned).toBe("");
     });
 
-    it("extracts /models with argument", () => {
+    it("does not treat /models as a /model directive", () => {
       const result = extractModelDirective("/models gpt-5");
-      expect(result.hasDirective).toBe(true);
-      expect(result.rawModel).toBe("gpt-5");
-      expect(result.cleaned).toBe("");
+      expect(result.hasDirective).toBe(false);
+      expect(result.rawModel).toBeUndefined();
+      expect(result.cleaned).toBe("/models gpt-5");
+    });
+
+    it("does not parse /models as a /model directive (no args)", () => {
+      const result = extractModelDirective("/models");
+      expect(result.hasDirective).toBe(false);
+      expect(result.cleaned).toBe("/models");
     });
 
     it("extracts /model with provider/model format", () => {
@@ -28,6 +34,20 @@ describe("extractModelDirective", () => {
       expect(result.hasDirective).toBe(true);
       expect(result.rawModel).toBe("gpt-5");
       expect(result.rawProfile).toBe("myprofile");
+    });
+
+    it("keeps OpenRouter preset paths that include @ in the model name", () => {
+      const result = extractModelDirective("/model openrouter/@preset/kimi-2-5");
+      expect(result.hasDirective).toBe(true);
+      expect(result.rawModel).toBe("openrouter/@preset/kimi-2-5");
+      expect(result.rawProfile).toBeUndefined();
+    });
+
+    it("still allows profile overrides after OpenRouter preset paths", () => {
+      const result = extractModelDirective("/model openrouter/@preset/kimi-2-5@work");
+      expect(result.hasDirective).toBe(true);
+      expect(result.rawModel).toBe("openrouter/@preset/kimi-2-5");
+      expect(result.rawProfile).toBe("work");
     });
 
     it("returns no directive for plain text", () => {
@@ -114,10 +134,10 @@ describe("extractModelDirective", () => {
   });
 
   describe("edge cases", () => {
-    it("preserves spacing when /model is followed by a path segment", () => {
+    it("absorbs path-like segments when /model includes extra slashes", () => {
       const result = extractModelDirective("thats not /model gpt-5/tmp/hello");
       expect(result.hasDirective).toBe(true);
-      expect(result.cleaned).toBe("thats not /hello");
+      expect(result.cleaned).toBe("thats not");
     });
 
     it("handles alias with special regex characters", () => {

@@ -1,19 +1,15 @@
 # Changelog
 
-## 2026.1.16
+## 2026.2.22
 
 ### Changes
-- Version alignment with core Clawdbot release numbers.
 
-## 2026.1.15
-
-### Changes
-- Version alignment with core Clawdbot release numbers.
+- Version alignment with core OpenClaw release numbers.
 
 ## 2026.1.14
 
 ### Features
-- Version alignment with core Clawdbot release numbers.
+
 - Matrix channel plugin with homeserver + user ID auth (access token or password login with device name).
 - Direct messages with pairing/allowlist/open/disabled policies and allowFrom support.
 - Group/room controls: allowlist policy, per-room config, mention gating, auto-reply, per-room skills/system prompts.

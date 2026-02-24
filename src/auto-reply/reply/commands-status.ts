@@ -3,99 +3,39 @@ import {
   resolveDefaultAgentId,
   resolveSessionAgentId,
 } from "../../agents/agent-scope.js";
+import { resolveModelAuthLabel } from "../../agents/model-auth-label.js";
+import { listSubagentRunsForRequester } from "../../agents/subagent-registry.js";
 import {
-  ensureAuthProfileStore,
-  resolveAuthProfileDisplayLabel,
-  resolveAuthProfileOrder,
-} from "../../agents/auth-profiles.js";
-import { getCustomProviderApiKey, resolveEnvApiKey } from "../../agents/model-auth.js";
-import { normalizeProviderId } from "../../agents/model-selection.js";
-import type { ClawdbotConfig } from "../../config/config.js";
+  resolveInternalSessionKey,
+  resolveMainSessionAlias,
+} from "../../agents/tools/sessions-helpers.js";
+import type { OpenClawConfig } from "../../config/config.js";
+import { toAgentModelListLike } from "../../config/model-input.js";
 import type { SessionEntry, SessionScope } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
 import {
-  formatUsageSummaryLine,
+  formatUsageWindowSummary,
   loadProviderUsageSummary,
   resolveUsageProviderId,
 } from "../../infra/provider-usage.js";
+import type { MediaUnderstandingDecision } from "../../media-understanding/types.js";
 import { normalizeGroupActivation } from "../group-activation.js";
+import { resolveSelectedAndActiveModel } from "../model-runtime.js";
 import { buildStatusMessage } from "../status.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "../thinking.js";
 import type { ReplyPayload } from "../types.js";
 import type { CommandContext } from "./commands-types.js";
 import { getFollowupQueueDepth, resolveQueueSettings } from "./queue.js";
-import type { MediaUnderstandingDecision } from "../../media-understanding/types.js";
-
-function formatApiKeySnippet(apiKey: string): string {
-  const compact = apiKey.replace(/\s+/g, "");
-  if (!compact) return "unknown";
-  const edge = compact.length >= 12 ? 6 : 4;
-  const head = compact.slice(0, edge);
-  const tail = compact.slice(-edge);
-  return `${head}…${tail}`;
-}
-
-function resolveModelAuthLabel(
-  provider?: string,
-  cfg?: ClawdbotConfig,
-  sessionEntry?: SessionEntry,
-  agentDir?: string,
-): string | undefined {
-  const resolved = provider?.trim();
-  if (!resolved) return undefined;
-
-  const providerKey = normalizeProviderId(resolved);
-  const store = ensureAuthProfileStore(agentDir, {
-    allowKeychainPrompt: false,
-  });
-  const profileOverride = sessionEntry?.authProfileOverride?.trim();
-  const order = resolveAuthProfileOrder({
-    cfg,
-    store,
-    provider: providerKey,
-    preferredProfile: profileOverride,
-  });
-  const candidates = [profileOverride, ...order].filter(Boolean) as string[];
-
-  for (const profileId of candidates) {
-    const profile = store.profiles[profileId];
-    if (!profile || normalizeProviderId(profile.provider) !== providerKey) {
-      continue;
-    }
-    const label = resolveAuthProfileDisplayLabel({ cfg, store, profileId });
-    if (profile.type === "oauth") {
-      return `oauth${label ? ` (${label})` : ""}`;
-    }
-    if (profile.type === "token") {
-      const snippet = formatApiKeySnippet(profile.token);
-      return `token ${snippet}${label ? ` (${label})` : ""}`;
-    }
-    const snippet = formatApiKeySnippet(profile.key);
-    return `api-key ${snippet}${label ? ` (${label})` : ""}`;
-  }
-
-  const envKey = resolveEnvApiKey(providerKey);
-  if (envKey?.apiKey) {
-    if (envKey.source.includes("OAUTH_TOKEN")) {
-      return `oauth (${envKey.source})`;
-    }
-    return `api-key ${formatApiKeySnippet(envKey.apiKey)} (${envKey.source})`;
-  }
-
-  const customKey = getCustomProviderApiKey(cfg, providerKey);
-  if (customKey) {
-    return `api-key ${formatApiKeySnippet(customKey)} (models.json)`;
-  }
-
-  return "unknown";
-}
+import { resolveSubagentLabel } from "./subagents-utils.js";
 
 export async function buildStatusReply(params: {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   command: CommandContext;
   sessionEntry?: SessionEntry;
   sessionKey: string;
+  parentSessionKey?: string;
   sessionScope?: SessionScope;
+  storePath?: string;
   provider: string;
   model: string;
   contextTokens: number;
@@ -113,7 +53,9 @@ export async function buildStatusReply(params: {
     command,
     sessionEntry,
     sessionKey,
+    parentSessionKey,
     sessionScope,
+    storePath,
     provider,
     model,
     contextTokens,
@@ -148,11 +90,17 @@ export async function buildStatusReply(params: {
         providers: [currentUsageProvider],
         agentDir: statusAgentDir,
       });
-      const summaryLine = formatUsageSummaryLine(usageSummary, {
-        now: Date.now(),
-        maxProviders: 1,
-      });
-      if (summaryLine) usageLine = summaryLine;
+      const usageEntry = usageSummary.providers[0];
+      if (usageEntry && !usageEntry.error && usageEntry.windows.length > 0) {
+        const summaryLine = formatUsageWindowSummary(usageEntry, {
+          now: Date.now(),
+          maxWindows: 2,
+          includeResets: true,
+        });
+        if (summaryLine) {
+          usageLine = `📊 Usage: ${summaryLine}`;
+        }
+      }
     } catch {
       usageLine = null;
     }
@@ -167,16 +115,57 @@ export async function buildStatusReply(params: {
   const queueOverrides = Boolean(
     sessionEntry?.queueDebounceMs ?? sessionEntry?.queueCap ?? sessionEntry?.queueDrop,
   );
+
+  let subagentsLine: string | undefined;
+  if (sessionKey) {
+    const { mainKey, alias } = resolveMainSessionAlias(cfg);
+    const requesterKey = resolveInternalSessionKey({ key: sessionKey, alias, mainKey });
+    const runs = listSubagentRunsForRequester(requesterKey);
+    const verboseEnabled = resolvedVerboseLevel && resolvedVerboseLevel !== "off";
+    if (runs.length > 0) {
+      const active = runs.filter((entry) => !entry.endedAt);
+      const done = runs.length - active.length;
+      if (verboseEnabled) {
+        const labels = active
+          .map((entry) => resolveSubagentLabel(entry, ""))
+          .filter(Boolean)
+          .slice(0, 3);
+        const labelText = labels.length ? ` (${labels.join(", ")})` : "";
+        subagentsLine = `🤖 Subagents: ${active.length} active${labelText} · ${done} done`;
+      } else if (active.length > 0) {
+        subagentsLine = `🤖 Subagents: ${active.length} active`;
+      }
+    }
+  }
   const groupActivation = isGroup
     ? (normalizeGroupActivation(sessionEntry?.groupActivation) ?? defaultGroupActivation())
     : undefined;
+  const modelRefs = resolveSelectedAndActiveModel({
+    selectedProvider: provider,
+    selectedModel: model,
+    sessionEntry,
+  });
+  const selectedModelAuth = resolveModelAuthLabel({
+    provider,
+    cfg,
+    sessionEntry,
+    agentDir: statusAgentDir,
+  });
+  const activeModelAuth = modelRefs.activeDiffers
+    ? resolveModelAuthLabel({
+        provider: modelRefs.active.provider,
+        cfg,
+        sessionEntry,
+        agentDir: statusAgentDir,
+      })
+    : selectedModelAuth;
   const agentDefaults = cfg.agents?.defaults ?? {};
   const statusText = buildStatusMessage({
     config: cfg,
     agent: {
       ...agentDefaults,
       model: {
-        ...agentDefaults.model,
+        ...toAgentModelListLike(agentDefaults.model),
         primary: `${provider}/${model}`,
       },
       contextTokens,
@@ -184,15 +173,19 @@ export async function buildStatusReply(params: {
       verboseDefault: agentDefaults.verboseDefault,
       elevatedDefault: agentDefaults.elevatedDefault,
     },
+    agentId: statusAgentId,
     sessionEntry,
     sessionKey,
+    parentSessionKey,
     sessionScope,
+    sessionStorePath: storePath,
     groupActivation,
     resolvedThink: resolvedThinkLevel ?? (await resolveDefaultThinkingLevel()),
     resolvedVerbose: resolvedVerboseLevel,
     resolvedReasoning: resolvedReasoningLevel,
     resolvedElevated: resolvedElevatedLevel,
-    modelAuth: resolveModelAuthLabel(provider, cfg, sessionEntry, statusAgentDir),
+    modelAuth: selectedModelAuth,
+    activeModelAuth,
     usageLine: usageLine ?? undefined,
     queue: {
       mode: queueSettings.mode,
@@ -202,6 +195,7 @@ export async function buildStatusReply(params: {
       dropPolicy: queueSettings.dropPolicy,
       showDetails: queueOverrides,
     },
+    subagentsLine,
     mediaDecisions: params.mediaDecisions,
     includeTranscriptUsage: false,
   });

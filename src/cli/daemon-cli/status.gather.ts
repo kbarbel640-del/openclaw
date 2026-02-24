@@ -4,14 +4,13 @@ import {
   resolveGatewayPort,
   resolveStateDir,
 } from "../../config/config.js";
-import type { BridgeBindMode, GatewayControlUiConfig } from "../../config/types.js";
+import type { GatewayBindMode, GatewayControlUiConfig } from "../../config/types.js";
 import { readLastGatewayErrorLine } from "../../daemon/diagnostics.js";
 import type { FindExtraGatewayServicesOptions } from "../../daemon/inspect.js";
 import { findExtraGatewayServices } from "../../daemon/inspect.js";
-import { findLegacyGatewayServices } from "../../daemon/legacy.js";
-import { resolveGatewayService } from "../../daemon/service.js";
 import type { ServiceConfigAudit } from "../../daemon/service-audit.js";
 import { auditGatewayServiceConfig } from "../../daemon/service-audit.js";
+import { resolveGatewayService } from "../../daemon/service.js";
 import { resolveGatewayBindHost } from "../../gateway/net.js";
 import {
   formatPortDiagnostics,
@@ -33,7 +32,7 @@ type ConfigSummary = {
 };
 
 type GatewayStatusSummary = {
-  bindMode: BridgeBindMode;
+  bindMode: GatewayBindMode;
   bindHost: string;
   customBindHost?: string;
   port: number;
@@ -93,13 +92,16 @@ export type DaemonStatus = {
     error?: string;
     url?: string;
   };
-  legacyServices: Array<{ label: string; detail: string }>;
   extraServices: Array<{ label: string; detail: string; scope: string }>;
 };
 
 function shouldReportPortUsage(status: PortUsageStatus | undefined, rpcOk?: boolean) {
-  if (status !== "busy") return false;
-  if (rpcOk === true) return false;
+  if (status !== "busy") {
+    return false;
+  }
+  if (rpcOk === true) {
+    return false;
+  }
   return true;
 }
 
@@ -114,7 +116,7 @@ export async function gatherDaemonStatus(
   const [loaded, command, runtime] = await Promise.all([
     service.isLoaded({ env: process.env }).catch(() => false),
     service.readCommand(process.env).catch(() => null),
-    service.readRuntime(process.env).catch(() => undefined),
+    service.readRuntime(process.env).catch((err) => ({ status: "unknown", detail: String(err) })),
   ]);
   const configAudit = await auditGatewayServiceConfig({
     env: process.env,
@@ -172,7 +174,8 @@ export async function gatherDaemonStatus(
     | "auto"
     | "lan"
     | "loopback"
-    | "custom";
+    | "custom"
+    | "tailnet";
   const customBindHost = daemonCfg.gateway?.customBindHost;
   const bindHost = await resolveGatewayBindHost(bindMode, customBindHost);
   const tailnetIPv4 = pickPrimaryTailnetIPv4();
@@ -182,7 +185,7 @@ export async function gatherDaemonStatus(
   const probeUrl = probeUrlOverride ?? `ws://${probeHost}:${daemonPort}`;
   const probeNote =
     !probeUrlOverride && bindMode === "lan"
-      ? "Local probe uses loopback (127.0.0.1). bind=lan listens on 0.0.0.0 (all interfaces); use a LAN IP for remote clients."
+      ? `bind=lan listens on 0.0.0.0 (all interfaces); probing via ${probeHost}.`
       : !probeUrlOverride && bindMode === "loopback"
         ? "Loopback-only gateway; only local clients can connect."
         : undefined;
@@ -209,9 +212,6 @@ export async function gatherDaemonStatus(
       }
     : undefined;
 
-  const legacyServices = await findLegacyGatewayServices(
-    process.env as Record<string, string | undefined>,
-  ).catch(() => []);
   const extraServices = await findExtraGatewayServices(
     process.env as Record<string, string | undefined>,
     { deep: Boolean(opts.deep) },
@@ -225,11 +225,11 @@ export async function gatherDaemonStatus(
         url: probeUrl,
         token:
           opts.rpc.token ||
-          mergedDaemonEnv.CLAWDBOT_GATEWAY_TOKEN ||
+          mergedDaemonEnv.OPENCLAW_GATEWAY_TOKEN ||
           daemonCfg.gateway?.auth?.token,
         password:
           opts.rpc.password ||
-          mergedDaemonEnv.CLAWDBOT_GATEWAY_PASSWORD ||
+          mergedDaemonEnv.OPENCLAW_GATEWAY_PASSWORD ||
           daemonCfg.gateway?.auth?.password,
         timeoutMs,
         json: opts.rpc.json,
@@ -270,13 +270,14 @@ export async function gatherDaemonStatus(
     ...(portCliStatus ? { portCli: portCliStatus } : {}),
     lastError,
     ...(rpc ? { rpc: { ...rpc, url: probeUrl } } : {}),
-    legacyServices,
     extraServices,
   };
 }
 
 export function renderPortDiagnosticsForCli(status: DaemonStatus, rpcOk?: boolean): string[] {
-  if (!status.port || !shouldReportPortUsage(status.port.status, rpcOk)) return [];
+  if (!status.port || !shouldReportPortUsage(status.port.status, rpcOk)) {
+    return [];
+  }
   return formatPortDiagnostics({
     port: status.port.port,
     status: status.port.status,

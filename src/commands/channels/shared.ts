@@ -1,30 +1,22 @@
 import { type ChannelId, getChannelPlugin } from "../../channels/plugins/index.js";
-import { type ClawdbotConfig, readConfigFileSnapshot } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
+import { requireValidConfigSnapshot } from "../config-validation.js";
 
 export type ChatChannel = ChannelId;
 
 export async function requireValidConfig(
   runtime: RuntimeEnv = defaultRuntime,
-): Promise<ClawdbotConfig | null> {
-  const snapshot = await readConfigFileSnapshot();
-  if (snapshot.exists && !snapshot.valid) {
-    const issues =
-      snapshot.issues.length > 0
-        ? snapshot.issues.map((issue) => `- ${issue.path}: ${issue.message}`).join("\n")
-        : "Unknown validation issue.";
-    runtime.error(`Config invalid:\n${issues}`);
-    runtime.error("Fix the config or run clawdbot doctor.");
-    runtime.exit(1);
-    return null;
-  }
-  return snapshot.config;
+): Promise<OpenClawConfig | null> {
+  return await requireValidConfigSnapshot(runtime);
 }
 
 export function formatAccountLabel(params: { accountId: string; name?: string }) {
   const base = params.accountId || DEFAULT_ACCOUNT_ID;
-  if (params.name?.trim()) return `${base} (${params.name.trim()})`;
+  if (params.name?.trim()) {
+    return `${base} (${params.name.trim()})`;
+  }
   return base;
 }
 

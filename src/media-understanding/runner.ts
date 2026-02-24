@@ -1,28 +1,57 @@
-import type { ClawdbotConfig } from "../config/config.js";
-import type { MsgContext } from "../auto-reply/templating.js";
-import { applyTemplate } from "../auto-reply/templating.js";
+import { constants as fsConstants } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { resolveApiKeyForProvider } from "../agents/model-auth.js";
-import { logVerbose, shouldLogVerbose } from "../globals.js";
-import { runExec } from "../process/exec.js";
+import {
+  findModelInCatalog,
+  loadModelCatalog,
+  modelSupportsVision,
+} from "../agents/model-catalog.js";
+import type { MsgContext } from "../auto-reply/templating.js";
+import type { OpenClawConfig } from "../config/config.js";
+import {
+  resolveAgentModelFallbackValues,
+  resolveAgentModelPrimaryValue,
+} from "../config/model-input.js";
 import type {
   MediaUnderstandingConfig,
   MediaUnderstandingModelConfig,
 } from "../config/types.tools.js";
-import { MediaAttachmentCache, normalizeAttachments, selectAttachments } from "./attachments.js";
+import { logVerbose, shouldLogVerbose } from "../globals.js";
 import {
-  CLI_OUTPUT_MAX_BUFFER,
-  DEFAULT_AUDIO_MODELS,
-  DEFAULT_TIMEOUT_SECONDS,
+  mergeInboundPathRoots,
+  resolveIMessageAttachmentRoots,
+} from "../media/inbound-path-policy.js";
+import { getDefaultMediaLocalRoots } from "../media/local-roots.js";
+import { runExec } from "../process/exec.js";
+import {
+  MediaAttachmentCache,
+  type MediaAttachmentCacheOptions,
+  normalizeAttachments,
+  selectAttachments,
+} from "./attachments.js";
+import {
+  AUTO_AUDIO_KEY_PROVIDERS,
+  AUTO_IMAGE_KEY_PROVIDERS,
+  AUTO_VIDEO_KEY_PROVIDERS,
+  DEFAULT_IMAGE_MODELS,
 } from "./defaults.js";
-import { isMediaUnderstandingSkipError, MediaUnderstandingSkipError } from "./errors.js";
+import { isMediaUnderstandingSkipError } from "./errors.js";
+import { fileExists } from "./fs.js";
+import { extractGeminiResponse } from "./output-extract.js";
 import {
-  resolveEntriesWithActiveFallback,
-  resolveMaxBytes,
-  resolveMaxChars,
-  resolvePrompt,
-  resolveScopeDecision,
-  resolveTimeoutMs,
-} from "./resolve.js";
+  buildMediaUnderstandingRegistry,
+  getMediaUnderstandingProvider,
+  normalizeMediaProviderId,
+} from "./providers/index.js";
+import { resolveModelEntries, resolveScopeDecision } from "./resolve.js";
+import {
+  buildModelDecision,
+  formatDecisionSummary,
+  runCliEntry,
+  runProviderEntry,
+} from "./runner.entries.js";
 import type {
   MediaAttachment,
   MediaUnderstandingCapability,
@@ -31,13 +60,6 @@ import type {
   MediaUnderstandingOutput,
   MediaUnderstandingProvider,
 } from "./types.js";
-import {
-  buildMediaUnderstandingRegistry,
-  getMediaUnderstandingProvider,
-  normalizeMediaProviderId,
-} from "./providers/index.js";
-import { describeImageWithModel } from "./providers/image.js";
-import { estimateBase64Size, resolveVideoMaxBase64Bytes } from "./video.js";
 
 export type ActiveMediaModel = {
   provider: string;
@@ -61,371 +83,495 @@ export function normalizeMediaAttachments(ctx: MsgContext): MediaAttachment[] {
   return normalizeAttachments(ctx);
 }
 
-export function createMediaAttachmentCache(attachments: MediaAttachment[]): MediaAttachmentCache {
-  return new MediaAttachmentCache(attachments);
+export function resolveMediaAttachmentLocalRoots(params: {
+  cfg: OpenClawConfig;
+  ctx: MsgContext;
+}): readonly string[] {
+  return mergeInboundPathRoots(
+    getDefaultMediaLocalRoots(),
+    resolveIMessageAttachmentRoots({
+      cfg: params.cfg,
+      accountId: params.ctx.AccountId,
+    }),
+  );
 }
 
-function trimOutput(text: string, maxChars?: number): string {
-  const trimmed = text.trim();
-  if (!maxChars || trimmed.length <= maxChars) return trimmed;
-  return trimmed.slice(0, maxChars).trim();
+export function createMediaAttachmentCache(
+  attachments: MediaAttachment[],
+  options?: MediaAttachmentCacheOptions,
+): MediaAttachmentCache {
+  return new MediaAttachmentCache(attachments, options);
 }
 
-type ProviderQuery = Record<string, string | number | boolean>;
+const binaryCache = new Map<string, Promise<string | null>>();
+const geminiProbeCache = new Map<string, Promise<boolean>>();
 
-function normalizeProviderQuery(
-  options?: Record<string, string | number | boolean>,
-): ProviderQuery | undefined {
-  if (!options) return undefined;
-  const query: ProviderQuery = {};
-  for (const [key, value] of Object.entries(options)) {
-    if (value === undefined) continue;
-    query[key] = value;
+export function clearMediaUnderstandingBinaryCacheForTests(): void {
+  binaryCache.clear();
+  geminiProbeCache.clear();
+}
+
+function expandHomeDir(value: string): string {
+  if (!value.startsWith("~")) {
+    return value;
   }
-  return Object.keys(query).length > 0 ? query : undefined;
+  const home = os.homedir();
+  if (value === "~") {
+    return home;
+  }
+  if (value.startsWith("~/")) {
+    return path.join(home, value.slice(2));
+  }
+  return value;
 }
 
-function buildDeepgramCompatQuery(options?: {
-  detectLanguage?: boolean;
-  punctuate?: boolean;
-  smartFormat?: boolean;
-}): ProviderQuery | undefined {
-  if (!options) return undefined;
-  const query: ProviderQuery = {};
-  if (typeof options.detectLanguage === "boolean") query.detect_language = options.detectLanguage;
-  if (typeof options.punctuate === "boolean") query.punctuate = options.punctuate;
-  if (typeof options.smartFormat === "boolean") query.smart_format = options.smartFormat;
-  return Object.keys(query).length > 0 ? query : undefined;
+function hasPathSeparator(value: string): boolean {
+  return value.includes("/") || value.includes("\\");
 }
 
-function normalizeDeepgramQueryKeys(query: ProviderQuery): ProviderQuery {
-  const normalized = { ...query };
-  if ("detectLanguage" in normalized) {
-    normalized.detect_language = normalized.detectLanguage as boolean;
-    delete normalized.detectLanguage;
+function candidateBinaryNames(name: string): string[] {
+  if (process.platform !== "win32") {
+    return [name];
   }
-  if ("smartFormat" in normalized) {
-    normalized.smart_format = normalized.smartFormat as boolean;
-    delete normalized.smartFormat;
+  const ext = path.extname(name);
+  if (ext) {
+    return [name];
   }
-  return normalized;
+  const pathext = (process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM")
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => (item.startsWith(".") ? item : `.${item}`));
+  const unique = Array.from(new Set(pathext));
+  return [name, ...unique.map((item) => `${name}${item}`)];
 }
 
-function resolveProviderQuery(params: {
-  providerId: string;
-  config?: MediaUnderstandingConfig;
-  entry: MediaUnderstandingModelConfig;
-}): ProviderQuery | undefined {
-  const { providerId, config, entry } = params;
-  const mergedOptions = normalizeProviderQuery({
-    ...config?.providerOptions?.[providerId],
-    ...entry.providerOptions?.[providerId],
-  });
-  if (providerId !== "deepgram") {
-    return mergedOptions;
-  }
-  let query = normalizeDeepgramQueryKeys(mergedOptions ?? {});
-  const compat = buildDeepgramCompatQuery({ ...config?.deepgram, ...entry.deepgram });
-  for (const [key, value] of Object.entries(compat ?? {})) {
-    if (query[key] === undefined) {
-      query[key] = value;
+async function isExecutable(filePath: string): Promise<boolean> {
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) {
+      return false;
     }
+    if (process.platform === "win32") {
+      return true;
+    }
+    await fs.access(filePath, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
   }
-  return Object.keys(query).length > 0 ? query : undefined;
 }
 
-function buildModelDecision(params: {
-  entry: MediaUnderstandingModelConfig;
-  entryType: "provider" | "cli";
-  outcome: MediaUnderstandingModelDecision["outcome"];
-  reason?: string;
-}): MediaUnderstandingModelDecision {
-  if (params.entryType === "cli") {
-    const command = params.entry.command?.trim();
-    return {
-      type: "cli",
-      provider: command ?? "cli",
-      model: params.entry.model ?? command,
-      outcome: params.outcome,
-      reason: params.reason,
-    };
+async function findBinary(name: string): Promise<string | null> {
+  const cached = binaryCache.get(name);
+  if (cached) {
+    return cached;
   }
-  const providerIdRaw = params.entry.provider?.trim();
-  const providerId = providerIdRaw ? normalizeMediaProviderId(providerIdRaw) : undefined;
+  const resolved = (async () => {
+    const direct = expandHomeDir(name.trim());
+    if (direct && hasPathSeparator(direct)) {
+      for (const candidate of candidateBinaryNames(direct)) {
+        if (await isExecutable(candidate)) {
+          return candidate;
+        }
+      }
+    }
+
+    const searchName = name.trim();
+    if (!searchName) {
+      return null;
+    }
+    const pathEntries = (process.env.PATH ?? "").split(path.delimiter);
+    const candidates = candidateBinaryNames(searchName);
+    for (const entryRaw of pathEntries) {
+      const entry = expandHomeDir(entryRaw.trim().replace(/^"(.*)"$/, "$1"));
+      if (!entry) {
+        continue;
+      }
+      for (const candidate of candidates) {
+        const fullPath = path.join(entry, candidate);
+        if (await isExecutable(fullPath)) {
+          return fullPath;
+        }
+      }
+    }
+
+    return null;
+  })();
+  binaryCache.set(name, resolved);
+  return resolved;
+}
+
+async function hasBinary(name: string): Promise<boolean> {
+  return Boolean(await findBinary(name));
+}
+
+async function probeGeminiCli(): Promise<boolean> {
+  const cached = geminiProbeCache.get("gemini");
+  if (cached) {
+    return cached;
+  }
+  const resolved = (async () => {
+    if (!(await hasBinary("gemini"))) {
+      return false;
+    }
+    try {
+      const { stdout } = await runExec("gemini", ["--output-format", "json", "ok"], {
+        timeoutMs: 8000,
+      });
+      return Boolean(extractGeminiResponse(stdout) ?? stdout.toLowerCase().includes("ok"));
+    } catch {
+      return false;
+    }
+  })();
+  geminiProbeCache.set("gemini", resolved);
+  return resolved;
+}
+
+async function resolveLocalWhisperCppEntry(): Promise<MediaUnderstandingModelConfig | null> {
+  if (!(await hasBinary("whisper-cli"))) {
+    return null;
+  }
+  const envModel = process.env.WHISPER_CPP_MODEL?.trim();
+  const defaultModel = "/opt/homebrew/share/whisper-cpp/for-tests-ggml-tiny.bin";
+  const modelPath = envModel && (await fileExists(envModel)) ? envModel : defaultModel;
+  if (!(await fileExists(modelPath))) {
+    return null;
+  }
   return {
-    type: "provider",
-    provider: providerId ?? providerIdRaw,
-    model: params.entry.model,
-    outcome: params.outcome,
-    reason: params.reason,
+    type: "cli",
+    command: "whisper-cli",
+    args: ["-m", modelPath, "-otxt", "-of", "{{OutputBase}}", "-np", "-nt", "{{MediaPath}}"],
   };
 }
 
-function formatDecisionSummary(decision: MediaUnderstandingDecision): string {
-  const total = decision.attachments.length;
-  const success = decision.attachments.filter(
-    (entry) => entry.chosen?.outcome === "success",
-  ).length;
-  const chosen = decision.attachments.find((entry) => entry.chosen)?.chosen;
-  const provider = chosen?.provider?.trim();
-  const model = chosen?.model?.trim();
-  const modelLabel = provider ? (model ? `${provider}/${model}` : provider) : undefined;
-  const reason = decision.attachments
-    .flatMap((entry) => entry.attempts.map((attempt) => attempt.reason).filter(Boolean))
-    .find(Boolean);
-  const shortReason = reason ? reason.split(":")[0]?.trim() : undefined;
-  const countLabel = total > 0 ? ` (${success}/${total})` : "";
-  const viaLabel = modelLabel ? ` via ${modelLabel}` : "";
-  const reasonLabel = shortReason ? ` reason=${shortReason}` : "";
-  return `${decision.capability}: ${decision.outcome}${countLabel}${viaLabel}${reasonLabel}`;
+async function resolveLocalWhisperEntry(): Promise<MediaUnderstandingModelConfig | null> {
+  if (!(await hasBinary("whisper"))) {
+    return null;
+  }
+  return {
+    type: "cli",
+    command: "whisper",
+    args: [
+      "--model",
+      "turbo",
+      "--output_format",
+      "txt",
+      "--output_dir",
+      "{{OutputDir}}",
+      "--verbose",
+      "False",
+      "{{MediaPath}}",
+    ],
+  };
 }
 
-async function runProviderEntry(params: {
-  capability: MediaUnderstandingCapability;
-  entry: MediaUnderstandingModelConfig;
-  cfg: ClawdbotConfig;
-  ctx: MsgContext;
-  attachmentIndex: number;
-  cache: MediaAttachmentCache;
+async function resolveSherpaOnnxEntry(): Promise<MediaUnderstandingModelConfig | null> {
+  if (!(await hasBinary("sherpa-onnx-offline"))) {
+    return null;
+  }
+  const modelDir = process.env.SHERPA_ONNX_MODEL_DIR?.trim();
+  if (!modelDir) {
+    return null;
+  }
+  const tokens = path.join(modelDir, "tokens.txt");
+  const encoder = path.join(modelDir, "encoder.onnx");
+  const decoder = path.join(modelDir, "decoder.onnx");
+  const joiner = path.join(modelDir, "joiner.onnx");
+  if (!(await fileExists(tokens))) {
+    return null;
+  }
+  if (!(await fileExists(encoder))) {
+    return null;
+  }
+  if (!(await fileExists(decoder))) {
+    return null;
+  }
+  if (!(await fileExists(joiner))) {
+    return null;
+  }
+  return {
+    type: "cli",
+    command: "sherpa-onnx-offline",
+    args: [
+      `--tokens=${tokens}`,
+      `--encoder=${encoder}`,
+      `--decoder=${decoder}`,
+      `--joiner=${joiner}`,
+      "{{MediaPath}}",
+    ],
+  };
+}
+
+async function resolveLocalAudioEntry(): Promise<MediaUnderstandingModelConfig | null> {
+  const sherpa = await resolveSherpaOnnxEntry();
+  if (sherpa) {
+    return sherpa;
+  }
+  const whisperCpp = await resolveLocalWhisperCppEntry();
+  if (whisperCpp) {
+    return whisperCpp;
+  }
+  return await resolveLocalWhisperEntry();
+}
+
+async function resolveGeminiCliEntry(
+  _capability: MediaUnderstandingCapability,
+): Promise<MediaUnderstandingModelConfig | null> {
+  if (!(await probeGeminiCli())) {
+    return null;
+  }
+  return {
+    type: "cli",
+    command: "gemini",
+    args: [
+      "--output-format",
+      "json",
+      "--allowed-tools",
+      "read_many_files",
+      "--include-directories",
+      "{{MediaDir}}",
+      "{{Prompt}}",
+      "Use read_many_files to read {{MediaPath}} and respond with only the text output.",
+    ],
+  };
+}
+
+async function resolveKeyEntry(params: {
+  cfg: OpenClawConfig;
   agentDir?: string;
   providerRegistry: ProviderRegistry;
-  config?: MediaUnderstandingConfig;
-}): Promise<MediaUnderstandingOutput | null> {
-  const { entry, capability, cfg } = params;
-  const providerIdRaw = entry.provider?.trim();
-  if (!providerIdRaw) {
-    throw new Error(`Provider entry missing provider for ${capability}`);
-  }
-  const providerId = normalizeMediaProviderId(providerIdRaw);
-  const maxBytes = resolveMaxBytes({ capability, entry, cfg, config: params.config });
-  const maxChars = resolveMaxChars({ capability, entry, cfg, config: params.config });
-  const timeoutMs = resolveTimeoutMs(
-    entry.timeoutSeconds ??
-      params.config?.timeoutSeconds ??
-      cfg.tools?.media?.[capability]?.timeoutSeconds,
-    DEFAULT_TIMEOUT_SECONDS[capability],
-  );
-  const prompt = resolvePrompt(
-    capability,
-    entry.prompt ?? params.config?.prompt ?? cfg.tools?.media?.[capability]?.prompt,
-    maxChars,
-  );
+  capability: MediaUnderstandingCapability;
+  activeModel?: ActiveMediaModel;
+}): Promise<MediaUnderstandingModelConfig | null> {
+  const { cfg, agentDir, providerRegistry, capability } = params;
+  const checkProvider = async (
+    providerId: string,
+    model?: string,
+  ): Promise<MediaUnderstandingModelConfig | null> => {
+    const provider = getMediaUnderstandingProvider(providerId, providerRegistry);
+    if (!provider) {
+      return null;
+    }
+    if (capability === "audio" && !provider.transcribeAudio) {
+      return null;
+    }
+    if (capability === "image" && !provider.describeImage) {
+      return null;
+    }
+    if (capability === "video" && !provider.describeVideo) {
+      return null;
+    }
+    try {
+      await resolveApiKeyForProvider({ provider: providerId, cfg, agentDir });
+      return { type: "provider" as const, provider: providerId, model };
+    } catch {
+      return null;
+    }
+  };
 
   if (capability === "image") {
-    if (!params.agentDir) {
-      throw new Error("Image understanding requires agentDir");
+    const activeProvider = params.activeModel?.provider?.trim();
+    if (activeProvider) {
+      const activeEntry = await checkProvider(activeProvider, params.activeModel?.model);
+      if (activeEntry) {
+        return activeEntry;
+      }
     }
-    const modelId = entry.model?.trim();
-    if (!modelId) {
-      throw new Error("Image understanding requires model id");
+    for (const providerId of AUTO_IMAGE_KEY_PROVIDERS) {
+      const model = DEFAULT_IMAGE_MODELS[providerId];
+      const entry = await checkProvider(providerId, model);
+      if (entry) {
+        return entry;
+      }
     }
-    const media = await params.cache.getBuffer({
-      attachmentIndex: params.attachmentIndex,
-      maxBytes,
-      timeoutMs,
-    });
-    const provider = getMediaUnderstandingProvider(providerId, params.providerRegistry);
-    const result = provider?.describeImage
-      ? await provider.describeImage({
-          buffer: media.buffer,
-          fileName: media.fileName,
-          mime: media.mime,
-          model: modelId,
-          provider: providerId,
-          prompt,
-          timeoutMs,
-          profile: entry.profile,
-          preferredProfile: entry.preferredProfile,
-          agentDir: params.agentDir,
-          cfg: params.cfg,
-        })
-      : await describeImageWithModel({
-          buffer: media.buffer,
-          fileName: media.fileName,
-          mime: media.mime,
-          model: modelId,
-          provider: providerId,
-          prompt,
-          timeoutMs,
-          profile: entry.profile,
-          preferredProfile: entry.preferredProfile,
-          agentDir: params.agentDir,
-          cfg: params.cfg,
-        });
-    return {
-      kind: "image.description",
-      attachmentIndex: params.attachmentIndex,
-      text: trimOutput(result.text, maxChars),
-      provider: providerId,
-      model: result.model ?? modelId,
-    };
+    return null;
   }
 
-  const provider = getMediaUnderstandingProvider(providerId, params.providerRegistry);
-  if (!provider) {
-    throw new Error(`Media provider not available: ${providerId}`);
-  }
-
-  if (capability === "audio") {
-    if (!provider.transcribeAudio) {
-      throw new Error(`Audio transcription provider "${providerId}" not available.`);
+  if (capability === "video") {
+    const activeProvider = params.activeModel?.provider?.trim();
+    if (activeProvider) {
+      const activeEntry = await checkProvider(activeProvider, params.activeModel?.model);
+      if (activeEntry) {
+        return activeEntry;
+      }
     }
-    const media = await params.cache.getBuffer({
-      attachmentIndex: params.attachmentIndex,
-      maxBytes,
-      timeoutMs,
-    });
-    const key = await resolveApiKeyForProvider({
-      provider: providerId,
-      cfg,
-      profileId: entry.profile,
-      preferredProfile: entry.preferredProfile,
-      agentDir: params.agentDir,
-    });
-    const providerConfig = cfg.models?.providers?.[providerId];
-    const baseUrl = entry.baseUrl ?? params.config?.baseUrl ?? providerConfig?.baseUrl;
-    const mergedHeaders = {
-      ...providerConfig?.headers,
-      ...params.config?.headers,
-      ...entry.headers,
-    };
-    const headers = Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined;
-    const providerQuery = resolveProviderQuery({
-      providerId,
-      config: params.config,
-      entry,
-    });
-    const model = entry.model?.trim() || DEFAULT_AUDIO_MODELS[providerId] || entry.model;
-    const result = await provider.transcribeAudio({
-      buffer: media.buffer,
-      fileName: media.fileName,
-      mime: media.mime,
-      apiKey: key.apiKey,
-      baseUrl,
-      headers,
-      model,
-      language: entry.language ?? params.config?.language ?? cfg.tools?.media?.audio?.language,
-      prompt,
-      query: providerQuery,
-      timeoutMs,
-    });
-    return {
-      kind: "audio.transcription",
-      attachmentIndex: params.attachmentIndex,
-      text: trimOutput(result.text, maxChars),
-      provider: providerId,
-      model: result.model ?? model,
-    };
+    for (const providerId of AUTO_VIDEO_KEY_PROVIDERS) {
+      const entry = await checkProvider(providerId, undefined);
+      if (entry) {
+        return entry;
+      }
+    }
+    return null;
   }
 
-  if (!provider.describeVideo) {
-    throw new Error(`Video understanding provider "${providerId}" not available.`);
+  const activeProvider = params.activeModel?.provider?.trim();
+  if (activeProvider) {
+    const activeEntry = await checkProvider(activeProvider, params.activeModel?.model);
+    if (activeEntry) {
+      return activeEntry;
+    }
   }
-  const media = await params.cache.getBuffer({
-    attachmentIndex: params.attachmentIndex,
-    maxBytes,
-    timeoutMs,
-  });
-  const estimatedBase64Bytes = estimateBase64Size(media.size);
-  const maxBase64Bytes = resolveVideoMaxBase64Bytes(maxBytes);
-  if (estimatedBase64Bytes > maxBase64Bytes) {
-    throw new MediaUnderstandingSkipError(
-      "maxBytes",
-      `Video attachment ${params.attachmentIndex + 1} base64 payload ${estimatedBase64Bytes} exceeds ${maxBase64Bytes}`,
-    );
+  for (const providerId of AUTO_AUDIO_KEY_PROVIDERS) {
+    const entry = await checkProvider(providerId, undefined);
+    if (entry) {
+      return entry;
+    }
   }
-  const key = await resolveApiKeyForProvider({
-    provider: providerId,
-    cfg,
-    profileId: entry.profile,
-    preferredProfile: entry.preferredProfile,
-    agentDir: params.agentDir,
-  });
-  const providerConfig = cfg.models?.providers?.[providerId];
-  const result = await provider.describeVideo({
-    buffer: media.buffer,
-    fileName: media.fileName,
-    mime: media.mime,
-    apiKey: key.apiKey,
-    baseUrl: providerConfig?.baseUrl,
-    headers: providerConfig?.headers,
-    model: entry.model,
-    prompt,
-    timeoutMs,
-  });
-  return {
-    kind: "video.description",
-    attachmentIndex: params.attachmentIndex,
-    text: trimOutput(result.text, maxChars),
-    provider: providerId,
-    model: result.model ?? entry.model,
-  };
+  return null;
 }
 
-async function runCliEntry(params: {
-  capability: MediaUnderstandingCapability;
-  entry: MediaUnderstandingModelConfig;
-  cfg: ClawdbotConfig;
-  ctx: MsgContext;
-  attachmentIndex: number;
-  cache: MediaAttachmentCache;
-  config?: MediaUnderstandingConfig;
-}): Promise<MediaUnderstandingOutput | null> {
-  const { entry, capability, cfg, ctx } = params;
-  const command = entry.command?.trim();
-  const args = entry.args ?? [];
-  if (!command) {
-    throw new Error(`CLI entry missing command for ${capability}`);
+function resolveImageModelFromAgentDefaults(cfg: OpenClawConfig): MediaUnderstandingModelConfig[] {
+  const refs: string[] = [];
+  const primary = resolveAgentModelPrimaryValue(cfg.agents?.defaults?.imageModel);
+  if (primary?.trim()) {
+    refs.push(primary.trim());
   }
-  const maxBytes = resolveMaxBytes({ capability, entry, cfg, config: params.config });
-  const maxChars = resolveMaxChars({ capability, entry, cfg, config: params.config });
-  const timeoutMs = resolveTimeoutMs(
-    entry.timeoutSeconds ??
-      params.config?.timeoutSeconds ??
-      cfg.tools?.media?.[capability]?.timeoutSeconds,
-    DEFAULT_TIMEOUT_SECONDS[capability],
-  );
-  const prompt = resolvePrompt(
-    capability,
-    entry.prompt ?? params.config?.prompt ?? cfg.tools?.media?.[capability]?.prompt,
-    maxChars,
-  );
-  const pathResult = await params.cache.getPath({
-    attachmentIndex: params.attachmentIndex,
-    maxBytes,
-    timeoutMs,
-  });
+  for (const fb of resolveAgentModelFallbackValues(cfg.agents?.defaults?.imageModel)) {
+    if (fb?.trim()) {
+      refs.push(fb.trim());
+    }
+  }
+  if (refs.length === 0) {
+    return [];
+  }
+  const entries: MediaUnderstandingModelConfig[] = [];
+  for (const ref of refs) {
+    const slashIdx = ref.indexOf("/");
+    if (slashIdx <= 0 || slashIdx >= ref.length - 1) {
+      continue;
+    }
+    entries.push({
+      type: "provider",
+      provider: ref.slice(0, slashIdx),
+      model: ref.slice(slashIdx + 1),
+    });
+  }
+  return entries;
+}
 
-  const templCtx: MsgContext = {
-    ...ctx,
-    MediaPath: pathResult.path,
-    Prompt: prompt,
-    MaxChars: maxChars,
-  };
-  const argv = [command, ...args].map((part, index) =>
-    index === 0 ? part : applyTemplate(part, templCtx),
-  );
-  if (shouldLogVerbose()) {
-    logVerbose(`Media understanding via CLI: ${argv.join(" ")}`);
+async function resolveAutoEntries(params: {
+  cfg: OpenClawConfig;
+  agentDir?: string;
+  providerRegistry: ProviderRegistry;
+  capability: MediaUnderstandingCapability;
+  activeModel?: ActiveMediaModel;
+}): Promise<MediaUnderstandingModelConfig[]> {
+  const activeEntry = await resolveActiveModelEntry(params);
+  if (activeEntry) {
+    return [activeEntry];
   }
-  const { stdout } = await runExec(argv[0], argv.slice(1), {
-    timeoutMs,
-    maxBuffer: CLI_OUTPUT_MAX_BUFFER,
+  if (params.capability === "audio") {
+    const localAudio = await resolveLocalAudioEntry();
+    if (localAudio) {
+      return [localAudio];
+    }
+  }
+  if (params.capability === "image") {
+    const imageModelEntries = resolveImageModelFromAgentDefaults(params.cfg);
+    if (imageModelEntries.length > 0) {
+      return imageModelEntries;
+    }
+  }
+  const gemini = await resolveGeminiCliEntry(params.capability);
+  if (gemini) {
+    return [gemini];
+  }
+  const keys = await resolveKeyEntry(params);
+  if (keys) {
+    return [keys];
+  }
+  return [];
+}
+
+export async function resolveAutoImageModel(params: {
+  cfg: OpenClawConfig;
+  agentDir?: string;
+  activeModel?: ActiveMediaModel;
+}): Promise<ActiveMediaModel | null> {
+  const providerRegistry = buildProviderRegistry();
+  const toActive = (entry: MediaUnderstandingModelConfig | null): ActiveMediaModel | null => {
+    if (!entry || entry.type === "cli") {
+      return null;
+    }
+    const provider = entry.provider;
+    if (!provider) {
+      return null;
+    }
+    const model = entry.model ?? DEFAULT_IMAGE_MODELS[provider];
+    if (!model) {
+      return null;
+    }
+    return { provider, model };
+  };
+  const activeEntry = await resolveActiveModelEntry({
+    cfg: params.cfg,
+    agentDir: params.agentDir,
+    providerRegistry,
+    capability: "image",
+    activeModel: params.activeModel,
   });
-  const text = trimOutput(stdout, maxChars);
-  if (!text) return null;
+  const resolvedActive = toActive(activeEntry);
+  if (resolvedActive) {
+    return resolvedActive;
+  }
+  const keyEntry = await resolveKeyEntry({
+    cfg: params.cfg,
+    agentDir: params.agentDir,
+    providerRegistry,
+    capability: "image",
+    activeModel: params.activeModel,
+  });
+  return toActive(keyEntry);
+}
+
+async function resolveActiveModelEntry(params: {
+  cfg: OpenClawConfig;
+  agentDir?: string;
+  providerRegistry: ProviderRegistry;
+  capability: MediaUnderstandingCapability;
+  activeModel?: ActiveMediaModel;
+}): Promise<MediaUnderstandingModelConfig | null> {
+  const activeProviderRaw = params.activeModel?.provider?.trim();
+  if (!activeProviderRaw) {
+    return null;
+  }
+  const providerId = normalizeMediaProviderId(activeProviderRaw);
+  if (!providerId) {
+    return null;
+  }
+  const provider = getMediaUnderstandingProvider(providerId, params.providerRegistry);
+  if (!provider) {
+    return null;
+  }
+  if (params.capability === "audio" && !provider.transcribeAudio) {
+    return null;
+  }
+  if (params.capability === "image" && !provider.describeImage) {
+    return null;
+  }
+  if (params.capability === "video" && !provider.describeVideo) {
+    return null;
+  }
+  try {
+    await resolveApiKeyForProvider({
+      provider: providerId,
+      cfg: params.cfg,
+      agentDir: params.agentDir,
+    });
+  } catch {
+    return null;
+  }
   return {
-    kind: capability === "audio" ? "audio.transcription" : `${capability}.description`,
-    attachmentIndex: params.attachmentIndex,
-    text,
-    provider: "cli",
-    model: command,
+    type: "provider",
+    provider: providerId,
+    model: params.activeModel?.model,
   };
 }
 
 async function runAttachmentEntries(params: {
   capability: MediaUnderstandingCapability;
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   ctx: MsgContext;
   attachmentIndex: number;
   agentDir?: string;
@@ -466,8 +612,12 @@ async function runAttachmentEntries(params: {
             });
       if (result) {
         const decision = buildModelDecision({ entry, entryType, outcome: "success" });
-        if (result.provider) decision.provider = result.provider;
-        if (result.model) decision.model = result.model;
+        if (result.provider) {
+          decision.provider = result.provider;
+        }
+        if (result.model) {
+          decision.model = result.model;
+        }
         attempts.push(decision);
         return { output: result, attempts };
       }
@@ -508,7 +658,7 @@ async function runAttachmentEntries(params: {
 
 export async function runCapability(params: {
   capability: MediaUnderstandingCapability;
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   ctx: MsgContext;
   attachments: MediaAttachmentCache;
   media: MediaAttachment[];
@@ -554,14 +704,59 @@ export async function runCapability(params: {
     };
   }
 
-  const entries = resolveEntriesWithActiveFallback({
+  // Skip image understanding when the primary model supports vision natively.
+  // The image will be injected directly into the model context instead.
+  const activeProvider = params.activeModel?.provider?.trim();
+  if (capability === "image" && activeProvider) {
+    const catalog = await loadModelCatalog({ config: cfg });
+    const entry = findModelInCatalog(catalog, activeProvider, params.activeModel?.model ?? "");
+    if (modelSupportsVision(entry)) {
+      if (shouldLogVerbose()) {
+        logVerbose("Skipping image understanding: primary model supports vision natively");
+      }
+      const model = params.activeModel?.model?.trim();
+      const reason = "primary model supports vision natively";
+      return {
+        outputs: [],
+        decision: {
+          capability,
+          outcome: "skipped",
+          attachments: selected.map((item) => {
+            const attempt = {
+              type: "provider" as const,
+              provider: activeProvider,
+              model: model || undefined,
+              outcome: "skipped" as const,
+              reason,
+            };
+            return {
+              attachmentIndex: item.index,
+              attempts: [attempt],
+              chosen: attempt,
+            };
+          }),
+        },
+      };
+    }
+  }
+
+  const entries = resolveModelEntries({
     cfg,
     capability,
     config,
     providerRegistry: params.providerRegistry,
-    activeModel: params.activeModel,
   });
-  if (entries.length === 0) {
+  let resolvedEntries = entries;
+  if (resolvedEntries.length === 0) {
+    resolvedEntries = await resolveAutoEntries({
+      cfg,
+      agentDir: params.agentDir,
+      providerRegistry: params.providerRegistry,
+      capability,
+      activeModel: params.activeModel,
+    });
+  }
+  if (resolvedEntries.length === 0) {
     return {
       outputs: [],
       decision: {
@@ -583,10 +778,12 @@ export async function runCapability(params: {
       agentDir: params.agentDir,
       providerRegistry: params.providerRegistry,
       cache: params.attachments,
-      entries,
+      entries: resolvedEntries,
       config,
     });
-    if (output) outputs.push(output);
+    if (output) {
+      outputs.push(output);
+    }
     attachmentDecisions.push({
       attachmentIndex: attachment.index,
       attempts,

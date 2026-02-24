@@ -1,28 +1,34 @@
 import { buildWorkspaceSkillStatus } from "../agents/skills-status.js";
+import { formatCliCommand } from "../cli/command-format.js";
 import { withProgress } from "../cli/progress.js";
 import { loadConfig, readConfigFileSnapshot, resolveGatewayPort } from "../config/config.js";
 import { readLastGatewayErrorLine } from "../daemon/diagnostics.js";
+import { resolveNodeService } from "../daemon/node-service.js";
+import type { GatewayService } from "../daemon/service.js";
 import { resolveGatewayService } from "../daemon/service.js";
 import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
-import { normalizeControlUiBasePath } from "../gateway/control-ui.js";
+import { normalizeControlUiBasePath } from "../gateway/control-ui-shared.js";
+import { resolveGatewayProbeAuth } from "../gateway/probe-auth.js";
 import { probeGateway } from "../gateway/probe.js";
 import { collectChannelStatusIssues } from "../infra/channels-status-issues.js";
-import { resolveClawdbotPackageRoot } from "../infra/clawdbot-root.js";
+import { resolveOpenClawPackageRoot } from "../infra/openclaw-root.js";
 import { resolveOsSummary } from "../infra/os-summary.js";
 import { inspectPortUsage } from "../infra/ports.js";
 import { readRestartSentinel } from "../infra/restart-sentinel.js";
-import { readTailscaleStatusJson } from "../infra/tailscale.js";
-import { checkUpdateStatus, compareSemverStrings } from "../infra/update-check.js";
 import { getRemoteSkillEligibility } from "../infra/skills-remote.js";
+import { readTailscaleStatusJson } from "../infra/tailscale.js";
+import { normalizeUpdateChannel, resolveUpdateChannelDisplay } from "../infra/update-channels.js";
+import { checkUpdateStatus, formatGitInstallLabel } from "../infra/update-check.js";
 import { runExec } from "../process/exec.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { VERSION } from "../version.js";
 import { resolveControlUiLinks } from "./onboard-helpers.js";
 import { getAgentLocalStatuses } from "./status-all/agents.js";
 import { buildChannelsTable } from "./status-all/channels.js";
-import { formatDuration, formatGatewayAuthUsed } from "./status-all/format.js";
+import { formatDurationPrecise, formatGatewayAuthUsed } from "./status-all/format.js";
 import { pickGatewaySelfPresence } from "./status-all/gateway.js";
 import { buildStatusAllReportLines } from "./status-all/report-lines.js";
+import { formatUpdateOneLiner } from "./status.update.js";
 
 export async function statusAllCommand(
   runtime: RuntimeEnv,
@@ -73,7 +79,7 @@ export async function statusAllCommand(
     progress.tick();
 
     progress.setLabel("Checking for updates…");
-    const root = await resolveClawdbotPackageRoot({
+    const root = await resolveOpenClawPackageRoot({
       moduleUrl: import.meta.url,
       argv1: process.argv[1],
       cwd: process.cwd(),
@@ -84,6 +90,15 @@ export async function statusAllCommand(
       fetchGit: true,
       includeRegistry: true,
     });
+    const configChannel = normalizeUpdateChannel(cfg.update?.channel);
+    const channelInfo = resolveUpdateChannelDisplay({
+      configChannel,
+      installKind: update.installKind,
+      gitTag: update.git?.tag ?? null,
+      gitBranch: update.git?.branch ?? null,
+    });
+    const channelLabel = channelInfo.label;
+    const gitLabel = formatGitInstallLabel(update);
     progress.tick();
 
     progress.setLabel("Probing gateway…");
@@ -94,31 +109,8 @@ export async function statusAllCommand(
     const remoteUrlMissing = isRemoteMode && !remoteUrlRaw;
     const gatewayMode = isRemoteMode ? "remote" : "local";
 
-    const resolveProbeAuth = (mode: "local" | "remote") => {
-      const authToken = cfg.gateway?.auth?.token;
-      const authPassword = cfg.gateway?.auth?.password;
-      const remote = cfg.gateway?.remote;
-      const token =
-        mode === "remote"
-          ? typeof remote?.token === "string" && remote.token.trim()
-            ? remote.token.trim()
-            : undefined
-          : process.env.CLAWDBOT_GATEWAY_TOKEN?.trim() ||
-            (typeof authToken === "string" && authToken.trim() ? authToken.trim() : undefined);
-      const password =
-        process.env.CLAWDBOT_GATEWAY_PASSWORD?.trim() ||
-        (mode === "remote"
-          ? typeof remote?.password === "string" && remote.password.trim()
-            ? remote.password.trim()
-            : undefined
-          : typeof authPassword === "string" && authPassword.trim()
-            ? authPassword.trim()
-            : undefined);
-      return { token, password };
-    };
-
-    const localFallbackAuth = resolveProbeAuth("local");
-    const remoteAuth = resolveProbeAuth("remote");
+    const localFallbackAuth = resolveGatewayProbeAuth({ cfg, mode: "local" });
+    const remoteAuth = resolveGatewayProbeAuth({ cfg, mode: "remote" });
     const probeAuth = isRemoteMode && !remoteUrlMissing ? remoteAuth : localFallbackAuth;
 
     const gatewayProbe = await probeGateway({
@@ -130,10 +122,9 @@ export async function statusAllCommand(
     const gatewaySelf = pickGatewaySelfPresence(gatewayProbe?.presence ?? null);
     progress.tick();
 
-    progress.setLabel("Checking daemon…");
-    const daemon = await (async () => {
+    progress.setLabel("Checking services…");
+    const readServiceSummary = async (service: GatewayService) => {
       try {
-        const service = resolveGatewayService();
         const [loaded, runtimeInfo, command] = await Promise.all([
           service.isLoaded({ env: process.env }).catch(() => false),
           service.readRuntime(process.env).catch(() => undefined),
@@ -150,7 +141,9 @@ export async function statusAllCommand(
       } catch {
         return null;
       }
-    })();
+    };
+    const daemon = await readServiceSummary(resolveGatewayService());
+    const nodeService = await readServiceSummary(resolveNodeService());
     progress.tick();
 
     progress.setLabel("Scanning agents…");
@@ -161,7 +154,9 @@ export async function statusAllCommand(
     progress.tick();
 
     const connectionDetailsForReport = (() => {
-      if (!remoteUrlMissing) return connection.message;
+      if (!remoteUrlMissing) {
+        return connection.message;
+      }
       const bindMode = cfg.gateway?.bind ?? "loopback";
       const configPath = snap?.path?.trim() ? snap.path.trim() : "(unknown config path)";
       return [
@@ -184,7 +179,7 @@ export async function statusAllCommand(
 
     progress.setLabel("Querying gateway…");
     const health = gatewayReachable
-      ? await callGateway<unknown>({
+      ? await callGateway({
           method: "health",
           timeoutMs: Math.min(8000, opts?.timeoutMs ?? 10_000),
           ...callOverrides,
@@ -192,7 +187,7 @@ export async function statusAllCommand(
       : { error: gatewayProbe?.error ?? "gateway unreachable" };
 
     const channelsStatus = gatewayReachable
-      ? await callGateway<Record<string, unknown>>({
+      ? await callGateway({
           method: "channels.status",
           params: { probe: false, timeoutMs: opts?.timeoutMs ?? 10_000 },
           timeoutMs: Math.min(8000, opts?.timeoutMs ?? 10_000),
@@ -237,57 +232,11 @@ export async function statusAllCommand(
         }).httpUrl
       : null;
 
-    const updateLine = (() => {
-      if (update.installKind === "git" && update.git) {
-        const parts: string[] = [];
-        parts.push(update.git.branch ? `git ${update.git.branch}` : "git");
-        if (update.git.upstream) parts.push(`↔ ${update.git.upstream}`);
-        if (update.git.dirty) parts.push("dirty");
-        if (update.git.behind != null && update.git.ahead != null) {
-          if (update.git.behind === 0 && update.git.ahead === 0) parts.push("up to date");
-          else if (update.git.behind > 0 && update.git.ahead === 0)
-            parts.push(`behind ${update.git.behind}`);
-          else if (update.git.behind === 0 && update.git.ahead > 0)
-            parts.push(`ahead ${update.git.ahead}`);
-          else parts.push(`diverged (ahead ${update.git.ahead}, behind ${update.git.behind})`);
-        }
-        if (update.git.fetchOk === false) parts.push("fetch failed");
-
-        const latest = update.registry?.latestVersion;
-        if (latest) {
-          const cmp = compareSemverStrings(VERSION, latest);
-          if (cmp === 0) parts.push(`npm latest ${latest}`);
-          else if (cmp != null && cmp < 0) parts.push(`npm update ${latest}`);
-          else parts.push(`npm latest ${latest} (local newer)`);
-        } else if (update.registry?.error) {
-          parts.push("npm latest unknown");
-        }
-
-        if (update.deps?.status === "ok") parts.push("deps ok");
-        if (update.deps?.status === "stale") parts.push("deps stale");
-        if (update.deps?.status === "missing") parts.push("deps missing");
-        return parts.join(" · ");
-      }
-      const parts: string[] = [];
-      parts.push(update.packageManager !== "unknown" ? update.packageManager : "pkg");
-      const latest = update.registry?.latestVersion;
-      if (latest) {
-        const cmp = compareSemverStrings(VERSION, latest);
-        if (cmp === 0) parts.push(`npm latest ${latest}`);
-        else if (cmp != null && cmp < 0) parts.push(`npm update ${latest}`);
-        else parts.push(`npm latest ${latest} (local newer)`);
-      } else if (update.registry?.error) {
-        parts.push("npm latest unknown");
-      }
-      if (update.deps?.status === "ok") parts.push("deps ok");
-      if (update.deps?.status === "stale") parts.push("deps stale");
-      if (update.deps?.status === "missing") parts.push("deps missing");
-      return parts.join(" · ");
-    })();
+    const updateLine = formatUpdateOneLiner(update).replace(/^Update:\s*/i, "");
 
     const gatewayTarget = remoteUrlMissing ? `fallback ${connection.url}` : connection.url;
     const gatewayStatus = gatewayReachable
-      ? `reachable ${formatDuration(gatewayProbe?.connectLatencyMs)}`
+      ? `reachable ${formatDurationPrecise(gatewayProbe?.connectLatencyMs ?? 0)}`
       : gatewayProbe?.error
         ? `unreachable (${gatewayProbe.error})`
         : "unreachable";
@@ -329,24 +278,33 @@ export async function statusAllCommand(
               ? `${tailscaleMode} · ${tailscale.backendState ?? "unknown"} · ${tailscale.dnsName} · ${tailscaleHttpsUrl}`
               : `${tailscaleMode} · ${tailscale.backendState ?? "unknown"} · magicdns unknown`,
       },
+      { Item: "Channel", Value: channelLabel },
+      ...(gitLabel ? [{ Item: "Git", Value: gitLabel }] : []),
       { Item: "Update", Value: updateLine },
       {
         Item: "Gateway",
         Value: `${gatewayMode}${remoteUrlMissing ? " (remote.url missing)" : ""} · ${gatewayTarget} (${connection.urlSource}) · ${gatewayStatus}${gatewayAuth}`,
       },
-      { Item: "Security", Value: "Run: clawdbot security audit --deep" },
+      { Item: "Security", Value: `Run: ${formatCliCommand("openclaw security audit --deep")}` },
       gatewaySelfLine
         ? { Item: "Gateway self", Value: gatewaySelfLine }
         : { Item: "Gateway self", Value: "unknown" },
       daemon
         ? {
-            Item: "Daemon",
-            Value:
-              daemon.installed === false
-                ? `${daemon.label} not installed`
-                : `${daemon.label} ${daemon.installed ? "installed · " : ""}${daemon.loadedText}${daemon.runtime?.status ? ` · ${daemon.runtime.status}` : ""}${daemon.runtime?.pid ? ` (pid ${daemon.runtime.pid})` : ""}`,
+            Item: "Gateway service",
+            Value: !daemon.installed
+              ? `${daemon.label} not installed`
+              : `${daemon.label} ${daemon.installed ? "installed · " : ""}${daemon.loadedText}${daemon.runtime?.status ? ` · ${daemon.runtime.status}` : ""}${daemon.runtime?.pid ? ` (pid ${daemon.runtime.pid})` : ""}`,
           }
-        : { Item: "Daemon", Value: "unknown" },
+        : { Item: "Gateway service", Value: "unknown" },
+      nodeService
+        ? {
+            Item: "Node service",
+            Value: !nodeService.installed
+              ? `${nodeService.label} not installed`
+              : `${nodeService.label} ${nodeService.installed ? "installed · " : ""}${nodeService.loadedText}${nodeService.runtime?.status ? ` · ${nodeService.runtime.status}` : ""}${nodeService.runtime?.pid ? ` (pid ${nodeService.runtime.pid})` : ""}`,
+          }
+        : { Item: "Node service", Value: "unknown" },
       {
         Item: "Agents",
         Value: `${agentStatus.agents.length} total · ${agentStatus.bootstrapPendingCount} bootstrapping · ${aliveAgents} active · ${agentStatus.totalSessions} sessions`,

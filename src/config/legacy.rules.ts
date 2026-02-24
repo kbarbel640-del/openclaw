@@ -86,6 +86,11 @@ export const LEGACY_CONFIG_RULES: LegacyConfigRule[] = [
       "agent.* was moved; use agents.defaults (and tools.* for tool/elevated/exec settings) instead (auto-migrated on load).",
   },
   {
+    path: ["memorySearch"],
+    message:
+      "top-level memorySearch was moved; use agents.defaults.memorySearch instead (auto-migrated on load).",
+  },
+  {
     path: ["tools", "bash"],
     message: "tools.bash was removed; use tools.exec instead (auto-migrated on load).",
   },
@@ -119,6 +124,10 @@ export const LEGACY_CONFIG_RULES: LegacyConfigRule[] = [
     path: ["agent", "imageModelFallbacks"],
     message:
       "agent.imageModelFallbacks was replaced by agents.defaults.imageModel.fallbacks (auto-migrated on load).",
+  },
+  {
+    path: ["messages", "tts", "enabled"],
+    message: "messages.tts.enabled was replaced by messages.tts.auto (auto-migrated on load).",
   },
   {
     path: ["gateway", "token"],

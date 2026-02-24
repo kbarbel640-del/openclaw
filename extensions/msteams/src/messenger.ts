@@ -1,9 +1,38 @@
-import { chunkMarkdownText } from "../../../src/auto-reply/chunk.js";
-import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../../src/auto-reply/tokens.js";
-import type { ReplyPayload } from "../../../src/auto-reply/types.js";
-import type { MSTeamsReplyStyle } from "../../../src/config/types.js";
+import {
+  type ChunkMode,
+  isSilentReplyText,
+  loadWebMedia,
+  type MarkdownTableMode,
+  type MSTeamsReplyStyle,
+  type ReplyPayload,
+  SILENT_REPLY_TOKEN,
+  sleep,
+} from "openclaw/plugin-sdk";
+import type { MSTeamsAccessTokenProvider } from "./attachments/types.js";
 import type { StoredConversationReference } from "./conversation-store.js";
 import { classifyMSTeamsSendError } from "./errors.js";
+import { prepareFileConsentActivity, requiresFileConsent } from "./file-consent-helpers.js";
+import { buildTeamsFileInfoCard } from "./graph-chat.js";
+import {
+  getDriveItemProperties,
+  uploadAndShareOneDrive,
+  uploadAndShareSharePoint,
+} from "./graph-upload.js";
+import { extractFilename, extractMessageId, getMimeType, isLocalPath } from "./media-helpers.js";
+import { parseMentions } from "./mentions.js";
+import { getMSTeamsRuntime } from "./runtime.js";
+
+/**
+ * MSTeams-specific media size limit (100MB).
+ * Higher than the default because OneDrive upload handles large files well.
+ */
+const MSTEAMS_MAX_MEDIA_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Threshold for large files that require FileConsentCard flow in personal chats.
+ * Files >= 4MB use consent flow; smaller images can use inline base64.
+ */
+const FILE_CONSENT_THRESHOLD_BYTES = 4 * 1024 * 1024;
 
 type SendContext = {
   sendActivity: (textOrActivity: string | object) => Promise<unknown>;
@@ -36,6 +65,17 @@ export type MSTeamsReplyRenderOptions = {
   textChunkLimit: number;
   chunkText?: boolean;
   mediaMode?: "split" | "inline";
+  tableMode?: MarkdownTableMode;
+  chunkMode?: ChunkMode;
+};
+
+/**
+ * A rendered message that preserves media vs text distinction.
+ * When mediaUrl is present, it will be sent as a Bot Framework attachment.
+ */
+export type MSTeamsRenderedMessage = {
+  text?: string;
+  mediaUrl?: string;
 };
 
 export type MSTeamsSendRetryOptions = {
@@ -87,48 +127,45 @@ export function buildConversationReference(
   };
 }
 
-function extractMessageId(response: unknown): string | null {
-  if (!response || typeof response !== "object") return null;
-  if (!("id" in response)) return null;
-  const { id } = response as { id?: unknown };
-  if (typeof id !== "string" || !id) return null;
-  return id;
-}
-
 function pushTextMessages(
-  out: string[],
+  out: MSTeamsRenderedMessage[],
   text: string,
   opts: {
     chunkText: boolean;
     chunkLimit: number;
+    chunkMode: ChunkMode;
   },
 ) {
-  if (!text) return;
+  if (!text) {
+    return;
+  }
   if (opts.chunkText) {
-    for (const chunk of chunkMarkdownText(text, opts.chunkLimit)) {
+    for (const chunk of getMSTeamsRuntime().channel.text.chunkMarkdownTextWithMode(
+      text,
+      opts.chunkLimit,
+      opts.chunkMode,
+    )) {
       const trimmed = chunk.trim();
-      if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) continue;
-      out.push(trimmed);
+      if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) {
+        continue;
+      }
+      out.push({ text: trimmed });
     }
     return;
   }
 
   const trimmed = text.trim();
-  if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) return;
-  out.push(trimmed);
+  if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) {
+    return;
+  }
+  out.push({ text: trimmed });
 }
 
 function clampMs(value: number, maxMs: number): number {
-  if (!Number.isFinite(value) || value < 0) return 0;
+  if (!Number.isFinite(value) || value < 0) {
+    return 0;
+  }
   return Math.min(value, maxMs);
-}
-
-async function sleep(ms: number): Promise<void> {
-  const delay = Math.max(0, ms);
-  if (delay === 0) return;
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, delay);
-  });
 }
 
 function resolveRetryOptions(
@@ -164,38 +201,183 @@ function shouldRetry(classification: ReturnType<typeof classifyMSTeamsSendError>
 export function renderReplyPayloadsToMessages(
   replies: ReplyPayload[],
   options: MSTeamsReplyRenderOptions,
-): string[] {
-  const out: string[] = [];
+): MSTeamsRenderedMessage[] {
+  const out: MSTeamsRenderedMessage[] = [];
   const chunkLimit = Math.min(options.textChunkLimit, 4000);
   const chunkText = options.chunkText !== false;
+  const chunkMode = options.chunkMode ?? "length";
   const mediaMode = options.mediaMode ?? "split";
+  const tableMode =
+    options.tableMode ??
+    getMSTeamsRuntime().channel.text.resolveMarkdownTableMode({
+      cfg: getMSTeamsRuntime().config.loadConfig(),
+      channel: "msteams",
+    });
 
   for (const payload of replies) {
     const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
-    const text = payload.text ?? "";
+    const text = getMSTeamsRuntime().channel.text.convertMarkdownTables(
+      payload.text ?? "",
+      tableMode,
+    );
 
-    if (!text && mediaList.length === 0) continue;
+    if (!text && mediaList.length === 0) {
+      continue;
+    }
 
     if (mediaList.length === 0) {
-      pushTextMessages(out, text, { chunkText, chunkLimit });
+      pushTextMessages(out, text, { chunkText, chunkLimit, chunkMode });
       continue;
     }
 
     if (mediaMode === "inline") {
-      const combined = text ? `${text}\n\n${mediaList.join("\n")}` : mediaList.join("\n");
-      pushTextMessages(out, combined, { chunkText, chunkLimit });
+      // For inline mode, combine text with first media as attachment
+      const firstMedia = mediaList[0];
+      if (firstMedia) {
+        out.push({ text: text || undefined, mediaUrl: firstMedia });
+        // Additional media URLs as separate messages
+        for (let i = 1; i < mediaList.length; i++) {
+          if (mediaList[i]) {
+            out.push({ mediaUrl: mediaList[i] });
+          }
+        }
+      } else {
+        pushTextMessages(out, text, { chunkText, chunkLimit, chunkMode });
+      }
       continue;
     }
 
     // mediaMode === "split"
-    pushTextMessages(out, text, { chunkText, chunkLimit });
+    pushTextMessages(out, text, { chunkText, chunkLimit, chunkMode });
     for (const mediaUrl of mediaList) {
-      if (!mediaUrl) continue;
-      out.push(mediaUrl);
+      if (!mediaUrl) {
+        continue;
+      }
+      out.push({ mediaUrl });
     }
   }
 
   return out;
+}
+
+async function buildActivity(
+  msg: MSTeamsRenderedMessage,
+  conversationRef: StoredConversationReference,
+  tokenProvider?: MSTeamsAccessTokenProvider,
+  sharePointSiteId?: string,
+  mediaMaxBytes?: number,
+): Promise<Record<string, unknown>> {
+  const activity: Record<string, unknown> = { type: "message" };
+
+  if (msg.text) {
+    // Parse mentions from text (format: @[Name](id))
+    const { text: formattedText, entities } = parseMentions(msg.text);
+    activity.text = formattedText;
+
+    // Add mention entities if any mentions were found
+    if (entities.length > 0) {
+      activity.entities = entities;
+    }
+  }
+
+  if (msg.mediaUrl) {
+    let contentUrl = msg.mediaUrl;
+    let contentType = await getMimeType(msg.mediaUrl);
+    let fileName = await extractFilename(msg.mediaUrl);
+
+    if (isLocalPath(msg.mediaUrl)) {
+      const maxBytes = mediaMaxBytes ?? MSTEAMS_MAX_MEDIA_BYTES;
+      const media = await loadWebMedia(msg.mediaUrl, maxBytes);
+      contentType = media.contentType ?? contentType;
+      fileName = media.fileName ?? fileName;
+
+      // Determine conversation type and file type
+      // Teams only accepts base64 data URLs for images
+      const conversationType = conversationRef.conversation?.conversationType?.toLowerCase();
+      const isPersonal = conversationType === "personal";
+      const isImage = media.kind === "image";
+
+      if (
+        requiresFileConsent({
+          conversationType,
+          contentType,
+          bufferSize: media.buffer.length,
+          thresholdBytes: FILE_CONSENT_THRESHOLD_BYTES,
+        })
+      ) {
+        // Large file or non-image in personal chat: use FileConsentCard flow
+        const conversationId = conversationRef.conversation?.id ?? "unknown";
+        const { activity: consentActivity } = prepareFileConsentActivity({
+          media: { buffer: media.buffer, filename: fileName, contentType },
+          conversationId,
+          description: msg.text || undefined,
+        });
+
+        // Return the consent activity (caller sends it)
+        return consentActivity;
+      }
+
+      if (!isPersonal && !isImage && tokenProvider && sharePointSiteId) {
+        // Non-image in group chat/channel with SharePoint site configured:
+        // Upload to SharePoint and use native file card attachment
+        const chatId = conversationRef.conversation?.id;
+
+        // Upload to SharePoint
+        const uploaded = await uploadAndShareSharePoint({
+          buffer: media.buffer,
+          filename: fileName,
+          contentType,
+          tokenProvider,
+          siteId: sharePointSiteId,
+          chatId: chatId ?? undefined,
+          usePerUserSharing: conversationType === "groupchat",
+        });
+
+        // Get driveItem properties needed for native file card attachment
+        const driveItem = await getDriveItemProperties({
+          siteId: sharePointSiteId,
+          itemId: uploaded.itemId,
+          tokenProvider,
+        });
+
+        // Build native Teams file card attachment
+        const fileCardAttachment = buildTeamsFileInfoCard(driveItem);
+        activity.attachments = [fileCardAttachment];
+
+        return activity;
+      }
+
+      if (!isPersonal && media.kind !== "image" && tokenProvider) {
+        // Fallback: no SharePoint site configured, try OneDrive upload
+        const uploaded = await uploadAndShareOneDrive({
+          buffer: media.buffer,
+          filename: fileName,
+          contentType,
+          tokenProvider,
+        });
+
+        // Bot Framework doesn't support "reference" attachment type for sending
+        const fileLink = `📎 [${uploaded.name}](${uploaded.shareUrl})`;
+        const existingText = typeof activity.text === "string" ? activity.text : undefined;
+        activity.text = existingText ? `${existingText}\n\n${fileLink}` : fileLink;
+        return activity;
+      }
+
+      // Image (any chat): use base64 (works for images in all conversation types)
+      const base64 = media.buffer.toString("base64");
+      contentUrl = `data:${media.contentType};base64,${base64}`;
+    }
+
+    activity.attachments = [
+      {
+        name: fileName,
+        contentType,
+        contentUrl,
+      },
+    ];
+  }
+
+  return activity;
 }
 
 export async function sendMSTeamsMessages(params: {
@@ -204,14 +386,22 @@ export async function sendMSTeamsMessages(params: {
   appId: string;
   conversationRef: StoredConversationReference;
   context?: SendContext;
-  messages: string[];
+  messages: MSTeamsRenderedMessage[];
   retry?: false | MSTeamsSendRetryOptions;
   onRetry?: (event: MSTeamsSendRetryEvent) => void;
+  /** Token provider for OneDrive/SharePoint uploads in group chats/channels */
+  tokenProvider?: MSTeamsAccessTokenProvider;
+  /** SharePoint site ID for file uploads in group chats/channels */
+  sharePointSiteId?: string;
+  /** Max media size in bytes. Default: 100MB. */
+  mediaMaxBytes?: number;
 }): Promise<string[]> {
-  const messages = params.messages
-    .map((m) => (typeof m === "string" ? m : String(m)))
-    .filter((m) => m.trim().length > 0);
-  if (messages.length === 0) return [];
+  const messages = params.messages.filter(
+    (m) => (m.text && m.text.trim().length > 0) || m.mediaUrl,
+  );
+  if (messages.length === 0) {
+    return [];
+  }
 
   const retryOptions = resolveRetryOptions(params.retry);
 
@@ -219,7 +409,9 @@ export async function sendMSTeamsMessages(params: {
     sendOnce: () => Promise<unknown>,
     meta: { messageIndex: number; messageCount: number },
   ): Promise<unknown> => {
-    if (!retryOptions.enabled) return await sendOnce();
+    if (!retryOptions.enabled) {
+      return await sendOnce();
+    }
 
     let attempt = 1;
     while (true) {
@@ -228,7 +420,9 @@ export async function sendMSTeamsMessages(params: {
       } catch (err) {
         const classification = classifyMSTeamsSendError(err);
         const canRetry = attempt < retryOptions.maxAttempts && shouldRetry(classification);
-        if (!canRetry) throw err;
+        if (!canRetry) {
+          throw err;
+        }
 
         const delayMs = computeRetryDelayMs(attempt, classification, retryOptions);
         const nextAttempt = attempt + 1;
@@ -247,24 +441,33 @@ export async function sendMSTeamsMessages(params: {
     }
   };
 
-  if (params.replyStyle === "thread") {
-    const ctx = params.context;
-    if (!ctx) {
-      throw new Error("Missing context for replyStyle=thread");
-    }
+  const sendMessagesInContext = async (ctx: SendContext): Promise<string[]> => {
     const messageIds: string[] = [];
     for (const [idx, message] of messages.entries()) {
       const response = await sendWithRetry(
         async () =>
-          await ctx.sendActivity({
-            type: "message",
-            text: message,
-          }),
+          await ctx.sendActivity(
+            await buildActivity(
+              message,
+              params.conversationRef,
+              params.tokenProvider,
+              params.sharePointSiteId,
+              params.mediaMaxBytes,
+            ),
+          ),
         { messageIndex: idx, messageCount: messages.length },
       );
       messageIds.push(extractMessageId(response) ?? "unknown");
     }
     return messageIds;
+  };
+
+  if (params.replyStyle === "thread") {
+    const ctx = params.context;
+    if (!ctx) {
+      throw new Error("Missing context for replyStyle=thread");
+    }
+    return await sendMessagesInContext(ctx);
   }
 
   const baseRef = buildConversationReference(params.conversationRef);
@@ -275,17 +478,7 @@ export async function sendMSTeamsMessages(params: {
 
   const messageIds: string[] = [];
   await params.adapter.continueConversation(params.appId, proactiveRef, async (ctx) => {
-    for (const [idx, message] of messages.entries()) {
-      const response = await sendWithRetry(
-        async () =>
-          await ctx.sendActivity({
-            type: "message",
-            text: message,
-          }),
-        { messageIndex: idx, messageCount: messages.length },
-      );
-      messageIds.push(extractMessageId(response) ?? "unknown");
-    }
+    messageIds.push(...(await sendMessagesInContext(ctx)));
   });
   return messageIds;
 }

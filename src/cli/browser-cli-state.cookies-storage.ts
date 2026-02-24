@@ -1,17 +1,32 @@
 import type { Command } from "commander";
-
-import { resolveBrowserControlUrl } from "../browser/client.js";
-import {
-  browserCookies,
-  browserCookiesClear,
-  browserCookiesSet,
-  browserStorageClear,
-  browserStorageGet,
-  browserStorageSet,
-} from "../browser/client-actions.js";
 import { danger } from "../globals.js";
 import { defaultRuntime } from "../runtime.js";
-import type { BrowserParentOpts } from "./browser-cli-shared.js";
+import { callBrowserRequest, type BrowserParentOpts } from "./browser-cli-shared.js";
+import { inheritOptionFromParent } from "./command-options.js";
+
+function resolveUrl(opts: { url?: string }, command: Command): string | undefined {
+  if (typeof opts.url === "string" && opts.url.trim()) {
+    return opts.url.trim();
+  }
+  const inherited = inheritOptionFromParent<string>(command, "url");
+  if (typeof inherited === "string" && inherited.trim()) {
+    return inherited.trim();
+  }
+  return undefined;
+}
+
+function resolveTargetId(rawTargetId: unknown, command: Command): string | undefined {
+  const local = typeof rawTargetId === "string" ? rawTargetId.trim() : "";
+  if (local) {
+    return local;
+  }
+  const inherited = inheritOptionFromParent<string>(command, "targetId");
+  if (typeof inherited !== "string") {
+    return undefined;
+  }
+  const trimmed = inherited.trim();
+  return trimmed ? trimmed : undefined;
+}
 
 export function registerBrowserCookiesAndStorageCommands(
   browser: Command,
@@ -23,13 +38,21 @@ export function registerBrowserCookiesAndStorageCommands(
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .action(async (opts, cmd) => {
       const parent = parentOpts(cmd);
-      const baseUrl = resolveBrowserControlUrl(parent?.url);
       const profile = parent?.browserProfile;
+      const targetId = resolveTargetId(opts.targetId, cmd);
       try {
-        const result = await browserCookies(baseUrl, {
-          targetId: opts.targetId?.trim() || undefined,
-          profile,
-        });
+        const result = await callBrowserRequest<{ cookies?: unknown[] }>(
+          parent,
+          {
+            method: "GET",
+            path: "/cookies",
+            query: {
+              targetId,
+              profile,
+            },
+          },
+          { timeoutMs: 20000 },
+        );
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
@@ -46,18 +69,32 @@ export function registerBrowserCookiesAndStorageCommands(
     .description("Set a cookie (requires --url or domain+path)")
     .argument("<name>", "Cookie name")
     .argument("<value>", "Cookie value")
-    .requiredOption("--url <url>", "Cookie URL scope (recommended)")
+    .option("--url <url>", "Cookie URL scope (recommended)")
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .action(async (name: string, value: string, opts, cmd) => {
       const parent = parentOpts(cmd);
-      const baseUrl = resolveBrowserControlUrl(parent?.url);
       const profile = parent?.browserProfile;
+      const targetId = resolveTargetId(opts.targetId, cmd);
+      const url = resolveUrl(opts, cmd);
+      if (!url) {
+        defaultRuntime.error(danger("Missing required --url option for cookies set"));
+        defaultRuntime.exit(1);
+        return;
+      }
       try {
-        const result = await browserCookiesSet(baseUrl, {
-          targetId: opts.targetId?.trim() || undefined,
-          cookie: { name, value, url: opts.url },
-          profile,
-        });
+        const result = await callBrowserRequest(
+          parent,
+          {
+            method: "POST",
+            path: "/cookies/set",
+            query: profile ? { profile } : undefined,
+            body: {
+              targetId,
+              cookie: { name, value, url },
+            },
+          },
+          { timeoutMs: 20000 },
+        );
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
@@ -75,13 +112,21 @@ export function registerBrowserCookiesAndStorageCommands(
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .action(async (opts, cmd) => {
       const parent = parentOpts(cmd);
-      const baseUrl = resolveBrowserControlUrl(parent?.url);
       const profile = parent?.browserProfile;
+      const targetId = resolveTargetId(opts.targetId, cmd);
       try {
-        const result = await browserCookiesClear(baseUrl, {
-          targetId: opts.targetId?.trim() || undefined,
-          profile,
-        });
+        const result = await callBrowserRequest(
+          parent,
+          {
+            method: "POST",
+            path: "/cookies/clear",
+            query: profile ? { profile } : undefined,
+            body: {
+              targetId,
+            },
+          },
+          { timeoutMs: 20000 },
+        );
         if (parent?.json) {
           defaultRuntime.log(JSON.stringify(result, null, 2));
           return;
@@ -105,15 +150,22 @@ export function registerBrowserCookiesAndStorageCommands(
       .option("--target-id <id>", "CDP target id (or unique prefix)")
       .action(async (key: string | undefined, opts, cmd2) => {
         const parent = parentOpts(cmd2);
-        const baseUrl = resolveBrowserControlUrl(parent?.url);
         const profile = parent?.browserProfile;
+        const targetId = resolveTargetId(opts.targetId, cmd2);
         try {
-          const result = await browserStorageGet(baseUrl, {
-            kind,
-            key: key?.trim() || undefined,
-            targetId: opts.targetId?.trim() || undefined,
-            profile,
-          });
+          const result = await callBrowserRequest<{ values?: Record<string, string> }>(
+            parent,
+            {
+              method: "GET",
+              path: `/storage/${kind}`,
+              query: {
+                key: key?.trim() || undefined,
+                targetId,
+                profile,
+              },
+            },
+            { timeoutMs: 20000 },
+          );
           if (parent?.json) {
             defaultRuntime.log(JSON.stringify(result, null, 2));
             return;
@@ -133,16 +185,23 @@ export function registerBrowserCookiesAndStorageCommands(
       .option("--target-id <id>", "CDP target id (or unique prefix)")
       .action(async (key: string, value: string, opts, cmd2) => {
         const parent = parentOpts(cmd2);
-        const baseUrl = resolveBrowserControlUrl(parent?.url);
         const profile = parent?.browserProfile;
+        const targetId = resolveTargetId(opts.targetId, cmd2);
         try {
-          const result = await browserStorageSet(baseUrl, {
-            kind,
-            key,
-            value,
-            targetId: opts.targetId?.trim() || undefined,
-            profile,
-          });
+          const result = await callBrowserRequest(
+            parent,
+            {
+              method: "POST",
+              path: `/storage/${kind}/set`,
+              query: profile ? { profile } : undefined,
+              body: {
+                key,
+                value,
+                targetId,
+              },
+            },
+            { timeoutMs: 20000 },
+          );
           if (parent?.json) {
             defaultRuntime.log(JSON.stringify(result, null, 2));
             return;
@@ -160,14 +219,21 @@ export function registerBrowserCookiesAndStorageCommands(
       .option("--target-id <id>", "CDP target id (or unique prefix)")
       .action(async (opts, cmd2) => {
         const parent = parentOpts(cmd2);
-        const baseUrl = resolveBrowserControlUrl(parent?.url);
         const profile = parent?.browserProfile;
+        const targetId = resolveTargetId(opts.targetId, cmd2);
         try {
-          const result = await browserStorageClear(baseUrl, {
-            kind,
-            targetId: opts.targetId?.trim() || undefined,
-            profile,
-          });
+          const result = await callBrowserRequest(
+            parent,
+            {
+              method: "POST",
+              path: `/storage/${kind}/clear`,
+              query: profile ? { profile } : undefined,
+              body: {
+                targetId,
+              },
+            },
+            { timeoutMs: 20000 },
+          );
           if (parent?.json) {
             defaultRuntime.log(JSON.stringify(result, null, 2));
             return;

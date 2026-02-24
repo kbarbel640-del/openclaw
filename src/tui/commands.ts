@@ -1,11 +1,13 @@
 import type { SlashCommand } from "@mariozechner/pi-tui";
+import { listChatCommands, listChatCommandsForConfig } from "../auto-reply/commands-registry.js";
 import { formatThinkingLevels, listThinkingLevelLabels } from "../auto-reply/thinking.js";
+import type { OpenClawConfig } from "../config/types.js";
 
 const VERBOSE_LEVELS = ["on", "off"];
 const REASONING_LEVELS = ["on", "off"];
-const ELEVATED_LEVELS = ["on", "off"];
+const ELEVATED_LEVELS = ["on", "off", "ask", "full"];
 const ACTIVATION_LEVELS = ["mention", "always"];
-const TOGGLE = ["on", "off"];
+const USAGE_FOOTER_LEVELS = ["off", "tokens", "full"];
 
 export type ParsedCommand = {
   name: string;
@@ -13,6 +15,7 @@ export type ParsedCommand = {
 };
 
 export type SlashCommandOptions = {
+  cfg?: OpenClawConfig;
   provider?: string;
   model?: string;
 };
@@ -21,9 +24,23 @@ const COMMAND_ALIASES: Record<string, string> = {
   elev: "elevated",
 };
 
+function createLevelCompletion(
+  levels: string[],
+): NonNullable<SlashCommand["getArgumentCompletions"]> {
+  return (prefix) =>
+    levels
+      .filter((value) => value.startsWith(prefix.toLowerCase()))
+      .map((value) => ({
+        value,
+        label: value,
+      }));
+}
+
 export function parseCommand(input: string): ParsedCommand {
   const trimmed = input.replace(/^\//, "").trim();
-  if (!trimmed) return { name: "", args: "" };
+  if (!trimmed) {
+    return { name: "", args: "" };
+  }
   const [name, ...rest] = trimmed.split(/\s+/);
   const normalized = name.toLowerCase();
   return {
@@ -34,7 +51,12 @@ export function parseCommand(input: string): ParsedCommand {
 
 export function getSlashCommands(options: SlashCommandOptions = {}): SlashCommand[] {
   const thinkLevels = listThinkingLevelLabels(options.provider, options.model);
-  return [
+  const verboseCompletions = createLevelCompletion(VERBOSE_LEVELS);
+  const reasoningCompletions = createLevelCompletion(REASONING_LEVELS);
+  const usageCompletions = createLevelCompletion(USAGE_FOOTER_LEVELS);
+  const elevatedCompletions = createLevelCompletion(ELEVATED_LEVELS);
+  const activationCompletions = createLevelCompletion(ACTIVATION_LEVELS);
+  const commands: SlashCommand[] = [
     { name: "help", description: "Show slash command help" },
     { name: "status", description: "Show gateway status summary" },
     { name: "agent", description: "Switch agent (or open picker)" },
@@ -57,56 +79,32 @@ export function getSlashCommands(options: SlashCommandOptions = {}): SlashComman
     {
       name: "verbose",
       description: "Set verbose on/off",
-      getArgumentCompletions: (prefix) =>
-        VERBOSE_LEVELS.filter((v) => v.startsWith(prefix.toLowerCase())).map((value) => ({
-          value,
-          label: value,
-        })),
+      getArgumentCompletions: verboseCompletions,
     },
     {
       name: "reasoning",
       description: "Set reasoning on/off",
-      getArgumentCompletions: (prefix) =>
-        REASONING_LEVELS.filter((v) => v.startsWith(prefix.toLowerCase())).map((value) => ({
-          value,
-          label: value,
-        })),
+      getArgumentCompletions: reasoningCompletions,
     },
     {
-      name: "cost",
+      name: "usage",
       description: "Toggle per-response usage line",
-      getArgumentCompletions: (prefix) =>
-        TOGGLE.filter((v) => v.startsWith(prefix.toLowerCase())).map((value) => ({
-          value,
-          label: value,
-        })),
+      getArgumentCompletions: usageCompletions,
     },
     {
       name: "elevated",
-      description: "Set elevated on/off",
-      getArgumentCompletions: (prefix) =>
-        ELEVATED_LEVELS.filter((v) => v.startsWith(prefix.toLowerCase())).map((value) => ({
-          value,
-          label: value,
-        })),
+      description: "Set elevated on/off/ask/full",
+      getArgumentCompletions: elevatedCompletions,
     },
     {
       name: "elev",
       description: "Alias for /elevated",
-      getArgumentCompletions: (prefix) =>
-        ELEVATED_LEVELS.filter((v) => v.startsWith(prefix.toLowerCase())).map((value) => ({
-          value,
-          label: value,
-        })),
+      getArgumentCompletions: elevatedCompletions,
     },
     {
       name: "activation",
       description: "Set group activation",
-      getArgumentCompletions: (prefix) =>
-        ACTIVATION_LEVELS.filter((v) => v.startsWith(prefix.toLowerCase())).map((value) => ({
-          value,
-          label: value,
-        })),
+      getArgumentCompletions: activationCompletions,
     },
     { name: "abort", description: "Abort active run" },
     { name: "new", description: "Reset the session" },
@@ -115,6 +113,22 @@ export function getSlashCommands(options: SlashCommandOptions = {}): SlashComman
     { name: "exit", description: "Exit the TUI" },
     { name: "quit", description: "Exit the TUI" },
   ];
+
+  const seen = new Set(commands.map((command) => command.name));
+  const gatewayCommands = options.cfg ? listChatCommandsForConfig(options.cfg) : listChatCommands();
+  for (const command of gatewayCommands) {
+    const aliases = command.textAliases.length > 0 ? command.textAliases : [`/${command.key}`];
+    for (const alias of aliases) {
+      const name = alias.replace(/^\//, "").trim();
+      if (!name || seen.has(name)) {
+        continue;
+      }
+      seen.add(name);
+      commands.push({ name, description: command.description });
+    }
+  }
+
+  return commands;
 }
 
 export function helpText(options: SlashCommandOptions = {}): string {
@@ -122,6 +136,7 @@ export function helpText(options: SlashCommandOptions = {}): string {
   return [
     "Slash commands:",
     "/help",
+    "/commands",
     "/status",
     "/agent <id> (or /agents)",
     "/session <key> (or /sessions)",
@@ -129,9 +144,9 @@ export function helpText(options: SlashCommandOptions = {}): string {
     `/think <${thinkLevels}>`,
     "/verbose <on|off>",
     "/reasoning <on|off>",
-    "/cost <on|off>",
-    "/elevated <on|off>",
-    "/elev <on|off>",
+    "/usage <off|tokens|full>",
+    "/elevated <on|off|ask|full>",
+    "/elev <on|off|ask|full>",
     "/activation <mention|always>",
     "/new or /reset",
     "/abort",

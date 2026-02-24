@@ -1,18 +1,23 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
-import type { ClawdbotConfig } from "../config/config.js";
+import { formatCliCommand } from "../cli/command-format.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { resolveOAuthDir, resolveStateDir } from "../config/paths.js";
 import {
+  formatSessionArchiveTimestamp,
+  isPrimarySessionTranscriptFileName,
   loadSessionStore,
   resolveMainSessionKey,
   resolveSessionFilePath,
+  resolveSessionFilePathOptions,
   resolveSessionTranscriptsDirForAgent,
   resolveStorePath,
 } from "../config/sessions.js";
+import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import { note } from "../terminal/note.js";
+import { shortenHomePath } from "../utils.js";
 
 type DoctorPrompterLike = {
   confirmSkipInNonInteractive: (params: {
@@ -80,12 +85,18 @@ function addUserRwx(mode: number): number {
 function countJsonlLines(filePath: string): number {
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
-    if (!raw) return 0;
+    if (!raw) {
+      return 0;
+    }
     let count = 0;
     for (let i = 0; i < raw.length; i += 1) {
-      if (raw[i] === "\n") count += 1;
+      if (raw[i] === "\n") {
+        count += 1;
+      }
     }
-    if (!raw.endsWith("\n")) count += 1;
+    if (!raw.endsWith("\n")) {
+      count += 1;
+    }
     return count;
   } catch {
     return 0;
@@ -105,37 +116,107 @@ function findOtherStateDirs(stateDir: string): string[] {
       continue;
     }
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith(".")) continue;
-      const candidate = path.resolve(root, entry.name, ".clawdbot");
-      if (candidate === resolvedState) continue;
-      if (existsDir(candidate)) found.push(candidate);
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      if (entry.name.startsWith(".")) {
+        continue;
+      }
+      const candidates = [".openclaw"].map((dir) => path.resolve(root, entry.name, dir));
+      for (const candidate of candidates) {
+        if (candidate === resolvedState) {
+          continue;
+        }
+        if (existsDir(candidate)) {
+          found.push(candidate);
+        }
+      }
     }
   }
   return found;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPairingPolicy(value: unknown): boolean {
+  return typeof value === "string" && value.trim().toLowerCase() === "pairing";
+}
+
+function hasPairingPolicy(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (isPairingPolicy(value.dmPolicy)) {
+    return true;
+  }
+  if (isRecord(value.dm) && isPairingPolicy(value.dm.policy)) {
+    return true;
+  }
+  if (!isRecord(value.accounts)) {
+    return false;
+  }
+  for (const accountCfg of Object.values(value.accounts)) {
+    if (hasPairingPolicy(accountCfg)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function shouldRequireOAuthDir(cfg: OpenClawConfig, env: NodeJS.ProcessEnv): boolean {
+  if (env.OPENCLAW_OAUTH_DIR?.trim()) {
+    return true;
+  }
+  const channels = cfg.channels;
+  if (!isRecord(channels)) {
+    return false;
+  }
+  // WhatsApp auth always uses the credentials tree.
+  if (isRecord(channels.whatsapp)) {
+    return true;
+  }
+  // Pairing allowlists are persisted under credentials/<channel>-allowFrom.json.
+  for (const [channelId, channelCfg] of Object.entries(channels)) {
+    if (channelId === "defaults" || channelId === "modelByChannel") {
+      continue;
+    }
+    if (hasPairingPolicy(channelCfg)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function noteStateIntegrity(
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   prompter: DoctorPrompterLike,
   configPath?: string,
 ) {
   const warnings: string[] = [];
   const changes: string[] = [];
   const env = process.env;
-  const homedir = os.homedir;
+  const homedir = () => resolveRequiredHomeDir(env, os.homedir);
   const stateDir = resolveStateDir(env, homedir);
-  const defaultStateDir = path.join(homedir(), ".clawdbot");
+  const defaultStateDir = path.join(homedir(), ".openclaw");
   const oauthDir = resolveOAuthDir(env, stateDir);
   const agentId = resolveDefaultAgentId(cfg);
   const sessionsDir = resolveSessionTranscriptsDirForAgent(agentId, env, homedir);
   const storePath = resolveStorePath(cfg.session?.store, { agentId });
   const storeDir = path.dirname(storePath);
+  const absoluteStorePath = path.resolve(storePath);
+  const displayStateDir = shortenHomePath(stateDir);
+  const displayOauthDir = shortenHomePath(oauthDir);
+  const displaySessionsDir = shortenHomePath(sessionsDir);
+  const displayStoreDir = shortenHomePath(storeDir);
+  const displayConfigPath = configPath ? shortenHomePath(configPath) : undefined;
+  const requireOAuthDir = shouldRequireOAuthDir(cfg, env);
 
   let stateDirExists = existsDir(stateDir);
   if (!stateDirExists) {
     warnings.push(
-      `- CRITICAL: state directory missing (${stateDir}). Sessions, credentials, logs, and config are stored there.`,
+      `- CRITICAL: state directory missing (${displayStateDir}). Sessions, credentials, logs, and config are stored there.`,
     );
     if (cfg.gateway?.mode === "remote") {
       warnings.push(
@@ -143,26 +224,28 @@ export async function noteStateIntegrity(
       );
     }
     const create = await prompter.confirmSkipInNonInteractive({
-      message: `Create ${stateDir} now?`,
+      message: `Create ${displayStateDir} now?`,
       initialValue: false,
     });
     if (create) {
       const created = ensureDir(stateDir);
       if (created.ok) {
-        changes.push(`- Created ${stateDir}`);
+        changes.push(`- Created ${displayStateDir}`);
         stateDirExists = true;
       } else {
-        warnings.push(`- Failed to create ${stateDir}: ${created.error}`);
+        warnings.push(`- Failed to create ${displayStateDir}: ${created.error}`);
       }
     }
   }
 
   if (stateDirExists && !canWriteDir(stateDir)) {
-    warnings.push(`- State directory not writable (${stateDir}).`);
+    warnings.push(`- State directory not writable (${displayStateDir}).`);
     const hint = dirPermissionHint(stateDir);
-    if (hint) warnings.push(`  ${hint}`);
+    if (hint) {
+      warnings.push(`  ${hint}`);
+    }
     const repair = await prompter.confirmSkipInNonInteractive({
-      message: `Repair permissions on ${stateDir}?`,
+      message: `Repair permissions on ${displayStateDir}?`,
       initialValue: true,
     });
     if (repair) {
@@ -170,51 +253,66 @@ export async function noteStateIntegrity(
         const stat = fs.statSync(stateDir);
         const target = addUserRwx(stat.mode);
         fs.chmodSync(stateDir, target);
-        changes.push(`- Repaired permissions on ${stateDir}`);
+        changes.push(`- Repaired permissions on ${displayStateDir}`);
       } catch (err) {
-        warnings.push(`- Failed to repair ${stateDir}: ${String(err)}`);
+        warnings.push(`- Failed to repair ${displayStateDir}: ${String(err)}`);
       }
     }
   }
   if (stateDirExists && process.platform !== "win32") {
     try {
-      const stat = fs.statSync(stateDir);
-      if ((stat.mode & 0o077) !== 0) {
+      const dirLstat = fs.lstatSync(stateDir);
+      const isDirSymlink = dirLstat.isSymbolicLink();
+      // For symlinks, check the resolved target permissions instead of the
+      // symlink itself (which always reports 777). Skip the warning only when
+      // the target lives in a known immutable store (e.g. /nix/store/).
+      const stat = isDirSymlink ? fs.statSync(stateDir) : dirLstat;
+      const resolvedDir = isDirSymlink ? fs.realpathSync(stateDir) : stateDir;
+      const isImmutableStore = resolvedDir.startsWith("/nix/store/");
+      if (!isImmutableStore && (stat.mode & 0o077) !== 0) {
         warnings.push(
-          `- State directory permissions are too open (${stateDir}). Recommend chmod 700.`,
+          `- State directory permissions are too open (${displayStateDir}). Recommend chmod 700.`,
         );
         const tighten = await prompter.confirmSkipInNonInteractive({
-          message: `Tighten permissions on ${stateDir} to 700?`,
+          message: `Tighten permissions on ${displayStateDir} to 700?`,
           initialValue: true,
         });
         if (tighten) {
           fs.chmodSync(stateDir, 0o700);
-          changes.push(`- Tightened permissions on ${stateDir} to 700`);
+          changes.push(`- Tightened permissions on ${displayStateDir} to 700`);
         }
       }
     } catch (err) {
-      warnings.push(`- Failed to read ${stateDir} permissions: ${String(err)}`);
+      warnings.push(`- Failed to read ${displayStateDir} permissions: ${String(err)}`);
     }
   }
 
   if (configPath && existsFile(configPath) && process.platform !== "win32") {
     try {
-      const stat = fs.statSync(configPath);
-      if ((stat.mode & 0o077) !== 0) {
+      const configLstat = fs.lstatSync(configPath);
+      const isSymlink = configLstat.isSymbolicLink();
+      // For symlinks, check the resolved target permissions. Skip the warning
+      // only when the target lives in an immutable store (e.g. /nix/store/).
+      const stat = isSymlink ? fs.statSync(configPath) : configLstat;
+      const resolvedConfig = isSymlink ? fs.realpathSync(configPath) : configPath;
+      const isImmutableConfig = resolvedConfig.startsWith("/nix/store/");
+      if (!isImmutableConfig && (stat.mode & 0o077) !== 0) {
         warnings.push(
-          `- Config file is group/world readable (${configPath}). Recommend chmod 600.`,
+          `- Config file is group/world readable (${displayConfigPath ?? configPath}). Recommend chmod 600.`,
         );
         const tighten = await prompter.confirmSkipInNonInteractive({
-          message: `Tighten permissions on ${configPath} to 600?`,
+          message: `Tighten permissions on ${displayConfigPath ?? configPath} to 600?`,
           initialValue: true,
         });
         if (tighten) {
           fs.chmodSync(configPath, 0o600);
-          changes.push(`- Tightened permissions on ${configPath} to 600`);
+          changes.push(`- Tightened permissions on ${displayConfigPath ?? configPath} to 600`);
         }
       }
     } catch (err) {
-      warnings.push(`- Failed to read config permissions (${configPath}): ${String(err)}`);
+      warnings.push(
+        `- Failed to read config permissions (${displayConfigPath ?? configPath}): ${String(err)}`,
+      );
     }
   }
 
@@ -222,29 +320,50 @@ export async function noteStateIntegrity(
     const dirCandidates = new Map<string, string>();
     dirCandidates.set(sessionsDir, "Sessions dir");
     dirCandidates.set(storeDir, "Session store dir");
-    dirCandidates.set(oauthDir, "OAuth dir");
+    if (requireOAuthDir) {
+      dirCandidates.set(oauthDir, "OAuth dir");
+    } else if (!existsDir(oauthDir)) {
+      warnings.push(
+        `- OAuth dir not present (${displayOauthDir}). Skipping create because no WhatsApp/pairing channel config is active.`,
+      );
+    }
+    const displayDirFor = (dir: string) => {
+      if (dir === sessionsDir) {
+        return displaySessionsDir;
+      }
+      if (dir === storeDir) {
+        return displayStoreDir;
+      }
+      if (dir === oauthDir) {
+        return displayOauthDir;
+      }
+      return shortenHomePath(dir);
+    };
 
     for (const [dir, label] of dirCandidates) {
+      const displayDir = displayDirFor(dir);
       if (!existsDir(dir)) {
-        warnings.push(`- CRITICAL: ${label} missing (${dir}).`);
+        warnings.push(`- CRITICAL: ${label} missing (${displayDir}).`);
         const create = await prompter.confirmSkipInNonInteractive({
-          message: `Create ${label} at ${dir}?`,
+          message: `Create ${label} at ${displayDir}?`,
           initialValue: true,
         });
         if (create) {
           const created = ensureDir(dir);
           if (created.ok) {
-            changes.push(`- Created ${label}: ${dir}`);
+            changes.push(`- Created ${label}: ${displayDir}`);
           } else {
-            warnings.push(`- Failed to create ${dir}: ${created.error}`);
+            warnings.push(`- Failed to create ${displayDir}: ${created.error}`);
           }
         }
         continue;
       }
       if (!canWriteDir(dir)) {
-        warnings.push(`- ${label} not writable (${dir}).`);
+        warnings.push(`- ${label} not writable (${displayDir}).`);
         const hint = dirPermissionHint(dir);
-        if (hint) warnings.push(`  ${hint}`);
+        if (hint) {
+          warnings.push(`  ${hint}`);
+        }
         const repair = await prompter.confirmSkipInNonInteractive({
           message: `Repair permissions on ${label}?`,
           initialValue: true,
@@ -254,9 +373,9 @@ export async function noteStateIntegrity(
             const stat = fs.statSync(dir);
             const target = addUserRwx(stat.mode);
             fs.chmodSync(dir, target);
-            changes.push(`- Repaired permissions on ${label}: ${dir}`);
+            changes.push(`- Repaired permissions on ${label}: ${displayDir}`);
           } catch (err) {
-            warnings.push(`- Failed to repair ${dir}: ${String(err)}`);
+            warnings.push(`- Failed to repair ${displayDir}: ${String(err)}`);
           }
         }
       }
@@ -265,7 +384,9 @@ export async function noteStateIntegrity(
 
   const extraStateDirs = new Set<string>();
   if (path.resolve(stateDir) !== path.resolve(defaultStateDir)) {
-    if (existsDir(defaultStateDir)) extraStateDirs.add(defaultStateDir);
+    if (existsDir(defaultStateDir)) {
+      extraStateDirs.add(defaultStateDir);
+    }
   }
   for (const other of findOtherStateDirs(stateDir)) {
     extraStateDirs.add(other);
@@ -274,18 +395,19 @@ export async function noteStateIntegrity(
     warnings.push(
       [
         "- Multiple state directories detected. This can split session history.",
-        ...Array.from(extraStateDirs).map((dir) => `  - ${dir}`),
-        `  Active state dir: ${stateDir}`,
+        ...Array.from(extraStateDirs).map((dir) => `  - ${shortenHomePath(dir)}`),
+        `  Active state dir: ${displayStateDir}`,
       ].join("\n"),
     );
   }
 
   const store = loadSessionStore(storePath);
+  const sessionPathOpts = resolveSessionFilePathOptions({ agentId, storePath });
   const entries = Object.entries(store).filter(([, entry]) => entry && typeof entry === "object");
   if (entries.length > 0) {
     const recent = entries
       .slice()
-      .sort((a, b) => {
+      .toSorted((a, b) => {
         const aUpdated = typeof a[1].updatedAt === "number" ? a[1].updatedAt : 0;
         const bUpdated = typeof b[1].updatedAt === "number" ? b[1].updatedAt : 0;
         return bUpdated - aUpdated;
@@ -293,25 +415,33 @@ export async function noteStateIntegrity(
       .slice(0, 5);
     const missing = recent.filter(([, entry]) => {
       const sessionId = entry.sessionId;
-      if (!sessionId) return false;
-      const transcriptPath = resolveSessionFilePath(sessionId, entry, {
-        agentId,
-      });
+      if (!sessionId) {
+        return false;
+      }
+      const transcriptPath = resolveSessionFilePath(sessionId, entry, sessionPathOpts);
       return !existsFile(transcriptPath);
     });
     if (missing.length > 0) {
       warnings.push(
-        `- ${missing.length}/${recent.length} recent sessions are missing transcripts. Check for deleted session files or split state dirs.`,
+        [
+          `- ${missing.length}/${recent.length} recent sessions are missing transcripts.`,
+          `  Verify sessions in store: ${formatCliCommand(`openclaw sessions --store "${absoluteStorePath}"`)}`,
+          `  Preview cleanup impact: ${formatCliCommand(`openclaw sessions cleanup --store "${absoluteStorePath}" --dry-run`)}`,
+        ].join("\n"),
       );
     }
 
     const mainKey = resolveMainSessionKey(cfg);
     const mainEntry = store[mainKey];
     if (mainEntry?.sessionId) {
-      const transcriptPath = resolveSessionFilePath(mainEntry.sessionId, mainEntry, { agentId });
+      const transcriptPath = resolveSessionFilePath(
+        mainEntry.sessionId,
+        mainEntry,
+        sessionPathOpts,
+      );
       if (!existsFile(transcriptPath)) {
         warnings.push(
-          `- Main session transcript missing (${transcriptPath}). History will appear to reset.`,
+          `- Main session transcript missing (${shortenHomePath(transcriptPath)}). History will appear to reset.`,
         );
       } else {
         const lineCount = countJsonlLines(transcriptPath);
@@ -319,6 +449,54 @@ export async function noteStateIntegrity(
           warnings.push(
             `- Main session transcript has only ${lineCount} line. Session history may not be appending.`,
           );
+        }
+      }
+    }
+  }
+
+  if (existsDir(sessionsDir)) {
+    const referencedTranscriptPaths = new Set<string>();
+    for (const [, entry] of entries) {
+      if (!entry?.sessionId) {
+        continue;
+      }
+      try {
+        referencedTranscriptPaths.add(
+          path.resolve(resolveSessionFilePath(entry.sessionId, entry, sessionPathOpts)),
+        );
+      } catch {
+        // ignore invalid legacy paths
+      }
+    }
+    const sessionDirEntries = fs.readdirSync(sessionsDir, { withFileTypes: true });
+    const orphanTranscriptPaths = sessionDirEntries
+      .filter((entry) => entry.isFile() && isPrimarySessionTranscriptFileName(entry.name))
+      .map((entry) => path.resolve(path.join(sessionsDir, entry.name)))
+      .filter((filePath) => !referencedTranscriptPaths.has(filePath));
+    if (orphanTranscriptPaths.length > 0) {
+      warnings.push(
+        `- Found ${orphanTranscriptPaths.length} orphan transcript file(s) in ${displaySessionsDir}. They are not referenced by sessions.json and can consume disk over time.`,
+      );
+      const archiveOrphans = await prompter.confirmSkipInNonInteractive({
+        message: `Archive ${orphanTranscriptPaths.length} orphan transcript file(s) in ${displaySessionsDir}?`,
+        initialValue: false,
+      });
+      if (archiveOrphans) {
+        let archived = 0;
+        const archivedAt = formatSessionArchiveTimestamp();
+        for (const orphanPath of orphanTranscriptPaths) {
+          const archivedPath = `${orphanPath}.deleted.${archivedAt}`;
+          try {
+            fs.renameSync(orphanPath, archivedPath);
+            archived += 1;
+          } catch (err) {
+            warnings.push(
+              `- Failed to archive orphan transcript ${shortenHomePath(orphanPath)}: ${String(err)}`,
+            );
+          }
+        }
+        if (archived > 0) {
+          changes.push(`- Archived ${archived} orphan transcript file(s) in ${displaySessionsDir}`);
         }
       }
     }
@@ -333,13 +511,17 @@ export async function noteStateIntegrity(
 }
 
 export function noteWorkspaceBackupTip(workspaceDir: string) {
-  if (!existsDir(workspaceDir)) return;
+  if (!existsDir(workspaceDir)) {
+    return;
+  }
   const gitMarker = path.join(workspaceDir, ".git");
-  if (fs.existsSync(gitMarker)) return;
+  if (fs.existsSync(gitMarker)) {
+    return;
+  }
   note(
     [
       "- Tip: back up the workspace in a private git repo (GitHub or GitLab).",
-      "- Keep ~/.clawdbot out of git; it contains credentials and session history.",
+      "- Keep ~/.openclaw out of git; it contains credentials and session history.",
       "- Details: /concepts/agent-workspace#git-backup-recommended",
     ].join("\n"),
     "Workspace",

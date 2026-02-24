@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { resolveLsofCommandSync } from "../infra/ports-lsof.js";
+import { sleep } from "../utils.js";
 
 export type PortProcess = { pid: number; command?: string };
 
@@ -8,29 +10,30 @@ export type ForceFreePortResult = {
   escalatedToSigkill: boolean;
 };
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
 export function parseLsofOutput(output: string): PortProcess[] {
   const lines = output.split(/\r?\n/).filter(Boolean);
   const results: PortProcess[] = [];
   let current: Partial<PortProcess> = {};
   for (const line of lines) {
     if (line.startsWith("p")) {
-      if (current.pid) results.push(current as PortProcess);
+      if (current.pid) {
+        results.push(current as PortProcess);
+      }
       current = { pid: Number.parseInt(line.slice(1), 10) };
     } else if (line.startsWith("c")) {
       current.command = line.slice(1);
     }
   }
-  if (current.pid) results.push(current as PortProcess);
+  if (current.pid) {
+    results.push(current as PortProcess);
+  }
   return results;
 }
 
 export function listPortListeners(port: number): PortProcess[] {
   try {
-    const out = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-FpFc"], {
+    const lsof = resolveLsofCommandSync();
+    const out = execFileSync(lsof, ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-FpFc"], {
       encoding: "utf-8",
     });
     return parseLsofOutput(out);
@@ -38,9 +41,11 @@ export function listPortListeners(port: number): PortProcess[] {
     const status = (err as { status?: number }).status;
     const code = (err as { code?: string }).code;
     if (code === "ENOENT") {
-      throw new Error("lsof not found; required for --force");
+      throw new Error("lsof not found; required for --force", { cause: err });
     }
-    if (status === 1) return []; // no listeners
+    if (status === 1) {
+      return [];
+    } // no listeners
     throw err instanceof Error ? err : new Error(String(err));
   }
 }
@@ -53,6 +58,7 @@ export function forceFreePort(port: number): PortProcess[] {
     } catch (err) {
       throw new Error(
         `failed to kill pid ${proc.pid}${proc.command ? ` (${proc.command})` : ""}: ${String(err)}`,
+        { cause: err },
       );
     }
   }
@@ -66,6 +72,7 @@ function killPids(listeners: PortProcess[], signal: NodeJS.Signals) {
     } catch (err) {
       throw new Error(
         `failed to kill pid ${proc.pid}${proc.command ? ` (${proc.command})` : ""}: ${String(err)}`,
+        { cause: err },
       );
     }
   }

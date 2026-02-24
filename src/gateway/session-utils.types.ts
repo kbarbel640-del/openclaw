@@ -1,4 +1,4 @@
-import type { NormalizedChatType } from "../channels/chat-type.js";
+import type { ChatType } from "../channels/chat-type.js";
 import type { SessionEntry } from "../config/sessions.js";
 import type { DeliveryContext } from "../utils/delivery-context.js";
 
@@ -13,11 +13,14 @@ export type GatewaySessionRow = {
   kind: "direct" | "group" | "global" | "unknown";
   label?: string;
   displayName?: string;
+  derivedTitle?: string;
+  lastMessagePreview?: string;
   channel?: string;
   subject?: string;
   groupChannel?: string;
   space?: string;
-  chatType?: NormalizedChatType;
+  chatType?: ChatType;
+  origin?: SessionEntry["origin"];
   updatedAt: number | null;
   sessionId?: string;
   systemSent?: boolean;
@@ -30,7 +33,8 @@ export type GatewaySessionRow = {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
-  responseUsage?: "on" | "off";
+  totalTokensFresh?: boolean;
+  responseUsage?: "on" | "off" | "tokens" | "full";
   modelProvider?: string;
   model?: string;
   contextTokens?: number;
@@ -43,6 +47,29 @@ export type GatewaySessionRow = {
 export type GatewayAgentRow = {
   id: string;
   name?: string;
+  identity?: {
+    name?: string;
+    theme?: string;
+    emoji?: string;
+    avatar?: string;
+    avatarUrl?: string;
+  };
+};
+
+export type SessionPreviewItem = {
+  role: "user" | "assistant" | "tool" | "system" | "other";
+  text: string;
+};
+
+export type SessionsPreviewEntry = {
+  key: string;
+  status: "ok" | "empty" | "missing" | "error";
+  items: SessionPreviewItem[];
+};
+
+export type SessionsPreviewResult = {
+  ts: number;
+  previews: SessionsPreviewEntry[];
 };
 
 export type SessionsListResult = {
@@ -58,4 +85,8 @@ export type SessionsPatchResult = {
   path: string;
   key: string;
   entry: SessionEntry;
+  resolved?: {
+    modelProvider?: string;
+    model?: string;
+  };
 };

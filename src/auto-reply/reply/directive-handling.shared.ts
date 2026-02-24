@@ -1,10 +1,15 @@
+import { formatCliCommand } from "../../cli/command-format.js";
 import type { ElevatedLevel, ReasoningLevel } from "./directives.js";
 
 export const SYSTEM_MARK = "⚙️";
 
 export const formatDirectiveAck = (text: string): string => {
-  if (!text) return text;
-  if (text.startsWith(SYSTEM_MARK)) return text;
+  if (!text) {
+    return text;
+  }
+  if (text.startsWith(SYSTEM_MARK)) {
+    return text;
+  }
   return `${SYSTEM_MARK} ${text}`;
 };
 
@@ -15,16 +20,48 @@ export const withOptions = (line: string, options: string) =>
 export const formatElevatedRuntimeHint = () =>
   `${SYSTEM_MARK} Runtime is direct; sandboxing does not apply.`;
 
-export const formatElevatedEvent = (level: ElevatedLevel) =>
-  level === "on"
-    ? "Elevated ON — exec runs on host; set elevated:false to stay sandboxed."
-    : "Elevated OFF — exec stays in sandbox.";
+export const formatElevatedEvent = (level: ElevatedLevel) => {
+  if (level === "full") {
+    return "Elevated FULL — exec runs on host with auto-approval.";
+  }
+  if (level === "ask" || level === "on") {
+    return "Elevated ASK — exec runs on host; approvals may still apply.";
+  }
+  return "Elevated OFF — exec stays in sandbox.";
+};
 
 export const formatReasoningEvent = (level: ReasoningLevel) => {
-  if (level === "stream") return "Reasoning STREAM — emit live <think>.";
-  if (level === "on") return "Reasoning ON — include <think>.";
+  if (level === "stream") {
+    return "Reasoning STREAM — emit live <think>.";
+  }
+  if (level === "on") {
+    return "Reasoning ON — include <think>.";
+  }
   return "Reasoning OFF — hide <think>.";
 };
+
+export function enqueueModeSwitchEvents(params: {
+  enqueueSystemEvent: (text: string, meta: { sessionKey: string; contextKey: string }) => void;
+  sessionEntry: { elevatedLevel?: string | null; reasoningLevel?: string | null };
+  sessionKey: string;
+  elevatedChanged?: boolean;
+  reasoningChanged?: boolean;
+}): void {
+  if (params.elevatedChanged) {
+    const nextElevated = (params.sessionEntry.elevatedLevel ?? "off") as ElevatedLevel;
+    params.enqueueSystemEvent(formatElevatedEvent(nextElevated), {
+      sessionKey: params.sessionKey,
+      contextKey: "mode:elevated",
+    });
+  }
+  if (params.reasoningChanged) {
+    const nextReasoning = (params.sessionEntry.reasoningLevel ?? "off") as ReasoningLevel;
+    params.enqueueSystemEvent(formatReasoningEvent(nextReasoning), {
+      sessionKey: params.sessionKey,
+      contextKey: "mode:reasoning",
+    });
+  }
+}
 
 export function formatElevatedUnavailableText(params: {
   runtimeSandboxed: boolean;
@@ -44,7 +81,9 @@ export function formatElevatedUnavailableText(params: {
     );
   }
   if (params.sessionKey) {
-    lines.push(`See: clawdbot sandbox explain --session ${params.sessionKey}`);
+    lines.push(
+      `See: ${formatCliCommand(`openclaw sandbox explain --session ${params.sessionKey}`)}`,
+    );
   }
   return lines.join("\n");
 }

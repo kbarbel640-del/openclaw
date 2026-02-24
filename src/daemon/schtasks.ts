@@ -1,69 +1,68 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
-
-import { colorize, isRich, theme } from "../terminal/theme.js";
-import { formatGatewayServiceDescription, resolveGatewayWindowsTaskName } from "./constants.js";
+import { parseCmdScriptCommandLine, quoteCmdScriptArg } from "./cmd-argv.js";
+import { assertNoCmdLineBreak, parseCmdSetAssignment, renderCmdSetAssignment } from "./cmd-set.js";
+import { resolveGatewayServiceDescription, resolveGatewayWindowsTaskName } from "./constants.js";
+import { formatLine, writeFormattedLines } from "./output.js";
 import { resolveGatewayStateDir } from "./paths.js";
 import { parseKeyValueOutput } from "./runtime-parse.js";
+import { execSchtasks } from "./schtasks-exec.js";
 import type { GatewayServiceRuntime } from "./service-runtime.js";
+import type {
+  GatewayServiceCommandConfig,
+  GatewayServiceControlArgs,
+  GatewayServiceEnv,
+  GatewayServiceEnvArgs,
+  GatewayServiceInstallArgs,
+  GatewayServiceManageArgs,
+  GatewayServiceRenderArgs,
+} from "./service-types.js";
 
-const execFileAsync = promisify(execFile);
-
-const formatLine = (label: string, value: string) => {
-  const rich = isRich();
-  return `${colorize(rich, theme.muted, `${label}:`)} ${colorize(rich, theme.command, value)}`;
-};
-
-export function resolveTaskScriptPath(env: Record<string, string | undefined>): string {
-  const stateDir = resolveGatewayStateDir(env);
-  return path.join(stateDir, "gateway.cmd");
+function resolveTaskName(env: GatewayServiceEnv): string {
+  const override = env.OPENCLAW_WINDOWS_TASK_NAME?.trim();
+  if (override) {
+    return override;
+  }
+  return resolveGatewayWindowsTaskName(env.OPENCLAW_PROFILE);
 }
 
-function quoteCmdArg(value: string): string {
-  if (!/[ \t"]/g.test(value)) return value;
+export function resolveTaskScriptPath(env: GatewayServiceEnv): string {
+  const override = env.OPENCLAW_TASK_SCRIPT?.trim();
+  if (override) {
+    return override;
+  }
+  const scriptName = env.OPENCLAW_TASK_SCRIPT_NAME?.trim() || "gateway.cmd";
+  const stateDir = resolveGatewayStateDir(env);
+  return path.join(stateDir, scriptName);
+}
+
+// `/TR` is parsed by schtasks itself, while the generated `gateway.cmd` line is parsed by cmd.exe.
+// Keep their quoting strategies separate so each parser gets the encoding it expects.
+function quoteSchtasksArg(value: string): string {
+  if (!/[ \t"]/g.test(value)) {
+    return value;
+  }
   return `"${value.replace(/"/g, '\\"')}"`;
 }
 
-function parseCommandLine(value: string): string[] {
-  const args: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  let escapeNext = false;
-
-  for (const char of value) {
-    if (escapeNext) {
-      current += char;
-      escapeNext = false;
-      continue;
-    }
-    if (char === "\\") {
-      escapeNext = true;
-      continue;
-    }
-    if (char === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-    if (!inQuotes && /\s/.test(char)) {
-      if (current) {
-        args.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += char;
+function resolveTaskUser(env: GatewayServiceEnv): string | null {
+  const username = env.USERNAME || env.USER || env.LOGNAME;
+  if (!username) {
+    return null;
   }
-  if (current) args.push(current);
-  return args;
+  if (username.includes("\\")) {
+    return username;
+  }
+  const domain = env.USERDOMAIN;
+  if (domain) {
+    return `${domain}\\${username}`;
+  }
+  return username;
 }
 
-export async function readScheduledTaskCommand(env: Record<string, string | undefined>): Promise<{
-  programArguments: string[];
-  workingDirectory?: string;
-  environment?: Record<string, string>;
-} | null> {
+export async function readScheduledTaskCommand(
+  env: GatewayServiceEnv,
+): Promise<GatewayServiceCommandConfig | null> {
   const scriptPath = resolveTaskScriptPath(env);
   try {
     const content = await fs.readFile(scriptPath, "utf8");
@@ -72,29 +71,35 @@ export async function readScheduledTaskCommand(env: Record<string, string | unde
     const environment: Record<string, string> = {};
     for (const rawLine of content.split(/\r?\n/)) {
       const line = rawLine.trim();
-      if (!line) continue;
-      if (line.startsWith("@echo")) continue;
-      if (line.toLowerCase().startsWith("rem ")) continue;
-      if (line.toLowerCase().startsWith("set ")) {
-        const assignment = line.slice(4).trim();
-        const index = assignment.indexOf("=");
-        if (index > 0) {
-          const key = assignment.slice(0, index).trim();
-          const value = assignment.slice(index + 1).trim();
-          if (key) environment[key] = value;
+      if (!line) {
+        continue;
+      }
+      const lower = line.toLowerCase();
+      if (line.startsWith("@echo")) {
+        continue;
+      }
+      if (lower.startsWith("rem ")) {
+        continue;
+      }
+      if (lower.startsWith("set ")) {
+        const assignment = parseCmdSetAssignment(line.slice(4));
+        if (assignment) {
+          environment[assignment.key] = assignment.value;
         }
         continue;
       }
-      if (line.toLowerCase().startsWith("cd /d ")) {
+      if (lower.startsWith("cd /d ")) {
         workingDirectory = line.slice("cd /d ".length).trim().replace(/^"|"$/g, "");
         continue;
       }
       commandLine = line;
       break;
     }
-    if (!commandLine) return null;
+    if (!commandLine) {
+      return null;
+    }
     return {
-      programArguments: parseCommandLine(commandLine),
+      programArguments: parseCmdScriptCommandLine(commandLine),
       ...(workingDirectory ? { workingDirectory } : {}),
       ...(Object.keys(environment).length > 0 ? { environment } : {}),
     };
@@ -113,11 +118,17 @@ export function parseSchtasksQuery(output: string): ScheduledTaskInfo {
   const entries = parseKeyValueOutput(output, ":");
   const info: ScheduledTaskInfo = {};
   const status = entries.status;
-  if (status) info.status = status;
+  if (status) {
+    info.status = status;
+  }
   const lastRunTime = entries["last run time"];
-  if (lastRunTime) info.lastRunTime = lastRunTime;
+  if (lastRunTime) {
+    info.lastRunTime = lastRunTime;
+  }
   const lastRunResult = entries["last run result"];
-  if (lastRunResult) info.lastRunResult = lastRunResult;
+  if (lastRunResult) {
+    info.lastRunResult = lastRunResult;
+  }
   return info;
 }
 
@@ -126,62 +137,34 @@ function buildTaskScript({
   programArguments,
   workingDirectory,
   environment,
-}: {
-  description?: string;
-  programArguments: string[];
-  workingDirectory?: string;
-  environment?: Record<string, string | undefined>;
-}): string {
+}: GatewayServiceRenderArgs): string {
   const lines: string[] = ["@echo off"];
-  if (description?.trim()) {
-    lines.push(`rem ${description.trim()}`);
+  const trimmedDescription = description?.trim();
+  if (trimmedDescription) {
+    assertNoCmdLineBreak(trimmedDescription, "Task description");
+    lines.push(`rem ${trimmedDescription}`);
   }
   if (workingDirectory) {
-    lines.push(`cd /d ${quoteCmdArg(workingDirectory)}`);
+    lines.push(`cd /d ${quoteCmdScriptArg(workingDirectory)}`);
   }
   if (environment) {
     for (const [key, value] of Object.entries(environment)) {
-      if (!value) continue;
-      lines.push(`set ${key}=${value}`);
+      if (!value) {
+        continue;
+      }
+      lines.push(renderCmdSetAssignment(key, value));
     }
   }
-  const command = programArguments.map(quoteCmdArg).join(" ");
+  const command = programArguments.map(quoteCmdScriptArg).join(" ");
   lines.push(command);
   return `${lines.join("\r\n")}\r\n`;
 }
 
-async function execSchtasks(
-  args: string[],
-): Promise<{ stdout: string; stderr: string; code: number }> {
-  try {
-    const { stdout, stderr } = await execFileAsync("schtasks", args, {
-      encoding: "utf8",
-      windowsHide: true,
-    });
-    return {
-      stdout: String(stdout ?? ""),
-      stderr: String(stderr ?? ""),
-      code: 0,
-    };
-  } catch (error) {
-    const e = error as {
-      stdout?: unknown;
-      stderr?: unknown;
-      code?: unknown;
-      message?: unknown;
-    };
-    return {
-      stdout: typeof e.stdout === "string" ? e.stdout : "",
-      stderr:
-        typeof e.stderr === "string" ? e.stderr : typeof e.message === "string" ? e.message : "",
-      code: typeof e.code === "number" ? e.code : 1,
-    };
-  }
-}
-
 async function assertSchtasksAvailable() {
   const res = await execSchtasks(["/Query"]);
-  if (res.code === 0) return;
+  if (res.code === 0) {
+    return;
+  }
   const detail = res.stderr || res.stdout;
   throw new Error(`schtasks unavailable: ${detail || "unknown error"}`.trim());
 }
@@ -192,31 +175,23 @@ export async function installScheduledTask({
   programArguments,
   workingDirectory,
   environment,
-}: {
-  env: Record<string, string | undefined>;
-  stdout: NodeJS.WritableStream;
-  programArguments: string[];
-  workingDirectory?: string;
-  environment?: Record<string, string | undefined>;
-}): Promise<{ scriptPath: string }> {
+  description,
+}: GatewayServiceInstallArgs): Promise<{ scriptPath: string }> {
   await assertSchtasksAvailable();
   const scriptPath = resolveTaskScriptPath(env);
   await fs.mkdir(path.dirname(scriptPath), { recursive: true });
-  const description = formatGatewayServiceDescription({
-    profile: env.CLAWDBOT_PROFILE,
-    version: environment?.CLAWDBOT_SERVICE_VERSION ?? env.CLAWDBOT_SERVICE_VERSION,
-  });
+  const taskDescription = resolveGatewayServiceDescription({ env, environment, description });
   const script = buildTaskScript({
-    description,
+    description: taskDescription,
     programArguments,
     workingDirectory,
     environment,
   });
   await fs.writeFile(scriptPath, script, "utf8");
 
-  const taskName = resolveGatewayWindowsTaskName(env.CLAWDBOT_PROFILE);
-  const quotedScript = quoteCmdArg(scriptPath);
-  const create = await execSchtasks([
+  const taskName = resolveTaskName(env);
+  const quotedScript = quoteSchtasksArg(scriptPath);
+  const baseArgs = [
     "/Create",
     "/F",
     "/SC",
@@ -227,28 +202,41 @@ export async function installScheduledTask({
     taskName,
     "/TR",
     quotedScript,
-  ]);
+  ];
+  const taskUser = resolveTaskUser(env);
+  let create = await execSchtasks(
+    taskUser ? [...baseArgs, "/RU", taskUser, "/NP", "/IT"] : baseArgs,
+  );
+  if (create.code !== 0 && taskUser) {
+    create = await execSchtasks(baseArgs);
+  }
   if (create.code !== 0) {
-    throw new Error(`schtasks create failed: ${create.stderr || create.stdout}`.trim());
+    const detail = create.stderr || create.stdout;
+    const hint = /access is denied/i.test(detail)
+      ? " Run PowerShell as Administrator or rerun without installing the daemon."
+      : "";
+    throw new Error(`schtasks create failed: ${detail}${hint}`.trim());
   }
 
   await execSchtasks(["/Run", "/TN", taskName]);
   // Ensure we don't end up writing to a clack spinner line (wizards show progress without a newline).
-  stdout.write("\n");
-  stdout.write(`${formatLine("Installed Scheduled Task", taskName)}\n`);
-  stdout.write(`${formatLine("Task script", scriptPath)}\n`);
+  writeFormattedLines(
+    stdout,
+    [
+      { label: "Installed Scheduled Task", value: taskName },
+      { label: "Task script", value: scriptPath },
+    ],
+    { leadingBlankLine: true },
+  );
   return { scriptPath };
 }
 
 export async function uninstallScheduledTask({
   env,
   stdout,
-}: {
-  env: Record<string, string | undefined>;
-  stdout: NodeJS.WritableStream;
-}): Promise<void> {
+}: GatewayServiceManageArgs): Promise<void> {
   await assertSchtasksAvailable();
-  const taskName = resolveGatewayWindowsTaskName(env.CLAWDBOT_PROFILE);
+  const taskName = resolveTaskName(env);
   await execSchtasks(["/Delete", "/F", "/TN", taskName]);
 
   const scriptPath = resolveTaskScriptPath(env);
@@ -261,19 +249,13 @@ export async function uninstallScheduledTask({
 }
 
 function isTaskNotRunning(res: { stdout: string; stderr: string; code: number }): boolean {
-  const detail = `${res.stderr || res.stdout}`.toLowerCase();
+  const detail = (res.stderr || res.stdout).toLowerCase();
   return detail.includes("not running");
 }
 
-export async function stopScheduledTask({
-  stdout,
-  env,
-}: {
-  stdout: NodeJS.WritableStream;
-  env?: Record<string, string | undefined>;
-}): Promise<void> {
+export async function stopScheduledTask({ stdout, env }: GatewayServiceControlArgs): Promise<void> {
   await assertSchtasksAvailable();
-  const taskName = resolveGatewayWindowsTaskName(env?.CLAWDBOT_PROFILE);
+  const taskName = resolveTaskName(env ?? (process.env as GatewayServiceEnv));
   const res = await execSchtasks(["/End", "/TN", taskName]);
   if (res.code !== 0 && !isTaskNotRunning(res)) {
     throw new Error(`schtasks end failed: ${res.stderr || res.stdout}`.trim());
@@ -284,12 +266,9 @@ export async function stopScheduledTask({
 export async function restartScheduledTask({
   stdout,
   env,
-}: {
-  stdout: NodeJS.WritableStream;
-  env?: Record<string, string | undefined>;
-}): Promise<void> {
+}: GatewayServiceControlArgs): Promise<void> {
   await assertSchtasksAvailable();
-  const taskName = resolveGatewayWindowsTaskName(env?.CLAWDBOT_PROFILE);
+  const taskName = resolveTaskName(env ?? (process.env as GatewayServiceEnv));
   await execSchtasks(["/End", "/TN", taskName]);
   const res = await execSchtasks(["/Run", "/TN", taskName]);
   if (res.code !== 0) {
@@ -298,17 +277,15 @@ export async function restartScheduledTask({
   stdout.write(`${formatLine("Restarted Scheduled Task", taskName)}\n`);
 }
 
-export async function isScheduledTaskInstalled(args: {
-  env?: Record<string, string | undefined>;
-}): Promise<boolean> {
+export async function isScheduledTaskInstalled(args: GatewayServiceEnvArgs): Promise<boolean> {
   await assertSchtasksAvailable();
-  const taskName = resolveGatewayWindowsTaskName(args.env?.CLAWDBOT_PROFILE);
+  const taskName = resolveTaskName(args.env ?? (process.env as GatewayServiceEnv));
   const res = await execSchtasks(["/Query", "/TN", taskName]);
   return res.code === 0;
 }
 
 export async function readScheduledTaskRuntime(
-  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  env: GatewayServiceEnv = process.env as GatewayServiceEnv,
 ): Promise<GatewayServiceRuntime> {
   try {
     await assertSchtasksAvailable();
@@ -318,7 +295,7 @@ export async function readScheduledTaskRuntime(
       detail: String(err),
     };
   }
-  const taskName = resolveGatewayWindowsTaskName(env.CLAWDBOT_PROFILE);
+  const taskName = resolveTaskName(env);
   const res = await execSchtasks(["/Query", "/TN", taskName, "/V", "/FO", "LIST"]);
   if (res.code !== 0) {
     const detail = (res.stderr || res.stdout).trim();

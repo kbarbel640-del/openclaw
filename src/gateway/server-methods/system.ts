@@ -4,6 +4,7 @@ import { setHeartbeatsEnabled } from "../../infra/heartbeat-runner.js";
 import { enqueueSystemEvent, isSystemEventContextChanged } from "../../infra/system-events.js";
 import { listSystemPresence, updateSystemPresence } from "../../infra/system-presence.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
+import { broadcastPresenceSnapshot } from "../server/presence-events.js";
 import type { GatewayRequestHandlers } from "./types.js";
 
 export const systemHandlers: GatewayRequestHandlers = {
@@ -37,6 +38,7 @@ export const systemHandlers: GatewayRequestHandlers = {
       return;
     }
     const sessionKey = resolveMainSessionKeyFromConfig();
+    const deviceId = typeof params.deviceId === "string" ? params.deviceId : undefined;
     const instanceId = typeof params.instanceId === "string" ? params.instanceId : undefined;
     const host = typeof params.host === "string" ? params.host : undefined;
     const ip = typeof params.ip === "string" ? params.ip : undefined;
@@ -51,12 +53,21 @@ export const systemHandlers: GatewayRequestHandlers = {
         ? params.lastInputSeconds
         : undefined;
     const reason = typeof params.reason === "string" ? params.reason : undefined;
+    const roles =
+      Array.isArray(params.roles) && params.roles.every((t) => typeof t === "string")
+        ? params.roles
+        : undefined;
+    const scopes =
+      Array.isArray(params.scopes) && params.scopes.every((t) => typeof t === "string")
+        ? params.scopes
+        : undefined;
     const tags =
       Array.isArray(params.tags) && params.tags.every((t) => typeof t === "string")
-        ? (params.tags as string[])
+        ? params.tags
         : undefined;
     const presenceUpdate = updateSystemPresence({
       text,
+      deviceId,
       instanceId,
       host,
       ip,
@@ -67,6 +78,8 @@ export const systemHandlers: GatewayRequestHandlers = {
       modelIdentifier,
       lastInputSeconds,
       reason,
+      roles,
+      scopes,
       tags,
     });
     const isNodePresenceLine = text.startsWith("Node:");
@@ -111,18 +124,11 @@ export const systemHandlers: GatewayRequestHandlers = {
     } else {
       enqueueSystemEvent(text, { sessionKey });
     }
-    const nextPresenceVersion = context.incrementPresenceVersion();
-    context.broadcast(
-      "presence",
-      { presence: listSystemPresence() },
-      {
-        dropIfSlow: true,
-        stateVersion: {
-          presence: nextPresenceVersion,
-          health: context.getHealthVersion(),
-        },
-      },
-    );
+    broadcastPresenceSnapshot({
+      broadcast: context.broadcast,
+      incrementPresenceVersion: context.incrementPresenceVersion,
+      getHealthVersion: context.getHealthVersion,
+    });
     respond(true, { ok: true }, undefined);
   },
 };

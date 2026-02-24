@@ -1,16 +1,26 @@
-import { describe, expect, it, vi } from "vitest";
-
-import { openUrl, resolveBrowserOpenCommand, resolveControlUiLinks } from "./onboard-helpers.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  normalizeGatewayTokenInput,
+  openUrl,
+  resolveBrowserOpenCommand,
+  resolveControlUiLinks,
+  validateGatewayPasswordInput,
+} from "./onboard-helpers.js";
 
 const mocks = vi.hoisted(() => ({
-  runCommandWithTimeout: vi.fn(async () => ({
+  runCommandWithTimeout: vi.fn<
+    (
+      argv: string[],
+      options?: { timeoutMs?: number; windowsVerbatimArguments?: boolean },
+    ) => Promise<{ stdout: string; stderr: string; code: number; signal: null; killed: boolean }>
+  >(async () => ({
     stdout: "",
     stderr: "",
     code: 0,
     signal: null,
     killed: false,
   })),
-  pickPrimaryTailnetIPv4: vi.fn(() => undefined),
+  pickPrimaryTailnetIPv4: vi.fn<() => string | undefined>(() => undefined),
 }));
 
 vi.mock("../process/exec.js", () => ({
@@ -21,9 +31,17 @@ vi.mock("../infra/tailnet.js", () => ({
   pickPrimaryTailnetIPv4: mocks.pickPrimaryTailnetIPv4,
 }));
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("openUrl", () => {
   it("quotes URLs on win32 so '&' is not treated as cmd separator", async () => {
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    vi.stubEnv("VITEST", "");
+    vi.stubEnv("NODE_ENV", "");
+    const platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    vi.stubEnv("VITEST", "");
+    vi.stubEnv("NODE_ENV", "development");
 
     const url =
       "https://accounts.google.com/o/oauth2/v2/auth?client_id=abc&response_type=code&redirect_uri=http%3A%2F%2Flocalhost";
@@ -39,15 +57,18 @@ describe("openUrl", () => {
       timeoutMs: 5_000,
       windowsVerbatimArguments: true,
     });
+
+    platformSpy.mockRestore();
   });
 });
 
 describe("resolveBrowserOpenCommand", () => {
   it("marks win32 commands as quoteUrl=true", async () => {
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    const platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     const resolved = await resolveBrowserOpenCommand();
     expect(resolved.argv).toEqual(["cmd", "/c", "start", ""]);
     expect(resolved.quoteUrl).toBe(true);
+    platformSpy.mockRestore();
   });
 });
 
@@ -70,5 +91,65 @@ describe("resolveControlUiLinks", () => {
     });
     expect(links.httpUrl).toBe("http://127.0.0.1:18789/");
     expect(links.wsUrl).toBe("ws://127.0.0.1:18789");
+  });
+
+  it("uses tailnet IP for tailnet bind", () => {
+    mocks.pickPrimaryTailnetIPv4.mockReturnValueOnce("100.64.0.9");
+    const links = resolveControlUiLinks({
+      port: 18789,
+      bind: "tailnet",
+    });
+    expect(links.httpUrl).toBe("http://100.64.0.9:18789/");
+    expect(links.wsUrl).toBe("ws://100.64.0.9:18789");
+  });
+
+  it("keeps loopback for auto even when tailnet is present", () => {
+    mocks.pickPrimaryTailnetIPv4.mockReturnValueOnce("100.64.0.9");
+    const links = resolveControlUiLinks({
+      port: 18789,
+      bind: "auto",
+    });
+    expect(links.httpUrl).toBe("http://127.0.0.1:18789/");
+    expect(links.wsUrl).toBe("ws://127.0.0.1:18789");
+  });
+});
+
+describe("normalizeGatewayTokenInput", () => {
+  it("returns empty string for undefined or null", () => {
+    expect(normalizeGatewayTokenInput(undefined)).toBe("");
+    expect(normalizeGatewayTokenInput(null)).toBe("");
+  });
+
+  it("trims string input", () => {
+    expect(normalizeGatewayTokenInput("  token  ")).toBe("token");
+  });
+
+  it("returns empty string for non-string input", () => {
+    expect(normalizeGatewayTokenInput(123)).toBe("");
+  });
+
+  it('rejects literal string coercion artifacts ("undefined"/"null")', () => {
+    expect(normalizeGatewayTokenInput("undefined")).toBe("");
+    expect(normalizeGatewayTokenInput("null")).toBe("");
+  });
+});
+
+describe("validateGatewayPasswordInput", () => {
+  it("requires a non-empty password", () => {
+    expect(validateGatewayPasswordInput("")).toBe("Required");
+    expect(validateGatewayPasswordInput("   ")).toBe("Required");
+  });
+
+  it("rejects literal string coercion artifacts", () => {
+    expect(validateGatewayPasswordInput("undefined")).toBe(
+      'Cannot be the literal string "undefined" or "null"',
+    );
+    expect(validateGatewayPasswordInput("null")).toBe(
+      'Cannot be the literal string "undefined" or "null"',
+    );
+  });
+
+  it("accepts a normal password", () => {
+    expect(validateGatewayPasswordInput(" secret ")).toBeUndefined();
   });
 });

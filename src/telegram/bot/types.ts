@@ -1,33 +1,29 @@
-import type { Message } from "@grammyjs/types";
+import type { Message, UserFromGetMe } from "@grammyjs/types";
 
-export type TelegramMessage = Message;
-
+/** App-specific stream mode for Telegram stream previews. */
 export type TelegramStreamMode = "off" | "partial" | "block";
 
+/**
+ * Minimal context projection from Grammy's Context class.
+ * Decouples the message processing pipeline from Grammy's full Context,
+ * and allows constructing synthetic contexts for debounced/combined messages.
+ */
 export type TelegramContext = {
-  message: TelegramMessage;
-  me?: { id?: number; username?: string };
-  getFile: () => Promise<{
-    file_path?: string;
-  }>;
+  message: Message;
+  me?: UserFromGetMe;
+  getFile: () => Promise<{ file_path?: string }>;
 };
 
-/** Telegram Location object */
-export interface TelegramLocation {
-  latitude: number;
-  longitude: number;
-  horizontal_accuracy?: number;
-  live_period?: number;
-  heading?: number;
-}
-
-/** Telegram Venue object */
-export interface TelegramVenue {
-  location: TelegramLocation;
-  title: string;
-  address: string;
-  foursquare_id?: string;
-  foursquare_type?: string;
-  google_place_id?: string;
-  google_place_type?: string;
+/** Telegram sticker metadata for context enrichment and caching. */
+export interface StickerMetadata {
+  /** Emoji associated with the sticker. */
+  emoji?: string;
+  /** Name of the sticker set the sticker belongs to. */
+  setName?: string;
+  /** Telegram file_id for sending the sticker back. */
+  fileId?: string;
+  /** Stable file_unique_id for cache deduplication. */
+  fileUniqueId?: string;
+  /** Cached description from previous vision processing (skip re-processing if present). */
+  cachedDescription?: string;
 }

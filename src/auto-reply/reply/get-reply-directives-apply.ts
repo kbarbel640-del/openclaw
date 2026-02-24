@@ -1,7 +1,7 @@
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import type { MsgContext } from "../templating.js";
-import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "../thinking.js";
+import type { ElevatedLevel } from "../thinking.js";
 import type { ReplyPayload } from "../types.js";
 import { buildStatusReply } from "./commands.js";
 import {
@@ -11,10 +11,12 @@ import {
   isDirectiveOnly,
   persistInlineDirectives,
 } from "./directive-handling.js";
+import { resolveCurrentDirectiveLevels } from "./directive-handling.levels.js";
+import { clearInlineDirectives } from "./get-reply-directives-utils.js";
 import type { createModelSelectionState } from "./model-selection.js";
 import type { TypingController } from "./typing.js";
 
-type AgentDefaults = NonNullable<ClawdbotConfig["agents"]>["defaults"];
+type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 
 export type ApplyDirectiveResult =
   | { kind: "reply"; reply: ReplyPayload | ReplyPayload[] | undefined }
@@ -35,12 +37,12 @@ export type ApplyDirectiveResult =
 
 export async function applyInlineDirectiveOverrides(params: {
   ctx: MsgContext;
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   agentId: string;
   agentDir: string;
   agentCfg: AgentDefaults;
-  sessionEntry?: SessionEntry;
-  sessionStore?: Record<string, SessionEntry>;
+  sessionEntry: SessionEntry;
+  sessionStore: Record<string, SessionEntry>;
   sessionKey: string;
   storePath?: string;
   sessionScope: Parameters<typeof buildStatusReply>[0]["sessionScope"];
@@ -100,21 +102,36 @@ export async function applyInlineDirectiveOverrides(params: {
   let { directives } = params;
   let { provider, model } = params;
   let { contextTokens } = params;
+  const directiveModelState = {
+    allowedModelKeys: modelState.allowedModelKeys,
+    allowedModelCatalog: modelState.allowedModelCatalog,
+    resetModelOverride: modelState.resetModelOverride,
+  };
+  const createDirectiveHandlingBase = () => ({
+    cfg,
+    directives,
+    sessionEntry,
+    sessionStore,
+    sessionKey,
+    storePath,
+    elevatedEnabled,
+    elevatedAllowed,
+    elevatedFailures,
+    messageProviderKey,
+    defaultProvider,
+    defaultModel,
+    aliasIndex,
+    ...directiveModelState,
+    provider,
+    model,
+    initialModelLabel,
+    formatModelSwitchEvent,
+  });
 
   let directiveAck: ReplyPayload | undefined;
 
   if (!command.isAuthorizedSender) {
-    directives = {
-      ...directives,
-      hasThinkDirective: false,
-      hasVerboseDirective: false,
-      hasReasoningDirective: false,
-      hasElevatedDirective: false,
-      hasStatusDirective: false,
-      hasModelDirective: false,
-      hasQueueDirective: false,
-      queueReset: false,
-    };
+    directives = clearInlineDirectives(directives.cleaned);
   }
 
   if (
@@ -131,44 +148,24 @@ export async function applyInlineDirectiveOverrides(params: {
       typing.cleanup();
       return { kind: "reply", reply: undefined };
     }
-    const resolvedDefaultThinkLevel =
-      (sessionEntry?.thinkingLevel as ThinkLevel | undefined) ??
-      (agentCfg?.thinkingDefault as ThinkLevel | undefined) ??
-      (await modelState.resolveDefaultThinkingLevel());
-    const currentThinkLevel = resolvedDefaultThinkLevel;
-    const currentVerboseLevel =
-      (sessionEntry?.verboseLevel as VerboseLevel | undefined) ??
-      (agentCfg?.verboseDefault as VerboseLevel | undefined);
-    const currentReasoningLevel =
-      (sessionEntry?.reasoningLevel as ReasoningLevel | undefined) ?? "off";
-    const currentElevatedLevel =
-      (sessionEntry?.elevatedLevel as ElevatedLevel | undefined) ??
-      (agentCfg?.elevatedDefault as ElevatedLevel | undefined);
-    const directiveReply = await handleDirectiveOnly({
-      cfg,
-      directives,
+    const {
+      currentThinkLevel: resolvedDefaultThinkLevel,
+      currentVerboseLevel,
+      currentReasoningLevel,
+      currentElevatedLevel,
+    } = await resolveCurrentDirectiveLevels({
       sessionEntry,
-      sessionStore,
-      sessionKey,
-      storePath,
-      elevatedEnabled,
-      elevatedAllowed,
-      elevatedFailures,
-      messageProviderKey,
-      defaultProvider,
-      defaultModel,
-      aliasIndex,
-      allowedModelKeys: modelState.allowedModelKeys,
-      allowedModelCatalog: modelState.allowedModelCatalog,
-      resetModelOverride: modelState.resetModelOverride,
-      provider,
-      model,
-      initialModelLabel,
-      formatModelSwitchEvent,
+      agentCfg,
+      resolveDefaultThinkingLevel: () => modelState.resolveDefaultThinkingLevel(),
+    });
+    const currentThinkLevel = resolvedDefaultThinkLevel;
+    const directiveReply = await handleDirectiveOnly({
+      ...createDirectiveHandlingBase(),
       currentThinkLevel,
       currentVerboseLevel,
       currentReasoningLevel,
       currentElevatedLevel,
+      surface: ctx.Surface,
     });
     let statusReply: ReplyPayload | undefined;
     if (directives.hasStatusDirective && allowTextCommands && command.isAuthorizedSender) {
@@ -177,13 +174,14 @@ export async function applyInlineDirectiveOverrides(params: {
         command,
         sessionEntry,
         sessionKey,
+        parentSessionKey: ctx.ParentSessionKey,
         sessionScope,
         provider,
         model,
         contextTokens,
         resolvedThinkLevel: resolvedDefaultThinkLevel,
-        resolvedVerboseLevel: (currentVerboseLevel ?? "off") as VerboseLevel,
-        resolvedReasoningLevel: (currentReasoningLevel ?? "off") as ReasoningLevel,
+        resolvedVerboseLevel: currentVerboseLevel ?? "off",
+        resolvedReasoningLevel: currentReasoningLevel ?? "off",
         resolvedElevatedLevel,
         resolveDefaultThinkingLevel: async () => resolvedDefaultThinkLevel,
         isGroup,
@@ -206,6 +204,7 @@ export async function applyInlineDirectiveOverrides(params: {
     directives.hasVerboseDirective ||
     directives.hasReasoningDirective ||
     directives.hasElevatedDirective ||
+    directives.hasExecDirective ||
     directives.hasModelDirective ||
     directives.hasQueueDirective ||
     directives.hasStatusDirective;
@@ -229,9 +228,7 @@ export async function applyInlineDirectiveOverrides(params: {
       defaultProvider,
       defaultModel,
       aliasIndex,
-      allowedModelKeys: modelState.allowedModelKeys,
-      allowedModelCatalog: modelState.allowedModelCatalog,
-      resetModelOverride: modelState.resetModelOverride,
+      ...directiveModelState,
       provider,
       model,
       initialModelLabel,
@@ -239,9 +236,7 @@ export async function applyInlineDirectiveOverrides(params: {
       agentCfg,
       modelState: {
         resolveDefaultThinkingLevel: modelState.resolveDefaultThinkingLevel,
-        allowedModelKeys: modelState.allowedModelKeys,
-        allowedModelCatalog: modelState.allowedModelCatalog,
-        resetModelOverride: modelState.resetModelOverride,
+        ...directiveModelState,
       },
     });
     directiveAck = fastLane.directiveAck;
