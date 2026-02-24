@@ -2,6 +2,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Message, ReactionTypeEmoji } from "@grammyjs/types";
 import { resolveAgentDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import {
+  DEFAULT_IDENTITY_FILENAME,
+  DEFAULT_SOUL_FILENAME,
+  DEFAULT_USER_FILENAME,
+  resolveDefaultAgentWorkspaceDir,
+} from "../agents/workspace.js";
 import { hasControlCommand } from "../auto-reply/command-detection.js";
 import {
   createInboundDebouncer,
@@ -63,12 +69,6 @@ import {
 } from "./model-buttons.js";
 import { buildInlineKeyboard } from "./send.js";
 import { wasSentByBot } from "./sent-message-cache.js";
-import {
-  DEFAULT_IDENTITY_FILENAME,
-  DEFAULT_SOUL_FILENAME,
-  DEFAULT_USER_FILENAME,
-  resolveDefaultAgentWorkspaceDir,
-} from "../agents/workspace.js";
 
 function isMediaSizeLimitError(err: unknown): boolean {
   const errMsg = String(err);
