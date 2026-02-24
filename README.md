@@ -24,6 +24,7 @@
 <p>
   <a href="https://openfinclaw.ai">Website</a> ·
   <a href="#features">Features</a> ·
+  <a href="#finclaw-commons">FinClaw Commons</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#roadmap">Roadmap</a> ·
   <a href="#contributing">Contributing</a> ·
@@ -50,6 +51,15 @@ Static features           →      Self-evolving financial skills
 Fragmented tools          →      Unified lifecycle companion
 ```
 
+## Who is this for?
+
+- **Individual investors** who want an always-on AI companion that remembers their portfolio, goals, and risk tolerance
+- **Crypto traders** who need 24/7 monitoring across multiple exchanges with safety guardrails
+- **Personal finance enthusiasts** who want proactive budgeting, tax planning, and retirement simulation
+- **Quantitative developers** who want to contribute and share trading strategies in an open ecosystem
+- **Financial advisors** who want to augment their practice with AI-powered analysis and client tools
+- **Open-source believers** who think financial intelligence should be a public good, not a walled garden
+
 ## Why OpenFinClaw?
 
 In 2026, AI agents are transitioning from "tools you invoke" to "companions that live alongside you." Financial life — investing, budgeting, tax planning, trading, retirement — is too complex and too personal for generic chatbots or static dashboards.
@@ -60,7 +70,7 @@ OpenFinClaw is different:
 - **Self-evolving** — Agent writes its own new skills at runtime (JIT plugin hot-loading). Market changed? Your agent adapts in minutes, not months.
 - **Memory-driven** — Four-layer context system (Soul → Tools → User → Session) means it remembers your risk tolerance, past decisions, and financial goals across every conversation.
 - **Private by design** — All data stays on your device. Vector memory, trading credentials, financial history — nothing leaves unless you choose.
-- **Open source** — No vendor lock-in. Audit the code. Fork it. Extend it. This is your financial sovereignty.
+- **Open ecosystem** — Not just open source code, but an open **FinClaw Commons** where the community shares skills, strategies, data connectors, and more.
 
 ## Features
 
@@ -99,12 +109,85 @@ All of the above is built on OpenClaw's proven infrastructure:
 - **5-Layer Security** — Network → Auth → Channel → Execution → Device, with human-in-the-loop approval
 - **Browser Automation** — Playwright-based, headless + extension relay for sites without APIs
 
+## FinClaw Commons
+
+**FinClaw Commons** is our open financial intelligence ecosystem — a community-driven commons where everyone can contribute, discover, and share financial building blocks. It goes far beyond a simple skill marketplace.
+
+### 7 Dimensions of Contribution
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                   FinClaw Commons                             │
+│              Open Financial Intelligence Ecosystem            │
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+│  │  Skills  │  │Strategies│  │Connectors│  │ Personas │    │
+│  │          │  │          │  │          │  │          │    │
+│  │Portfolio │  │DCA Plans │  │Exchange  │  │Value     │    │
+│  │Analysis  │  │Grid Bots │  │APIs      │  │Investor  │    │
+│  │Tax Rules │  │Arbitrage │  │On-chain  │  │Day Trader│    │
+│  │Budgeting │  │Momentum  │  │News/NLP  │  │Risk Mgr  │    │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌────────────────────────┐    │
+│  │Workspaces│  │Knowledge │  │  Compliance Rulesets   │    │
+│  │          │  │  Packs   │  │                        │    │
+│  │Crypto    │  │Tax Laws  │  │US-FATCA  EU-MiFID      │    │
+│  │Trading   │  │Regs/Rules│  │CN-CSRC   JP-FSA        │    │
+│  │Retirement│  │History   │  │Crypto Tax per Country  │    │
+│  │Budgeting │  │Glossary  │  │                        │    │
+│  └──────────┘  └──────────┘  └────────────────────────┘    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+| Dimension | What you contribute | Format | Example |
+|-----------|-------------------|--------|---------|
+| **Skills** | Financial analysis methods, planning techniques | `SKILL.md` | Portfolio rebalancing skill, tax-loss harvesting skill |
+| **Strategies** | Backtestable, executable trading strategies | Strategy YAML + logic | Weekly BTC DCA, mean-reversion grid, cross-exchange arb |
+| **Connectors** | Data source plugins for markets, chains, news | OpenClaw Plugin (TS) | Dune Analytics connector, FRED macro data, social sentiment |
+| **Personas** | Agent personality templates for different roles | `SOUL.md` | Conservative long-term investor, aggressive crypto scalper |
+| **Workspaces** | Full workspace configs (rules + persona + tools + crons) | Directory template | `workspace-crypto-trader/`, `workspace-retirement-planner/` |
+| **Knowledge Packs** | Pre-built domain knowledge for agent memory | Markdown / JSONL | US tax code essentials, crypto regulatory landscape by country |
+| **Compliance Rulesets** | Jurisdiction-specific regulatory rules | Structured rules | FATCA reporting thresholds, MiFID II suitability checks |
+
+### How it works
+
+**Publishing** — Contributors package their work and submit to the commons:
+```bash
+# Example: publish a skill
+finclaw commons publish --type skill --path ./skills/tax-loss-harvest/
+
+# Example: publish a workspace template
+finclaw commons publish --type workspace --path ./workspaces/crypto-trader/
+```
+
+**Discovering** — Users browse, search, and install from the commons:
+```bash
+# Search for skills
+finclaw commons search "portfolio rebalancing"
+
+# Install a workspace template
+finclaw commons install workspace crypto-trader
+```
+
+**Evolving** — The community rates, forks, and improves contributions. Strategies include backtest results. Skills show usage stats. Everything is versioned and auditable.
+
+### Why "Commons"?
+
+We chose the word **Commons** deliberately — not "marketplace" or "store." Financial intelligence should be a shared public resource, not a walled garden. Like Wikipedia for financial AI, the more people contribute, the smarter everyone's agent becomes.
+
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    OpenFinClaw                                │
+│                       OpenFinClaw                             │
 │                                                              │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │                 FinClaw Commons                         │  │
+│  │   Skills · Strategies · Connectors · Personas          │  │
+│  │   Workspaces · Knowledge Packs · Compliance Rulesets   │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                            │                                  │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │              Financial Intelligence Layer               │  │
 │  │                                                        │  │
@@ -160,10 +243,11 @@ pnpm install
 
 ### Phase 1 — Foundation `Q1 2026`
 - [x] Fork OpenClaw core, establish project vision
-- [ ] Financial skill plugin framework
+- [ ] Financial skill plugin framework and SKILL.md spec for finance
 - [ ] CCXT trading bridge (Hyperliquid, Binance, OKX, Bybit)
 - [ ] Basic portfolio tracking and reporting
 - [ ] User financial profile memory system
+- [ ] Publish first 10 financial skills and 3 workspace templates to Commons
 
 ### Phase 2 — Intelligence `Q2 2026`
 - [ ] Deep Financial Expert SDK integration
@@ -171,6 +255,7 @@ pnpm install
 - [ ] Self-review engine (trade journaling + cognitive bias detection)
 - [ ] Predictive alert system
 - [ ] Behavioral finance guard
+- [ ] FinClaw Commons registry (publish, search, install)
 
 ### Phase 3 — Proactive `Q3 2026`
 - [ ] Proactive monitoring and alert engine
@@ -178,21 +263,23 @@ pnpm install
 - [ ] Cross-exchange portfolio management
 - [ ] Financial digital twin simulation
 - [ ] Multi-agent financial team
+- [ ] Community-contributed strategy backtesting and rating
 
 ### Phase 4 — Ecosystem `Q4 2026`
-- [ ] Community financial skill marketplace
-- [ ] Third-party data provider integrations
+- [ ] FinClaw Commons web portal (browse, rate, fork)
+- [ ] Third-party data connector marketplace
 - [ ] DeFi cross-chain operations
 - [ ] Regulatory compliance autopilot
-- [ ] Advanced strategy backtesting and simulation
+- [ ] Jurisdiction-specific compliance rulesets (community-maintained)
+- [ ] Knowledge pack library for major financial domains
 
 ## Principles
 
 1. **User-first** — Every feature serves the user's financial wellbeing, not engagement metrics.
 2. **Privacy by design** — Financial data stays on your device. Period.
-3. **Open source** — Core engine is open. Premium data/expert access available via SDK keys.
+3. **Open commons** — Financial intelligence is a public good. Core engine, skills, strategies, and knowledge are open for everyone.
 4. **Safety guardrails** — Trading operations always require explicit user authorization. No silent trades.
-5. **Evolvable** — Skills and capabilities grow through community contribution and self-improvement.
+5. **Evolvable** — Skills and capabilities grow through community contribution and agent self-improvement.
 6. **Transparency** — Show reasoning, not just results. Users should understand why a recommendation is made.
 
 ## Acknowledgments
@@ -205,13 +292,21 @@ This project follows the spirit of open source: we build upon the shoulders of g
 
 ## Contributing
 
-OpenFinClaw is an open community project. We welcome contributions of all kinds:
+OpenFinClaw is an open community project. The **FinClaw Commons** is built by contributors like you.
 
-- **Financial Skills** — Build and share skill plugins for specific financial domains
-- **Exchange Integrations** — Help expand CCXT bridge coverage
-- **Data Connectors** — Connect new financial data sources
-- **Documentation** — Improve guides, tutorials, and translations
-- **Bug Reports** — Help us find and fix issues
+### 7 Ways to Contribute
+
+| What | Who | How |
+|------|-----|-----|
+| **Financial Skills** | Analysts, advisors, domain experts | Write a `SKILL.md` for your area of expertise (tax planning, risk analysis, etc.) |
+| **Trading Strategies** | Quant developers, traders | Package a backtestable strategy with performance data |
+| **Data Connectors** | Developers, data engineers | Build an OpenClaw plugin for a financial data source |
+| **Agent Personas** | Anyone with financial domain insight | Write a `SOUL.md` that captures a specific investment philosophy |
+| **Workspace Templates** | Power users, financial professionals | Share a complete workspace config for a specific use case |
+| **Knowledge Packs** | Researchers, legal/tax professionals | Curate domain knowledge (tax codes, regulations, market history) |
+| **Compliance Rulesets** | Legal/compliance professionals | Document jurisdiction-specific financial regulations |
+
+You can also contribute **code, documentation, translations, bug reports, and feature ideas** — all are welcome.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
