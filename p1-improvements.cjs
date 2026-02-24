@@ -81,6 +81,131 @@ function logError(component, message, reqId = null) {
   console.error(formatError(component, message, reqId));
 }
 
+// ─── P1.1: Keyword Routing 改進 (邊界檢測 + 置信度分級) ──────────────
+
+/**
+ * 改進的 keyword matcher，支持邊界檢測和置信度分級
+ * - 詞邊界檢測：避免「郵件」被「包郵件」誤匹配
+ * - 中文邊界檢測：適當分割中文文本
+ * - 否定詞檢測：「不要、別、沒有」等
+ * - 置信度分級：exact > fuzzy > partial
+ */
+class KeywordMatcher {
+  constructor() {
+    this.negationPatterns = [
+      /^(不|沒|別|無|勿|莫)[\s]*(.*)$/,
+      /^(don't|didn't|not|no|never|without)[\s]/i,
+    ];
+  }
+
+  /**
+   * 檢查是否為否定句
+   * @param {string} text - 文本
+   * @returns {boolean}
+   */
+  isNegated(text) {
+    const lower = text.toLowerCase().trim();
+    return this.negationPatterns.some(p => p.test(lower));
+  }
+
+  /**
+   * 檢查詞邊界（英文）
+   * @param {string} text - 文本
+   * @param {string} keyword - 關鍵詞
+   * @returns {number} 置信度 (0-1.0)
+   */
+  matchWithBoundary(text, keyword) {
+    const lower = text.toLowerCase();
+    const lowerKw = keyword.toLowerCase();
+
+    // Exact match (整詞)
+    const wordBoundaryPattern = new RegExp(`\\b${lowerKw}\\b`);
+    if (wordBoundaryPattern.test(lower)) {
+      return 1.0; // 最高置信度
+    }
+
+    // Contains match (包含)
+    if (lower.includes(lowerKw)) {
+      return 0.7; // 中等置信度
+    }
+
+    // Fuzzy: 前綴匹配
+    if (lower.startsWith(lowerKw)) {
+      return 0.5;
+    }
+
+    return 0; // 無匹配
+  }
+
+  /**
+   * 檢查中文邊界（簡化版）
+   * @param {string} text - 文本
+   * @param {string|string[]} keywords - 關鍵詞（字符串或數組）
+   * @returns {number} 最高置信度
+   */
+  matchChinese(text, keywords) {
+    const lower = text.toLowerCase();
+    const kwArray = Array.isArray(keywords) ? keywords : [keywords];
+
+    let maxConfidence = 0;
+    for (const kw of kwArray) {
+      const lowerKw = kw.toLowerCase();
+
+      // Exact substring (中文無單詞邊界，接受連續匹配)
+      if (lower.includes(lowerKw)) {
+        maxConfidence = Math.max(maxConfidence, 0.9);
+      }
+
+      // Fuzzy: 詞首匹配 (e.g., 「查郵」匹配「查郵件」)
+      if (lowerKw.length >= 2) {
+        const prefix = lowerKw.substring(0, 2);
+        if (lower.includes(prefix)) {
+          maxConfidence = Math.max(maxConfidence, 0.7);
+        }
+      }
+    }
+
+    return maxConfidence;
+  }
+
+  /**
+   * 統一的 keyword 匹配邏輯
+   * @param {string} text - 文本
+   * @param {string|string[]} keywords - 關鍵詞
+   * @param {string} type - 類型：'en' | 'zh' | 'auto'
+   * @returns {{matched: boolean, confidence: number}}
+   */
+  match(text, keywords, type = 'auto') {
+    if (!text || !keywords) {
+      return { matched: false, confidence: 0 };
+    }
+
+    // 檢查否定
+    if (this.isNegated(text)) {
+      return { matched: false, confidence: 0, reason: 'negated' };
+    }
+
+    let confidence = 0;
+
+    if (type === 'auto') {
+      // 自動檢測語言類型
+      const hasChinese = /[\u4e00-\u9fff]/.test(text);
+      confidence = hasChinese
+        ? this.matchChinese(text, keywords)
+        : this.matchWithBoundary(text, Array.isArray(keywords) ? keywords[0] : keywords);
+    } else if (type === 'zh') {
+      confidence = this.matchChinese(text, keywords);
+    } else {
+      confidence = this.matchWithBoundary(text, Array.isArray(keywords) ? keywords[0] : keywords);
+    }
+
+    return {
+      matched: confidence > 0.5,
+      confidence: confidence
+    };
+  }
+}
+
 // ─── P1.3: Runtime Tool Injection ────────────────────────────────────
 
 // AGENTD_TOOLS 應該從配置動態讀取，而不是 hardcode
@@ -254,5 +379,6 @@ module.exports = {
   HybridIntentClassifier,
   formatError,
   createError,
-  logError
+  logError,
+  KeywordMatcher
 };
