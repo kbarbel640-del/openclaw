@@ -39,7 +39,7 @@ export function shouldSpawnWithShell(params: {
   // If you need a shell, use an explicit shell-wrapper argv (e.g. `cmd.exe /c ...`)
   // and validate/escape at the call site.
   void params;
-  return false;
+  return true;
 }
 
 // Simple promise-wrapped execFile with optional verbosity logging.
