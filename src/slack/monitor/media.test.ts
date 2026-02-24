@@ -211,7 +211,7 @@ describe("resolveSlackMedia", () => {
     );
   });
 
-  it("returns null when download fails", async () => {
+  it("returns placeholder when download fails", async () => {
     // Simulate a network error
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
@@ -221,7 +221,11 @@ describe("resolveSlackMedia", () => {
       maxBytes: 1024 * 1024,
     });
 
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    expect(result![0].path).toBe("");
+    expect(result![0].placeholder).toContain("test.jpg");
+    expect(result![0].placeholder).toContain("download failed");
   });
 
   it("returns null when no files are provided", async () => {
@@ -345,7 +349,15 @@ describe("resolveSlackMedia", () => {
     });
 
     expect(result).not.toBeNull();
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
+    // One entry is a placeholder for the failed download, the other is the real file.
+    // Order may vary due to concurrent downloads.
+    const placeholder = result!.find((r) => r.path === "");
+    const downloaded = result!.find((r) => r.path !== "");
+    expect(placeholder).toBeDefined();
+    expect(placeholder!.placeholder).toContain("download failed");
+    expect(downloaded).toBeDefined();
+    expect(downloaded!.path).toBe("/tmp/test.jpg");
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 

@@ -578,7 +578,10 @@ export async function prepareSlackMessage(params: {
 
   // Use direct media (including forwarded attachment media) if available, else thread starter media
   const effectiveMedia = effectiveDirectMedia ?? threadStarterMedia;
-  const firstMedia = effectiveMedia?.[0];
+  // Filter out placeholder-only entries (empty path from failed downloads)
+  // so we don't pass empty strings as media paths to the agent.
+  const downloadedMedia = effectiveMedia?.filter((m) => m.path) ?? [];
+  const firstMedia = downloadedMedia[0];
 
   const inboundHistory =
     isRoomish && ctx.historyLimit > 0
@@ -623,14 +626,10 @@ export async function prepareSlackMessage(params: {
     MediaPath: firstMedia?.path,
     MediaType: firstMedia?.contentType,
     MediaUrl: firstMedia?.path,
-    MediaPaths:
-      effectiveMedia && effectiveMedia.length > 0 ? effectiveMedia.map((m) => m.path) : undefined,
-    MediaUrls:
-      effectiveMedia && effectiveMedia.length > 0 ? effectiveMedia.map((m) => m.path) : undefined,
+    MediaPaths: downloadedMedia.length > 0 ? downloadedMedia.map((m) => m.path) : undefined,
+    MediaUrls: downloadedMedia.length > 0 ? downloadedMedia.map((m) => m.path) : undefined,
     MediaTypes:
-      effectiveMedia && effectiveMedia.length > 0
-        ? effectiveMedia.map((m) => m.contentType ?? "")
-        : undefined,
+      downloadedMedia.length > 0 ? downloadedMedia.map((m) => m.contentType ?? "") : undefined,
     CommandAuthorized: commandAuthorized,
     OriginatingChannel: "slack" as const,
     OriginatingTo: slackTo,
