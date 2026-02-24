@@ -34,6 +34,7 @@ function createMockContext(overrides?: {
     shouldEmitToolOutput: vi.fn(() => overrides?.shouldEmitToolOutput ?? false),
     emitToolSummary: vi.fn(),
     emitToolOutput: vi.fn(),
+    checkSafeguards: vi.fn().mockReturnValue(true),
     trimMessagingToolSent: vi.fn(),
     hookRunner: undefined,
     // Fill in remaining required fields with no-ops.
