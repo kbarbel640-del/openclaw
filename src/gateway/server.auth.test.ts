@@ -555,6 +555,7 @@ describe("gateway server auth/connect", () => {
       const closeInfo = await closeInfoPromise;
       expect(closeInfo.code).toBe(1008);
       expect(closeInfo.reason).toContain("legacy handshake frame");
+      expect(closeInfo.reason).toContain("type=handshake");
     });
 
     test("requires nonce for device auth", async () => {
