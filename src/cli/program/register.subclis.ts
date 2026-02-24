@@ -279,6 +279,15 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "commons",
+    description: "FinClaw Commons - browse and install financial skills and templates",
+    hasSubcommands: true,
+    register: async (program) => {
+      const mod = await import("../commons-cli.js");
+      mod.registerCommonsCli(program);
+    },
+  },
+  {
     name: "completion",
     description: "Generate shell completion script",
     hasSubcommands: false,

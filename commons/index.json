@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "fin-dca-strategy",
+      "name": "DCA Strategy Assistant",
+      "type": "skill",
+      "description": "Dollar-cost averaging strategy - analyzes portfolios and recommends DCA plans based on risk tolerance and market conditions.",
+      "version": "1.0.0",
+      "author": "finclaw-commons",
+      "tags": ["finance", "investment", "dca", "strategy", "portfolio"],
+      "path": "skills/fin-dca-strategy",
+      "createdAt": "2026-02-24T00:00:00Z",
+      "updatedAt": "2026-02-24T00:00:00Z"
+    },
+    {
+      "id": "fin-tax-report",
+      "name": "Tax Reporting Assistant",
+      "type": "skill",
+      "description": "Tax reporting assistant - generates tax summaries from transaction history including capital gains, income categorization, and jurisdiction-specific rules.",
+      "version": "1.0.0",
+      "author": "finclaw-commons",
+      "tags": ["finance", "tax", "reporting", "compliance", "capital-gains"],
+      "path": "skills/fin-tax-report",
+      "createdAt": "2026-02-24T00:00:00Z",
+      "updatedAt": "2026-02-24T00:00:00Z"
+    },
+    {
+      "id": "finclaw-starter",
+      "name": "FinClaw Starter Workspace",
+      "type": "workspace",
+      "description": "Starter workspace template with finance-focused defaults, recommended skills, and example configuration.",
+      "version": "1.0.0",
+      "author": "finclaw-commons",
+      "tags": ["workspace", "template", "starter", "finance"],
+      "path": "templates/finclaw-starter",
+      "createdAt": "2026-02-24T00:00:00Z",
+      "updatedAt": "2026-02-24T00:00:00Z"
+    }
+  ]
+}

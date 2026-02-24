@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openclaw.ai/schema/config.json",
+  "name": "finclaw-starter",
+  "description": "FinClaw starter workspace with finance-focused defaults",
+  "skills": {
+    "autoDiscover": true,
+    "skillsDir": "./skills"
+  }
+}
