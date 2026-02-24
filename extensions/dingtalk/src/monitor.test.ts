@@ -106,7 +106,7 @@ describe("monitorDingTalkProvider", () => {
     // Capture the robot callback when client is created
     const { DWClient, TOPIC_ROBOT } = await import("dingtalk-stream");
     vi.spyOn(DWClient.prototype, "registerCallbackListener").mockImplementation(function (
-      this: DWClient,
+      this: InstanceType<typeof DWClient>,
       topic: string,
       callback: (res: DWClientDownStream) => void,
     ) {
