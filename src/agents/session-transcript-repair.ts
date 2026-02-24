@@ -4,6 +4,9 @@ import { extractToolCallsFromAssistant, extractToolResultId } from "./tool-call-
 const TOOL_CALL_NAME_MAX_CHARS = 64;
 const TOOL_CALL_NAME_RE = /^[A-Za-z0-9_-]+$/;
 
+// Anthropic rejects toolResult messages with toolName > 200 chars.
+export const TOOL_RESULT_NAME_MAX_CHARS = 200;
+
 type ToolCallBlock = {
   type?: unknown;
   id?: unknown;
@@ -79,7 +82,7 @@ function makeMissingToolResult(params: {
   return {
     role: "toolResult",
     toolCallId: params.toolCallId,
-    toolName: params.toolName ?? "unknown",
+    toolName: (params.toolName ?? "unknown").slice(0, TOOL_RESULT_NAME_MAX_CHARS),
     content: [
       {
         type: "text",
