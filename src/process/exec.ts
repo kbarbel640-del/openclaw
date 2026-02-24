@@ -42,6 +42,19 @@ export function shouldSpawnWithShell(params: {
   return false;
 }
 
+/**
+ * Helper function: Safely escapes arguments for Windows cmd.exe.
+ * If the argument contains spaces or shell metacharacters, it wraps the argument
+ * in double quotes and escapes any internal double quotes.
+ */
+function escapeCmdArgument(arg: string): string {
+  if (/[&|<>^% ()]/.test(arg)) {
+    return `"${arg.replace(/"/g, '\\"')}"`;
+  }
+  return arg;
+}
+
+
 // Simple promise-wrapped execFile with optional verbosity logging.
 export async function runExec(
   command: string,
