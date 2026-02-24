@@ -7,7 +7,6 @@
  */
 
 import { Tray, Menu, nativeImage, app } from "electron";
-import path from "node:path";
 import type { WindowManager } from "./window-manager.js";
 import { APP_NAME } from "../shared/constants.js";
 import type { EnvironmentHealth } from "../shared/ipc-types.js";
@@ -60,7 +59,7 @@ export class TrayManager {
 
   updateHealth(health: EnvironmentHealth): void {
     this.currentHealth = health;
-    if (!this.tray) return;
+    if (!this.tray) { return; }
 
     this.tray.setImage(createStatusIcon(health));
     this.tray.setToolTip(`${APP_NAME} — ${health}`);
@@ -68,7 +67,7 @@ export class TrayManager {
   }
 
   private updateContextMenu(): void {
-    if (!this.tray) return;
+    if (!this.tray) { return; }
 
     const statusLabel =
       this.currentHealth === "healthy"

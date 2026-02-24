@@ -169,12 +169,12 @@ export const IPC_CHANNELS = {
  */
 export interface OcccBridge {
   // Auth
-  login(username: string, password: string): Promise<AuthSession | null>;
-  biometricAuth(): Promise<AuthSession | null>;
+  login(username: string, password: string): Promise<{ session: AuthSession; token: string } | { requiresTotp: true; nonce: string } | null>;
+  biometricAuth(): Promise<{ session: AuthSession; token: string } | null>;
   verifyTotp(code: string): Promise<boolean>;
-  logout(): Promise<void>;
-  getSession(): Promise<AuthSession | null>;
-  elevate(): Promise<boolean>;
+  logout(token?: string): Promise<void>;
+  getSession(token?: string): Promise<AuthSession | null>;
+  elevate(token?: string, totpCode?: string): Promise<{ ok: boolean; reason?: string } | null>;
 
   // Environment
   getEnvironmentStatus(): Promise<EnvironmentStatus>;
@@ -207,4 +207,7 @@ export interface OcccBridge {
   // Events
   on(channel: string, callback: (...args: unknown[]) => void): void;
   off(channel: string, callback: (...args: unknown[]) => void): void;
+
+  // Dynamic invoke (for channels not in the typed bridge)
+  invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 }

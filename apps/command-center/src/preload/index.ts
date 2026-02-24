@@ -21,12 +21,12 @@ const bridge: OcccBridge = {
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_BIOMETRIC),
   verifyTotp: (code) =>
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_VERIFY_TOTP, code),
-  logout: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT),
-  getSession: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.AUTH_SESSION),
-  elevate: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.AUTH_ELEVATE),
+  logout: (token?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT, token),
+  getSession: (token?) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_SESSION, token),
+  elevate: (token?, totpCode?) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_ELEVATE, token, totpCode),
 
   // ─── Environment ──────────────────────────────────────────────────────
   getEnvironmentStatus: () =>
@@ -75,12 +75,18 @@ const bridge: OcccBridge = {
   // ─── Events (main → renderer) ─────────────────────────────────────────
   on: (channel, callback) => {
     // Only allow our namespaced channels
-    if (!channel.startsWith("occc:")) return;
+    if (!channel.startsWith("occc:")) { return; }
     ipcRenderer.on(channel, (_event, ...args) => callback(...args));
   },
   off: (channel, callback) => {
-    if (!channel.startsWith("occc:")) return;
+    if (!channel.startsWith("occc:")) { return; }
     ipcRenderer.removeListener(channel, callback);
+  },
+  invoke: (channel, ...args) => {
+    if (!channel.startsWith("occc:")) {
+      return Promise.reject(new Error(`Forbidden channel: ${channel}`));
+    }
+    return ipcRenderer.invoke(channel, ...args);
   },
 };
 

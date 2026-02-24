@@ -103,7 +103,7 @@ export class WindowManager {
       this.mainWindow.show();
       this.mainWindow.focus();
     } else {
-      this.createMainWindow();
+      void this.createMainWindow();
     }
   }
 

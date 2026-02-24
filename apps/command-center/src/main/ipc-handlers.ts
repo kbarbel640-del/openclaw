@@ -17,7 +17,7 @@ interface IpcDependencies {
 }
 
 export function registerIpcHandlers(deps: IpcDependencies): void {
-  const { dockerClient, containerManager } = deps;
+  const { dockerClient: _dockerClient, containerManager } = deps;
   const detector = new EngineDetector();
 
   // ─── Docker Info ────────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ export function registerIpcHandlers(deps: IpcDependencies): void {
     return [];
   });
 
-  ipcMain.handle(IPC_CHANNELS.CONFIG_GET, async (_event, section: string) => {
+  ipcMain.handle(IPC_CHANNELS.CONFIG_GET, async (_event, _section: string) => {
     return {};
   });
 

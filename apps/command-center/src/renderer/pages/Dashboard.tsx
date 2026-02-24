@@ -14,19 +14,19 @@ const occc = (window as unknown as { occc: OcccBridge }).occc;
 
 /** Format milliseconds into a human-readable uptime string. */
 function formatUptime(ms: number | null): string {
-  if (!ms || ms <= 0) return "—";
+  if (!ms || ms <= 0) { return "—"; }
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60) % 60;
   const hours = Math.floor(seconds / 3600) % 24;
   const days = Math.floor(seconds / 86400);
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (days > 0) { return `${days}d ${hours}h ${minutes}m`; }
+  if (hours > 0) { return `${hours}h ${minutes}m`; }
   return `${minutes}m`;
 }
 
 /** Format bytes into human-readable. */
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
+  if (bytes === 0) { return "0 B"; }
   const units = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
@@ -63,7 +63,7 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
     const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
   }, [refresh]);

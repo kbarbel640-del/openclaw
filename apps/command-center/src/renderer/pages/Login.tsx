@@ -51,8 +51,8 @@ export function LoginPage({ onAuthenticated, onFirstRun }: LoginPageProps) {
     setError(null);
     try {
       const result = await occc.biometricAuth();
-      if (result) {
-        onAuthenticated(result, (result as unknown as { token: string }).token ?? "");
+      if (result && "token" in result) {
+        onAuthenticated(result.session, result.token);
       } else {
         setError("Biometric authentication failed. Try your password.");
         setStep("idle");
