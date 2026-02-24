@@ -216,6 +216,7 @@ def main() -> None:
     parser.add_argument("--no-cache", action="store_true", help="Disable Docker layer caching")
     parser.add_argument("--cleanup", action="store_true", help="Remove local image after push")
     parser.add_argument("--install-browser", action="store_true", help="Include Chromium in image")
+    parser.add_argument("--install-docker", action="store_true", help="Include Docker daemon for sandbox isolation")
     args = parser.parse_args()
 
     current = get_current_version()
@@ -247,6 +248,8 @@ def main() -> None:
     build_args = {}
     if args.install_browser:
         build_args["OPENCLAW_INSTALL_BROWSER"] = "1"
+    if args.install_docker:
+        build_args["OPENCLAW_INSTALL_DOCKER"] = "1"
 
     # Build & push
     result = build_and_push(next_ver, dry_run=args.dry_run, use_cache=use_cache, build_args=build_args)

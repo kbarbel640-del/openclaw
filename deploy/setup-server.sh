@@ -5,6 +5,10 @@
 # the control UI for headless operation. Designed to run once at container
 # startup before `node openclaw.mjs gateway`.
 #
+# NOTE: This script should run as the `node` user so config is written to
+# /home/node/.openclaw/. Docker daemon startup (which requires root) is
+# handled separately by start-dockerd.sh.
+#
 # Required env vars:
 #   GEMINI_API_KEY          — Google AI provider key
 #   OPENCLAW_GATEWAY_TOKEN  — Gateway auth token
@@ -36,10 +40,15 @@ if [ -n "${OPENCLAW_MODEL:-}" ]; then
   node openclaw.mjs models set "$OPENCLAW_MODEL"
 fi
 
-# Sandbox — isolate each session.
-node openclaw.mjs config set agents.defaults.sandbox.mode all
-node openclaw.mjs config set agents.defaults.sandbox.scope session
-node openclaw.mjs config set agents.defaults.sandbox.workspaceAccess none
+# Sandbox — isolate each session via Docker.
+if command -v docker &>/dev/null && docker info &>/dev/null; then
+  node openclaw.mjs config set agents.defaults.sandbox.mode all
+  node openclaw.mjs config set agents.defaults.sandbox.scope session
+  node openclaw.mjs config set agents.defaults.sandbox.workspaceAccess none
+else
+  echo "[setup] Docker not available, sandbox disabled."
+  node openclaw.mjs config set agents.defaults.sandbox.mode off
+fi
 
 # HTTP API — enable OpenAI-compatible chat completions endpoint.
 node openclaw.mjs config set gateway.http.endpoints.chatCompletions.enabled true
