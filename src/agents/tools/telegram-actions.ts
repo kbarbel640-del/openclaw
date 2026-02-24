@@ -399,7 +399,7 @@ export async function handleTelegramAction(
     const result = await sendDiceTelegram(to, {
       token,
       accountId: accountId ?? undefined,
-      emoji,
+      emoji: validEmoji,
       replyToMessageId: replyToMessageId ?? undefined,
       messageThreadId: messageThreadId ?? undefined,
       silent,
