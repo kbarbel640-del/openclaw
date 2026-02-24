@@ -177,13 +177,30 @@ async function downloadGraphHostedContent(params: {
   const out: MSTeamsInboundMedia[] = [];
   for (const item of hosted.items) {
     const contentBytes = typeof item.contentBytes === "string" ? item.contentBytes : "";
-    if (!contentBytes) {
-      continue;
+    let buffer: Buffer | undefined;
+    if (contentBytes) {
+      try {
+        buffer = Buffer.from(contentBytes, "base64");
+      } catch {
+        continue;
+      }
+    } else if (item.id) {
+      // In bot DM chats, contentBytes may be null in the list response.
+      // Fetch the binary content directly from the $value endpoint.
+      const valueUrl = `${params.messageUrl}/hostedContents/${encodeURIComponent(item.id)}/$value`;
+      try {
+        const res = await (params.fetchFn ?? fetch)(valueUrl, {
+          headers: { Authorization: `Bearer ${params.accessToken}` },
+        });
+        if (!res.ok) {
+          continue;
+        }
+        buffer = Buffer.from(await res.arrayBuffer());
+      } catch {
+        continue;
+      }
     }
-    let buffer: Buffer;
-    try {
-      buffer = Buffer.from(contentBytes, "base64");
-    } catch {
+    if (!buffer) {
       continue;
     }
     if (buffer.byteLength > params.maxBytes) {
