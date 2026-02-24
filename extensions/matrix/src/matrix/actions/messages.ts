@@ -1,3 +1,4 @@
+import { POLL_EVENT_TYPES } from "../poll-types.js";
 import { resolveMatrixRoomId, sendMessageMatrix } from "../send.js";
 import { resolveActionClient } from "./client.js";
 import { resolveMatrixActionLimit } from "./limits.js";
@@ -110,7 +111,12 @@ export async function readMatrixMessages(
       },
     )) as { chunk: MatrixRawEvent[]; start?: string; end?: string };
     const messages = res.chunk
-      .filter((event) => event.type === EventType.RoomMessage)
+      .filter(
+        (event) =>
+          event.type === EventType.RoomMessage ||
+          // Polls (MSC3381): include so clients/agents can read poll questions + responses
+          POLL_EVENT_TYPES.includes(event.type as (typeof POLL_EVENT_TYPES)[number]),
+      )
       .filter((event) => !event.unsigned?.redacted_because)
       .map(summarizeMatrixRawEvent);
     return {

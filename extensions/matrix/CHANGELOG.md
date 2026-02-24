@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- Include Matrix poll events in `read` (poll start/response/end) so agents can compute poll results from timeline.
+
 ## 2026.2.22
 
 ### Changes

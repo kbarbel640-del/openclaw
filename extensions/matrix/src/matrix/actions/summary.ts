@@ -1,4 +1,5 @@
 import type { MatrixClient } from "@vector-im/matrix-bot-sdk";
+import { POLL_END_TYPES, POLL_RESPONSE_TYPES } from "../poll-types.js";
 import {
   EventType,
   type MatrixMessageSummary,
@@ -7,31 +8,100 @@ import {
   type RoomPinnedEventsEventContent,
 } from "./types.js";
 
-export function summarizeMatrixRawEvent(event: MatrixRawEvent): MatrixMessageSummary {
-  const content = event.content as RoomMessageEventContent;
-  const relates = content["m.relates_to"];
+function getRelatesTo(content: Record<string, unknown>): MatrixMessageSummary["relatesTo"] {
+  const relates = content["m.relates_to"] as
+    | {
+        rel_type?: string;
+        event_id?: string;
+        key?: string;
+        "m.in_reply_to"?: { event_id?: string };
+      }
+    | undefined;
+
   let relType: string | undefined;
   let eventId: string | undefined;
+  let key: string | undefined;
+
   if (relates) {
-    if ("rel_type" in relates) {
-      relType = relates.rel_type;
-      eventId = relates.event_id;
-    } else if ("m.in_reply_to" in relates) {
-      eventId = relates["m.in_reply_to"]?.event_id;
-    }
+    relType = relates.rel_type;
+    eventId = relates.event_id ?? relates["m.in_reply_to"]?.event_id;
+    key = relates.key;
   }
-  const relatesTo =
-    relType || eventId
-      ? {
-          relType,
-          eventId,
-        }
-      : undefined;
+
+  return relType || eventId || key
+    ? {
+        relType,
+        eventId,
+        key,
+      }
+    : undefined;
+}
+
+function summarizePollResponse(event: MatrixRawEvent): { body: string; msgtype: string } {
+  const content = event.content as Record<string, unknown>;
+
+  // Responses can be legacy key ("m.poll.response") or MSC key (event.type)
+  const responseObj =
+    (content[event.type] as { answers?: unknown } | undefined) ??
+    (content["m.poll.response"] as { answers?: unknown } | undefined) ??
+    (content["org.matrix.msc3381.poll.response"] as { answers?: unknown } | undefined);
+
+  const answers = Array.isArray(responseObj?.answers)
+    ? responseObj?.answers.filter((x): x is string => typeof x === "string")
+    : [];
+
+  const answersText = answers.length ? answers.join(", ") : "(no answers)";
+  return {
+    body: `[Poll vote] ${answersText}`,
+    msgtype: "m.poll.response",
+  };
+}
+
+export function summarizeMatrixRawEvent(event: MatrixRawEvent): MatrixMessageSummary {
+  const content = event.content as Record<string, unknown>;
+  const relatesTo = getRelatesTo(content);
+
+  // Most events are m.room.message and have {body,msgtype}. Poll response/end events do not.
+  const maybeRoomMsg = content as unknown as Partial<RoomMessageEventContent>;
+  if (typeof maybeRoomMsg.body === "string" && typeof maybeRoomMsg.msgtype === "string") {
+    return {
+      eventId: event.event_id,
+      sender: event.sender,
+      body: maybeRoomMsg.body,
+      msgtype: maybeRoomMsg.msgtype,
+      timestamp: event.origin_server_ts,
+      relatesTo,
+    };
+  }
+
+  if (POLL_RESPONSE_TYPES.includes(event.type as (typeof POLL_RESPONSE_TYPES)[number])) {
+    const summarized = summarizePollResponse(event);
+    return {
+      eventId: event.event_id,
+      sender: event.sender,
+      body: summarized.body,
+      msgtype: summarized.msgtype,
+      timestamp: event.origin_server_ts,
+      relatesTo,
+    };
+  }
+
+  if (POLL_END_TYPES.includes(event.type as (typeof POLL_END_TYPES)[number])) {
+    return {
+      eventId: event.event_id,
+      sender: event.sender,
+      body: "[Poll ended]",
+      msgtype: "m.poll.end",
+      timestamp: event.origin_server_ts,
+      relatesTo,
+    };
+  }
+
   return {
     eventId: event.event_id,
     sender: event.sender,
-    body: content.body,
-    msgtype: content.msgtype,
+    body: `[${event.type}]`,
+    msgtype: event.type,
     timestamp: event.origin_server_ts,
     relatesTo,
   };
