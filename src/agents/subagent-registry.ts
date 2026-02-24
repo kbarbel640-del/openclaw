@@ -65,6 +65,11 @@ const MAX_ANNOUNCE_RETRY_COUNT = 3;
  * succeeded. Guards against stale registry entries surviving gateway restarts.
  */
 const ANNOUNCE_EXPIRY_MS = 5 * 60_000; // 5 minutes
+// Debounce cleanup to handle per-attempt lifecycle "end" events that fire before
+// retries. Without debouncing, the first attempt's agent_end triggers announce
+// with stale data before the retry can produce correct output (#25608).
+const pendingCleanupTimers = new Map<string, NodeJS.Timeout>();
+const LIFECYCLE_END_DEBOUNCE_MS = 3_000;
 type SubagentRunOrphanReason = "missing-session-entry" | "missing-session-id";
 
 function resolveAnnounceRetryDelayMs(retryCount: number) {
@@ -87,6 +92,52 @@ function logAnnounceGiveUp(entry: SubagentRunRecord, reason: "retry-limit" | "ex
 
 function persistSubagentRuns() {
   persistSubagentRunsToDisk(subagentRuns);
+}
+
+function cancelPendingCleanupTimer(runId: string) {
+  const timer = pendingCleanupTimers.get(runId);
+  if (timer) {
+    clearTimeout(timer);
+    pendingCleanupTimers.delete(runId);
+  }
+}
+
+function triggerCleanupAndAnnounce(runId: string) {
+  const entry = subagentRuns.get(runId);
+  if (!entry) {
+    return;
+  }
+  if (!beginSubagentCleanup(runId)) {
+    return;
+  }
+  const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
+  void runSubagentAnnounceFlow({
+    childSessionKey: entry.childSessionKey,
+    childRunId: entry.runId,
+    requesterSessionKey: entry.requesterSessionKey,
+    requesterOrigin,
+    requesterDisplayKey: entry.requesterDisplayKey,
+    task: entry.task,
+    timeoutMs: SUBAGENT_ANNOUNCE_TIMEOUT_MS,
+    cleanup: entry.cleanup,
+    waitForCompletion: false,
+    startedAt: entry.startedAt,
+    endedAt: entry.endedAt,
+    label: entry.label,
+    outcome: entry.outcome,
+  }).then((didAnnounce) => {
+    void finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
+  });
+}
+
+function scheduleDebouncedCleanup(runId: string) {
+  cancelPendingCleanupTimer(runId);
+  const timer = setTimeout(() => {
+    pendingCleanupTimers.delete(runId);
+    triggerCleanupAndAnnounce(runId);
+  }, LIFECYCLE_END_DEBOUNCE_MS);
+  timer.unref?.();
+  pendingCleanupTimers.set(runId, timer);
 }
 
 function findSessionEntryByKey(store: Record<string, SessionEntry>, sessionKey: string) {
@@ -524,8 +575,11 @@ function ensureListener() {
       }
       const phase = evt.data?.phase;
       if (phase === "start") {
+        cancelPendingCleanupTimer(evt.runId);
+        // Preserve the original startedAt (set at registration) so total
+        // wall-clock runtime is reported correctly across retries.
         const startedAt = typeof evt.data?.startedAt === "number" ? evt.data.startedAt : undefined;
-        if (startedAt) {
+        if (startedAt && !entry.startedAt) {
           entry.startedAt = startedAt;
           persistSubagentRuns();
         }
@@ -536,21 +590,33 @@ function ensureListener() {
       }
       const endedAt = typeof evt.data?.endedAt === "number" ? evt.data.endedAt : Date.now();
       const error = typeof evt.data?.error === "string" ? evt.data.error : undefined;
-      const outcome: SubagentRunOutcome =
-        phase === "error"
-          ? { status: "error", error }
-          : evt.data?.aborted
-            ? { status: "timeout" }
-            : { status: "ok" };
-      await completeSubagentRun({
-        runId: evt.runId,
-        endedAt,
-        outcome,
-        reason: phase === "error" ? SUBAGENT_ENDED_REASON_ERROR : SUBAGENT_ENDED_REASON_COMPLETE,
-        sendFarewell: true,
-        accountId: entry.requesterOrigin?.accountId,
-        triggerCleanup: true,
-      });
+      if (phase === "error") {
+        entry.outcome = { status: "error", error };
+      } else if (evt.data?.aborted) {
+        entry.outcome = { status: "timeout" };
+      } else {
+        entry.outcome = { status: "ok" };
+      }
+      entry.endedAt = endedAt;
+      entry.endedReason =
+        phase === "error" ? SUBAGENT_ENDED_REASON_ERROR : SUBAGENT_ENDED_REASON_COMPLETE;
+      persistSubagentRuns();
+
+      if (suppressAnnounceForSteerRestart(entry)) {
+        return;
+      }
+
+      if (phase === "error") {
+        // Run-level errors (from agent-runner-execution catch blocks) are
+        // definitive — trigger cleanup immediately without debouncing.
+        cancelPendingCleanupTimer(evt.runId);
+        triggerCleanupAndAnnounce(evt.runId);
+      } else {
+        // Per-attempt "end" events fire after each API call, including
+        // intermediate attempts that will be retried. Debounce so we
+        // only announce after the final attempt settles (#25608).
+        scheduleDebouncedCleanup(evt.runId);
+      }
     })();
   });
 }
@@ -946,6 +1012,7 @@ export function addSubagentRunForTests(entry: SubagentRunRecord) {
 }
 
 export function releaseSubagentRun(runId: string) {
+  cancelPendingCleanupTimer(runId);
   const didDelete = subagentRuns.delete(runId);
   if (didDelete) {
     persistSubagentRuns();
