@@ -31,7 +31,10 @@ const deliverDiscordReply = deliveryMocks.deliverDiscordReply;
 const createDiscordDraftStream = deliveryMocks.createDiscordDraftStream;
 type DispatchInboundParams = {
   dispatcher: {
-    sendBlockReply: (payload: { text?: string }) => boolean | Promise<boolean>;
+    sendBlockReply: (payload: {
+      text?: string;
+      isReasoning?: boolean;
+    }) => boolean | Promise<boolean>;
     sendFinalReply: (payload: { text?: string }) => boolean | Promise<boolean>;
   };
   replyOptions?: {
@@ -427,9 +430,9 @@ describe("processDiscordMessage draft streaming", () => {
     expect(deliverDiscordReply).toHaveBeenCalledTimes(1);
   });
 
-  it("suppresses block-kind payload delivery to Discord", async () => {
+  it("suppresses reasoning payload delivery to Discord", async () => {
     dispatchInboundMessage.mockImplementationOnce(async (params?: DispatchInboundParams) => {
-      await params?.dispatcher.sendBlockReply({ text: "thinking..." });
+      await params?.dispatcher.sendBlockReply({ text: "thinking...", isReasoning: true });
       return { queuedFinal: false, counts: { final: 0, tool: 0, block: 1 } };
     });
 
