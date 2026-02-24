@@ -1,4 +1,6 @@
 import { html, nothing } from "lit";
+import type { LogEntry, LogLevel } from "../types.ts";
+
 // Utility to check if all levels are selected
 function allLevelsSelected(levelFilters: Record<LogLevel, boolean>) {
   return LEVELS.every((level) => levelFilters[level]);
@@ -8,7 +10,6 @@ function allLevelsSelected(levelFilters: Record<LogLevel, boolean>) {
 function noLevelsSelected(levelFilters: Record<LogLevel, boolean>) {
   return LEVELS.every((level) => !levelFilters[level]);
 }
-import type { LogEntry, LogLevel } from "../types.ts";
 
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal"];
 
