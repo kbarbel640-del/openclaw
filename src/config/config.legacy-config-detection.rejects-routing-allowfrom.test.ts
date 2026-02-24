@@ -637,4 +637,35 @@ describe("legacy config detection", () => {
       expect(res.config.channels?.discord?.historyLimit).toBe(3);
     }
   });
+  it("accepts agents.defaults.memorySearch.query.routing overrides", async () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          memorySearch: {
+            query: {
+              routing: {
+                onSearchSyncSkipFileThreshold: 25000,
+                keywordOnlyLargeCorpusFileThreshold: 35000,
+                keywordOnlyMinScore: 0.6,
+                keywordOnlyMinResults: 4,
+                projectRouteMinScore: 2,
+                foregroundVectorEnabled: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.config?.agents?.defaults?.memorySearch?.query?.routing).toEqual({
+        onSearchSyncSkipFileThreshold: 25000,
+        keywordOnlyLargeCorpusFileThreshold: 35000,
+        keywordOnlyMinScore: 0.6,
+        keywordOnlyMinResults: 4,
+        projectRouteMinScore: 2,
+        foregroundVectorEnabled: true,
+      });
+    }
+  });
 });

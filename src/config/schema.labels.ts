@@ -313,6 +313,18 @@ export const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.memorySearch.sync.sessions.deltaMessages": "Session Delta Messages",
   "agents.defaults.memorySearch.query.maxResults": "Memory Search Max Results",
   "agents.defaults.memorySearch.query.minScore": "Memory Search Min Score",
+  "agents.defaults.memorySearch.query.routing.onSearchSyncSkipFileThreshold":
+    "Memory Search On-Search Sync Skip File Threshold",
+  "agents.defaults.memorySearch.query.routing.keywordOnlyLargeCorpusFileThreshold":
+    "Memory Search Keyword-Only Large Corpus Threshold",
+  "agents.defaults.memorySearch.query.routing.keywordOnlyMinScore":
+    "Memory Search Keyword-Only Min Score",
+  "agents.defaults.memorySearch.query.routing.keywordOnlyMinResults":
+    "Memory Search Keyword-Only Min Results",
+  "agents.defaults.memorySearch.query.routing.projectRouteMinScore":
+    "Memory Search Project Route Min Score",
+  "agents.defaults.memorySearch.query.routing.foregroundVectorEnabled":
+    "Memory Search Foreground Vector Enabled",
   "agents.defaults.memorySearch.query.hybrid.enabled": "Memory Search Hybrid",
   "agents.defaults.memorySearch.query.hybrid.vectorWeight": "Memory Search Vector Weight",
   "agents.defaults.memorySearch.query.hybrid.textWeight": "Memory Search Text Weight",

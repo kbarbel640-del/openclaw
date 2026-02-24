@@ -346,7 +346,12 @@ export type MemorySearchConfig = {
   /** Index storage configuration. */
   store?: {
     driver?: "sqlite";
+    /** Legacy single-store path. Prefer corePath + projectPathTemplate for split DB topology. */
     path?: string;
+    /** Core continuity DB path. Supports {agentId}. */
+    corePath?: string;
+    /** Project DB path template. Supports {agentId} and {projectId}. */
+    projectPathTemplate?: string;
     vector?: {
       /** Enable sqlite-vec extension for vector search (default: true). */
       enabled?: boolean;
@@ -383,6 +388,20 @@ export type MemorySearchConfig = {
   query?: {
     maxResults?: number;
     minScore?: number;
+    routing?: {
+      /** Skip on-search sync trigger when indexed file count exceeds this threshold (default: 20000). */
+      onSearchSyncSkipFileThreshold?: number;
+      /** Consider corpus "large" for keyword-only fast path at this file count (default: 30000). */
+      keywordOnlyLargeCorpusFileThreshold?: number;
+      /** Minimum keyword score to allow keyword-only fast path (default: 0.55). */
+      keywordOnlyMinScore?: number;
+      /** Minimum keyword result count to allow keyword-only fast path (default: 3). */
+      keywordOnlyMinResults?: number;
+      /** Minimum route token score required before applying project route narrowing (default: 1). */
+      projectRouteMinScore?: number;
+      /** Enable foreground vector enrichment on request path (default: false for stability). */
+      foregroundVectorEnabled?: boolean;
+    };
     hybrid?: {
       /** Enable hybrid BM25 + vector search (default: true). */
       enabled?: boolean;

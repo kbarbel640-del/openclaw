@@ -602,6 +602,17 @@ export const MemorySearchSchema = z
       .object({
         maxResults: z.number().int().positive().optional(),
         minScore: z.number().min(0).max(1).optional(),
+        routing: z
+          .object({
+            onSearchSyncSkipFileThreshold: z.number().int().nonnegative().optional(),
+            keywordOnlyLargeCorpusFileThreshold: z.number().int().nonnegative().optional(),
+            keywordOnlyMinScore: z.number().min(0).max(1).optional(),
+            keywordOnlyMinResults: z.number().int().positive().optional(),
+            projectRouteMinScore: z.number().int().positive().optional(),
+            foregroundVectorEnabled: z.boolean().optional(),
+          })
+          .strict()
+          .optional(),
         hybrid: z
           .object({
             enabled: z.boolean().optional(),

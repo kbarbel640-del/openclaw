@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import type { DatabaseSync } from "node:sqlite";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { runGeminiEmbeddingBatches, type GeminiBatchRequest } from "./batch-gemini.js";
 import {
@@ -45,6 +46,7 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
   protected abstract batchFailureLastError?: string;
   protected abstract batchFailureLastProvider?: string;
   protected abstract batchFailureLock: Promise<void>;
+  private dbContextLock: Promise<void> = Promise.resolve();
 
   private buildEmbeddingBatches(chunks: MemoryChunk[]): MemoryChunk[][] {
     const batches: MemoryChunk[][] = [];
@@ -493,42 +495,51 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
   }
 
   protected async embedBatchWithRetry(texts: string[]): Promise<number[][]> {
-    if (texts.length === 0) {
-      return [];
-    }
-    if (!this.provider) {
-      throw new Error("Cannot embed batch in FTS-only mode (no embedding provider)");
-    }
-    let attempt = 0;
-    let delayMs = EMBEDDING_RETRY_BASE_DELAY_MS;
-    while (true) {
-      try {
-        const timeoutMs = this.resolveEmbeddingTimeout("batch");
-        log.debug("memory embeddings: batch start", {
-          provider: this.provider.id,
-          items: texts.length,
-          timeoutMs,
-        });
-        return await this.withTimeout(
-          this.provider.embedBatch(texts),
-          timeoutMs,
-          `memory embeddings batch timed out after ${Math.round(timeoutMs / 1000)}s`,
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!this.isRetryableEmbeddingError(message) || attempt >= EMBEDDING_RETRY_MAX_ATTEMPTS) {
-          throw err;
+    return await this.withPerf(
+      "embedBatchWithRetry",
+      { items: texts.length, provider: this.provider?.id },
+      async () => {
+        if (texts.length === 0) {
+          return [];
         }
-        const waitMs = Math.min(
-          EMBEDDING_RETRY_MAX_DELAY_MS,
-          Math.round(delayMs * (1 + Math.random() * 0.2)),
-        );
-        log.warn(`memory embeddings rate limited; retrying in ${waitMs}ms`);
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-        delayMs *= 2;
-        attempt += 1;
-      }
-    }
+        if (!this.provider) {
+          throw new Error("Cannot embed batch in FTS-only mode (no embedding provider)");
+        }
+        let attempt = 0;
+        let delayMs = EMBEDDING_RETRY_BASE_DELAY_MS;
+        while (true) {
+          try {
+            const timeoutMs = this.resolveEmbeddingTimeout("batch");
+            log.debug("memory embeddings: batch start", {
+              provider: this.provider.id,
+              items: texts.length,
+              timeoutMs,
+            });
+            return await this.withTimeout(
+              this.provider.embedBatch(texts),
+              timeoutMs,
+              `memory embeddings batch timed out after ${Math.round(timeoutMs / 1000)}s`,
+            );
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (
+              !this.isRetryableEmbeddingError(message) ||
+              attempt >= EMBEDDING_RETRY_MAX_ATTEMPTS
+            ) {
+              throw err;
+            }
+            const waitMs = Math.min(
+              EMBEDDING_RETRY_MAX_DELAY_MS,
+              Math.round(delayMs * (1 + Math.random() * 0.2)),
+            );
+            log.warn(`memory embeddings rate limited; retrying in ${waitMs}ms`);
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+            delayMs *= 2;
+            attempt += 1;
+          }
+        }
+      },
+    );
   }
 
   private isRetryableEmbeddingError(message: string): boolean {
@@ -546,15 +557,21 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
   }
 
   protected async embedQueryWithTimeout(text: string): Promise<number[]> {
-    if (!this.provider) {
-      throw new Error("Cannot embed query in FTS-only mode (no embedding provider)");
-    }
-    const timeoutMs = this.resolveEmbeddingTimeout("query");
-    log.debug("memory embeddings: query start", { provider: this.provider.id, timeoutMs });
-    return await this.withTimeout(
-      this.provider.embedQuery(text),
-      timeoutMs,
-      `memory embeddings query timed out after ${Math.round(timeoutMs / 1000)}s`,
+    return await this.withPerf(
+      "embedQueryWithTimeout",
+      { provider: this.provider?.id, query_chars: text.length },
+      async () => {
+        if (!this.provider) {
+          throw new Error("Cannot embed query in FTS-only mode (no embedding provider)");
+        }
+        const timeoutMs = this.resolveEmbeddingTimeout("query");
+        log.debug("memory embeddings: query start", { provider: this.provider.id, timeoutMs });
+        return await this.withTimeout(
+          this.provider.embedQuery(text),
+          timeoutMs,
+          `memory embeddings query timed out after ${Math.round(timeoutMs / 1000)}s`,
+        );
+      },
     );
   }
 
@@ -690,19 +707,144 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
     return this.batch.enabled ? this.batch.concurrency : EMBEDDING_INDEX_CONCURRENCY;
   }
 
+  /**
+   * Per-DB lock map to allow concurrent operations on different project
+   * databases while serializing access to the same DB.  This prevents
+   * latency spikes when multiple agents/sessions query different projects
+   * simultaneously (vs. a single global lock that would serialize all).
+   */
+  protected readonly perDbLocks = new Map<DatabaseSync, Promise<void>>();
+
+  protected async withDbContext<T>(params: {
+    db: DatabaseSync;
+    vectorEnabled?: boolean;
+    fn: () => Promise<T>;
+  }): Promise<T> {
+    const startedAt = Date.now();
+    const useCurrentDb = params.db === this.db;
+    const forceNoVector = params.vectorEnabled === false;
+    if (useCurrentDb && !forceNoVector) {
+      try {
+        return await params.fn();
+      } finally {
+        this.logPerf("withDbContext", {
+          switched: false,
+          vector_enabled: params.vectorEnabled,
+          total_ms: Date.now() - startedAt,
+        });
+      }
+    }
+
+    // Acquire per-DB lock: operations on the same DB are serialized,
+    // but different DBs can proceed concurrently.
+    const targetDb = params.db;
+    const waitForTurn = this.perDbLocks.get(targetDb) ?? Promise.resolve();
+    let release: () => void = () => {};
+    const ourLock = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.perDbLocks.set(targetDb, ourLock);
+
+    // Also serialize against the global lock for core DB context switches
+    // that mutate this.db / this.vector state.
+    const waitForGlobal = this.dbContextLock;
+    let releaseGlobal: () => void = () => {};
+    this.dbContextLock = new Promise<void>((resolve) => {
+      releaseGlobal = resolve;
+    });
+
+    await Promise.all([waitForTurn, waitForGlobal]);
+    const prevDb = this.db;
+    const prevVectorEnabled = this.vector.enabled;
+    const prevVectorAvailable = this.vector.available;
+    const prevVectorDims = this.vector.dims;
+    const prevVectorReady = this.vectorReady;
+    try {
+      this.db = params.db;
+      if (forceNoVector) {
+        this.vector.enabled = false;
+        this.vector.available = false;
+        this.vector.dims = undefined;
+        this.vectorReady = null;
+      } else if (!useCurrentDb) {
+        // sqlite-vec state is per DB handle; force reload per target DB.
+        this.vector.available = null;
+        this.vector.dims = undefined;
+        this.vectorReady = null;
+      }
+      return await params.fn();
+    } finally {
+      this.db = prevDb;
+      this.vector.enabled = prevVectorEnabled;
+      this.vector.available = prevVectorAvailable;
+      this.vector.dims = prevVectorDims;
+      this.vectorReady = prevVectorReady;
+      releaseGlobal();
+      release();
+      // Clean up per-DB lock synchronously.  Only delete if the map still
+      // holds the promise we created — another caller may have replaced it.
+      if (this.perDbLocks.get(targetDb) === ourLock) {
+        this.perDbLocks.delete(targetDb);
+      }
+      this.logPerf("withDbContext", {
+        switched: true,
+        vector_enabled: params.vectorEnabled,
+        total_ms: Date.now() - startedAt,
+      });
+    }
+  }
+
+  protected async indexFileToDb(
+    entry: MemoryFileEntry | SessionFileEntry,
+    options: { source: MemorySource; content?: string },
+    db: DatabaseSync,
+    runtime?: { vectorEnabled?: boolean },
+  ): Promise<void> {
+    await this.withPerf(
+      "indexFileToDb",
+      {
+        path: entry.path,
+        source: options.source,
+        vector_enabled: runtime?.vectorEnabled,
+      },
+      async () => {
+        await this.withDbContext({
+          db,
+          vectorEnabled: runtime?.vectorEnabled,
+          fn: async () => {
+            await this.indexFile(entry, options);
+          },
+        });
+      },
+    );
+  }
+
   protected async indexFile(
     entry: MemoryFileEntry | SessionFileEntry,
     options: { source: MemorySource; content?: string },
   ) {
+    const startedAt = Date.now();
+    let chunkMs = 0;
+    let embedMs = 0;
+    let writeMs = 0;
+
     // FTS-only mode: skip indexing if no provider
     if (!this.provider) {
       log.debug("Skipping embedding indexing in FTS-only mode", {
         path: entry.path,
         source: options.source,
       });
+      this.logPerf("indexFile", {
+        path: entry.path,
+        source: options.source,
+        skipped: true,
+        reason: "no-provider",
+        total_ms: Date.now() - startedAt,
+      });
       return;
     }
 
+    const chunkStart = Date.now();
     const content = options.content ?? (await fs.readFile(entry.absPath, "utf-8"));
     const chunks = enforceEmbeddingMaxInputTokens(
       this.provider,
@@ -711,15 +853,19 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
       ),
       EMBEDDING_BATCH_MAX_TOKENS,
     );
+    chunkMs += Date.now() - chunkStart;
     if (options.source === "sessions" && "lineMap" in entry) {
       remapChunkLines(chunks, entry.lineMap);
     }
+    const embedStart = Date.now();
     const embeddings = this.batch.enabled
       ? await this.embedChunksWithBatch(chunks, entry, options.source)
       : await this.embedChunksInBatches(chunks);
+    embedMs += Date.now() - embedStart;
     const sample = embeddings.find((embedding) => embedding.length > 0);
     const vectorReady = sample ? await this.ensureVectorReady(sample.length) : false;
     const now = Date.now();
+    const writeStart = Date.now();
     if (vectorReady) {
       try {
         this.db
@@ -740,6 +886,9 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
       .prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`)
       .run(entry.path, options.source);
     for (let i = 0; i < chunks.length; i++) {
+      if (i > 0 && i % 50 === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
       const chunk = chunks[i];
       const embedding = embeddings[i] ?? [];
       const id = hashText(
@@ -803,5 +952,17 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
            size=excluded.size`,
       )
       .run(entry.path, options.source, entry.hash, entry.mtimeMs, entry.size);
+
+    writeMs += Date.now() - writeStart;
+    this.logPerf("indexFile", {
+      path: entry.path,
+      source: options.source,
+      chunks: chunks.length,
+      vector_ready: vectorReady,
+      chunk_ms: chunkMs,
+      embed_ms: embedMs,
+      write_ms: writeMs,
+      total_ms: Date.now() - startedAt,
+    });
   }
 }
