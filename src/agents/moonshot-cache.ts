@@ -35,6 +35,8 @@ type CacheCreateResponse = {
 type Message = { role: string; content: unknown };
 
 const MAX_CACHE_SIZE = 1000;
+/** Truncate hash to 16 hex chars (64 bits) - sufficient for cache key uniqueness */
+const HASH_LENGTH = 16;
 const cacheStore = new Map<string, CacheEntry>();
 const inflightCreation = new Map<string, Promise<string>>();
 
@@ -51,7 +53,7 @@ function hashContent(system: string, tools: unknown[] | undefined): string {
   return createHash("sha256")
     .update(JSON.stringify({ system, tools: tools ?? [] }))
     .digest("hex")
-    .slice(0, 16);
+    .slice(0, HASH_LENGTH);
 }
 
 function toCacheModelName(modelId: string): string {
