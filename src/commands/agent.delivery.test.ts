@@ -191,6 +191,48 @@ describe("deliverAgentCommandResult", () => {
     );
   });
 
+  it("passes mirror when sessionKey is provided for delivery", async () => {
+    await runDelivery({
+      opts: {
+        message: "hello",
+        deliver: true,
+        channel: "telegram",
+        to: "123",
+        sessionKey: "agent:main:main",
+        agentId: "test-agent",
+      },
+      sessionEntry: undefined,
+    });
+
+    expect(mocks.deliverOutboundPayloads).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mirror: {
+          sessionKey: "agent:main:main",
+          agentId: "test-agent",
+          text: "hi",
+        },
+      }),
+    );
+  });
+
+  it("omits mirror when no sessionKey is provided", async () => {
+    await runDelivery({
+      opts: {
+        message: "hello",
+        deliver: true,
+        channel: "telegram",
+        to: "123",
+      },
+      sessionEntry: undefined,
+    });
+
+    expect(mocks.deliverOutboundPayloads).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mirror: undefined,
+      }),
+    );
+  });
+
   it("prefixes nested agent outputs with context", async () => {
     const runtime = createRuntime();
     await runDelivery({

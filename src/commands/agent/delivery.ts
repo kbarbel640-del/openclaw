@@ -222,6 +222,16 @@ export async function deliverAgentCommandResult(params: {
         onError: (err) => logDeliveryError(err),
         onPayload: logPayload,
         deps: createOutboundSendDeps(deps),
+        mirror: opts.sessionKey
+          ? {
+              sessionKey: opts.sessionKey,
+              agentId: deliveryAgentId,
+              text: deliveryPayloads
+                .map((p) => p.text)
+                .filter(Boolean)
+                .join("\n"),
+            }
+          : undefined,
       });
     }
   }
