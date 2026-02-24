@@ -549,16 +549,26 @@ describe("gateway server chat", () => {
       emitAgentEvent({
         runId: "run-multi-msg",
         stream: "assistant",
-        data: { text: "Let me check that file." },
+        data: { text: "The file is being checked." },
       });
 
       // Simulate tool execution (no assistant event during tool)
 
-      // Simulate post-tool text streaming (new assistant message after tool)
+      // Simulate post-tool text streaming (incremental chunks, new assistant message)
       emitAgentEvent({
         runId: "run-multi-msg",
         stream: "assistant",
-        data: { text: "The file contains 42 lines." },
+        data: { text: "The file" }, // first chunk
+      });
+      emitAgentEvent({
+        runId: "run-multi-msg",
+        stream: "assistant",
+        data: { text: "The file contains" }, // second chunk extends first
+      });
+      emitAgentEvent({
+        runId: "run-multi-msg",
+        stream: "assistant",
+        data: { text: "The file contains 42 lines." }, // final chunk
       });
 
       // Simulate lifecycle end
@@ -572,7 +582,7 @@ describe("gateway server chat", () => {
 
       const finalEvent = chatEvents.find((e) => e.state === "final");
       expect(finalEvent).toBeDefined();
-      expect(finalEvent?.text).toContain("Let me check that file.");
+      expect(finalEvent?.text).toContain("The file is being checked.");
       expect(finalEvent?.text).toContain("The file contains 42 lines.");
 
       webchatWs.close();
