@@ -56,8 +56,8 @@ const startedAt = Date.now();
 class ConfigManager {
   constructor() {
     this.config = {};
-    this.required = [];
-    this.optional = [];
+    this.requiredKeys = [];
+    this.optionalKeys = [];
   }
 
   /**
@@ -66,7 +66,7 @@ class ConfigManager {
    * @param {string} description - 描述
    */
   required(key, description) {
-    this.required.push({ key, description });
+    this.requiredKeys.push({ key, description });
     const value = process.env[key];
     if (!value) {
       console.error(`[CONFIG] 必需環境變數缺失: ${key} (${description})`);
@@ -83,7 +83,7 @@ class ConfigManager {
    * @param {string} description - 描述
    */
   optional(key, defaultValue, description) {
-    this.optional.push({ key, description, defaultValue });
+    this.optionalKeys.push({ key, description, defaultValue });
     const value = process.env[key] || defaultValue;
     this.config[key] = value;
     if (!process.env[key]) {
@@ -104,11 +104,11 @@ class ConfigManager {
    */
   validate() {
     console.log(`[CONFIG] 已加載 ${Object.keys(this.config).length} 個配置項`);
-    if (this.required.length > 0) {
-      console.log(`[CONFIG] 必需: ${this.required.map(r => r.key).join(", ")}`);
+    if (this.requiredKeys.length > 0) {
+      console.log(`[CONFIG] 必需: ${this.requiredKeys.map(r => r.key).join(", ")}`);
     }
-    if (this.optional.length > 0) {
-      console.log(`[CONFIG] 可選: ${this.optional.map(r => `${r.key}(預設: ${r.defaultValue})`).join(", ")}`);
+    if (this.optionalKeys.length > 0) {
+      console.log(`[CONFIG] 可選: ${this.optionalKeys.map(r => `${r.key}(預設: ${r.defaultValue})`).join(", ")}`);
     }
   }
 }
