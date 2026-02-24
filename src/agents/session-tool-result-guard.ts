@@ -7,6 +7,7 @@ import type {
 import { emitSessionTranscriptUpdate } from "../sessions/transcript-events.js";
 import { makeMissingToolResult, sanitizeToolCallInputs } from "./session-transcript-repair.js";
 import { extractToolCallsFromAssistant, extractToolResultId } from "./tool-call-id.js";
+import { writeToolOutputArtifactSync } from "./tool-output-artifacts.js";
 import {
   hardTruncateText,
   makeHardLimitSuffix,
@@ -41,7 +42,7 @@ const GUARD_TRUNCATION_SUFFIX = makeHardLimitSuffix({
  */
 function hardCapToolResultMessageForPersistence(
   msg: AgentMessage,
-  meta?: { toolName?: string | null },
+  meta?: { toolName?: string | null; toolCallId?: string | null },
 ): AgentMessage {
   const role = (msg as { role?: string }).role;
   if (role !== "toolResult") {
@@ -65,7 +66,7 @@ function hardCapToolResultMessageForPersistence(
       nonTextBlocks += 1;
       continue;
     }
-    const text = (block as TextContent).text;
+    const text = (block as { text?: unknown }).text;
     if (typeof text !== "string" || !text) {
       continue;
     }
@@ -131,9 +132,28 @@ function hardCapToolResultMessageForPersistence(
     return msg;
   }
 
+  let persistedText = capped.text;
+  if (capped.truncated) {
+    const outputFile = writeToolOutputArtifactSync({
+      toolName: meta?.toolName || "toolResult",
+      toolCallId: meta?.toolCallId || `${meta?.toolName || "toolResult"}-persist`,
+      output: combined,
+      extension: "log",
+    });
+    const pointer = outputFile
+      ? `💾 [Full output saved to: ${outputFile}]`
+      : "💾 [Full output failed to save to artifact file]";
+    const cappedWithPointer = hardTruncateText(prefix, {
+      maxBytes: caps.maxBytes,
+      maxLines: caps.maxLines,
+      suffix: (truncateMeta) => `${GUARD_TRUNCATION_SUFFIX(truncateMeta)}\n${pointer}`,
+    });
+    persistedText = cappedWithPointer.text;
+  }
+
   return {
     ...msg,
-    content: [{ type: "text", text: capped.text }],
+    content: [{ type: "text", text: persistedText }],
   } as AgentMessage;
 }
 
@@ -224,7 +244,10 @@ export function installSessionToolResultGuard(
           isSynthetic: true,
         });
         // Apply the hard cap *after* any hook transforms so plugins can't re-inflate tool results.
-        const capped = hardCapToolResultMessageForPersistence(transformed, { toolName: name });
+        const capped = hardCapToolResultMessageForPersistence(transformed, {
+          toolName: name,
+          toolCallId: id,
+        });
         originalAppend(capped as never);
       }
     }
@@ -258,13 +281,17 @@ export function installSessionToolResultGuard(
       // always conform to the system limits.
       const preCapped = hardCapToolResultMessageForPersistence(persistMessage(nextMessage), {
         toolName,
+        toolCallId: id,
       });
       const transformed = persistToolResult(preCapped, {
         toolCallId: id ?? undefined,
         toolName,
         isSynthetic: false,
       });
-      const postCapped = hardCapToolResultMessageForPersistence(transformed, { toolName });
+      const postCapped = hardCapToolResultMessageForPersistence(transformed, {
+        toolName,
+        toolCallId: id,
+      });
       return originalAppend(postCapped as never);
     }
 

@@ -358,8 +358,9 @@ export async function handleToolExecutionEnd(
       ctx.trimMessagingToolSent();
     }
   }
-  const pendingMediaUrls = ctx.state.pendingMessagingMediaUrls.get(toolCallId) ?? [];
-  ctx.state.pendingMessagingMediaUrls.delete(toolCallId);
+  const pendingMediaMap = ctx.state.pendingMessagingMediaUrls;
+  const pendingMediaUrls = pendingMediaMap?.get(toolCallId) ?? [];
+  pendingMediaMap?.delete(toolCallId);
   const startArgs =
     startData?.args && typeof startData.args === "object"
       ? (startData.args as Record<string, unknown>)
@@ -373,7 +374,7 @@ export async function handleToolExecutionEnd(
       ...collectMessagingMediaUrlsFromToolResult(result),
     ];
     if (committedMediaUrls.length > 0) {
-      ctx.state.messagingToolSentMediaUrls.push(...committedMediaUrls);
+      ctx.state.messagingToolSentMediaUrls?.push(...committedMediaUrls);
       ctx.trimMessagingToolSent();
     }
   }
