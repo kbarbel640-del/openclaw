@@ -146,7 +146,7 @@ git push origin "$branch"
 Set title from branch-only commits unless the user specifies a title:
 - Include commits reachable from `HEAD`.
 - Exclude commits already in `origin/main` or `upstream/main`.
-- This avoids pulling in main-branch history when composing the PR title.
+- Use the first remaining commit subject as the default title.
 
 ```bash
 commit_subjects="$(git log --format=%s --reverse --first-parent HEAD --not origin/main --not upstream/main | sed '/^[[:space:]]*$/d')"
@@ -161,12 +161,9 @@ commit_count="$(printf '%s\n' "$commit_subjects" | sed '/^[[:space:]]*$/d' | wc 
 
 if [ "$commit_count" -eq 0 ]; then
   title="chore: update branch"
-elif [ "$commit_count" -eq 1 ]; then
-  title="$(printf '%s\n' "$commit_subjects" | head -n1)"
 else
-  first_subject="$(printf '%s\n' "$commit_subjects" | head -n1)"
-  remaining=$((commit_count - 1))
-  title="${first_subject} (+${remaining} related commits)"
+  # Prefer a clean, representative title over concatenating many commit subjects.
+  title="$(printf '%s\n' "$commit_subjects" | head -n1)"
 fi
 
 # Keep title within GitHub limits.
