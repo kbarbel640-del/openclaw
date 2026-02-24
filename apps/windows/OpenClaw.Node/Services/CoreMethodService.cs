@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,7 +12,7 @@ namespace OpenClaw.Node.Services
     public class CoreMethodService
     {
         private readonly DateTimeOffset _startedAtUtc;
-        private readonly Dictionary<string, PairRequest> _pendingPairRequests = new();
+        private readonly ConcurrentDictionary<string, PairRequest> _pendingPairRequests = new();
         private readonly string _pendingPairCachePath;
 
         public bool HeartbeatsEnabled { get; private set; } = true;
@@ -148,10 +149,15 @@ namespace OpenClaw.Node.Services
             if (evt.Event == "device.pair.requested")
             {
                 var requestId = TryGetString(payload, "requestId");
+                if (payload.TryGetProperty("requestId", out var r) && r.ValueKind == JsonValueKind.String)
+                {
+                    requestId = r.GetString();
+                }
+
                 var label = TryGetString(payload, "displayName") ?? TryGetString(payload, "deviceId");
                 if (!string.IsNullOrWhiteSpace(requestId))
                 {
-                    AddPendingPairRequest(requestId!, label, kind: "device");
+                    AddPendingPairRequest(requestId!, label, "device");
                     return true;
                 }
                 return false;
@@ -163,7 +169,7 @@ namespace OpenClaw.Node.Services
                 var label = TryGetString(payload, "displayName") ?? TryGetString(payload, "nodeId");
                 if (!string.IsNullOrWhiteSpace(requestId))
                 {
-                    AddPendingPairRequest(requestId!, label, kind: "node");
+                    AddPendingPairRequest(requestId!, label, "node");
                     return true;
                 }
                 return false;
@@ -174,7 +180,7 @@ namespace OpenClaw.Node.Services
                 var requestId = TryGetString(payload, "requestId");
                 if (!string.IsNullOrWhiteSpace(requestId))
                 {
-                    if (_pendingPairRequests.Remove(requestId!))
+                    if (_pendingPairRequests.TryRemove(requestId!, out _))
                     {
                         PersistPendingPairRequests();
                     }
@@ -255,7 +261,7 @@ namespace OpenClaw.Node.Services
                 });
             }
 
-            var existed = _pendingPairRequests.Remove(requestId);
+            var existed = _pendingPairRequests.TryRemove(requestId!, out _);
             if (existed)
             {
                 PersistPendingPairRequests();
