@@ -36,11 +36,6 @@
           - "src/imessage/**"
           - "extensions/imessage/**"
           - "docs/channels/imessage.md"
-"channel: dingtalk":
-  - changed-files:
-      - any-glob-to-any-file:
-          - "extensions/dingtalk/**"
-          - "docs/channels/dingtalk.md"
 "channel: line":
   - changed-files:
       - any-glob-to-any-file:
