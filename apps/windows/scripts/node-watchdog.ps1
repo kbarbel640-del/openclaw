@@ -37,7 +37,21 @@ function Get-RunningNodeProcesses {
 
 function Get-GatewayConfig {
   $wslUser = if ($env:OPENCLAW_WSL_USER) { $env:OPENCLAW_WSL_USER } else { $env:USERNAME.ToLowerInvariant() }
-  $wslDistro = if ($env:OPENCLAW_WSL_DISTRO) { $env:OPENCLAW_WSL_DISTRO } else { "Ubuntu-24.04" }
+  $wslDistro = if ($env:OPENCLAW_WSL_DISTRO) {
+    $env:OPENCLAW_WSL_DISTRO
+  } else {
+    try {
+      # Attempt to auto-detect default WSL distro
+      $default = (wsl.exe --list --verbose | Select-String "\*").ToString().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[1]
+      if (-not [string]::IsNullOrWhiteSpace($default)) {
+        $default
+      } else {
+        "Ubuntu-24.04"
+      }
+    } catch {
+      "Ubuntu-24.04"
+    }
+  }
 
   $candidates = @(
     "$env:USERPROFILE\.openclaw\openclaw.json",
