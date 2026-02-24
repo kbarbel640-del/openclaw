@@ -1,7 +1,7 @@
 import { Readable } from "stream";
 import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
-import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts, resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
@@ -466,7 +466,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
   // Use tool factory to receive context with agentAccountId
   if (toolsCfg.doc) {
     api.registerTool(
-      (ctx: OpenClawPluginToolContext) => {
+      (ctx) => {
         // Use config from execution context, fallback to registration config
         const config = ctx.config ?? api.config!;
 
@@ -493,7 +493,10 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
           api.logger.warn?.(
             `feishu_doc: Account "${accountId}" not found or not configured, falling back to default`,
           );
-          return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
+          return {
+            client: createFeishuClient(firstAccount),
+            mediaMaxBytes: defaultMediaMaxBytes,
+          };
         };
 
         return {
@@ -542,7 +545,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
   // Keep feishu_app_scopes as independent tool
   if (toolsCfg.scopes) {
     api.registerTool(
-      (ctx: OpenClawPluginToolContext) => {
+      (ctx) => {
         // Use config from execution context, fallback to registration config
         const config = ctx.config ?? api.config!;
 

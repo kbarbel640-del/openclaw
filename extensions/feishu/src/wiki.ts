@@ -1,5 +1,5 @@
 import type * as Lark from "@larksuiteoapi/node-sdk";
-import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts, resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { resolveToolsConfig } from "./tools-config.js";
@@ -178,7 +178,7 @@ export function registerFeishuWikiTools(api: OpenClawPluginApi) {
 
   // Use tool factory to receive context with agentAccountId
   api.registerTool(
-    (ctx: OpenClawPluginToolContext) => {
+    (ctx) => {
       // Use config from execution context, fallback to registration config
       const config = ctx.config ?? api.config!;
 
