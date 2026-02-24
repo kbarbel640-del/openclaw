@@ -11,6 +11,11 @@ const sendStickerTelegram = vi.fn(async () => ({
   messageId: "456",
   chatId: "123",
 }));
+const createForumTopicTelegram = vi.fn(async () => ({
+  threadId: "7890",
+  chatId: "-100123",
+  name: "Ops",
+}));
 const deleteMessageTelegram = vi.fn(async () => ({ ok: true }));
 const originalToken = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -18,6 +23,7 @@ vi.mock("../../telegram/send.js", () => ({
   reactMessageTelegram: (...args: unknown[]) => reactMessageTelegram(...args),
   sendMessageTelegram: (...args: unknown[]) => sendMessageTelegram(...args),
   sendStickerTelegram: (...args: unknown[]) => sendStickerTelegram(...args),
+  createForumTopicTelegram: (...args: unknown[]) => createForumTopicTelegram(...args),
   deleteMessageTelegram: (...args: unknown[]) => deleteMessageTelegram(...args),
 }));
 
@@ -26,6 +32,7 @@ describe("handleTelegramAction", () => {
     reactMessageTelegram.mockClear();
     sendMessageTelegram.mockClear();
     sendStickerTelegram.mockClear();
+    createForumTopicTelegram.mockClear();
     deleteMessageTelegram.mockClear();
     process.env.TELEGRAM_BOT_TOKEN = "tok";
   });
@@ -369,6 +376,51 @@ describe("handleTelegramAction", () => {
         cfg,
       ),
     ).rejects.toThrow(/Telegram sendMessage is disabled/);
+  });
+
+  it("creates a forum topic with optional icon id", async () => {
+    const cfg = {
+      channels: { telegram: { botToken: "tok" } },
+    } as OpenClawConfig;
+    const result = await handleTelegramAction(
+      {
+        action: "threadCreate",
+        to: "-100123",
+        threadName: "Ops",
+        iconCustomEmojiId: "5390123456789012345",
+      },
+      cfg,
+    );
+    expect(createForumTopicTelegram).toHaveBeenCalledWith(
+      "-100123",
+      "Ops",
+      expect.objectContaining({
+        token: "tok",
+        iconCustomEmojiId: "5390123456789012345",
+      }),
+    );
+    expect(result.content).toContainEqual({
+      type: "text",
+      text: expect.stringContaining('"threadId": "7890"'),
+    });
+  });
+
+  it("respects threadCreate gating", async () => {
+    const cfg = {
+      channels: {
+        telegram: { botToken: "tok", actions: { threadCreate: false } },
+      },
+    } as OpenClawConfig;
+    await expect(
+      handleTelegramAction(
+        {
+          action: "threadCreate",
+          to: "-100123",
+          threadName: "Ops",
+        },
+        cfg,
+      ),
+    ).rejects.toThrow(/Telegram thread creation is disabled/);
   });
 
   it("deletes a message", async () => {

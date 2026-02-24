@@ -9,6 +9,20 @@ vi.mock("../../../agents/tools/telegram-actions.js", () => ({
 }));
 
 describe("telegramMessageActions", () => {
+  it("includes thread-create by default", () => {
+    const cfg = { channels: { telegram: { botToken: "tok" } } } as OpenClawConfig;
+    const actions = telegramMessageActions.listActions({ cfg });
+    expect(actions).toContain("thread-create");
+  });
+
+  it("can disable thread-create via actions.threadCreate", () => {
+    const cfg = {
+      channels: { telegram: { botToken: "tok", actions: { threadCreate: false } } },
+    } as OpenClawConfig;
+    const actions = telegramMessageActions.listActions({ cfg });
+    expect(actions).not.toContain("thread-create");
+  });
+
   it("excludes sticker actions when not enabled", () => {
     const cfg = { channels: { telegram: { botToken: "tok" } } } as OpenClawConfig;
     const actions = telegramMessageActions.listActions({ cfg });
@@ -139,5 +153,32 @@ describe("telegramMessageActions", () => {
     expect(String(call.chatId)).toBe("123");
     expect(String(call.messageId)).toBe("456");
     expect(call.emoji).toBe("ok");
+  });
+
+  it("maps thread-create into telegram threadCreate action", async () => {
+    handleTelegramAction.mockClear();
+    const cfg = { channels: { telegram: { botToken: "tok" } } } as OpenClawConfig;
+
+    await telegramMessageActions.handleAction({
+      action: "thread-create",
+      params: {
+        to: "-100123",
+        threadName: "Ops",
+        iconCustomEmojiId: "5390123456789012345",
+      },
+      cfg,
+      accountId: undefined,
+    });
+
+    expect(handleTelegramAction).toHaveBeenCalledWith(
+      {
+        action: "threadCreate",
+        to: "-100123",
+        threadName: "Ops",
+        iconCustomEmojiId: "5390123456789012345",
+        accountId: undefined,
+      },
+      cfg,
+    );
   });
 });

@@ -16,6 +16,8 @@ export type TelegramActionConfig = {
   sendMessage?: boolean;
   deleteMessage?: boolean;
   editMessage?: boolean;
+  /** Enable forum topic creation via thread-create actions. */
+  threadCreate?: boolean;
   /** Enable sticker actions (send and search). */
   sticker?: boolean;
 };

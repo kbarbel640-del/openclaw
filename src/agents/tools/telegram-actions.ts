@@ -6,6 +6,7 @@ import {
 } from "../../telegram/inline-buttons.js";
 import { resolveTelegramReactionLevel } from "../../telegram/reaction-level.js";
 import {
+  createForumTopicTelegram,
   deleteMessageTelegram,
   editMessageTelegram,
   reactMessageTelegram,
@@ -265,6 +266,34 @@ export async function handleTelegramAction(
       ok: true,
       messageId: result.messageId,
       chatId: result.chatId,
+    });
+  }
+
+  if (action === "threadCreate") {
+    if (!isActionEnabled("threadCreate")) {
+      throw new Error("Telegram thread creation is disabled.");
+    }
+    const to = readStringParam(params, "to", { required: true });
+    const threadName = readStringParam(params, "threadName", { required: true });
+    const iconCustomEmojiId =
+      readStringParam(params, "iconCustomEmojiId") ?? readStringParam(params, "threadIconEmojiId");
+    const token = resolveTelegramToken(cfg, { accountId }).token;
+    if (!token) {
+      throw new Error(
+        "Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken.",
+      );
+    }
+    const result = await createForumTopicTelegram(to, threadName, {
+      token,
+      accountId: accountId ?? undefined,
+      iconCustomEmojiId: iconCustomEmojiId ?? undefined,
+    });
+    return jsonResult({
+      ok: true,
+      threadId: result.threadId,
+      chatId: result.chatId,
+      name: result.name,
+      iconCustomEmojiId: result.iconCustomEmojiId,
     });
   }
 

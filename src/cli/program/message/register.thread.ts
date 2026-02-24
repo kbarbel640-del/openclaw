@@ -16,6 +16,7 @@ export function registerMessageThreadCommands(message: Command, helpers: Message
     .option("--message-id <id>", "Message id (optional)")
     .option("-m, --message <text>", "Initial thread message text")
     .option("--auto-archive-min <n>", "Thread auto-archive minutes")
+    .option("--icon-custom-emoji-id <id>", "Telegram forum topic icon id (icon_custom_emoji_id)")
     .action(async (opts) => {
       await helpers.runMessageAction("thread-create", opts);
     });

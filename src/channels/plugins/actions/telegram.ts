@@ -56,6 +56,9 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
     if (gate("editMessage")) {
       actions.add("edit");
     }
+    if (gate("threadCreate")) {
+      actions.add("thread-create");
+    }
     if (gate("sticker", false)) {
       actions.add("sticker");
       actions.add("sticker-search");
@@ -158,6 +161,22 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
           messageId,
           content: message,
           buttons,
+          accountId: accountId ?? undefined,
+        },
+        cfg,
+      );
+    }
+
+    if (action === "thread-create") {
+      const to = readStringParam(params, "to", { required: true });
+      const threadName = readStringParam(params, "threadName", { required: true });
+      const iconCustomEmojiId = readStringParam(params, "iconCustomEmojiId");
+      return await handleTelegramAction(
+        {
+          action: "threadCreate",
+          to,
+          threadName,
+          iconCustomEmojiId: iconCustomEmojiId ?? undefined,
           accountId: accountId ?? undefined,
         },
         cfg,

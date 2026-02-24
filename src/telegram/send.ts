@@ -784,6 +784,134 @@ export async function editMessageTelegram(
   return { ok: true, messageId: String(messageId), chatId };
 }
 
+type TelegramCreateForumTopicOpts = {
+  token?: string;
+  accountId?: string;
+  verbose?: boolean;
+  api?: Bot["api"];
+  retry?: RetryConfig;
+  /** Optional forum topic icon id (Telegram: icon_custom_emoji_id). */
+  iconCustomEmojiId?: string;
+};
+
+type TelegramCreateForumTopicResult = {
+  threadId: string;
+  chatId: string;
+  name: string;
+  iconCustomEmojiId?: string;
+};
+
+function normalizeIconCustomEmojiId(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/**
+ * Create a Telegram forum topic via Bot API `createForumTopic`.
+ */
+export async function createForumTopicTelegram(
+  to: string,
+  name: string,
+  opts: TelegramCreateForumTopicOpts = {},
+): Promise<TelegramCreateForumTopicResult> {
+  const topicName = name.trim();
+  if (!topicName) {
+    throw new Error("Telegram thread name is required");
+  }
+
+  const cfg = loadConfig();
+  const account = resolveTelegramAccount({
+    cfg,
+    accountId: opts.accountId,
+  });
+  const token = resolveToken(opts.token, account);
+  const target = parseTelegramTarget(to);
+  const chatId = normalizeChatId(target.chatId);
+  const iconCustomEmojiId = normalizeIconCustomEmojiId(opts.iconCustomEmojiId);
+  const client = resolveTelegramClientOptions(account);
+  const api = opts.api ?? new Bot(token, client ? { client } : undefined).api;
+
+  const request = createTelegramRetryRunner({
+    retry: opts.retry,
+    configRetry: account.config.retry,
+    verbose: opts.verbose,
+    shouldRetry: (err) => isRecoverableTelegramNetworkError(err, { context: "send" }),
+  });
+  const logHttpError = createTelegramHttpLogger(cfg);
+  const requestWithDiag = <T>(fn: () => Promise<T>, label?: string) =>
+    withTelegramApiErrorLogging({
+      operation: label ?? "request",
+      fn: () => request(fn, label),
+    }).catch((err) => {
+      logHttpError(label ?? "request", err);
+      throw err;
+    });
+
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    name: topicName,
+  };
+  if (iconCustomEmojiId) {
+    payload.icon_custom_emoji_id = iconCustomEmojiId;
+  }
+
+  const rawApi = (
+    api as unknown as {
+      raw?: {
+        createForumTopic?: (
+          params: Record<string, unknown>,
+        ) => Promise<{ message_thread_id?: number; name?: string }>;
+      };
+    }
+  ).raw;
+  if (!rawApi || typeof rawApi.createForumTopic !== "function") {
+    throw new Error("Telegram createForumTopic is unavailable in this bot API client.");
+  }
+
+  let created: { message_thread_id?: number; name?: string };
+  try {
+    created = await requestWithDiag(() => rawApi.createForumTopic!(payload), "createForumTopic");
+  } catch (err) {
+    const msg = formatErrorMessage(err);
+    if (/icon[_\s]*custom[_\s]*emoji[_\s]*id.*invalid/i.test(msg)) {
+      throw new Error(
+        "Telegram createForumTopic failed: icon_custom_emoji_id is invalid or unavailable to this bot. Use a default forum topic icon id.",
+        { cause: err },
+      );
+    }
+    if (/400:\s*Bad Request:\s*chat not found/i.test(msg)) {
+      throw new Error(
+        [
+          `Telegram createForumTopic failed: chat not found (chat_id=${chatId}).`,
+          "Likely: bot removed from group, wrong chat id, or wrong bot token.",
+          `Input was: ${JSON.stringify(to)}.`,
+        ].join(" "),
+        { cause: err },
+      );
+    }
+    throw err;
+  }
+
+  const threadId =
+    typeof created.message_thread_id === "number" && Number.isFinite(created.message_thread_id)
+      ? String(Math.trunc(created.message_thread_id))
+      : "unknown";
+  const resolvedName = created.name?.trim() ? created.name : topicName;
+
+  recordChannelActivity({
+    channel: "telegram",
+    accountId: account.accountId,
+    direction: "outbound",
+  });
+
+  return {
+    threadId,
+    chatId,
+    name: resolvedName,
+    ...(iconCustomEmojiId ? { iconCustomEmojiId } : {}),
+  };
+}
+
 function inferFilename(kind: ReturnType<typeof mediaKindFromMime>) {
   switch (kind) {
     case "image":
