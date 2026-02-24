@@ -58,32 +58,23 @@ function hashContent(system: string, tools: unknown[] | undefined): string {
 
 /**
  * Extract base model name for caching API.
- * Moonshot caching API requires base model names without context-size suffixes.
- *
- * Known patterns:
- * - moonshot-v1-8k/32k/128k[-vision-preview] → moonshot-v1
- * - moonshot-v1-auto → moonshot-v1
- * - kimi-k2-*-preview, kimi-k2-thinking[-turbo] → kimi-k2 (assumed)
- * - kimi-k2.5 → kimi-k2.5 (assumed, no suffix)
- * - kimi-latest → kimi-latest (alias, pass as-is)
+ * Moonshot caching API currently only supports the moonshot-v1 model family.
+ * Kimi K2 series (kimi-k2.5, kimi-k2-*, kimi-latest) returns "model family is invalid".
  *
  * @internal Exported for testing only
+ * @returns Base model name, or undefined if model doesn't support caching
  */
-export function toCacheModelName(modelId: string): string {
+export function toCacheModelName(modelId: string): string | undefined {
   const name = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
 
-  // moonshot-v1-* → moonshot-v1
+  // Only moonshot-v1-* models support the caching API
   if (name.startsWith("moonshot-v1")) {
     return "moonshot-v1";
   }
 
-  // kimi-k2-something → kimi-k2 (strip date/preview/thinking/turbo suffixes)
-  if (name.startsWith("kimi-k2-")) {
-    return "kimi-k2";
-  }
-
-  // kimi-k2.5, kimi-latest, etc. → pass as-is (no known suffix pattern)
-  return name;
+  // Kimi K2 series does NOT support caching API (returns 400 "model family is invalid")
+  // Return undefined to skip caching for unsupported models
+  return undefined;
 }
 
 function shouldInvalidate(entry: CacheEntry | undefined, hash: string): boolean {
@@ -100,6 +91,9 @@ async function createCache(params: {
 }): Promise<string> {
   const url = `${params.baseUrl}/caching`;
   const cacheModel = toCacheModelName(params.model);
+  if (!cacheModel) {
+    throw new Error(`Model ${params.model} does not support caching API`);
+  }
   const body: CacheCreateRequest = {
     model: cacheModel,
     messages: [{ role: "system", content: params.system }],
@@ -286,6 +280,13 @@ export function createMoonshotCacheWrapper(
 ): StreamFn {
   const ttl = config.ttl ?? 3600;
   const resetTtl = config.resetTtl ?? ttl;
+
+  // Check if model supports caching API (only moonshot-v1-* for now)
+  const cacheModelName = toCacheModelName(modelId);
+  if (!cacheModelName) {
+    log.debug(`[moonshot-cache] Model ${modelId} does not support caching API, skipping wrapper`);
+    return baseStreamFn;
+  }
 
   return (model, context, options) => {
     const apiKey = options?.apiKey;
