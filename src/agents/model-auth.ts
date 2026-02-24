@@ -141,6 +141,12 @@ export async function resolveApiKeyForProvider(params: {
   agentDir?: string;
 }): Promise<ResolvedProviderAuth> {
   const { provider, cfg, profileId, preferredProfile } = params;
+
+  // claude-code provider uses the local CLI which manages its own auth.
+  if (normalizeProviderId(provider) === "claude-code") {
+    return { apiKey: "claude-code-local", source: "local CLI", mode: "api-key" };
+  }
+
   const store = params.store ?? ensureAuthProfileStore(params.agentDir);
 
   if (profileId) {
