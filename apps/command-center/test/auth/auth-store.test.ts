@@ -11,9 +11,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
 
-// Mock electron.app
+// Mock electron.app + safeStorage
 vi.mock("electron", () => ({
   app: { getPath: vi.fn(() => "/tmp/occc-test") },
+  // isEncryptionAvailable returns false — uses the scrypt fallback path in tests
+  safeStorage: { isEncryptionAvailable: vi.fn(() => false) },
 }));
 
 // Build an in-memory store that simulates SQLite prepare/exec/pragma
@@ -165,6 +167,17 @@ function makeInMemoryDb() {
           run: vi.fn((...args: unknown[]) => {
             const [id, userId, event, method, success, ipHint, ts] = args as (string | null)[];
             auditLog.set(id!, { id, user_id: userId, event, method, success: Number(success), ip_hint: ipHint, timestamp: ts });
+          }),
+        };
+      }
+      // COUNT(*) from auth_audit (used by countRecentLoginFailures)
+      if (normalised.includes("COUNT(*)") && normalised.includes("FROM auth_audit")) {
+        return {
+          get: vi.fn((userId: string, since: string) => {
+            const count = [...auditLog.values()].filter((r) =>
+              r.user_id === userId && r.event === "login_failed" && String(r.timestamp) > since,
+            ).length;
+            return { count };
           }),
         };
       }

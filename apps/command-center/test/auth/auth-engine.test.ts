@@ -92,6 +92,7 @@ function makeMockStore(overrides: Partial<AuthStore> = {}): AuthStore {
     setRecoveryCodes: vi.fn(async () => {}),
     useRecoveryCode: vi.fn(async () => false),
     getUserRowById: vi.fn(() => null),
+    countRecentLoginFailures: vi.fn(() => 0),
     ...overrides,
   } as unknown as AuthStore;
 }
@@ -209,31 +210,35 @@ describe("login rate limiting", () => {
   it("locks account after 5 failed attempts", async () => {
     vi.mocked(store.verifyPassword).mockResolvedValue(false);
 
+    // Simulate DB recording failures: countRecentLoginFailures tracks audit events
+    let failureCount = 0;
+    vi.mocked(store.countRecentLoginFailures).mockImplementation(() => failureCount);
+    vi.mocked(store.auditLog).mockImplementation((entry) => {
+      if (entry.event === "login_failed") { failureCount++; }
+    });
+
     for (let i = 0; i < 5; i++) {
       await engine.login("admin", "wrong");
     }
 
-    // 6th attempt should be locked
+    // 6th attempt — countRecentLoginFailures now returns 5 (>= threshold)
     const result = await engine.login("admin", "wrong");
     expect(result.ok).toBe(false);
     if (!result.ok) { expect(result.reason).toBe("account-locked"); }
   });
 
-  it("lockoutRemaining() returns remaining ms", async () => {
-    vi.mocked(store.verifyPassword).mockResolvedValue(false);
-    for (let i = 0; i < 5; i++) {
-      await engine.login("admin", "wrong");
-    }
-    expect(engine.lockoutRemaining("admin")).toBeGreaterThan(0);
+  it("returns account-locked immediately when failure count reaches threshold", async () => {
+    // Directly simulate the DB already holding 5+ failures
+    vi.mocked(store.countRecentLoginFailures).mockReturnValue(5);
+    const result = await engine.login("admin", "any-password");
+    expect(result.ok).toBe(false);
+    if (!result.ok) { expect(result.reason).toBe("account-locked"); }
+    // verifyPassword must NOT be called when already locked
+    expect(vi.mocked(store.verifyPassword)).not.toHaveBeenCalled();
   });
 
-  it("clears lockout after successful login", async () => {
-    vi.mocked(store.verifyPassword).mockResolvedValue(false);
-    // 3 failures (below threshold)
-    for (let i = 0; i < 3; i++) {
-      await engine.login("admin", "wrong");
-    }
-    // Then a success
+  it("does not lock when failure count is below threshold", async () => {
+    vi.mocked(store.countRecentLoginFailures).mockReturnValue(3); // below MAX_FAILED_ATTEMPTS
     vi.mocked(store.verifyPassword).mockResolvedValue(true);
     vi.mocked(store.getUserByUsername).mockReturnValue({
       id: "u1",
@@ -249,7 +254,6 @@ describe("login rate limiting", () => {
     });
     const result = await engine.login("admin", "correct");
     expect(result.ok).toBe(true);
-    expect(engine.lockoutRemaining("admin")).toBe(0);
   });
 });
 
