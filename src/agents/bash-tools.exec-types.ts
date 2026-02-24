@@ -23,6 +23,7 @@ export type ExecToolDefaults = {
   messageProvider?: string;
   notifyOnExit?: boolean;
   notifyOnExitEmptySuccess?: boolean;
+  backgroundMode?: "poll" | "notify";
   cwd?: string;
 };
 
