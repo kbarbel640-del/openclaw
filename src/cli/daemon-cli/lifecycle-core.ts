@@ -8,6 +8,7 @@ import { isSystemdUserServiceAvailable } from "../../daemon/systemd.js";
 import { resolveGatewayCredentialsFromConfig } from "../../gateway/credentials.js";
 import { isWSL } from "../../infra/wsl.js";
 import { defaultRuntime } from "../../runtime.js";
+import { VERSION } from "../../version.js";
 import {
   buildDaemonServiceSnapshot,
   createNullWriter,
@@ -302,6 +303,32 @@ export async function runServiceRestart(params: {
     } catch {
       // Non-fatal: token drift check is best-effort
     }
+  }
+
+  // Check for version drift before restart (service version vs current binary version)
+  try {
+    const command = await params.service.readCommand(process.env);
+    const serviceVersion = command?.environment?.OPENCLAW_SERVICE_VERSION;
+    if (serviceVersion && serviceVersion !== VERSION) {
+      const warning = `Service version drift detected: service has ${serviceVersion}, current binary is ${VERSION}. Regenerating service configuration.`;
+      warnings.push(warning);
+      if (!json) {
+        defaultRuntime.log(`\n⚠️  ${warning}\n`);
+      }
+      // Regenerate the service unit with current environment
+      if (command) {
+        const updatedEnv = { ...command.environment, OPENCLAW_SERVICE_VERSION: VERSION };
+        await params.service.install({
+          env: process.env,
+          stdout: createNullWriter(),
+          programArguments: command.programArguments,
+          workingDirectory: command.workingDirectory,
+          environment: updatedEnv,
+        });
+      }
+    }
+  } catch {
+    // Non-fatal: version drift check is best-effort
   }
 
   try {
