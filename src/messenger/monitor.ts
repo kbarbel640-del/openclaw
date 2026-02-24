@@ -1,17 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { OpenClawConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
-import type { MessengerWebhookBody, ResolvedMessengerAccount } from "./types.js";
 import { chunkMarkdownText } from "../auto-reply/chunk.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.js";
 import { createReplyPrefixOptions } from "../channels/reply-prefix.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { danger, logVerbose } from "../globals.js";
 import { normalizePluginHttpPath } from "../plugins/http-path.js";
 import { registerPluginHttpRoute } from "../plugins/http-registry.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { resolveMessengerAccount } from "./accounts.js";
 import { handleMessengerWebhookEvents } from "./bot-handlers.js";
 import { sendMessageMessenger, sendSenderAction } from "./send.js";
 import { validateMessengerSignature } from "./signature.js";
+import type { MessengerWebhookBody, ResolvedMessengerAccount } from "./types.js";
 
 export interface MonitorMessengerProviderOptions {
   pageAccessToken: string;

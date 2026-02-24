@@ -1,10 +1,4 @@
 import type { OpenClawConfig } from "../config/config.js";
-import type { RuntimeEnv } from "../runtime.js";
-import type {
-  ResolvedMessengerAccount,
-  MessengerMessagingEvent,
-  MessengerAttachment,
-} from "./types.js";
 import { danger, logVerbose } from "../globals.js";
 import { fetchRemoteMedia } from "../media/fetch.js";
 import { MEDIA_MAX_BYTES, saveMediaBuffer } from "../media/store.js";
@@ -14,11 +8,17 @@ import {
   readChannelAllowFromStore,
   upsertChannelPairingRequest,
 } from "../pairing/pairing-store.js";
+import type { RuntimeEnv } from "../runtime.js";
 import {
   buildMessengerMessageContext,
   type MessengerInboundContext,
 } from "./bot-message-context.js";
 import { sendMessageMessenger } from "./send.js";
+import type {
+  ResolvedMessengerAccount,
+  MessengerMessagingEvent,
+  MessengerAttachment,
+} from "./types.js";
 
 export interface MessengerHandlerContext {
   cfg: OpenClawConfig;
