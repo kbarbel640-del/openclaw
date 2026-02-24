@@ -3,7 +3,7 @@
 ## Bring up Mac node
 
 ```bash
-cd /Users/kermitv/dev/projects/openclaw-upstream
+cd <repo-path-on-mac>
 docker compose --env-file .env.mac up -d --build openclaw-gateway
 ```
 
