@@ -430,8 +430,8 @@ export type ToolsConfig = {
     search?: {
       /** Enable web search tool (default: true when API key is present). */
       enabled?: boolean;
-      /** Search provider ("brave", "perplexity", "grok", "gemini", or "kimi"). */
-      provider?: "brave" | "perplexity" | "grok" | "gemini" | "kimi";
+      /** Search provider ("auto", "brave", "duckduckgo", "perplexity", "grok", "gemini", or "kimi"). */
+      provider?: "auto" | "brave" | "duckduckgo" | "perplexity" | "grok" | "gemini" | "kimi";
       /** Brave Search API key (optional; defaults to BRAVE_API_KEY env var). */
       apiKey?: string;
       /** Default search results count (1-10). */
@@ -473,6 +473,11 @@ export type ToolsConfig = {
         baseUrl?: string;
         /** Model to use (defaults to "moonshot-v1-128k"). */
         model?: string;
+      };
+      /** DuckDuckGo-specific configuration (used when provider="duckduckgo"). */
+      duckduckgo?: {
+        /** Optional Instant Answer endpoint override (default: "https://api.duckduckgo.com/"). */
+        endpoint?: string;
       };
     };
     fetch?: {

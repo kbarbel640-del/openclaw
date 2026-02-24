@@ -551,9 +551,10 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.message.crossContext.marker.suffix":
     'Text suffix for cross-context markers (supports "{channel}").',
   "tools.message.broadcast.enabled": "Enable broadcast action (default: true).",
-  "tools.web.search.enabled": "Enable the web_search tool (requires a provider API key).",
+  "tools.web.search.enabled":
+    "Enable the web_search tool (some providers require API keys; DuckDuckGo Instant Answer does not).",
   "tools.web.search.provider":
-    'Search provider ("brave", "perplexity", "grok", "gemini", or "kimi"). Auto-detected from available API keys if omitted.',
+    'Search provider ("auto", "brave", "duckduckgo", "perplexity", "grok", "gemini", or "kimi"). Auto-detected from available API keys if omitted.',
   "tools.web.search.apiKey": "Brave Search API key (fallback: BRAVE_API_KEY env var).",
   "tools.web.search.maxResults": "Default number of results to return (1-10).",
   "tools.web.search.timeoutSeconds": "Timeout in seconds for web_search requests.",
@@ -563,6 +564,8 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.web.search.gemini.model": 'Gemini model override (default: "gemini-2.5-flash").',
   "tools.web.search.grok.apiKey": "Grok (xAI) API key (fallback: XAI_API_KEY env var).",
   "tools.web.search.grok.model": 'Grok model override (default: "grok-4-1-fast").',
+  "tools.web.search.duckduckgo.endpoint":
+    'DuckDuckGo Instant Answer API endpoint override (default: "https://api.duckduckgo.com/"). Free, no API key required, no payment required. Limitations: zero-click/instant answers only; no full SERP/all links.',
   "tools.web.search.kimi.apiKey":
     "Moonshot/Kimi API key (fallback: KIMI_API_KEY or MOONSHOT_API_KEY env var).",
   "tools.web.search.kimi.baseUrl":

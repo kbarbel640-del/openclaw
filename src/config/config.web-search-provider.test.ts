@@ -10,6 +10,30 @@ const { __testing } = await import("../agents/tools/web-search.js");
 const { resolveSearchProvider } = __testing;
 
 describe("web search provider config", () => {
+  it("accepts duckduckgo provider and config", () => {
+    const res = validateConfigObject(
+      buildWebSearchProviderConfig({
+        enabled: true,
+        provider: "duckduckgo",
+        providerConfig: {
+          endpoint: "https://api.duckduckgo.com/",
+        },
+      }),
+    );
+
+    expect(res.ok).toBe(true);
+  });
+
+  it("accepts auto provider", () => {
+    const res = validateConfigObject(
+      buildWebSearchProviderConfig({
+        provider: "auto",
+      }),
+    );
+
+    expect(res.ok).toBe(true);
+  });
+
   it("accepts perplexity provider and config", () => {
     const res = validateConfigObject(
       buildWebSearchProviderConfig({

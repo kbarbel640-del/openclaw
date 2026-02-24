@@ -20,11 +20,18 @@ import {
   writeCache,
 } from "./web-shared.js";
 
-const SEARCH_PROVIDERS = ["brave", "perplexity", "grok", "gemini", "kimi"] as const;
+const SEARCH_PROVIDERS = ["brave", "duckduckgo", "perplexity", "grok", "gemini", "kimi"] as const;
 const DEFAULT_SEARCH_COUNT = 5;
 const MAX_SEARCH_COUNT = 10;
 
 const BRAVE_SEARCH_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+/**
+ * DuckDuckGo Instant Answer API endpoint.
+ * This is the free, no-API-key, no-payment DDG mode.
+ * Limitations: zero-click/instant answers only; no full SERP/all links.
+ * Docs: https://duckduckgo.com/api
+ */
+const DEFAULT_DUCKDUCKGO_ENDPOINT = "https://api.duckduckgo.com/";
 const DEFAULT_PERPLEXITY_BASE_URL = "https://openrouter.ai/api/v1";
 const PERPLEXITY_DIRECT_BASE_URL = "https://api.perplexity.ai";
 const DEFAULT_PERPLEXITY_MODEL = "perplexity/sonar-pro";
@@ -101,6 +108,10 @@ type PerplexityConfig = {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+};
+
+type DuckDuckGoConfig = {
+  endpoint?: string;
 };
 
 type PerplexityApiKeySource = "config" | "perplexity_env" | "openrouter_env" | "none";
@@ -258,6 +269,28 @@ type GeminiGroundingResponse = {
   };
 };
 
+type DuckDuckGoTopic = {
+  Text?: string;
+  FirstURL?: string;
+  Result?: string;
+  Name?: string;
+  Topics?: DuckDuckGoTopic[];
+};
+
+type DuckDuckGoResponse = {
+  AbstractText?: string;
+  AbstractURL?: string;
+  AbstractSource?: string;
+  Heading?: string;
+  Results?: DuckDuckGoTopic[];
+  RelatedTopics?: DuckDuckGoTopic[];
+};
+
+type WebSearchErrorCode =
+  | "missing_brave_api_key"
+  | "search_provider_unavailable"
+  | "search_request_failed";
+
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -288,44 +321,66 @@ function resolveSearchApiKey(search?: WebSearchConfig): string | undefined {
   return fromConfig || fromEnv || undefined;
 }
 
-function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
-  if (provider === "perplexity") {
-    return {
-      error: "missing_perplexity_api_key",
-      message:
-        "web_search (perplexity) needs an API key. Set PERPLEXITY_API_KEY or OPENROUTER_API_KEY in the Gateway environment, or configure tools.web.search.perplexity.apiKey.",
-      docs: "https://docs.openclaw.ai/tools/web",
-    };
-  }
-  if (provider === "grok") {
-    return {
-      error: "missing_xai_api_key",
-      message:
-        "web_search (grok) needs an xAI API key. Set XAI_API_KEY in the Gateway environment, or configure tools.web.search.grok.apiKey.",
-      docs: "https://docs.openclaw.ai/tools/web",
-    };
-  }
-  if (provider === "gemini") {
-    return {
-      error: "missing_gemini_api_key",
-      message:
-        "web_search (gemini) needs an API key. Set GEMINI_API_KEY in the Gateway environment, or configure tools.web.search.gemini.apiKey.",
-      docs: "https://docs.openclaw.ai/tools/web",
-    };
-  }
-  if (provider === "kimi") {
-    return {
-      error: "missing_kimi_api_key",
-      message:
-        "web_search (kimi) needs a Moonshot API key. Set KIMI_API_KEY or MOONSHOT_API_KEY in the Gateway environment, or configure tools.web.search.kimi.apiKey.",
-      docs: "https://docs.openclaw.ai/tools/web",
-    };
-  }
+function webSearchErrorPayload(params: {
+  code: WebSearchErrorCode;
+  message: string;
+  provider: (typeof SEARCH_PROVIDERS)[number];
+  recoverable: boolean;
+  retryable: boolean;
+  help?: string;
+  docs?: string;
+  cause?: string;
+}) {
   return {
-    error: "missing_brave_api_key",
-    message: `web_search needs a Brave Search API key. Run \`${formatCliCommand("openclaw configure --section web")}\` to store it, or set BRAVE_API_KEY in the Gateway environment.`,
-    docs: "https://docs.openclaw.ai/tools/web",
+    status: "error" as const,
+    tool: "web_search" as const,
+    code: params.code,
+    message: params.message,
+    recoverable: params.recoverable,
+    retryable: params.retryable,
+    provider: params.provider,
+    ...(params.help ? { help: params.help } : {}),
+    ...(params.docs ? { docs: params.docs } : {}),
+    ...(params.cause ? { cause: params.cause } : {}),
   };
+}
+
+function webSearchErrorResult(payload: ReturnType<typeof webSearchErrorPayload>) {
+  const base = jsonResult(payload);
+  return {
+    ...base,
+    isError: true,
+  };
+}
+
+function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
+  if (provider === "brave") {
+    return webSearchErrorPayload({
+      code: "missing_brave_api_key",
+      provider,
+      recoverable: true,
+      retryable: false,
+      message: "web_search needs a Brave Search API key.",
+      help: `Run \`${formatCliCommand("openclaw configure --section web")}\` or set BRAVE_API_KEY.`,
+      docs: "https://docs.openclaw.ai/tools/web",
+    });
+  }
+  const providerHelpByName: Record<string, string> = {
+    perplexity:
+      "Set PERPLEXITY_API_KEY or OPENROUTER_API_KEY, or configure tools.web.search.perplexity.apiKey.",
+    grok: "Set XAI_API_KEY, or configure tools.web.search.grok.apiKey.",
+    gemini: "Set GEMINI_API_KEY, or configure tools.web.search.gemini.apiKey.",
+    kimi: "Set KIMI_API_KEY or MOONSHOT_API_KEY, or configure tools.web.search.kimi.apiKey.",
+  };
+  return webSearchErrorPayload({
+    code: "search_provider_unavailable",
+    provider,
+    recoverable: true,
+    retryable: false,
+    message: `web_search (${provider}) is unavailable because its API key is missing.`,
+    help: providerHelpByName[provider] ?? undefined,
+    docs: "https://docs.openclaw.ai/tools/web",
+  });
 }
 
 function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDERS)[number] {
@@ -339,6 +394,9 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   if (raw === "grok") {
     return "grok";
   }
+  if (raw === "duckduckgo") {
+    return "duckduckgo";
+  }
   if (raw === "gemini") {
     return "gemini";
   }
@@ -350,7 +408,7 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   }
 
   // Auto-detect provider from available API keys (priority order)
-  if (raw === "") {
+  if (raw === "" || raw === "auto") {
     // 1. Brave
     if (resolveSearchApiKey(search)) {
       defaultRuntime.log(
@@ -394,6 +452,25 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   }
 
   return "brave";
+}
+
+function resolveDuckDuckGoConfig(search?: WebSearchConfig): DuckDuckGoConfig {
+  if (!search || typeof search !== "object") {
+    return {};
+  }
+  const duckduckgo = "duckduckgo" in search ? search.duckduckgo : undefined;
+  if (!duckduckgo || typeof duckduckgo !== "object") {
+    return {};
+  }
+  return duckduckgo as DuckDuckGoConfig;
+}
+
+function resolveDuckDuckGoEndpoint(config?: DuckDuckGoConfig): string {
+  const fromConfig =
+    config && "endpoint" in config && typeof config.endpoint === "string"
+      ? config.endpoint.trim()
+      : "";
+  return fromConfig || DEFAULT_DUCKDUCKGO_ENDPOINT;
 }
 
 function resolvePerplexityConfig(search?: WebSearchConfig): PerplexityConfig {
@@ -778,6 +855,101 @@ function resolveSiteName(url: string | undefined): string | undefined {
   }
 }
 
+function collectDuckDuckGoTopics(topics: DuckDuckGoTopic[] | undefined, target: DuckDuckGoTopic[]) {
+  for (const entry of topics ?? []) {
+    if (Array.isArray(entry.Topics) && entry.Topics.length > 0) {
+      collectDuckDuckGoTopics(entry.Topics, target);
+      continue;
+    }
+    target.push(entry);
+  }
+}
+
+function extractDuckDuckGoDescription(entry: DuckDuckGoTopic): string {
+  const text = typeof entry.Text === "string" ? entry.Text.trim() : "";
+  if (text) {
+    return text;
+  }
+  const result = typeof entry.Result === "string" ? entry.Result.replace(/<[^>]+>/g, "") : "";
+  return result.trim();
+}
+
+/**
+ * Search using DuckDuckGo Instant Answer API.
+ *
+ * Endpoint: https://api.duckduckgo.com/
+ * Request shape: ?q=<query>&format=json&no_html=1&skip_disambig=1&no_redirect=1
+ * No API key required, no payment required.
+ *
+ * Limitations:
+ * - Zero-click/instant answers only (AbstractText, RelatedTopics, Results)
+ * - No full SERP/all links like traditional search engines
+ * - Best for factual queries, definitions, quick answers
+ * - May return empty results for queries without instant answers
+ *
+ * Docs: https://duckduckgo.com/api
+ */
+async function runDuckDuckGoSearch(params: {
+  query: string;
+  count: number;
+  endpoint: string;
+  timeoutSeconds: number;
+}): Promise<Array<{ title: string; url: string; description: string; siteName?: string }>> {
+  const base = params.endpoint.trim();
+  const endpoint = base.endsWith("/") ? base : `${base}/`;
+  const url = new URL(endpoint);
+  url.searchParams.set("q", params.query);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("no_html", "1");
+  url.searchParams.set("no_redirect", "1");
+  url.searchParams.set("skip_disambig", "1");
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    signal: withTimeout(undefined, params.timeoutSeconds * 1000),
+  });
+
+  if (!res.ok) {
+    return throwWebSearchApiError(res, "DuckDuckGo");
+  }
+
+  const data = (await res.json()) as DuckDuckGoResponse;
+  const collected: DuckDuckGoTopic[] = [];
+  collectDuckDuckGoTopics(data.Results, collected);
+  collectDuckDuckGoTopics(data.RelatedTopics, collected);
+  if (data.AbstractText && data.AbstractURL) {
+    collected.unshift({
+      Text: data.AbstractText,
+      FirstURL: data.AbstractURL,
+      Name: data.AbstractSource || data.Heading,
+    });
+  }
+
+  const mapped: Array<{ title: string; url: string; description: string; siteName?: string }> = [];
+  for (const entry of collected) {
+    const urlValue = typeof entry.FirstURL === "string" ? entry.FirstURL.trim() : "";
+    if (!urlValue) {
+      continue;
+    }
+    const description = extractDuckDuckGoDescription(entry);
+    const title = (typeof entry.Name === "string" ? entry.Name.trim() : "") || urlValue;
+    mapped.push({
+      title: title ? wrapWebContent(title, "web_search") : "",
+      url: urlValue,
+      description: description ? wrapWebContent(description, "web_search") : "",
+      siteName: resolveSiteName(urlValue),
+    });
+    if (mapped.length >= params.count) {
+      break;
+    }
+  }
+
+  return mapped;
+}
+
 async function throwWebSearchApiError(res: Response, providerLabel: string): Promise<never> {
   const detailResult = await readResponseText(res, { maxBytes: 64_000 });
   const detail = detailResult.text;
@@ -1025,7 +1197,7 @@ async function runKimiSearch(params: {
 async function runWebSearch(params: {
   query: string;
   count: number;
-  apiKey: string;
+  apiKey?: string;
   timeoutSeconds: number;
   cacheTtlMs: number;
   provider: (typeof SEARCH_PROVIDERS)[number];
@@ -1040,10 +1212,13 @@ async function runWebSearch(params: {
   geminiModel?: string;
   kimiBaseUrl?: string;
   kimiModel?: string;
+  duckduckgoEndpoint?: string;
 }): Promise<Record<string, unknown>> {
   const cacheKey = normalizeCacheKey(
     params.provider === "brave"
       ? `${params.provider}:${params.query}:${params.count}:${params.country || "default"}:${params.search_lang || "default"}:${params.ui_lang || "default"}:${params.freshness || "default"}`
+      : params.provider === "duckduckgo"
+        ? `${params.provider}:${params.query}:${params.count}:${params.duckduckgoEndpoint ?? DEFAULT_DUCKDUCKGO_ENDPOINT}`
       : params.provider === "perplexity"
         ? `${params.provider}:${params.query}:${params.perplexityBaseUrl ?? DEFAULT_PERPLEXITY_BASE_URL}:${params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL}:${params.freshness || "default"}`
         : params.provider === "kimi"
@@ -1060,6 +1235,9 @@ async function runWebSearch(params: {
   const start = Date.now();
 
   if (params.provider === "perplexity") {
+    if (!params.apiKey) {
+      throw new Error("Missing Perplexity API key");
+    }
     const { content, citations } = await runPerplexitySearch({
       query: params.query,
       apiKey: params.apiKey,
@@ -1088,6 +1266,9 @@ async function runWebSearch(params: {
   }
 
   if (params.provider === "grok") {
+    if (!params.apiKey) {
+      throw new Error("Missing xAI API key");
+    }
     const { content, citations, inlineCitations } = await runGrokSearch({
       query: params.query,
       apiKey: params.apiKey,
@@ -1116,6 +1297,9 @@ async function runWebSearch(params: {
   }
 
   if (params.provider === "kimi") {
+    if (!params.apiKey) {
+      throw new Error("Missing Kimi API key");
+    }
     const { content, citations } = await runKimiSearch({
       query: params.query,
       apiKey: params.apiKey,
@@ -1143,6 +1327,9 @@ async function runWebSearch(params: {
   }
 
   if (params.provider === "gemini") {
+    if (!params.apiKey) {
+      throw new Error("Missing Gemini API key");
+    }
     const geminiResult = await runGeminiSearch({
       query: params.query,
       apiKey: params.apiKey,
@@ -1168,8 +1355,36 @@ async function runWebSearch(params: {
     return payload;
   }
 
+  if (params.provider === "duckduckgo") {
+    const results = await runDuckDuckGoSearch({
+      query: params.query,
+      count: params.count,
+      endpoint: params.duckduckgoEndpoint ?? DEFAULT_DUCKDUCKGO_ENDPOINT,
+      timeoutSeconds: params.timeoutSeconds,
+    });
+    const payload = {
+      query: params.query,
+      provider: params.provider,
+      count: results.length,
+      tookMs: Date.now() - start,
+      externalContent: {
+        untrusted: true,
+        source: "web_search",
+        provider: params.provider,
+        wrapped: true,
+      },
+      results,
+    };
+    writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
+    return payload;
+  }
+
   if (params.provider !== "brave") {
     throw new Error("Unsupported web search provider.");
+  }
+
+  if (!params.apiKey) {
+    throw new Error("Missing Brave API key");
   }
 
   const url = new URL(BRAVE_SEARCH_ENDPOINT);
@@ -1250,10 +1465,13 @@ export function createWebSearchTool(options?: {
   const grokConfig = resolveGrokConfig(search);
   const geminiConfig = resolveGeminiConfig(search);
   const kimiConfig = resolveKimiConfig(search);
+  const duckduckgoConfig = resolveDuckDuckGoConfig(search);
 
   const description =
     provider === "perplexity"
       ? "Search the web using Perplexity Sonar (direct or via OpenRouter). Returns AI-synthesized answers with citations from real-time web search."
+      : provider === "duckduckgo"
+        ? "Search the web using DuckDuckGo Instant Answer API (free, no API key required). Returns zero-click answers and related topics with URLs and snippets. Limitations: instant answers only; no full SERP/all links. Best for quick facts, definitions, and topic summaries."
       : provider === "grok"
         ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search."
         : provider === "kimi"
@@ -1281,8 +1499,8 @@ export function createWebSearchTool(options?: {
                 ? resolveGeminiApiKey(geminiConfig)
                 : resolveSearchApiKey(search);
 
-      if (!apiKey) {
-        return jsonResult(missingSearchKeyPayload(provider));
+      if (provider !== "duckduckgo" && !apiKey) {
+        return webSearchErrorResult(missingSearchKeyPayload(provider));
       }
       const params = args as Record<string, unknown>;
       const query = readStringParam(params, "query", { required: true });
@@ -1293,45 +1511,76 @@ export function createWebSearchTool(options?: {
       const ui_lang = readStringParam(params, "ui_lang");
       const rawFreshness = readStringParam(params, "freshness");
       if (rawFreshness && provider !== "brave" && provider !== "perplexity") {
-        return jsonResult({
+        return webSearchErrorResult({
+          ...webSearchErrorPayload({
+            code: "search_provider_unavailable",
+            provider,
+            recoverable: true,
+            retryable: false,
+            message: "freshness is only supported by the Brave and Perplexity web_search providers.",
+            docs: "https://docs.openclaw.ai/tools/web",
+          }),
           error: "unsupported_freshness",
-          message: "freshness is only supported by the Brave and Perplexity web_search providers.",
-          docs: "https://docs.openclaw.ai/tools/web",
         });
       }
       const freshness = rawFreshness ? normalizeFreshness(rawFreshness) : undefined;
       if (rawFreshness && !freshness) {
-        return jsonResult({
+        return webSearchErrorResult({
+          ...webSearchErrorPayload({
+            code: "search_request_failed",
+            provider,
+            recoverable: true,
+            retryable: false,
+            message:
+              "freshness must be one of pd, pw, pm, py, or a range like YYYY-MM-DDtoYYYY-MM-DD.",
+            docs: "https://docs.openclaw.ai/tools/web",
+          }),
           error: "invalid_freshness",
-          message:
-            "freshness must be one of pd, pw, pm, py, or a range like YYYY-MM-DDtoYYYY-MM-DD.",
-          docs: "https://docs.openclaw.ai/tools/web",
         });
       }
-      const result = await runWebSearch({
-        query,
-        count: resolveSearchCount(count, DEFAULT_SEARCH_COUNT),
-        apiKey,
-        timeoutSeconds: resolveTimeoutSeconds(search?.timeoutSeconds, DEFAULT_TIMEOUT_SECONDS),
-        cacheTtlMs: resolveCacheTtlMs(search?.cacheTtlMinutes, DEFAULT_CACHE_TTL_MINUTES),
-        provider,
-        country,
-        search_lang,
-        ui_lang,
-        freshness,
-        perplexityBaseUrl: resolvePerplexityBaseUrl(
-          perplexityConfig,
-          perplexityAuth?.source,
-          perplexityAuth?.apiKey,
-        ),
-        perplexityModel: resolvePerplexityModel(perplexityConfig),
-        grokModel: resolveGrokModel(grokConfig),
-        grokInlineCitations: resolveGrokInlineCitations(grokConfig),
-        geminiModel: resolveGeminiModel(geminiConfig),
-        kimiBaseUrl: resolveKimiBaseUrl(kimiConfig),
-        kimiModel: resolveKimiModel(kimiConfig),
-      });
-      return jsonResult(result);
+      try {
+        const result = await runWebSearch({
+          query,
+          count: resolveSearchCount(count, DEFAULT_SEARCH_COUNT),
+          apiKey,
+          timeoutSeconds: resolveTimeoutSeconds(search?.timeoutSeconds, DEFAULT_TIMEOUT_SECONDS),
+          cacheTtlMs: resolveCacheTtlMs(search?.cacheTtlMinutes, DEFAULT_CACHE_TTL_MINUTES),
+          provider,
+          country,
+          search_lang,
+          ui_lang,
+          freshness,
+          perplexityBaseUrl: resolvePerplexityBaseUrl(
+            perplexityConfig,
+            perplexityAuth?.source,
+            perplexityAuth?.apiKey,
+          ),
+          perplexityModel: resolvePerplexityModel(perplexityConfig),
+          grokModel: resolveGrokModel(grokConfig),
+          grokInlineCitations: resolveGrokInlineCitations(grokConfig),
+          geminiModel: resolveGeminiModel(geminiConfig),
+          kimiBaseUrl: resolveKimiBaseUrl(kimiConfig),
+          kimiModel: resolveKimiModel(kimiConfig),
+          duckduckgoEndpoint: resolveDuckDuckGoEndpoint(duckduckgoConfig),
+        });
+        return jsonResult(result);
+      } catch (error) {
+        const message = String(error instanceof Error ? error.message : error).trim();
+        const isUnsupported = message.toLowerCase().includes("unsupported");
+        const payload = webSearchErrorPayload({
+          code: isUnsupported ? "search_provider_unavailable" : "search_request_failed",
+          provider,
+          recoverable: true,
+          retryable: !isUnsupported,
+          message:
+            isUnsupported
+              ? `web_search provider "${provider}" is unavailable.`
+              : `web_search request failed for provider "${provider}".`,
+          cause: message || undefined,
+          docs: "https://docs.openclaw.ai/tools/web",
+        });
+        return webSearchErrorResult(payload);
+      }
     },
   };
 }
@@ -1352,5 +1601,6 @@ export const __testing = {
   resolveKimiModel,
   resolveKimiBaseUrl,
   extractKimiCitations,
+  resolveDuckDuckGoEndpoint,
   resolveRedirectUrl,
 } as const;

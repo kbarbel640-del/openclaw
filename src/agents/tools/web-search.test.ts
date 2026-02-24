@@ -17,6 +17,8 @@ const {
   resolveKimiModel,
   resolveKimiBaseUrl,
   extractKimiCitations,
+  resolveDuckDuckGoEndpoint,
+  resolveSearchProvider,
 } = __testing;
 
 describe("web_search perplexity baseUrl defaults", () => {
@@ -297,5 +299,38 @@ describe("extractKimiCitations", () => {
         ],
       }).toSorted(),
     ).toEqual(["https://example.com/a", "https://example.com/b", "https://example.com/c"]);
+  });
+});
+
+describe("web_search duckduckgo config resolution", () => {
+  it("uses endpoint default", () => {
+    expect(resolveDuckDuckGoEndpoint({})).toBe("https://api.duckduckgo.com/");
+  });
+
+  it("supports custom endpoint override", () => {
+    expect(resolveDuckDuckGoEndpoint({ endpoint: "https://custom.ddg.proxy/" })).toBe(
+      "https://custom.ddg.proxy/",
+    );
+  });
+});
+
+describe("web_search provider resolution", () => {
+  it("accepts explicit auto and duckduckgo providers", () => {
+    // Clear all search provider API keys to ensure auto-detection falls back to brave
+    withEnv(
+      {
+        BRAVE_API_KEY: undefined,
+        GEMINI_API_KEY: undefined,
+        KIMI_API_KEY: undefined,
+        MOONSHOT_API_KEY: undefined,
+        PERPLEXITY_API_KEY: undefined,
+        OPENROUTER_API_KEY: undefined,
+        XAI_API_KEY: undefined,
+      },
+      () => {
+        expect(resolveSearchProvider({ provider: "auto" } as never)).toBe("brave");
+        expect(resolveSearchProvider({ provider: "duckduckgo" } as never)).toBe("duckduckgo");
+      },
+    );
   });
 });
