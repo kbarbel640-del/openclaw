@@ -39,7 +39,7 @@ function applyTelegramNetworkWorkarounds(network?: TelegramNetworkConfig): void 
     // correct autoSelectFamily setting so every subsequent globalThis.fetch
     // call inherits it.
     // See: https://github.com/openclaw/openclaw/issues/25676
-    if (autoSelectDecision.value !== null && !appliedGlobalDispatcher) {
+    if (!appliedGlobalDispatcher) {
       try {
         setGlobalDispatcher(
           new Agent({
