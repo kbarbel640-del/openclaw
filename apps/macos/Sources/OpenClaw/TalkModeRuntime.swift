@@ -185,6 +185,11 @@ actor TalkModeRuntime {
         }
         guard let audioEngine = self.audioEngine else { return }
 
+        guard AudioInputDeviceObserver.hasUsableDefaultInputDevice() else {
+            self.logger.error("talk mode: no usable audio input device")
+            return
+        }
+
         let input = audioEngine.inputNode
         let format = input.outputFormat(forBus: 0)
         input.removeTap(onBus: 0)
