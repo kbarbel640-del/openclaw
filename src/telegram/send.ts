@@ -29,6 +29,7 @@ import { renderTelegramHtmlText } from "./format.js";
 import { isRecoverableTelegramNetworkError } from "./network-errors.js";
 import { makeProxyFetch } from "./proxy.js";
 import { recordSentMessage } from "./sent-message-cache.js";
+import { clearStaleThreadIdFromSession } from "./session-cache.js";
 import { maybePersistResolvedTelegramTarget } from "./target-writeback.js";
 import {
   normalizeTelegramChatId,
@@ -384,6 +385,7 @@ async function withTelegramThreadFallback<T>(
   params: Record<string, unknown> | undefined,
   label: string,
   verbose: boolean | undefined,
+  chatId: string | number,
   attempt: (
     effectiveParams: Record<string, unknown> | undefined,
     effectiveLabel: string,
@@ -403,7 +405,13 @@ async function withTelegramThreadFallback<T>(
       );
     }
     const retriedParams = removeMessageThreadIdParam(params);
-    return await attempt(retriedParams, `${label}-threadless`);
+    const result = await attempt(retriedParams, `${label}-threadless`);
+
+    // If retry succeeded, clear the stale thread ID from session cache
+    // to prevent future requests from using the same stale thread ID
+    await clearStaleThreadIdFromSession({ chatId });
+
+    return result;
   }
 }
 
@@ -505,6 +513,7 @@ export async function sendMessageTelegram(
       params,
       "message",
       opts.verbose,
+      chatId,
       async (effectiveParams, label) => {
         const htmlText = renderHtmlText(rawText);
         const baseParams = effectiveParams ? { ...effectiveParams } : {};
@@ -596,6 +605,7 @@ export async function sendMessageTelegram(
         mediaParams,
         label,
         opts.verbose,
+        chatId,
         async (effectiveParams, retryLabel) =>
           requestWithChatNotFound(() => sender(effectiveParams), retryLabel),
       );
@@ -1009,6 +1019,7 @@ export async function sendStickerTelegram(
     stickerParams,
     "sticker",
     opts.verbose,
+    chatId,
     async (effectiveParams, label) =>
       requestWithChatNotFound(() => api.sendSticker(chatId, fileId.trim(), effectiveParams), label),
   );
@@ -1114,6 +1125,7 @@ export async function sendPollTelegram(
     pollParams,
     "poll",
     opts.verbose,
+    chatId,
     async (effectiveParams, label) =>
       requestWithChatNotFound(
         () => api.sendPoll(chatId, normalizedPoll.question, pollOptions, effectiveParams),
