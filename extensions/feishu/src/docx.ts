@@ -7,6 +7,7 @@ import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { resolveToolsConfig } from "./tools-config.js";
+import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 
 // ============ Helpers ============
 
@@ -459,68 +460,73 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
   const toolsCfg = resolveToolsConfig(firstAccount.config.tools);
   const defaultMediaMaxBytes = (firstAccount.config?.mediaMaxMb ?? 30) * 1024 * 1024;
 
-  // Helper to get client for a specific account (fallback to first if not found)
-  const getClientForAccount = (accountId?: string): { client: Lark.Client; mediaMaxBytes: number } => {
-    if (!accountId) {
-      // No account specified, use first (default behavior)
-      return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
-    }
-    
-    // Try to find the specific account
-    const account = resolveFeishuAccount({ cfg: api.config!, accountId });
-    if (account.configured) {
-      const mediaMaxBytes = (account.config?.mediaMaxMb ?? 30) * 1024 * 1024;
-      return { client: createFeishuClient(account), mediaMaxBytes };
-    }
-    
-    // Fallback to first account if specified account not found
-    api.logger.warn?.(`feishu_doc: Account "${accountId}" not found or not configured, falling back to default`);
-    return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
-  };
-
   const registered: string[] = [];
 
   // Main document tool with action-based dispatch
   // Use tool factory to receive context with agentAccountId
   if (toolsCfg.doc) {
     api.registerTool(
-      (ctx: OpenClawPluginToolContext) => ({
-        name: "feishu_doc",
-        label: "Feishu Doc",
-        description:
-          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block",
-        parameters: FeishuDocSchema,
-        async execute(_toolCallId, params) {
-          const p = params as FeishuDocParams;
-          try {
-            // Use the account from context (current conversation's account)
-            const { client, mediaMaxBytes } = getClientForAccount(ctx.agentAccountId);
-            switch (p.action) {
-              case "read":
-                return json(await readDoc(client, p.doc_token));
-              case "write":
-                return json(await writeDoc(client, p.doc_token, p.content, mediaMaxBytes));
-              case "append":
-                return json(await appendDoc(client, p.doc_token, p.content, mediaMaxBytes));
-              case "create":
-                return json(await createDoc(client, p.title, p.folder_token));
-              case "list_blocks":
-                return json(await listBlocks(client, p.doc_token));
-              case "get_block":
-                return json(await getBlock(client, p.doc_token, p.block_id));
-              case "update_block":
-                return json(await updateBlock(client, p.doc_token, p.block_id, p.content));
-              case "delete_block":
-                return json(await deleteBlock(client, p.doc_token, p.block_id));
-              default:
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
-                return json({ error: `Unknown action: ${(p as any).action}` });
-            }
-          } catch (err) {
-            return json({ error: err instanceof Error ? err.message : String(err) });
+      (ctx: OpenClawPluginToolContext) => {
+        // Use config from execution context, fallback to registration config
+        const config = ctx.config ?? api.config!;
+        
+        // Helper to get client for a specific account (fallback to first if not found)
+        const getClientForAccount = (accountId?: string): { client: Lark.Client; mediaMaxBytes: number } => {
+          if (!accountId) {
+            // No account specified, use first (default behavior)
+            return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
           }
-        },
-      }),
+          
+          // Try to find the specific account using context config
+          const account = resolveFeishuAccount({ cfg: config, accountId });
+          if (account.configured) {
+            const mediaMaxBytes = (account.config?.mediaMaxMb ?? 30) * 1024 * 1024;
+            return { client: createFeishuClient(account), mediaMaxBytes };
+          }
+          
+          // Fallback to first account if specified account not found
+          api.logger.warn?.(`feishu_doc: Account "${accountId}" not found or not configured, falling back to default`);
+          return { client: createFeishuClient(firstAccount), mediaMaxBytes: defaultMediaMaxBytes };
+        };
+
+        return {
+          name: "feishu_doc",
+          label: "Feishu Doc",
+          description:
+            "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block",
+          parameters: FeishuDocSchema,
+          async execute(_toolCallId, params) {
+            const p = params as FeishuDocParams;
+            try {
+              // Use the account from context (current conversation's account)
+              const { client, mediaMaxBytes } = getClientForAccount(ctx.agentAccountId);
+              switch (p.action) {
+                case "read":
+                  return json(await readDoc(client, p.doc_token));
+                case "write":
+                  return json(await writeDoc(client, p.doc_token, p.content, mediaMaxBytes));
+                case "append":
+                  return json(await appendDoc(client, p.doc_token, p.content, mediaMaxBytes));
+                case "create":
+                  return json(await createDoc(client, p.title, p.folder_token));
+                case "list_blocks":
+                  return json(await listBlocks(client, p.doc_token));
+                case "get_block":
+                  return json(await getBlock(client, p.doc_token, p.block_id));
+                case "update_block":
+                  return json(await updateBlock(client, p.doc_token, p.block_id, p.content));
+                case "delete_block":
+                  return json(await deleteBlock(client, p.doc_token, p.block_id));
+                default:
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
+                  return json({ error: `Unknown action: ${(p as any).action}` });
+              }
+            } catch (err) {
+              return json({ error: err instanceof Error ? err.message : String(err) });
+            }
+          },
+        };
+      },
       { name: "feishu_doc" },
     );
     registered.push("feishu_doc");
@@ -529,22 +535,42 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
   // Keep feishu_app_scopes as independent tool
   if (toolsCfg.scopes) {
     api.registerTool(
-      (ctx: OpenClawPluginToolContext) => ({
-        name: "feishu_app_scopes",
-        label: "Feishu App Scopes",
-        description:
-          "List current app permissions (scopes). Use to debug permission issues or check available capabilities.",
-        parameters: Type.Object({}),
-        async execute() {
-          try {
-            const { client } = getClientForAccount(ctx.agentAccountId);
-            const result = await listAppScopes(client);
-            return json(result);
-          } catch (err) {
-            return json({ error: err instanceof Error ? err.message : String(err) });
+      (ctx: OpenClawPluginToolContext) => {
+        // Use config from execution context, fallback to registration config
+        const config = ctx.config ?? api.config!;
+        
+        // Helper to get client for a specific account
+        const getClientForAccount = (accountId?: string): Lark.Client => {
+          if (!accountId) {
+            return createFeishuClient(firstAccount);
           }
-        },
-      }),
+          
+          const account = resolveFeishuAccount({ cfg: config, accountId });
+          if (account.configured) {
+            return createFeishuClient(account);
+          }
+          
+          api.logger.warn?.(`feishu_doc: Account "${accountId}" not found or not configured, falling back to default`);
+          return createFeishuClient(firstAccount);
+        };
+
+        return {
+          name: "feishu_app_scopes",
+          label: "Feishu App Scopes",
+          description:
+            "List current app permissions (scopes). Use to debug permission issues or check available capabilities.",
+          parameters: Type.Object({}),
+          async execute() {
+            try {
+              const client = getClientForAccount(ctx.agentAccountId);
+              const result = await listAppScopes(client);
+              return json(result);
+            } catch (err) {
+              return json({ error: err instanceof Error ? err.message : String(err) });
+            }
+          },
+        };
+      },
       { name: "feishu_app_scopes" },
     );
     registered.push("feishu_app_scopes");
