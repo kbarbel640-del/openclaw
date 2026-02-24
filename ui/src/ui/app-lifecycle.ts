@@ -43,6 +43,22 @@ function handleCmdK(host: LifecycleHost, e: KeyboardEvent) {
       host as unknown as { paletteOpen: boolean }
     ).paletteOpen;
   }
+  if (e.key === "Escape") {
+    const panel = (host as unknown as { agentDetailPanel: { open: boolean; expanded: boolean } })
+      .agentDetailPanel;
+    if (panel && panel.open) {
+      e.preventDefault();
+      if (panel.expanded) {
+        (
+          host as unknown as { agentDetailPanel: { open: boolean; expanded: boolean } }
+        ).agentDetailPanel = { ...panel, expanded: false };
+      } else {
+        (
+          host as unknown as { agentDetailPanel: { open: boolean; expanded: boolean } }
+        ).agentDetailPanel = { ...panel, open: false };
+      }
+    }
+  }
 }
 
 export function handleConnected(host: LifecycleHost) {
