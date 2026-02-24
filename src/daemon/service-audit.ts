@@ -367,8 +367,9 @@ export function checkTokenDrift(params: {
     return null;
   }
 
-  // Drift: config has token, service has different or no token
-  if (configToken && serviceToken !== configToken) {
+  // If the service doesn't embed a token, it may be reading it from the config file.
+  // Only warn about drift when the service token is explicitly set and differs.
+  if (configToken && serviceToken && serviceToken !== configToken) {
     return {
       code: SERVICE_AUDIT_CODES.gatewayTokenDrift,
       message:

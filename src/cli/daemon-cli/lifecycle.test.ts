@@ -125,7 +125,7 @@ describe("runDaemonRestart health checks", () => {
     const { runDaemonRestart } = await import("./lifecycle.js");
 
     await expect(runDaemonRestart({ json: true })).rejects.toMatchObject({
-      message: "Gateway restart timed out after 60s waiting for health checks.",
+      message: "Timed out after 60s waiting for gateway port 18789 to become healthy.",
     });
     expect(terminateStaleGatewayPids).not.toHaveBeenCalled();
     expect(renderRestartDiagnostics).toHaveBeenCalledTimes(1);
