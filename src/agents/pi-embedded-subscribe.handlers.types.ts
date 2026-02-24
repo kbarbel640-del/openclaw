@@ -164,6 +164,7 @@ export type ToolHandlerContext = {
   shouldEmitToolOutput: () => boolean;
   emitToolSummary: (toolName?: string, meta?: string) => void;
   emitToolOutput: (toolName?: string, meta?: string, output?: string) => void;
+  checkSafeguards: (toolName: string, meta?: string) => boolean;
   trimMessagingToolSent: () => void;
 };
 
