@@ -416,6 +416,7 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
         },
         provider: "openai",
         model: "gpt-4",
+        attempts: [],
       });
 
       const result = await runCronIsolatedAgentTurn(
