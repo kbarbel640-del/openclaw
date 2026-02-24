@@ -16,6 +16,11 @@ import {
   resolveMergedSafeBinProfileFixtures,
 } from "../infra/exec-safe-bin-runtime-policy.js";
 import { loadOpenClawPlugins } from "../plugins/loader.js";
+import {
+  getActivePluginRegistry,
+  getActivePluginRegistryKey,
+  setActivePluginRegistry,
+} from "../plugins/runtime.js";
 import { collectChannelSecurityFindings } from "./audit-channel.js";
 import {
   collectAttackSurfaceSummaryFindings,
@@ -816,11 +821,19 @@ function collectPluginCapabilityFindings(cfg: OpenClawConfig): SecurityAuditFind
     });
   }
 
-  // Load the plugin registry in validate-only mode to inspect manifests
+  // Save the current plugin registry before loading a validate-only copy.
+  // loadOpenClawPlugins replaces the global active registry via setActivePluginRegistry,
+  // which would corrupt channel-ID resolution for downstream audit checks.
+  const prevRegistry = getActivePluginRegistry();
+  const prevKey = getActivePluginRegistryKey();
+
   let registry: ReturnType<typeof loadOpenClawPlugins> | null = null;
   try {
     registry = loadOpenClawPlugins({ config: cfg, mode: "validate", cache: true });
   } catch {
+    if (prevRegistry) {
+      setActivePluginRegistry(prevRegistry, prevKey ?? undefined);
+    }
     return findings;
   }
 
@@ -842,7 +855,6 @@ function collectPluginCapabilityFindings(cfg: OpenClawConfig): SecurityAuditFind
       });
     }
 
-    // Check for runtime command capabilities
     if (plugin.capabilityEnforcer) {
       const violations = plugin.capabilityEnforcer.getViolations();
       if (violations.length > 0) {
@@ -854,6 +866,11 @@ function collectPluginCapabilityFindings(cfg: OpenClawConfig): SecurityAuditFind
         });
       }
     }
+  }
+
+  // Restore the previous registry so channel-ID resolution stays intact for downstream checks
+  if (prevRegistry) {
+    setActivePluginRegistry(prevRegistry, prevKey ?? undefined);
   }
 
   return findings;
