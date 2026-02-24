@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type {
   AgentIdentityResult,
   AgentsFilesListResult,
@@ -112,11 +113,11 @@ export function renderAgents(props: AgentsProps) {
       <section class="card agents-sidebar">
         <div class="row" style="justify-content: space-between;">
           <div>
-            <div class="card-title">Agents</div>
-            <div class="card-sub">${agents.length} configured.</div>
+            <div class="card-title">${t("tabs.agents")}</div>
+            <div class="card-sub">${t("agentsUi.sidebar.configuredCount", { count: String(agents.length) })}</div>
           </div>
           <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
-            ${props.loading ? "Loading…" : "Refresh"}
+            ${props.loading ? t("states.loading") : t("common.refresh")}
           </button>
         </div>
         ${
@@ -128,7 +129,7 @@ export function renderAgents(props: AgentsProps) {
           ${
             agents.length === 0
               ? html`
-                  <div class="muted">No agents found.</div>
+                  <div class="muted">${t("agentsUi.sidebar.noAgents")}</div>
                 `
               : agents.map((agent) => {
                   const badge = agentBadgeText(agent.id, defaultId);
@@ -156,8 +157,8 @@ export function renderAgents(props: AgentsProps) {
           !selectedAgent
             ? html`
                 <div class="card">
-                  <div class="card-title">Select an agent</div>
-                  <div class="card-sub">Pick an agent to inspect its workspace and tools.</div>
+                  <div class="card-title">${t("agentsUi.empty.title")}</div>
+                  <div class="card-sub">${t("agentsUi.empty.subtitle")}</div>
                 </div>
               `
             : html`
@@ -299,7 +300,7 @@ function renderAgentHeader(
 ) {
   const badge = agentBadgeText(agent.id, defaultId);
   const displayName = normalizeAgentLabel(agent);
-  const subtitle = agent.identity?.theme?.trim() || "Agent workspace and routing.";
+  const subtitle = agent.identity?.theme?.trim() || t("agentsUi.header.subtitleFallback");
   const emoji = resolveAgentEmoji(agent, agentIdentity);
   return html`
     <section class="card agent-header">
@@ -320,12 +321,12 @@ function renderAgentHeader(
 
 function renderAgentTabs(active: AgentsPanel, onSelect: (panel: AgentsPanel) => void) {
   const tabs: Array<{ id: AgentsPanel; label: string }> = [
-    { id: "overview", label: "Overview" },
-    { id: "files", label: "Files" },
-    { id: "tools", label: "Tools" },
-    { id: "skills", label: "Skills" },
-    { id: "channels", label: "Channels" },
-    { id: "cron", label: "Cron Jobs" },
+    { id: "overview", label: t("tabs.overview") },
+    { id: "files", label: t("agentsUi.tabs.files") },
+    { id: "tools", label: t("agentsUi.tabs.tools") },
+    { id: "skills", label: t("tabs.skills") },
+    { id: "channels", label: t("tabs.channels") },
+    { id: "cron", label: t("tabs.cron") },
   ];
   return html`
     <div class="agent-tabs">
@@ -379,7 +380,10 @@ function renderAgentOverview(params: {
   const workspaceFromFiles =
     agentFilesList && agentFilesList.agentId === agent.id ? agentFilesList.workspace : null;
   const workspace =
-    workspaceFromFiles || config.entry?.workspace || config.defaults?.workspace || "default";
+    workspaceFromFiles ||
+    config.entry?.workspace ||
+    config.defaults?.workspace ||
+    t("agentsUi.values.defaultWorkspace");
   const model = config.entry?.model
     ? resolveModelLabel(config.entry?.model)
     : resolveModelLabel(config.defaults?.model);
@@ -403,49 +407,55 @@ function renderAgentOverview(params: {
   const skillFilter = Array.isArray(config.entry?.skills) ? config.entry?.skills : null;
   const skillCount = skillFilter?.length ?? null;
   const identityStatus = agentIdentityLoading
-    ? "Loading…"
+    ? t("states.loading")
     : agentIdentityError
-      ? "Unavailable"
+      ? t("agentsUi.values.unavailable")
       : "";
   const isDefault = Boolean(params.defaultId && agent.id === params.defaultId);
 
   return html`
     <section class="card">
-      <div class="card-title">Overview</div>
-      <div class="card-sub">Workspace paths and identity metadata.</div>
+      <div class="card-title">${t("tabs.overview")}</div>
+      <div class="card-sub">${t("agentsUi.overview.subtitle")}</div>
       <div class="agents-overview-grid" style="margin-top: 16px;">
         <div class="agent-kv">
-          <div class="label">Workspace</div>
+          <div class="label">${t("agentsUi.labels.workspace")}</div>
           <div class="mono">${workspace}</div>
         </div>
         <div class="agent-kv">
-          <div class="label">Primary Model</div>
+          <div class="label">${t("agentsUi.labels.primaryModel")}</div>
           <div class="mono">${model}</div>
         </div>
         <div class="agent-kv">
-          <div class="label">Identity Name</div>
+          <div class="label">${t("agentsUi.labels.identityName")}</div>
           <div>${identityName}</div>
           ${identityStatus ? html`<div class="agent-kv-sub muted">${identityStatus}</div>` : nothing}
         </div>
         <div class="agent-kv">
-          <div class="label">Default</div>
-          <div>${isDefault ? "yes" : "no"}</div>
+          <div class="label">${t("agentsUi.labels.default")}</div>
+          <div>${isDefault ? t("states.yes") : t("states.no")}</div>
         </div>
         <div class="agent-kv">
-          <div class="label">Identity Emoji</div>
+          <div class="label">${t("agentsUi.labels.identityEmoji")}</div>
           <div>${identityEmoji}</div>
         </div>
         <div class="agent-kv">
-          <div class="label">Skills Filter</div>
-          <div>${skillFilter ? `${skillCount} selected` : "all skills"}</div>
+          <div class="label">${t("agentsUi.labels.skillsFilter")}</div>
+          <div>${
+            skillFilter
+              ? t("agentsUi.values.selectedCount", { count: String(skillCount ?? 0) })
+              : t("agentsUi.values.allSkills")
+          }</div>
         </div>
       </div>
 
       <div class="agent-model-select" style="margin-top: 20px;">
-        <div class="label">Model Selection</div>
+        <div class="label">${t("agentsUi.overview.modelSelection")}</div>
         <div class="row" style="gap: 12px; flex-wrap: wrap;">
           <label class="field" style="min-width: 260px; flex: 1;">
-            <span>Primary model${isDefault ? " (default)" : ""}</span>
+            <span>${t("agentsUi.overview.primaryModelField", {
+              suffix: isDefault ? t("agentsUi.overview.defaultSuffix") : "",
+            })}</span>
             <select
               .value=${effectivePrimary ?? ""}
               ?disabled=${!configForm || configLoading || configSaving}
@@ -457,7 +467,13 @@ function renderAgentOverview(params: {
                   ? nothing
                   : html`
                       <option value="">
-                        ${defaultPrimary ? `Inherit default (${defaultPrimary})` : "Inherit default"}
+                        ${
+                          defaultPrimary
+                            ? t("agentsUi.overview.inheritDefaultWithValue", {
+                                value: defaultPrimary,
+                              })
+                            : t("agentsUi.overview.inheritDefault")
+                        }
                       </option>
                     `
               }
@@ -465,11 +481,11 @@ function renderAgentOverview(params: {
             </select>
           </label>
           <label class="field" style="min-width: 260px; flex: 1;">
-            <span>Fallbacks (comma-separated)</span>
+            <span>${t("agentsUi.overview.fallbacksLabel")}</span>
             <input
               .value=${fallbackText}
               ?disabled=${!configForm || configLoading || configSaving}
-              placeholder="provider/model, provider/model"
+              placeholder=${t("agentsUi.overview.fallbacksPlaceholder")}
               @input=${(e: Event) =>
                 onModelFallbacksChange(
                   agent.id,
@@ -480,14 +496,14 @@ function renderAgentOverview(params: {
         </div>
         <div class="row" style="justify-content: flex-end; gap: 8px;">
           <button class="btn btn--sm" ?disabled=${configLoading} @click=${onConfigReload}>
-            Reload Config
+            ${t("agentsUi.actions.reloadConfig")}
           </button>
           <button
             class="btn btn--sm primary"
             ?disabled=${configSaving || !configDirty}
             @click=${onConfigSave}
           >
-            ${configSaving ? "Saving…" : "Save"}
+            ${configSaving ? t("channels.common.saving") : t("actions.save")}
           </button>
         </div>
       </div>

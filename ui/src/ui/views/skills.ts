@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type { SkillMessageMap } from "../controllers/skills.ts";
 import { clampText } from "../format.ts";
 import type { SkillStatusEntry, SkillStatusReport } from "../types.ts";
@@ -39,24 +40,24 @@ export function renderSkills(props: SkillsProps) {
     <section class="card">
       <div class="row" style="justify-content: space-between;">
         <div>
-          <div class="card-title">Skills</div>
-          <div class="card-sub">Bundled, managed, and workspace skills.</div>
+          <div class="card-title">${t("skillsUi.title")}</div>
+          <div class="card-sub">${t("skillsUi.subtitle")}</div>
         </div>
         <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
-          ${props.loading ? "Loading…" : "Refresh"}
+          ${props.loading ? t("states.loading") : t("common.refresh")}
         </button>
       </div>
 
       <div class="filters" style="margin-top: 14px;">
         <label class="field" style="flex: 1;">
-          <span>Filter</span>
+          <span>${t("skillsUi.filter")}</span>
           <input
             .value=${props.filter}
             @input=${(e: Event) => props.onFilterChange((e.target as HTMLInputElement).value)}
-            placeholder="Search skills"
+            placeholder=${t("skillsUi.searchPlaceholder")}
           />
         </label>
-        <div class="muted">${filtered.length} shown</div>
+        <div class="muted">${t("skillsUi.shownCount", { count: String(filtered.length) })}</div>
       </div>
 
       ${
@@ -68,7 +69,7 @@ export function renderSkills(props: SkillsProps) {
       ${
         filtered.length === 0
           ? html`
-              <div class="muted" style="margin-top: 16px">No skills found.</div>
+              <div class="muted" style="margin-top: 16px">${t("skillsUi.noSkills")}</div>
             `
           : html`
             <div class="agent-skills-groups" style="margin-top: 16px;">
@@ -112,8 +113,8 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
         ${
           missing.length > 0
             ? html`
-              <div class="muted" style="margin-top: 6px;">
-                Missing: ${missing.join(", ")}
+                <div class="muted" style="margin-top: 6px;">
+                ${t("skillsUi.missing", { value: missing.join(", ") })}
               </div>
             `
             : nothing
@@ -121,8 +122,8 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
         ${
           reasons.length > 0
             ? html`
-              <div class="muted" style="margin-top: 6px;">
-                Reason: ${reasons.join(", ")}
+                <div class="muted" style="margin-top: 6px;">
+                ${t("skillsUi.reason", { value: reasons.join(", ") })}
               </div>
             `
             : nothing
@@ -135,7 +136,7 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
             ?disabled=${busy}
             @click=${() => props.onToggle(skill.skillKey, skill.disabled)}
           >
-            ${skill.disabled ? "Enable" : "Disable"}
+            ${skill.disabled ? t("skillsUi.enable") : t("skillsUi.disable")}
           </button>
           ${
             canInstall
@@ -144,7 +145,7 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
                 ?disabled=${busy}
                 @click=${() => props.onInstall(skill.skillKey, skill.name, skill.install[0].id)}
               >
-                ${busy ? "Installing…" : skill.install[0].label}
+                ${busy ? t("skillsUi.installing") : skill.install[0].label}
               </button>`
               : nothing
           }
@@ -167,7 +168,7 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
           skill.primaryEnv
             ? html`
               <div class="field" style="margin-top: 10px;">
-                <span>API key</span>
+                <span>${t("skillsUi.apiKey")}</span>
                 <input
                   type="password"
                   .value=${apiKey}
@@ -181,7 +182,7 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
                 ?disabled=${busy}
                 @click=${() => props.onSaveKey(skill.skillKey)}
               >
-                Save key
+                ${t("skillsUi.saveKey")}
               </button>
             `
             : nothing

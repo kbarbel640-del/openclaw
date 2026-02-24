@@ -8,6 +8,7 @@ import {
   normalizeToolName,
   resolveToolProfilePolicy,
 } from "../../../../src/agents/tool-policy-shared.js";
+import { t } from "../../i18n/index.ts";
 import type { AgentIdentityResult, AgentsFilesListResult, AgentsListResult } from "../types.ts";
 
 export const TOOL_SECTIONS = listCoreToolSections();
@@ -103,7 +104,7 @@ export function resolveAgentEmoji(
 }
 
 export function agentBadgeText(agentId: string, defaultId: string | null) {
-  return defaultId && agentId === defaultId ? "default" : null;
+  return defaultId && agentId === defaultId ? t("agentsUi.badges.default") : null;
 }
 
 export function formatBytes(bytes?: number) {
@@ -154,7 +155,10 @@ export function buildAgentContext(
   const workspaceFromFiles =
     agentFilesList && agentFilesList.agentId === agent.id ? agentFilesList.workspace : null;
   const workspace =
-    workspaceFromFiles || config.entry?.workspace || config.defaults?.workspace || "default";
+    workspaceFromFiles ||
+    config.entry?.workspace ||
+    config.defaults?.workspace ||
+    t("agentsUi.values.defaultWorkspace");
   const modelLabel = config.entry?.model
     ? resolveModelLabel(config.entry?.model)
     : resolveModelLabel(config.defaults?.model);
@@ -172,7 +176,9 @@ export function buildAgentContext(
     model: modelLabel,
     identityName,
     identityEmoji,
-    skillsLabel: skillFilter ? `${skillCount} selected` : "all skills",
+    skillsLabel: skillFilter
+      ? t("agentsUi.values.selectedCount", { count: String(skillCount ?? 0) })
+      : t("agentsUi.values.allSkills"),
     isDefault: Boolean(defaultId && agent.id === defaultId),
   };
 }
@@ -189,14 +195,19 @@ export function resolveModelLabel(model?: unknown): string {
     const primary = record.primary?.trim();
     if (primary) {
       const fallbackCount = Array.isArray(record.fallbacks) ? record.fallbacks.length : 0;
-      return fallbackCount > 0 ? `${primary} (+${fallbackCount} fallback)` : primary;
+      return fallbackCount > 0
+        ? t("agentsUi.model.withFallbacks", {
+            primary,
+            count: String(fallbackCount),
+          })
+        : primary;
     }
   }
   return "-";
 }
 
 export function normalizeModelValue(label: string): string {
-  const match = label.match(/^(.+) \(\+\d+ fallback\)$/);
+  const match = label.match(/^(.+) \(\+\d+ [^)]+\)$/);
   return match ? match[1] : label;
 }
 
@@ -289,11 +300,14 @@ export function buildModelOptions(
   const options = resolveConfiguredModels(configForm);
   const hasCurrent = current ? options.some((option) => option.value === current) : false;
   if (current && !hasCurrent) {
-    options.unshift({ value: current, label: `Current (${current})` });
+    options.unshift({
+      value: current,
+      label: t("agentsUi.modelOptions.current", { value: current }),
+    });
   }
   if (options.length === 0) {
     return html`
-      <option value="" disabled>No configured models</option>
+      <option value="" disabled>${t("agentsUi.modelOptions.noneConfigured")}</option>
     `;
   }
   return options.map((option) => html`<option value=${option.value}>${option.label}</option>`);

@@ -1,5 +1,7 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type { EventLogEntry } from "../app-events.ts";
+import { getUiLocale } from "../format.ts";
 import { formatEventPayload } from "../presenter.ts";
 
 export type DebugProps = {
@@ -30,58 +32,66 @@ export function renderDebug(props: DebugProps) {
   const info = securitySummary?.info ?? 0;
   const securityTone = critical > 0 ? "danger" : warn > 0 ? "warn" : "success";
   const securityLabel =
-    critical > 0 ? `${critical} critical` : warn > 0 ? `${warn} warnings` : "No critical issues";
+    critical > 0
+      ? t("debugUi.securityCritical", { count: String(critical) })
+      : warn > 0
+        ? t("debugUi.securityWarnings", { count: String(warn) })
+        : t("debugUi.securityNoCritical");
 
   return html`
     <section class="grid grid-cols-2">
       <div class="card">
         <div class="row" style="justify-content: space-between;">
           <div>
-            <div class="card-title">Snapshots</div>
-            <div class="card-sub">Status, health, and heartbeat data.</div>
+            <div class="card-title">${t("debugUi.snapshotsTitle")}</div>
+            <div class="card-sub">${t("debugUi.snapshotsSubtitle")}</div>
           </div>
           <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
-            ${props.loading ? "Refreshing…" : "Refresh"}
+            ${props.loading ? t("debugUi.refreshing") : t("common.refresh")}
           </button>
         </div>
         <div class="stack" style="margin-top: 12px;">
           <div>
-            <div class="muted">Status</div>
+            <div class="muted">${t("debugUi.status")}</div>
             ${
               securitySummary
                 ? html`<div class="callout ${securityTone}" style="margin-top: 8px;">
-                  Security audit: ${securityLabel}${info > 0 ? ` · ${info} info` : ""}. Run
-                  <span class="mono">openclaw security audit --deep</span> for details.
+                  ${t("debugUi.securityAuditPrefix")} ${securityLabel}${
+                    info > 0 ? t("debugUi.securityInfoSuffix", { count: String(info) }) : ""
+                  }.
+                  ${t("debugUi.securityAuditRunForDetails", {
+                    command: "openclaw security audit --deep",
+                  })}
                 </div>`
                 : nothing
             }
             <pre class="code-block">${JSON.stringify(props.status ?? {}, null, 2)}</pre>
           </div>
           <div>
-            <div class="muted">Health</div>
+            <div class="muted">${t("debugUi.health")}</div>
             <pre class="code-block">${JSON.stringify(props.health ?? {}, null, 2)}</pre>
           </div>
           <div>
-            <div class="muted">Last heartbeat</div>
+            <div class="muted">${t("debugUi.lastHeartbeat")}</div>
             <pre class="code-block">${JSON.stringify(props.heartbeat ?? {}, null, 2)}</pre>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">Manual RPC</div>
-        <div class="card-sub">Send a raw gateway method with JSON params.</div>
+        <div class="card-title">${t("debugUi.manualRpcTitle")}</div>
+        <div class="card-sub">${t("debugUi.manualRpcSubtitle")}</div>
         <div class="form-grid" style="margin-top: 16px;">
           <label class="field">
-            <span>Method</span>
+            <span>${t("debugUi.method")}</span>
             <input
               .value=${props.callMethod}
               @input=${(e: Event) => props.onCallMethodChange((e.target as HTMLInputElement).value)}
-              placeholder="system-presence"
+              placeholder=${t("debugUi.methodPlaceholder")}
             />
           </label>
           <label class="field">
-            <span>Params (JSON)</span>
+            <span>${t("debugUi.paramsJson")}</span>
             <textarea
               .value=${props.callParams}
               @input=${(e: Event) =>
@@ -91,7 +101,7 @@ export function renderDebug(props: DebugProps) {
           </label>
         </div>
         <div class="row" style="margin-top: 12px;">
-          <button class="btn primary" @click=${props.onCall}>Call</button>
+          <button class="btn primary" @click=${props.onCall}>${t("debugUi.call")}</button>
         </div>
         ${
           props.callError
@@ -109,8 +119,8 @@ export function renderDebug(props: DebugProps) {
     </section>
 
     <section class="card" style="margin-top: 18px;">
-      <div class="card-title">Models</div>
-      <div class="card-sub">Catalog from models.list.</div>
+      <div class="card-title">${t("debugUi.modelsTitle")}</div>
+      <div class="card-sub">${t("debugUi.modelsSubtitle")}</div>
       <pre class="code-block" style="margin-top: 12px;">${JSON.stringify(
         props.models ?? [],
         null,
@@ -119,12 +129,12 @@ export function renderDebug(props: DebugProps) {
     </section>
 
     <section class="card" style="margin-top: 18px;">
-      <div class="card-title">Event Log</div>
-      <div class="card-sub">Latest gateway events.</div>
+      <div class="card-title">${t("debugUi.eventLogTitle")}</div>
+      <div class="card-sub">${t("debugUi.eventLogSubtitle")}</div>
       ${
         props.eventLog.length === 0
           ? html`
-              <div class="muted" style="margin-top: 12px">No events yet.</div>
+              <div class="muted" style="margin-top: 12px">${t("debugUi.noEvents")}</div>
             `
           : html`
             <div class="list" style="margin-top: 12px;">
@@ -133,7 +143,7 @@ export function renderDebug(props: DebugProps) {
                   <div class="list-item">
                     <div class="list-main">
                       <div class="list-title">${evt.event}</div>
-                      <div class="list-sub">${new Date(evt.ts).toLocaleTimeString()}</div>
+                      <div class="list-sub">${new Date(evt.ts).toLocaleTimeString(getUiLocale())}</div>
                     </div>
                     <div class="list-meta">
                       <pre class="code-block">${formatEventPayload(evt.payload)}</pre>

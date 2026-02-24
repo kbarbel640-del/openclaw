@@ -62,8 +62,8 @@ export function renderOverview(props: OverviewProps) {
             href="https://docs.openclaw.ai/web/control-ui#device-pairing-first-connection"
             target=${EXTERNAL_LINK_TARGET}
             rel=${buildExternalLinkRel()}
-            title="Device pairing docs (opens in new tab)"
-            >Docs: Device pairing</a
+            title=${t("overview.docs.pairingLinkTitle")}
+            >${t("overview.docs.pairingLinkLabel")}</a
           >
         </div>
       </div>
@@ -119,8 +119,8 @@ export function renderOverview(props: OverviewProps) {
               href="https://docs.openclaw.ai/web/dashboard"
               target=${EXTERNAL_LINK_TARGET}
               rel=${buildExternalLinkRel()}
-              title="Control UI auth docs (opens in new tab)"
-              >Docs: Control UI auth</a
+              title=${t("overview.docs.authLinkTitle")}
+              >${t("overview.docs.authLinkLabel")}</a
             >
           </div>
         </div>
@@ -135,8 +135,8 @@ export function renderOverview(props: OverviewProps) {
             href="https://docs.openclaw.ai/web/dashboard"
             target=${EXTERNAL_LINK_TARGET}
             rel=${buildExternalLinkRel()}
-            title="Control UI auth docs (opens in new tab)"
-            >Docs: Control UI auth</a
+            title=${t("overview.docs.authLinkTitle")}
+            >${t("overview.docs.authLinkLabel")}</a
           >
         </div>
       </div>
@@ -174,8 +174,8 @@ export function renderOverview(props: OverviewProps) {
             href="https://docs.openclaw.ai/gateway/tailscale"
             target=${EXTERNAL_LINK_TARGET}
             rel=${buildExternalLinkRel()}
-            title="Tailscale Serve docs (opens in new tab)"
-            >Docs: Tailscale Serve</a
+            title=${t("overview.docs.tailscaleLinkTitle")}
+            >${t("overview.docs.tailscaleLinkLabel")}</a
           >
           <span class="muted"> · </span>
           <a
@@ -183,8 +183,8 @@ export function renderOverview(props: OverviewProps) {
             href="https://docs.openclaw.ai/web/control-ui#insecure-http"
             target=${EXTERNAL_LINK_TARGET}
             rel=${buildExternalLinkRel()}
-            title="Insecure HTTP docs (opens in new tab)"
-            >Docs: Insecure HTTP</a
+            title=${t("overview.docs.insecureHttpLinkTitle")}
+            >${t("overview.docs.insecureHttpLinkLabel")}</a
           >
         </div>
       </div>
@@ -207,7 +207,7 @@ export function renderOverview(props: OverviewProps) {
                 const v = (e.target as HTMLInputElement).value;
                 props.onSettingsChange({ ...props.settings, gatewayUrl: v });
               }}
-              placeholder="ws://100.x.y.z:18789"
+              placeholder=${t("overview.access.wsUrlPlaceholder")}
             />
           </label>
           ${
@@ -222,7 +222,7 @@ export function renderOverview(props: OverviewProps) {
                       const v = (e.target as HTMLInputElement).value;
                       props.onSettingsChange({ ...props.settings, token: v });
                     }}
-                    placeholder="OPENCLAW_GATEWAY_TOKEN"
+                    placeholder=${t("overview.access.tokenPlaceholder")}
                   />
                 </label>
                 <label class="field">
@@ -234,7 +234,7 @@ export function renderOverview(props: OverviewProps) {
                       const v = (e.target as HTMLInputElement).value;
                       props.onPasswordChange(v);
                     }}
-                    placeholder="system or shared password"
+                    placeholder=${t("overview.access.passwordPlaceholder")}
                   />
                 </label>
               `
@@ -263,6 +263,7 @@ export function renderOverview(props: OverviewProps) {
               <option value="zh-CN">${t("languages.zhCN")}</option>
               <option value="zh-TW">${t("languages.zhTW")}</option>
               <option value="pt-BR">${t("languages.ptBR")}</option>
+              <option value="uk">${t("languages.uk")}</option>
             </select>
           </label>
         </div>

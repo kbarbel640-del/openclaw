@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
 import type { ConfigUiHints } from "../types.ts";
 import { matchesNodeSearch, parseConfigSearchQuery, renderNode } from "./config-form.node.ts";
@@ -278,6 +279,21 @@ function getSectionIcon(key: string) {
   return sectionIcons[key as keyof typeof sectionIcons] ?? sectionIcons.default;
 }
 
+function tOrFallback(key: string, fallback: string): string {
+  const value = t(key);
+  return value === key ? fallback : value;
+}
+
+function resolveLocalizedSectionMeta(
+  key: string,
+  fallback: { label: string; description: string },
+): { label: string; description: string } {
+  return {
+    label: tOrFallback(`configUi.sections.${key}.label`, fallback.label),
+    description: tOrFallback(`configUi.sections.${key}.description`, fallback.description),
+  };
+}
+
 function matchesSearch(params: {
   key: string;
   schema: JsonSchema;
@@ -290,7 +306,8 @@ function matchesSearch(params: {
   }
   const criteria = parseConfigSearchQuery(params.query);
   const q = criteria.text;
-  const meta = SECTION_META[params.key];
+  const rawMeta = SECTION_META[params.key];
+  const meta = rawMeta ? resolveLocalizedSectionMeta(params.key, rawMeta) : undefined;
 
   // Check key name
   if (q && params.key.toLowerCase().includes(q)) {
@@ -319,14 +336,14 @@ function matchesSearch(params: {
 export function renderConfigForm(props: ConfigFormProps) {
   if (!props.schema) {
     return html`
-      <div class="muted">Schema unavailable.</div>
+      <div class="muted">${t("configFormUi.schemaUnavailable")}</div>
     `;
   }
   const schema = props.schema;
   const value = props.value ?? {};
   if (schemaType(schema) !== "object" || !schema.properties) {
     return html`
-      <div class="callout danger">Unsupported schema. Use Raw.</div>
+      <div class="callout danger">${t("configFormUi.unsupportedSchemaUseRaw")}</div>
     `;
   }
   const unsupported = new Set(props.unsupportedPaths ?? []);
@@ -387,7 +404,11 @@ export function renderConfigForm(props: ConfigFormProps) {
       <div class="config-empty">
         <div class="config-empty__icon">${icons.search}</div>
         <div class="config-empty__text">
-          ${searchQuery ? `No settings match "${searchQuery}"` : "No settings in this section"}
+          ${
+            searchQuery
+              ? t("configFormUi.noSettingsMatch", { query: searchQuery })
+              : t("configFormUi.noSettingsInSection")
+          }
         </div>
       </div>
     `;
@@ -438,10 +459,11 @@ export function renderConfigForm(props: ConfigFormProps) {
             `;
             })()
           : filteredEntries.map(([key, node]) => {
-              const meta = SECTION_META[key] ?? {
+              const fallbackMeta = SECTION_META[key] ?? {
                 label: key.charAt(0).toUpperCase() + key.slice(1),
                 description: node.description ?? "",
               };
+              const meta = resolveLocalizedSectionMeta(key, fallbackMeta);
 
               return html`
               <section class="config-section-card" id="config-section-${key}">
