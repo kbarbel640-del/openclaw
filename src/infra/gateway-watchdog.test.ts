@@ -25,7 +25,11 @@ import {
   WATCHDOG_CHILD_ENV,
 } from "./gateway-watchdog.js";
 
-function createFakeChild(): EventEmitter & { pid: number; killed: boolean; kill: ReturnType<typeof vi.fn> } {
+function createFakeChild(): EventEmitter & {
+  pid: number;
+  killed: boolean;
+  kill: ReturnType<typeof vi.fn>;
+} {
   const emitter = new EventEmitter();
   return Object.assign(emitter, {
     pid: 9999,
@@ -59,7 +63,10 @@ describe("buildChildArgv", () => {
 });
 
 describe("startGatewayWatchdog", () => {
-  const tmpDir = path.join("/tmp", `test-watchdog-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const tmpDir = path.join(
+    "/tmp",
+    `test-watchdog-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
 
   beforeEach(() => {
     fs.mkdirSync(tmpDir, { recursive: true });
