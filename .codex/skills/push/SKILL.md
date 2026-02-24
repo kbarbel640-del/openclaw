@@ -1,6 +1,6 @@
 ---
 name: push
-description: "Sync current branch with local/fork state, push safely to fork origin, and create/update a draft PR to openclaw/openclaw main. Includes PR template usage and embedding the original user prompt from .codex/original-user-prompt.txt."
+description: "Sync current branch with local/fork state, push safely to fork origin, and create/update a draft PR to openclaw/openclaw main. Includes PR template usage and embedding the original user prompt plus follow-ups from .codex/original-user-prompt.txt."
 user-invocable: true
 metadata:
   { "openclaw": { "requires": { "bins": ["git", "gh"] } } }
@@ -49,14 +49,23 @@ else
 fi
 ```
 
-### 2. Persist the original user prompt verbatim
+### 2. Persist the original user prompt and follow-ups verbatim
 
-Write the prompt exactly as received. Use a single-quoted heredoc so shell interpolation cannot alter content.
+Write the initial user prompt exactly as received. Then append every follow-up user prompt exactly as received, in chronological order. Use single-quoted heredocs so shell interpolation cannot alter content.
 
 ```bash
 mkdir -p .codex
 cat > .codex/original-user-prompt.txt <<'EOF'
 <PASTE THE USER PROMPT VERBATIM HERE>
+EOF
+```
+
+For each follow-up user prompt in the same request thread, append:
+
+```bash
+cat >> .codex/original-user-prompt.txt <<'EOF'
+
+<PASTE FOLLOW-UP USER PROMPT VERBATIM HERE>
 EOF
 ```
 
@@ -140,13 +149,13 @@ EOF
 fi
 ```
 
-### 6. Append original prompt as collapsible section at bottom
+### 6. Append original prompts as collapsible section at bottom
 
 Append this block to the PR body file:
 
 ```bash
 {
-  printf '\n\n<details>\n<summary>Original user prompt</summary>\n\n'
+  printf '\n\n<details>\n<summary>Original user prompts (including follow-ups)</summary>\n\n'
   printf '``````text\n'
   cat .codex/original-user-prompt.txt
   printf '\n``````\n\n</details>\n'
@@ -188,4 +197,4 @@ echo "PR: $pr_url"
 - Branch pushed to fork `origin/<branch>` without force.
 - Draft PR exists on `openclaw/openclaw` with base `main`.
 - PR title/body derived from `.github/pull_request_template.md` when present.
-- Collapsible "Original user prompt" section appended at the bottom using `.codex/original-user-prompt.txt`.
+- Collapsible "Original user prompts (including follow-ups)" section appended at the bottom using `.codex/original-user-prompt.txt`.
