@@ -62,7 +62,7 @@ afterEach(() => {
 
 describe("runHeartbeatOnce – heartbeat model override", () => {
   async function runDefaultsHeartbeat(params: {
-    model?: string;
+    model?: string | { primary?: string; fallbacks?: string[] };
     suppressToolErrorWarnings?: boolean;
   }) {
     return withHeartbeatFixture(async ({ tmpDir, storePath, seedSession }) => {
@@ -73,7 +73,7 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
             heartbeat: {
               every: "5m",
               target: "whatsapp",
-              model: params.model,
+              model: params.model as string | undefined,
               suppressToolErrorWarnings: params.suppressToolErrorWarnings,
             },
           },
@@ -188,6 +188,21 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
       expect.objectContaining({
         isHeartbeat: true,
         heartbeatModelOverride: "ollama/llama3.2:1b",
+      }),
+    );
+  });
+
+  it("passes heartbeatModelOverride from defaults heartbeat model object", async () => {
+    const replyOpts = await runDefaultsHeartbeat({
+      model: {
+        primary: "openrouter/meta-llama/llama-3.3-70b-instruct",
+        fallbacks: ["openai/gpt-4o-mini"],
+      },
+    });
+    expect(replyOpts).toEqual(
+      expect.objectContaining({
+        isHeartbeat: true,
+        heartbeatModelOverride: "openrouter/meta-llama/llama-3.3-70b-instruct",
       }),
     );
   });
