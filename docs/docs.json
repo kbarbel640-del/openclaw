@@ -24,6 +24,14 @@
     "dark": "#FF5A36",
     "light": "#FF8A6B"
   },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "dark": "min-dark",
+        "light": "min-light"
+      }
+    }
+  },
   "navbar": {
     "links": [
       {
@@ -82,6 +90,10 @@
     {
       "source": "/moonshot",
       "destination": "/providers/moonshot"
+    },
+    {
+      "source": "/mistral",
+      "destination": "/providers/mistral"
     },
     {
       "source": "/openrouter",
@@ -268,6 +280,10 @@
       "destination": "/start/openclaw"
     },
     {
+      "source": "/start/pairing",
+      "destination": "/channels/pairing"
+    },
+    {
       "source": "/clawhub",
       "destination": "/tools/clawhub"
     },
@@ -314,6 +330,10 @@
     {
       "source": "/docker",
       "destination": "/install/docker"
+    },
+    {
+      "source": "/podman",
+      "destination": "/install/podman"
     },
     {
       "source": "/doctor",
@@ -516,12 +536,12 @@
       "destination": "/channels/pairing"
     },
     {
-      "source": "/plans/cron-add-hardening",
-      "destination": "/experiments/plans/cron-add-hardening"
+      "source": "/experiments/plans/cron-add-hardening",
+      "destination": "/automation/cron-jobs"
     },
     {
-      "source": "/plans/group-policy-hardening",
-      "destination": "/experiments/plans/group-policy-hardening"
+      "source": "/experiments/plans/group-policy-hardening",
+      "destination": "/channels/groups"
     },
     {
       "source": "/poll",
@@ -782,6 +802,10 @@
     {
       "source": "/platforms/northflank",
       "destination": "/install/northflank"
+    },
+    {
+      "source": "/gateway/trusted-proxy",
+      "destination": "/gateway/trusted-proxy-auth"
     }
   ],
   "navigation": {
@@ -806,7 +830,12 @@
               },
               {
                 "group": "First steps",
-                "pages": ["start/getting-started", "start/wizard", "start/onboarding"]
+                "pages": [
+                  "start/getting-started",
+                  "start/onboarding-overview",
+                  "start/wizard",
+                  "start/onboarding"
+                ]
               },
               {
                 "group": "Guides",
@@ -823,7 +852,13 @@
               },
               {
                 "group": "Other install methods",
-                "pages": ["install/docker", "install/nix", "install/ansible", "install/bun"]
+                "pages": [
+                  "install/docker",
+                  "install/podman",
+                  "install/nix",
+                  "install/ansible",
+                  "install/bun"
+                ]
               },
               {
                 "group": "Maintenance",
@@ -860,17 +895,23 @@
                 "pages": [
                   "channels/whatsapp",
                   "channels/telegram",
-                  "channels/grammy",
                   "channels/discord",
+                  "channels/irc",
                   "channels/slack",
                   "channels/feishu",
                   "channels/googlechat",
                   "channels/mattermost",
                   "channels/signal",
                   "channels/imessage",
+                  "channels/bluebubbles",
                   "channels/msteams",
+                  "channels/synology-chat",
                   "channels/line",
                   "channels/matrix",
+                  "channels/nextcloud-talk",
+                  "channels/nostr",
+                  "channels/tlon",
+                  "channels/twitch",
                   "channels/zalo",
                   "channels/zalouser"
                 ]
@@ -979,7 +1020,7 @@
               },
               {
                 "group": "Extensions",
-                "pages": ["plugins/voice-call", "plugins/zalouser"]
+                "pages": ["plugins/community", "plugins/voice-call", "plugins/zalouser"]
               },
               {
                 "group": "Automation",
@@ -993,10 +1034,6 @@
                   "automation/poll",
                   "automation/auth-monitoring"
                 ]
-              },
-              {
-                "group": "Hooks",
-                "pages": ["hooks/soul-evil"]
               },
               {
                 "group": "Media and devices",
@@ -1034,9 +1071,11 @@
                   "providers/anthropic",
                   "providers/openai",
                   "providers/openrouter",
+                  "providers/litellm",
                   "providers/bedrock",
                   "providers/vercel-ai-gateway",
                   "providers/moonshot",
+                  "providers/mistral",
                   "providers/minimax",
                   "providers/opencode",
                   "providers/glm",
@@ -1098,8 +1137,10 @@
                     "group": "Configuration and operations",
                     "pages": [
                       "gateway/configuration",
+                      "gateway/configuration-reference",
                       "gateway/configuration-examples",
                       "gateway/authentication",
+                      "gateway/trusted-proxy-auth",
                       "gateway/health",
                       "gateway/heartbeat",
                       "gateway/doctor",
@@ -1161,14 +1202,20 @@
                 "group": "CLI commands",
                 "pages": [
                   "cli/index",
+                  "cli/acp",
                   "cli/agent",
                   "cli/agents",
                   "cli/approvals",
                   "cli/browser",
                   "cli/channels",
+                  "cli/clawbot",
+                  "cli/completion",
+                  "cli/config",
                   "cli/configure",
                   "cli/cron",
+                  "cli/daemon",
                   "cli/dashboard",
+                  "cli/devices",
                   "cli/directory",
                   "cli/dns",
                   "cli/docs",
@@ -1180,10 +1227,12 @@
                   "cli/memory",
                   "cli/message",
                   "cli/models",
+                  "cli/node",
                   "cli/nodes",
                   "cli/onboard",
                   "cli/pairing",
                   "cli/plugins",
+                  "cli/qr",
                   "cli/reset",
                   "cli/sandbox",
                   "cli/security",
@@ -1195,7 +1244,8 @@
                   "cli/tui",
                   "cli/uninstall",
                   "cli/update",
-                  "cli/voicecall"
+                  "cli/voicecall",
+                  "cli/webhooks"
                 ]
               },
               {
@@ -1218,7 +1268,12 @@
               },
               {
                 "group": "Technical reference",
-                "pages": ["reference/wizard", "reference/token-use"]
+                "pages": [
+                  "reference/wizard",
+                  "reference/token-use",
+                  "reference/prompt-caching",
+                  "channels/grammy"
+                ]
               },
               {
                 "group": "Concept internals",
@@ -1242,8 +1297,6 @@
                 "group": "Experiments",
                 "pages": [
                   "experiments/onboarding-config-protocol",
-                  "experiments/plans/cron-add-hardening",
-                  "experiments/plans/group-policy-hardening",
                   "experiments/research/memory",
                   "experiments/proposals/model-config"
                 ]
@@ -1279,7 +1332,7 @@
               },
               {
                 "group": "Contributing",
-                "pages": ["help/submitting-a-pr", "help/submitting-an-issue", "ci"]
+                "pages": ["ci"]
               },
               {
                 "group": "Docs meta",
@@ -1376,7 +1429,6 @@
                 "pages": [
                   "zh-CN/channels/whatsapp",
                   "zh-CN/channels/telegram",
-                  "zh-CN/channels/grammy",
                   "zh-CN/channels/discord",
                   "zh-CN/channels/slack",
                   "zh-CN/channels/feishu",
@@ -1513,10 +1565,6 @@
                   "zh-CN/automation/poll",
                   "zh-CN/automation/auth-monitoring"
                 ]
-              },
-              {
-                "group": "Hooks",
-                "pages": ["zh-CN/hooks/soul-evil"]
               },
               {
                 "group": "媒体与设备",
@@ -1810,10 +1858,6 @@
               {
                 "group": "开发者设置",
                 "pages": ["zh-CN/start/setup"]
-              },
-              {
-                "group": "贡献",
-                "pages": ["zh-CN/help/submitting-a-pr", "zh-CN/help/submitting-an-issue"]
               },
               {
                 "group": "文档元信息",
