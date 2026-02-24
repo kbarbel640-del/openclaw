@@ -6,23 +6,12 @@ import { initSubagentRegistry } from "../agents/subagent-registry.js";
 import { getTotalPendingReplies } from "../auto-reply/reply/dispatcher-registry.js";
 import type { CanvasHostServer } from "../canvas-host/server.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
-import { formatCliCommand } from "../cli/command-format.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { isRestartEnabled } from "../config/commands.js";
-import {
-  CONFIG_PATH,
-  isNixMode,
-  loadConfig,
-  migrateLegacyConfig,
-  readConfigFileSnapshot,
-  writeConfigFile,
-} from "../config/config.js";
+import { isNixMode, loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
-import {
-  readMetadataConfigSnapshot,
-  startMetadataConfigPoller,
-} from "../config/metadata-source.js";
-import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
+import { createConfigSource } from "../config/create-config-source.js";
+import { FileConfigSource } from "../config/file-source.js";
 import { clearAgentRunContext, onAgentEvent } from "../infra/agent-events.js";
 import {
   ensureControlUiAssetsBuilt,
@@ -188,18 +177,23 @@ export async function startGatewayServer(
     description: "raw stream log path override",
   });
 
-  const configSource = process.env.OCM_CONFIG_SOURCE;
-  const metadataUrl = process.env.OCM_METADATA_URL || "http://169.254.169.253";
+  const cfgSource = createConfigSource(process.env);
 
+  // File sources need legacy migration and plugin auto-enable before first use
+  if (cfgSource instanceof FileConfigSource) {
+    await cfgSource.prepareOnFirstRead();
+  }
+
+  // Read the initial config snapshot
   let cfgAtStart: OpenClawConfig;
-
-  if (configSource === "metadata") {
-    // Metadata mode — fetch config from OCM metadata endpoint
-    log.info("gateway: loading config from OCM metadata endpoint");
-    const configSnapshot = await readMetadataConfigSnapshot(metadataUrl);
+  if (cfgSource instanceof FileConfigSource) {
+    cfgAtStart = cfgSource.loadStartupConfig();
+  } else {
+    log.info("gateway: loading config from HTTP config source");
+    const configSnapshot = await cfgSource.read();
     if (!configSnapshot.exists) {
       throw new Error(
-        `Failed to fetch config from metadata endpoint (${metadataUrl}): ${
+        `Failed to fetch config from config source: ${
           configSnapshot.issues.map((i) => i.message).join(", ") || "endpoint unreachable"
         }`,
       );
@@ -208,63 +202,10 @@ export async function startGatewayServer(
       const issues = configSnapshot.issues
         .map((issue) => `${issue.path || "<root>"}: ${issue.message}`)
         .join("\n");
-      throw new Error(`Invalid config from metadata endpoint.\n${issues}`);
+      throw new Error(`Invalid config from config source.\n${issues}`);
     }
     cfgAtStart = configSnapshot.config;
-    log.info("gateway: config loaded from metadata endpoint");
-  } else {
-    // File mode — existing behavior
-    let configSnapshot = await readConfigFileSnapshot();
-    if (configSnapshot.legacyIssues.length > 0) {
-      if (isNixMode) {
-        throw new Error(
-          "Legacy config entries detected while running in Nix mode. Update your Nix config to the latest schema and restart.",
-        );
-      }
-      const { config: migrated, changes } = migrateLegacyConfig(configSnapshot.parsed);
-      if (!migrated) {
-        throw new Error(
-          `Legacy config entries detected but auto-migration failed. Run "${formatCliCommand("openclaw doctor")}" to migrate.`,
-        );
-      }
-      await writeConfigFile(migrated);
-      if (changes.length > 0) {
-        log.info(
-          `gateway: migrated legacy config entries:\n${changes
-            .map((entry) => `- ${entry}`)
-            .join("\n")}`,
-        );
-      }
-    }
-
-    configSnapshot = await readConfigFileSnapshot();
-    if (configSnapshot.exists && !configSnapshot.valid) {
-      const issues =
-        configSnapshot.issues.length > 0
-          ? configSnapshot.issues
-              .map((issue) => `${issue.path || "<root>"}: ${issue.message}`)
-              .join("\n")
-          : "Unknown validation issue.";
-      throw new Error(
-        `Invalid config at ${configSnapshot.path}.\n${issues}\nRun "${formatCliCommand("openclaw doctor")}" to repair, then retry.`,
-      );
-    }
-
-    const autoEnable = applyPluginAutoEnable({ config: configSnapshot.config, env: process.env });
-    if (autoEnable.changes.length > 0) {
-      try {
-        await writeConfigFile(autoEnable.config);
-        log.info(
-          `gateway: auto-enabled plugins:\n${autoEnable.changes
-            .map((entry) => `- ${entry}`)
-            .join("\n")}`,
-        );
-      } catch (err) {
-        log.warn(`gateway: failed to persist plugin auto-enable changes: ${String(err)}`);
-      }
-    }
-
-    cfgAtStart = loadConfig();
+    log.info("gateway: config loaded from HTTP config source");
   }
 
   const authBootstrap = await ensureGatewayStartupAuth({
@@ -272,7 +213,7 @@ export async function startGatewayServer(
     env: process.env,
     authOverride: opts.auth,
     tailscaleOverride: opts.tailscale,
-    persist: configSource !== "metadata",
+    persist: cfgSource.persistConfig,
   });
   cfgAtStart = authBootstrap.cfg;
   if (authBootstrap.generatedToken) {
@@ -759,42 +700,28 @@ export async function startGatewayServer(
           error: (msg: string) => logReload.error(msg),
         };
 
-        if (configSource === "metadata") {
-          // Metadata mode — poll /v1/config-version; sentinel file triggers chokidar
-          const sentinelPath = "/tmp/.ocm-config-changed";
-          const poller = startMetadataConfigPoller({
-            metadataUrl,
-            pollIntervalMs: 5000,
-            sentinelPath,
-            log: reloadLog,
-          });
+        // Start config source (e.g., HTTP version poller); no-op for file sources
+        const sourceHandle = cfgSource.start?.(reloadLog);
 
-          const reloader = startGatewayConfigReloader({
-            initialConfig: cfgAtStart,
-            readSnapshot: () => readMetadataConfigSnapshot(metadataUrl),
-            onHotReload: applyHotReload,
-            onRestart: requestGatewayRestart,
-            log: reloadLog,
-            watchPath: sentinelPath,
-          });
+        const reloader = startGatewayConfigReloader({
+          initialConfig: cfgAtStart,
+          readSnapshot: () => cfgSource.read(),
+          onHotReload: applyHotReload,
+          onRestart: requestGatewayRestart,
+          log: reloadLog,
+          watchPath: cfgSource.watchPath,
+        });
 
-          // Return a combined stop that cleans up both
+        if (sourceHandle) {
           return {
             stop: async () => {
-              poller.stop();
+              sourceHandle.stop();
               await reloader.stop();
             },
           };
         }
 
-        return startGatewayConfigReloader({
-          initialConfig: cfgAtStart,
-          readSnapshot: readConfigFileSnapshot,
-          onHotReload: applyHotReload,
-          onRestart: requestGatewayRestart,
-          log: reloadLog,
-          watchPath: CONFIG_PATH,
-        });
+        return reloader;
       })();
 
   const close = createGatewayCloseHandler({
