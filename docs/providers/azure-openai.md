@@ -143,10 +143,10 @@ See [Thinking Levels](/tools/thinking) for full details.
 
 ## Model specifications
 
-| Model | Context Window | Max Output Tokens | Image Input | Reasoning |
-| --- | --- | --- | --- | --- |
-| gpt-5.2-codex | 400,000 | 16,384 | Yes | Yes |
-| gpt-5.2 | 272,000 | 16,384 | Yes | Yes |
+| Model         | Context Window | Max Output Tokens | Image Input | Reasoning |
+| ------------- | -------------- | ----------------- | ----------- | --------- |
+| gpt-5.2-codex | 400,000        | 16,384            | Yes         | Yes       |
+| gpt-5.2       | 272,000        | 16,384            | Yes         | Yes       |
 
 ## Troubleshooting
 
