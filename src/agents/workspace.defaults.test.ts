@@ -16,4 +16,15 @@ describe("DEFAULT_AGENT_WORKSPACE_DIR", () => {
       path.join(path.resolve(home), ".openclaw", "workspace"),
     );
   });
+
+  it("resolves profile workspace under profile state dir", () => {
+    const home = path.join(path.sep, "srv", "openclaw-home");
+    vi.stubEnv("OPENCLAW_HOME", home);
+    vi.stubEnv("OPENCLAW_PROFILE", "lab");
+    vi.stubEnv("OPENCLAW_STATE_DIR", path.join(home, ".openclaw-lab"));
+
+    expect(resolveDefaultAgentWorkspaceDir()).toBe(
+      path.join(path.resolve(home), ".openclaw-lab", "workspace"),
+    );
+  });
 });
