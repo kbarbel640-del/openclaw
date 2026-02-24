@@ -1,9 +1,10 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { AlertCircle, ArrowLeft, Shield, Gauge, Pencil, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Shield, Gauge, Pencil, Trash2, Target } from "lucide-react";
 import { useState } from "react";
 import { AgentDeleteConfirmDialog } from "@/components/agents/AgentDeleteConfirmDialog";
+import { AgentFileEditor } from "@/components/agents/AgentFileEditor";
 import { AgentFormDialog } from "@/components/agents/AgentFormDialog";
-import { BdiViewer } from "@/components/agents/BdiViewer";
+import { BdiSummaryBar } from "@/components/agents/BdiViewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,11 +13,37 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAgentDetail } from "@/hooks/useAgentDetail";
 import { useAgents } from "@/hooks/useAgents";
+import { useGoals } from "@/hooks/useGoals";
 import { getAgentAvatar } from "@/lib/agent-avatars";
 import { getAgentIcon, getAgentName } from "@/lib/agent-icons";
-import type { AgentDetail, AgentListResponse, AgentListItem } from "@/lib/types";
+import type { AgentDetail, AgentListResponse, AgentListItem, BusinessGoal } from "@/lib/types";
 
 const BUSINESS_ID = "vividwalls";
+
+// BDI cognitive files with display labels
+const BDI_FILES = [
+  { label: "Beliefs", filename: "Beliefs.md" },
+  { label: "Desires", filename: "Desires.md" },
+  { label: "Goals", filename: "Goals.md" },
+  { label: "Intentions", filename: "Intentions.md" },
+  { label: "Plans", filename: "Plans.md" },
+  { label: "Memory", filename: "Memory.md" },
+  { label: "Persona", filename: "Persona.md" },
+  { label: "Skills", filename: "Capabilities.md" },
+  { label: "Knowledge", filename: "Knowledge.md" },
+  { label: "Playbooks", filename: "Playbooks.md" },
+] as const;
+
+// OpenClaw core files
+const CORE_FILES = [
+  { label: "Soul", filename: "SOUL.md" },
+  { label: "Agent", filename: "AGENTS.md" },
+  { label: "Identity", filename: "IDENTITY.md" },
+  { label: "Tools", filename: "TOOLS.md" },
+] as const;
+
+const tabTriggerClass =
+  "text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]";
 
 function DetailSkeleton() {
   return (
@@ -35,6 +62,146 @@ function DetailSkeleton() {
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
       </div>
+    </div>
+  );
+}
+
+const priorityColors: Record<number, string> = {
+  1: "var(--accent-red)",
+  2: "var(--accent-orange)",
+  3: "var(--accent-blue)",
+};
+
+function GoalsSection({ agentId }: { agentId: string }) {
+  const { data, isLoading } = useGoals(BUSINESS_ID);
+
+  const agentGoals: BusinessGoal[] = data?.goals?.filter((g) => g.actor === agentId) ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Target className="w-3.5 h-3.5 text-[var(--accent-green)]" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          Goals ({agentGoals.length})
+        </span>
+      </div>
+      {agentGoals.length === 0 ? (
+        <p className="text-xs text-[var(--text-muted)] italic pl-5.5">
+          No goals assigned to this agent
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {agentGoals.map((goal) => (
+            <div
+              key={goal.id}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-mabos)]"
+            >
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                style={{
+                  backgroundColor: priorityColors[goal.priority] ?? "var(--text-muted)",
+                }}
+              />
+              <span className="text-xs text-[var(--text-secondary)] flex-1 truncate">
+                {goal.name}
+              </span>
+              <Badge
+                variant="outline"
+                className="border-[var(--border-mabos)] text-[10px] px-1.5 py-0 text-[var(--text-muted)] capitalize shrink-0"
+              >
+                {goal.level}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentMindTab({
+  agentId,
+  detail,
+  editable,
+}: {
+  agentId: string;
+  detail: AgentDetail | undefined;
+  editable: boolean;
+}) {
+  const [activeFile, setActiveFile] = useState<string>(BDI_FILES[0].filename);
+  const [fileGroup, setFileGroup] = useState<"bdi" | "core">("bdi");
+
+  function handleBdiSummaryClick(fileTab: string) {
+    setFileGroup("bdi");
+    setActiveFile(fileTab);
+  }
+
+  const currentFiles = fileGroup === "bdi" ? BDI_FILES : CORE_FILES;
+  const validFile = currentFiles.find((f) => f.filename === activeFile)
+    ? activeFile
+    : currentFiles[0].filename;
+
+  return (
+    <div className="space-y-4">
+      {/* BDI Summary Bar */}
+      {detail && <BdiSummaryBar agent={detail} onClickSection={handleBdiSummaryClick} />}
+
+      {/* File Group Selector */}
+      <Tabs
+        value={fileGroup}
+        onValueChange={(v) => {
+          const group = v as "bdi" | "core";
+          setFileGroup(group);
+          const files = group === "bdi" ? BDI_FILES : CORE_FILES;
+          setActiveFile(files[0].filename);
+        }}
+      >
+        <TabsList className="bg-[var(--bg-secondary)]">
+          <TabsTrigger value="bdi" className={tabTriggerClass}>
+            BDI Files
+          </TabsTrigger>
+          <TabsTrigger value="core" className={tabTriggerClass}>
+            OpenClaw Core
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* File Sub-tabs */}
+      <Tabs value={validFile} onValueChange={setActiveFile}>
+        <TabsList variant="line" className="flex-wrap gap-0">
+          {currentFiles.map((f) => (
+            <TabsTrigger
+              key={f.filename}
+              value={f.filename}
+              className="text-xs text-[var(--text-muted)] data-[state=active]:text-[var(--text-primary)] px-2 py-1"
+            >
+              {f.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {currentFiles.map((f) => (
+          <TabsContent key={f.filename} value={f.filename} className="mt-0">
+            <div className="rounded-lg border border-[var(--border-mabos)] overflow-hidden bg-[var(--bg-card)] min-h-[300px]">
+              <AgentFileEditor agentId={agentId} filename={f.filename} editable={editable} />
+            </div>
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      {/* Goals Section */}
+      <Separator className="bg-[var(--border-mabos)]" />
+      <GoalsSection agentId={agentId} />
     </div>
   );
 }
@@ -135,6 +302,7 @@ export function AgentDetailPage() {
   const { agentId } = useParams({ strict: false }) as { agentId: string };
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [isEditable, setIsEditable] = useState(false);
 
   const { data: detailRaw, isLoading: detailLoading, error: detailError } = useAgentDetail(agentId);
 
@@ -231,11 +399,20 @@ export function AgentDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setIsEditable(!isEditable)}
+                className={`gap-1.5 ${isEditable ? "border-[var(--accent-purple)]/30 text-[var(--accent-purple)]" : "border-[var(--border-mabos)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                {isEditable ? "Editing" : "Edit Files"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowEditDialog(true)}
                 className="border-[var(--border-mabos)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] gap-1.5"
               >
-                <Pencil className="w-3.5 h-3.5" />
-                Edit
+                <Gauge className="w-3.5 h-3.5" />
+                Settings
               </Button>
               <Button
                 variant="outline"
@@ -252,28 +429,18 @@ export function AgentDetailPage() {
           <Separator className="bg-[var(--border-mabos)]" />
 
           {/* Tabs */}
-          <Tabs defaultValue="bdi">
+          <Tabs defaultValue="mind">
             <TabsList className="bg-[var(--bg-secondary)]">
-              <TabsTrigger
-                value="bdi"
-                className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
-              >
-                BDI State
+              <TabsTrigger value="mind" className={tabTriggerClass}>
+                Agent Mind
               </TabsTrigger>
-              <TabsTrigger
-                value="config"
-                className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
-              >
+              <TabsTrigger value="config" className={tabTriggerClass}>
                 Configuration
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="bdi" className="mt-4">
-              {detail ? (
-                <BdiViewer agent={detail} />
-              ) : (
-                <p className="text-sm text-[var(--text-muted)] italic">BDI data unavailable.</p>
-              )}
+            <TabsContent value="mind" className="mt-4">
+              <AgentMindTab agentId={agentId} detail={detail} editable={isEditable} />
             </TabsContent>
 
             <TabsContent value="config" className="mt-4">
