@@ -125,6 +125,21 @@ export async function resolveSessionAuthProfileOverride(params: {
     next = pickNextAvailable(current);
   } else if (!current || isProfileInCooldown(store, current)) {
     next = pickFirstAvailable();
+  } else if (current) {
+    // Re-evaluate when a higher-priority profile has become available again
+    // (e.g., OAuth profile was in cooldown, we fell back to API key, and the
+    // OAuth cooldown has since expired). Without this, the session stays pinned
+    // to the lower-priority profile until the next compaction or new session.
+    // See #25510.
+    const currentIndex = order.indexOf(current);
+    if (currentIndex > 0) {
+      const higherPriorityAvailable = order
+        .slice(0, currentIndex)
+        .find((id) => !isProfileInCooldown(store, id));
+      if (higherPriorityAvailable) {
+        next = higherPriorityAvailable;
+      }
+    }
   }
 
   if (!next) {
