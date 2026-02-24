@@ -48,6 +48,7 @@ export type AgentDetailPanelProps = {
   onFileDraftChange: (name: string, content: string) => void;
   onFileSave: (name: string) => void;
   onFileReset: (name: string) => void;
+  onDelete?: () => void;
 };
 
 export function renderAgentDetailPanel(props: AgentDetailPanelProps) {
@@ -194,6 +195,11 @@ export function renderAgentDetailPanel(props: AgentDetailPanelProps) {
           ${agent?.id ? html`Agent ID: <code>${agent.id}</code>` : nothing}
         </div>
         <div class="agent-detail-footer__actions">
+          ${
+            agent && panelState.mode !== "create" && props.onDelete
+              ? html`<button class="btn btn--sm danger" type="button" @click=${props.onDelete}>Delete</button>`
+              : nothing
+          }
           ${
             isEdit
               ? html`

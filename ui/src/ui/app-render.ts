@@ -1285,6 +1285,10 @@ export function renderApp(state: AppViewState) {
         onClose: () => {
           state.agentDetailPanel = { ...state.agentDetailPanel, open: false, expanded: false };
         },
+        onDelete: () => {
+          // TODO: implement agent deletion via gateway
+          state.agentDetailPanel = { ...state.agentDetailPanel, open: false };
+        },
         onToggleExpand: () => {
           state.agentDetailPanel = {
             ...state.agentDetailPanel,
