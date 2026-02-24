@@ -95,7 +95,7 @@ export type HeartbeatSummary = {
   ackMaxChars: number;
 };
 
-const DEFAULT_HEARTBEAT_TARGET = "last";
+const DEFAULT_HEARTBEAT_TARGET = "none";
 
 // Prompt used when an async exec has completed and the result should be relayed to the user.
 // This overrides the standard heartbeat prompt to ensure the model responds with the exec result
@@ -615,12 +615,12 @@ export async function runHeartbeatOnce(opts: {
   if (delivery.reason === "unknown-account") {
     log.warn("heartbeat: unknown accountId", {
       accountId: delivery.accountId ?? heartbeatAccountId ?? null,
-      target: heartbeat?.target ?? "last",
+      target: heartbeat?.target ?? "none",
     });
   } else if (heartbeatAccountId) {
     log.info("heartbeat: using explicit accountId", {
       accountId: delivery.accountId ?? heartbeatAccountId,
-      target: heartbeat?.target ?? "last",
+      target: heartbeat?.target ?? "none",
       channel: delivery.channel,
     });
   }
