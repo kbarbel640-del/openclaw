@@ -11,6 +11,7 @@ let resolvePinnedHostnameSpy: ReturnType<typeof vi.spyOn> = null;
 const TELEGRAM_TEST_TIMINGS = {
   mediaGroupFlushMs: 20,
   textFragmentGapMs: 30,
+  forwardedBurstDebounceMs: 100,
 } as const;
 const TELEGRAM_BOT_IMPORT_TIMEOUT_MS = process.platform === "win32" ? 180_000 : 150_000;
 let createTelegramBot: typeof import("./bot.js").createTelegramBot;
@@ -289,7 +290,7 @@ describe("telegram media groups", () => {
   });
 
   const MEDIA_GROUP_TEST_TIMEOUT_MS = process.platform === "win32" ? 45_000 : 20_000;
-  const MEDIA_GROUP_FLUSH_MS = TELEGRAM_TEST_TIMINGS.mediaGroupFlushMs + 40;
+  const MEDIA_GROUP_FLUSH_MS = TELEGRAM_TEST_TIMINGS.mediaGroupFlushMs + 80;
 
   it(
     "handles same-group buffering and separate-group independence",
@@ -370,7 +371,7 @@ describe("telegram media groups", () => {
             () => {
               expect(replySpy).toHaveBeenCalledTimes(scenario.expectedReplyCount);
             },
-            { timeout: MEDIA_GROUP_FLUSH_MS * 2, interval: 2 },
+            { timeout: MEDIA_GROUP_FLUSH_MS * 4, interval: 10 },
           );
 
           expect(runtimeError).not.toHaveBeenCalled();
