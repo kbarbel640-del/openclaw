@@ -835,6 +835,11 @@ export function isModelNotFoundErrorMessage(raw: string): boolean {
     return true;
   }
 
+  // GLM (Zhipu AI) Chinese error message: "模型不存在，请检查模型代码"
+  if (lower.includes("模型不存在") || lower.includes("模型代码")) {
+    return true;
+  }
+
   // Google Gemini: "models/X is not found for api version"
   if (/models\/[^\s]+ is not found/i.test(raw)) {
     return true;
