@@ -62,9 +62,10 @@ export function resolveModel(
   const authStorage = discoverAuthStorage(resolvedAgentDir);
   const modelRegistry = discoverModels(authStorage, resolvedAgentDir);
   const model = modelRegistry.find(provider, modelId) as Model<Api> | null;
+  const providers = cfg?.models?.providers ?? {};
+  const providerCompat = providers[provider]?.compat;
 
   if (!model) {
-    const providers = cfg?.models?.providers ?? {};
     const inlineModels = buildInlineProviderModels(providers);
     const normalizedProvider = normalizeProviderId(provider);
     const inlineMatch = inlineModels.find(
@@ -126,7 +127,17 @@ export function resolveModel(
       modelRegistry,
     };
   }
-  return { model: normalizeModelCompat(model), authStorage, modelRegistry };
+  // Merge provider-level compat settings into the found model.
+  // ModelRegistry.find() returns models without provider-level compat,
+  // so we need to merge it here for providers like AbacusAI that require
+  // supportsStrictMode: false to avoid "strict" field validation errors.
+  const modelWithProviderCompat = providerCompat
+    ? {
+        ...model,
+        compat: { ...providerCompat, ...model.compat },
+      }
+    : model;
+  return { model: normalizeModelCompat(modelWithProviderCompat), authStorage, modelRegistry };
 }
 
 /**
