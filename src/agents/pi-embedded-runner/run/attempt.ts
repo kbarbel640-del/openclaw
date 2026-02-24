@@ -817,6 +817,33 @@ export async function runEmbeddedAttempt(
         };
       }
 
+      // Compaction can displace or orphan tool results from their matching assistant
+      // tool call turns, causing strict providers (Anthropic, MiniMax, Cloud Code
+      // Assist) to reject the request with "unexpected tool_use_id in tool_result".
+      // sanitizeSessionHistory only processes historical messages at attempt start;
+      // wrap streamFn so every outbound request has repaired tool use/result pairing.
+      if (transcriptPolicy.repairToolUseResultPairing) {
+        const inner = activeSession.agent.streamFn;
+        activeSession.agent.streamFn = (model, context, options) => {
+          const ctx = context as unknown as { messages?: unknown };
+          const messages = ctx?.messages;
+          if (!Array.isArray(messages)) {
+            return inner(model, context, options);
+          }
+          const sanitized = sanitizeToolUseResultPairing(
+            messages as unknown as AgentMessage[],
+          ) as unknown;
+          if (sanitized === messages) {
+            return inner(model, context, options);
+          }
+          const nextContext = {
+            ...(context as unknown as Record<string, unknown>),
+            messages: sanitized,
+          } as unknown;
+          return inner(model, nextContext as typeof context, options);
+        };
+      }
+
       if (anthropicPayloadLogger) {
         activeSession.agent.streamFn = anthropicPayloadLogger.wrapStreamFn(
           activeSession.agent.streamFn,
