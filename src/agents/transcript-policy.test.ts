@@ -61,4 +61,60 @@ describe("resolveTranscriptPolicy", () => {
     });
     expect(policy.validateAnthropicTurns).toBe(false);
   });
+
+  describe("repairToolUseResultPairing", () => {
+    it("enables repair for Anthropic provider", () => {
+      const policy = resolveTranscriptPolicy({
+        provider: "anthropic",
+        modelId: "claude-opus-4-5",
+        modelApi: "anthropic-messages",
+      });
+      expect(policy.repairToolUseResultPairing).toBe(true);
+    });
+
+    it("enables repair for Google provider", () => {
+      const policy = resolveTranscriptPolicy({
+        provider: "google",
+        modelId: "gemini-2.0-flash",
+        modelApi: "google-generative-ai",
+      });
+      expect(policy.repairToolUseResultPairing).toBe(true);
+    });
+
+    it("enables repair for Moonshot (OpenAI-compatible) provider", () => {
+      const policy = resolveTranscriptPolicy({
+        provider: "moonshot",
+        modelId: "kimi-k2.5",
+        modelApi: "openai-completions",
+      });
+      expect(policy.repairToolUseResultPairing).toBe(true);
+    });
+
+    it("enables repair for OpenRouter provider", () => {
+      const policy = resolveTranscriptPolicy({
+        provider: "openrouter",
+        modelId: "anthropic/claude-opus-4-6",
+        modelApi: "openai-completions",
+      });
+      expect(policy.repairToolUseResultPairing).toBe(true);
+    });
+
+    it("disables repair for native OpenAI provider", () => {
+      const policy = resolveTranscriptPolicy({
+        provider: "openai",
+        modelId: "gpt-4o",
+        modelApi: "openai",
+      });
+      expect(policy.repairToolUseResultPairing).toBe(false);
+    });
+
+    it("disables repair for OpenAI Codex provider", () => {
+      const policy = resolveTranscriptPolicy({
+        provider: "openai-codex",
+        modelId: "gpt-5.3-codex",
+        modelApi: "openai-codex-responses",
+      });
+      expect(policy.repairToolUseResultPairing).toBe(false);
+    });
+  });
 });
