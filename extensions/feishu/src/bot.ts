@@ -243,7 +243,8 @@ function parseMediaKeys(
       case "audio":
         return { fileKey };
       case "video":
-        // Video has both file_key (video) and image_key (thumbnail)
+      case "media":
+        // Video/media has both file_key (video) and image_key (thumbnail)
         return { fileKey, imageKey };
       case "sticker":
         return { fileKey };
@@ -320,6 +321,7 @@ function inferPlaceholder(messageType: string): string {
     case "audio":
       return "<media:audio>";
     case "video":
+    case "media":
       return "<media:video>";
     case "sticker":
       return "<media:sticker>";
@@ -344,7 +346,7 @@ async function resolveFeishuMediaList(params: {
   const { cfg, messageId, messageType, content, maxBytes, log, accountId } = params;
 
   // Only process media message types (including post for embedded images)
-  const mediaTypes = ["image", "file", "audio", "video", "sticker", "post"];
+  const mediaTypes = ["image", "file", "audio", "video", "media", "sticker", "post"];
   if (!mediaTypes.includes(messageType)) {
     return [];
   }
