@@ -21,9 +21,11 @@ type InlineProviderConfig = {
   models?: ModelDefinitionConfig[];
 };
 
-const ANTIGRAVITY_GEMINI_LEGACY_COMPAT: Record<string, string> = {
-  "gemini-3-pro-high": "gemini-3.1-pro-high",
-  "gemini-3-pro-low": "gemini-3.1-pro-low",
+const ANTIGRAVITY_GEMINI_COMPAT_CANDIDATES: Record<string, string[]> = {
+  "gemini-3-pro-high": ["gemini-3.1-pro-high", "gemini-3-pro-high"],
+  "gemini-3-pro-low": ["gemini-3.1-pro-low", "gemini-3-pro-low"],
+  "gemini-3.1-pro-high": ["gemini-3.1-pro-high", "gemini-3-pro-high"],
+  "gemini-3.1-pro-low": ["gemini-3.1-pro-low", "gemini-3-pro-low"],
 };
 
 export { buildModelAliasLines };
@@ -60,15 +62,14 @@ export function resolveModel(
   const normalizedProvider = normalizedRef.provider;
   const normalizedModelId = normalizedRef.model;
   const modelCandidates = (() => {
-    const candidates = [normalizedModelId];
     if (normalizedProvider !== "google-antigravity") {
-      return candidates;
+      return [normalizedModelId];
     }
-    const compat = ANTIGRAVITY_GEMINI_LEGACY_COMPAT[normalizedModelId.toLowerCase()];
-    if (compat && !candidates.includes(compat)) {
-      candidates.push(compat);
+    const compat = ANTIGRAVITY_GEMINI_COMPAT_CANDIDATES[normalizedModelId.toLowerCase()];
+    if (!compat) {
+      return [normalizedModelId];
     }
-    return candidates;
+    return [...new Set(compat)];
   })();
   const resolvedAgentDir = agentDir ?? resolveOpenClawAgentDir();
   const authStorage = discoverAuthStorage(resolvedAgentDir);

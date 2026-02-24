@@ -345,6 +345,29 @@ describe("resolveModel", () => {
     });
   });
 
+  it("falls back to legacy antigravity gemini-3 ids when gemini-3.1 ids are missing", () => {
+    mockDiscoveredModel({
+      provider: "google-antigravity",
+      modelId: "gemini-3-pro-high",
+      templateModel: buildForwardCompatTemplate({
+        id: "gemini-3-pro-high",
+        name: "Gemini 3 Pro High",
+        provider: "google-antigravity",
+        api: "google-gemini-cli",
+        baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+      }),
+    });
+
+    const result = resolveModel("google-antigravity", "gemini-3.1-pro-high", "/tmp/agent");
+
+    expect(result.error).toBeUndefined();
+    expect(result.model).toMatchObject({
+      provider: "google-antigravity",
+      id: "gemini-3-pro-high",
+      api: "google-gemini-cli",
+    });
+  });
+
   it("builds a zai forward-compat fallback for glm-5", () => {
     mockDiscoveredModel({
       provider: "zai",

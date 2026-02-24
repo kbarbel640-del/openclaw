@@ -357,6 +357,19 @@ describe("models list/status", () => {
     });
   });
 
+  it("models list resolves antigravity gemini 3.1 high from gemini 3 high template", async () => {
+    const payload = await runGoogleAntigravityListCase({
+      configuredModelId: "gemini-3.1-pro-high",
+      templateId: "gemini-3-pro-high",
+      templateName: "Gemini 3 Pro High",
+    });
+    expectAntigravityModel(payload, {
+      key: "google-antigravity/gemini-3.1-pro-high",
+      available: false,
+      includesTags: true,
+    });
+  });
+
   it("models list marks synthesized antigravity opus 4.6 thinking as available when template is available", async () => {
     const payload = await runGoogleAntigravityListCase({
       configuredModelId: "claude-opus-4-6-thinking",
@@ -379,6 +392,19 @@ describe("models list/status", () => {
     });
     expectAntigravityModel(payload, {
       key: "google-antigravity/claude-opus-4-6",
+      available: true,
+    });
+  });
+
+  it("models list marks synthesized antigravity gemini 3.1 high as available when template is available", async () => {
+    const payload = await runGoogleAntigravityListCase({
+      configuredModelId: "gemini-3.1-pro-high",
+      templateId: "gemini-3-pro-high",
+      templateName: "Gemini 3 Pro High",
+      available: true,
+    });
+    expectAntigravityModel(payload, {
+      key: "google-antigravity/gemini-3.1-pro-high",
       available: true,
     });
   });

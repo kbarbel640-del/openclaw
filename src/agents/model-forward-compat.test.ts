@@ -56,4 +56,30 @@ describe("agents/model-forward-compat", () => {
     const model = resolveForwardCompatModel("openai", "claude-opus-4-6", registry);
     expect(model).toBeUndefined();
   });
+
+  it("resolves antigravity gemini 3.1 high via gemini 3 high template", () => {
+    const registry = createRegistry({
+      "google-antigravity/gemini-3-pro-high": createTemplateModel(
+        "google-antigravity",
+        "gemini-3-pro-high",
+      ),
+    });
+    const model = resolveForwardCompatModel("google-antigravity", "gemini-3.1-pro-high", registry);
+    expect(model?.id).toBe("gemini-3.1-pro-high");
+    expect(model?.name).toBe("gemini-3.1-pro-high");
+    expect(model?.provider).toBe("google-antigravity");
+  });
+
+  it("resolves antigravity gemini 3.1 low via gemini 3 low template", () => {
+    const registry = createRegistry({
+      "google-antigravity/gemini-3-pro-low": createTemplateModel(
+        "google-antigravity",
+        "gemini-3-pro-low",
+      ),
+    });
+    const model = resolveForwardCompatModel("google-antigravity", "gemini-3.1-pro-low", registry);
+    expect(model?.id).toBe("gemini-3.1-pro-low");
+    expect(model?.name).toBe("gemini-3.1-pro-low");
+    expect(model?.provider).toBe("google-antigravity");
+  });
 });
