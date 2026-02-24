@@ -16,6 +16,7 @@ export function resolveAuthorizedWhatsAppOutboundTarget(params: {
   const resolution = resolveWhatsAppOutboundTarget({
     to: params.chatJid,
     allowFrom: account.allowFrom ?? [],
+    allowSendTo: account.allowSendTo,
     mode: "implicit",
   });
   if (!resolution.ok) {
