@@ -412,6 +412,12 @@ export class DiscordVoiceManager {
     const player = createAudioPlayer();
     connection.subscribe(player);
 
+    // Defined before entry so stop() can remove them.
+    let speakingHandler: ((userId: string) => void) | undefined;
+    let disconnectedHandler: (() => Promise<void>) | undefined;
+    let destroyedHandler: (() => void) | undefined;
+    let playerErrorHandler: ((err: Error) => void) | undefined;
+
     const entry: VoiceSessionEntry = {
       guildId,
       channelId,
@@ -423,19 +429,30 @@ export class DiscordVoiceManager {
       processingQueue: Promise.resolve(),
       activeSpeakers: new Set(),
       stop: () => {
+        if (speakingHandler) {
+          connection.receiver.speaking.off("start", speakingHandler);
+        }
+        if (disconnectedHandler) {
+          connection.off(VoiceConnectionStatus.Disconnected, disconnectedHandler);
+        }
+        if (destroyedHandler) {
+          connection.off(VoiceConnectionStatus.Destroyed, destroyedHandler);
+        }
+        if (playerErrorHandler) {
+          player.off("error", playerErrorHandler);
+        }
         player.stop();
         connection.destroy();
       },
     };
 
-    const speakingHandler = (userId: string) => {
+    speakingHandler = (userId: string) => {
       void this.handleSpeakingStart(entry, userId).catch((err) => {
         logger.warn(`discord voice: capture failed: ${formatErrorMessage(err)}`);
       });
     };
 
-    connection.receiver.speaking.on("start", speakingHandler);
-    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+    disconnectedHandler = async () => {
       try {
         await Promise.race([
           entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
@@ -445,14 +462,20 @@ export class DiscordVoiceManager {
         this.sessions.delete(guildId);
         connection.destroy();
       }
-    });
-    connection.on(VoiceConnectionStatus.Destroyed, () => {
-      this.sessions.delete(guildId);
-    });
+    };
 
-    player.on("error", (err) => {
+    destroyedHandler = () => {
+      this.sessions.delete(guildId);
+    };
+
+    playerErrorHandler = (err: Error) => {
       logger.warn(`discord voice: playback error: ${formatErrorMessage(err)}`);
-    });
+    };
+
+    connection.receiver.speaking.on("start", speakingHandler);
+    connection.on(VoiceConnectionStatus.Disconnected, disconnectedHandler);
+    connection.on(VoiceConnectionStatus.Destroyed, destroyedHandler);
+    player.on("error", playerErrorHandler);
 
     this.sessions.set(guildId, entry);
     return {
