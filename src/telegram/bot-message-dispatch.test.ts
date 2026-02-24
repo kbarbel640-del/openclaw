@@ -107,10 +107,10 @@ describe("dispatchTelegramMessage ack reaction removal", () => {
   it("removes ack reaction after block-streamed delivery with no final reply", async () => {
     const reactionApi = vi.fn().mockResolvedValue(true);
     const context = createContext({
-      msg: { chat: { id: 7, type: "supergroup" }, message_id: 99 },
+      msg: { chat: { id: 7, type: "supergroup", title: "Test Group" }, message_id: 99, date: 0 },
       chatId: 7,
       isGroup: true,
-      threadSpec: { id: 1, scope: "topic" },
+      threadSpec: { id: 1, scope: "forum" },
       removeAckAfterReply: true,
       ackReactionPromise: Promise.resolve(true),
       reactionApi,
@@ -145,10 +145,10 @@ describe("dispatchTelegramMessage ack reaction removal", () => {
   it("does not remove ack reaction when nothing was delivered", async () => {
     const reactionApi = vi.fn().mockResolvedValue(true);
     const context = createContext({
-      msg: { chat: { id: 7, type: "supergroup" }, message_id: 99 },
+      msg: { chat: { id: 7, type: "supergroup", title: "Test Group" }, message_id: 99, date: 0 },
       chatId: 7,
       isGroup: true,
-      threadSpec: { id: 1, scope: "topic" },
+      threadSpec: { id: 1, scope: "forum" },
       removeAckAfterReply: true,
       ackReactionPromise: Promise.resolve(true),
       reactionApi,
