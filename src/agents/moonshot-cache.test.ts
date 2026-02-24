@@ -5,6 +5,7 @@ import {
   getOrCreateCache,
   injectCacheRole,
   isMoonshotCacheEnabled,
+  toCacheModelName,
 } from "./moonshot-cache.js";
 
 // Mock fetch
@@ -42,6 +43,34 @@ describe("moonshot-cache", () => {
       expect(result).toHaveLength(2);
       expect(result[0].role).toBe("cache");
       expect(result[1]).toEqual({ role: "user", content: "Hello" });
+    });
+  });
+
+  describe("toCacheModelName", () => {
+    it("maps moonshot-v1-* variants to moonshot-v1", () => {
+      expect(toCacheModelName("moonshot-v1-8k")).toBe("moonshot-v1");
+      expect(toCacheModelName("moonshot-v1-32k")).toBe("moonshot-v1");
+      expect(toCacheModelName("moonshot-v1-128k")).toBe("moonshot-v1");
+      expect(toCacheModelName("moonshot-v1-auto")).toBe("moonshot-v1");
+      expect(toCacheModelName("moonshot-v1-128k-vision-preview")).toBe("moonshot-v1");
+    });
+
+    it("maps kimi-k2-* variants to kimi-k2", () => {
+      expect(toCacheModelName("kimi-k2-0711-preview")).toBe("kimi-k2");
+      expect(toCacheModelName("kimi-k2-0905-preview")).toBe("kimi-k2");
+      expect(toCacheModelName("kimi-k2-thinking")).toBe("kimi-k2");
+      expect(toCacheModelName("kimi-k2-thinking-turbo")).toBe("kimi-k2");
+      expect(toCacheModelName("kimi-k2-turbo-preview")).toBe("kimi-k2");
+    });
+
+    it("passes through kimi-k2.5 and other aliases as-is", () => {
+      expect(toCacheModelName("kimi-k2.5")).toBe("kimi-k2.5");
+      expect(toCacheModelName("kimi-latest")).toBe("kimi-latest");
+    });
+
+    it("strips provider prefix from model id", () => {
+      expect(toCacheModelName("moonshot/moonshot-v1-32k")).toBe("moonshot-v1");
+      expect(toCacheModelName("moonshotai/kimi-k2-turbo-preview")).toBe("kimi-k2");
     });
   });
 

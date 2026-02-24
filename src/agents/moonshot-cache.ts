@@ -56,11 +56,33 @@ function hashContent(system: string, tools: unknown[] | undefined): string {
     .slice(0, HASH_LENGTH);
 }
 
-function toCacheModelName(modelId: string): string {
+/**
+ * Extract base model name for caching API.
+ * Moonshot caching API requires base model names without context-size suffixes.
+ *
+ * Known patterns:
+ * - moonshot-v1-8k/32k/128k[-vision-preview] → moonshot-v1
+ * - moonshot-v1-auto → moonshot-v1
+ * - kimi-k2-*-preview, kimi-k2-thinking[-turbo] → kimi-k2 (assumed)
+ * - kimi-k2.5 → kimi-k2.5 (assumed, no suffix)
+ * - kimi-latest → kimi-latest (alias, pass as-is)
+ *
+ * @internal Exported for testing only
+ */
+export function toCacheModelName(modelId: string): string {
   const name = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
-  if (name.startsWith("moonshot-v1") || name.startsWith("kimi-k")) {
+
+  // moonshot-v1-* → moonshot-v1
+  if (name.startsWith("moonshot-v1")) {
     return "moonshot-v1";
   }
+
+  // kimi-k2-something → kimi-k2 (strip date/preview/thinking/turbo suffixes)
+  if (name.startsWith("kimi-k2-")) {
+    return "kimi-k2";
+  }
+
+  // kimi-k2.5, kimi-latest, etc. → pass as-is (no known suffix pattern)
   return name;
 }
 
