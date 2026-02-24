@@ -93,7 +93,7 @@ export function onResponse(label: string): ResponseValidator {
         .text()
         .then((v) => `: ${v}`)
         .catch(() => "");
-      const err = new Error(text || `${label}: HTTP ${res.status} ${res.statusText}`);
+      const err = new Error(`${label}: HTTP ${res.status} ${res.statusText}${text}`);
       (err as Error & { status?: number }).status = res.status;
       throw err;
     }
