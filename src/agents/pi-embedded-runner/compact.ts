@@ -54,6 +54,7 @@ import { detectRuntimeShell } from "../shell-utils.js";
 import {
   applySkillEnvOverrides,
   applySkillEnvOverridesFromSnapshot,
+  buildSkillFirstGuardConfigForRun,
   loadWorkspaceSkillEntries,
   resolveSkillsPromptForRun,
   type SkillSnapshot,
@@ -352,6 +353,10 @@ export async function compactEmbeddedPiSessionDirect(
       config: params.config,
       workspaceDir: effectiveWorkspace,
     });
+    const skillFirstGuard = buildSkillFirstGuardConfigForRun({
+      skillsSnapshot: params.skillsSnapshot,
+      entries: shouldLoadSkillEntries ? skillEntries : undefined,
+    });
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
     const { contextFiles } = await resolveBootstrapContextForRun({
@@ -383,6 +388,7 @@ export async function compactEmbeddedPiSessionDirect(
       modelId,
       modelContextWindowTokens: model.contextWindow,
       modelAuthMode: resolveModelAuthMode(model.provider, params.config),
+      skillGuard: skillFirstGuard,
     });
     const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider });
     logToolSchemasForGoogle({ tools, provider });

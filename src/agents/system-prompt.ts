@@ -40,6 +40,38 @@ function buildSkillsSection(params: {
   ];
 }
 
+function buildExecutionContractSection(params: {
+  isMinimal: boolean;
+  hasSkillsPrompt: boolean;
+  readToolName: string;
+}) {
+  const lines = [
+    "## Execution Contract (mandatory)",
+    "Operate tool-first for build/fix/run/check/generate requests. Do real execution before giving recommendations whenever tools are available.",
+    "Do not claim completion without verification evidence from this run.",
+    "Completion checklist:",
+    "- status: success | fail",
+    "- output paths/files touched",
+    "- validation command(s) + outcome",
+    "- on failure: short error tail + exact next retry action",
+    "",
+    "## Skill-First Workflow (mandatory)",
+    params.hasSkillsPrompt
+      ? "Before non-trivial work, scan <available_skills>, select relevant skills, and read each matched SKILL.md before acting."
+      : "If skills are available for this run, select relevant skills and read each matched SKILL.md before acting.",
+    `Read SKILL.md files with \`${params.readToolName}\`; if multiple skills apply, read all of them.`,
+    "In your first user-visible response for the task, start with exactly one of:",
+    "- Using skill(s): `skill-name`",
+    "- No relevant skill found; using default workflow.",
+    "Accept natural language requests (including mixed Chinese/English). Infer intent and proceed without forcing model/provider/tool syntax from the user.",
+    "",
+  ];
+  if (params.isMinimal) {
+    return lines.filter((line) => !line.startsWith("## Skill-First Workflow"));
+  }
+  return lines;
+}
+
 function buildMemorySection(params: {
   isMinimal: boolean;
   availableTools: Set<string>;
@@ -383,6 +415,11 @@ export function buildAgentSystemPrompt(params: {
     isMinimal,
     readToolName,
   });
+  const executionContractSection = buildExecutionContractSection({
+    isMinimal,
+    hasSkillsPrompt: Boolean(skillsPrompt),
+    readToolName,
+  });
   const memorySection = buildMemorySection({
     isMinimal,
     availableTools,
@@ -434,6 +471,7 @@ export function buildAgentSystemPrompt(params: {
     "## Tool Call Style",
     "Keep narration minimal. Focus on technical intent, multi-step complexity, or sensitive actions (e.g. deletions). Avoid obvious status updates.",
     "",
+    ...executionContractSection,
     ...safetySection,
     "## OpenClaw CLI Quick Reference",
     "OpenClaw is controlled via subcommands. Do not invent commands.",

@@ -3,7 +3,11 @@ import { resetDiagnosticSessionStateForTest } from "../logging/diagnostic-sessio
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { toClientToolDefinitions, toToolDefinitions } from "./pi-tool-definition-adapter.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
-import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
+import {
+  __testing as beforeToolCallTesting,
+  getSkillFirstSummary,
+  wrapToolWithBeforeToolCallHook,
+} from "./pi-tools.before-tool-call.js";
 
 vi.mock("../plugins/hook-runner-global.js");
 
@@ -17,6 +21,7 @@ describe("before_tool_call hook integration", () => {
 
   beforeEach(() => {
     resetDiagnosticSessionStateForTest();
+    beforeToolCallTesting.skillFirstStateBySessionKey.clear();
     hookRunner = {
       hasHooks: vi.fn(),
       runBeforeToolCall: vi.fn(),
@@ -123,6 +128,63 @@ describe("before_tool_call hook integration", () => {
         sessionKey: "main",
       },
     );
+  });
+
+  it("enforces skill-first reads before mutating tools when enabled", async () => {
+    hookRunner.hasHooks.mockReturnValue(false);
+    const sessionKey = "skill-guard";
+    const ctx = {
+      agentId: "main",
+      sessionKey,
+      workspaceDir: "/tmp/workspace",
+      skillGuard: {
+        enabled: true,
+        requireReadBeforeMutatingTools: true,
+        skills: [{ name: "plan-writing", path: "/tmp/workspace/skills/plan-writing/SKILL.md" }],
+      },
+    } as const;
+    const writeExecute = vi.fn().mockResolvedValue({ content: [], details: { ok: true } });
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const writeTool = wrapToolWithBeforeToolCallHook(
+      { name: "write", execute: writeExecute } as any,
+      ctx,
+    );
+    const extensionContext = {} as Parameters<typeof writeTool.execute>[3];
+
+    await expect(
+      writeTool.execute(
+        "write-1",
+        { path: "/tmp/workspace/test.txt", content: "hello" },
+        undefined,
+        extensionContext,
+      ),
+    ).rejects.toThrow("Skill-first guard");
+    expect(writeExecute).not.toHaveBeenCalled();
+
+    const readExecute = vi.fn().mockResolvedValue({ content: [], details: { ok: true } });
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const readTool = wrapToolWithBeforeToolCallHook(
+      { name: "read", execute: readExecute } as any,
+      ctx,
+    );
+    await readTool.execute(
+      "read-1",
+      { path: "skills/plan-writing/SKILL.md" },
+      undefined,
+      extensionContext,
+    );
+    expect(getSkillFirstSummary(sessionKey)).toEqual({
+      hasReadSkill: true,
+      skillNames: ["plan-writing"],
+    });
+
+    await writeTool.execute(
+      "write-2",
+      { path: "/tmp/workspace/test.txt", content: "hello" },
+      undefined,
+      extensionContext,
+    );
+    expect(writeExecute).toHaveBeenCalledTimes(1);
   });
 });
 

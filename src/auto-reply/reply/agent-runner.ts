@@ -5,6 +5,10 @@ import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
 import { resolveModelAuthMode } from "../../agents/model-auth.js";
 import { isCliProvider } from "../../agents/model-selection.js";
 import { queueEmbeddedPiMessage } from "../../agents/pi-embedded.js";
+import {
+  getSkillFirstSummary,
+  startSkillFirstRun,
+} from "../../agents/pi-tools.before-tool-call.js";
 import { hasNonzeroUsage } from "../../agents/usage.js";
 import {
   resolveAgentIdFromSessionKey,
@@ -52,6 +56,8 @@ import type { TypingController } from "./typing.js";
 const BLOCK_REPLY_SEND_TIMEOUT_MS = 15_000;
 const UNSCHEDULED_REMINDER_NOTE =
   "Note: I did not schedule a reminder in this turn, so this will not trigger automatically.";
+const SKILL_ANNOUNCEMENT_PREFIX = "Using skill(s):";
+const SKILL_ANNOUNCEMENT_DEFAULT = "No relevant skill found; using default workflow.";
 const REMINDER_COMMITMENT_PATTERNS: RegExp[] = [
   /\b(?:i\s*['’]?ll|i will)\s+(?:make sure to\s+)?(?:remember|remind|ping|follow up|follow-up|check back|circle back)\b/i,
   /\b(?:i\s*['’]?ll|i will)\s+(?:set|create|schedule)\s+(?:a\s+)?reminder\b/i,
@@ -84,6 +90,44 @@ function appendUnscheduledReminderNote(payloads: ReplyPayload[]): ReplyPayload[]
       text: `${trimmed}\n\n${UNSCHEDULED_REMINDER_NOTE}`,
     };
   });
+}
+
+function startsWithSkillAnnouncement(text: string): boolean {
+  const trimmed = text.trimStart();
+  const normalized = trimmed.toLowerCase();
+  return (
+    normalized.startsWith(SKILL_ANNOUNCEMENT_PREFIX.toLowerCase()) ||
+    normalized.startsWith(SKILL_ANNOUNCEMENT_DEFAULT.toLowerCase())
+  );
+}
+
+function formatSkillAnnouncement(skillNames: string[]): string {
+  if (skillNames.length === 0) {
+    return SKILL_ANNOUNCEMENT_DEFAULT;
+  }
+  const joined = skillNames.map((name) => `\`${name}\``).join(" + ");
+  return `${SKILL_ANNOUNCEMENT_PREFIX} ${joined}`;
+}
+
+function prependSkillAnnouncement(payloads: ReplyPayload[], skillNames: string[]): ReplyPayload[] {
+  const announcement = formatSkillAnnouncement(skillNames);
+  const index = payloads.findIndex(
+    (payload) =>
+      !payload.isError && typeof payload.text === "string" && payload.text.trim().length > 0,
+  );
+  if (index < 0) {
+    return payloads;
+  }
+  const target = payloads[index];
+  if (!target || typeof target.text !== "string" || startsWithSkillAnnouncement(target.text)) {
+    return payloads;
+  }
+  const next = payloads.slice();
+  next[index] = {
+    ...target,
+    text: `${announcement}\n\n${target.text}`,
+  };
+  return next;
 }
 
 // Track sessions pending post-compaction read audit (Layer 3)
@@ -146,6 +190,7 @@ export async function runReplyAgent(params: {
     shouldInjectGroupIntro,
     typingMode,
   } = params;
+  const hasSkillsAvailable = (followupRun.run.skillsSnapshot?.skills?.length ?? 0) > 0;
 
   let activeSessionEntry = sessionEntry;
   const activeSessionStore = sessionStore;
@@ -233,6 +278,10 @@ export async function runReplyAgent(params: {
     await touchActiveSessionEntry();
     typing.cleanup();
     return undefined;
+  }
+
+  if (sessionKey && hasSkillsAvailable) {
+    startSkillFirstRun(sessionKey);
   }
 
   await typingSignals.signalRunStart();
@@ -583,6 +632,10 @@ export async function runReplyAgent(params: {
     }
     if (verboseEnabled && activeIsNewSession) {
       finalPayloads = [{ text: `🧭 New session: ${followupRun.run.sessionId}` }, ...finalPayloads];
+    }
+    if (sessionKey && hasSkillsAvailable) {
+      const skillSummary = getSkillFirstSummary(sessionKey);
+      finalPayloads = prependSkillAnnouncement(finalPayloads, skillSummary.skillNames);
     }
     if (responseUsageLine) {
       finalPayloads = appendUsageLine(finalPayloads, responseUsageLine);

@@ -24,7 +24,10 @@ import { resolveImageSanitizationLimits } from "./image-sanitization.js";
 import type { ModelAuthMode } from "./model-auth.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
-import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
+import {
+  wrapToolWithBeforeToolCallHook,
+  type SkillFirstGuardConfig,
+} from "./pi-tools.before-tool-call.js";
 import {
   isToolAllowedByPolicies,
   resolveEffectiveToolPolicy,
@@ -215,6 +218,8 @@ export function createOpenClawCodingTools(options?: {
   disableMessageTool?: boolean;
   /** Whether the sender is an owner (required for owner-only tools). */
   senderIsOwner?: boolean;
+  /** Runtime skill-first guard context for this run. */
+  skillGuard?: SkillFirstGuardConfig;
 }): AnyAgentTool[] {
   const execToolName = "exec";
   const sandbox = options?.sandbox?.enabled ? options.sandbox : undefined;
@@ -492,6 +497,8 @@ export function createOpenClawCodingTools(options?: {
       agentId,
       sessionKey: options?.sessionKey,
       loopDetection: resolveToolLoopDetectionConfig({ cfg: options?.config, agentId }),
+      workspaceDir: workspaceRoot,
+      skillGuard: options?.skillGuard,
     }),
   );
   const withAbort = options?.abortSignal

@@ -14,6 +14,7 @@ export {
   applySkillEnvOverrides,
   applySkillEnvOverridesFromSnapshot,
 } from "./skills/env-overrides.js";
+export { buildSkillFirstGuardConfigForRun } from "./skills/guard.js";
 export type {
   OpenClawSkillMetadata,
   SkillEligibilityContext,

@@ -64,6 +64,7 @@ import { detectRuntimeShell } from "../../shell-utils.js";
 import {
   applySkillEnvOverrides,
   applySkillEnvOverridesFromSnapshot,
+  buildSkillFirstGuardConfigForRun,
   loadWorkspaceSkillEntries,
   resolveSkillsPromptForRun,
 } from "../../skills.js";
@@ -268,6 +269,10 @@ export async function runEmbeddedAttempt(
       config: params.config,
       workspaceDir: effectiveWorkspace,
     });
+    const skillFirstGuard = buildSkillFirstGuardConfigForRun({
+      skillsSnapshot: params.skillsSnapshot,
+      entries: shouldLoadSkillEntries ? skillEntries : undefined,
+    });
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
     const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles } =
@@ -326,6 +331,7 @@ export async function runEmbeddedAttempt(
           requireExplicitMessageTarget:
             params.requireExplicitMessageTarget ?? isSubagentSessionKey(params.sessionKey),
           disableMessageTool: params.disableMessageTool,
+          skillGuard: skillFirstGuard,
         });
     const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
     logToolSchemasForGoogle({ tools, provider: params.provider });
@@ -569,6 +575,8 @@ export async function runEmbeddedAttempt(
               agentId: sessionAgentId,
               sessionKey: params.sessionKey,
               loopDetection: clientToolLoopDetection,
+              workspaceDir: effectiveWorkspace,
+              skillGuard: skillFirstGuard,
             },
           )
         : [];

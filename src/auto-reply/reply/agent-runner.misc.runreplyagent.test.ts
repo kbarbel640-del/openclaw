@@ -1252,3 +1252,111 @@ describe("runReplyAgent transient HTTP retry", () => {
     expect(payload?.text).toContain("Recovered response");
   });
 });
+
+describe("runReplyAgent skill-first announcement", () => {
+  async function runSkillAnnouncementCase(params?: {
+    beforeReturn?: () => Promise<void>;
+    sessionKey?: string;
+  }) {
+    runEmbeddedPiAgentMock.mockImplementationOnce(async () => {
+      if (params?.beforeReturn) {
+        await params.beforeReturn();
+      }
+      return {
+        payloads: [{ text: "Task result" }],
+        meta: {},
+      };
+    });
+    const sessionKey = params?.sessionKey ?? "main";
+    const typing = createMockTypingController();
+    const sessionCtx = {
+      Provider: "telegram",
+      MessageSid: "msg",
+      Surface: "telegram",
+    } as unknown as TemplateContext;
+    const resolvedQueue = { mode: "interrupt" } as unknown as QueueSettings;
+    const followupRun = {
+      prompt: "hello",
+      summaryLine: "hello",
+      enqueuedAt: Date.now(),
+      run: {
+        sessionId: "session",
+        sessionKey,
+        messageProvider: "telegram",
+        sessionFile: "/tmp/session.jsonl",
+        workspaceDir: "/tmp/workspace",
+        config: {},
+        skillsSnapshot: {
+          skills: [{ name: "plan-writing" }],
+        },
+        provider: "anthropic",
+        model: "claude",
+        thinkLevel: "low",
+        verboseLevel: "off",
+        elevatedLevel: "off",
+        bashElevated: {
+          enabled: false,
+          allowed: false,
+          defaultLevel: "off",
+        },
+        timeoutMs: 1_000,
+        blockReplyBreak: "message_end",
+      },
+    } as unknown as FollowupRun;
+
+    return runReplyAgent({
+      commandBody: "hello",
+      followupRun,
+      queueKey: sessionKey,
+      resolvedQueue,
+      shouldSteer: false,
+      shouldFollowup: false,
+      isActive: false,
+      isStreaming: false,
+      typing,
+      sessionCtx,
+      sessionKey,
+      defaultModel: "anthropic/claude-opus-4-5",
+      resolvedVerboseLevel: "off",
+      isNewSession: false,
+      blockStreamingEnabled: false,
+      resolvedBlockStreamingBreak: "message_end",
+      shouldInjectGroupIntro: false,
+      typingMode: "instant",
+    });
+  }
+
+  it("adds default workflow line when no skill file was read", async () => {
+    const result = await runSkillAnnouncementCase();
+    const payload = Array.isArray(result) ? result[0] : result;
+    expect(String(payload?.text ?? "")).toContain(
+      "No relevant skill found; using default workflow.",
+    );
+  });
+
+  it("adds using-skill line when a skill file was read during the run", async () => {
+    const sessionKey = "skill-used";
+    const result = await runSkillAnnouncementCase({
+      sessionKey,
+      beforeReturn: async () => {
+        const { runBeforeToolCallHook } = await import("../../agents/pi-tools.before-tool-call.js");
+        await runBeforeToolCallHook({
+          toolName: "read",
+          params: { path: "/tmp/workspace/skills/plan-writing/SKILL.md" },
+          ctx: {
+            sessionKey,
+            workspaceDir: "/tmp/workspace",
+            skillGuard: {
+              enabled: true,
+              skills: [
+                { name: "plan-writing", path: "/tmp/workspace/skills/plan-writing/SKILL.md" },
+              ],
+            },
+          },
+        });
+      },
+    });
+    const payload = Array.isArray(result) ? result[0] : result;
+    expect(String(payload?.text ?? "")).toContain("Using skill(s): `plan-writing`");
+  });
+});
