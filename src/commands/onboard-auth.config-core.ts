@@ -33,6 +33,7 @@ import {
 import {
   HUAWEI_MAAS_DEFAULT_MODEL_REF,
   HUGGINGFACE_DEFAULT_MODEL_REF,
+  MISTRAL_DEFAULT_MODEL_REF,
   OPENROUTER_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   XIAOMI_DEFAULT_MODEL_REF,
@@ -59,9 +60,12 @@ import {
   applyProviderConfigWithModelCatalog,
 } from "./onboard-auth.config-shared.js";
 import {
+  buildMistralModelDefinition,
   buildZaiModelDefinition,
   buildMoonshotModelDefinition,
   buildXaiModelDefinition,
+  MISTRAL_BASE_URL,
+  MISTRAL_DEFAULT_MODEL_ID,
   QIANFAN_BASE_URL,
   QIANFAN_DEFAULT_MODEL_REF,
   KIMI_CODING_MODEL_ID,
@@ -484,6 +488,30 @@ export function applyHuaweiMaasConfig(cfg: OpenClawConfig): OpenClawConfig {
       },
     },
   };
+}
+
+export function applyMistralProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[MISTRAL_DEFAULT_MODEL_REF] = {
+    ...models[MISTRAL_DEFAULT_MODEL_REF],
+    alias: models[MISTRAL_DEFAULT_MODEL_REF]?.alias ?? "Mistral",
+  };
+
+  const defaultModel = buildMistralModelDefinition();
+
+  return applyProviderConfigWithDefaultModel(cfg, {
+    agentModels: models,
+    providerId: "mistral",
+    api: "openai-completions",
+    baseUrl: MISTRAL_BASE_URL,
+    defaultModel,
+    defaultModelId: MISTRAL_DEFAULT_MODEL_ID,
+  });
+}
+
+export function applyMistralConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const next = applyMistralProviderConfig(cfg);
+  return applyAgentDefaultModelPrimary(next, MISTRAL_DEFAULT_MODEL_REF);
 }
 
 export function applyAuthProfileConfig(

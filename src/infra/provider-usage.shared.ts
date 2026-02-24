@@ -7,10 +7,9 @@ export const PROVIDER_LABELS: Record<UsageProviderId, string> = {
   anthropic: "Claude",
   "github-copilot": "Copilot",
   "google-gemini-cli": "Gemini",
-  "google-antigravity": "Antigravity",
-  "huawei-maas": "Huawei Cloud MAAS",
   minimax: "MiniMax",
   "openai-codex": "Codex",
+  "huawei-maas": "Huawei Cloud MAAS",
   xiaomi: "Xiaomi",
   zai: "z.ai",
 };
@@ -19,10 +18,9 @@ export const usageProviders: UsageProviderId[] = [
   "anthropic",
   "github-copilot",
   "google-gemini-cli",
-  "google-antigravity",
-  "huawei-maas",
   "minimax",
   "openai-codex",
+  "huawei-maas",
   "xiaomi",
   "zai",
 ];

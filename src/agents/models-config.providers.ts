@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { ModelDefinitionConfig } from "../config/types.models.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
   DEFAULT_COPILOT_API_BASE_URL,
   resolveCopilotApiToken,
@@ -63,12 +64,12 @@ const MINIMAX_DEFAULT_VISION_MODEL_ID = "MiniMax-VL-01";
 const MINIMAX_DEFAULT_CONTEXT_WINDOW = 200000;
 const MINIMAX_DEFAULT_MAX_TOKENS = 8192;
 const MINIMAX_OAUTH_PLACEHOLDER = "minimax-oauth";
-// Pricing: MiniMax doesn't publish public rates. Override in models.json for accurate costs.
+// Pricing per 1M tokens (USD) — https://platform.minimaxi.com/document/Price
 const MINIMAX_API_COST = {
-  input: 15,
-  output: 60,
-  cacheRead: 2,
-  cacheWrite: 10,
+  input: 0.3,
+  output: 1.2,
+  cacheRead: 0.03,
+  cacheWrite: 0.12,
 };
 
 type ProviderModelConfig = NonNullable<ProviderConfig["models"]>[number];
@@ -153,6 +154,17 @@ const OLLAMA_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_DEFAULT_MODEL_ID = "auto";
+const OPENROUTER_DEFAULT_CONTEXT_WINDOW = 200000;
+const OPENROUTER_DEFAULT_MAX_TOKENS = 8192;
+const OPENROUTER_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const VLLM_BASE_URL = "http://127.0.0.1:8000/v1";
 const VLLM_DEFAULT_CONTEXT_WINDOW = 128000;
 const VLLM_DEFAULT_MAX_TOKENS = 8192;
@@ -184,6 +196,8 @@ const NVIDIA_DEFAULT_COST = {
   cacheRead: 0,
   cacheWrite: 0,
 };
+
+const log = createSubsystemLogger("agents/model-providers");
 
 interface OllamaModel {
   name: string;
@@ -234,12 +248,12 @@ async function discoverOllamaModels(baseUrl?: string): Promise<ModelDefinitionCo
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
-      console.warn(`Failed to discover Ollama models: ${response.status}`);
+      log.warn(`Failed to discover Ollama models: ${response.status}`);
       return [];
     }
     const data = (await response.json()) as OllamaTagsResponse;
     if (!data.models || data.models.length === 0) {
-      console.warn("No Ollama models found on local instance");
+      log.warn("No Ollama models found on local instance");
       return [];
     }
     return data.models.map((model) => {
@@ -257,7 +271,7 @@ async function discoverOllamaModels(baseUrl?: string): Promise<ModelDefinitionCo
       };
     });
   } catch (error) {
-    console.warn(`Failed to discover Ollama models: ${String(error)}`);
+    log.warn(`Failed to discover Ollama models: ${String(error)}`);
     return [];
   }
 }
@@ -320,13 +334,13 @@ async function discoverVllmModels(
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
-      console.warn(`Failed to discover vLLM models: ${response.status}`);
+      log.warn(`Failed to discover vLLM models: ${response.status}`);
       return [];
     }
     const data = (await response.json()) as VllmModelsResponse;
     const models = data.data ?? [];
     if (models.length === 0) {
-      console.warn("No vLLM models found on local instance");
+      log.warn("No vLLM models found on local instance");
       return [];
     }
 
@@ -349,7 +363,7 @@ async function discoverVllmModels(
         } satisfies ModelDefinitionConfig;
       });
   } catch (error) {
-    console.warn(`Failed to discover vLLM models: ${String(error)}`);
+    log.warn(`Failed to discover vLLM models: ${String(error)}`);
     return [];
   }
 }
@@ -548,7 +562,7 @@ function buildMoonshotProvider(): ProviderConfig {
         id: MOONSHOT_DEFAULT_MODEL_ID,
         name: "Kimi K2.5",
         reasoning: false,
-        input: ["text"],
+        input: ["text", "image"],
         cost: MOONSHOT_DEFAULT_COST,
         contextWindow: MOONSHOT_DEFAULT_CONTEXT_WINDOW,
         maxTokens: MOONSHOT_DEFAULT_MAX_TOKENS,
@@ -705,6 +719,24 @@ function buildTogetherProvider(): ProviderConfig {
   };
 }
 
+function buildOpenrouterProvider(): ProviderConfig {
+  return {
+    baseUrl: OPENROUTER_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: OPENROUTER_DEFAULT_MODEL_ID,
+        name: "OpenRouter Auto",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: OPENROUTER_DEFAULT_COST,
+        contextWindow: OPENROUTER_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: OPENROUTER_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 async function buildVllmProvider(params?: {
   baseUrl?: string;
   apiKey?: string;
@@ -717,6 +749,7 @@ async function buildVllmProvider(params?: {
     models,
   };
 }
+
 export function buildQianfanProvider(): ProviderConfig {
   return {
     baseUrl: QIANFAN_BASE_URL,
@@ -974,6 +1007,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "qianfan", store: authStore });
   if (qianfanKey) {
     providers.qianfan = { ...buildQianfanProvider(), apiKey: qianfanKey };
+  }
+
+  const openrouterKey =
+    resolveEnvApiKeyVarName("openrouter") ??
+    resolveApiKeyFromProfiles({ provider: "openrouter", store: authStore });
+  if (openrouterKey) {
+    providers.openrouter = { ...buildOpenrouterProvider(), apiKey: openrouterKey };
   }
 
   const nvidiaKey =
