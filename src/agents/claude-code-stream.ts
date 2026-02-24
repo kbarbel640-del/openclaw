@@ -60,9 +60,7 @@ function formatMessagesForClaude(
 
 // ── Main StreamFn factory ────────────────────────────────────────────────────
 
-export function createClaudeCodeStreamFn(claudePath?: string): StreamFn {
-  const claudeBin = claudePath || "claude";
-
+export function createClaudeCodeStreamFn(): StreamFn {
   return (model, context, options) => {
     const stream = createAssistantMessageEventStream();
 
@@ -93,10 +91,10 @@ export function createClaudeCodeStreamFn(claudePath?: string): StreamFn {
           "--output-format", "text", // plain text output
         ];
 
-        log.info(`Spawning: ${claudeBin} ${args.join(" ")} (prompt length: ${fullPrompt.length})`);
+        log.info(`Spawning: claude ${args.join(" ")} (prompt length: ${fullPrompt.length})`);
 
         const result = await new Promise<string>((resolve, reject) => {
-          const child = spawn(claudeBin, args, {
+          const child = spawn("claude", args, {
             stdio: ["pipe", "pipe", "pipe"],
             env: { ...process.env, CLAUDECODE: undefined },
             shell: true, // Required on Windows to resolve .cmd shims in PATH
