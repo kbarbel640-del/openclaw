@@ -100,6 +100,27 @@ describe("failover-error", () => {
     expect(err?.provider).toBe("anthropic");
   });
 
+  it("classifies HTTP 400 with insufficient_quota as billing, not format", () => {
+    // Anthropic returns HTTP 400 for insufficient_quota errors
+    expect(
+      resolveFailoverReasonFromError({
+        status: 400,
+        message: "insufficient_quota: Your account has insufficient quota to process this request.",
+      }),
+    ).toBe("billing");
+    expect(
+      resolveFailoverReasonFromError({
+        status: 400,
+        message: "insufficient quota",
+      }),
+    ).toBe("billing");
+  });
+
+  it("still classifies plain HTTP 400 without billing keywords as format", () => {
+    expect(resolveFailoverReasonFromError({ status: 400 })).toBe("format");
+    expect(resolveFailoverReasonFromError({ status: 400, message: "bad request" })).toBe("format");
+  });
+
   it("describes non-Error values consistently", () => {
     const described = describeFailoverError(123);
     expect(described.message).toBe("123");
