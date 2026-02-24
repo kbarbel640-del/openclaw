@@ -1,9 +1,12 @@
+import type { BpmnWorkflow, BpmnValidationError } from "./bpmn-types";
 import type {
   SystemStatus,
   Business,
   AgentListResponse,
   AgentListItem,
   AgentDetail,
+  AgentFileInfo,
+  AgentFileContent,
   Decision,
   DecisionResolution,
   Contractor,
@@ -75,6 +78,18 @@ function put<T>(path: string, body: unknown): Promise<T> {
   });
 }
 
+function patch<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function del<T>(path: string): Promise<T> {
+  return request<T>(path, { method: "DELETE" });
+}
+
 export const api = {
   // Status
   getStatus: () => get<SystemStatus>("/status"),
@@ -101,6 +116,13 @@ export const api = {
     post<{ ok: boolean }>(`/businesses/${businessId}/agents/${agentId}`, body),
   archiveAgent: (businessId: string, agentId: string) =>
     post<{ ok: boolean }>(`/businesses/${businessId}/agents/${agentId}/archive`, {}),
+
+  // Agent Files
+  getAgentFiles: (agentId: string) => get<{ files: AgentFileInfo[] }>(`/agents/${agentId}/files`),
+  getAgentFile: (agentId: string, filename: string) =>
+    get<AgentFileContent>(`/agents/${agentId}/files/${encodeURIComponent(filename)}`),
+  updateAgentFile: (agentId: string, filename: string, content: string) =>
+    put<{ ok: boolean }>(`/agents/${agentId}/files/${encodeURIComponent(filename)}`, { content }),
 
   // Tasks
   getTasks: (businessId: string) => get<{ tasks: unknown[] }>(`/businesses/${businessId}/tasks`),
@@ -159,4 +181,56 @@ export const api = {
   ) => post<{ ok: boolean; job: CronJob }>(`/businesses/${businessId}/cron`, body),
   updateCronJob: (businessId: string, jobId: string, body: Partial<CronJob>) =>
     put<{ ok: boolean; job: CronJob }>(`/businesses/${businessId}/cron/${jobId}`, body),
+
+  // BPMN Workflows
+  getWorkflows: (params?: { status?: string; agentId?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.agentId) qs.set("agentId", params.agentId);
+    const q = qs.toString();
+    return get<{ workflows: BpmnWorkflow[] }>(`/workflows${q ? `?${q}` : ""}`);
+  },
+  getWorkflow: (id: string) => get<BpmnWorkflow>(`/workflows/${id}`),
+  createWorkflow: (body: {
+    name: string;
+    description?: string;
+    goalId?: string;
+    agentId?: string;
+    status?: string;
+  }) => post<{ ok: boolean; id: string }>("/workflows", body),
+  updateWorkflow: (id: string, body: { name?: string; status?: string; description?: string }) =>
+    put<{ ok: boolean }>(`/workflows/${id}`, body),
+  deleteWorkflow: (id: string) => del<{ ok: boolean }>(`/workflows/${id}`),
+
+  // BPMN Elements
+  addElement: (workflowId: string, body: Record<string, unknown>) =>
+    post<{ ok: boolean; id: string }>(`/workflows/${workflowId}/elements`, body),
+  updateElement: (workflowId: string, elementId: string, body: Record<string, unknown>) =>
+    put<{ ok: boolean }>(`/workflows/${workflowId}/elements/${elementId}`, body),
+  updateElementPosition: (
+    workflowId: string,
+    elementId: string,
+    position: { x: number; y: number },
+  ) => patch<{ ok: boolean }>(`/workflows/${workflowId}/elements/${elementId}`, { position }),
+  deleteElement: (workflowId: string, elementId: string) =>
+    del<{ ok: boolean }>(`/workflows/${workflowId}/elements/${elementId}`),
+
+  // BPMN Flows
+  addFlow: (workflowId: string, body: { sourceId: string; targetId: string; type?: string }) =>
+    post<{ ok: boolean; id: string }>(`/workflows/${workflowId}/flows`, body),
+  deleteFlow: (workflowId: string, flowId: string) =>
+    del<{ ok: boolean }>(`/workflows/${workflowId}/flows/${flowId}`),
+
+  // BPMN Pools/Lanes
+  addPool: (workflowId: string, body: { name: string }) =>
+    post<{ ok: boolean; id: string }>(`/workflows/${workflowId}/pools`, body),
+  addLane: (workflowId: string, body: { poolId: string; name: string; assignee?: string }) =>
+    post<{ ok: boolean; id: string }>(`/workflows/${workflowId}/lanes`, body),
+
+  // BPMN Validation
+  validateWorkflow: (workflowId: string) =>
+    post<{ valid: boolean; errors: BpmnValidationError[] }>(
+      `/workflows/${workflowId}/validate`,
+      {},
+    ),
 };

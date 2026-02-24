@@ -13,6 +13,7 @@ import { OverviewPage } from "@/pages/OverviewPage";
 import { PerformancePage } from "@/pages/PerformancePage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
 import { TimelinePage } from "@/pages/TimelinePage";
+import { WorkflowEditorPage } from "@/pages/WorkflowEditorPage";
 import { WorkflowsPage } from "@/pages/WorkflowsPage";
 
 // Root layout
@@ -102,10 +103,23 @@ const knowledgeGraphRoute = createRoute({
   path: "/knowledge-graph",
   component: KnowledgeGraphPage,
 });
-const workflowsRoute = createRoute({
+// Workflows layout route: renders Outlet for child routes
+const workflowsLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/workflows",
+  component: () => <Outlet />,
+});
+
+const workflowsIndexRoute = createRoute({
+  getParentRoute: () => workflowsLayoutRoute,
+  path: "/",
   component: WorkflowsPage,
+});
+
+const workflowEditorRoute = createRoute({
+  getParentRoute: () => workflowsLayoutRoute,
+  path: "$workflowId/edit",
+  component: WorkflowEditorPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -121,7 +135,7 @@ const routeTree = rootRoute.addChildren([
   decisionsRoute,
   goalsRoute,
   knowledgeGraphRoute,
-  workflowsRoute,
+  workflowsLayoutRoute.addChildren([workflowsIndexRoute, workflowEditorRoute]),
 ]);
 
 export const router = createRouter({

@@ -1310,5 +1310,159 @@ export function getBaseSchema(): string {
   reasoning_result plays method_produces_result:result;
 
   decision plays decision_resolves_goal:resolver;
-  goal plays decision_resolves_goal:resolved_goal;`;
+  goal plays decision_resolves_goal:resolved_goal;
+
+  # ── BPMN 2.0 Attributes ──────────────────────────────────────────────
+  attribute element_type, value string;
+  attribute event_position, value string;
+  attribute event_trigger, value string;
+  attribute event_catching, value boolean;
+  attribute event_definition, value string;
+  attribute task_type_bpmn, value string;
+  attribute loop_type, value string;
+  attribute is_compensation, value boolean;
+  attribute subprocess_type, value string;
+  attribute called_element, value string;
+  attribute gateway_type, value string;
+  attribute default_flow_id, value string;
+  attribute flow_type, value string;
+  attribute condition_expr, value string;
+  attribute is_default, value boolean;
+  attribute waypoints, value string;
+  attribute pos_x, value double;
+  attribute pos_y, value double;
+  attribute size_w, value double;
+  attribute size_h, value double;
+  attribute pool_id, value string;
+  attribute lane_id, value string;
+  attribute participant_ref, value string;
+  attribute is_black_box, value boolean;
+  attribute assignee_agent_id, value string;
+  attribute action_tool, value string;
+  attribute schedule_json, value string;
+  attribute workflow_version, value integer;
+  attribute documentation, value string;
+
+  # ── BPMN 2.0 Entities ────────────────────────────────────────────────
+  entity bpmn_workflow,
+    owns uid @key,
+    owns name,
+    owns status,
+    owns description,
+    owns workflow_version,
+    owns created_at,
+    owns updated_at;
+
+  entity bpmn_element,
+    owns uid @key,
+    owns name,
+    owns element_type,
+    owns pos_x,
+    owns pos_y,
+    owns size_w,
+    owns size_h,
+    owns documentation,
+    owns event_position,
+    owns event_trigger,
+    owns event_catching,
+    owns event_definition,
+    owns task_type_bpmn,
+    owns loop_type,
+    owns is_compensation,
+    owns subprocess_type,
+    owns called_element,
+    owns gateway_type,
+    owns default_flow_id,
+    owns assignee_agent_id,
+    owns action_tool,
+    owns schedule_json,
+    owns lane_id,
+    owns created_at;
+
+  entity bpmn_flow,
+    owns uid @key,
+    owns name,
+    owns flow_type,
+    owns condition_expr,
+    owns is_default,
+    owns waypoints,
+    owns created_at;
+
+  entity bpmn_pool,
+    owns uid @key,
+    owns name,
+    owns participant_ref,
+    owns is_black_box,
+    owns created_at;
+
+  entity bpmn_lane,
+    owns uid @key,
+    owns name,
+    owns assignee_agent_id,
+    owns created_at;
+
+  # ── BPMN 2.0 Relations ───────────────────────────────────────────────
+  relation workflow_contains_element,
+    relates wf_container,
+    relates wf_contained;
+
+  relation workflow_contains_flow,
+    relates wff_container,
+    relates wff_contained;
+
+  relation workflow_contains_pool,
+    relates wfp_container,
+    relates wfp_contained;
+
+  relation pool_contains_lane,
+    relates pl_container,
+    relates pl_contained;
+
+  relation lane_contains_element,
+    relates le_container,
+    relates le_contained;
+
+  relation flow_connects,
+    relates flow_source,
+    relates flow_target,
+    relates flow_edge;
+
+  relation goal_has_workflow,
+    relates gh_goal,
+    relates gh_workflow;
+
+  relation project_has_workflow,
+    relates ph_project,
+    relates ph_workflow;
+
+  # ── BPMN Role-Playing Declarations ───────────────────────────────────
+  bpmn_workflow plays agent_owns:owned;
+  bpmn_element plays agent_owns:owned;
+  bpmn_flow plays agent_owns:owned;
+  bpmn_pool plays agent_owns:owned;
+  bpmn_lane plays agent_owns:owned;
+
+  bpmn_workflow plays workflow_contains_element:wf_container;
+  bpmn_element plays workflow_contains_element:wf_contained;
+
+  bpmn_workflow plays workflow_contains_flow:wff_container;
+  bpmn_flow plays workflow_contains_flow:wff_contained;
+
+  bpmn_workflow plays workflow_contains_pool:wfp_container;
+  bpmn_pool plays workflow_contains_pool:wfp_contained;
+
+  bpmn_pool plays pool_contains_lane:pl_container;
+  bpmn_lane plays pool_contains_lane:pl_contained;
+
+  bpmn_lane plays lane_contains_element:le_container;
+  bpmn_element plays lane_contains_element:le_contained;
+
+  bpmn_element plays flow_connects:flow_source;
+  bpmn_element plays flow_connects:flow_target;
+  bpmn_flow plays flow_connects:flow_edge;
+
+  goal plays goal_has_workflow:gh_goal;
+  bpmn_workflow plays goal_has_workflow:gh_workflow;
+
+  bpmn_workflow plays project_has_workflow:ph_workflow;`;
 }

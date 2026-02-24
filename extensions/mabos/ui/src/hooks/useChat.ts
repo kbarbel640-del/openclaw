@@ -5,6 +5,12 @@ import type { ChatMessage, ChatAction } from "@/lib/types";
 
 export type ChatStatus = "connected" | "connecting" | "disconnected";
 
+export type AgentActivity = {
+  status: string | null;
+  label?: string;
+  description?: string;
+};
+
 type PageContext = {
   page: string;
   capabilities: string[];
@@ -165,5 +171,6 @@ export function useChat(
     sendMessage,
     clearMessages,
     isSending: sendMutation.isPending,
+    agentActivity: { status: null } as AgentActivity,
   };
 }

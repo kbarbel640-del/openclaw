@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ReactFlow,
   Controls,
@@ -8,10 +8,10 @@ import {
   type NodeTypes,
   type EdgeTypes,
 } from "@xyflow/react";
-import { GitBranch, AlertCircle, LayoutGrid, Network, Clock } from "lucide-react";
+import { GitBranch, AlertCircle, LayoutGrid, Network, Clock, Plus, Pencil } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
-import "@xyflow/react/dist/style.css";
 import { CronBadge } from "@/components/cron/CronBadge";
+import "@xyflow/react/dist/style.css";
 import { WorkflowSteps } from "@/components/goals/WorkflowSteps";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import { WorkflowGoalNode } from "@/components/workflows/WorkflowGoalNode";
 import { WorkflowStepNode } from "@/components/workflows/WorkflowStepNode";
 import { usePanels } from "@/contexts/PanelContext";
 import { useGoalModel } from "@/hooks/useGoalModel";
+import { api } from "@/lib/api";
 import { nextRunFromNow } from "@/lib/cron-utils";
 import type { EntityType, Workflow, WorkflowStatus } from "@/lib/types";
 import { workflowsToFlowGraph } from "@/lib/workflow-layout";
@@ -115,6 +116,15 @@ function WorkflowListView({
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <Link
+                    to="/workflows/$workflowId/edit"
+                    params={{ workflowId: workflow.id }}
+                    className="text-[10px] text-[var(--accent-blue)] hover:underline flex items-center gap-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Pencil className="w-2.5 h-2.5" />
+                    Edit
+                  </Link>
                   {workflow.schedule && (
                     <span className="text-[10px] text-[var(--text-muted)]">
                       Next:{" "}
@@ -159,6 +169,38 @@ function WorkflowListView({
         </div>
       )}
     </>
+  );
+}
+
+function NewWorkflowButton() {
+  const navigate = useNavigate();
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      const result = await api.createWorkflow({
+        name: "New Workflow",
+        status: "pending",
+      });
+      if (result.id) {
+        navigate({ to: "/workflows/$workflowId/edit", params: { workflowId: result.id } });
+      }
+    } catch {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCreate}
+      disabled={creating}
+      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg
+        bg-[var(--accent-blue)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+    >
+      <Plus className="w-3.5 h-3.5" />
+      {creating ? "Creating..." : "New Workflow"}
+    </button>
   );
 }
 
@@ -249,33 +291,36 @@ export function WorkflowsPage() {
           </div>
         </div>
 
-        {/* View toggle */}
-        {!isLoading && workflows.length > 0 && (
-          <div className="flex items-center rounded-lg border border-[var(--border-mabos)] overflow-hidden">
-            <button
-              onClick={() => setViewMode("graph")}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
-              style={{
-                backgroundColor: viewMode === "graph" ? "var(--bg-secondary)" : "transparent",
-                color: viewMode === "graph" ? "var(--text-primary)" : "var(--text-muted)",
-              }}
-            >
-              <Network className="w-3.5 h-3.5" />
-              Graph
-            </button>
-            <button
-              onClick={() => setViewMode("list")}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
-              style={{
-                backgroundColor: viewMode === "list" ? "var(--bg-secondary)" : "transparent",
-                color: viewMode === "list" ? "var(--text-primary)" : "var(--text-muted)",
-              }}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              List
-            </button>
-          </div>
-        )}
+        {/* View toggle + New Workflow */}
+        <div className="flex items-center gap-2">
+          {!isLoading && workflows.length > 0 && (
+            <div className="flex items-center rounded-lg border border-[var(--border-mabos)] overflow-hidden">
+              <button
+                onClick={() => setViewMode("graph")}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: viewMode === "graph" ? "var(--bg-secondary)" : "transparent",
+                  color: viewMode === "graph" ? "var(--text-primary)" : "var(--text-muted)",
+                }}
+              >
+                <Network className="w-3.5 h-3.5" />
+                Graph
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: viewMode === "list" ? "var(--bg-secondary)" : "transparent",
+                  color: viewMode === "list" ? "var(--text-primary)" : "var(--text-muted)",
+                }}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                List
+              </button>
+            </div>
+          )}
+          <NewWorkflowButton />
+        </div>
       </div>
 
       {/* Error banner */}
