@@ -31,8 +31,14 @@ const deliverDiscordReply = deliveryMocks.deliverDiscordReply;
 const createDiscordDraftStream = deliveryMocks.createDiscordDraftStream;
 type DispatchInboundParams = {
   dispatcher: {
-    sendBlockReply: (payload: { text?: string }) => boolean | Promise<boolean>;
-    sendFinalReply: (payload: { text?: string }) => boolean | Promise<boolean>;
+    sendBlockReply: (payload: {
+      text?: string;
+      isReasoning?: boolean;
+    }) => boolean | Promise<boolean>;
+    sendFinalReply: (payload: {
+      text?: string;
+      isReasoning?: boolean;
+    }) => boolean | Promise<boolean>;
   };
   replyOptions?: {
     onReasoningStream?: () => Promise<void> | void;
