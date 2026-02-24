@@ -1,3 +1,5 @@
+import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
+
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { createInlineCodeState } from "../markdown/code-spans.js";
 import { formatAssistantErrorText } from "./pi-embedded-helpers.js";
@@ -25,9 +27,27 @@ export function handleAgentStart(ctx: EmbeddedPiSubscribeContext) {
   });
 }
 
-export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
+function extractUsageFromMessages(
+  messages?: AgentMessage[],
+): { input: number; output: number; totalTokens: number } | undefined {
+  if (!messages) return undefined;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg && "role" in msg && msg.role === "assistant" && "usage" in msg && msg.usage) {
+      const u = msg.usage;
+      return { input: u.input, output: u.output, totalTokens: u.totalTokens };
+    }
+  }
+  return undefined;
+}
+
+export function handleAgentEnd(
+  ctx: EmbeddedPiSubscribeContext,
+  evt?: AgentEvent & { messages?: AgentMessage[] },
+) {
   const lastAssistant = ctx.state.lastAssistant;
   const isError = isAssistantMessage(lastAssistant) && lastAssistant.stopReason === "error";
+  const usage = extractUsageFromMessages(evt?.messages);
 
   if (isError && lastAssistant) {
     const friendlyError = formatAssistantErrorText(lastAssistant, {
@@ -47,6 +67,7 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
         phase: "error",
         error: errorText,
         endedAt: Date.now(),
+        ...(usage && { usage }),
       },
     });
     void ctx.params.onAgentEvent?.({
@@ -54,6 +75,7 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
       data: {
         phase: "error",
         error: errorText,
+        ...(usage && { usage }),
       },
     });
   } else {
@@ -64,11 +86,12 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
       data: {
         phase: "end",
         endedAt: Date.now(),
+        ...(usage && { usage }),
       },
     });
     void ctx.params.onAgentEvent?.({
       stream: "lifecycle",
-      data: { phase: "end" },
+      data: { phase: "end", ...(usage && { usage }) },
     });
   }
 
