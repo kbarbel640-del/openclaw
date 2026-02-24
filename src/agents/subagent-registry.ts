@@ -125,6 +125,8 @@ function triggerCleanupAndAnnounce(runId: string) {
     endedAt: entry.endedAt,
     label: entry.label,
     outcome: entry.outcome,
+    spawnMode: entry.spawnMode,
+    expectsCompletionMessage: entry.expectsCompletionMessage,
   }).then((didAnnounce) => {
     void finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
   });
