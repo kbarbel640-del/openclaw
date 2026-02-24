@@ -302,7 +302,10 @@ export class AuthStore {
     }
 
     const inputHash = this.hashRecoveryCode(code);
-    const idx = hashes.findIndex((h) => h === inputHash);
+    const inputBuf = Buffer.from(inputHash, "hex");
+    const idx = hashes.findIndex((h) =>
+      timingSafeEqual(Buffer.from(h, "hex"), inputBuf),
+    );
     if (idx === -1) { return false; }
 
     // Remove the used code and re-encrypt

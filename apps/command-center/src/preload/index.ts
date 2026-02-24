@@ -17,8 +17,8 @@ const bridge: OcccBridge = {
   // ─── Auth ─────────────────────────────────────────────────────────────
   login: (username, password) =>
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGIN, username, password),
-  biometricAuth: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.AUTH_BIOMETRIC),
+  biometricAuth: (username) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_BIOMETRIC, username),
   verifyTotp: (code) =>
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_VERIFY_TOTP, code),
   logout: (token?: string) =>

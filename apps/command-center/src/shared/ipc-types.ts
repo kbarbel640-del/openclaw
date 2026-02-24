@@ -215,7 +215,7 @@ export const IPC_CHANNELS = {
 export interface OcccBridge {
   // Auth
   login(username: string, password: string): Promise<{ session: AuthSession; token: string } | { requiresTotp: true; nonce: string } | null>;
-  biometricAuth(): Promise<{ session: AuthSession; token: string } | null>;
+  biometricAuth(username: string): Promise<{ session: AuthSession; token: string } | null>;
   verifyTotp(code: string): Promise<boolean>;
   logout(token?: string): Promise<void>;
   getSession(token?: string): Promise<AuthSession | null>;

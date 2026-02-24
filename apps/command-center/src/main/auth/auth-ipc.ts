@@ -16,7 +16,7 @@ import { hasPermission } from "./rbac.js";
 
 export function registerAuthIpcHandlers(
   engine: AuthEngine,
-  _sessions: SessionManager,
+  sessions: SessionManager,
 ): void {
 
   // ─── Login / Logout ─────────────────────────────────────────────────
@@ -118,11 +118,13 @@ export function registerAuthIpcHandlers(
     if (!session.elevated) {
       throw new Error("Elevation required to create users");
     }
-    return engine.createUser({
+    const created = await engine.createUser({
       username: params.username,
       role: params.role as import("../../shared/ipc-types.js").UserRole,
       password: params.password,
     });
+    sessions.dropElevation(token);
+    return created;
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_UPDATE_ROLE, async (
@@ -142,7 +144,9 @@ export function registerAuthIpcHandlers(
     if (userId === session.userId && newRole !== session.role) {
       throw new Error("Cannot change your own role");
     }
-    return engine.updateUserRole(userId, newRole as import("../../shared/ipc-types.js").UserRole);
+    const result = engine.updateUserRole(userId, newRole as import("../../shared/ipc-types.js").UserRole);
+    sessions.dropElevation(token);
+    return result;
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_RESET_PASSWORD, async (
@@ -152,13 +156,15 @@ export function registerAuthIpcHandlers(
     newPassword: string,
   ) => {
     const session = engine.getSession(token);
-    if (!session || !hasPermission(session.role, "users:modify-role")) {
+    if (!session || !hasPermission(session.role, "users:reset-password")) {
       throw new Error("Unauthorized");
     }
     if (!session.elevated) {
       throw new Error("Elevation required to reset passwords");
     }
-    return engine.resetPassword(userId, newPassword);
+    const result = await engine.resetPassword(userId, newPassword);
+    sessions.dropElevation(token);
+    return result;
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_DELETE_USER, async (
@@ -176,7 +182,9 @@ export function registerAuthIpcHandlers(
     if (userId === session.userId) {
       throw new Error("Cannot delete your own account");
     }
-    return engine.deleteUser(userId);
+    const result = engine.deleteUser(userId);
+    sessions.dropElevation(token);
+    return result;
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_AUDIT_LOG, async (

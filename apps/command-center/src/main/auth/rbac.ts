@@ -37,7 +37,8 @@ export type Permission =
   | "users:list"
   | "users:create"
   | "users:delete"
-  | "users:modify-role";
+  | "users:modify-role"
+  | "users:reset-password";
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   "viewer": [
@@ -91,6 +92,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "users:create",
     "users:delete",
     "users:modify-role",
+    "users:reset-password",
   ],
 };
 
@@ -107,6 +109,7 @@ export const ALWAYS_REQUIRE_ELEVATE: Set<Permission> = new Set([
   "users:create",
   "users:delete",
   "users:modify-role",
+  "users:reset-password",
 ]);
 
 // ─── Guards ─────────────────────────────────────────────────────────────────

@@ -49,7 +49,7 @@ export function LoginPage({ onAuthenticated, onFirstRun }: LoginPageProps) {
     setStep("loading");
     setError(null);
     try {
-      const result = await occc.biometricAuth();
+      const result = await occc.biometricAuth(username);
       if (result && "token" in result) {
         onAuthenticated(result.session, result.token);
       } else {

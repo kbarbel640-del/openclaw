@@ -63,12 +63,17 @@ interface LoginAttempt {
   lockedUntil: number;
 }
 
+/** Cleanup interval for expired pending logins and lockout entries (60 s). */
+const CLEANUP_INTERVAL_MS = 60_000;
+
 export class AuthEngine {
   /** Pending TOTP logins: nonce → state */
   private pendingLogins = new Map<string, PendingTotpLogin>();
 
   /** Login attempt tracker: username (lowercased) → attempt state */
   private loginAttempts = new Map<string, LoginAttempt>();
+
+  private cleanupInterval: ReturnType<typeof setInterval>;
 
   constructor(
     private readonly store: AuthStore,
@@ -79,6 +84,29 @@ export class AuthEngine {
       window: 1, // Accept codes 30s before/after for clock drift
       digits: 6,
     };
+
+    // Periodically prune expired pending TOTP logins and lockout entries
+    this.cleanupInterval = setInterval(() => this.pruneExpired(), CLEANUP_INTERVAL_MS);
+  }
+
+  /** Stop the cleanup timer (call on shutdown). */
+  destroy(): void {
+    clearInterval(this.cleanupInterval);
+  }
+
+  /** Remove expired pending logins and stale lockout entries. */
+  private pruneExpired(): void {
+    const now = Date.now();
+    for (const [nonce, pending] of this.pendingLogins) {
+      if (now > pending.expiresAt) {
+        this.pendingLogins.delete(nonce);
+      }
+    }
+    for (const [key, attempt] of this.loginAttempts) {
+      if (attempt.lockedUntil > 0 && attempt.lockedUntil <= now) {
+        this.loginAttempts.delete(key);
+      }
+    }
   }
 
   // ─── First-Run Setup ─────────────────────────────────────────────────
