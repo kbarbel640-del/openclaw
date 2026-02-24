@@ -925,6 +925,7 @@ export async function runSecurityAudit(opts: SecurityAuditOptions): Promise<Secu
   findings.push(...collectSmallModelRiskFindings({ cfg, env }));
   findings.push(...collectExposureMatrixFindings(cfg));
   findings.push(...collectLikelyMultiUserSetupFindings(cfg));
+  findings.push(...(await collectVaultFindings(cfg, env)));
 
   const configSnapshot =
     opts.includeFilesystem !== false
