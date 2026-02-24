@@ -13,6 +13,7 @@ import {
   shouldDeferShellEnvFallback,
   shouldEnableShellEnvFallback,
 } from "../infra/shell-env.js";
+import { resolveBundledPluginsDir } from "../plugins/bundled-dir.js";
 import { VERSION } from "../version.js";
 import { DuplicateAgentDirError, findDuplicateAgentDirs } from "./agent-dirs.js";
 import {
@@ -789,12 +790,29 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     // Handle plugin-level issues precisely so that removing one
     // broken entry (e.g. retry-backoff) doesn't destroy others
     // (e.g. memory-context).
+    //
+    // IMPORTANT: Never auto-remove a plugin that ships inside the
+    // bundled extensions/ directory.  A "plugin not found" for a
+    // bundled plugin is almost always a transient discovery issue
+    // (e.g. process respawn during a rebuild).  Deleting its config
+    // entry would wipe user settings that are hard to reconstruct.
+    const bundledDir = resolveBundledPluginsDir();
     const handledIssues = new Set<number>();
     for (let i = 0; i < issues.length; i++) {
       const issue = issues[i];
       const pluginEntryMatch = issue.path.match(/^plugins\.entries\.([^.]+)$/);
       if (pluginEntryMatch && issue.message.includes("plugin not found")) {
         const pluginId = pluginEntryMatch[1];
+
+        // Skip removal if the plugin exists in the bundled extensions dir.
+        if (bundledDir) {
+          const pluginDir = path.join(bundledDir, pluginId);
+          if (deps.fs.existsSync(pluginDir)) {
+            handledIssues.add(i); // mark as handled so Phase 2 doesn't touch it
+            continue;
+          }
+        }
+
         const plugins = patched.plugins as Record<string, unknown> | undefined;
         const entries = (plugins?.entries ?? {}) as Record<string, unknown>;
         if (pluginId in entries) {
@@ -808,6 +826,19 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       // plugins.slots.memory / plugins.allow / plugins.deny — remove value
       const slotsMatch = issue.path.match(/^plugins\.(slots\.[^.]+|allow|deny)$/);
       if (slotsMatch && issue.message.includes("plugin not found")) {
+        // Extract the referenced plugin id from the issue message.
+        const slotPluginMatch = issue.message.match(/plugin not found:\s*(\S+)/);
+        const slotPluginId = slotPluginMatch?.[1];
+
+        // Skip removal if the referenced plugin exists in bundled extensions.
+        if (bundledDir && slotPluginId) {
+          const pluginDir = path.join(bundledDir, slotPluginId);
+          if (deps.fs.existsSync(pluginDir)) {
+            handledIssues.add(i);
+            continue;
+          }
+        }
+
         const subPath = slotsMatch[1];
         const plugins = patched.plugins as Record<string, unknown> | undefined;
         if (plugins) {
