@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { OpenClawPluginApi, PluginCommandContext } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 type WalletMarketConfig = {
   defaultFaucetAmount?: number;
@@ -26,11 +26,18 @@ type WalletState = {
   tasks: WalletTask[];
 };
 
+type WalletCommandContext = {
+  senderId?: string;
+  from?: string;
+  accountId?: string;
+  channel: string;
+};
+
 const STATE_VERSION = 1;
 const STATE_FILE = "wallet-market-state.json";
 const ESCROW_ACCOUNT = "__market_escrow__";
 
-function resolveActorId(ctx: PluginCommandContext): string | null {
+function resolveActorId(ctx: WalletCommandContext): string | null {
   const raw = ctx.senderId?.trim() || ctx.from?.trim() || "";
   if (!raw) {
     return null;
@@ -134,6 +141,13 @@ export default function register(api: OpenClawPluginApi) {
     ? Math.max(1, Number(pluginCfg.maxTaskReward))
     : 10_000;
   const statePath = path.join(api.runtime.state.resolveStateDir(), STATE_FILE);
+  let mutationQueue: Promise<unknown> = Promise.resolve();
+
+  async function mutateStateSerialized<T>(mutate: (state: WalletState) => T): Promise<T> {
+    const run = mutationQueue.then(() => mutateState(statePath, mutate));
+    mutationQueue = run.catch(() => undefined);
+    return run;
+  }
 
   api.registerCommand({
     name: "wallet",
@@ -161,7 +175,7 @@ export default function register(api: OpenClawPluginApi) {
 
       if (action === "faucet") {
         const amount = parsePositiveAmount(rest[0]) ?? defaultFaucetAmount;
-        const next = await mutateState(statePath, (state) => {
+        const next = await mutateStateSerialized((state) => {
           setBalance(state, actor, getBalance(state, actor) + amount);
           return getBalance(state, actor);
         });
@@ -176,9 +190,9 @@ export default function register(api: OpenClawPluginApi) {
         if (!to || !amount) {
           return { text: "用法: /wallet send <toActorId> <amount> [memo]" };
         }
-        const transferResult = await mutateState(statePath, (state) => {
+        const transferResult = await mutateStateSerialized((state) => {
           const result = transfer(state, actor, to, amount);
-          if (!result.ok) return result;
+          if (!result.ok) return { ok: false as const, reason: result.reason };
           return { ok: true, balance: getBalance(state, actor) } as const;
         });
         if (!transferResult.ok) {
@@ -214,7 +228,7 @@ export default function register(api: OpenClawPluginApi) {
         return { text: `任务赏金过高，当前上限是 ${maxTaskReward} CLC` };
       }
 
-      const outcome = await mutateState(statePath, (state) => {
+      const outcome = await mutateStateSerialized((state) => {
         const result = transfer(state, actor, ESCROW_ACCOUNT, reward);
         if (!result.ok) return { ok: false, reason: result.reason } as const;
         const id = `T${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
@@ -278,7 +292,7 @@ export default function register(api: OpenClawPluginApi) {
       const taskId = ctx.args?.trim();
       if (!taskId) return { text: "用法: /task-take <taskId>" };
 
-      const result = await mutateState(statePath, (state) => {
+      const result = await mutateStateSerialized((state) => {
         const task = findTask(state, taskId);
         if (!task) return { ok: false, reason: "任务不存在" } as const;
         if (task.status !== "open") return { ok: false, reason: "任务不可接" } as const;
@@ -307,7 +321,7 @@ export default function register(api: OpenClawPluginApi) {
       const taskId = ctx.args?.trim();
       if (!taskId) return { text: "用法: /task-done <taskId>" };
 
-      const result = await mutateState(statePath, (state) => {
+      const result = await mutateStateSerialized((state) => {
         const task = findTask(state, taskId);
         if (!task) return { ok: false, reason: "任务不存在" } as const;
         if (task.owner !== actor)
@@ -345,7 +359,7 @@ export default function register(api: OpenClawPluginApi) {
       const taskId = ctx.args?.trim();
       if (!taskId) return { text: "用法: /task-cancel <taskId>" };
 
-      const result = await mutateState(statePath, (state) => {
+      const result = await mutateStateSerialized((state) => {
         const task = findTask(state, taskId);
         if (!task) return { ok: false, reason: "任务不存在" } as const;
         if (task.owner !== actor) return { ok: false, reason: "只有任务发布者可以取消" } as const;
