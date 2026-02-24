@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   auditPostCompactionReads,
   extractReadPaths,
@@ -109,6 +110,14 @@ describe("extractReadPaths", () => {
 describe("auditPostCompactionReads", () => {
   const workspaceDir = "/Users/test/workspace";
 
+  beforeEach(() => {
+    vi.spyOn(fs, "existsSync").mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("passes when all required files are read", () => {
     const readPaths = ["WORKFLOW_AUTO.md", "memory/2026-02-16.md"];
     const result = auditPostCompactionReads(readPaths, workspaceDir);
@@ -169,6 +178,15 @@ describe("auditPostCompactionReads", () => {
 
     expect(result.passed).toBe(true);
     expect(result.missingPatterns).toEqual([]);
+  });
+
+  it("skips string entries when file does not exist on disk", () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    const result = auditPostCompactionReads([], workspaceDir);
+
+    expect(result.missingPatterns).not.toContain("WORKFLOW_AUTO.md");
+    expect(result.missingPatterns.some((p) => p.includes("memory"))).toBe(true);
+    expect(result.missingPatterns).toHaveLength(1);
   });
 });
 
