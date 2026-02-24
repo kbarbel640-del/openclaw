@@ -31,11 +31,11 @@ Every time a message is received or sent:
 ## Output Format
 
 ```markdown
-# Chat: Lucas (5569996021005)
+# Chat: Alice (5511999990000)
 ## 2026-02-24
 
 ← 08:30 | Hello! How are you?
-→ 08:31 | Hi Lucas! I'm doing well, how can I help?
+→ 08:31 | Hi Alice! I'm doing well, how can I help?
 ← 08:35 | 🎤 [audio]
     > Hey, I need you to check that report...
 ← 08:40 | 📎 [image: media/2026-02-24-084000-0.jpg]
@@ -48,12 +48,12 @@ The hook automatically detects contact names from any channel's metadata:
 
 | Channel | Name field | Example |
 |---------|-----------|---------|
-| WhatsApp | `senderName` | "Lucas Araujo" |
-| Telegram | `first_name` + `last_name` | "Lucas Araujo" |
-| Discord | `displayName` / `username` | "barone.1672" |
-| Signal | `profileName` | "Lucas" |
-| iMessage | macOS contact name | "Lucas Araujo" |
-| Slack | `real_name` | "Lucas Araujo" |
+| WhatsApp | `senderName` | "Alice Smith" |
+| Telegram | `first_name` + `last_name` | "Alice Smith" |
+| Discord | `displayName` / `username` | "alice.smith" |
+| Signal | `profileName` | "Alice" |
+| iMessage | macOS contact name | "Alice Smith" |
+| Slack | `real_name` | "Alice Smith" |
 
 Discovered contacts are saved to `<workspace>/memory/contacts-map.json`.
 
