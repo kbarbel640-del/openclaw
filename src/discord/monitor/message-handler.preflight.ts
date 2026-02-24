@@ -61,10 +61,7 @@ import {
 } from "./message-utils.js";
 import { resolveDiscordSenderIdentity, resolveDiscordWebhookId } from "./sender-identity.js";
 import { resolveDiscordSystemEvent } from "./system-events.js";
-import {
-  isRecentlyUnboundThreadWebhookMessage,
-  type ThreadBindingRecord,
-} from "./thread-bindings.js";
+import { isRecentlyUnboundThreadWebhookMessage } from "./thread-bindings.js";
 import { resolveDiscordThreadChannel, resolveDiscordThreadParentInfo } from "./threading.js";
 
 export type {
@@ -108,30 +105,6 @@ export function shouldIgnoreBoundThreadWebhookMessage(params: {
     });
   }
   return webhookId === boundWebhookId;
-}
-
-function toSessionBindingRecordFallback(record: ThreadBindingRecord): SessionBindingRecord {
-  return {
-    bindingId: `${record.accountId}:${record.threadId}`,
-    targetSessionKey: record.targetSessionKey,
-    targetKind: record.targetKind === "subagent" ? "subagent" : "session",
-    conversation: {
-      channel: "discord",
-      accountId: record.accountId,
-      conversationId: record.threadId,
-      parentConversationId: record.channelId,
-    },
-    status: "active",
-    boundAt: record.boundAt,
-    expiresAt: record.expiresAt,
-    metadata: {
-      agentId: record.agentId,
-      label: record.label,
-      webhookId: record.webhookId,
-      webhookToken: record.webhookToken,
-      boundBy: record.boundBy,
-    },
-  };
 }
 
 export async function preflightDiscordMessage(
@@ -335,12 +308,6 @@ export async function preflightDiscordMessage(
         accountId: params.accountId,
         conversationId: messageChannelId,
       }) ?? undefined;
-    if (!threadBinding) {
-      const fallbackBinding = params.threadBindings.getByThreadId(messageChannelId);
-      if (fallbackBinding) {
-        threadBinding = toSessionBindingRecordFallback(fallbackBinding);
-      }
-    }
   }
   if (
     shouldIgnoreBoundThreadWebhookMessage({
