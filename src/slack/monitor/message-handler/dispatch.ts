@@ -9,6 +9,7 @@ import { createReplyPrefixOptions } from "../../../channels/reply-prefix.js";
 import { createTypingCallbacks } from "../../../channels/typing.js";
 import { resolveStorePath, updateLastRoute } from "../../../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../../globals.js";
+import { stripReasoningTagsFromText } from "../../../shared/text/reasoning-tags.js";
 import { removeSlackReaction } from "../../actions.js";
 import { createSlackDraftStream } from "../../draft-stream.js";
 import {
@@ -324,14 +325,16 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
   let appendSourceText = "";
   let statusUpdateCount = 0;
   const updateDraftFromPartial = (text?: string) => {
-    const trimmed = text?.trimEnd();
-    if (!trimmed) {
+    const cleaned = text
+      ? stripReasoningTagsFromText(text, { mode: "strict", trim: "both" })
+      : undefined;
+    if (!cleaned || cleaned.startsWith("Reasoning:\n")) {
       return;
     }
 
     if (streamMode === "append") {
       const next = applyAppendOnlyStreamUpdate({
-        incoming: trimmed,
+        incoming: cleaned,
         rendered: appendRenderedText,
         source: appendSourceText,
       });
@@ -355,7 +358,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
       return;
     }
 
-    draftStream.update(trimmed);
+    draftStream.update(cleaned);
     hasStreamedMessage = true;
   };
   const onDraftBoundary =
