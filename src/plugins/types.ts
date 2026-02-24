@@ -396,8 +396,22 @@ export type PluginHookLlmOutputEvent = {
 };
 
 // agent_end hook
+export type PluginHookAgentEndMessage = {
+  role?: string;
+  /**
+   * String-normalized content for plugin persistence/analytics.
+   * This avoids implicit `[object Object]` coercion for content-block payloads.
+   */
+  content?: string;
+  /** Original content blocks when the source message used array content. */
+  contentBlocks?: unknown[];
+  /** Original non-array payload when content was object-like. */
+  contentRaw?: unknown;
+  [key: string]: unknown;
+};
+
 export type PluginHookAgentEndEvent = {
-  messages: unknown[];
+  messages: PluginHookAgentEndMessage[];
   success: boolean;
   error?: string;
   durationMs?: number;
