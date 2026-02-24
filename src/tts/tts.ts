@@ -513,7 +513,6 @@ function formatTtsProviderError(provider: TtsProvider, err: unknown): string {
   return `${provider}: ${error.message}`;
 }
 
-
 export async function textToSpeech(params: {
   text: string;
   cfg: OpenClawConfig;
