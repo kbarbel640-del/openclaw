@@ -375,8 +375,11 @@ export async function dispatchCronDelivery(
     // Forum/topic targets should also use direct delivery. Announce flow can
     // be swallowed by ANNOUNCE_SKIP/NO_REPLY in the target agent turn, which
     // silently drops cron output for topic-bound sessions.
+    const cronDeliveryMode = params.job.delivery?.mode;
     const useDirectDelivery =
-      params.deliveryPayloadHasStructuredContent || params.resolvedDelivery.threadId != null;
+      cronDeliveryMode === "direct" ||
+      params.deliveryPayloadHasStructuredContent ||
+      params.resolvedDelivery.threadId != null;
     if (useDirectDelivery) {
       const directResult = await deliverViaDirect(params.resolvedDelivery);
       if (directResult) {

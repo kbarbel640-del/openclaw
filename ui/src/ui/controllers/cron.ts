@@ -80,7 +80,7 @@ export function supportsAnnounceDelivery(
 }
 
 export function normalizeCronFormState(form: CronFormState): CronFormState {
-  if (form.deliveryMode !== "announce") {
+  if (form.deliveryMode !== "announce" && form.deliveryMode !== "direct") {
     return form;
   }
   if (supportsAnnounceDelivery(form)) {
@@ -519,7 +519,7 @@ export async function addCronJob(state: CronState) {
         ? {
             mode: selectedDeliveryMode,
             channel:
-              selectedDeliveryMode === "announce"
+              selectedDeliveryMode === "announce" || selectedDeliveryMode === "direct"
                 ? form.deliveryChannel.trim() || "last"
                 : undefined,
             to: form.deliveryTo.trim() || undefined,
