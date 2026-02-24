@@ -908,6 +908,16 @@ export const FIELD_HELP: Record<string, string> = {
     "User-prompt template used for the pre-compaction memory flush turn when generating memory candidates. Use this only when you need custom extraction instructions beyond the default memory flush behavior.",
   "agents.defaults.compaction.memoryFlush.systemPrompt":
     "System-prompt override for the pre-compaction memory flush turn to control extraction style and safety constraints. Use carefully so custom instructions do not reduce memory quality or leak sensitive context.",
+  "agents.defaults.planSearch":
+    "Opt-in runtime planner that generates multiple candidate plans, scores them cheaply, and executes the selected plan while preserving backward-compatible defaults.",
+  "agents.defaults.planSearch.enabled":
+    "Enables candidate plan-search before execution. Disabled by default so legacy runtime behavior is unchanged unless explicitly opted in.",
+  "agents.defaults.planSearch.candidates":
+    "Number of candidate plans to generate and score before selecting one for execution (clamped to 2-8, default: 4).",
+  "agents.defaults.planSearch.scoring":
+    'Candidate scoring mode. "heuristic" is cheap and local; "llm" currently falls back to heuristic in MVP until a lightweight ranker is wired.',
+  "agents.defaults.planSearch.includeSelectedPlanInPrompt":
+    "When enabled (default), prepends the selected execution plan to the prompt so the runtime follows the chosen plan explicitly.",
   "agents.defaults.humanDelay.mode": 'Delay style for block replies ("off", "natural", "custom").',
   "agents.defaults.humanDelay.minMs": "Minimum delay in ms for custom humanDelay (default: 800).",
   "agents.defaults.humanDelay.maxMs": "Maximum delay in ms for custom humanDelay (default: 2500).",

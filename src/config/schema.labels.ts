@@ -402,6 +402,12 @@ export const FIELD_LABELS: Record<string, string> = {
     "Compaction Memory Flush Soft Threshold",
   "agents.defaults.compaction.memoryFlush.prompt": "Compaction Memory Flush Prompt",
   "agents.defaults.compaction.memoryFlush.systemPrompt": "Compaction Memory Flush System Prompt",
+  "agents.defaults.planSearch": "Plan Search",
+  "agents.defaults.planSearch.enabled": "Plan Search Enabled",
+  "agents.defaults.planSearch.candidates": "Plan Search Candidate Count",
+  "agents.defaults.planSearch.scoring": "Plan Search Scoring Mode",
+  "agents.defaults.planSearch.includeSelectedPlanInPrompt":
+    "Plan Search Include Selected Plan in Prompt",
   "agents.defaults.heartbeat.directPolicy": "Heartbeat Direct Policy",
   "agents.list.*.heartbeat.directPolicy": "Heartbeat Direct Policy",
   "agents.defaults.heartbeat.suppressToolErrorWarnings": "Heartbeat Suppress Tool Error Warnings",

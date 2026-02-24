@@ -54,6 +54,7 @@ import { compactEmbeddedPiSessionDirect } from "./compact.js";
 import { resolveGlobalLane, resolveSessionLane } from "./lanes.js";
 import { log } from "./logger.js";
 import { resolveModel } from "./model.js";
+import { resolvePlanSearchRuntimeConfig, runPlanSearch } from "./plan-search.js";
 import { runEmbeddedAttempt } from "./run/attempt.js";
 import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import { buildEmbeddedRunPayloads } from "./run/payloads.js";
@@ -61,7 +62,7 @@ import {
   truncateOversizedToolResultsInSession,
   sessionLikelyHasOversizedToolResults,
 } from "./tool-result-truncation.js";
-import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
+import type { EmbeddedPiAgentMeta, EmbeddedPiRunMeta, EmbeddedPiRunResult } from "./types.js";
 import { describeUnknownError } from "./utils.js";
 
 type ApiKeyInfo = ResolvedProviderAuth;
@@ -508,6 +509,39 @@ export async function runEmbeddedPiAgent(
         }
       }
 
+      const planSearchRuntimeConfig = resolvePlanSearchRuntimeConfig(params.config);
+      const planSearchResult = planSearchRuntimeConfig
+        ? runPlanSearch({
+            prompt: params.prompt,
+            runtimeConfig: planSearchRuntimeConfig,
+          })
+        : undefined;
+      const executionPrompt = planSearchResult?.prompt ?? params.prompt;
+      const planSearchMeta = planSearchResult?.meta;
+      const withPlanSearchMeta = (meta: EmbeddedPiRunMeta): EmbeddedPiRunMeta =>
+        planSearchMeta ? { ...meta, planSearch: planSearchMeta } : meta;
+
+      if (planSearchResult && params.onAgentEvent) {
+        params.onAgentEvent({
+          stream: "planner",
+          data: {
+            phase: "plan_search_selected",
+            candidateCount: planSearchMeta?.candidateCount,
+            configuredScoringMode: planSearchMeta?.configuredScoringMode,
+            appliedScoringMode: planSearchMeta?.appliedScoringMode,
+            scoringFailed: planSearchMeta?.scoringFailed ?? false,
+            scoringError: planSearchMeta?.scoringError,
+            selectedCandidateId: planSearchMeta?.selectedCandidateId,
+            selectedScore: planSearchMeta?.selectedScore,
+            considered: planSearchMeta?.considered.map((candidate) => ({
+              id: candidate.id,
+              strategy: candidate.strategy,
+              score: candidate.score,
+            })),
+          },
+        });
+      }
+
       const MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
       const MAX_RUN_LOOP_ITERATIONS = resolveMaxRunRetryIterations(profileCandidates.length);
       let overflowCompactionAttempts = 0;
@@ -554,7 +588,7 @@ export async function runEmbeddedPiAgent(
                   isError: true,
                 },
               ],
-              meta: {
+              meta: withPlanSearchMeta({
                 durationMs: Date.now() - started,
                 agentMeta: {
                   sessionId: params.sessionId,
@@ -562,7 +596,7 @@ export async function runEmbeddedPiAgent(
                   model: model.id,
                 },
                 error: { kind: "retry_limit", message },
-              },
+              }),
             };
           }
           runLoopIterations += 1;
@@ -570,7 +604,9 @@ export async function runEmbeddedPiAgent(
           await fs.mkdir(resolvedWorkspace, { recursive: true });
 
           const prompt =
-            provider === "anthropic" ? scrubAnthropicRefusalMagic(params.prompt) : params.prompt;
+            provider === "anthropic"
+              ? scrubAnthropicRefusalMagic(executionPrompt)
+              : executionPrompt;
 
           const attempt = await runEmbeddedAttempt({
             sessionId: params.sessionId,
@@ -837,7 +873,7 @@ export async function runEmbeddedPiAgent(
                   isError: true,
                 },
               ],
-              meta: {
+              meta: withPlanSearchMeta({
                 durationMs: Date.now() - started,
                 agentMeta: {
                   sessionId: sessionIdUsed,
@@ -846,7 +882,7 @@ export async function runEmbeddedPiAgent(
                 },
                 systemPromptReport: attempt.systemPromptReport,
                 error: { kind, message: errorText },
-              },
+              }),
             };
           }
 
@@ -863,7 +899,7 @@ export async function runEmbeddedPiAgent(
                     isError: true,
                   },
                 ],
-                meta: {
+                meta: withPlanSearchMeta({
                   durationMs: Date.now() - started,
                   agentMeta: {
                     sessionId: sessionIdUsed,
@@ -872,7 +908,7 @@ export async function runEmbeddedPiAgent(
                   },
                   systemPromptReport: attempt.systemPromptReport,
                   error: { kind: "role_ordering", message: errorText },
-                },
+                }),
               };
             }
             // Handle image size errors with a user-friendly message (no retry needed)
@@ -891,7 +927,7 @@ export async function runEmbeddedPiAgent(
                     isError: true,
                   },
                 ],
-                meta: {
+                meta: withPlanSearchMeta({
                   durationMs: Date.now() - started,
                   agentMeta: {
                     sessionId: sessionIdUsed,
@@ -900,7 +936,7 @@ export async function runEmbeddedPiAgent(
                   },
                   systemPromptReport: attempt.systemPromptReport,
                   error: { kind: "image_size", message: errorText },
-                },
+                }),
               };
             }
             const promptFailoverReason = classifyFailoverReason(errorText);
@@ -1100,12 +1136,12 @@ export async function runEmbeddedPiAgent(
                   isError: true,
                 },
               ],
-              meta: {
+              meta: withPlanSearchMeta({
                 durationMs: Date.now() - started,
                 agentMeta,
                 aborted,
                 systemPromptReport: attempt.systemPromptReport,
-              },
+              }),
               didSendViaMessagingTool: attempt.didSendViaMessagingTool,
               messagingToolSentTexts: attempt.messagingToolSentTexts,
               messagingToolSentMediaUrls: attempt.messagingToolSentMediaUrls,
@@ -1132,7 +1168,7 @@ export async function runEmbeddedPiAgent(
           }
           return {
             payloads: payloads.length ? payloads : undefined,
-            meta: {
+            meta: withPlanSearchMeta({
               durationMs: Date.now() - started,
               agentMeta,
               aborted,
@@ -1148,7 +1184,7 @@ export async function runEmbeddedPiAgent(
                     },
                   ]
                 : undefined,
-            },
+            }),
             didSendViaMessagingTool: attempt.didSendViaMessagingTool,
             messagingToolSentTexts: attempt.messagingToolSentTexts,
             messagingToolSentMediaUrls: attempt.messagingToolSentMediaUrls,
