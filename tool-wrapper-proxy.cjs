@@ -47,6 +47,74 @@ const MEM0_PORT = 8002;
 const VERSION = "10.3.0";
 const startedAt = Date.now();
 
+// ─── P1.4: Config Manager — 統一管理敏感配置 ──────────────────────
+
+/**
+ * 配置管理器：從環境變數讀取所有敏感信息
+ * 所有 API key、token 都應該外部化，不應硬編碼
+ */
+class ConfigManager {
+  constructor() {
+    this.config = {};
+    this.required = [];
+    this.optional = [];
+  }
+
+  /**
+   * 標記必需的配置項
+   * @param {string} key - 環境變數名稱
+   * @param {string} description - 描述
+   */
+  required(key, description) {
+    this.required.push({ key, description });
+    const value = process.env[key];
+    if (!value) {
+      console.error(`[CONFIG] 必需環境變數缺失: ${key} (${description})`);
+      throw new Error(`Missing required config: ${key}`);
+    }
+    this.config[key] = value;
+    return value;
+  }
+
+  /**
+   * 標記可選的配置項（有預設值）
+   * @param {string} key - 環境變數名稱
+   * @param {*} defaultValue - 預設值
+   * @param {string} description - 描述
+   */
+  optional(key, defaultValue, description) {
+    this.optional.push({ key, description, defaultValue });
+    const value = process.env[key] || defaultValue;
+    this.config[key] = value;
+    if (!process.env[key]) {
+      console.warn(`[CONFIG] ${key} 未設置，使用預設值`);
+    }
+    return value;
+  }
+
+  /**
+   * 獲取配置值
+   */
+  get(key) {
+    return this.config[key];
+  }
+
+  /**
+   * 驗證啟動時的配置狀態
+   */
+  validate() {
+    console.log(`[CONFIG] 已加載 ${Object.keys(this.config).length} 個配置項`);
+    if (this.required.length > 0) {
+      console.log(`[CONFIG] 必需: ${this.required.map(r => r.key).join(", ")}`);
+    }
+    if (this.optional.length > 0) {
+      console.log(`[CONFIG] 可選: ${this.optional.map(r => `${r.key}(預設: ${r.defaultValue})`).join(", ")}`);
+    }
+  }
+}
+
+const config = new ConfigManager();
+
 // ─── Metrics ─────────────────────────────────────────────────────
 
 const metrics = {
@@ -90,7 +158,7 @@ const intentDetector = new IntentDetector({
 // ─── WebSearch Service ──────────────────────────────────
 
 const webSearchService = new WebSearchService({
-  braveApiKey: process.env.BRAVE_API_KEY || "BSABkEen0XsrbxDEZY-WpO4tu-B1DF6",
+  braveApiKey: config.optional("BRAVE_API_KEY", null, "Brave search API key"),
   cacheTTL: 3600,
   maxResults: 10,
   resultTruncation: 5,
@@ -4557,6 +4625,9 @@ server.on("error", (err) => {
 // P0.2: 初始化 lastDevProject 後再啟動 server
 void (async () => {
   try {
+    // P1.4: Validate configuration at startup
+    config.validate();
+
     const restoredProject = await initializeLastDevProject();
     if (restoredProject) {
       lastDevProject = restoredProject;
