@@ -33,8 +33,8 @@ const bridge: OcccBridge = {
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_IS_FIRST_RUN),
   createInitialUser: (username, password) =>
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_CREATE_INITIAL_USER, username, password),
-  confirmTotp: (token, secret, code) =>
-    ipcRenderer.invoke(IPC_CHANNELS.AUTH_CONFIRM_TOTP, token, secret, code),
+  confirmTotp: (token, code) =>
+    ipcRenderer.invoke(IPC_CHANNELS.AUTH_CONFIRM_TOTP, token, code),
   isBiometricAvailable: () =>
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_BIOMETRIC_AVAILABLE),
   enrollBiometric: (token) =>

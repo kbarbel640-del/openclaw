@@ -10,8 +10,9 @@
  * Session tokens: short-lived, signed with HMAC-SHA256.
  */
 
-import { app } from "electron";
+import { app, safeStorage } from "electron";
 import path from "node:path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv, timingSafeEqual } from "node:crypto";
 import type { AuditLogEntry, UserRole, UserProfile } from "../../shared/ipc-types.js";
 
@@ -51,11 +52,30 @@ export class AuthStore {
    * The encryption key is derived from a machine-specific secret.
    */
   async init(): Promise<void> {
-    // Derive encryption key from machine ID (scrypt)
-    const { scryptSync } = await import("node:crypto");
-    const machineId = await this.getMachineId();
-    const salt = "occc-auth-v1";
-    this.encKey = scryptSync(machineId, salt, 32);
+    // Load or generate the DB encryption key via OS keychain (safeStorage).
+    // Falls back to a scrypt-derived key with a warning if safeStorage is unavailable.
+    const keyFilePath = path.join(app.getPath("userData"), "auth.key");
+    if (safeStorage.isEncryptionAvailable()) {
+      if (existsSync(keyFilePath)) {
+        const encryptedKey = readFileSync(keyFilePath);
+        const keyB64 = safeStorage.decryptString(encryptedKey);
+        this.encKey = Buffer.from(keyB64, "base64");
+      } else {
+        const rawKey = randomBytes(32);
+        const encrypted = safeStorage.encryptString(rawKey.toString("base64"));
+        writeFileSync(keyFilePath, encrypted, { mode: 0o600 });
+        this.encKey = rawKey;
+      }
+    } else {
+      // Fallback: derive from machine metadata. TOTP secrets and recovery codes
+      // have reduced protection if auth.db is exfiltrated without the OS keychain.
+      console.warn(
+        "[AuthStore] safeStorage unavailable — falling back to derived encryption key.",
+      );
+      const { scryptSync } = await import("node:crypto");
+      const machineId = await this.getMachineId();
+      this.encKey = scryptSync(machineId, "occc-auth-v1", 32);
+    }
 
     // Open database
     const Database = (await import("better-sqlite3")).default;
@@ -239,6 +259,22 @@ export class AuthStore {
   updateLastLogin(userId: string): void {
     this.db?.prepare("UPDATE users SET last_login_at = ? WHERE id = ?")
       .run(new Date().toISOString(), userId);
+  }
+
+  /**
+   * Count how many login_failed events exist for a user within the given
+   * time window (milliseconds). Used for DB-backed rate limiting that
+   * survives app restarts.
+   */
+  countRecentLoginFailures(userId: string, windowMs: number): number {
+    if (!this.db) { return 0; }
+    const since = new Date(Date.now() - windowMs).toISOString();
+    const row = this.db
+      .prepare(
+        "SELECT COUNT(*) as count FROM auth_audit WHERE user_id = ? AND event = 'login_failed' AND timestamp > ?",
+      )
+      .get(userId, since) as { count: number };
+    return row.count;
   }
 
   /** Write an audit log entry. */

@@ -240,7 +240,7 @@ export interface OcccBridge {
   // Auth — First Run
   isFirstRun(): Promise<boolean>;
   createInitialUser(username: string, password: string): Promise<{ profile: UserProfile; totpSetup: TotpSetupInfo; recoveryCodes: string[] }>;
-  confirmTotp(token: string, secret: string, code: string): Promise<boolean>;
+  confirmTotp(token: string, code: string): Promise<boolean>;
   isBiometricAvailable(): Promise<boolean>;
   enrollBiometric(token: string): Promise<boolean>;
 

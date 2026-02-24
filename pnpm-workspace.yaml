@@ -11,7 +11,14 @@ onlyBuiltDependencies:
   - "@napi-rs/canvas"
   - "@whiskeysockets/baileys"
   - authenticate-pam
+  - better-sqlite3
+  - cpu-features
+  - electron
+  - electron-winstaller
   - esbuild
+  - fs-xattr
+  - macos-alias
   - node-llama-cpp
   - protobufjs
   - sharp
+  - ssh2

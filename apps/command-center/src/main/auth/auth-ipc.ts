@@ -40,6 +40,10 @@ export function registerAuthIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.AUTH_BIOMETRIC, async (_event, username: string) => {
     const result = await engine.biometricLogin(username);
     if (!result.ok) {return null;}
+    // TOTP is still required even after a successful biometric prompt
+    if (result.requiresTotp) {
+      return { requiresTotp: true, nonce: (result as Record<string, unknown>).nonce };
+    }
     return { session: result.session, token: result.token };
   });
 
@@ -78,12 +82,12 @@ export function registerAuthIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.AUTH_CONFIRM_TOTP, async (
     _event,
     token: string,
-    secret: string,
     code: string,
   ) => {
     const session = engine.getSession(token);
     if (!session) {throw new Error("Unauthorized");}
-    return engine.confirmTotpSetup({ userId: session.userId, secret, code });
+    // secret is looked up server-side from pendingTotpSetups — renderer copy is ignored
+    return engine.confirmTotpSetup({ userId: session.userId, code });
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_BIOMETRIC_AVAILABLE, async () => {
@@ -93,7 +97,10 @@ export function registerAuthIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.AUTH_ENROLL_BIOMETRIC, async (_event, token: string) => {
     const session = engine.getSession(token);
     if (!session) {throw new Error("Unauthorized");}
-    return engine.enrollBiometric(session.userId);
+    if (!session.elevated) {throw new Error("Elevation required to enroll biometric");}
+    const result = await engine.enrollBiometric(session.userId);
+    sessions.dropElevation(token);
+    return result;
   });
 
   // ─── User Management (admin+ only) ───────────────────────────────────

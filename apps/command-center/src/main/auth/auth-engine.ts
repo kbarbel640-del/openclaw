@@ -58,20 +58,21 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 /** Number of recovery codes to generate per user. */
 const RECOVERY_CODE_COUNT = 8;
 
-interface LoginAttempt {
-  failures: number;
-  lockedUntil: number;
+/** Pending TOTP setup: userId → { secret, expiresAt } */
+interface PendingTotpSetup {
+  secret: string;
+  expiresAt: number;
 }
 
-/** Cleanup interval for expired pending logins and lockout entries (60 s). */
+/** Cleanup interval for expired pending logins and TOTP setups (60 s). */
 const CLEANUP_INTERVAL_MS = 60_000;
 
 export class AuthEngine {
   /** Pending TOTP logins: nonce → state */
   private pendingLogins = new Map<string, PendingTotpLogin>();
 
-  /** Login attempt tracker: username (lowercased) → attempt state */
-  private loginAttempts = new Map<string, LoginAttempt>();
+  /** Pending TOTP setups: userId → { secret, expiresAt } — never trust renderer copy */
+  private pendingTotpSetups = new Map<string, PendingTotpSetup>();
 
   private cleanupInterval: ReturnType<typeof setInterval>;
 
@@ -102,9 +103,9 @@ export class AuthEngine {
         this.pendingLogins.delete(nonce);
       }
     }
-    for (const [key, attempt] of this.loginAttempts) {
-      if (attempt.lockedUntil > 0 && attempt.lockedUntil <= now) {
-        this.loginAttempts.delete(key);
+    for (const [userId, setup] of this.pendingTotpSetups) {
+      if (now > setup.expiresAt) {
+        this.pendingTotpSetups.delete(userId);
       }
     }
   }
@@ -128,7 +129,7 @@ export class AuthEngine {
     });
 
     // Always set up TOTP for the Super Admin
-    const totpSetup = await this.generateTotpSetup(params.username);
+    const totpSetup = await this.generateTotpSetup(params.username, profile.id);
 
     // Generate recovery codes
     const recoveryCodes = this.generateRecoveryCodesList();
@@ -146,13 +147,6 @@ export class AuthEngine {
    * The caller must then call `verifyTotp()` to complete login.
    */
   async login(username: string, password: string): Promise<LoginResult & { nonce?: string }> {
-    // Check lockout before any work
-    const lockoutMs = this.lockoutRemaining(username);
-    if (lockoutMs > 0) {
-      this.store.auditLog({ event: "login_locked", userId: undefined, method: "password", success: false });
-      return { ok: false, reason: "account-locked" };
-    }
-
     const user = this.store.getUserByUsername(username);
     if (!user) {
       // Constant-time delay to prevent user enumeration
@@ -160,15 +154,18 @@ export class AuthEngine {
       return { ok: false, reason: "invalid-credentials" };
     }
 
+    // DB-backed lockout: count recent failures persisted across restarts
+    const failures = this.store.countRecentLoginFailures(user.id, LOCKOUT_DURATION_MS);
+    if (failures >= MAX_FAILED_ATTEMPTS) {
+      this.store.auditLog({ event: "login_locked", userId: user.id, method: "password", success: false });
+      return { ok: false, reason: "account-locked" };
+    }
+
     const valid = await this.store.verifyPassword(user.id, password);
     if (!valid) {
-      this.recordLoginFailure(username);
       this.store.auditLog({ event: "login_failed", userId: user.id, method: "password", success: false });
       return { ok: false, reason: "invalid-credentials" };
     }
-
-    // Password correct — clear failed attempt counter
-    this.clearLoginAttempts(username);
 
     // If TOTP is enabled, return a pending-login nonce
     if (user.totp_enabled) {
@@ -223,16 +220,35 @@ export class AuthEngine {
    * Authenticate via biometric (Touch ID / Windows Hello).
    * Only available if the current user has biometric enrolled.
    */
-  async biometricLogin(username: string): Promise<LoginResult> {
+  async biometricLogin(username: string): Promise<LoginResult & { nonce?: string }> {
     const user = this.store.getUserByUsername(username);
     if (!user || !user.biometric_enrolled) {
       return { ok: false, reason: "invalid-credentials" };
     }
 
+    // Apply the same DB-backed lockout as password login
+    const failures = this.store.countRecentLoginFailures(user.id, LOCKOUT_DURATION_MS);
+    if (failures >= MAX_FAILED_ATTEMPTS) {
+      this.store.auditLog({ event: "login_locked", userId: user.id, method: "biometric", success: false });
+      return { ok: false, reason: "account-locked" };
+    }
+
     const result = await promptBiometric("to sign in to OpenClaw Command Center");
     if (!result.ok) {
-      this.store.auditLog({ event: "biometric_login_failed", userId: user.id, method: "biometric", success: false });
+      // Record as login_failed so it counts toward the lockout
+      this.store.auditLog({ event: "login_failed", userId: user.id, method: "biometric", success: false });
       return { ok: false, reason: "invalid-credentials" };
+    }
+
+    // Biometric passed — but TOTP is still required if enrolled (2FA must not be bypassed)
+    if (user.totp_enabled) {
+      const nonce = randomBytes(16).toString("hex");
+      this.pendingLogins.set(nonce, {
+        userId: user.id,
+        role: user.role,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+      return { ok: true, session: {} as AuthSession, token: "", requiresTotp: true, nonce };
     }
 
     const { session, token } = this.sessions.createSession(user.id, user.role);
@@ -286,10 +302,16 @@ export class AuthEngine {
 
   // ─── TOTP Setup ──────────────────────────────────────────────────────
 
-  /** Generate a new TOTP secret and QR code for setup. */
-  async generateTotpSetup(username: string): Promise<TotpSetupInfo> {
+  /** Generate and store a TOTP secret server-side. Returns setup info for QR display. */
+  async generateTotpSetup(username: string, userId: string): Promise<TotpSetupInfo> {
     const secret = authenticator.generateSecret(32);
     const otpAuthUrl = authenticator.keyuri(username, "OpenClaw Command Center", secret);
+
+    // Hold the secret server-side so confirmTotpSetup never trusts the renderer's copy
+    this.pendingTotpSetups.set(userId, {
+      secret,
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 min to complete enrollment
+    });
 
     // Generate QR code as data URL
     let qrDataUrl = "";
@@ -303,16 +325,23 @@ export class AuthEngine {
     return { secret, otpAuthUrl, qrDataUrl };
   }
 
-  /** Confirm TOTP setup by verifying a code, then save the secret. */
+  /** Confirm TOTP setup using the server-stored pending secret (renderer secret is ignored). */
   async confirmTotpSetup(params: {
     userId: string;
-    secret: string;
     code: string;
   }): Promise<boolean> {
-    const valid = authenticator.verify({ token: params.code, secret: params.secret });
+    const pending = this.pendingTotpSetups.get(params.userId);
+    if (!pending || Date.now() > pending.expiresAt) {
+      this.pendingTotpSetups.delete(params.userId);
+      return false;
+    }
+
+    const valid = authenticator.verify({ token: params.code, secret: pending.secret });
     if (!valid) { return false; }
 
-    this.store.setTotpSecret(params.userId, params.secret);
+    // Consume the pending secret and persist it
+    this.pendingTotpSetups.delete(params.userId);
+    this.store.setTotpSecret(params.userId, pending.secret);
     this.store.auditLog({ event: "totp_setup", userId: params.userId, method: "totp", success: true });
     return true;
   }
@@ -409,33 +438,6 @@ export class AuthEngine {
 
   async biometricAvailable(): Promise<boolean> {
     return isBiometricAvailable();
-  }
-
-  // ─── Rate Limiting Helpers ────────────────────────────────────────────
-
-  /** Record a failed login attempt. Returns true if the account is now locked. */
-  private recordLoginFailure(username: string): boolean {
-    const key = username.toLowerCase();
-    const existing = this.loginAttempts.get(key) ?? { failures: 0, lockedUntil: 0 };
-    existing.failures++;
-    if (existing.failures >= MAX_FAILED_ATTEMPTS) {
-      existing.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
-      this.store.auditLog({ event: "account_locked", method: "rate-limit", success: false });
-    }
-    this.loginAttempts.set(key, existing);
-    return existing.failures >= MAX_FAILED_ATTEMPTS;
-  }
-
-  /** Clear failed attempt counter on successful login. */
-  private clearLoginAttempts(username: string): void {
-    this.loginAttempts.delete(username.toLowerCase());
-  }
-
-  /** Check if an account is currently locked. Returns remaining lockout ms or 0. */
-  lockoutRemaining(username: string): number {
-    const entry = this.loginAttempts.get(username.toLowerCase());
-    if (!entry || entry.lockedUntil <= Date.now()) { return 0; }
-    return entry.lockedUntil - Date.now();
   }
 
   // ─── Recovery Code Helpers ────────────────────────────────────────────

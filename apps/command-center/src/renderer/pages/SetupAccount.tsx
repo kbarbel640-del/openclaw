@@ -69,7 +69,7 @@ export function SetupAccount({ onComplete }: SetupAccountProps) {
       const loginResult = await occc.login(username, password);
       if (!loginResult || !("token" in loginResult)) {throw new Error("Login failed after setup");}
 
-      const confirmed = await occc.confirmTotp(loginResult.token, totpSetup.secret, totpCode);
+      const confirmed = await occc.confirmTotp(loginResult.token, totpCode);
       if (!confirmed) {
         setError("Invalid code. Scan the QR again and try.");
         setLoading(false);
