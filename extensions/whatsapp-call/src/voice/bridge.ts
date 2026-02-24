@@ -201,8 +201,12 @@ export class CallBridge {
     };
 
     const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 30_000);
-    await this.ai.connect(ctrl.signal);
+    const timer = setTimeout(() => ctrl.abort(), 30_000);
+    try {
+      await this.ai.connect(ctrl.signal);
+    } finally {
+      clearTimeout(timer);
+    }
 
     this.aiReady = true;
     this.logger(`[bridge] ${this.connectionId} OpenAI connected, AI ready`);
