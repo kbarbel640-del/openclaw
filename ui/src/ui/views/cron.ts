@@ -344,7 +344,10 @@ export function renderCron(props: CronProps) {
   const supportsAnnounce =
     props.form.sessionTarget === "isolated" && props.form.payloadKind === "agentTurn";
   const selectedDeliveryMode =
-    props.form.deliveryMode === "announce" && !supportsAnnounce ? "none" : props.form.deliveryMode;
+    (props.form.deliveryMode === "announce" || props.form.deliveryMode === "direct") &&
+    !supportsAnnounce
+      ? "none"
+      : props.form.deliveryMode;
   const blockingFields = collectBlockingFields(props.fieldErrors, props.form, selectedDeliveryMode);
   const blockedByValidation = !props.busy && blockingFields.length > 0;
   const submitDisabledReason =
@@ -818,6 +821,7 @@ export function renderCron(props: CronProps) {
                     supportsAnnounce
                       ? html`
                           <option value="announce">Announce summary (default)</option>
+                          <option value="direct">Direct delivery</option>
                         `
                       : nothing
                   }
@@ -870,7 +874,7 @@ export function renderCron(props: CronProps) {
                               `
                         }
                         ${
-                          selectedDeliveryMode === "announce"
+                          selectedDeliveryMode === "announce" || selectedDeliveryMode === "direct"
                             ? html`
                                 <div class="cron-help">Choose which connected channel receives the summary.</div>
                               `
@@ -880,7 +884,7 @@ export function renderCron(props: CronProps) {
                         }
                       </label>
                       ${
-                        selectedDeliveryMode === "announce"
+                        selectedDeliveryMode === "announce" || selectedDeliveryMode === "direct"
                           ? html`
                               <label class="field cron-span-2">
                                 ${renderFieldLabel("To")}

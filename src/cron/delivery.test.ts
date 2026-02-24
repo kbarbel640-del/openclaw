@@ -54,4 +54,16 @@ describe("resolveCronDeliveryPlan", () => {
     expect(plan.channel).toBeUndefined();
     expect(plan.to).toBe("https://example.invalid/cron");
   });
+
+  it("resolves direct mode with channel routing and requested=true", () => {
+    const plan = resolveCronDeliveryPlan(
+      makeJob({
+        delivery: { mode: "direct", channel: "telegram", to: "123" },
+      }),
+    );
+    expect(plan.mode).toBe("direct");
+    expect(plan.requested).toBe(true);
+    expect(plan.channel).toBe("telegram");
+    expect(plan.to).toBe("123");
+  });
 });

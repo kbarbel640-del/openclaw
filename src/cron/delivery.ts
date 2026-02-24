@@ -36,13 +36,15 @@ export function resolveCronDeliveryPlan(job: CronJob): CronDeliveryPlan {
   const mode =
     normalizedMode === "announce"
       ? "announce"
-      : normalizedMode === "webhook"
-        ? "webhook"
-        : normalizedMode === "none"
-          ? "none"
-          : normalizedMode === "deliver"
-            ? "announce"
-            : undefined;
+      : normalizedMode === "direct"
+        ? "direct"
+        : normalizedMode === "webhook"
+          ? "webhook"
+          : normalizedMode === "none"
+            ? "none"
+            : normalizedMode === "deliver"
+              ? "announce"
+              : undefined;
 
   const payloadChannel = normalizeChannel(payload?.channel);
   const payloadTo = normalizeTo(payload?.to);
@@ -57,10 +59,10 @@ export function resolveCronDeliveryPlan(job: CronJob): CronDeliveryPlan {
     const resolvedMode = mode ?? "announce";
     return {
       mode: resolvedMode,
-      channel: resolvedMode === "announce" ? channel : undefined,
+      channel: resolvedMode === "announce" || resolvedMode === "direct" ? channel : undefined,
       to,
       source: "delivery",
-      requested: resolvedMode === "announce",
+      requested: resolvedMode === "announce" || resolvedMode === "direct",
     };
   }
 

@@ -249,11 +249,12 @@ PAYLOAD TYPES (payload.kind):
   { "kind": "agentTurn", "message": "<prompt>", "model": "<optional>", "thinking": "<optional>", "timeoutSeconds": <optional, 0 means no timeout> }
 
 DELIVERY (top-level):
-  { "mode": "none|announce|webhook", "channel": "<optional>", "to": "<optional>", "bestEffort": <optional-bool> }
+  { "mode": "none|announce|direct|webhook", "channel": "<optional>", "to": "<optional>", "bestEffort": <optional-bool> }
   - Default for isolated agentTurn jobs (when delivery omitted): "announce"
-  - announce: send to chat channel (optional channel/to target)
+  - announce: send to chat channel via a second agent turn that reformulates the output
+  - direct: send raw agent output directly to chat channel (preserves markdown formatting like [🔗](url) links)
   - webhook: send finished-run event as HTTP POST to delivery.to (URL required)
-  - If the task needs to send to a specific chat/recipient, set announce delivery.channel/to; do not call messaging tools inside the run.
+  - If the task needs to send to a specific chat/recipient, set announce/direct delivery.channel/to; do not call messaging tools inside the run.
 
 CRITICAL CONSTRAINTS:
 - sessionTarget="main" REQUIRES payload.kind="systemEvent"
