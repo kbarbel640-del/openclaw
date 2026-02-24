@@ -43,7 +43,6 @@ Use this format when adding entries:
   repo: `https://github.com/org/repo`
   install: `openclaw plugins install @scope/package`
 
-
 ## Community plugin candidates
 
 - **Serial Adapter** — Serial telemetry/control bridge for OpenClaw.
