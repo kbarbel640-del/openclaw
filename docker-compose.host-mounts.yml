@@ -1,0 +1,19 @@
+services:
+  openclaw-dind:
+    volumes:
+      - openclaw_dind:/home/rootless/.local/share/docker
+      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
+
+  openclaw-gateway:
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./data/.openclaw}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
+
+  openclaw-cli:
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./data/.openclaw}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
+
+volumes:
+  openclaw_dind:
+

@@ -1,13 +1,13 @@
 services:
   openclaw-dind:
-    image: docker:27-dind
-    privileged: true
+    # Rootless DIND reduces host risk vs privileged dockerd-in-docker.
+    image: docker:27-dind-rootless
     environment:
       DOCKER_TLS_CERTDIR: ""
-    command: ["--tls=false", "--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock"]
+    command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
     volumes:
-      - openclaw_dind:/var/lib/docker
-      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
+      - openclaw_dind:/home/rootless/.local/share/docker
+      - openclaw_workspace:/openclaw/workspace
     restart: unless-stopped
 
   openclaw-gateway:
@@ -29,21 +29,27 @@ services:
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
       DOCKER_HOST: tcp://openclaw-dind:2375
     volumes:
-      - ${OPENCLAW_CONFIG_DIR:-./data/.openclaw}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
-    user: "0:0"
+      - openclaw_config:/home/node/.openclaw
+      - openclaw_workspace:/openclaw/workspace
     depends_on:
       - openclaw-dind
     ports:
       - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "127.0.0.1:${OPENCLAW_BRIDGE_PORT:-18790}:18790"
     init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     command:
       [
         "bash",
         "-lc",
-        "command -v docker >/dev/null 2>&1 && docker version >/dev/null 2>&1 || (curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz -o /tmp/docker.tgz && tar -xzf /tmp/docker.tgz -C /tmp && install -m 0755 /tmp/docker/docker /usr/local/bin/docker && rm -rf /tmp/docker /tmp/docker.tgz); command -v chromium >/dev/null 2>&1 || (apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y chromium); exec node dist/index.js gateway --allow-unconfigured --bind ${OPENCLAW_GATEWAY_BIND:-lan} --port 18789",
+        "exec node dist/index.js gateway --allow-unconfigured --bind ${OPENCLAW_GATEWAY_BIND:-lan} --port 18789",
       ]
 
   openclaw-cli:
@@ -63,19 +69,25 @@ services:
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
       DOCKER_HOST: tcp://openclaw-dind:2375
     volumes:
-      - ${OPENCLAW_CONFIG_DIR:-./data/.openclaw}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR:-./data/workspace}:/openclaw/workspace
-    user: "0:0"
+      - openclaw_config:/home/node/.openclaw
+      - openclaw_workspace:/openclaw/workspace
     depends_on:
       - openclaw-dind
     stdin_open: true
     tty: true
     init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     entrypoint:
       [
         "bash",
         "-lc",
-        'command -v docker >/dev/null 2>&1 && docker version >/dev/null 2>&1 || (curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz -o /tmp/docker.tgz && tar -xzf /tmp/docker.tgz -C /tmp && install -m 0755 /tmp/docker/docker /usr/local/bin/docker && rm -rf /tmp/docker /tmp/docker.tgz); exec node dist/index.js "$@"',
+        'exec node dist/index.js "$@"',
         "--",
       ]
 
@@ -95,3 +107,5 @@ services:
 
 volumes:
   openclaw_dind:
+  openclaw_config:
+  openclaw_workspace:

@@ -1,5 +1,10 @@
 FROM node:22-bookworm
 
+# Runtime deps for build/install steps.
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
 # Install Bun (required for build scripts)
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
@@ -31,7 +36,15 @@ RUN pnpm ui:install
 RUN pnpm ui:build
 
 ENV NODE_ENV=production
+# Docker CLI is used to spawn sandbox/browser containers (talks to DIND via DOCKER_HOST).
+ARG DOCKER_CLI_VERSION="27.5.1"
+RUN curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" -o /tmp/docker.tgz && \
+    tar -xzf /tmp/docker.tgz -C /tmp && \
+    install -m 0755 /tmp/docker/docker /usr/local/bin/docker && \
+    rm -rf /tmp/docker /tmp/docker.tgz
 
+# Allow non-root user to write temp files during runtime/tests.
+RUN chown -R node:node /app
 # Security hardening: Run as non-root user
 # The node:22-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
