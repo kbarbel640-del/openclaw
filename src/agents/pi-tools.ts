@@ -199,6 +199,8 @@ export function createOpenClawCodingTools(options?: {
   currentChannelId?: string;
   /** Current thread timestamp for auto-threading (Slack). */
   currentThreadTs?: string;
+  /** Current inbound message id for action fallbacks (e.g. Telegram react). */
+  currentMessageId?: string | number;
   /** Group id for channel-level tool policy resolution. */
   groupId?: string | null;
   /** Group channel label (e.g. #general) for channel-level tool policy resolution. */
@@ -364,13 +366,9 @@ export function createOpenClawCodingTools(options?: {
     return [tool];
   });
   const { cleanupMs: cleanupMsOverride, ...execDefaults } = options?.exec ?? {};
-  // Fail-closed baseline: when no sandbox context exists, default exec to gateway
-  // so we never silently treat "sandbox" as host execution.
-  const resolvedExecHost =
-    options?.exec?.host ?? execConfig.host ?? (sandbox ? "sandbox" : "gateway");
   const execTool = createExecTool({
     ...execDefaults,
-    host: resolvedExecHost,
+    host: options?.exec?.host ?? execConfig.host,
     security: options?.exec?.security ?? execConfig.security,
     ask: options?.exec?.ask ?? execConfig.ask,
     node: options?.exec?.node ?? execConfig.node,
@@ -476,6 +474,7 @@ export function createOpenClawCodingTools(options?: {
       ]),
       currentChannelId: options?.currentChannelId,
       currentThreadTs: options?.currentThreadTs,
+      currentMessageId: options?.currentMessageId,
       replyToMode: options?.replyToMode,
       hasRepliedRef: options?.hasRepliedRef,
       modelHasVision: options?.modelHasVision,
