@@ -21,6 +21,7 @@
     "unicorn/require-post-message-target-origin": "off"
   },
   "ignorePatterns": [
+    ".vite/",
     "assets/",
     "dist/",
     "docs/_layouts/",
