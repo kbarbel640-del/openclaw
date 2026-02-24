@@ -1332,6 +1332,17 @@ export function renderApp(state: AppViewState) {
           const base = state.agentFileContents[name] ?? "";
           state.agentFileDrafts = { ...state.agentFileDrafts, [name]: base };
         },
+        onSaveAll: () => {
+          const agentId = state.agentDetailPanel.agentId;
+          if (!agentId) {
+            return;
+          }
+          for (const [name, draft] of Object.entries(state.agentFileDrafts)) {
+            if (draft !== (state.agentFileContents[name] ?? "")) {
+              void saveAgentFile(state, agentId, name, draft);
+            }
+          }
+        },
       })}
       ${renderExecApprovalPrompt(state)}
       ${renderGatewayUrlConfirmation(state)}

@@ -48,6 +48,7 @@ export type AgentDetailPanelProps = {
   onFileDraftChange: (name: string, content: string) => void;
   onFileSave: (name: string) => void;
   onFileReset: (name: string) => void;
+  onSaveAll?: () => void;
   onDelete?: () => void;
 };
 
@@ -255,7 +256,7 @@ export function renderAgentDetailPanel(props: AgentDetailPanelProps) {
                 >
                   Cancel
                 </button>
-                <button class="btn btn--sm primary" type="button" ?disabled=${props.fileSaving}>
+                <button class="btn btn--sm primary" type="button" ?disabled=${props.fileSaving} @click=${props.onSaveAll}>
                   ${props.fileSaving ? "Saving…" : "Save All"}
                 </button>
               `
