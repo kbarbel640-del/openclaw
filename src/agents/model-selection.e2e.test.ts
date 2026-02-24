@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import {
+  buildAllowedModelSet,
   parseModelRef,
   resolveModelRefFromString,
   resolveConfiguredModelRef,
@@ -199,6 +200,36 @@ describe("model-selection", () => {
         defaultModel: "gpt-4",
       });
       expect(result).toEqual({ provider: "openai", model: "gpt-4" });
+    });
+  });
+
+  describe("buildAllowedModelSet", () => {
+    it("allows explicit allowlist refs even when the model is not in catalog", () => {
+      const cfg: Partial<OpenClawConfig> = {
+        agents: {
+          defaults: {
+            models: {
+              "google-antigravity/gemini-3.1-pro-low": {},
+            },
+          },
+        },
+      };
+
+      const allowed = buildAllowedModelSet({
+        cfg: cfg as OpenClawConfig,
+        catalog: [
+          {
+            provider: "google-antigravity",
+            id: "gemini-3-flash",
+            name: "Gemini 3 Flash",
+          },
+        ],
+        defaultProvider: "google-antigravity",
+        defaultModel: "gemini-3-flash",
+      });
+
+      expect(allowed.allowAny).toBe(false);
+      expect(allowed.allowedKeys.has("google-antigravity/gemini-3.1-pro-low")).toBe(true);
     });
   });
 });
