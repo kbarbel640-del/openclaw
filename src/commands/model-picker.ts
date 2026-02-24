@@ -10,6 +10,7 @@ import {
   resolveConfiguredModelRef,
 } from "../agents/model-selection.js";
 import type { OpenClawConfig } from "../config/config.js";
+import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
 import type { WizardPrompter, WizardSelectOption } from "../wizard/prompts.js";
 import { formatTokenK } from "./models/shared.js";
 import { OPENAI_CODEX_DEFAULT_MODEL } from "./openai-codex-model-default.js";
@@ -77,11 +78,7 @@ function createProviderAuthChecker(params: {
 }
 
 function resolveConfiguredModelRaw(cfg: OpenClawConfig): string {
-  const raw = cfg.agents?.defaults?.model as { primary?: string } | string | undefined;
-  if (typeof raw === "string") {
-    return raw.trim();
-  }
-  return raw?.primary?.trim() ?? "";
+  return resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model) ?? "";
 }
 
 function resolveConfiguredModelKeys(cfg: OpenClawConfig): string[] {
@@ -103,6 +100,34 @@ function normalizeModelKeys(values: string[]): string[] {
     next.push(value);
   }
   return next;
+}
+
+function splitModelKey(value: string): { provider: string; modelId: string } | null {
+  const key = String(value ?? "").trim();
+  const slashIndex = key.indexOf("/");
+  if (slashIndex <= 0 || slashIndex >= key.length - 1) {
+    return null;
+  }
+  const provider = normalizeProviderId(key.slice(0, slashIndex));
+  const modelId = key.slice(slashIndex + 1).trim();
+  if (!provider || !modelId) {
+    return null;
+  }
+  return { provider, modelId };
+}
+
+function selectedModelIdsByProvider(modelKeys: string[]): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const key of modelKeys) {
+    const split = splitModelKey(key);
+    if (!split) {
+      continue;
+    }
+    const existing = out.get(split.provider) ?? new Set<string>();
+    existing.add(split.modelId.toLowerCase());
+    out.set(split.provider, existing);
+  }
+  return out;
 }
 
 function addModelSelectOption(params: {
@@ -520,6 +545,66 @@ export function applyModelAllowlist(cfg: OpenClawConfig, models: string[]): Open
         ...defaults,
         models: nextModels,
       },
+    },
+  };
+}
+
+export function pruneKilocodeProviderModelsToAllowlist(
+  cfg: OpenClawConfig,
+  selectedModels: string[],
+): OpenClawConfig {
+  const normalized = normalizeModelKeys(selectedModels);
+  if (normalized.length === 0) {
+    return cfg;
+  }
+  const providers = cfg.models?.providers;
+  if (!providers) {
+    return cfg;
+  }
+
+  const selectedByProvider = selectedModelIdsByProvider(normalized);
+  // Keep this scoped to Kilo Gateway: do not mutate other providers here.
+  const selectedKilocodeIds = selectedByProvider.get("kilocode");
+  if (!selectedKilocodeIds || selectedKilocodeIds.size === 0) {
+    return cfg;
+  }
+  let mutated = false;
+  const nextProviders: NonNullable<OpenClawConfig["models"]>["providers"] = { ...providers };
+
+  for (const [providerIdRaw, providerConfig] of Object.entries(providers)) {
+    if (!providerConfig || !Array.isArray(providerConfig.models)) {
+      continue;
+    }
+    const providerId = normalizeProviderId(providerIdRaw);
+    if (providerId !== "kilocode") {
+      continue;
+    }
+    const filteredModels = providerConfig.models.filter((model) =>
+      selectedKilocodeIds.has(
+        String(model.id ?? "")
+          .trim()
+          .toLowerCase(),
+      ),
+    );
+    if (filteredModels.length === providerConfig.models.length) {
+      continue;
+    }
+    mutated = true;
+    nextProviders[providerIdRaw] = {
+      ...providerConfig,
+      models: filteredModels,
+    };
+  }
+
+  if (!mutated) {
+    return cfg;
+  }
+
+  return {
+    ...cfg,
+    models: {
+      mode: cfg.models?.mode ?? "merge",
+      providers: nextProviders,
     },
   };
 }
