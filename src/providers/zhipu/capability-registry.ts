@@ -48,8 +48,8 @@ type ModelCapability = {
   modelId: string;
   name: string;
   supportedModalities: Modality[];
-  endpointFamilyByModality: Record<Modality, EndpointFamily>;
-  extractionRuleByModality: Record<Modality, ExtractionRule>;
+  endpointFamilyByModality: Partial<Record<Modality, EndpointFamily>>;
+  extractionRuleByModality: Partial<Record<Modality, ExtractionRule>>;
   flags?: string[];
   notes?: string[];
 };
@@ -300,6 +300,42 @@ const ZHIPU_PRO_MODELS: ModelCapability[] = [
     extractionRuleByModality: ZHIPU_EXTRACTION_RULES,
     notes: ["Pro team image generation model"],
   },
+  {
+    modelId: "glm-ocr",
+    name: "GLM-OCR",
+    supportedModalities: [Modality.OCR],
+    endpointFamilyByModality: {
+      [Modality.OCR]: EndpointFamily.OCR,
+    },
+    extractionRuleByModality: {
+      [Modality.OCR]: ZHIPU_EXTRACTION_RULES[Modality.OCR],
+    },
+    notes: ["OCR specialist model"],
+  },
+  {
+    modelId: "glm-tts",
+    name: "GLM-TTS",
+    supportedModalities: [Modality.AUDIO_TTS],
+    endpointFamilyByModality: {
+      [Modality.AUDIO_TTS]: EndpointFamily.AUDIO_TTS,
+    },
+    extractionRuleByModality: {
+      [Modality.AUDIO_TTS]: ZHIPU_EXTRACTION_RULES[Modality.AUDIO_TTS],
+    },
+    notes: ["TTS specialist model"],
+  },
+  {
+    modelId: "glm-tts-clone",
+    name: "GLM-TTS-CLONE",
+    supportedModalities: [Modality.AUDIO_TTS],
+    endpointFamilyByModality: {
+      [Modality.AUDIO_TTS]: EndpointFamily.AUDIO_TTS,
+    },
+    extractionRuleByModality: {
+      [Modality.AUDIO_TTS]: ZHIPU_EXTRACTION_RULES[Modality.AUDIO_TTS],
+    },
+    notes: ["TTS clone specialist model"],
+  },
 ];
 
 // ZHIPU Model Catalog - Free Team Models
@@ -451,7 +487,7 @@ export function endpointFor(modelId: string, modality: Modality): EndpointFamily
   if (!capability || !capability.supportedModalities.includes(modality)) {
     return null;
   }
-  return capability.endpointFamilyByModality[modality];
+  return capability.endpointFamilyByModality[modality] ?? null;
 }
 
 export function extractionFor(modelId: string, modality: Modality): ExtractionRule | null {
@@ -459,7 +495,7 @@ export function extractionFor(modelId: string, modality: Modality): ExtractionRu
   if (!capability || !capability.supportedModalities.includes(modality)) {
     return null;
   }
-  return capability.extractionRuleByModality[modality];
+  return capability.extractionRuleByModality[modality] ?? null;
 }
 
 export function retryPolicyFor(endpointFamily: EndpointFamily): RetryPolicy | null {
