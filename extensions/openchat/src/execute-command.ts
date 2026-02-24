@@ -1,14 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Message } from "@open-ic/openchat-botclient-ts";
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import type { ResolvedOpenChatAccount } from "./channel.js";
 import { getFactory } from "./factory.js";
 import { getOpenChatRuntime } from "./runtime.js";
 
-// Sent back immediately so OpenChat shows a "thinking" state while we work.
-const THINKING_PLACEHOLDER = { kind: "text", text: "Thinking ..." };
-
-export function success(msg?: Message) {
+export function success(msg?: import("@open-ic/openchat-botclient-ts").Message) {
   return {
     message: msg?.toResponse(),
   };
@@ -143,26 +139,18 @@ export function makeExecuteCommandHandler(cfg: OpenClawConfig, account: Resolved
       MessageSidFull: messageId,
     });
 
+    // OpenChat command/response model: one command → one reply message.
+    // All messages created by a command BotClient share the same messageId, so we
+    // must call sendMessage exactly once. Accumulate all delivered text segments
+    // and send a single finalised message after dispatch completes.
+    const replyParts: string[] = [];
     await core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
       ctx: ctxPayload,
       cfg,
       dispatcherOptions: {
-        deliver: async (payload, info) => {
-          // OpenChat command/response model: one command → one reply message.
-          // Only send on "final" to avoid MessageIdAlreadyExists (code 287) from
-          // duplicate sendMessage calls when block replies and the final reply both fire.
-          if (info.kind !== "final") {
-            return;
-          }
+        deliver: async (payload) => {
           if (payload.text) {
-            try {
-              const msg = await client.createTextMessage(payload.text);
-              msg.setBlockLevelMarkdown(true);
-              msg.setFinalised(true);
-              await client.sendMessage(msg);
-            } catch (err) {
-              log.error(`[openchat] failed to send reply: ${String(err)}`);
-            }
+            replyParts.push(payload.text);
           }
         },
         onError: (err) => {
@@ -170,6 +158,17 @@ export function makeExecuteCommandHandler(cfg: OpenClawConfig, account: Resolved
         },
       },
     });
+    const replyText = replyParts.join("\n\n").trim();
+    if (replyText) {
+      try {
+        const msg = await client.createTextMessage(replyText);
+        msg.setBlockLevelMarkdown(true);
+        msg.setFinalised(true);
+        await client.sendMessage(msg);
+      } catch (err) {
+        log.error(`[openchat] failed to send reply: ${String(err)}`);
+      }
+    }
 
     return true;
   };
