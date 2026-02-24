@@ -94,4 +94,22 @@ describe("markdownToTelegramHtml", () => {
     const res = markdownToTelegramHtml("||**secret** text||");
     expect(res).toBe("<tg-spoiler><b>secret</b> text</tg-spoiler>");
   });
+
+  it("falls back to escaped text for lone '>' (empty blockquote)", () => {
+    // '>' alone parses as an empty blockquote and would render empty HTML.
+    // Without a fallback Telegram rejects the message with 'message text is empty'.
+    const res = markdownToTelegramHtml(">");
+    expect(res).toBe("&gt;");
+  });
+
+  it("falls back to escaped text for empty link syntax '[]()' ", () => {
+    // '[]()' has no href and no label so the formatter discards it entirely.
+    const res = markdownToTelegramHtml("[]()");
+    expect(res).toBe("[]()");
+  });
+
+  it("returns empty string for truly empty input", () => {
+    expect(markdownToTelegramHtml("")).toBe("");
+    expect(markdownToTelegramHtml("   ")).toBe("");
+  });
 });

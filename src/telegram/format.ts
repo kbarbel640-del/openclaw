@@ -119,11 +119,15 @@ export function markdownToTelegramHtml(
     tableMode: options.tableMode,
   });
   const html = renderTelegramHtml(ir);
+  // Safety net: if markdown had content but HTML rendered empty (e.g. lone ">", "[]()"),
+  // fall back to the HTML-escaped original to prevent Telegram rejecting empty message bodies.
+  const safeHtml =
+    html.trim() === "" && (markdown ?? "").trim() !== "" ? escapeHtml(markdown.trim()) : html;
   // Apply file reference wrapping if requested (for chunked rendering)
   if (options.wrapFileRefs !== false) {
-    return wrapFileReferencesInHtml(html);
+    return wrapFileReferencesInHtml(safeHtml);
   }
-  return html;
+  return safeHtml;
 }
 
 /**

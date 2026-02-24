@@ -115,6 +115,27 @@ describe("session_status tool", () => {
     expect(details.statusText).not.toContain("OAuth/token status");
   });
 
+  it("includes machine-readable timestamps", async () => {
+    resetSessionStore({
+      main: {
+        sessionId: "s1",
+        updatedAt: 10,
+      },
+    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-24T12:34:56Z"));
+
+    const tool = getSessionStatusTool();
+
+    const result = await tool.execute("call-ts", {});
+    const details = result.details as { ok?: boolean; statusText?: string };
+    expect(details.ok).toBe(true);
+    expect(details.statusText).toContain(
+      "⏱ Now (UTC): 2026-02-24T12:34:56.000Z (epochMs=1771936496000)",
+    );
+    vi.useRealTimers();
+  });
+
   it("errors for unknown session keys", async () => {
     resetSessionStore({
       main: { sessionId: "s1", updatedAt: 10 },
