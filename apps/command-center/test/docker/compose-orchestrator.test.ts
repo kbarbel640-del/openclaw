@@ -38,6 +38,7 @@ describe("ComposeOrchestrator", () => {
 
   // VolumeManager fn refs
   let volumesEnsureFn: ReturnType<typeof vi.fn>;
+  let volumesRemoveFn: ReturnType<typeof vi.fn>;
 
   // Mock manager instances
   let containers: ContainerManager;
@@ -63,6 +64,7 @@ describe("ComposeOrchestrator", () => {
     imagesEnsureFn = vi.fn().mockResolvedValue(false);
 
     volumesEnsureFn = vi.fn().mockResolvedValue("openclaw-home");
+    volumesRemoveFn = vi.fn().mockResolvedValue(undefined);
 
     containers = {
       createEnvironment: createEnvironmentFn,
@@ -84,7 +86,7 @@ describe("ComposeOrchestrator", () => {
 
     volumes = {
       ensure: volumesEnsureFn,
-      remove: vi.fn(),
+      remove: volumesRemoveFn,
     } as unknown as VolumeManager;
 
     orchestrator = new ComposeOrchestrator(containers, images, networks, volumes);
@@ -178,10 +180,12 @@ describe("ComposeOrchestrator", () => {
   // ── purge() ─────────────────────────────────────────────────────────────
 
   describe("purge()", () => {
-    it("destroys the environment and removes the network", async () => {
+    it("destroys the environment, removes volumes, and removes the network", async () => {
       await orchestrator.purge();
 
       expect(destroyEnvironmentFn).toHaveBeenCalledOnce();
+      // Volumes must be removed — this is the irreversible data-deletion step
+      expect(volumesRemoveFn).toHaveBeenCalledWith("openclaw-home");
       expect(networksRemoveByNameFn).toHaveBeenCalledWith("openclaw-net");
     });
   });

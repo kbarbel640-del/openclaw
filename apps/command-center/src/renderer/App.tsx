@@ -109,17 +109,17 @@ export function App() {
 
   // Poll env health for tray indicator
   useEffect(() => {
-    if (appState !== "authenticated") {return;}
+    if (appState !== "authenticated" || !token) {return;}
     const tick = async () => {
       try {
-        const status = await occc.getEnvironmentStatus();
+        const status = await occc.getEnvironmentStatus(token);
         setEnvHealth(status.health);
       } catch {}
     };
     void tick();
     const id = setInterval(tick, 10_000);
     return () => clearInterval(id);
-  }, [appState]);
+  }, [appState, token]);
 
   // ─── Auth handlers ───────────────────────────────────────────────
 

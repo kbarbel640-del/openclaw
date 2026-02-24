@@ -17,7 +17,7 @@ vi.mock("node:util", () => ({
     (fn: unknown) =>
     (...args: unknown[]) =>
       new Promise((resolve, reject) => {
-        (fn as Function)(...args, (err: unknown, result: unknown) => {
+        (fn as (...a: unknown[]) => void)(...args, (err: unknown, result: unknown) => {
           if (err) { reject(err); } else { resolve(result); }
         });
       }),

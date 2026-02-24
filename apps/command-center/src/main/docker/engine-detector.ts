@@ -22,11 +22,11 @@ const execFileAsync = promisify(execFile);
 const DOCKER_DESKTOP_INDICATORS: Record<string, string[]> = {
   darwin: [
     "/Applications/Docker.app",
-    `${process.env.HOME}/Applications/Docker.app`,
+    ...(process.env.HOME ? [`${process.env.HOME}/Applications/Docker.app`] : []),
   ],
   win32: [
     "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
-    `${process.env.LOCALAPPDATA}\\Docker\\Docker Desktop.exe`,
+    ...(process.env.LOCALAPPDATA ? [`${process.env.LOCALAPPDATA}\\Docker\\Docker Desktop.exe`] : []),
   ],
   linux: [
     "/opt/docker-desktop/bin/docker-desktop",

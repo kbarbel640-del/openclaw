@@ -176,23 +176,24 @@ export interface OcccBridge {
   getSession(token?: string): Promise<AuthSession | null>;
   elevate(token?: string, totpCode?: string): Promise<{ ok: boolean; reason?: string } | null>;
 
-  // Environment
-  getEnvironmentStatus(): Promise<EnvironmentStatus>;
-  createEnvironment(config: Record<string, unknown>): Promise<void>;
-  startEnvironment(): Promise<void>;
-  stopEnvironment(): Promise<void>;
-  destroyEnvironment(): Promise<void>;
+  // Environment (session required; create/destroy require elevated session)
+  getEnvironmentStatus(token: string): Promise<EnvironmentStatus>;
+  createEnvironment(token: string, config: Record<string, unknown>): Promise<void>;
+  startEnvironment(token: string): Promise<void>;
+  stopEnvironment(token: string): Promise<void>;
+  destroyEnvironment(token: string): Promise<void>;
+  getEnvironmentLogs(token: string, containerId: string): Promise<string>;
 
   // Docker
   getDockerInfo(): Promise<DockerInfo>;
 
-  // Config
-  getConfigSections(): Promise<ConfigSection[]>;
-  getConfig(section: string): Promise<Record<string, unknown>>;
+  // Config (session required)
+  getConfigSections(token: string): Promise<ConfigSection[]>;
+  getConfig(token: string, section: string): Promise<Record<string, unknown>>;
   setConfig(section: string, values: Record<string, unknown>): Promise<void>;
 
-  // Skills
-  listSkills(): Promise<SkillInfo[]>;
+  // Skills (session required)
+  listSkills(token: string): Promise<SkillInfo[]>;
   installSkill(name: string): Promise<void>;
   scanSkill(path: string): Promise<{ approved: boolean; findings: string[] }>;
 
@@ -208,6 +209,10 @@ export interface OcccBridge {
   on(channel: string, callback: (...args: unknown[]) => void): void;
   off(channel: string, callback: (...args: unknown[]) => void): void;
 
-  // Dynamic invoke (for channels not in the typed bridge)
+  /**
+   * @deprecated Dev-only scaffold for auth/install channels not yet added to the
+   * typed bridge. Rejected in production builds by the preload. Do NOT add new
+   * usages — add a typed OcccBridge method instead.
+   */
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 }

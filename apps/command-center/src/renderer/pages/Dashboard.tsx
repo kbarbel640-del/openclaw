@@ -8,6 +8,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import type { EnvironmentStatus, DockerInfo, EnvironmentHealth } from "../../shared/ipc-types.js";
 import type { OcccBridge } from "../../shared/ipc-types.js";
+import { useAuth } from "../App.js";
 
 // Access the typed bridge from preload
 const occc = (window as unknown as { occc: OcccBridge }).occc;
@@ -42,15 +43,17 @@ const healthLabels: Record<EnvironmentHealth, string> = {
 };
 
 export function Dashboard() {
+  const { token } = useAuth();
   const [status, setStatus] = useState<EnvironmentStatus | null>(null);
   const [dockerInfo, setDockerInfo] = useState<DockerInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
   const refresh = useCallback(async () => {
+    if (!token) { return; }
     try {
       const [envStatus, docker] = await Promise.all([
-        occc.getEnvironmentStatus(),
+        occc.getEnvironmentStatus(token),
         occc.getDockerInfo(),
       ]);
       setStatus(envStatus);
@@ -60,7 +63,7 @@ export function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     void refresh();
@@ -69,9 +72,10 @@ export function Dashboard() {
   }, [refresh]);
 
   const handleStart = async () => {
+    if (!token) { return; }
     setActionLoading(true);
     try {
-      await occc.startEnvironment();
+      await occc.startEnvironment(token);
       await refresh();
     } finally {
       setActionLoading(false);
@@ -79,9 +83,10 @@ export function Dashboard() {
   };
 
   const handleStop = async () => {
+    if (!token) { return; }
     setActionLoading(true);
     try {
-      await occc.stopEnvironment();
+      await occc.stopEnvironment(token);
       await refresh();
     } finally {
       setActionLoading(false);

@@ -29,32 +29,34 @@ const bridge: OcccBridge = {
     ipcRenderer.invoke(IPC_CHANNELS.AUTH_ELEVATE, token, totpCode),
 
   // ─── Environment ──────────────────────────────────────────────────────
-  getEnvironmentStatus: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.ENV_STATUS),
-  createEnvironment: (config) =>
-    ipcRenderer.invoke(IPC_CHANNELS.ENV_CREATE, config),
-  startEnvironment: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.ENV_START),
-  stopEnvironment: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.ENV_STOP),
-  destroyEnvironment: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.ENV_DESTROY),
+  getEnvironmentStatus: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ENV_STATUS, token),
+  createEnvironment: (token, config) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ENV_CREATE, token, config),
+  startEnvironment: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ENV_START, token),
+  stopEnvironment: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ENV_STOP, token),
+  destroyEnvironment: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ENV_DESTROY, token),
+  getEnvironmentLogs: (token, containerId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ENV_LOGS, token, containerId),
 
   // ─── Docker ───────────────────────────────────────────────────────────
   getDockerInfo: () =>
     ipcRenderer.invoke(IPC_CHANNELS.DOCKER_INFO),
 
   // ─── Config ───────────────────────────────────────────────────────────
-  getConfigSections: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.CONFIG_SECTIONS),
-  getConfig: (section) =>
-    ipcRenderer.invoke(IPC_CHANNELS.CONFIG_GET, section),
+  getConfigSections: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONFIG_SECTIONS, token),
+  getConfig: (token, section) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CONFIG_GET, token, section),
   setConfig: (section, values) =>
     ipcRenderer.invoke(IPC_CHANNELS.CONFIG_SET, section, values),
 
   // ─── Skills ───────────────────────────────────────────────────────────
-  listSkills: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),
+  listSkills: (token) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST, token),
   installSkill: (name) =>
     ipcRenderer.invoke(IPC_CHANNELS.SKILLS_INSTALL, name),
   scanSkill: (path) =>
@@ -83,6 +85,12 @@ const bridge: OcccBridge = {
     ipcRenderer.removeListener(channel, callback);
   },
   invoke: (channel, ...args) => {
+    // Dev-only escape hatch for scaffold channels not yet in the typed bridge.
+    // Production builds reject all invoke() calls so no untrusted channel
+    // access survives a release.
+    if (process.env.NODE_ENV === "production") {
+      return Promise.reject(new Error("invoke() is not available in production"));
+    }
     if (!channel.startsWith("occc:")) {
       return Promise.reject(new Error(`Forbidden channel: ${channel}`));
     }
@@ -91,4 +99,6 @@ const bridge: OcccBridge = {
 };
 
 // Expose the typed bridge to the renderer as window.occc
+// Note: the bridge object is cast here because `invoke` is dev-only and the
+// TS type includes it for renderer type-checking, but the preload gates it.
 contextBridge.exposeInMainWorld("occc", bridge);

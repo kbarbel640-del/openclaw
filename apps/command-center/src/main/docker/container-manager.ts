@@ -117,14 +117,10 @@ export class ContainerManager {
       await this.client.removeContainer(c.Id, true);
     }
 
-    // Remove managed networks
+    // Remove managed networks (use removeNetwork which handles 404 idempotently)
     const networks = await this.client.listManagedNetworks();
     for (const net of networks) {
-      try {
-        await this.client.getEngine().getNetwork(net.Id).remove();
-      } catch {
-        // Network may already be removed
-      }
+      await this.client.removeNetwork(net.Id);
     }
 
     // Note: volumes are NOT removed on destroy (data preservation).

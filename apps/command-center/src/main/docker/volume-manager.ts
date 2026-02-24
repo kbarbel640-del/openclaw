@@ -61,7 +61,7 @@ export class VolumeManager {
       name: v.Name,
       driver: v.Driver,
       mountpoint: v.Mountpoint,
-      created: "",
+      created: (v as unknown as Record<string, string>).CreatedAt ?? "",
       labels: (v.Labels as Record<string, string>) ?? {},
     }));
   }
@@ -85,7 +85,7 @@ export class VolumeManager {
       name: found.Name,
       driver: found.Driver,
       mountpoint: found.Mountpoint,
-      created: "",
+      created: (found as unknown as Record<string, string>).CreatedAt ?? "",
       labels: (found.Labels as Record<string, string>) ?? {},
     };
   }
