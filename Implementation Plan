@@ -1,0 +1,469 @@
+# OpenClaw Command Center (OCCC) — Architecture & Roadmap v2
+
+## Executive Summary
+
+The **OpenClaw Command Center (OCCC)** is a cross-platform Electron desktop application providing **the exclusive interface** for installing, configuring, monitoring, and maintaining an OpenClaw deployment. It fully abstracts Docker behind a polished GUI, enforces strict skill governance, acts as an MCP Server bridge, provides RBAC with biometric/2FA, and monitors container integrity.
+
+---
+
+## Decisions Locked In
+
+| # | Decision | Resolution |
+|---|---|---|
+| 1 | UI Framework | React (renderer) |
+| 2 | Docker | Offer Docker Desktop **or** Docker CE (headless) |
+| 3 | LLM Priority | Anthropic → Gemini → OpenAI → Ollama (local fallback) |
+| 4 | Backup Repo | Auto-create repo during install; user provides PAT for their own GitHub |
+| 5 | CLI Lockdown | **Yes** — OCCC is the only way to interact. OpenClaw code changes planned. |
+| 6 | Multi-user | **Yes** — RBAC with biometric/2FA for config edits after setup |
+| 7 | Repo Location | `apps/command-center/` inside OpenClaw repo |
+
+---
+
+## Technology Stack
+
+### Why Electron Over Tauri
+
+| Criteria | Electron | Tauri |
+|---|---|---|
+| Node.js ecosystem alignment | ✅ Native (OpenClaw is TS/Node.js) | ❌ Rust backend |
+| Docker Engine API | ✅ Direct via `dockerode` | ⚠️ Less mature |
+| OpenClaw code reuse | ✅ Share schemas, validators, ACP | ❌ Full rewrite |
+| MCP Server hosting | ✅ Run in main process | ⚠️ Custom Rust impl |
+| Bundle size | ⚠️ ~120MB | ✅ ~5-10MB |
+| Memory | ⚠️ ~200-300MB | ✅ ~30-40MB |
+
+**Electron wins on ecosystem alignment** — reusing Zod schemas, skill-scanner, ACP protocol, and sandbox validators directly in the app eliminates massive duplication.
+
+### Electron Security Hardening
+
+- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`
+- Strict CSP (no `unsafe-inline`/`unsafe-eval`)
+- Typed preload IPC bridge, ASAR integrity, code-signed auto-updates
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "OCCC Desktop App"
+        direction TB
+        MP["Main Process"]
+        RP["Renderer (React)"]
+        PL["Preload IPC Bridge"]
+        MP --> PL --> RP
+        
+        subgraph "Core Services"
+            AUTH["Auth & RBAC Engine"]
+            DE["Docker Abstraction"]
+            MCP["MCP Bridge Server"]
+            SG["Skill Governance"]
+            CIM["Integrity Monitor"]
+            BRS["Backup & Recovery"]
+            VG["Voice Guide"]
+            AIA["AI-Assisted Installer"]
+            API["REST API"]
+            ST["System Tray"]
+        end
+    end
+    
+    subgraph "Docker Environment"
+        OG["OpenClaw Gateway"]
+        OC["OpenClaw CLI"]
+        SB["Sandbox Containers"]
+    end
+    
+    DE <-->|"Docker Engine API"| OG & OC & SB
+    MCP <-->|"MCP Protocol"| OG
+    BRS -->|"Git Push"| GH["GitHub Backup"]
+    AIA -->|"API"| LLM["LLM Provider"]
+```
+
+---
+
+## Phase Breakdown
+
+### Phase 1: Foundation (Weeks 1–3)
+
+Scaffold Electron app at `apps/command-center/` with Electron Forge + Vite + React 19.
+
+#### Docker Engine Abstraction
+
+Detects and supports both **Docker Desktop** and **Docker CE** (community engine, no GUI).
+
+```
+src/main/docker/
+├── engine-detector.ts      # Detect Docker Desktop vs CE vs Podman
+├── engine-client.ts         # Dockerode wrapper
+├── container-manager.ts     # CRUD containers
+├── image-manager.ts         # Pull/build OpenClaw images
+├── network-manager.ts       # Isolated bridge networks
+├── volume-manager.ts        # Persistent data volumes
+└── compose-orchestrator.ts  # Programmatic compose
+```
+
+User-facing terminology: **"OpenClaw Environment"** (not "Docker"), **"Core Service"** (gateway), **"Agent Workspace"** (sandbox/CLI).
+
+During system validation, if Docker is missing:
+1. Detect OS → offer Docker Desktop (macOS/Windows) or Docker CE (Linux)
+2. For Docker CE on Linux: offer to install via `apt`/`dnf` with user approval
+3. Verify Docker daemon is running and user has permissions (`docker.sock` access)
+
+---
+
+### Phase 2: Authentication & RBAC (Weeks 3–5)
+
+> [!IMPORTANT]
+> This is a **new phase** based on user requirements. All OCCC access requires authentication — no anonymous usage.
+
+#### Authentication Architecture
+
+```mermaid
+graph TD
+    LAUNCH["App Launch"] --> BIOMETRIC{"Biometric Available?"}
+    BIOMETRIC -->|Yes| TOUCH["Touch ID / Windows Hello / fingerprint"]
+    BIOMETRIC -->|No| PASS["Password + TOTP 2FA"]
+    TOUCH --> SESSION["Authenticated Session"]
+    PASS --> SESSION
+    
+    SESSION --> BROWSE["Browse/Monitor<br/>(read-only)"]
+    
+    SESSION --> EDIT{"Edit Config?"}
+    EDIT --> REAUTH["Re-authenticate<br/>(Biometric or 2FA)"]
+    REAUTH --> CONFIG["Config Editor Unlocked"]
+```
+
+#### Implementation
+
+- **Biometric**: `electron-auth` / OS-native APIs
+  - macOS: Touch ID via `LAContext` (Security framework)
+  - Windows: Windows Hello via `@aspect-build/web-authn`
+  - Linux: PAM fingerprint or password fallback
+- **2FA (TOTP)**: `otplib` for TOTP generation/validation
+  - Setup during first-run wizard — user scans QR with authenticator app
+  - Fallback recovery codes stored encrypted locally
+- **Password**: Argon2id hashed, stored in `electron-store` (encrypted)
+- **Session Management**:
+  - Session timeout: 30 min idle → re-auth required
+  - Sensitive operations (config edit, skill install, backup restore) → always re-auth
+
+#### RBAC Roles
+
+| Role | Permissions |
+|---|---|
+| **Super Admin** | All operations, manage users, approve skills, edit config, restore backups |
+| **Admin** | Edit config, approve medium-risk skills, view all sessions |
+| **Operator** | Start/stop environment, view sessions, view logs |
+| **Viewer** | Read-only dashboard, view active sessions |
+
+- First user created during setup is **Super Admin**
+- Multi-user data stored in encrypted SQLite (`better-sqlite3`)
+- User profiles include: username, role, password hash, TOTP secret, biometric enrollment flag
+
+---
+
+### Phase 3: Installation Wizard (Weeks 5–7)
+
+#### System Validation
+
+| Check | Pass Criteria | Auto-Fix |
+|---|---|---|
+| OS version | macOS 13+, Win 10+, Ubuntu 20.04+ | Show upgrade link |
+| Docker | Docker Desktop or Docker CE 24+ | Offer install |
+| RAM | ≥ 4GB free | Warning |
+| Disk | ≥ 10GB free | Warning |
+| Ports | 18789, 18790 available | Offer alternatives |
+
+#### Wizard Steps
+
+1. Welcome & System Check
+2. User Account Setup (Super Admin + biometric/2FA enrollment)
+3. Docker installation (if needed — Desktop or CE)
+4. LLM Provider selection (Anthropic → Gemini → OpenAI → Ollama)
+5. API key entry (stored encrypted)
+6. Skill Selection (governed by allowlist)
+7. Channel Setup (WhatsApp/Telegram/Discord/etc.)
+8. **GitHub Backup Setup** — OCCC auto-creates a private repo; user provides PAT
+9. Advanced Options (JSON editor toggle)
+10. Review & Install → Post-Install Health Check
+
+#### GitHub Backup Auto-Setup
+
+```typescript
+async function setupBackupRepo(pat: string): Promise<void> {
+  const octokit = new Octokit({ auth: pat });
+  // Create private repo: openclaw-backup-<machine-hash>
+  await octokit.repos.createForAuthenticatedUser({
+    name: `openclaw-backup-${machineHash.slice(0, 8)}`,
+    private: true,
+    description: 'OpenClaw Command Center automated backups',
+    auto_init: true,
+  });
+  // Store encrypted PAT + repo info
+  store.set('backup.github.token', encrypt(pat));
+  store.set('backup.github.repo', repoFullName);
+}
+```
+
+#### Voice Guide
+
+- `node-edge-tts` (already an OpenClaw dependency) for narration
+- Each wizard step has a narration script; toggle on/off
+- Web Speech API fallback
+
+---
+
+### Phase 4: Configuration Center (Weeks 7–9)
+
+Reuse OpenClaw's Zod schemas from [zod-schema.ts](file:///Users/aura/projects/openclaw/src/config/zod-schema.ts) to auto-generate form fields.
+
+#### Panels
+
+General, Models & Providers, Channels, Gateway, Security, Skills, Agents, Cron, Hooks, **Advanced JSON Editor** (Monaco Editor with real-time Zod validation and diff view).
+
+> [!IMPORTANT]
+> Editing any config panel requires **re-authentication** (biometric or 2FA) — enforced by the RBAC session middleware.
+
+---
+
+### Phase 5: Skill Governance Engine (Weeks 9–11)
+
+#### Approval Pipeline
+
+```mermaid
+graph TD
+    SR["Skill Request"] --> SS["Skill Scanner<br/>(reuse skill-scanner.ts)"]
+    SS -->|critical| BLOCK["❌ Block"]
+    SS -->|warnings| REVIEW["AI Specialist Review"]
+    SS -->|clean| ALLOW["Allowlist Check"]
+    REVIEW -->|LLM cascade| AI["Anthropic → Gemini → OpenAI → Ollama"]
+    AI -->|approved| INSTALL["Install Skill"]
+    AI -->|rejected| BLOCK
+    ALLOW -->|listed| INSTALL
+    ALLOW -->|unlisted| REVIEW
+```
+
+#### LLM Cascade for AI Skill Specialist
+
+```typescript
+const LLM_PRIORITY = ['anthropic', 'google-gemini', 'openai', 'ollama'] as const;
+// Try each provider in order; fall back to next on failure or missing API key
+```
+
+#### Pre-Approved Allowlist
+
+- **✅ Auto-Approved**: `weather`, `healthcheck`, `session-logs`, `model-usage`, `summarize`, `canvas`
+- **⚠️ User Ack Required**: `github`, `obsidian`, `notion`, `trello`, `slack`, `discord`
+- **🔴 Admin Approval + AI Review**: `coding-agent`, `tmux`, `blucli`, `skill-creator`
+- **❌ Blocked**: Skills with `dangerous-exec`, `eval-usage`, `prompt-injection-risk`, exfiltration patterns
+
+---
+
+### Phase 6: Runtime Monitoring (Weeks 11–13)
+
+Dashboard panels: Environment Status, Active Sessions, Agent Activity Feed, Resource Usage (CPU/mem/net via Docker stats), Logs Viewer, Skill Activity.
+
+Agent activity shown by tapping into OpenClaw's existing [gateway WebSocket protocol](file:///Users/aura/projects/openclaw/src/gateway/protocol).
+
+---
+
+### Phase 7: MCP Bridge Server (Weeks 13–15)
+
+Secure bridge between containerized agents and host resources. All access requires user approval per the policy engine.
+
+| Tool Category | Approval Level |
+|---|---|
+| Filesystem (workspace-only) | Per-path |
+| Clipboard | Per-use |
+| Browser (open URL) | Domain allowlist |
+| System info, notifications | Auto-approved |
+| App control | Per-use |
+
+Access request flow → native OS notification → user approves/denies in OCCC → audit logged.
+
+---
+
+### Phase 8: OpenClaw Lockdown Changes (Weeks 15–17)
+
+> [!WARNING]
+> This phase modifies the core OpenClaw codebase to enforce that the Command Center is the **exclusive** interface.
+
+#### Changes Required
+
+##### 1. CLI Gate — [entry.ts](file:///Users/aura/projects/openclaw/src/entry.ts)
+
+```diff
++// OCCC Lockdown: CLI only runs when invoked by the Command Center
++if (!process.env.OPENCLAW_OCCC_TOKEN || !validateOcccToken(process.env.OPENCLAW_OCCC_TOKEN)) {
++  console.error('[openclaw] Direct CLI access is disabled. Use the OpenClaw Command Center.');
++  process.exit(78); // EX_CONFIG
++}
+```
+
+The OCCC sets a short-lived, signed JWT token as `OPENCLAW_OCCC_TOKEN` when spawning containers. Direct CLI invocation without this token is blocked.
+
+##### 2. Gateway Control Plane Mode — [server.impl.ts](file:///Users/aura/projects/openclaw/src/gateway/server.impl.ts)
+
+Add a new auth mode `occc` that accepts only connections from the Command Center:
+
+```diff
++// New auth method: OCCC control plane
++case 'occc':
++  return validateOcccControlPlaneToken(connectAuth?.token);
+```
+
+##### 3. Config Write Protection — [io.ts](file:///Users/aura/projects/openclaw/src/config/io.ts)
+
+Add a lockfile mechanism — config files are owned by OCCC and cannot be edited externally:
+
+```diff
++// Verify OCCC lock before writing config
++if (!process.env.OPENCLAW_OCCC_ACTIVE) {
++  throw new Error('Config modification blocked: use OpenClaw Command Center');
++}
+```
+
+##### 4. Docker Compose Override
+
+The container's CMD is modified to require the OCCC token:
+```yaml
+command: ["node", "dist/index.js", "gateway", "--control-plane", "occc"]
+```
+
+##### 5. Skill Installation Gate
+
+Skill install commands check for OCCC approval token before proceeding.
+
+---
+
+### Phase 9: Security Hardening (Weeks 17–19)
+
+#### Container Integrity Monitor (every 5 min)
+
+Checks: image digest, process tree, network rules, mount points, running user (non-root), filesystem layers.
+
+#### Compromise Response
+
+1. Stop container → capture forensic snapshot → delete container
+2. Native OS alert: *"⚠️ Security Alert: compromised container detected and terminated"*
+3. User approves → recreate entire stack from last GitHub backup
+4. Incident logged with forensic data
+
+#### Non-Root Enforcement
+
+All containers: `USER node`, `--cap-drop=ALL`, default seccomp/AppArmor. Reuses [validate-sandbox-security.ts](file:///Users/aura/projects/openclaw/src/agents/sandbox/validate-sandbox-security.ts).
+
+---
+
+### Phase 10: AI-Assisted Installation (Weeks 19–20)
+
+When LLM is available (following the priority cascade):
+- Error diagnosis during install failures
+- Config recommendations based on hardware
+- Interactive troubleshooting chat
+- Skill recommendations based on user's workflow
+
+All AI actions are read-only; suggestions displayed for user review before applying.
+
+---
+
+### Phase 11: API, Extensibility & Polish (Weeks 20–23)
+
+#### REST API
+
+```
+GET/POST /api/v1/{status,environment,sessions,skills,config,health,logs,backup}
+```
+
+All endpoints authenticated via gateway token.
+
+#### OCCC as MCP Server
+
+Tools: `request_host_access`, `check_skill_approval`, `report_incident`, `get_system_config`
+
+#### System Tray
+
+- macOS: Menu bar icon (green/yellow/red status)
+- Windows: System tray with context menu
+- Linux: App indicator
+- Global shortcut: `Cmd/Ctrl + Shift + O` to open
+
+#### Auto-Updates
+
+`electron-updater` with GitHub Releases, code-signed (Apple notarization + Windows Authenticode).
+
+---
+
+## Project Structure
+
+```
+apps/command-center/
+├── package.json
+├── forge.config.ts
+├── src/
+│   ├── main/
+│   │   ├── index.ts
+│   │   ├── auth/              # Auth, RBAC, biometric, 2FA
+│   │   ├── docker/            # Docker Engine Abstraction
+│   │   ├── installer/         # Wizard + voice guide
+│   │   ├── config/            # Config bridge (reuses Zod schemas)
+│   │   ├── skills/            # Skill governance + AI specialist
+│   │   ├── security/          # Integrity monitor, audit, compromise handler
+│   │   ├── mcp-bridge/        # MCP Bridge Server
+│   │   ├── backup/            # GitHub backup & recovery
+│   │   └── api/               # REST API server
+│   ├── preload/               # Typed IPC bridge
+│   ├── renderer/              # React UI (pages, components, styles)
+│   └── shared/                # Shared types
+├── resources/                 # Icons, installer assets
+└── test/
+```
+
+## OpenClaw Core Changes (Lockdown)
+
+```
+src/entry.ts                    # CLI gate (OCCC token required)
+src/gateway/server.impl.ts     # OCCC control plane auth mode
+src/config/io.ts               # Config write protection
+src/agents/skills-install.ts   # Skill install gate
+docker-compose.yml             # --control-plane flag
+```
+
+---
+
+## Timeline Summary
+
+| Phase | Weeks | Duration |
+|---|---|---|
+| 1. Foundation | 1–3 | 3 wks |
+| 2. Auth & RBAC | 3–5 | 2 wks |
+| 3. Installation Wizard | 5–7 | 2 wks |
+| 4. Configuration Center | 7–9 | 2 wks |
+| 5. Skill Governance | 9–11 | 2 wks |
+| 6. Runtime Monitoring | 11–13 | 2 wks |
+| 7. MCP Bridge | 13–15 | 2 wks |
+| 8. OpenClaw Lockdown | 15–17 | 2 wks |
+| 9. Security Hardening | 17–19 | 2 wks |
+| 10. AI Installation | 19–20 | 1 wk |
+| 11. API, Polish & Ship | 20–23 | 3 wks |
+| **Total** | | **~23 weeks** |
+
+> [!NOTE]
+> Phases 3–6 can be partially parallelized. With 2 developers, critical path shortens to ~16 weeks.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Unit tests per module (Docker abstraction, auth, skill governance, integrity monitor)
+- Integration tests: full container lifecycle, auth flow, config read/write
+- Reuse existing OpenClaw tests for shared logic: [skill-scanner.test.ts](file:///Users/aura/projects/openclaw/src/security/skill-scanner.test.ts), [validate-sandbox-security.test.ts](file:///Users/aura/projects/openclaw/src/agents/sandbox/validate-sandbox-security.test.ts), [config.schema-security-hardening.test.ts](file:///Users/aura/projects/openclaw/src/config/config.schema-security-hardening.test.ts)
+
+### Manual Verification
+- Cross-platform build & launch (macOS, Windows, Linux)
+- Full wizard flow on fresh machine
+- Biometric auth on macOS (Touch ID) and Windows (Hello)
+- Compromise detection: exec into container, trigger detection, verify alert + rebuild
+- CLI lockdown: attempt direct `openclaw` CLI → verify it's blocked
