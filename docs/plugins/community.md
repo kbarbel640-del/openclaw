@@ -46,7 +46,7 @@ Use this format when adding entries:
 
 ## Community plugin candidates
 
-- **Serial Adapter** — Serial telemetry/control adapter for OpenClaw with split telemetry/control channels, safety guardrails, and low-rate observer bridge support.
+- **Serial Adapter** — Serial telemetry/control bridge for OpenClaw.
   npm: `serial-adapter`
   repo: `https://github.com/DD-Ching/serial-adapter`
   install: `openclaw plugins install serial-adapter`
