@@ -15,7 +15,11 @@ import {
 } from "../infra/shell-env.js";
 import { VERSION } from "../version.js";
 import { DuplicateAgentDirError, findDuplicateAgentDirs } from "./agent-dirs.js";
-import { CONFIG_BACKUP_COUNT, rotateConfigBackups } from "./backup-rotation.js";
+import {
+  CONFIG_BACKUP_COUNT,
+  rotateConfigBackups,
+  rotateConfigBackupsSync,
+} from "./backup-rotation.js";
 import {
   applyCompactionDefaults,
   applyContextPruningDefaults,
@@ -762,6 +766,11 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
    * top-level keys from the nearest valid backup, leaving all other config
    * untouched. Writes the patched config back to disk if the repair succeeds.
    *
+   * For "plugin not found" issues on specific plugin entries
+   * (e.g. `plugins.entries.foo`), the repair only removes that individual
+   * entry instead of replacing the entire `plugins` key — which could
+   * inadvertently wipe unrelated plugin configurations.
+   *
    * Returns the repaired & validated OpenClawConfig, or null if repair failed.
    */
   function tryRepairFromBackup(
@@ -773,30 +782,72 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       return null;
     }
 
-    // Collect unique top-level keys that have errors.
+    const patched = { ...brokenConfig };
+    const repairActions: string[] = [];
+
+    // ----- Phase 1: Surgical sub-key repairs ---------------------
+    // Handle plugin-level issues precisely so that removing one
+    // broken entry (e.g. retry-backoff) doesn't destroy others
+    // (e.g. memory-context).
+    const handledIssues = new Set<number>();
+    for (let i = 0; i < issues.length; i++) {
+      const issue = issues[i];
+      const pluginEntryMatch = issue.path.match(/^plugins\.entries\.([^.]+)$/);
+      if (pluginEntryMatch && issue.message.includes("plugin not found")) {
+        const pluginId = pluginEntryMatch[1];
+        const plugins = patched.plugins as Record<string, unknown> | undefined;
+        const entries = (plugins?.entries ?? {}) as Record<string, unknown>;
+        if (pluginId in entries) {
+          delete entries[pluginId];
+          repairActions.push(`-plugins.entries.${pluginId}`);
+        }
+        handledIssues.add(i);
+        continue;
+      }
+
+      // plugins.slots.memory / plugins.allow / plugins.deny — remove value
+      const slotsMatch = issue.path.match(/^plugins\.(slots\.[^.]+|allow|deny)$/);
+      if (slotsMatch && issue.message.includes("plugin not found")) {
+        const subPath = slotsMatch[1];
+        const plugins = patched.plugins as Record<string, unknown> | undefined;
+        if (plugins) {
+          const parts = subPath.split(".");
+          if (parts.length === 2 && plugins[parts[0]] && typeof plugins[parts[0]] === "object") {
+            delete (plugins[parts[0]] as Record<string, unknown>)[parts[1]];
+          } else if (parts.length === 1) {
+            delete plugins[parts[0]];
+          }
+          repairActions.push(`-plugins.${subPath}`);
+        }
+        handledIssues.add(i);
+        continue;
+      }
+    }
+
+    // ----- Phase 2: Top-level key replacement --------------------
+    // For remaining issues that were NOT handled surgically above,
+    // fall back to replacing the entire top-level key from backup.
+    const remainingIssues = issues.filter((_, i) => !handledIssues.has(i));
     const brokenKeys = new Set<string>();
-    for (const issue of issues) {
+    for (const issue of remainingIssues) {
       for (const key of issueToTopKeys(issue)) {
         brokenKeys.add(key);
       }
     }
 
-    if (brokenKeys.size === 0) {
-      return null;
-    }
-
-    // Patch: replace only the broken top-level keys with values from backup.
-    const patched = { ...brokenConfig };
-    const restoredKeys: string[] = [];
     for (const key of brokenKeys) {
       if (key in backupConfig) {
         patched[key] = backupConfig[key];
-        restoredKeys.push(key);
+        repairActions.push(key);
       } else {
         // Key doesn't exist in backup — delete the offending key entirely.
         delete patched[key];
-        restoredKeys.push(`-${key}`);
+        repairActions.push(`-${key}`);
       }
+    }
+
+    if (repairActions.length === 0) {
+      return null;
     }
 
     // Re-validate the patched config (base schema only, not plugins —
@@ -819,7 +870,14 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
     }
 
-    // Write the surgically patched config back to disk.
+    // Write the surgically patched config back to disk and rotate backups
+    // so the pre-repair config is preserved as the latest .bak.
+    try {
+      rotateConfigBackupsSync(configPath);
+      deps.fs.copyFileSync(configPath, `${configPath}.bak`);
+    } catch {
+      // best-effort backup rotation
+    }
     try {
       deps.fs.writeFileSync(configPath, JSON.stringify(patched, null, 2).trimEnd().concat("\n"), {
         encoding: "utf-8",
@@ -830,7 +888,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     }
 
     deps.logger.warn(
-      `Config auto-repair: restored keys [${restoredKeys.join(", ")}] from backup, other settings preserved`,
+      `Config auto-repair: [${repairActions.join(", ")}] — other settings preserved`,
     );
     return validated.config;
   }
