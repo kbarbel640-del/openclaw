@@ -7,6 +7,7 @@ import {
 } from "../agents/agent-scope.js";
 import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
 import { resolveAuthStorePath } from "../agents/auth-profiles/paths.js";
+import { formatCliCommand } from "../cli/command-format.js";
 import { writeConfigFile } from "../config/config.js";
 import { logConfigUpdated } from "../config/logging.js";
 import { DEFAULT_AGENT_ID, normalizeAgentId } from "../routing/session-key.js";
@@ -231,6 +232,7 @@ export async function agentsAddCommand(
     });
 
     const defaultAgentId = resolveDefaultAgentId(cfg);
+    let copiedAuthProfiles = false;
     if (defaultAgentId !== agentId) {
       const sourceAuthPath = resolveAuthStorePath(resolveAgentDir(cfg, defaultAgentId));
       const destAuthPath = resolveAuthStorePath(agentDir);
@@ -248,6 +250,7 @@ export async function agentsAddCommand(
         if (shouldCopy) {
           await fs.mkdir(path.dirname(destAuthPath), { recursive: true });
           await fs.copyFile(sourceAuthPath, destAuthPath);
+          copiedAuthProfiles = true;
           await prompter.note(`Copied auth profiles from "${defaultAgentId}".`, "Auth profiles");
         }
       }
@@ -288,7 +291,18 @@ export async function agentsAddCommand(
     await warnIfModelConfigLooksOff(nextConfig, prompter, {
       agentId,
       agentDir,
+      skipAuthCheck: !copiedAuthProfiles && !wantsAuth,
     });
+    if (!copiedAuthProfiles && !wantsAuth) {
+      await prompter.note(
+        [
+          `Skipped auth setup for "${agentId}".`,
+          `Check before first run: ${formatCliCommand(`openclaw models status --agent ${agentId} --check`)}`,
+          `If auth is missing, re-run ${formatCliCommand(`openclaw agents add ${agentId}`)} and configure model/auth.`,
+        ].join("\n"),
+        "Auth profiles",
+      );
+    }
 
     let selection: ChannelChoice[] = [];
     const channelAccountIds: Partial<Record<ChannelChoice, string>> = {};
