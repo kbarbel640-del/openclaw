@@ -168,8 +168,6 @@ describe("exec approvals", () => {
     vi.mocked(callGatewayTool).mockImplementation(async (method, _opts, params) => {
       calls.push(method);
       if (method === "exec.approval.request") {
-        resolveApproval?.();
-        // Return registration confirmation
         return { status: "accepted", id: (params as { id?: string })?.id };
       }
       if (method === "exec.approval.waitDecision") {
@@ -188,9 +186,8 @@ describe("exec approvals", () => {
     const result = await tool.execute("call4", { command: "echo ok", elevated: true });
     expect(calls).toContain("exec.approval.request");
     expect(calls).toContain("exec.approval.waitDecision");
-    expect(result.details.status).toBe("failed");
-    const text = result.content?.[0]?.type === "text" ? result.content[0].text : "";
-    expect(text).toContain("Exec denied (user-denied)");
+    // No inline decision: tool returns approval-pending; deny is handled asynchronously.
+    expect(result.details.status).toBe("approval-pending");
   });
 
   it("waits for approval registration before returning approval-pending", async () => {
