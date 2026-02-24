@@ -11,6 +11,10 @@ import { resolveGatewayAuth } from "../gateway/auth.js";
 import { buildGatewayConnectionDetails } from "../gateway/call.js";
 import { resolveGatewayProbeAuth } from "../gateway/probe-auth.js";
 import { probeGateway } from "../gateway/probe.js";
+import {
+  listInterpreterLikeSafeBins,
+  resolveMergedSafeBinProfileFixtures,
+} from "../infra/exec-safe-bin-runtime-policy.js";
 import { collectChannelSecurityFindings } from "./audit-channel.js";
 import {
   collectAttackSurfaceSummaryFindings,
@@ -20,6 +24,7 @@ import {
   collectHooksHardeningFindings,
   collectIncludeFilePermFindings,
   collectInstalledSkillsCodeSafetyFindings,
+  collectLikelyMultiUserSetupFindings,
   collectSandboxBrowserHashLabelFindings,
   collectMinimalProfileOverrideFindings,
   collectModelHygieneFindings,
@@ -262,6 +267,11 @@ function collectGatewayConfigFindings(
   const tailscaleMode = cfg.gateway?.tailscale?.mode ?? "off";
   const auth = resolveGatewayAuth({ authConfig: cfg.gateway?.auth, tailscaleMode, env });
   const controlUiEnabled = cfg.gateway?.controlUi?.enabled !== false;
+  const controlUiAllowedOrigins = (cfg.gateway?.controlUi?.allowedOrigins ?? [])
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const dangerouslyAllowHostHeaderOriginFallback =
+    cfg.gateway?.controlUi?.dangerouslyAllowHostHeaderOriginFallback === true;
   const trustedProxies = Array.isArray(cfg.gateway?.trustedProxies)
     ? cfg.gateway.trustedProxies
     : [];
@@ -334,6 +344,37 @@ function collectGatewayConfigFindings(
         "gateway.bind is loopback but no gateway auth secret is configured. " +
         "If the Control UI is exposed through a reverse proxy, unauthenticated access is possible.",
       remediation: "Set gateway.auth (token recommended) or keep the Control UI local-only.",
+    });
+  }
+  if (
+    bind !== "loopback" &&
+    controlUiEnabled &&
+    controlUiAllowedOrigins.length === 0 &&
+    !dangerouslyAllowHostHeaderOriginFallback
+  ) {
+    findings.push({
+      checkId: "gateway.control_ui.allowed_origins_required",
+      severity: "critical",
+      title: "Non-loopback Control UI missing explicit allowed origins",
+      detail:
+        "Control UI is enabled on a non-loopback bind but gateway.controlUi.allowedOrigins is empty. " +
+        "Strict origin policy requires explicit allowed origins for non-loopback deployments.",
+      remediation:
+        "Set gateway.controlUi.allowedOrigins to full trusted origins (for example https://control.example.com). " +
+        "If your deployment intentionally relies on Host-header origin fallback, set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback=true.",
+    });
+  }
+  if (dangerouslyAllowHostHeaderOriginFallback) {
+    const exposed = bind !== "loopback";
+    findings.push({
+      checkId: "gateway.control_ui.host_header_origin_fallback",
+      severity: exposed ? "critical" : "warn",
+      title: "DANGEROUS: Host-header origin fallback enabled",
+      detail:
+        "gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback=true enables Host-header origin fallback " +
+        "for Control UI/WebChat websocket checks and weakens DNS rebinding protections.",
+      remediation:
+        "Disable gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback and configure explicit gateway.controlUi.allowedOrigins.",
     });
   }
 
@@ -695,11 +736,71 @@ function collectExecRuntimeFindings(cfg: OpenClawConfig): SecurityAuditFinding[]
     });
   }
 
+  const normalizeConfiguredSafeBins = (entries: unknown): string[] => {
+    if (!Array.isArray(entries)) {
+      return [];
+    }
+    return Array.from(
+      new Set(
+        entries
+          .map((entry) => (typeof entry === "string" ? entry.trim().toLowerCase() : ""))
+          .filter((entry) => entry.length > 0),
+      ),
+    ).toSorted();
+  };
+  const interpreterHits: string[] = [];
+  const globalExec = cfg.tools?.exec;
+  const globalSafeBins = normalizeConfiguredSafeBins(globalExec?.safeBins);
+  if (globalSafeBins.length > 0) {
+    const merged = resolveMergedSafeBinProfileFixtures({ global: globalExec }) ?? {};
+    const interpreters = listInterpreterLikeSafeBins(globalSafeBins).filter((bin) => !merged[bin]);
+    if (interpreters.length > 0) {
+      interpreterHits.push(`- tools.exec.safeBins: ${interpreters.join(", ")}`);
+    }
+  }
+
+  for (const entry of agents) {
+    if (!entry || typeof entry !== "object" || typeof entry.id !== "string") {
+      continue;
+    }
+    const agentExec = entry.tools?.exec;
+    const agentSafeBins = normalizeConfiguredSafeBins(agentExec?.safeBins);
+    if (agentSafeBins.length === 0) {
+      continue;
+    }
+    const merged =
+      resolveMergedSafeBinProfileFixtures({
+        global: globalExec,
+        local: agentExec,
+      }) ?? {};
+    const interpreters = listInterpreterLikeSafeBins(agentSafeBins).filter((bin) => !merged[bin]);
+    if (interpreters.length === 0) {
+      continue;
+    }
+    interpreterHits.push(
+      `- agents.list.${entry.id}.tools.exec.safeBins: ${interpreters.join(", ")}`,
+    );
+  }
+
+  if (interpreterHits.length > 0) {
+    findings.push({
+      checkId: "tools.exec.safe_bins_interpreter_unprofiled",
+      severity: "warn",
+      title: "safeBins includes interpreter/runtime binaries without explicit profiles",
+      detail:
+        `Detected interpreter-like safeBins entries missing explicit profiles:\n${interpreterHits.join("\n")}\n` +
+        "These entries can turn safeBins into a broad execution surface when used with permissive argv profiles.",
+      remediation:
+        "Remove interpreter/runtime bins from safeBins (prefer allowlist entries) or define hardened tools.exec.safeBinProfiles.<bin> rules.",
+    });
+  }
+
   return findings;
 }
 
 async function maybeProbeGateway(params: {
   cfg: OpenClawConfig;
+  env: NodeJS.ProcessEnv;
   timeoutMs: number;
   probe: typeof probeGateway;
 }): Promise<SecurityAuditReport["deep"]> {
@@ -712,8 +813,8 @@ async function maybeProbeGateway(params: {
 
   const auth =
     !isRemoteMode || remoteUrlMissing
-      ? resolveGatewayProbeAuth({ cfg: params.cfg, mode: "local" })
-      : resolveGatewayProbeAuth({ cfg: params.cfg, mode: "remote" });
+      ? resolveGatewayProbeAuth({ cfg: params.cfg, env: params.env, mode: "local" })
+      : resolveGatewayProbeAuth({ cfg: params.cfg, env: params.env, mode: "remote" });
   const res = await params.probe({ url, auth, timeoutMs: params.timeoutMs }).catch((err) => ({
     ok: false,
     url,
@@ -766,6 +867,7 @@ export async function runSecurityAudit(opts: SecurityAuditOptions): Promise<Secu
   findings.push(...collectModelHygieneFindings(cfg));
   findings.push(...collectSmallModelRiskFindings({ cfg, env }));
   findings.push(...collectExposureMatrixFindings(cfg));
+  findings.push(...collectLikelyMultiUserSetupFindings(cfg));
 
   const configSnapshot =
     opts.includeFilesystem !== false
@@ -811,6 +913,7 @@ export async function runSecurityAudit(opts: SecurityAuditOptions): Promise<Secu
     opts.deep === true
       ? await maybeProbeGateway({
           cfg,
+          env,
           timeoutMs: Math.max(250, opts.deepTimeoutMs ?? 5000),
           probe: opts.probeGatewayFn ?? probeGateway,
         })

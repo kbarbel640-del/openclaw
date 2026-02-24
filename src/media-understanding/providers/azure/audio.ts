@@ -1,6 +1,14 @@
 import path from "node:path";
+import { createSubsystemLogger } from "../../../logging/subsystem.js";
 import type { AudioTranscriptionRequest, AudioTranscriptionResult } from "../../types.js";
-import { assertOkOrThrowHttpError, fetchWithTimeoutGuarded, normalizeBaseUrl } from "../shared.js";
+import {
+  assertOkOrThrowHttpError,
+  normalizeBaseUrl,
+  postTranscriptionRequest,
+  requireTranscriptionText,
+} from "../shared.js";
+
+const log = createSubsystemLogger("azure-audio");
 
 const DEFAULT_AZURE_AUDIO_BASE_URL = "https://models.inference.ai.azure.com";
 const DEFAULT_AZURE_AUDIO_MODEL = "whisper-large-v3-turbo";
@@ -76,31 +84,26 @@ export async function transcribeAzureAudio(
   // including cognitiveservices and services.ai hosts.
   headers.set("api-key", params.apiKey);
 
-  const { response: res, release } = await fetchWithTimeoutGuarded(
-    url.toString(),
-    {
-      method: "POST",
-      headers,
-      body: form,
-    },
-    params.timeoutMs,
+  const { response: res, release } = await postTranscriptionRequest({
+    url: url.toString(),
+    headers,
+    body: form,
+    timeoutMs: params.timeoutMs,
     fetchFn,
-    allowPrivate ? { ssrfPolicy: { allowPrivateNetwork: true } } : undefined,
-  );
+    allowPrivateNetwork: allowPrivate,
+  });
 
   try {
     await assertOkOrThrowHttpError(res, "Azure audio transcription failed");
 
     const payload = (await res.json()) as { text?: string };
-    const text = payload.text?.trim();
-    if (!text) {
-      throw new Error("Azure audio transcription response missing text");
-    }
+    const text = requireTranscriptionText(
+      payload.text,
+      "Azure audio transcription response missing text",
+    );
     return { text, model };
   } catch (err) {
-    console.warn(
-      `[azure-audio] Transcription failed for ${url.origin}${url.pathname}: ${String(err)}`,
-    );
+    log.warn(`Transcription failed for ${url.origin}${url.pathname}: ${String(err)}`);
     throw err;
   } finally {
     await release();

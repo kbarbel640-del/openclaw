@@ -10,6 +10,10 @@ import {
 } from "../agents/model-catalog.js";
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/config.js";
+import {
+  resolveAgentModelFallbackValues,
+  resolveAgentModelPrimaryValue,
+} from "../config/model-input.js";
 import type {
   MediaUnderstandingConfig,
   MediaUnderstandingModelConfig,
@@ -418,27 +422,18 @@ async function resolveKeyEntry(params: {
 }
 
 function resolveImageModelFromAgentDefaults(cfg: OpenClawConfig): MediaUnderstandingModelConfig[] {
-  const imageModel = cfg.agents?.defaults?.imageModel as
-    | { primary?: string; fallbacks?: string[] }
-    | string
-    | undefined;
-  if (!imageModel) {
-    return [];
-  }
   const refs: string[] = [];
-  if (typeof imageModel === "string") {
-    if (imageModel.trim()) {
-      refs.push(imageModel.trim());
+  const primary = resolveAgentModelPrimaryValue(cfg.agents?.defaults?.imageModel);
+  if (primary?.trim()) {
+    refs.push(primary.trim());
+  }
+  for (const fb of resolveAgentModelFallbackValues(cfg.agents?.defaults?.imageModel)) {
+    if (fb?.trim()) {
+      refs.push(fb.trim());
     }
-  } else {
-    if (imageModel.primary?.trim()) {
-      refs.push(imageModel.primary.trim());
-    }
-    for (const fb of imageModel.fallbacks ?? []) {
-      if (fb?.trim()) {
-        refs.push(fb.trim());
-      }
-    }
+  }
+  if (refs.length === 0) {
+    return [];
   }
   const entries: MediaUnderstandingModelConfig[] = [];
   for (const ref of refs) {
@@ -652,7 +647,9 @@ async function runAttachmentEntries(params: {
           reason: String(err),
         }),
       );
-      console.warn(`[media-runner] ${capability} understanding failed for entry ${entryType}: ${String(err)}`);
+      console.warn(
+        `[media-runner] ${capability} understanding failed for entry ${entryType}: ${String(err)}`,
+      );
       if (shouldLogVerbose()) {
         logVerbose(`${capability} understanding failed: ${String(err)}`);
       }
@@ -769,7 +766,9 @@ export async function runCapability(params: {
     });
   }
   if (resolvedEntries.length === 0) {
-    console.warn(`[media-runner] ${capability} skipped: no provider entries resolved (no API key or no config)`);
+    console.warn(
+      `[media-runner] ${capability} skipped: no provider entries resolved (no API key or no config)`,
+    );
     return {
       outputs: [],
       decision: {

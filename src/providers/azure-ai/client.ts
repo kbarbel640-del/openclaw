@@ -1,5 +1,7 @@
 import { AzureAIModelConfig } from "./types.js";
 
+const MAX_ERROR_CHARS = 300;
+
 export async function azureAIChatCompletion(
   model: AzureAIModelConfig,
   messages: unknown[],
@@ -17,15 +19,10 @@ export async function azureAIChatCompletion(
 
   const body: Record<string, unknown> = {
     messages,
+    model: model.id,
     max_tokens: maxTokens,
     temperature,
   };
-
-  if (model.apiStyle === "native") {
-    body.model = model.id;
-  } else {
-    body.model = model.id; // deployment name
-  }
 
   const res = await fetch(url, {
     method: "POST",
@@ -37,8 +34,15 @@ export async function azureAIChatCompletion(
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Azure AI error ${res.status}: ${text}`);
+    let detail = "";
+    try {
+      const text = (await res.text()).replace(/\s+/g, " ").trim();
+      detail = text.length > MAX_ERROR_CHARS ? `${text.slice(0, MAX_ERROR_CHARS)}…` : text;
+    } catch {
+      // ignore read failures
+    }
+    const suffix = detail ? `: ${detail}` : "";
+    throw new Error(`Azure AI chat completion failed (HTTP ${res.status})${suffix}`);
   }
 
   return res.json();
