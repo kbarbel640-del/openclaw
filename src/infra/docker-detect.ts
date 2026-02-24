@@ -103,6 +103,11 @@ export function parseImageRef(image: string): { repo: string; tag: string | null
     return { repo: trimmed, tag: null };
   }
   const tag = trimmed.slice(colonIdx + 1);
+  // If the part after the colon is entirely digits it's a port number, not a tag.
+  // e.g. "registry.example.com:5000" → { repo: "registry.example.com:5000", tag: null }
+  if (/^\d+$/.test(tag)) {
+    return { repo: trimmed, tag: null };
+  }
   return { repo: trimmed.slice(0, colonIdx), tag: tag || null };
 }
 
