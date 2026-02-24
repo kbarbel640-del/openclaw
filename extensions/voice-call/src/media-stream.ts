@@ -38,10 +38,12 @@ export interface MediaStreamConfig {
   maxConnections?: number;
   /** Validate whether to accept a media stream for the given call ID */
   shouldAcceptStream?: (params: { callId: string; streamSid: string; token?: string }) => boolean;
-  /** Callback when transcript is received */
+  /** Callback when user transcript is received (final) */
   onTranscript?: (callId: string, transcript: string) => void;
   /** Callback for partial transcripts (streaming UI) */
   onPartialTranscript?: (callId: string, partial: string) => void;
+  /** Callback when AI response transcript is received (conversation mode only) */
+  onResponseTranscript?: (callId: string, transcript: string) => void;
   /** Callback when stream connects */
   onConnect?: (callId: string, streamSid: string) => void;
   /** Callback when speech starts (barge-in) */
@@ -251,6 +253,11 @@ export class MediaStreamHandler {
 
       convSession.onTranscriptDone((text) => {
         this.config.onTranscript?.(callSid, text);
+      });
+
+      // AI response transcript (bot side of the conversation)
+      convSession.onResponseTranscriptDone((text) => {
+        this.config.onResponseTranscript?.(callSid, text);
       });
 
       session.conversationSession = convSession;

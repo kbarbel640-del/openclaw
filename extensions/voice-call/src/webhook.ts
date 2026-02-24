@@ -138,6 +138,20 @@ export class VoiceCallWebhookServer {
           }
         }
       },
+      onResponseTranscript: (providerCallId: string, transcript: string) => {
+        console.log(`[voice-call] AI response for ${providerCallId}: ${transcript}`);
+        const call = this.manager.getCallByProviderCallId(providerCallId);
+        if (!call) return;
+        const event: NormalizedEvent = {
+          id: `stream-bot-transcript-${Date.now()}`,
+          type: "call.bot-speech",
+          callId: call.callId,
+          providerCallId,
+          timestamp: Date.now(),
+          transcript,
+        };
+        this.manager.processEvent(event);
+      },
       onSpeechStart: (providerCallId: string) => {
         // STT mode: clear TTS queue on barge-in
         // Conversation mode: barge-in is handled inside the provider (response.cancel + clearAudio)
