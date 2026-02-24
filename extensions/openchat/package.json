@@ -3,6 +3,12 @@
   "version": "1.0.0",
   "description": "OpenClaw OpenChat channel plugin",
   "type": "module",
+  "scripts": {
+    "generate-key": "tsx scripts/generate-key.ts"
+  },
+  "dependencies": {
+    "@open-ic/openchat-botclient-ts": "^1.0.64"
+  },
   "devDependencies": {
     "openclaw": "workspace:*"
   },

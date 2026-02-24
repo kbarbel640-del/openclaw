@@ -552,6 +552,36 @@ const DOCKS: Record<ChatChannelId, ChannelDock> = {
         buildIMessageThreadToolContext({ context, hasRepliedRef }),
     },
   },
+  openchat: {
+    id: "openchat",
+    capabilities: {
+      chatTypes: ["direct", "channel"],
+      media: true,
+    },
+    outbound: DEFAULT_OUTBOUND_TEXT_CHUNK_LIMIT_4000,
+    config: {
+      resolveAllowFrom: ({ cfg, accountId }) => {
+        const root = cfg.channels?.openchat as Record<string, unknown> | undefined;
+        const normalized = normalizeAccountId(accountId);
+        const account = root?.accounts as Record<string, unknown> | undefined;
+        const acct = account?.[normalized] as Record<string, unknown> | undefined;
+        const allowFrom = (acct?.allowFrom ?? root?.allowFrom ?? []) as Array<string | number>;
+        return allowFrom.map((entry) => String(entry));
+      },
+      formatAllowFrom: ({ allowFrom }) =>
+        allowFrom.map((entry) => String(entry).trim()).filter(Boolean),
+      resolveDefaultTo: ({ cfg, accountId }) => {
+        const root = cfg.channels?.openchat as Record<string, unknown> | undefined;
+        const normalized = normalizeAccountId(accountId);
+        const account = root?.accounts as Record<string, unknown> | undefined;
+        const acct = account?.[normalized] as Record<string, unknown> | undefined;
+        const val = acct?.defaultTo ?? root?.defaultTo;
+        return val != null && (typeof val === "string" || typeof val === "number")
+          ? String(val).trim()
+          : undefined;
+      },
+    },
+  },
 };
 
 function buildDockFromPlugin(plugin: ChannelPlugin): ChannelDock {
