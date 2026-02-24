@@ -37,6 +37,15 @@ export function resolveRelayAuthTokenForPort(port: number): string {
   );
 }
 
+/**
+ * Returns the raw gateway auth token so the relay can accept it as a
+ * fallback when the Chrome extension sends it instead of the HMAC-derived
+ * token. Returns null if no token is configured.
+ */
+export function resolveRawGatewayToken(): string | null {
+  return resolveGatewayAuthToken();
+}
+
 export async function probeAuthenticatedOpenClawRelay(params: {
   baseUrl: string;
   relayAuthHeader: string;

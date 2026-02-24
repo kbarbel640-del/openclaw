@@ -7,6 +7,7 @@ import { isLoopbackAddress, isLoopbackHost } from "../gateway/net.js";
 import { rawDataToString } from "../infra/ws.js";
 import {
   probeAuthenticatedOpenClawRelay,
+  resolveRawGatewayToken,
   resolveRelayAuthTokenForPort,
 } from "./extension-relay-auth.js";
 
@@ -219,6 +220,10 @@ export async function ensureChromeExtensionRelayServer(opts: {
   }
 
   const relayAuthToken = resolveRelayAuthTokenForPort(info.port);
+  const rawGatewayToken = resolveRawGatewayToken();
+
+  const isValidRelayToken = (token: string | null | undefined): boolean =>
+    Boolean(token && (token === relayAuthToken || token === rawGatewayToken));
 
   let extensionWs: WebSocket | null = null;
   const cdpClients = new Set<WebSocket>();
@@ -365,7 +370,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     if (path.startsWith("/json")) {
       const token = getHeader(req, RELAY_AUTH_HEADER);
-      if (!token || token !== relayAuthToken) {
+      if (!isValidRelayToken(token)) {
         res.writeHead(401);
         res.end("Unauthorized");
         return;
@@ -500,7 +505,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     if (pathname === "/extension") {
       const token = getRelayAuthTokenFromRequest(req, url);
-      if (!token || token !== relayAuthToken) {
+      if (!isValidRelayToken(token)) {
         rejectUpgrade(socket, 401, "Unauthorized");
         return;
       }
@@ -516,7 +521,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     if (pathname === "/cdp") {
       const token = getRelayAuthTokenFromRequest(req, url);
-      if (!token || token !== relayAuthToken) {
+      if (!isValidRelayToken(token)) {
         rejectUpgrade(socket, 401, "Unauthorized");
         return;
       }
