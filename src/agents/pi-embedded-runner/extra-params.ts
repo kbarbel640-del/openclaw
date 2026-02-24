@@ -584,9 +584,9 @@ function createMoonshotCacheWrapper(
       MOONSHOT_BASE_URLS[model.provider] ??
       MOONSHOT_BASE_URLS.moonshot;
 
-    // Use async generator to resolve cache BEFORE streaming starts
-    // This avoids the race condition of async onPayload callbacks
-    async function* streamWithCache(): AsyncIterable<unknown> {
+    // Resolve cache BEFORE streaming starts to avoid async onPayload race condition.
+    // StreamFn allows returning Promise<stream>, so we use an async IIFE.
+    return (async () => {
       let modifiedContext = context;
 
       try {
@@ -600,12 +600,13 @@ function createMoonshotCacheWrapper(
           ttl,
         });
 
-        // Inject cache role into messages, replacing system message
+        // Inject cache role into messages, replacing system message.
+        // Cast to unknown[] to avoid type mismatch with pi-ai's stricter Message type.
         const modifiedMessages = injectCacheRole(
           messages as Array<{ role: string; content: unknown }>,
           cacheId,
           resetTtl,
-        );
+        ) as unknown as typeof context.messages;
 
         modifiedContext = {
           ...context,
@@ -619,10 +620,8 @@ function createMoonshotCacheWrapper(
       }
 
       // Delegate to underlying stream with (possibly modified) context
-      yield* underlying(model, modifiedContext, options);
-    }
-
-    return streamWithCache();
+      return underlying(model, modifiedContext, options);
+    })();
   };
 }
 
