@@ -12,7 +12,7 @@ describe("stepfun implicit provider", () => {
     process.env.STEPFUN_API_KEY = "sk-stepfun-test";
 
     try {
-      const providers = await resolveImplicitProviders({ agentDir });
+      const providers = (await resolveImplicitProviders({ agentDir })) ?? {};
       expect(providers.stepfun).toBeDefined();
       expect(providers.stepfun?.api).toBe("openai-completions");
       expect(providers.stepfun?.baseUrl).toBe("https://api.stepfun.ai/v1");
@@ -29,7 +29,7 @@ describe("stepfun implicit provider", () => {
     delete process.env.STEPFUN_API_KEY;
 
     try {
-      const providers = await resolveImplicitProviders({ agentDir });
+      const providers = (await resolveImplicitProviders({ agentDir })) ?? {};
       expect(providers.stepfun).toBeUndefined();
     } finally {
       envSnapshot.restore();

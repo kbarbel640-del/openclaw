@@ -494,13 +494,17 @@ describe("applyStepfunConfig", () => {
       api: "openai-completions",
     });
     expect(cfg.models?.providers?.stepfun?.models?.map((m) => m.id)).toContain("step-3.5-flash");
-    expect(cfg.agents?.defaults?.model?.primary).toBe("stepfun/step-3.5-flash");
+    expect(resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model)).toBe(
+      "stepfun/step-3.5-flash",
+    );
   });
 
   it("supports CN endpoint auth choice", () => {
     const cfg = applyStepfunConfig({}, { endpoint: "cn" });
     expect(cfg.models?.providers?.stepfun?.baseUrl).toBe(STEPFUN_CN_BASE_URL);
-    expect(cfg.agents?.defaults?.model?.primary).toBe("stepfun/step-3.5-flash");
+    expect(resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model)).toBe(
+      "stepfun/step-3.5-flash",
+    );
   });
 
   it("keeps existing baseUrl when endpoint is not specified", () => {

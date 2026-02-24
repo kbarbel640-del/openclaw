@@ -226,24 +226,28 @@ describe("onboard (non-interactive): provider auth", () => {
       prefix: "openclaw-onboard-stepfun-infer-",
       options: {},
     },
-  ])("$name", async ({ prefix, options }) => {
-    await withOnboardEnv(prefix, async (env) => {
-      const cfg = await runOnboardingAndReadConfig(env, {
-        stepfunApiKey: "sk-stepfun-test",
-        ...options,
-      });
+  ])(
+    "$name",
+    async ({ prefix, options }) => {
+      await withOnboardEnv(prefix, async (env) => {
+        const cfg = await runOnboardingAndReadConfig(env, {
+          stepfunApiKey: "sk-stepfun-test",
+          ...options,
+        });
 
-      expect(cfg.auth?.profiles?.["stepfun:default"]?.provider).toBe("stepfun");
-      expect(cfg.auth?.profiles?.["stepfun:default"]?.mode).toBe("api_key");
-      expect(cfg.models?.providers?.stepfun?.baseUrl).toBe(STEPFUN_BASE_URL);
-      expect(cfg.agents?.defaults?.model?.primary).toBe("stepfun/step-3.5-flash");
-      await expectApiKeyProfile({
-        profileId: "stepfun:default",
-        provider: "stepfun",
-        key: "sk-stepfun-test",
+        expect(cfg.auth?.profiles?.["stepfun:default"]?.provider).toBe("stepfun");
+        expect(cfg.auth?.profiles?.["stepfun:default"]?.mode).toBe("api_key");
+        expect(cfg.models?.providers?.stepfun?.baseUrl).toBe(STEPFUN_BASE_URL);
+        expect(cfg.agents?.defaults?.model?.primary).toBe("stepfun/step-3.5-flash");
+        await expectApiKeyProfile({
+          profileId: "stepfun:default",
+          provider: "stepfun",
+          key: "sk-stepfun-test",
+        });
       });
-    });
-  }, 60_000);
+    },
+    60_000,
+  );
 
   it("supports StepFun CN auth choice", async () => {
     await withOnboardEnv("openclaw-onboard-stepfun-cn-", async (env) => {

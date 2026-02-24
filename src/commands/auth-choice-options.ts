@@ -243,6 +243,7 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     label: "StepFun API key (CN)",
     hint: "China endpoint (api.stepfun.com)",
   },
+  {
     value: "github-copilot",
     label: "GitHub Copilot (GitHub device login)",
     hint: "Uses GitHub device flow",

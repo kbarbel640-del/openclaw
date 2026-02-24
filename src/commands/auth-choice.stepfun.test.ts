@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { applyAuthChoice } from "./auth-choice.js";
 import {
@@ -74,7 +75,9 @@ describe("applyAuthChoice (stepfun)", () => {
     expect(text).toHaveBeenCalledWith(
       expect.objectContaining({ message: "Enter StepFun API key" }),
     );
-    expect(result.config.agents?.defaults?.model?.primary).toBe("anthropic/claude-opus-4-5");
+    expect(resolveAgentModelPrimaryValue(result.config.agents?.defaults?.model)).toBe(
+      "anthropic/claude-opus-4-5",
+    );
     expect(result.config.models?.providers?.stepfun?.baseUrl).toBe("https://api.stepfun.ai/v1");
     expect(result.agentModelOverride).toBe("stepfun/step-3.5-flash");
 
@@ -92,7 +95,9 @@ describe("applyAuthChoice (stepfun)", () => {
     });
 
     expect(result.config.models?.providers?.stepfun?.baseUrl).toBe("https://api.stepfun.com/v1");
-    expect(result.config.agents?.defaults?.model?.primary).toBe("stepfun/step-3.5-flash");
+    expect(resolveAgentModelPrimaryValue(result.config.agents?.defaults?.model)).toBe(
+      "stepfun/step-3.5-flash",
+    );
   });
 
   it("keeps existing StepFun baseUrl when endpoint is not specified", async () => {
