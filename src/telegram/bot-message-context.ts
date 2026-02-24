@@ -310,7 +310,7 @@ export const buildTelegramMessageContext = async ({
                 lastName: from?.last_name,
               },
             });
-            if (created) {
+            if (code) {
               logger.info(
                 {
                   chatId: String(chatId),
