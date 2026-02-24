@@ -40,6 +40,20 @@ export function mergePathPrepend(existing: string | undefined, prepend: string[]
   return merged.join(path.delimiter);
 }
 
+/**
+ * Find the actual key used for PATH in an env record.
+ * On Windows, environment variables are case-insensitive, but plain JS objects
+ * are case-sensitive. The key may be "PATH", "Path", "path", etc.
+ */
+function findPathKey(env: Record<string, string>): string {
+  for (const key of Object.keys(env)) {
+    if (key.toUpperCase() === "PATH") {
+      return key;
+    }
+  }
+  return "PATH";
+}
+
 export function applyPathPrepend(
   env: Record<string, string>,
   prepend: string[] | undefined,
@@ -48,11 +62,12 @@ export function applyPathPrepend(
   if (!Array.isArray(prepend) || prepend.length === 0) {
     return;
   }
-  if (options?.requireExisting && !env.PATH) {
+  const pathKey = findPathKey(env);
+  if (options?.requireExisting && !env[pathKey]) {
     return;
   }
-  const merged = mergePathPrepend(env.PATH, prepend);
+  const merged = mergePathPrepend(env[pathKey], prepend);
   if (merged) {
-    env.PATH = merged;
+    env[pathKey] = merged;
   }
 }
