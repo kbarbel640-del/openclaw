@@ -439,10 +439,13 @@ describe("security audit", () => {
   });
 
   it("warns for risky safeBinTrustedDirs entries", async () => {
+    const riskyGlobalDirs = isWindows
+      ? ["C:/Users/test/bin", "C:/Users/test/.local/bin"]
+      : ["/usr/local/bin", "/tmp/openclaw-safe-bins"];
     const cfg: OpenClawConfig = {
       tools: {
         exec: {
-          safeBinTrustedDirs: ["/usr/local/bin", "/tmp/openclaw-safe-bins"],
+          safeBinTrustedDirs: riskyGlobalDirs,
         },
       },
       agents: {
@@ -464,8 +467,9 @@ describe("security audit", () => {
       (f) => f.checkId === "tools.exec.safe_bin_trusted_dirs_risky",
     );
     expect(finding?.severity).toBe("warn");
-    expect(finding?.detail).toContain("/usr/local/bin");
-    expect(finding?.detail).toContain("/tmp/openclaw-safe-bins");
+    for (const riskyDir of riskyGlobalDirs) {
+      expect(finding?.detail).toContain(riskyDir);
+    }
     expect(finding?.detail).toContain("agents.list.ops.tools.exec");
   });
 
