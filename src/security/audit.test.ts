@@ -439,10 +439,14 @@ describe("security audit", () => {
   });
 
   it("warns for risky safeBinTrustedDirs entries", async () => {
+    const riskyGlobalTrustedDirs =
+      process.platform === "win32"
+        ? [String.raw`C:\Users\ci-user\bin`, String.raw`C:\Users\ci-user\.local\bin`]
+        : ["/usr/local/bin", "/tmp/openclaw-safe-bins"];
     const cfg: OpenClawConfig = {
       tools: {
         exec: {
-          safeBinTrustedDirs: ["/usr/local/bin", "/tmp/openclaw-safe-bins"],
+          safeBinTrustedDirs: riskyGlobalTrustedDirs,
         },
       },
       agents: {
