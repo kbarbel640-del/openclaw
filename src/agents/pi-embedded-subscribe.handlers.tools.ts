@@ -125,44 +125,6 @@ function collectMessagingMediaUrlsFromToolResult(result: unknown): string[] {
   return urls;
 }
 
-function emitToolResultOutput(params: {
-  ctx: ToolHandlerContext;
-  toolName: string;
-  meta?: string;
-  isToolError: boolean;
-  result: unknown;
-  sanitizedResult: unknown;
-}) {
-  const { ctx, toolName, meta, isToolError, result, sanitizedResult } = params;
-  if (!ctx.params.onToolResult) {
-    return;
-  }
-
-  if (ctx.shouldEmitToolOutput()) {
-    const outputText = extractToolResultText(sanitizedResult);
-    if (outputText) {
-      ctx.emitToolOutput(toolName, meta, outputText);
-    }
-    return;
-  }
-
-  if (isToolError) {
-    return;
-  }
-
-  // emitToolOutput() already handles MEDIA: directives when enabled; this path
-  // only sends raw media URLs for non-verbose delivery mode.
-  const mediaPaths = filterToolResultMediaUrls(toolName, extractToolResultMediaPaths(result));
-  if (mediaPaths.length === 0) {
-    return;
-  }
-  try {
-    void ctx.params.onToolResult({ mediaUrls: mediaPaths });
-  } catch {
-    // ignore delivery failures
-  }
-}
-
 export async function handleToolExecutionStart(
   ctx: ToolHandlerContext,
   evt: AgentEvent & { toolName: string; toolCallId: string; args: unknown },
@@ -487,7 +449,6 @@ export async function handleToolExecutionEnd(
     // Run after_tool_call plugin hook (fire-and-forget).
     const hookRunnerAfter = ctx.hookRunner ?? getGlobalHookRunner();
     if (hookRunnerAfter?.hasHooks("after_tool_call")) {
-      const startData = ctx.state.toolStartData.get(toolCallId);
       const durationMs =
         startData?.startTime != null ? Date.now() - startData.startTime : undefined;
       const toolArgs = startData?.args;
