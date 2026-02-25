@@ -264,9 +264,11 @@ async function monitorWebSocket({
  * Parse the Feishu webhook request body to extract routing identifiers.
  * Returns { token, appId } from the JSON body's header field.
  */
-function parseWebhookRoutingInfo(
-  rawBody: Buffer,
-): { token?: string; appId?: string; type?: string } {
+function parseWebhookRoutingInfo(rawBody: Buffer): {
+  token?: string;
+  appId?: string;
+  type?: string;
+} {
   try {
     const body = JSON.parse(rawBody.toString("utf-8"));
     // Schema 2.0: { header: { token, app_id }, event: ... }
