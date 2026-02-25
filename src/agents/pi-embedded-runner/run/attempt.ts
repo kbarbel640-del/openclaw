@@ -936,6 +936,7 @@ export async function runEmbeddedAttempt(
         onPartialReply: params.onPartialReply,
         onAssistantMessageStart: params.onAssistantMessageStart,
         onAgentEvent: params.onAgentEvent,
+        suppressLifecycleErrorEvents: params.suppressLifecycleErrorEvents,
         enforceFinalTag: params.enforceFinalTag,
         config: params.config,
         sessionKey: params.sessionKey ?? params.sessionId,
