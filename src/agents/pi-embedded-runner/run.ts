@@ -50,6 +50,7 @@ import {
 } from "../pi-embedded-helpers.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../usage.js";
 import { redactRunIdentifier, resolveRunWorkspaceDir } from "../workspace-run.js";
+import { estimateMessagesTokens } from "../compaction.js";
 import { compactEmbeddedPiSessionDirect } from "./compact.js";
 import { resolveGlobalLane, resolveSessionLane } from "./lanes.js";
 import { log } from "./logger.js";
@@ -825,12 +826,34 @@ export async function runEmbeddedPiAgent(
               );
             }
             const kind = isCompactionFailure ? "compaction_failure" : "context_overflow";
+            // Build diagnostic information for the user
+            const msgCount = attempt.messagesSnapshot?.length ?? 0;
+            const contextWindowTokens = ctxInfo.tokens;
+            const estimatedTokens = attempt.messagesSnapshot
+              ? estimateMessagesTokens(attempt.messagesSnapshot)
+              : 0;
+            const usagePercent = contextWindowTokens > 0
+              ? Math.round((estimatedTokens / contextWindowTokens) * 100)
+              : 0;
+
+            let errorMessage = "Context overflow: prompt too large for the model.\n";
+            errorMessage += `\n📊 Context Status:\n`;
+            errorMessage += `- Messages: ${msgCount}\n`;
+            errorMessage += `- Context Usage: ~${usagePercent}% (${estimatedTokens.toLocaleString()} / ${contextWindowTokens.toLocaleString()} tokens)\n`;
+
+            if (overflowCompactionAttempts > 0) {
+              errorMessage += `- Auto-compaction attempts: ${overflowCompactionAttempts}/${MAX_OVERFLOW_COMPACTION_ATTEMPTS}\n`;
+            }
+
+            errorMessage += `\n💡 Recovery Options:\n`;
+            errorMessage += `- /compact - Manually compress session history\n`;
+            errorMessage += `- /reset or /new - Start a fresh session\n`;
+            errorMessage += `- Use a larger-context model (e.g., Claude Opus 4 with 1M tokens)\n`;
+
             return {
               payloads: [
                 {
-                  text:
-                    "Context overflow: prompt too large for the model. " +
-                    "Try /reset (or /new) to start a fresh session, or use a larger-context model.",
+                  text: errorMessage,
                   isError: true,
                 },
               ],
