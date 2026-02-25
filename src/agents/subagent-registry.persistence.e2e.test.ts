@@ -23,7 +23,7 @@ vi.mock("../infra/agent-events.js", () => ({
   onAgentEvent: vi.fn(() => noop),
 }));
 
-const announceSpy = vi.fn(async () => true);
+const announceSpy = vi.fn(async () => ({ announced: true }));
 vi.mock("./subagent-announce.js", () => ({
   runSubagentAnnounceFlow: (...args: unknown[]) => announceSpy(...args),
 }));
@@ -204,7 +204,7 @@ describe("subagent registry persistence", () => {
     await fs.mkdir(path.dirname(registryPath), { recursive: true });
     await fs.writeFile(registryPath, `${JSON.stringify(persisted)}\n`, "utf8");
 
-    announceSpy.mockResolvedValueOnce(false);
+    announceSpy.mockResolvedValueOnce({ announced: false });
     resetSubagentRegistryForTests({ persist: false });
     initSubagentRegistry();
     await new Promise((r) => setTimeout(r, 0));
@@ -216,7 +216,7 @@ describe("subagent registry persistence", () => {
     expect(afterFirst.runs["run-3"].cleanupHandled).toBe(false);
     expect(afterFirst.runs["run-3"].cleanupCompletedAt).toBeUndefined();
 
-    announceSpy.mockResolvedValueOnce(true);
+    announceSpy.mockResolvedValueOnce({ announced: true });
     resetSubagentRegistryForTests({ persist: false });
     initSubagentRegistry();
     await new Promise((r) => setTimeout(r, 0));
@@ -252,7 +252,7 @@ describe("subagent registry persistence", () => {
     await fs.mkdir(path.dirname(registryPath), { recursive: true });
     await fs.writeFile(registryPath, `${JSON.stringify(persisted)}\n`, "utf8");
 
-    announceSpy.mockResolvedValueOnce(false);
+    announceSpy.mockResolvedValueOnce({ announced: false });
     resetSubagentRegistryForTests({ persist: false });
     initSubagentRegistry();
     await new Promise((r) => setTimeout(r, 0));
@@ -263,7 +263,7 @@ describe("subagent registry persistence", () => {
     };
     expect(afterFirst.runs["run-4"]?.cleanupHandled).toBe(false);
 
-    announceSpy.mockResolvedValueOnce(true);
+    announceSpy.mockResolvedValueOnce({ announced: true });
     resetSubagentRegistryForTests({ persist: false });
     initSubagentRegistry();
     await new Promise((r) => setTimeout(r, 0));

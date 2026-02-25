@@ -610,7 +610,7 @@ export async function runCronIsolatedAgentTurn(params: {
           ? params.job.name.trim()
           : `cron:${params.job.id}`;
       try {
-        const didAnnounce = await runSubagentAnnounceFlow({
+        const announceResult = await runSubagentAnnounceFlow({
           childSessionKey: runSessionKey,
           childRunId: `${params.job.id}:${runSessionId}`,
           requesterSessionKey: announceSessionKey,
@@ -631,7 +631,7 @@ export async function runCronIsolatedAgentTurn(params: {
           outcome: { status: "ok" },
           announceType: "cron job",
         });
-        if (didAnnounce) {
+        if (announceResult.announced) {
           delivered = true;
         } else {
           const message = "cron announce delivery failed";

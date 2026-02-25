@@ -66,7 +66,7 @@ describe("runCronIsolatedAgentTurn", () => {
   beforeEach(() => {
     vi.mocked(runEmbeddedPiAgent).mockReset();
     vi.mocked(loadModelCatalog).mockResolvedValue([]);
-    vi.mocked(runSubagentAnnounceFlow).mockReset().mockResolvedValue(true);
+    vi.mocked(runSubagentAnnounceFlow).mockReset().mockResolvedValue({ announced: true });
     setActivePluginRegistry(
       createTestRegistry([
         {

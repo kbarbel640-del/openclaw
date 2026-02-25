@@ -233,17 +233,11 @@ async function maybeQueueSubagentAnnounce(params: {
     return { mode: "queued", reason: "enqueued_for_active_run" };
   }
 
-  // Run is not active. Restart is only allowed when explicitly requested.
-  if (params.allowRestart === true) {
-    return {
-      mode: "restart",
-      reason: isActive ? "run_active_but_cannot_accept_input" : "run_not_active",
-    };
-  }
-  return {
-    mode: "blocked",
-    reason: isActive ? "run_active_but_cannot_accept_input" : "run_not_active",
-  };
+  // Run is not active — a new run (restart) is needed.
+  // Default (undefined) allows restart for backward compat; only block on explicit false.
+  const restartAllowed = params.allowRestart !== false;
+  const reason = isActive ? "run_active_but_cannot_accept_input" : "run_not_active";
+  return restartAllowed ? { mode: "restart", reason } : { mode: "blocked", reason };
 }
 
 async function buildSubagentStatsLine(params: {

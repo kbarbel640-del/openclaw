@@ -520,7 +520,7 @@ describe("subagent announce formatting", () => {
     expect(call?.params?.to).toBe("bluebubbles:chat_guid:123");
   });
 
-  it("blocks restart by default when no active steer path is available", async () => {
+  it("defaults to restart (backward compat) when no active steer path and allowRestart unset", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
     embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(false);
     sessionStore = {
@@ -542,6 +542,39 @@ describe("subagent announce formatting", () => {
       startedAt: 10,
       endedAt: 20,
       outcome: { status: "ok" },
+    });
+
+    // Default (allowRestart undefined) preserves backward compat: restart is allowed.
+    expect(result).toEqual({
+      announced: true,
+      steer: { mode: "restart", reason: "run_not_active" },
+    });
+    expect(agentSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks restart when allowRestart is explicitly false", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(false);
+    sessionStore = {
+      "agent:main:main": {
+        sessionId: "session-inactive",
+        queueMode: "steer",
+      },
+    };
+
+    const result = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-blocked-explicit",
+      requesterSessionKey: "main",
+      requesterDisplayKey: "main",
+      task: "do thing",
+      timeoutMs: 1000,
+      cleanup: "keep",
+      waitForCompletion: false,
+      startedAt: 10,
+      endedAt: 20,
+      outcome: { status: "ok" },
+      allowRestart: false,
     });
 
     expect(result).toEqual({
