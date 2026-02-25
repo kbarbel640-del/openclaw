@@ -5,6 +5,7 @@ import type { RuntimeEnv } from "../../runtime.js";
 import { attachDiscordGatewayLogging } from "../gateway-logging.js";
 import { getDiscordGatewayEmitter, waitForDiscordGatewayStop } from "../monitor.gateway.js";
 import type { DiscordVoiceManager } from "../voice/manager.js";
+import { ResilientGatewayPlugin } from "./gateway-plugin.js";
 import { registerGateway, unregisterGateway } from "./gateway-registry.js";
 
 type ExecApprovalsHandler = {
@@ -59,14 +60,19 @@ export async function runDiscordGatewayLifecycle(params: {
       clearTimeout(helloTimeoutId);
     }
     helloTimeoutId = setTimeout(() => {
-      if (!gateway?.isConnected) {
+      if (gateway && !gateway.isConnected) {
         params.runtime.log?.(
           danger(
-            `connection stalled: no HELLO received within ${HELLO_TIMEOUT_MS}ms, forcing reconnect`,
+            `connection stalled: no HELLO received within ${HELLO_TIMEOUT_MS}ms, invalidating session and forcing fresh connect`,
           ),
         );
-        gateway?.disconnect();
-        gateway?.connect(false);
+        gateway.disconnect();
+        // Clear stale session state so the next connect does a fresh IDENTIFY
+        // instead of trying to resume a dead session (which causes a death spiral).
+        if (gateway instanceof ResilientGatewayPlugin) {
+          gateway.resetSession();
+        }
+        gateway.connect(false);
       }
       helloTimeoutId = undefined;
     }, HELLO_TIMEOUT_MS);

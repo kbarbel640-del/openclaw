@@ -25,6 +25,21 @@ export function resolveDiscordGatewayIntents(
   return intents;
 }
 
+/**
+ * GatewayPlugin subclass that exposes a method to invalidate stale session
+ * state, allowing the HELLO timeout handler to force a fresh IDENTIFY
+ * instead of endlessly retrying a dead resume.
+ */
+export class ResilientGatewayPlugin extends GatewayPlugin {
+  /** Clear session state so the next connect performs a fresh IDENTIFY. */
+  resetSession(): void {
+    this.state.sessionId = null;
+    this.state.resumeGatewayUrl = null;
+    this.state.sequence = null;
+    this.sequence = null;
+  }
+}
+
 export function createDiscordGatewayPlugin(params: {
   discordConfig: DiscordAccountConfig;
   runtime: RuntimeEnv;
@@ -32,13 +47,13 @@ export function createDiscordGatewayPlugin(params: {
   const intents = resolveDiscordGatewayIntents(params.discordConfig?.intents);
   const proxy = params.discordConfig?.proxy?.trim();
   const options = {
-    reconnect: { maxAttempts: 50 },
+    reconnect: { maxAttempts: 10 },
     intents,
     autoInteractions: true,
   };
 
   if (!proxy) {
-    return new GatewayPlugin(options);
+    return new ResilientGatewayPlugin(options);
   }
 
   try {
@@ -46,7 +61,7 @@ export function createDiscordGatewayPlugin(params: {
 
     params.runtime.log?.("discord: gateway proxy enabled");
 
-    class ProxyGatewayPlugin extends GatewayPlugin {
+    class ProxyGatewayPlugin extends ResilientGatewayPlugin {
       constructor() {
         super(options);
       }
@@ -59,6 +74,6 @@ export function createDiscordGatewayPlugin(params: {
     return new ProxyGatewayPlugin();
   } catch (err) {
     params.runtime.error?.(danger(`discord: invalid gateway proxy: ${String(err)}`));
-    return new GatewayPlugin(options);
+    return new ResilientGatewayPlugin(options);
   }
 }
