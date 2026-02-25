@@ -67,7 +67,7 @@ export class EngramProvider implements MemorySearchManager {
       // Normalize rank (engram returns negative FTS rank; higher = better)
       // We invert and normalize to [0, 1] as a best-effort score.
       const rawRank = typeof obs.rank === "number" ? obs.rank : 0;
-      const score = rawRank <= 0 ? Math.min(1, Math.abs(rawRank) * 1_000_000) : 0;
+      const score = rawRank <= 0 ? Math.min(1, Math.abs(rawRank) / 1_000_000) : 0;
 
       const snippet = `**${obs.title}**: ${obs.content}`;
       return {
