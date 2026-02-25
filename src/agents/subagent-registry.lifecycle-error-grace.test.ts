@@ -60,6 +60,21 @@ vi.mock("./subagent-registry.store.js", () => ({
 describe("subagent registry lifecycle error grace", () => {
   let mod: typeof import("./subagent-registry.js");
 
+  async function flushUntil(
+    predicate: () => boolean,
+    attempts = 20,
+    errorMessage = "condition not met within flush attempts",
+  ) {
+    for (let i = 0; i < attempts; i += 1) {
+      if (predicate()) {
+        return;
+      }
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    throw new Error(errorMessage);
+  }
+
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
@@ -107,6 +122,11 @@ describe("subagent registry lifecycle error grace", () => {
     });
 
     await vi.advanceTimersByTimeAsync(0);
+    await flushUntil(
+      () => announceSpy.mock.calls.length === 1,
+      30,
+      "expected successful completion announce after retry end",
+    );
     expect(announceSpy).toHaveBeenCalledTimes(1);
     expect(announceSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -130,6 +150,11 @@ describe("subagent registry lifecycle error grace", () => {
     expect(announceSpy).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(2_000);
+    await flushUntil(
+      () => announceSpy.mock.calls.length === 1,
+      30,
+      "expected lifecycle error announce after grace window",
+    );
     expect(announceSpy).toHaveBeenCalledTimes(1);
     expect(announceSpy).toHaveBeenCalledWith(
       expect.objectContaining({
