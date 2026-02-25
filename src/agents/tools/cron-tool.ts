@@ -386,14 +386,11 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
               }
             }
 
-            const hasTarget =
-              (typeof delivery?.channel === "string" && delivery.channel.trim()) ||
-              (typeof delivery?.to === "string" && delivery.to.trim());
-            const shouldInfer =
-              (deliveryValue == null || delivery) &&
-              (mode === "" || mode === "announce") &&
-              !hasTarget;
-            if (shouldInfer) {
+            // Bind delivery target to the creator session by default.
+            // This intentionally overrides accidental/stale explicit announce targets
+            // during creation. Users can still change targets later via cron.update.
+            const shouldBindToCreator = (deliveryValue == null || delivery) && (mode === "" || mode === "announce");
+            if (shouldBindToCreator) {
               const inferred = inferDeliveryFromSessionKey(opts.agentSessionKey);
               if (inferred) {
                 (job as { delivery?: unknown }).delivery = {
