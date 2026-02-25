@@ -69,6 +69,7 @@ const SHELL_ENV_EXPECTED_KEYS = [
   "DISCORD_BOT_TOKEN",
   "SLACK_BOT_TOKEN",
   "SLACK_APP_TOKEN",
+  "SLACK_USER_TOKEN",
   "OPENCLAW_GATEWAY_TOKEN",
   "OPENCLAW_GATEWAY_PASSWORD",
 ];
@@ -1170,12 +1171,12 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       watchMode: deps.env.OPENCLAW_WATCH_MODE === "1",
       watchSession:
         typeof deps.env.OPENCLAW_WATCH_SESSION === "string" &&
-        deps.env.OPENCLAW_WATCH_SESSION.trim().length > 0
+          deps.env.OPENCLAW_WATCH_SESSION.trim().length > 0
           ? deps.env.OPENCLAW_WATCH_SESSION.trim()
           : null,
       watchCommand:
         typeof deps.env.OPENCLAW_WATCH_COMMAND === "string" &&
-        deps.env.OPENCLAW_WATCH_COMMAND.trim().length > 0
+          deps.env.OPENCLAW_WATCH_COMMAND.trim().length > 0
           ? deps.env.OPENCLAW_WATCH_COMMAND.trim()
           : null,
       existsBefore: snapshot.exists,
