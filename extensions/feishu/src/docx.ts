@@ -116,14 +116,22 @@ async function insertBlocks(
     return { children: [], skipped };
   }
 
-  const res = await client.docx.documentBlockChildren.create({
-    path: { document_id: docToken, block_id: blockId },
-    data: { children: cleaned },
-  });
-  if (res.code !== 0) {
-    throw new Error(res.msg);
+  // Insert blocks one at a time to preserve document order.
+  // The batch API (sending all children at once) does not guarantee ordering
+  // because Feishu processes the batch asynchronously.  Sequential single-block
+  // inserts (each appended to the end) produce deterministic results.
+  const allInserted: any[] = [];
+  for (const block of cleaned) {
+    const res = await client.docx.documentBlockChildren.create({
+      path: { document_id: docToken, block_id: blockId },
+      data: { children: [block] },
+    });
+    if (res.code !== 0) {
+      throw new Error(res.msg);
+    }
+    allInserted.push(...(res.data?.children ?? []));
   }
-  return { children: res.data?.children ?? [], skipped };
+  return { children: allInserted, skipped };
 }
 
 async function clearDocumentContent(client: Lark.Client, docToken: string) {
