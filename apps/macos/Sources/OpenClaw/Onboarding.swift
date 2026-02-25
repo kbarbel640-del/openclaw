@@ -88,6 +88,7 @@ struct OnboardingView: View {
     @State var needsBootstrap = false
     @State var didAutoKickoff = false
     @State var showAdvancedConnection = false
+    @State var remoteTokenDraft: String = ""
     @State var remoteTokenImportMessage: String?
     @State var remoteTokenImportShakeCount = 0
     @State var remoteTokenImportInProgress = false

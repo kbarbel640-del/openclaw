@@ -6,12 +6,46 @@ import SwiftUI
 
 extension OnboardingView {
     @MainActor
-    func applyManualRemoteGatewayTokenInput(_ raw: String) {
-        switch OpenClawConfigFile.setRemoteGatewayToken(raw) {
-        case .set, .cleared, .unchanged:
-            if let message = self.remoteTokenImportMessage, message.hasPrefix("Token rejected") {
-                self.remoteTokenImportMessage = nil
+    func validateAndSaveRemoteGatewayTokenDraft() async {
+        guard !self.remoteTokenImportInProgress else { return }
+        self.remoteTokenImportInProgress = true
+        defer { self.remoteTokenImportInProgress = false }
+
+        let previousToken = OpenClawConfigFile.remoteGatewayToken() ?? ""
+        guard let token = OpenClawConfigFile.extractGatewayToken(self.remoteTokenDraft) else {
+            NSSound.beep()
+            withAnimation(.easeInOut(duration: 0.35)) {
+                self.remoteTokenImportShakeCount += 1
             }
+            self.remoteTokenImportMessage =
+                "Token rejected. Paste the raw gateway token or a dashboard URL containing #token=..."
+            return
+        }
+        if token == previousToken {
+            self.remoteTokenImportMessage = "Token already matches your current gateway token. No changes made."
+            self.remoteTokenDraft = previousToken
+            return
+        }
+
+        self.remoteTokenImportMessage = "Verifying token with gateway…"
+        do {
+            try await RemoteGatewayTokenVerifier.verify(token: token)
+        } catch {
+            NSSound.beep()
+            withAnimation(.easeInOut(duration: 0.35)) {
+                self.remoteTokenImportShakeCount += 1
+            }
+            self.remoteTokenImportMessage = RemoteGatewayTokenVerifier.failureMessage(for: error)
+            return
+        }
+
+        switch OpenClawConfigFile.setRemoteGatewayToken(token) {
+        case .set:
+            self.remoteTokenDraft = token
+            self.remoteTokenImportMessage = "Token verified and saved to gateway.remote.token."
+        case .unchanged:
+            self.remoteTokenDraft = OpenClawConfigFile.remoteGatewayToken() ?? ""
+            self.remoteTokenImportMessage = "Token already matches your current gateway token. No changes made."
         case .rejectedInvalid:
             NSSound.beep()
             withAnimation(.easeInOut(duration: 0.35)) {
@@ -19,6 +53,9 @@ extension OnboardingView {
             }
             self.remoteTokenImportMessage =
                 "Token rejected. Paste the raw gateway token or a dashboard URL containing #token=..."
+        case .cleared:
+            self.remoteTokenDraft = ""
+            self.remoteTokenImportMessage = "Gateway token cleared."
         }
     }
 
@@ -27,6 +64,7 @@ extension OnboardingView {
         self.preferredGatewayID = nil
         self.showAdvancedConnection = false
         self.remoteTokenImportMessage = nil
+        self.remoteTokenDraft = OpenClawConfigFile.remoteGatewayToken() ?? ""
         GatewayDiscoveryPreferences.setPreferredStableID(nil)
     }
 
@@ -36,6 +74,7 @@ extension OnboardingView {
         self.preferredGatewayID = nil
         self.showAdvancedConnection = false
         self.remoteTokenImportMessage = nil
+        self.remoteTokenDraft = OpenClawConfigFile.remoteGatewayToken() ?? ""
         GatewayDiscoveryPreferences.setPreferredStableID(nil)
     }
 
@@ -59,6 +98,7 @@ extension OnboardingView {
 
         self.state.connectionMode = .remote
         self.remoteTokenImportMessage = nil
+        self.remoteTokenDraft = OpenClawConfigFile.remoteGatewayToken() ?? ""
         MacNodeModeCoordinator.shared.setPreferredGatewayStableID(gateway.stableID)
     }
 
@@ -101,8 +141,10 @@ extension OnboardingView {
         }
         switch OpenClawConfigFile.setRemoteGatewayToken(token) {
         case .set:
+            self.remoteTokenDraft = token
             self.remoteTokenImportMessage = "Token verified and saved to gateway.remote.token."
         case .unchanged:
+            self.remoteTokenDraft = OpenClawConfigFile.remoteGatewayToken() ?? ""
             self.remoteTokenImportMessage = "Clipboard token already matches your current gateway token. No changes made."
         case .rejectedInvalid:
             NSSound.beep()
@@ -112,6 +154,7 @@ extension OnboardingView {
             self.remoteTokenImportMessage =
                 "Token rejected. Paste the raw gateway token or a dashboard URL containing #token=..."
         case .cleared:
+            self.remoteTokenDraft = OpenClawConfigFile.remoteGatewayToken() ?? ""
             self.remoteTokenImportMessage =
                 "Clipboard import rejected. Existing token was kept."
         }
