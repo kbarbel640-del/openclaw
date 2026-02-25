@@ -409,8 +409,14 @@ export async function discoverAllSessions(params?: {
     }
     // Do not exclude by endMs: a session can have activity in range even if it continued later.
 
-    // Extract session ID from filename (remove .jsonl)
-    const sessionId = entry.name.slice(0, -6);
+    // Extract session ID from filename (remove .jsonl).
+    // Pi-SDK and forked sessions use the format "<timestamp>_<UUID>.jsonl"
+    // (e.g. "2024-01-15T10-30-45-123Z_<uuid>.jsonl"). Strip the timestamp
+    // prefix so the extracted ID matches the UUID stored in sessions.json.
+    const rawName = entry.name.slice(0, -6);
+    const UUID_SUFFIX_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidMatch = UUID_SUFFIX_RE.exec(rawName);
+    const sessionId = uuidMatch ? uuidMatch[0] : rawName;
 
     // Try to read first user message for label extraction
     let firstUserMessage: string | undefined;

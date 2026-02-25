@@ -231,6 +231,34 @@ describe("session cost usage", () => {
     });
   });
 
+  it("extracts UUID from pi-SDK timestamped session filenames", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-discover-uuid-"));
+    const sessionsDir = path.join(root, "agents", "main", "sessions");
+    await fs.mkdir(sessionsDir, { recursive: true });
+
+    // Pi-SDK creates files as "<fileTimestamp>_<UUID>.jsonl"
+    const uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+    const timestampedName = `2024-01-15T10-30-45-123Z_${uuid}.jsonl`;
+    const timestampedFile = path.join(sessionsDir, timestampedName);
+    await fs.writeFile(timestampedFile, "", "utf-8");
+
+    // Plain UUID filename (non-timestamped sessions) should still work
+    const plainUuid = "11112222-3333-4444-5555-666677778888";
+    const plainFile = path.join(sessionsDir, `${plainUuid}.jsonl`);
+    await fs.writeFile(plainFile, "", "utf-8");
+
+    await withStateDir(root, async () => {
+      const sessions = await discoverAllSessions({});
+      const byFile = new Map(sessions.map((s) => [path.basename(s.sessionFile), s]));
+
+      // Timestamped file: sessionId should be the UUID, not the full prefix
+      expect(byFile.get(timestampedName)?.sessionId).toBe(uuid);
+
+      // Plain UUID file: sessionId should be the UUID as-is
+      expect(byFile.get(`${plainUuid}.jsonl`)?.sessionId).toBe(plainUuid);
+    });
+  });
+
   it("resolves non-main absolute sessionFile using explicit agentId for cost summary", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-cost-agent-"));
     const workerSessionsDir = path.join(root, "agents", "worker1", "sessions");
