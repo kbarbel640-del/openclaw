@@ -1383,7 +1383,7 @@ export function createWebSearchTool(options?: {
           ? "Search the web using Kimi by Moonshot. Returns AI-synthesized answers with citations from native $web_search."
           : provider === "gemini"
             ? "Search the web using Gemini with Google Search grounding. Returns AI-synthesized answers with citations from Google Search."
-            : provider == "baidu"
+            : provider === "baidu"
               ? "Search the web using Baidu Search API. Return titles, URL, snippets, page date for high critical demand search"
               : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
   return {
