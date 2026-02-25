@@ -294,12 +294,16 @@ export async function monitorMSTeamsProvider(
     });
   };
 
-  // Handle abort signal
-  if (opts.abortSignal) {
-    opts.abortSignal.addEventListener("abort", () => {
-      void shutdown();
-    });
-  }
+  // Block until abort signal fires — the framework expects startAccount()
+  // to stay pending while the channel is running.
+  await new Promise<void>((resolve) => {
+    if (opts.abortSignal) {
+      opts.abortSignal.addEventListener("abort", () => resolve(), { once: true });
+    }
+    // Also resolve if the HTTP server closes unexpectedly
+    httpServer.on("close", () => resolve());
+  });
 
+  await shutdown();
   return { app: expressApp, shutdown };
 }
