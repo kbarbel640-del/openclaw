@@ -83,7 +83,7 @@ xcrun swift --version
 1. TCC 권한을 재설정하세요:
 
    ```bash
-   tccutil reset All bot.molt.mac.debug
+   tccutil reset All ai.openclaw.mac.debug
    ```
 
 2. 실패할 경우, 강제로 macOS에서 "클린 슬레이트"를 만들기 위해 [`scripts/package-mac-app.sh`](https://github.com/openclaw/openclaw/blob/main/scripts/package-mac-app.sh)의 `BUNDLE_ID`를 일시적으로 변경하세요.

@@ -263,7 +263,7 @@ openclaw [--dev] [--profile <name>] <command>
 
 - `openclaw memory status` — 인덱스 통계 표시.
 - `openclaw memory index` — 메모리 파일 재인덱스.
-- `openclaw memory search "<query>"` — 메모리에 대한 의미 검색.
+- `openclaw memory search "<query>"` (또는 `--query "<query>"`) — 메모리에 대한 의미 검색.
 
 ## 채팅 슬래시 명령어
 
@@ -448,8 +448,23 @@ openclaw status --deep
 
 하위 명령어:
 
-- `pairing list <channel> [--json]`
-- `pairing approve <channel> <code> [--notify]`
+- `pairing list [channel] [--channel <channel>] [--account <id>] [--json]`
+- `pairing approve <channel> <code> [--account <id>] [--notify]`
+- `pairing approve --channel <channel> [--account <id>] <code> [--notify]`
+
+### `devices`
+
+게이트웨이 디바이스 페어링 항목 및 역할별 디바이스 토큰 관리.
+
+하위 명령어:
+
+- `devices list [--json]`
+- `devices approve [requestId] [--latest]`
+- `devices reject <requestId>`
+- `devices remove <deviceId>`
+- `devices clear --yes [--pending]`
+- `devices rotate --device <id> --role <role> [--scope <scope...>]`
+- `devices revoke --device <id> --role <role>`
 
 ### `webhooks gmail`
 

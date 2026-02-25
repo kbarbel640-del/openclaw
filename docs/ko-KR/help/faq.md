@@ -2316,7 +2316,7 @@ OpenClaw는 시작 시 즉시 WebSocket 리스너를 바인딩하여 런타임 �
 - 각 프로필 구성에서 고유한 `gateway.port`를 설정하거나 수동 실행을 위해 `--port`를 전달하세요.
 - 프로필별 서비스를 설치합니다: `openclaw --profile <name> gateway install`.
 
-프로필은 서비스 이름에 접미사를 붙입니다 (`bot.molt.<profile>`; 레거시 `com.openclaw.*`, `openclaw-gateway-<profile>.service`, `OpenClaw Gateway (<profile>)`).
+프로필은 서비스 이름에 접미사를 붙입니다 (`ai.openclaw.<profile>`; 레거시 `com.openclaw.*`, `openclaw-gateway-<profile>.service`, `OpenClaw Gateway (<profile>)`).
 전체 가이드: [다중 게이트웨이](/gateway/multiple-gateways).
 
 ### "Invalid handshake code 1008"은 무슨 의미인가요
@@ -2542,8 +2542,8 @@ openclaw message send --target +15555550123 --message "여기 있어요" --media
 
 - DM 가능한 채널의 기본 동작은 **페어링**입니다:
   - 알려지지 않은 보낸 사람은 페어링 코드를 받으며, 봇은 메시지를 처리하지 않습니다.
-  - 승인 방법: `openclaw pairing approve <channel> <code>`
-  - 보류 중인 요청은 **채널당 3개**로 제한됩니다; 코드가 도착하지 않으면 `openclaw pairing list <channel>`를 확인하세요.
+  - 승인 방법: `openclaw pairing approve --channel <channel> [--account <id>] <code>`
+  - 보류 중인 요청은 **채널당 3개**로 제한됩니다; 코드가 도착하지 않으면 `openclaw pairing list --channel <channel> [--account <id>]`를 확인하세요.
 - 공개적으로 다이렉트 메시지를 열려면 명시적인 동의가 필요합니다 (`dmPolicy: "open"` 및 허용리스트에 `"*"`).
 
 위험한 DM 정책을 드러내기 위해 `openclaw doctor`를 실행하세요.

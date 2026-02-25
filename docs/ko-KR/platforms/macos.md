@@ -29,14 +29,14 @@ macOS 앱은 OpenClaw의 **메뉴 막대 동반 앱**입니다. 권한을 소유
 
 ## Launchd 제어
 
-앱은 `bot.molt.gateway` 라벨의 사용자 별 LaunchAgent를 관리합니다(`--profile`/`OPENCLAW_PROFILE` 사용 시 `bot.molt.<profile>`; 이전 `com.openclaw.*`는 여전히 언로드됨).
+앱은 `ai.openclaw.gateway` 라벨의 사용자 별 LaunchAgent를 관리합니다(`--profile`/`OPENCLAW_PROFILE` 사용 시 `ai.openclaw.<profile>`; 이전 `com.openclaw.*`는 여전히 언로드됨).
 
 ```bash
-launchctl kickstart -k gui/$UID/bot.molt.gateway
-launchctl bootout gui/$UID/bot.molt.gateway
+launchctl kickstart -k gui/$UID/ai.openclaw.gateway
+launchctl bootout gui/$UID/ai.openclaw.gateway
 ```
 
-명명된 프로필을 실행할 때 라벨을 `bot.molt.<profile>`로 교체하십시오.
+명명된 프로필을 실행할 때 라벨을 `ai.openclaw.<profile>`로 교체하십시오.
 
 LaunchAgent가 설치되어 있지 않으면, 앱에서 활성화하거나
 `openclaw gateway install`을 실행합니다.

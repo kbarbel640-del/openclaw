@@ -191,7 +191,7 @@ openclaw logs --follow
 
 감시 중이라면:
 
-- macOS launchd (앱 번들 LaunchAgent): `launchctl kickstart -k gui/$UID/bot.molt.gateway` (`bot.molt.<profile>` 사용; 레거시 `com.openclaw.*` 여전히 작동)
+- macOS launchd (앱 번들 LaunchAgent): `launchctl kickstart -k gui/$UID/ai.openclaw.gateway` (`ai.openclaw.<profile>` 사용; 레거시 `com.openclaw.*` 여전히 작동)
 - Linux systemd 사용자 서비스: `systemctl --user restart openclaw-gateway[-<profile>].service`
 - Windows (WSL2): `systemctl --user restart openclaw-gateway[-<profile>].service`
   - `launchctl`/`systemctl`은 서비스가 설치된 경우에만 작동; 그렇지 않으면 `openclaw gateway install` 실행.

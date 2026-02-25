@@ -25,6 +25,7 @@ openclaw memory status --deep --index --verbose
 openclaw memory index
 openclaw memory index --verbose
 openclaw memory search "release checklist"
+openclaw memory search --query "release checklist"
 openclaw memory status --agent main
 openclaw memory index --agent main --verbose
 ```
@@ -35,6 +36,12 @@ Common:
 
 - `--agent <id>`: 단일 에이전트에 범위를 지정합니다 (기본값: 모든 구성된 에이전트).
 - `--verbose`: 프로브 및 인덱싱 중에 자세한 로그를 출력합니다.
+
+`memory search`:
+
+- 쿼리 입력: 위치 인수 `[query]` 또는 `--query <text>` 중 하나로 전달합니다.
+- 둘 다 제공된 경우 `--query`가 우선합니다.
+- 둘 다 제공되지 않으면 명령어가 오류와 함께 종료됩니다.
 
 Notes:
 

@@ -21,6 +21,25 @@ openclaw devices list
 openclaw devices list --json
 ```
 
+### `openclaw devices remove <deviceId>`
+
+페어링된 디바이스 항목 하나를 제거합니다.
+
+```
+openclaw devices remove <deviceId>
+openclaw devices remove <deviceId> --json
+```
+
+### `openclaw devices clear --yes [--pending]`
+
+페어링된 디바이스를 일괄 제거합니다.
+
+```
+openclaw devices clear --yes
+openclaw devices clear --yes --pending
+openclaw devices clear --yes --pending --json
+```
+
 ### `openclaw devices approve [requestId] [--latest]`
 
 대기 중인 디바이스 페어링 요청을 승인합니다. `requestId`가 생략되면 OpenClaw는
@@ -71,3 +90,5 @@ openclaw devices revoke --device <deviceId> --role node
 
 - 토큰 로테이션은 새 토큰을 반환합니다 (민감한 정보). 비밀처럼 다루세요.
 - 이러한 명령어는 `operator.pairing` (또는 `operator.admin`) 범위가 필요합니다.
+- `devices clear`는 의도적으로 `--yes` 플래그가 필요합니다.
+- 로컬 루프백에서 페어링 범위를 사용할 수 없는 경우 (명시적 `--url`도 없는 경우), list/approve는 로컬 페어링 폴백을 사용할 수 있습니다.

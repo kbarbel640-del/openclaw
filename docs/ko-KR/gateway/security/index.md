@@ -221,6 +221,7 @@ GHSA를 개설하기 전에 다음 모든 항목을 확인하세요:
 | `hooks.request_session_key_prefixes_missing`       | warn/critical | 외부 세션 키 형태에 대한 제한 없음                                          | `hooks.allowedSessionKeyPrefixes`                                                                 | no        |
 | `logging.redact_off`                               | warn          | 민감한 값이 로그/상태로 누출                                                | `logging.redactSensitive`                                                                         | yes       |
 | `sandbox.docker_config_mode_off`                   | warn          | 샌드박스 Docker 구성 존재하나 비활성 상태                                   | `agents.*.sandbox.mode`                                                                           | no        |
+| `sandbox.dangerous_network_mode`                   | critical      | 샌드박스 Docker 네트워크가 `host` 또는 `container:*` 네임스페이스 결합 모드 | `agents.*.sandbox.docker.network`                                                                 | no        |
 | `tools.exec.host_sandbox_no_sandbox_defaults`      | warn          | 샌드박스가 꺼진 경우 `exec host=sandbox`가 호스트 exec로 해석됨             | `tools.exec.host`, `agents.defaults.sandbox.mode`                                                 | no        |
 | `tools.exec.host_sandbox_no_sandbox_agents`        | warn          | 샌드박스가 꺼진 경우 에이전트별 `exec host=sandbox`가 호스트 exec로 해석됨  | `agents.list[].tools.exec.host`, `agents.list[].sandbox.mode`                                     | no        |
 | `tools.exec.safe_bins_interpreter_unprofiled`      | warn          | 명시적 프로필 없이 `safeBins`의 인터프리터/런타임 바이너리가 exec 위험 증가 | `tools.exec.safeBins`, `tools.exec.safeBinProfiles`, `agents.list[].tools.exec.*`                 | no        |
@@ -827,6 +828,7 @@ AI를 개인 전화 번호와 별도로 실행하는 것을 고려하세요:
 
 - `tools.exec.applyPatch.workspaceOnly: true` (기본값): 샌드박스가 꺼져 있어도 `apply_patch`가 작업 공간 디렉터리 외부를 쓰거나 삭제할 수 없도록 보장합니다. `apply_patch`가 작업 공간 외부의 파일을 만질 수 있도록 하려는 경우에만 `false`로 설정하세요.
 - `tools.fs.workspaceOnly: true` (선택 사항): `읽기`/`쓰기`/`편집`/`패치 적용` 경로를 작업 공간 디렉터리로만 제한합니다 (오늘날 절대 경로를 허용하는 경우 단일 가드레일로 유용).
+- 파일시스템 루트를 좁게 유지하세요: 에이전트 작업 공간/샌드박스 작업 공간에 홈 디렉터리와 같은 광범위한 루트를 사용하지 마세요. 광범위한 루트는 파일시스템 도구에 민감한 로컬 파일 (예: `~/.openclaw` 아래의 상태/설정)을 노출시킬 수 있습니다.
 
 ### 5) 안전한 기본라인 (복사/붙여넣기)
 

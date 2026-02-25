@@ -338,6 +338,8 @@ pnpm test:docker:qr
   - `"rw"`는 에이전트 작업 공간을 읽기/쓰기 `/workspace`에 마운트
 - 자동 정리: 대기 > 24시간 또는 나이 > 7일
 - 네트워크: 기본 값 `none` (출구가 필요한 경우 명시적 선택 필요)
+  - `host`는 차단됩니다.
+  - `container:<id>`는 기본적으로 차단됩니다 (네임스페이스 결합 위험).
 - 기본 허용: `exec`, `process`, `read`, `write`, `edit`, `sessions_list`, `sessions_history`, `sessions_send`, `sessions_spawn`, `session_status`
 - 기본 거부: `browser`, `canvas`, `nodes`, `cron`, `discord`, `gateway`
 
@@ -346,6 +348,9 @@ pnpm test:docker:qr
 `setupCommand`에서 패키지를 설치할 계획이라면, 다음을 유의하세요:
 
 - 기본 `docker.network`는 `"none"` (출구 없음).
+- `docker.network: "host"`는 차단됩니다.
+- `docker.network: "container:<id>"`는 기본적으로 차단됩니다.
+- Break-glass 오버라이드: `agents.defaults.sandbox.docker.dangerouslyAllowContainerNamespaceJoin: true`.
 - `readOnlyRoot: true`는 패키지 설치를 차단합니다.
 - `user`는 `apt-get`을 위해 루트여야 합니다 ( `user`를 생략하거나 `user: "0:0"`으로 설정).
   `setupCommand` (또는 docker 설정)가 변경되면 OpenClaw는 자동으로 컨테이너를 재생성합니다
@@ -414,7 +419,8 @@ pnpm test:docker:qr
 
 강화 설정은 `agents.defaults.sandbox.docker`에 위치합니다:
 `network`, `user`, `pidsLimit`, `memory`, `memorySwap`, `cpus`, `ulimits`,
-`seccompProfile`, `apparmorProfile`, `dns`, `extraHosts`.
+`seccompProfile`, `apparmorProfile`, `dns`, `extraHosts`,
+`dangerouslyAllowContainerNamespaceJoin` (break-glass 전용).
 
 다중 에이전트: `agents.list[].sandbox.{docker,browser,prune}.*`를 통해 에이전트별로 `agents.defaults.sandbox.{docker,browser,prune}.*`를 재정의합니다.
 ( 무시되는 경우 `agents.defaults.sandbox.scope` / `agents.list[].sandbox.scope` 는 `"shared"` ).

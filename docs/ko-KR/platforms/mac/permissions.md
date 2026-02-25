@@ -31,8 +31,8 @@ macOS 권한 허가는 취약합니다. TCC는 앱의 코드 서명, 번들 식�
 예제 재설정 (번들 ID는 필요에 맞게 수정):
 
 ```bash
-sudo tccutil reset Accessibility bot.molt.mac
-sudo tccutil reset ScreenCapture bot.molt.mac
+sudo tccutil reset Accessibility ai.openclaw.mac
+sudo tccutil reset ScreenCapture ai.openclaw.mac
 sudo tccutil reset AppleEvents
 ```
 

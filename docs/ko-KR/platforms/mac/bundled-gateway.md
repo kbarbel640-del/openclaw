@@ -27,12 +27,12 @@ macOS 앱의 **CLI 설치** 버튼은 npm/pnpm을 통해 동일한 흐름을 실
 
 라벨:
 
-- `bot.molt.gateway` (또는 `bot.molt.<profile>`; 기존 `com.openclaw.*`는 남아있을 수 있음)
+- `ai.openclaw.gateway` (또는 `ai.openclaw.<profile>`; 기존 `com.openclaw.*`는 남아있을 수 있음)
 
 Plist 위치 (사용자별):
 
-- `~/Library/LaunchAgents/bot.molt.gateway.plist`
-  (또는 `~/Library/LaunchAgents/bot.molt.<profile>.plist`)
+- `~/Library/LaunchAgents/ai.openclaw.gateway.plist`
+  (또는 `~/Library/LaunchAgents/ai.openclaw.<profile>.plist`)
 
 관리자:
 

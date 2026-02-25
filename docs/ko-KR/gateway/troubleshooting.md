@@ -36,7 +36,7 @@ openclaw channels status --probe
 ```bash
 openclaw status
 openclaw channels status --probe
-openclaw pairing list <channel>
+openclaw pairing list --channel <channel> [--account <id>]
 openclaw config get channels
 openclaw logs --follow
 ```
@@ -125,7 +125,7 @@ openclaw gateway status --deep
 
 ```bash
 openclaw channels status --probe
-openclaw pairing list <channel>
+openclaw pairing list --channel <channel> [--account <id>]
 openclaw status --deep
 openclaw logs --follow
 openclaw config get channels
@@ -174,6 +174,7 @@ openclaw logs --follow
 - `cron: timer tick failed` → 스케줄러 틱 실패; 파일/로그/런타임 오류 확인.
 - `heartbeat skipped`와 `reason=quiet-hours` → 활성 시간대 외부.
 - `heartbeat: unknown accountId` → 하트비트 전달 대상에 대한 잘못된 계정 ID.
+- `heartbeat skipped`와 `reason=dm-blocked` → 하트비트 대상이 DM 형식의 `user:<id>` 대상으로 해석됨 (설계상 차단).
 
 관련 항목:
 
@@ -289,7 +290,7 @@ openclaw logs --follow
 
 ```bash
 openclaw devices list
-openclaw pairing list <channel>
+openclaw pairing list --channel <channel> [--account <id>]
 openclaw logs --follow
 openclaw doctor
 ```

@@ -33,7 +33,7 @@ Notes:
 ```bash
 # 리포지토리 루트에서; 릴리스 ID를 설정하여 Sparkle 피드를 활성화합니다.
 # APP_BUILD는 Sparkle 비교를 위해 숫자 + 단조롭게 설정해야 합니다.
-BUNDLE_ID=bot.molt.mac \
+BUNDLE_ID=ai.openclaw.mac \
 APP_VERSION=2026.2.24 \
 APP_BUILD="$(git rev-list --count HEAD)" \
 BUILD_CONFIG=release \
@@ -51,7 +51,7 @@ scripts/create-dmg.sh dist/OpenClaw.app dist/OpenClaw-2026.2.24.dmg
 #   xcrun notarytool store-credentials "openclaw-notary" \
 #     --apple-id "<apple-id>" --team-id "<team-id>" --password "<app-specific-password>"
 NOTARIZE=1 NOTARYTOOL_PROFILE=openclaw-notary \
-BUNDLE_ID=bot.molt.mac \
+BUNDLE_ID=ai.openclaw.mac \
 APP_VERSION=2026.2.24 \
 APP_BUILD="$(git rev-list --count HEAD)" \
 BUILD_CONFIG=release \

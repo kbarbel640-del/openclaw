@@ -13,19 +13,19 @@ macOS 앱은 기본적으로 **launchd를 통해 게이트웨이를 관리**하�
 
 ## 기본 동작 (launchd)
 
-- 앱은 `bot.molt.gateway`로 라벨이 지정된 사용자별 LaunchAgent를 설치합니다
-  (`--profile`/`OPENCLAW_PROFILE`를 사용하는 경우 `bot.molt.<profile>`; 기존 `com.openclaw.*`는 지원합니다).
+- 앱은 `ai.openclaw.gateway`로 라벨이 지정된 사용자별 LaunchAgent를 설치합니다
+  (`--profile`/`OPENCLAW_PROFILE`를 사용하는 경우 `ai.openclaw.<profile>`; 기존 `com.openclaw.*`는 지원합니다).
 - 로컬 모드가 활성화되면, 앱은 LaunchAgent가 로드되었음을 확인하고 필요에 따라 게이트웨이를 시작합니다.
 - 로그는 launchd 게이트웨이 로그 경로에 기록됩니다 (디버그 설정에서 확인 가능).
 
 일반적인 명령어:
 
 ```bash
-launchctl kickstart -k gui/$UID/bot.molt.gateway
-launchctl bootout gui/$UID/bot.molt.gateway
+launchctl kickstart -k gui/$UID/ai.openclaw.gateway
+launchctl bootout gui/$UID/ai.openclaw.gateway
 ```
 
-이름이 지정된 프로파일을 실행할 때는 라벨을 `bot.molt.<profile>`로 교체하십시오.
+이름이 지정된 프로파일을 실행할 때는 라벨을 `ai.openclaw.<profile>`로 교체하십시오.
 
 ## 서명이 없는 개발 빌드
 

@@ -21,7 +21,7 @@ macOS 메뉴 바 앱은 WebChat UI 를 네이티브 SwiftUI 뷰로 임베드합�
   dist/OpenClaw.app/Contents/MacOS/OpenClaw --webchat
   ```
 
-- 로그: `./scripts/clawlog.sh` (서브시스템 `bot.molt`, 카테고리 `WebChatSwiftUI`).
+- 로그: `./scripts/clawlog.sh` (서브시스템 `ai.openclaw`, 카테고리 `WebChatSwiftUI`).
 
 ## 연결 방법
 

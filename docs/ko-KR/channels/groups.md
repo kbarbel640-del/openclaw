@@ -1,5 +1,5 @@
 ---
-summary: "다양한 플랫폼에서의 그룹 채팅 동작 (WhatsApp/Telegram/Discord/Slack/Signal/iMessage/Microsoft Teams)"
+summary: "다양한 플랫폼에서의 그룹 채팅 동작 (WhatsApp/Telegram/Discord/Slack/Signal/iMessage/Microsoft Teams/Zalo)"
 read_when:
   - 그룹 채팅 동작 또는 멘션 게이팅 변경
 title: "Groups"
@@ -7,7 +7,7 @@ title: "Groups"
 
 # Groups
 
-OpenClaw는 WhatsApp, Telegram, Discord, Slack, Signal, iMessage, Microsoft Teams를 포함한 다양한 플랫폼에서 그룹 채팅을 일관되게 처리합니다.
+OpenClaw는 WhatsApp, Telegram, Discord, Slack, Signal, iMessage, Microsoft Teams, Zalo를 포함한 다양한 플랫폼에서 그룹 채팅을 일관되게 처리합니다.
 
 ## 초보자 소개 (2분)
 
@@ -182,7 +182,7 @@ otherwise -> reply
 참고 사항:
 
 - `groupPolicy`는 멘션 게이팅과 별개입니다 (멘션이 필요함).
-- WhatsApp/Telegram/Signal/iMessage/Microsoft Teams: `groupAllowFrom` 사용 (백업: 명시적 `allowFrom`).
+- WhatsApp/Telegram/Signal/iMessage/Microsoft Teams/Zalo: `groupAllowFrom` 사용 (백업: 명시적 `allowFrom`).
 - Discord: 허용 목록은 `channels.discord.guilds.<id>.channels`를 사용합니다.
 - Slack: 허용 목록은 `channels.slack.channels`를 사용합니다.
 - Matrix: 허용 목록은 `channels.matrix.groups`를 사용합니다 (방 ID, 별칭 또는 이름). 발신자를 제한하려면 `channels.matrix.groupAllowFrom`을 사용하세요; 방별 `users` 허용 목록도 지원됩니다.

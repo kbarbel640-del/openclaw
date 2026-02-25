@@ -62,7 +62,7 @@ title: "크론 vs 하트비트"
     defaults: {
       heartbeat: {
         every: "30m", // 간격
-        target: "last", // 경고를 전달할 위치
+        target: "last", // 명시적 경고 전달 대상 (기본값: "none")
         activeHours: { start: "08:00", end: "22:00" }, // 선택 사항
       },
     },

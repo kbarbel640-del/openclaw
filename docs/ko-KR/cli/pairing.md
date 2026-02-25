@@ -16,6 +16,17 @@ title: "페어링"
 ## 명령어
 
 ```bash
-openclaw pairing list whatsapp
-openclaw pairing approve whatsapp <code> --notify
+openclaw pairing list telegram
+openclaw pairing list --channel telegram --account work
+openclaw pairing list telegram --json
+
+openclaw pairing approve telegram <code>
+openclaw pairing approve --channel telegram --account work <code> --notify
 ```
+
+## 참고사항
+
+- 채널 입력: 위치 인수(`pairing list telegram`) 또는 `--channel <channel>`로 전달합니다.
+- `pairing list`는 멀티 계정 채널을 위한 `--account <accountId>`를 지원합니다.
+- `pairing approve`는 `--account <accountId>` 및 `--notify`를 지원합니다.
+- 페어링 지원 채널이 하나만 구성된 경우, `pairing approve <code>`만으로도 허용됩니다.

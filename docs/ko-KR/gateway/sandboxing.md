@@ -129,6 +129,12 @@ scripts/sandbox-browser-setup.sh
 기본적으로, 샌드박스 컨테이너는 **네트워크 없이** 실행됩니다.
 `agents.defaults.sandbox.docker.network` 를 통해 오버라이드하세요.
 
+보안 기본값:
+
+- `network: "host"`는 차단됩니다.
+- `network: "container:<id>"`는 기본적으로 차단됩니다 (네임스페이스 결합 우회 위험).
+- Break-glass 오버라이드: `agents.defaults.sandbox.docker.dangerouslyAllowContainerNamespaceJoin: true`.
+
 Docker 설치와 컨테이너화된 게이트웨이는 여기에서 찾을 수 있습니다:
 [Docker](/ko-KR/install/docker)
 
@@ -145,6 +151,7 @@ Docker 설치와 컨테이너화된 게이트웨이는 여기에서 찾을 수 �
 일반적인 문제점:
 
 - 기본 `docker.network` 는 `"none"` 이므로 (출구 없음) 패키지 설치가 실패합니다.
+- `docker.network: "container:<id>"`는 `dangerouslyAllowContainerNamespaceJoin: true`가 필요하며 break-glass 전용입니다.
 - `readOnlyRoot: true` 는 쓰기를 금지합니다; `readOnlyRoot: false` 로 설정하거나 사용자 정의 이미지를 빌드하세요.
 - 패키지 설치를 위해서는 `user`가 루트여야 합니다 ( `user` 를 생략하거나 `user: "0:0"` 으로 설정).
 - 샌드박스 exec 는 호스트의 `process.env` 를 상속하지 않습니다. 스킬 API 키의 경우 `agents.defaults.sandbox.docker.env` 를 사용하세요 (또는 사용자 정의 이미지를 사용).

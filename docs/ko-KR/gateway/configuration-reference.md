@@ -239,6 +239,8 @@ WhatsApp 은 게이트웨이의 웹 채널 (Baileys Web) 을 통해 실행됩니
 - `maxLinesPerMessage` (기본값 17)는 2000자 미만의 긴 메시지라도 분할합니다.
 - `channels.discord.ui.components.accentColor` 는 Discord 컴포넌트 v2 컨테이너의 강조 색상을 설정합니다.
 - `channels.discord.voice` 는 Discord 음성 채널 대화와 선택적 자동 참가 + TTS 오버라이드를 활성화합니다.
+- `channels.discord.voice.daveEncryption` 및 `channels.discord.voice.decryptionFailureTolerance` 는 `@discordjs/voice` DAVE 옵션으로 전달됩니다 (기본값: `true` 및 `24`).
+- OpenClaw는 반복된 복호화 실패 후 음성 세션을 나갔다가 재참여하여 수신 복구를 시도합니다.
 - `channels.discord.streaming` 은 정규 스트림 모드 키입니다. 레거시 `streamMode` 및 불리언 `streaming` 값은 자동 마이그레이션됩니다.
 - `channels.discord.dangerouslyAllowNameMatching` 은 변경 가능한 이름/태그 매칭을 재활성화합니다 (break-glass 호환성 모드).
 
@@ -750,7 +752,7 @@ Z.AI 모델은 도구 호출 스트리밍을 위해 기본적으로 `tool_stream
         includeReasoning: false,
         session: "main",
         to: "+15555550123",
-        target: "last", // last | whatsapp | telegram | discord | ... | none
+        target: "none", // 기본값: none | 옵션: last | whatsapp | telegram | discord | ...
         prompt: "HEARTBEAT.md 를 읽어보세요, 존재한다면...",
         ackMaxChars: 300,
         suppressToolErrorWarnings: false,
@@ -762,6 +764,7 @@ Z.AI 모델은 도구 호출 스트리밍을 위해 기본적으로 `tool_stream
 
 - `every`: 지속시간 문자열 (ms/s/m/h). 기본값: `30m`.
 - `suppressToolErrorWarnings`: true 인 경우, 하트비트 실행 중 도구 오류 경고 페이로드를 억제합니다.
+- 대상이 다이렉트로 분류될 수 있는 경우 (예: `user:<id>`, Telegram 사용자 채팅 ID, WhatsApp 직접 번호/JID), 하트비트는 다이렉트/DM 채팅 대상으로 전송되지 않습니다.
 - 에이전트별: `agents.list[].heartbeat` 를 설정합니다. 에이전트가 `heartbeat` 를 정의하면, **해당 에이전트만** 하트비트를 실행합니다.
 - 하트비트는 전체 에이전트 턴을 실행합니다 — 짧은 간격은 더 많은 토큰을 소모합니다.
 
@@ -969,7 +972,8 @@ Z.AI 모델은 도구 호출 스트리밍을 위해 기본적으로 `tool_stream
 
 **`setupCommand`** 는 컨테이너 생성 후 한 번 실행되며 (`sh -lc`) 네트워크 egress, 쓰기 가능한 루트, 루트 사용자가 필요합니다.
 
-**컨테이너는 기본적으로 `network: "none"`** — 에이전트가 아웃바운드 접근이 필요하다면 `"bridge"` 로 설정하십시오.
+**컨테이너는 기본적으로 `network: "none"`** — 에이전트가 아웃바운드 접근이 필요하다면 `"bridge"` (또는 커스텀 브리지 네트워크) 로 설정하십시오.
+`"host"` 는 차단됩니다. `"container:<id>"` 는 `sandbox.docker.dangerouslyAllowContainerNamespaceJoin: true` (break-glass)를 명시적으로 설정하지 않는 한 기본적으로 차단됩니다.
 
 **인바운드 첨부 파일** 은 활성 워크스페이스의 `media/inbound/*` 에 스테이징됩니다.
 

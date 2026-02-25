@@ -131,6 +131,8 @@ macOS 분할:
 유효성 검사는 argv 형태만으로 결정론적으로 수행됩니다 (호스트 파일 시스템 존재 여부 검사 없음). 파일 지향 옵션은 기본 안전 바이너리에 대해 거부됩니다 (예: `sort -o`, `sort --compress-program`, `sort --random-source`, `sort --temporary-directory`/`-T`, `wc --files0-from`, `jq -f/--from-file`, `grep -f/--file`). 또한 안전한 바이너리는 stdin 전용 세그먼트에 대해 실행 시 argv 토큰을 **리터럴 텍스트**로 처리하도록 강제하므로 `*` 또는 `$HOME/...`와 같은 패턴을 파일 읽기로 수송할 수 없습니다.
 긴 옵션은 안전 바이너리 모드에서 실패-폐쇄 방식으로 검증됩니다: 알 수 없는 플래그와 모호한 약어는 거부됩니다.
 안전 바이너리는 신뢰할 수 있는 바이너리 디렉토리(시스템 기본값 및 선택적 `tools.exec.safeBinTrustedDirs`)에서만 해석됩니다. `PATH` 항목은 자동으로 신뢰되지 않습니다.
+기본 신뢰할 수 있는 safe-bin 디렉토리는 의도적으로 최소화됩니다: `/bin`, `/usr/bin`.
+safe-bin 실행 파일이 패키지 관리자/사용자 경로(예: `/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin`, `/snap/bin`)에 있는 경우, `tools.exec.safeBinTrustedDirs`에 명시적으로 추가하세요.
 쉘 체이닝 및 리디렉션은 허용 목록 모드에서 자동으로 허용되지 않습니다.
 
 안전-바이너리 프로필에서 거부된 플래그:

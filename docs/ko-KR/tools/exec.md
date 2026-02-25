@@ -35,6 +35,7 @@ title: "Exec Tool"
 - `node`는 짝맞춘 노드(동반 앱 또는 헤드리스 노드 호스트)를 필요로 합니다.
 - 여러 노드가 사용할 수 있는 경우, `exec.node` 또는 `tools.exec.node`를 설정하여 하나를 선택하십시오.
 - Windows가 아닌 호스트에서는, `exec`가 `SHELL`을 사용하고, `SHELL`이 `fish`인 경우, fish와 호환되지 않는 스크립트를 피하려고 `PATH`에서 `bash`(또는 `sh`)를 선호하며, 존재하지 않으면 `SHELL`로 되돌립니다.
+- Windows 호스트에서는, exec가 PowerShell 7 (`pwsh`) 검색을 우선합니다 (Program Files, ProgramW6432, 그 다음 PATH), 그 다음 Windows PowerShell 5.1로 폴백합니다.
 - 호스트 실행(`gateway`/`node`)은 바이너리 하이재킹 또는 주입된 코드를 방지하기 위해 `env.PATH`와 로더 재정의(`LD_*`/`DYLD_*`)를 거부합니다.
 - 중요: 샌드박스 격리는 **기본적으로 꺼져** 있습니다. 샌드박스 격리가 꺼져 있고 `host=sandbox`가 명시적으로 구성/요청된 경우, exec은 게이트웨이 호스트에서 자동 실행하는 대신 페일-클로즈드로 실패합니다. 샌드박스 격리를 활성화하거나 승인이 있는 `host=gateway`를 사용하세요.
 - 스크립트 사전 검사 (일반적인 Python/Node 쉘 구문 오류 검사)는 유효한 `workdir` 경계 내의 파일만 검사합니다. 스크립트 경로가 `workdir` 밖으로 해석되는 경우, 해당 파일에 대한 사전 검사는 건너뜁니다.
@@ -49,7 +50,7 @@ title: "Exec Tool"
 - `tools.exec.node` (기본값: 설정되지 않음)
 - `tools.exec.pathPrepend`: exec 실행을 위해 `PATH`에 추가할 디렉토리 목록 (게이트웨이 + 샌드박스 전용).
 - `tools.exec.safeBins`: 명시적 승인이 필요 없는 표준 입력 전용 안전 바이너리. 동작 세부 사항은 [안전한 바이너리](/tools/exec-approvals#safe-bins-stdin-only)를 참조하세요.
-- `tools.exec.safeBinTrustedDirs`: `safeBins` 경로 검사에 신뢰할 수 있는 추가 명시적 디렉토리. `PATH` 항목은 자동으로 신뢰되지 않습니다.
+- `tools.exec.safeBinTrustedDirs`: `safeBins` 경로 검사에 신뢰할 수 있는 추가 명시적 디렉토리. `PATH` 항목은 자동으로 신뢰되지 않습니다. 기본 내장 디렉토리는 `/bin` 및 `/usr/bin`입니다.
 - `tools.exec.safeBinProfiles`: 안전한 바이너리별 선택적 사용자 정의 argv 정책 (`minPositional`, `maxPositional`, `allowedValueFlags`, `deniedFlags`).
 
 예:

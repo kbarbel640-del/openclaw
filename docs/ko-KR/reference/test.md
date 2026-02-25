@@ -15,6 +15,19 @@ title: "테스트"
 - `pnpm test:e2e`: 게이트웨이 종단 간 스모크 테스트를 실행합니다 (다중 인스턴스 WS/HTTP/노드 페어링). `vitest.e2e.config.ts`에서 기본적으로 `vmForks`와 적응형 워커를 사용하며, `OPENCLAW_E2E_WORKERS=<n>`으로 조정하고, `OPENCLAW_E2E_VERBOSE=1`로 자세한 로그를 설정할 수 있습니다.
 - `pnpm test:live`: 실시간 프로바이더 테스트를 실행합니다 (minimax/zai). API 키와 `LIVE=1` (또는 프로바이더별 `*_LIVE_TEST=1`)이 필요합니다.
 
+## 로컬 PR gate
+
+로컬 PR 병합/게이트 검사를 위해 다음을 실행하세요:
+
+- `pnpm check`
+- `pnpm build`
+- `pnpm test`
+- `pnpm check:docs`
+
+`pnpm test`가 부하가 걸린 호스트에서 실패하면, 회귀로 판단하기 전에 한 번 재실행하고, `pnpm vitest run <path/to/test>`로 격리하세요. 메모리가 제한된 호스트에서는 다음을 사용하세요:
+
+- `OPENCLAW_TEST_PROFILE=low OPENCLAW_TEST_SERIAL_GATEWAY=1 pnpm test`
+
 ## 모델 지연 시간 벤치마크 (로컬 키)
 
 스크립트: [`scripts/bench-model.ts`](https://github.com/openclaw/openclaw/blob/main/scripts/bench-model.ts)

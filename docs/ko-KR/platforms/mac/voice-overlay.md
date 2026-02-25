@@ -37,7 +37,7 @@ title: "Voice Overlay"
    - push-to-talk: 지연 없음; wake-word: 자동 전송을 위한 선택적 지연.
    - push-to-talk이 완료된 후 wake 런타임에 단기 쿨다운을 적용하여 wake-word가 즉시 다시 발생하지 않도록 합니다.
 5. **로그 기록**
-   - 코디네이터는 `bot.molt` 서브시스템에서 `.info` 로그를 발신합니다, 범주는 `voicewake.overlay` 및 `voicewake.chime`입니다.
+   - 코디네이터는 `ai.openclaw` 서브시스템에서 `.info` 로그를 발신합니다, 범주는 `voicewake.overlay` 및 `voicewake.chime`입니다.
    - 주요 이벤트: `session_started`, `adopted_by_push_to_talk`, `partial`, `finalized`, `send`, `dismiss`, `cancel`, `cooldown`.
 
 ## 디버깅 체크리스트
@@ -45,7 +45,7 @@ title: "Voice Overlay"
 - 문제가 있는 오버레이를 재현하는 동안 로그 스트림을 확인하세요:
 
   ```bash
-  sudo log stream --predicate 'subsystem == "bot.molt" AND category CONTAINS "voicewake"' --level info --style compact
+  sudo log stream --predicate 'subsystem == "ai.openclaw" AND category CONTAINS "voicewake"' --level info --style compact
   ```
 
 - 활성 세션 토큰이 하나만 존재하는지 확인하세요; 오래된 콜백은 코디네이터에 의해 드롭되어야 합니다.

@@ -918,6 +918,8 @@ Discord 전용 네이티브 명령어 `/vc join|leave|status`를 사용하여 �
             channelId: "234567890123456789",
           },
         ],
+        daveEncryption: true,
+        decryptionFailureTolerance: 24,
         tts: {
           provider: "openai",
           openai: { voice: "alloy" },
@@ -932,6 +934,10 @@ Discord 전용 네이티브 명령어 `/vc join|leave|status`를 사용하여 �
 
 - `voice.tts`는 음성 재생에만 `messages.tts`를 오버라이드합니다.
 - 음성은 기본적으로 활성화됩니다; `channels.discord.voice.enabled=false`로 비활성화하세요.
+- `voice.daveEncryption` 및 `voice.decryptionFailureTolerance`는 `@discordjs/voice` 참여 옵션으로 전달됩니다.
+- `@discordjs/voice`의 기본값은 미설정 시 `daveEncryption=true`, `decryptionFailureTolerance=24`입니다.
+- OpenClaw는 수신 복호화 실패를 감시하고, 짧은 시간 내 반복 실패 시 음성 채널을 나갔다가 재참여하여 자동 복구합니다.
+- 수신 로그에 `DecryptionFailed(UnencryptedWhenPassthroughDisabled)`가 반복 표시되면 업스트림 `@discordjs/voice`의 [discord.js #11419](https://github.com/discordjs/discord.js/issues/11419) 버그일 수 있습니다.
 
 ## Voice messages
 
@@ -1005,6 +1011,18 @@ openclaw logs --follow
     기본적으로 봇이 작성한 메시지는 무시됩니다.
 
     `channels.discord.allowBots=true`를 설정하는 경우, 반복 행동을 피하기 위해 엄격한 멘션 및 허용 목록 규칙을 사용하세요.
+
+  </Accordion>
+
+  <Accordion title="Voice STT drops with DecryptionFailed(...)">
+
+    - OpenClaw를 최신 상태로 유지합니다 (`openclaw update`) — Discord 음성 수신 복구 로직이 포함됩니다
+    - `channels.discord.voice.daveEncryption=true` 확인 (기본값)
+    - `channels.discord.voice.decryptionFailureTolerance=24`(업스트림 기본값)부터 시작하고 필요한 경우에만 조정합니다
+    - 로그에서 다음을 확인합니다:
+      - `discord voice: DAVE decrypt failures detected`
+      - `discord voice: repeated decrypt failures; attempting rejoin`
+    - 자동 재참여 후에도 실패가 계속되면 로그를 수집하여 [discord.js #11419](https://github.com/discordjs/discord.js/issues/11419)와 비교합니다
 
   </Accordion>
 </AccordionGroup>

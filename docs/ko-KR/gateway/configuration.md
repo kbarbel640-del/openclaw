@@ -239,7 +239,7 @@ OpenClaw 는 스키마와 완전히 일치하는 구성만 허용합니다. 알 
     ```
 
     - `every`: 기간 문자열 (`30m`, `2h`). 비활성화하려면 `0m` 으로 설정.
-    - `target`: `last` | `whatsapp` | `telegram` | `discord` | `none`
+    - `target`: `last` | `whatsapp` | `telegram` | `discord` | `none` (DM 형식의 `user:<id>` 하트비트 전송은 차단됨)
     - 전체 가이드는 [Heartbeat](/ko-KR/gateway/heartbeat)를 참조하세요.
 
   </Accordion>

@@ -18,7 +18,7 @@ Heartbeat는 메인 세션에서 **주기적인 에이전트 턴**을 실행하�
 
 1. Heartbeat를 활성화 상태로 유지합니다 (기본값은 `30m`, 또는 Anthropic OAuth/설치 토큰의 경우 `1h`) 또는 직접 주기를 설정합니다.
 2. 에이전트 작업 공간에 작은 `HEARTBEAT.md` 체크리스트를 만듭니다 (선택 사항이지만 권장됨).
-3. Heartbeat 메시지가 어디로 갈지 결정합니다 (`target: "last"`는 기본값입니다).
+3. Heartbeat 메시지가 어디로 갈지 결정합니다 (`target: "none"`이 기본값입니다; 마지막 연락처로 라우팅하려면 `target: "last"` 설정).
 4. 선택 사항: 투명성을 위해 Heartbeat 추론 전달을 활성화합니다.
 5. 선택 사항: 활동 시간을 로컬 시간으로 제한합니다.
 
@@ -30,7 +30,7 @@ Heartbeat는 메인 세션에서 **주기적인 에이전트 턴**을 실행하�
     defaults: {
       heartbeat: {
         every: "30m",
-        target: "last",
+        target: "last", // 마지막 연락처로 명시적 전달 (기본값: "none")
         // activeHours: { start: "08:00", end: "24:00" },
         // includeReasoning: true, // optional: send separate `Reasoning:` message too
       },
@@ -77,7 +77,7 @@ Heartbeat 외부에서는, 메시지의 시작/끝에 있는 불필요한 `HEART
         every: "30m", // 기본값: 30m (0m 비활성화)
         model: "anthropic/claude-opus-4-6",
         includeReasoning: false, // 기본값: false (사용 가능한 경우 별도의 Reasoning: 메시지 전달)
-        target: "last", // last | none | <채널 id> (코어 또는 플러그인, 예: "bluebubbles")
+        target: "last", // 기본값: none | 옵션: last | none | <채널 id> (코어 또는 플러그인, 예: "bluebubbles")
         to: "+15551234567", // 선택적인 채널-특정 오버라이드
         accountId: "ops-bot", // 선택적 멀티-계정 채널 id
         prompt: "HEARTBEAT.md가 존재하는 경우 읽기 (작업 공간 컨텍스트). 이를 엄격히 따르십시오. 이전 대화에서 이전 작업을 유추하거나 반복하지 마십시오. 주의가 필요하지 않은 경우, HEARTBEAT_OK로 응답하십시오.",
@@ -108,7 +108,7 @@ Heartbeat 외부에서는, 메시지의 시작/끝에 있는 불필요한 `HEART
     defaults: {
       heartbeat: {
         every: "30m",
-        target: "last",
+        target: "last", // 마지막 연락처로 명시적 전달 (기본값: "none")
       },
     },
     list: [
@@ -137,7 +137,7 @@ Heartbeat 외부에서는, 메시지의 시작/끝에 있는 불필요한 `HEART
     defaults: {
       heartbeat: {
         every: "30m",
-        target: "last",
+        target: "last", // 마지막 연락처로 명시적 전달 (기본값: "none")
         activeHours: {
           start: "09:00",
           end: "22:00",
@@ -200,9 +200,10 @@ Heartbeat를 하루 종일 실행하고 싶다면 다음 패턴 중 하나를 �
   - 명시적 세션 키 (`openclaw sessions --json`이나 [sessions CLI](/ko-KR/cli/sessions)에서 복사).
   - 세션 키 형식: [Sessions](/ko-KR/concepts/session) 및 [Groups](/ko-KR/channels/groups) 참조.
 - `target`:
-  - `last` (기본값): 마지막으로 사용된 외부 채널로 전달.
+  - `last`: 마지막으로 사용된 외부 채널로 전달.
   - 명시적 채널: `whatsapp` / `telegram` / `discord` / `googlechat` / `slack` / `msteams` / `signal` / `imessage`.
-  - `none`: Heartbeat를 실행하되, 외부로 **전달하지 않음**.
+  - `none` (기본값): Heartbeat를 실행하되, 외부로 **전달하지 않음**.
+- 대상이 다이렉트로 식별되는 경우 (예: `user:<id>`, Telegram 사용자 채팅 ID, WhatsApp 직접 번호/JID), 다이렉트/DM 하트비트 대상은 차단됩니다.
 - `to`: 선택적인 수신자 오버라이드 (채널-특정 id, 예: WhatsApp의 E.164 또는 Telegram 채팅 id). Telegram 토픽/스레드의 경우 `<chatId>:topic:<messageThreadId>` 형식을 사용하세요.
 - `accountId`: 멀티-계정 채널을 위한 선택적 계정 id. `target: "last"`일 때, 계정 id는 계정을 지원하는 해석된 마지막 채널에 적용됩니다; 그렇지 않으면 무시됩니다. 계정 id가 해석된 채널의 구성된 계정과 일치하지 않으면, 전달이 건너뛰어집니다.
 - `prompt`: 기본 프롬프트 본문을 재정의합니다 (병합되지 않음).
@@ -221,6 +222,7 @@ Heartbeat를 하루 종일 실행하고 싶다면 다음 패턴 중 하나를 �
   또는 `session.scope = "global"`일 때는 `global`. 특정 채널 세션으로 변경하려면 `session`을 설정합니다 (Discord/WhatsApp/등등).
 - `session`는 실행 컨텍스트에만 영향을 미칩니다; 전달은 `target`과 `to`에 의해 제어됩니다.
 - 특정 채널/수신자에게 전달하려면, `target` + `to`를 설정합니다. `target: "last"`로 설정할 경우, 해당 세션의 마지막 외부 채널로 전달됩니다.
+- 하트비트 전달은 대상이 다이렉트로 식별될 때 다이렉트/DM 대상으로 전송되지 않습니다; 해당 실행은 여전히 실행되지만 아웃바운드 전달은 건너뜁니다.
 - 메인 큐가 바쁠 경우, Heartbeat는 건너뛰어지고 나중에 다시 시도됩니다.
 - `target`이 외부 목표로 해석되지 않으면, 실행은 여전히 발생하지만 아웃바운드 메시지는 전송되지 않습니다.
 - Heartbeat 전용 응답은 **세션을 유지**하지 않습니다; 마지막 `updatedAt`이 복원되어 유휴 만료가 정상적으로 작동합니다.

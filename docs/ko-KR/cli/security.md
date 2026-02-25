@@ -29,6 +29,7 @@ openclaw security audit --json
 웹훅 수신의 경우, `hooks.defaultSessionKey`가 설정되지 않았을 때, 요청 `sessionKey` 오버라이드가 활성화되었을 때, 오버라이드가 `hooks.allowedSessionKeyPrefixes` 없이 활성화되었을 때 경고합니다.
 또한 샌드박스 모드가 꺼져 있는 동안 샌드박스 Docker 설정이 구성되었을 때, `gateway.nodes.denyCommands`가 효과 없는 패턴형/알 수 없는 항목을 사용할 때, 전역 `tools.profile="minimal"`이 에이전트 도구 프로필로 오버라이드될 때, 설치된 확장 플러그인 도구가 관대한 도구 정책 하에서 도달 가능할 때 경고합니다.
 또한 샌드박스 브라우저가 `sandbox.browser.cdpSourceRange` 없이 Docker `bridge` 네트워크를 사용할 때 경고합니다.
+또한 위험한 샌드박스 Docker 네트워크 모드(`host` 및 `container:*` 네임스페이스 결합 포함)를 경고합니다.
 또한 기존 샌드박스 브라우저 Docker 컨테이너에 누락/오래된 해시 레이블이 있을 때 (예: `openclaw.browserConfigEpoch`가 누락된 마이그레이션 전 컨테이너) 경고하며 `openclaw sandbox recreate --browser --all`을 권장합니다.
 npm 기반 플러그인/훅 설치 레코드가 고정되지 않거나 무결성 메타데이터가 누락되거나 현재 설치된 패키지 버전과 다를 때 경고합니다.
 Discord 허용 목록 (`channels.discord.allowFrom`, `channels.discord.guilds.*.users`, 페어링 스토어)이 안정적인 ID 대신 이름 또는 태그 항목을 사용할 때 경고합니다.

@@ -57,7 +57,7 @@ OPENCLAW_NIX_MODE=1
 macOS에서는 GUI 앱이 쉘 환경 변수를 자동으로 상속받지 않습니다. 기본값을 통해 Nix 모드를 활성화할 수 있습니다:
 
 ```bash
-defaults write bot.molt.mac openclaw.nixMode -bool true
+defaults write ai.openclaw.mac openclaw.nixMode -bool true
 ```
 
 ### 설정 + 상태 경로

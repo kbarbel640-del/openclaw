@@ -84,7 +84,7 @@ open /path/to/OpenClaw.app
 
 ### PLIST 파일 생성
 
-아래 내용을 `~/Library/LaunchAgents/bot.molt.ssh-tunnel.plist` 로 저장하세요:
+아래 내용을 `~/Library/LaunchAgents/ai.openclaw.ssh-tunnel.plist` 로 저장하세요:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -92,7 +92,7 @@ open /path/to/OpenClaw.app
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>bot.molt.ssh-tunnel</string>
+    <string>ai.openclaw.ssh-tunnel</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/ssh</string>
@@ -110,7 +110,7 @@ open /path/to/OpenClaw.app
 ### Launch 에이전트 로드하기
 
 ```bash
-launchctl bootstrap gui/$UID ~/Library/LaunchAgents/bot.molt.ssh-tunnel.plist
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/ai.openclaw.ssh-tunnel.plist
 ```
 
 이제 터널은:
@@ -135,24 +135,24 @@ lsof -i :18789
 **터널 다시 시작:**
 
 ```bash
-launchctl kickstart -k gui/$UID/bot.molt.ssh-tunnel
+launchctl kickstart -k gui/$UID/ai.openclaw.ssh-tunnel
 ```
 
 **터널 중지:**
 
 ```bash
-launchctl bootout gui/$UID/bot.molt.ssh-tunnel
+launchctl bootout gui/$UID/ai.openclaw.ssh-tunnel
 ```
 
 ---
 
 ## 작동 방식
 
-| 구성 요소                             | 역할                                                       |
-| ----------------------------------- | ---------------------------------------------------------- |
-| `LocalForward 18789 127.0.0.1:18789` | 로컬 포트 18789 를 원격 포트 18789 로 전달                    |
-| `ssh -N`                             | 원격 명령을 실행하지 않고 SSH 를 통한 포트 포워딩만 수행       |
-| `KeepAlive`                          | 터널이 크래시하면 자동으로 다시 시작                        |
-| `RunAtLoad`                          | 에이전트가 로드될 때 터널 시작                              |
+| 구성 요소                            | 역할                                                     |
+| ------------------------------------ | -------------------------------------------------------- |
+| `LocalForward 18789 127.0.0.1:18789` | 로컬 포트 18789 를 원격 포트 18789 로 전달               |
+| `ssh -N`                             | 원격 명령을 실행하지 않고 SSH 를 통한 포트 포워딩만 수행 |
+| `KeepAlive`                          | 터널이 크래시하면 자동으로 다시 시작                     |
+| `RunAtLoad`                          | 에이전트가 로드될 때 터널 시작                           |
 
 OpenClaw.app 은 클라이언트 머신의 `ws://127.0.0.1:18789` 에 연결합니다. SSH 터널은 그 연결을 Gateway 가 실행 중인 원격 머신의 포트 18789 로 전달합니다.

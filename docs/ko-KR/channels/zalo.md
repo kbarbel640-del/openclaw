@@ -7,7 +7,7 @@ title: "Zalo"
 
 # Zalo (Bot API)
 
-상태: 실험적. 다이렉트 메시지만 지원; 그룹은 Zalo 문서에 따르면 곧 지원 예정.
+상태: 실험적. DM은 지원됩니다; 그룹 처리는 명시적 그룹 정책 제어와 함께 사용 가능합니다.
 
 ## 플러그인 필요
 
@@ -50,7 +50,7 @@ Zalo는 베트남을 중심으로 한 메시징 앱입니다; 그 Bot API는 게
 - 게이트웨이가 소유한 Zalo Bot API 채널입니다.
 - 결정론적 라우팅: 답변은 다시 Zalo로 돌아갑니다; 모델은 채널을 선택하지 않습니다.
 - 다이렉트 메시지는 에이전트의 주요 세션을 공유합니다.
-- 그룹은 아직 지원되지 않음 (Zalo 문서에는 "곧 지원 예정"이라고 명시되어 있음).
+- 그룹은 정책 제어 (`groupPolicy` + `groupAllowFrom`)와 함께 지원되며, 기본적으로 실패-안전 허용 목록 동작을 사용합니다.
 
 ## 설정 (빠른 경로)
 
@@ -106,6 +106,16 @@ Zalo는 베트남을 중심으로 한 메시징 앱입니다; 그 Bot API는 게
 - 페어링은 기본 토큰 교환 방식입니다. 세부 정보: [페어링](/ko-KR/channels/pairing)
 - `channels.zalo.allowFrom`은 숫자 사용자 ID를 허용합니다 (사용자 이름 조회 불가능).
 
+## 접근 제어 (그룹)
+
+- `channels.zalo.groupPolicy`는 그룹 인바운드 처리를 제어합니다: `open | allowlist | disabled`.
+- 기본 동작은 실패-안전: `allowlist`.
+- `channels.zalo.groupAllowFrom`은 그룹에서 봇을 트리거할 수 있는 발신자 ID를 제한합니다.
+- `groupAllowFrom`이 미설정인 경우, Zalo는 발신자 확인에 `allowFrom`을 백업으로 사용합니다.
+- `groupPolicy: "disabled"`는 모든 그룹 메시지를 차단합니다.
+- `groupPolicy: "open"`은 모든 그룹 멤버를 허용합니다 (멘션 게이팅).
+- 런타임 참고: `channels.zalo`가 완전히 누락된 경우, 런타임은 안전을 위해 `groupPolicy="allowlist"`로 폴백합니다.
+
 ## 롱 폴링 vs 웹훅
 
 - 기본: 롱 폴링 (공개 URL 필요 없음).
@@ -129,16 +139,16 @@ Zalo는 베트남을 중심으로 한 메시징 앱입니다; 그 Bot API는 게
 
 ## 기능
 
-| 기능            | 상태                               |
-| --------------- | ---------------------------------- |
-| 다이렉트 메시지 | ✅ 지원됨                          |
-| 그룹            | ❌ 곧 지원 예정 (Zalo 문서에 따라) |
-| 미디어 (이미지) | ✅ 지원됨                          |
-| 반응            | ❌ 지원되지 않음                   |
-| 스레드          | ❌ 지원되지 않음                   |
-| 설문조사        | ❌ 지원되지 않음                   |
-| 네이티브 명령어 | ❌ 지원되지 않음                   |
-| 스트리밍        | ⚠️ 차단됨 (2000자 제한)            |
+| 기능            | 상태                                         |
+| --------------- | -------------------------------------------- |
+| 다이렉트 메시지 | ✅ 지원됨                                    |
+| 그룹            | ⚠️ 정책 제어와 함께 지원됨 (기본: allowlist) |
+| 미디어 (이미지) | ✅ 지원됨                                    |
+| 반응            | ❌ 지원되지 않음                             |
+| 스레드          | ❌ 지원되지 않음                             |
+| 설문조사        | ❌ 지원되지 않음                             |
+| 네이티브 명령어 | ❌ 지원되지 않음                             |
+| 스트리밍        | ⚠️ 차단됨 (2000자 제한)                      |
 
 ## 전송 대상 (CLI/cron)
 
@@ -171,6 +181,8 @@ Zalo는 베트남을 중심으로 한 메시징 앱입니다; 그 Bot API는 게
 - `channels.zalo.tokenFile`: 파일 경로에서 토큰 읽기.
 - `channels.zalo.dmPolicy`: `pairing | allowlist | open | disabled` (기본: pairing).
 - `channels.zalo.allowFrom`: DM 허용 목록 (사용자 ID). `open`은 `"*"`가 필요합니다. 마법사는 숫자 ID를 요청합니다.
+- `channels.zalo.groupPolicy`: `open | allowlist | disabled` (기본: allowlist).
+- `channels.zalo.groupAllowFrom`: 그룹 발신자 허용 목록 (사용자 ID). 미설정 시 `allowFrom`으로 폴백.
 - `channels.zalo.mediaMaxMb`: 수신/발신 미디어 한도 (MB, 기본 5).
 - `channels.zalo.webhookUrl`: 웹훅 모드 활성화 (HTTPS 필요).
 - `channels.zalo.webhookSecret`: 웹훅 비밀 (8-256자).
@@ -185,6 +197,8 @@ Zalo는 베트남을 중심으로 한 메시징 앱입니다; 그 Bot API는 게
 - `channels.zalo.accounts.<id>.enabled`: 계정 활성화/비활성화.
 - `channels.zalo.accounts.<id>.dmPolicy`: 계정별 DM 정책.
 - `channels.zalo.accounts.<id>.allowFrom`: 계정별 허용 목록.
+- `channels.zalo.accounts.<id>.groupPolicy`: 계정별 그룹 정책.
+- `channels.zalo.accounts.<id>.groupAllowFrom`: 계정별 그룹 발신자 허용 목록.
 - `channels.zalo.accounts.<id>.webhookUrl`: 계정별 웹훅 URL.
 - `channels.zalo.accounts.<id>.webhookSecret`: 계정별 웹훅 비밀.
 - `channels.zalo.accounts.<id>.webhookPath`: 계정별 웹훅 경로.

@@ -81,14 +81,14 @@ rm -rf /Applications/OpenClaw.app
 
 ### macOS (launchd)
 
-기본 레이블은 `bot.molt.gateway` (또는 `bot.molt.<profile>`; 이전 `com.openclaw.*`가 여전히 존재할 수 있음):
+기본 레이블은 `ai.openclaw.gateway` (또는 `ai.openclaw.<profile>`; 이전 `com.openclaw.*`가 여전히 존재할 수 있음):
 
 ```bash
-launchctl bootout gui/$UID/bot.molt.gateway
-rm -f ~/Library/LaunchAgents/bot.molt.gateway.plist
+launchctl bootout gui/$UID/ai.openclaw.gateway
+rm -f ~/Library/LaunchAgents/ai.openclaw.gateway.plist
 ```
 
-프로필을 사용한 경우, 레이블과 plist 이름을 `bot.molt.<profile>`로 바꾸십시오. 존재할 경우 이전의 `com.openclaw.*` plist 도 제거하십시오.
+프로필을 사용한 경우, 레이블과 plist 이름을 `ai.openclaw.<profile>`로 바꾸십시오. 존재할 경우 이전의 `com.openclaw.*` plist 도 제거하십시오.
 
 ### Linux (systemd 사용자 유닛)
 
