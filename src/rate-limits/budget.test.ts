@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { RateLimitScope } from "./types.js";
 import { BudgetTracker } from "./budget.js";
+import type { RateLimitScope } from "./types.js";
 
 const TEST_STATE_DIR = path.join(process.cwd(), ".test-state-budget");
 

@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import type { CallResult, RateLimitScope } from "./types.js";
 import { resolveRateLimitsConfig } from "./config.js";
 import { RateLimitedRunner } from "./provider-wrapper.js";
+import type { CallResult, RateLimitScope } from "./types.js";
 
 const TEST_STATE_DIR = path.join(process.cwd(), ".test-state-wrapper");
 

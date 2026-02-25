@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
-import type { AcquireResult } from "./types.js";
 import { RateLimitQueue, RateLimitQueueFullError, RateLimitQueueTimeoutError } from "./queue.js";
+import type { AcquireResult } from "./types.js";
 
 describe("RateLimitQueue", () => {
   let queue: RateLimitQueue;

@@ -7,9 +7,9 @@
  */
 
 import type { Command } from "commander";
-import type { ProviderLimitsStatus } from "../rate-limits/types.js";
 import { resolveRateLimitsConfig } from "../rate-limits/config.js";
 import { getRateLimitedRunner, resetRateLimitedRunner } from "../rate-limits/provider-wrapper.js";
+import type { ProviderLimitsStatus } from "../rate-limits/types.js";
 
 function formatLimiterWindow(
   state: { current: number; limit: number; resetAtMs: number } | null,

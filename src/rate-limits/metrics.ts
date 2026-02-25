@@ -5,8 +5,8 @@
  * counter/histogram hooks when diagnostics.otel.metrics is enabled.
  */
 
-import type { BudgetWarning, ProviderLimitsStatus, RateLimitScope } from "./types.js";
 import { createSubsystemLogger } from "../logging.js";
+import type { BudgetWarning, ProviderLimitsStatus, RateLimitScope } from "./types.js";
 
 const log = createSubsystemLogger("rate-limits");
 

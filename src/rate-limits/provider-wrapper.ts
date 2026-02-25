@@ -10,13 +10,6 @@
  *   6. Emit structured log events
  */
 
-import type {
-  ProviderLimitsStatus,
-  RateLimitProviderConfig,
-  RateLimitScope,
-  ResolvedLimitsConfig,
-  CallResult,
-} from "./types.js";
 import { normalizeUsage, type UsageLike } from "../agents/usage.js";
 import { retryAsync, type RetryConfig } from "../infra/retry.js";
 import { BudgetTracker } from "./budget.js";
@@ -31,6 +24,13 @@ import {
   updateMetricsSnapshot,
 } from "./metrics.js";
 import { RateLimitQueue } from "./queue.js";
+import type {
+  ProviderLimitsStatus,
+  RateLimitProviderConfig,
+  RateLimitScope,
+  ResolvedLimitsConfig,
+  CallResult,
+} from "./types.js";
 
 const ONE_MINUTE_MS = 60_000;
 const ONE_DAY_MS = 86_400_000;
