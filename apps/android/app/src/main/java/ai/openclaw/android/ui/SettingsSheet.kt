@@ -239,7 +239,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
           .fillMaxHeight()
           .imePadding()
           .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
-      contentPadding = PaddingValues(vertical = 16.dp),
+      contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       item {
@@ -253,8 +253,8 @@ fun SettingsSheet(viewModel: MainViewModel) {
             color = MaterialTheme.colorScheme.primary,
           )
           Text(
-            "Device Configuration",
-            style = MaterialTheme.typography.headlineSmall,
+            "Settings",
+            style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
           )
           Text(
