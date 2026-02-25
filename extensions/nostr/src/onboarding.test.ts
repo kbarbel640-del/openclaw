@@ -6,12 +6,16 @@ const TEST_PRIVATE_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef012345
 
 describe("nostr onboarding", () => {
   it("reports configured and unconfigured status", async () => {
-    const empty = await nostrOnboardingAdapter.getStatus({ cfg: {} as OpenClawConfig });
+    const empty = await nostrOnboardingAdapter.getStatus({
+      cfg: {} as OpenClawConfig,
+      accountOverrides: {},
+    });
     expect(empty.configured).toBe(false);
     expect(empty.statusLines[0]).toContain("needs private key");
 
     const configured = await nostrOnboardingAdapter.getStatus({
       cfg: { channels: { nostr: { privateKey: TEST_PRIVATE_KEY } } } as OpenClawConfig,
+      accountOverrides: {},
     });
     expect(configured.configured).toBe(true);
     expect(configured.statusLines[0]).toContain("configured");
@@ -22,16 +26,20 @@ describe("nostr onboarding", () => {
       intro: vi.fn(async () => {}),
       outro: vi.fn(async () => {}),
       note: vi.fn(async () => {}),
-      select: vi.fn(async () => ""),
-      multiselect: vi.fn(async () => []),
-      text: vi.fn(async ({ message }: { message: string }) => {
-        if (message.includes("Nostr private key")) {
+      select: vi.fn(async function <T>(_params: { message: string; options: T[] }) {
+        return "" as T;
+      }),
+      multiselect: vi.fn(async function <T>(_params: { message: string; options: T[] }) {
+        return [] as T[];
+      }),
+      text: vi.fn(async (params: { message: string }) => {
+        if (params.message.includes("Nostr private key")) {
           return TEST_PRIVATE_KEY;
         }
-        if (message.includes("Nostr relay URLs")) {
+        if (params.message.includes("Nostr relay URLs")) {
           return "wss://relay.damus.io,\n wss://relay.primal.net, wss://relay.damus.io";
         }
-        throw new Error(`Unexpected text prompt: ${message}`);
+        throw new Error(`Unexpected text prompt: ${params.message}`);
       }) as WizardPrompter["text"],
       confirm: vi.fn(async () => true),
       progress: vi.fn(() => ({ update: vi.fn(), stop: vi.fn() })),
