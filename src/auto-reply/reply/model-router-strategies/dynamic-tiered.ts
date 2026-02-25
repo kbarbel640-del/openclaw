@@ -264,6 +264,27 @@ export const dynamicTieredStrategy: ModelRoutingStrategy = {
       return buildFallback("fallback:empty-message");
     }
 
+    // Pre-classifier: escalate messages with images to the deep tier.
+    // The text-only classifier cannot assess image complexity; vision tasks
+    // need a capable model.
+    const hasImages = params.ctx.MediaTypes?.some((t) => t?.toLowerCase().startsWith("image/"));
+    if (hasImages) {
+      const tier: TierName = "deep";
+      const tierModel = resolveTierModel(tier, opts.tiers);
+      const latencyMs = Date.now() - started;
+      routingLog.info(
+        `tier=${tier} model=${tierModel?.model ?? "?"} reason=pre-classifier detail="has-images" latencyMs=${latencyMs}`,
+      );
+      return {
+        tier,
+        provider: tierModel?.provider ?? DEFAULT_PROVIDER,
+        model: tierModel?.model ?? DEFAULT_MODEL,
+        latencyMs,
+        reason: "pre-classifier",
+        detail: "has-images",
+      };
+    }
+
     try {
       const promptTemplate = await resolveClassifierPrompt(opts.classifier, params.recentContext);
 

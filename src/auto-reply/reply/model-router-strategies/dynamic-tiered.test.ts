@@ -438,6 +438,38 @@ describe("dynamic-tiered strategy", () => {
     expect(opts.apiKey).toBe("");
   });
 
+  it("escalates messages with images to deep tier (pre-classifier)", async () => {
+    const result = await dynamicTieredStrategy.route({
+      ctx: { Body: "check this out", CommandBody: "check this out", MediaTypes: ["image/jpeg"] },
+      config: {} as OpenClawConfig,
+      options: OPTIONS,
+      primaryProvider: "anthropic",
+      primaryModel: "claude-sonnet-4-5",
+    });
+
+    expect(result.tier).toBe("deep");
+    expect(result.model).toBe("claude-opus-4-6");
+    expect(result.reason).toBe("pre-classifier");
+    expect(result.detail).toBe("has-images");
+    expect(mockCompleteSimple).not.toHaveBeenCalled();
+  });
+
+  it("does not escalate non-image media to deep tier", async () => {
+    mockClassifierResponse("STANDARD: general question");
+
+    const result = await dynamicTieredStrategy.route({
+      ctx: { Body: "listen to this", CommandBody: "listen to this", MediaTypes: ["audio/ogg"] },
+      config: {} as OpenClawConfig,
+      options: OPTIONS,
+      primaryProvider: "anthropic",
+      primaryModel: "claude-sonnet-4-5",
+    });
+
+    expect(result.tier).toBe("standard");
+    expect(result.reason).toBe("classifier");
+    expect(mockCompleteSimple).toHaveBeenCalled();
+  });
+
   describe("recent context", () => {
     it("includes recent context in classifier prompt when provided", async () => {
       mockClassifierResponse("DEEP: ongoing debugging");
