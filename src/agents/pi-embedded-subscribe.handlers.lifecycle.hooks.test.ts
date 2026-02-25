@@ -42,7 +42,14 @@ describe("embedded subscribe lifecycle hook wiring", () => {
     (ctx.params.session as { messages: Array<{ role: string }> }).messages = [{ role: "user" }];
     handleAutoCompactionEnd(ctx, { type: "agent_end", willRetry: false } as never);
 
-    expect(runBeforeCompaction).toHaveBeenCalledWith({ messageCount: 3 }, {});
+    expect(runBeforeCompaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageCount: 3,
+        messages: [{ role: "user" }, { role: "assistant" }, { role: "user" }],
+        sessionFile: undefined,
+      }),
+      { sessionKey: undefined },
+    );
     expect(runAfterCompaction).toHaveBeenCalledWith({ messageCount: 1, compactedCount: 2 }, {});
   });
 });
