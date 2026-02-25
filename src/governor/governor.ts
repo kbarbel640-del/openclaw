@@ -7,12 +7,12 @@ type GovernorConfig = {
   enabled: boolean;
 
   // Hard limits
-  globalMaxInFlight: number;      // e.g., 2
-  perAgentMaxInFlight: number;    // e.g., 1
+  globalMaxInFlight: number; // e.g., 2
+  perAgentMaxInFlight: number; // e.g., 1
 
   // Safety / backpressure
-  maxQueueDepth: number;          // e.g., 200
-  permitTtlMs: number;            // e.g., 120_000
+  maxQueueDepth: number; // e.g., 200
+  permitTtlMs: number; // e.g., 120_000
 };
 
 type ExecuteParams<T> = {
@@ -22,6 +22,20 @@ type ExecuteParams<T> = {
 
 function nowMs() {
   return Date.now();
+}
+
+// Simple async mutex to make permit/queue operations atomic.
+let _lock: Promise<void> = Promise.resolve();
+async function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = _lock;
+  let release!: () => void;
+  _lock = new Promise<void>((r) => (release = r));
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
 }
 
 // In-memory state (process-wide)
@@ -79,12 +93,17 @@ function acquire(agentId: string) {
 function release(agentId: string) {
   // remove one permit for agent from global list
   const idx = globalInFlight.findIndex((p) => p.agentId === agentId);
-  if (idx >= 0) globalInFlight.splice(idx, 1);
+  if (idx >= 0) {
+    globalInFlight.splice(idx, 1);
+  }
 
   const cur = perAgentInFlight.get(agentId) || 0;
   const next = Math.max(0, cur - 1);
-  if (next === 0) perAgentInFlight.delete(agentId);
-  else perAgentInFlight.set(agentId, next);
+  if (next === 0) {
+    perAgentInFlight.delete(agentId);
+  } else {
+    perAgentInFlight.set(agentId, next);
+  }
 
   // Wake the next eligible waiter (FIFO scan)
   for (let i = 0; i < waitQueue.length; i++) {
@@ -95,15 +114,6 @@ function release(agentId: string) {
       return;
     }
   }
-}
-
-async function waitForPermit(agentId: string) {
-  if (waitQueue.length >= cfg.maxQueueDepth) {
-    throw new Error("governor_queue_full");
-  }
-  return await new Promise<void>((resolve, reject) => {
-    waitQueue.push({ agentId, createdAtMs: nowMs(), resolve, reject });
-  });
 }
 
 /**
@@ -117,15 +127,43 @@ export async function governorExecute<T>(params: ExecuteParams<T>): Promise<T> {
     return await params.fn();
   }
 
-  // Acquire permit (or wait)
-  if (!canAcquire(params.agentId)) {
-    await waitForPermit(params.agentId);
+  // Acquire permit (or wait) — atomic to avoid race conditions.
+  while (true) {
+    const waited: Promise<void> | false = await withLock(async () => {
+      if (canAcquire(params.agentId)) {
+        acquire(params.agentId);
+        return false; // did not wait
+      }
+
+      if (waitQueue.length >= cfg.maxQueueDepth) {
+        throw new Error("governor_queue_full");
+      }
+
+      // Enqueue a waiter without awaiting while holding the lock.
+      const p = new Promise<void>((resolve, reject) => {
+        waitQueue.push({
+          agentId: params.agentId,
+          createdAtMs: nowMs(),
+          resolve,
+          reject,
+        });
+      });
+
+      // Return the promise so we can await it outside the lock.
+      return p;
+    });
+
+    if (waited === false) {
+      break;
+    }
+    await waited;
   }
-  acquire(params.agentId);
 
   try {
     return await params.fn();
   } finally {
-    release(params.agentId);
+    await withLock(async () => {
+      release(params.agentId);
+    });
   }
 }
