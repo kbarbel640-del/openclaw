@@ -23,6 +23,7 @@ import {
 import { throwIfAborted } from "./abort.js";
 import {
   listConfiguredMessageChannels,
+  resolveMessageAccountSelection,
   resolveMessageChannelSelection,
 } from "./channel-selection.js";
 import { applyTargetToParams } from "./channel-target.js";
@@ -753,10 +754,14 @@ export async function runMessageAction(
   }
 
   const channel = await resolveChannel(cfg, params);
-  const accountId = readStringParam(params, "accountId") ?? input.defaultAccountId;
-  if (accountId) {
-    params.accountId = accountId;
-  }
+  // Auto-select enabled account when only one is available (fixes #20756)
+  const accountId = resolveMessageAccountSelection({
+    cfg,
+    channel,
+    accountId: readStringParam(params, "accountId"),
+    defaultAccountId: input.defaultAccountId,
+  });
+  params.accountId = accountId;
   const dryRun = Boolean(input.dryRun ?? readBooleanParam(params, "dryRun"));
   const mediaLocalRoots = getAgentScopedMediaLocalRoots(cfg, resolvedAgentId);
   const mediaPolicy = resolveAttachmentMediaPolicy({
