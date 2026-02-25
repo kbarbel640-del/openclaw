@@ -305,10 +305,7 @@ importers:
         version: link:../..
 
   extensions/discord:
-    devDependencies:
-      openclaw:
-        specifier: workspace:*
-        version: link:../..
+    {}
 
   extensions/feishu:
     dependencies:
