@@ -6,8 +6,11 @@
  */
 
 import { Type } from "@sinclair/typebox";
-import OpenAI from "openai";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import {
+  createPluginMemoryEmbeddingAdapter,
+  type OpenClawPluginApi,
+  type PluginMemoryEmbeddingAdapter,
+} from "openclaw/plugin-sdk";
 import {
   DEFAULT_CAPTURE_MAX_CHARS,
   type MemoryCategory,
@@ -308,25 +311,6 @@ function sliceTextByLines(text: string, from?: number, lines?: number): string {
   return chunks.slice(startIndex, endIndex).join("\n");
 }
 
-class Embeddings {
-  private client: OpenAI;
-
-  constructor(
-    apiKey: string,
-    private readonly model: string,
-  ) {
-    this.client = new OpenAI({ apiKey });
-  }
-
-  async embed(text: string): Promise<number[]> {
-    const response = await this.client.embeddings.create({
-      model: this.model,
-      input: text,
-    });
-    return response.data[0]?.embedding ?? [];
-  }
-}
-
 class SupabaseRpcClient {
   constructor(
     private readonly baseUrl: string,
@@ -547,7 +531,20 @@ const memorySupabasePlugin = {
 
   register(api: OpenClawPluginApi) {
     const cfg = memorySupabaseConfigSchema.parse(api.pluginConfig);
-    const embeddings = new Embeddings(cfg.embedding.apiKey, cfg.embedding.model!);
+    let embeddingsPromise: Promise<PluginMemoryEmbeddingAdapter> | null = null;
+    const getEmbeddings = async () => {
+      if (!embeddingsPromise) {
+        embeddingsPromise = createPluginMemoryEmbeddingAdapter({
+          config: api.config,
+          embedding: cfg.embedding,
+        });
+      }
+      return await embeddingsPromise;
+    };
+    const embedText = async (text: string): Promise<number[]> => {
+      const embeddings = await getEmbeddings();
+      return await embeddings.embed(text);
+    };
     const client = new SupabaseRpcClient(cfg.supabase.url, cfg.supabase.serviceKey, {
       search: cfg.supabase.functions?.search ?? "openclaw_match_memories",
       store: cfg.supabase.functions?.store ?? "openclaw_store_memory",
@@ -557,7 +554,7 @@ const memorySupabasePlugin = {
     });
 
     api.logger.info(
-      `memory-supabase: plugin registered (url: ${cfg.supabase.url}, model: ${cfg.embedding.model})`,
+      `memory-supabase: plugin registered (url: ${cfg.supabase.url}, provider: ${cfg.embedding.provider}, model: ${cfg.embedding.model})`,
     );
 
     api.registerTool(
@@ -592,6 +589,7 @@ const memorySupabasePlugin = {
                   typeof params?.minScore === "number" && Number.isFinite(params.minScore)
                     ? Math.max(0, Math.min(1, params.minScore))
                     : (cfg.minScore ?? 0.3);
+                const embeddings = await getEmbeddings();
                 const vector = await embeddings.embed(query);
                 const rows = await client.search({
                   agentId,
@@ -613,8 +611,8 @@ const memorySupabasePlugin = {
                 }));
                 return asJsonResponse({
                   backend: "supabase",
-                  provider: "openai",
-                  model: cfg.embedding.model,
+                  provider: embeddings.provider,
+                  model: embeddings.model,
                   results,
                 });
               } catch (err) {
@@ -714,7 +712,7 @@ const memorySupabasePlugin = {
                   typeof params?.path === "string" && params.path.trim()
                     ? params.path.trim()
                     : undefined;
-                const vector = await embeddings.embed(text);
+                const vector = await embedText(text);
                 const existing = await client.search({
                   agentId,
                   queryVector: vector,
@@ -775,7 +773,7 @@ const memorySupabasePlugin = {
                   return asJsonResponse({ error: "Provide memoryId/path or query" });
                 }
 
-                const vector = await embeddings.embed(query);
+                const vector = await embedText(query);
                 const hits = await client.search({
                   agentId,
                   queryVector: vector,
@@ -854,7 +852,7 @@ const memorySupabasePlugin = {
               const minScore = Number.isFinite(minScoreParsed)
                 ? Math.max(0, Math.min(1, minScoreParsed))
                 : (cfg.minScore ?? 0.3);
-              const vector = await embeddings.embed(query);
+              const vector = await embedText(query);
               const rows = await client.search({ agentId, queryVector: vector, limit, minScore });
               console.log(
                 JSON.stringify(
@@ -883,7 +881,7 @@ const memorySupabasePlugin = {
         }
         const agentId = toAgentId(ctx.agentId);
         try {
-          const vector = await embeddings.embed(prompt);
+          const vector = await embedText(prompt);
           const hits = await client.search({
             agentId,
             queryVector: vector,
@@ -949,7 +947,7 @@ const memorySupabasePlugin = {
 
           let stored = 0;
           for (const text of toCapture.slice(0, 3)) {
-            const vector = await embeddings.embed(text);
+            const vector = await embedText(text);
             const existing = await client.search({
               agentId,
               queryVector: vector,
@@ -982,7 +980,7 @@ const memorySupabasePlugin = {
       id: "memory-supabase",
       start: async () => {
         api.logger.info(
-          `memory-supabase: initialized (url: ${cfg.supabase.url}, model: ${cfg.embedding.model})`,
+          `memory-supabase: initialized (url: ${cfg.supabase.url}, provider: ${cfg.embedding.provider}, model: ${cfg.embedding.model})`,
         );
       },
       stop: () => {
