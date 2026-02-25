@@ -12,6 +12,7 @@ import { getCustomProviderApiKey } from "../agents/model-auth.js";
 import { normalizeProviderId } from "../agents/model-selection.js";
 import { loadConfig } from "../config/config.js";
 import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
+import { resolveRequiredHomeDir } from "./home-dir.js";
 import type { UsageProviderId } from "./provider-usage.types.js";
 
 export type ProviderAuth = {
@@ -58,7 +59,12 @@ function resolveZaiApiKey(): string | undefined {
   }
 
   try {
-    const authPath = path.join(os.homedir(), ".pi", "agent", "auth.json");
+    const authPath = path.join(
+      resolveRequiredHomeDir(process.env, os.homedir),
+      ".pi",
+      "agent",
+      "auth.json",
+    );
     if (!fs.existsSync(authPath)) {
       return undefined;
     }
@@ -76,18 +82,6 @@ function resolveMinimaxApiKey(): string | undefined {
   return resolveProviderApiKeyFromConfigAndStore({
     providerId: "minimax",
     envDirect: [process.env.MINIMAX_CODE_PLAN_KEY, process.env.MINIMAX_API_KEY],
-  });
-}
-
-function resolveMoonshotApiKey(): string | undefined {
-  return resolveProviderApiKeyFromConfigAndStore({
-    providerId: "moonshot",
-    envDirect: [
-      process.env.KIMI_BALANCE_API_KEY,
-      process.env.MOONSHOT_API_KEY,
-      process.env.KIMI_API_KEY,
-      process.env.KIMICODE_API_KEY,
-    ],
   });
 }
 
@@ -164,7 +158,7 @@ async function resolveOAuthToken(params: {
       });
       if (resolved) {
         let token = resolved.apiKey;
-        if (params.provider === "google-gemini-cli" || params.provider === "google-antigravity") {
+        if (params.provider === "google-gemini-cli") {
           const parsed = parseGoogleToken(resolved.apiKey);
           token = parsed?.token ?? resolved.apiKey;
         }
@@ -193,7 +187,6 @@ function resolveOAuthProviders(agentDir?: string): UsageProviderId[] {
   const providers = [
     "anthropic",
     "github-copilot",
-    "google-antigravity",
     "google-gemini-cli",
     "openai-codex",
   ] satisfies UsageProviderId[];
@@ -237,13 +230,6 @@ export async function resolveProviderAuths(params: {
     }
     if (provider === "minimax") {
       const apiKey = resolveMinimaxApiKey();
-      if (apiKey) {
-        auths.push({ provider, token: apiKey });
-      }
-      continue;
-    }
-    if (provider === "moonshot") {
-      const apiKey = resolveMoonshotApiKey();
       if (apiKey) {
         auths.push({ provider, token: apiKey });
       }

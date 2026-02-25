@@ -28,8 +28,6 @@ export function renderUsageTab(state: AppViewState) {
     totals: state.usageResult?.totals ?? null,
     aggregates: state.usageResult?.aggregates ?? null,
     costDaily: state.usageCostSummary?.daily ?? [],
-    providerUsage: state.usageProviderSummary,
-    quotaRefreshed: state.usageQuotaRefreshed,
     selectedSessions: state.usageSelectedSessions,
     selectedDays: state.usageSelectedDays,
     selectedHours: state.usageSelectedHours,
@@ -72,10 +70,7 @@ export function renderUsageTab(state: AppViewState) {
       state.usageSelectedSessions = [];
       debouncedLoadUsage(state);
     },
-    onRefresh: () => {
-      state.usageQuotaRefreshed = true;
-      return loadUsage(state);
-    },
+    onRefresh: () => loadUsage(state),
     onTimeZoneChange: (zone) => {
       state.usageTimeZone = zone;
       state.usageSelectedDays = [];

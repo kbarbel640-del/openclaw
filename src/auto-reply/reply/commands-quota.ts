@@ -1,4 +1,3 @@
-import { collectConfigEnvVars } from "../../config/env-vars.js";
 import { logVerbose } from "../../globals.js";
 import { formatUsageReportLines, loadProviderUsageSummary } from "../../infra/provider-usage.js";
 import { usageProviders } from "../../infra/provider-usage.shared.js";
@@ -24,12 +23,10 @@ export const handleQuotaCommand: CommandHandler = async (params, allowTextComman
 
   let text: string;
   try {
-    const claudeWebSessionKey = collectConfigEnvVars(params.cfg).CLAUDE_AI_SESSION_KEY;
     // Filter out excluded providers (e.g., Gemini) from quota output
     const providers = usageProviders.filter((p) => !QUOTA_EXCLUDED_PROVIDERS.has(p));
     const summary = await loadProviderUsageSummary({
       timeoutMs: 5000,
-      claudeWebSessionKey,
       providers,
     });
     const lines = formatUsageReportLines(summary, { now: Date.now() });

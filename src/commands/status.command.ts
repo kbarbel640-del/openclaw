@@ -1,7 +1,6 @@
 import { formatCliCommand } from "../cli/command-format.js";
 import { withProgress } from "../cli/progress.js";
 import { resolveGatewayPort } from "../config/config.js";
-import { collectConfigEnvVars } from "../config/env-vars.js";
 import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
 import { info } from "../globals.js";
 import { formatTimeAgo } from "../infra/format-time/format-relative.ts";
@@ -128,11 +127,7 @@ export async function statusCommand(
           indeterminate: true,
           enabled: opts.json !== true,
         },
-        async () =>
-          await loadProviderUsageSummary({
-            timeoutMs: opts.timeoutMs,
-            claudeWebSessionKey: collectConfigEnvVars(cfg).CLAUDE_AI_SESSION_KEY,
-          }),
+        async () => await loadProviderUsageSummary({ timeoutMs: opts.timeoutMs }),
       )
     : undefined;
   const health: HealthSummary | undefined = opts.deep

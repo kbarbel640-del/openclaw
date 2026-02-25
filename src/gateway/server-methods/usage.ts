@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import { loadConfig } from "../../config/config.js";
-import { collectConfigEnvVars } from "../../config/env-vars.js";
 import {
   resolveSessionFilePath,
   resolveSessionFilePathOptions,
@@ -398,9 +397,7 @@ export type SessionsUsageResult = {
 
 export const usageHandlers: GatewayRequestHandlers = {
   "usage.status": async ({ respond }) => {
-    const cfg = loadConfig();
-    const claudeWebSessionKey = collectConfigEnvVars(cfg).CLAUDE_AI_SESSION_KEY;
-    const summary = await loadProviderUsageSummary({ claudeWebSessionKey });
+    const summary = await loadProviderUsageSummary();
     respond(true, summary, undefined);
   },
   "usage.cost": async ({ respond, params }) => {

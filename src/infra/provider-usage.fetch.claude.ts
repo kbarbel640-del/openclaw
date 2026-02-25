@@ -46,33 +46,6 @@ function buildClaudeUsageWindows(data: ClaudeUsageResponse): UsageWindow[] {
   return windows;
 }
 
-function getClaudeWebCookieJar(): string | undefined {
-  const cookieHeader = process.env.CLAUDE_WEB_COOKIE?.trim();
-  if (!cookieHeader) {
-    return undefined;
-  }
-  // Accept either a full header string ("Cookie: a=b; sessionKey=...")
-  // or a raw cookie jar value ("a=b; sessionKey=...").
-  const cookieJar = cookieHeader.replace(/^cookie:\s*/i, "");
-
-  // Reject control characters to keep cookie parsing intentional and predictable.
-  // Cookie IDs we extract here are ASCII tokens.
-  if (!/^[\x20-\x7E]+$/.test(cookieJar)) {
-    return undefined;
-  }
-
-  return cookieJar;
-}
-
-function readCookieValue(cookieJar: string | undefined, key: string): string | undefined {
-  if (!cookieJar) {
-    return undefined;
-  }
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = cookieJar.match(new RegExp(`(?:^|;\\s*)${escaped}=([^;\\s]+)`, "i"));
-  return match?.[1]?.trim();
-}
-
 function resolveClaudeWebSessionKey(): string | undefined {
   const direct =
     process.env.CLAUDE_AI_SESSION_KEY?.trim() ?? process.env.CLAUDE_WEB_SESSION_KEY?.trim();
@@ -80,7 +53,13 @@ function resolveClaudeWebSessionKey(): string | undefined {
     return direct;
   }
 
-  const value = readCookieValue(getClaudeWebCookieJar(), "sessionKey");
+  const cookieHeader = process.env.CLAUDE_WEB_COOKIE?.trim();
+  if (!cookieHeader) {
+    return undefined;
+  }
+  const stripped = cookieHeader.replace(/^cookie:\s*/i, "");
+  const match = stripped.match(/(?:^|;\s*)sessionKey=([^;\s]+)/i);
+  const value = match?.[1]?.trim();
   return value?.startsWith("sk-ant-") ? value : undefined;
 }
 
@@ -89,33 +68,10 @@ async function fetchClaudeWebUsage(
   timeoutMs: number,
   fetchFn: typeof fetch,
 ): Promise<ProviderUsageSnapshot | null> {
-  const cookieJar = getClaudeWebCookieJar();
-  const cookie = cookieJar || `sessionKey=${sessionKey}`;
-  const deviceId = readCookieValue(cookieJar, "anthropic-device-id");
-  const anonymousId = readCookieValue(cookieJar, "ajs_anonymous_id");
-
   const headers: Record<string, string> = {
+    Cookie: `sessionKey=${sessionKey}`,
     Accept: "application/json",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Content-Type": "application/json",
-    Origin: "https://claude.ai",
-    Referer: "https://claude.ai/settings/usage",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin",
-    "User-Agent":
-      process.env.CLAUDE_WEB_USER_AGENT?.trim() ||
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
-    "Anthropic-Client-Platform": "web_claude_ai",
-    "Anthropic-Client-Version": "1.0.0",
-    Cookie: cookie,
   };
-  if (deviceId) {
-    headers["Anthropic-Device-Id"] = deviceId;
-  }
-  if (anonymousId) {
-    headers["Anthropic-Anonymous-Id"] = anonymousId;
-  }
 
   const orgRes = await fetchJson(
     "https://claude.ai/api/organizations",
@@ -193,14 +149,7 @@ export async function fetchClaudeUsage(
     // Claude Code CLI setup-token yields tokens that can be used for inference, but may not
     // include user:profile scope required by the OAuth usage endpoint. When a claude.ai
     // browser sessionKey is available, fall back to the web API.
-    const missingUserProfileScope =
-      typeof message === "string" &&
-      message.toLowerCase().includes("user:profile") &&
-      message.toLowerCase().includes("scope");
-    if (
-      (res.status === 403 || res.status === 401 || res.status === 400) &&
-      missingUserProfileScope
-    ) {
+    if (res.status === 403 && message?.includes("scope requirement user:profile")) {
       const sessionKey = resolveClaudeWebSessionKey();
       if (sessionKey) {
         const web = await fetchClaudeWebUsage(sessionKey, timeoutMs, fetchFn);

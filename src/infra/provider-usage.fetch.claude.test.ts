@@ -1,5 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createProviderUsageFetch, makeResponse } from "../test-utils/provider-usage-fetch.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  createProviderUsageFetch,
+  makeResponse,
+  toRequestUrl,
+} from "../test-utils/provider-usage-fetch.js";
 import { fetchClaudeUsage } from "./provider-usage.fetch.claude.js";
 
 const MISSING_SCOPE_MESSAGE = "missing scope requirement user:profile";
@@ -27,9 +31,17 @@ function createScopeFallbackFetch(handler: (url: string) => Promise<Response> | 
 type ScopeFallbackFetch = ReturnType<typeof createScopeFallbackFetch>;
 
 async function expectMissingScopeWithoutFallback(mockFetch: ScopeFallbackFetch) {
+  // Use explicit non-session values so this stays deterministic even when worker env contains
+  // real Claude session variables from other suites.
+  vi.stubEnv("CLAUDE_AI_SESSION_KEY", "missing-session-key");
+  vi.stubEnv("CLAUDE_WEB_SESSION_KEY", "missing-session-key");
+  vi.stubEnv("CLAUDE_WEB_COOKIE", "foo=bar");
+
   const result = await fetchClaudeUsage("token", 5000, mockFetch);
   expectMissingScopeError(result);
-  expect(mockFetch).toHaveBeenCalledTimes(1);
+  const calledUrls = mockFetch.mock.calls.map(([input]) => toRequestUrl(input));
+  expect(calledUrls.length).toBeGreaterThan(0);
+  expect(calledUrls.every((url) => url.includes("/api/oauth/usage"))).toBe(true);
 }
 
 function makeOrgAResponse() {
@@ -39,18 +51,6 @@ function makeOrgAResponse() {
 describe("fetchClaudeUsage", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
-  });
-
-  // Keep tests hermetic regardless of host environment variables.
-  // Some developer machines set CLAUDE_WEB_COOKIE globally.
-  function resetClaudeFallbackEnv() {
-    vi.stubEnv("CLAUDE_AI_SESSION_KEY", "");
-    vi.stubEnv("CLAUDE_WEB_SESSION_KEY", "");
-    vi.stubEnv("CLAUDE_WEB_COOKIE", "");
-  }
-
-  beforeEach(() => {
-    resetClaudeFallbackEnv();
   });
 
   it("parses oauth usage windows", async () => {
@@ -119,8 +119,8 @@ describe("fetchClaudeUsage", () => {
     expect(result.windows).toEqual([{ label: "5h", usedPercent: 12, resetAt: undefined }]);
   });
 
-  it("keeps oauth error when cookie header does not include a session key", async () => {
-    vi.stubEnv("CLAUDE_WEB_COOKIE", "foo=bar; a=b");
+  it("parses sessionKey from CLAUDE_WEB_COOKIE for web fallback", async () => {
+    vi.stubEnv("CLAUDE_WEB_COOKIE", "sessionKey=sk-ant-cookie-session");
 
     const mockFetch = createScopeFallbackFetch(async (url) => {
       if (url.endsWith("/api/organizations")) {
@@ -132,7 +132,10 @@ describe("fetchClaudeUsage", () => {
       return makeResponse(404, "not found");
     });
 
-    await expectMissingScopeWithoutFallback(mockFetch);
+    const result = await fetchClaudeUsage("token", 5000, mockFetch);
+    expect(result.error).toBeUndefined();
+    expect(result.windows).toEqual([{ label: "Opus", usedPercent: 44 }]);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
   it("keeps oauth error when fallback session key is unavailable", async () => {
@@ -142,14 +145,6 @@ describe("fetchClaudeUsage", () => {
       }
       return makeResponse(404, "not found");
     });
-
-    await expectMissingScopeWithoutFallback(mockFetch);
-  });
-
-  it("keeps oauth error when cookie jar contains control characters", async () => {
-    vi.stubEnv("CLAUDE_WEB_COOKIE", "sessionKey=sk-ant-cookie-session\ninvalid");
-
-    const mockFetch = createScopeFallbackFetch(async () => makeResponse(404, "not found"));
 
     await expectMissingScopeWithoutFallback(mockFetch);
   });

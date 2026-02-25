@@ -3,7 +3,6 @@ import { listChannelPlugins } from "../../channels/plugins/index.js";
 import { buildChannelAccountSnapshot } from "../../channels/plugins/status.js";
 import type { ChannelAccountSnapshot, ChannelPlugin } from "../../channels/plugins/types.js";
 import { withProgress } from "../../cli/progress.js";
-import { collectConfigEnvVars } from "../../config/env-vars.js";
 import { formatUsageReportLines, loadProviderUsageSummary } from "../../infra/provider-usage.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
 import { formatDocsLink } from "../../terminal/links.js";
@@ -89,12 +88,11 @@ function formatAccountLine(params: {
 }
 async function loadUsageWithProgress(
   runtime: RuntimeEnv,
-  claudeWebSessionKey?: string,
 ): Promise<Awaited<ReturnType<typeof loadProviderUsageSummary>> | null> {
   try {
     return await withProgress(
       { label: "Fetching usage snapshot…", indeterminate: true, enabled: true },
-      async () => await loadProviderUsageSummary({ claudeWebSessionKey }),
+      async () => await loadProviderUsageSummary(),
     );
   } catch (err) {
     runtime.error(String(err));
@@ -121,11 +119,8 @@ export async function channelsListCommand(
     type: profile.type,
     isExternal: false,
   }));
-  const claudeWebSessionKey = collectConfigEnvVars(cfg).CLAUDE_AI_SESSION_KEY;
   if (opts.json) {
-    const usage = includeUsage
-      ? await loadProviderUsageSummary({ claudeWebSessionKey })
-      : undefined;
+    const usage = includeUsage ? await loadProviderUsageSummary() : undefined;
     const chat: Record<string, string[]> = {};
     for (const plugin of plugins) {
       chat[plugin.id] = plugin.config.listAccountIds(cfg);
@@ -173,7 +168,7 @@ export async function channelsListCommand(
 
   if (includeUsage) {
     runtime.log("");
-    const usage = await loadUsageWithProgress(runtime, claudeWebSessionKey);
+    const usage = await loadUsageWithProgress(runtime);
     if (usage) {
       const usageLines = formatUsageReportLines(usage);
       if (usageLines.length > 0) {

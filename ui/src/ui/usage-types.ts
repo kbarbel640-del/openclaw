@@ -214,22 +214,3 @@ export type SessionUsageTimeSeries = {
   sessionId?: string;
   points: SessionUsageTimePoint[];
 };
-
-export type ProviderUsageWindow = {
-  label: string;
-  usedPercent: number;
-  resetAt?: number;
-};
-
-export type ProviderUsageSnapshot = {
-  provider: string;
-  displayName: string;
-  windows: ProviderUsageWindow[];
-  plan?: string;
-  error?: string;
-};
-
-export type ProviderUsageSummary = {
-  updatedAt: number;
-  providers: ProviderUsageSnapshot[];
-};
