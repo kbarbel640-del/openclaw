@@ -127,7 +127,7 @@ type ResolveApiKeyForProfileParams = {
 
 type StoredOAuthCredential = OAuthCredentials & { type: "oauth"; provider: string; email?: string };
 
-function normalizeAccountId(accountId: string | undefined): string | null {
+function normalizeAccountId(accountId: unknown): string | null {
   if (typeof accountId !== "string") {
     return null;
   }
@@ -135,10 +135,7 @@ function normalizeAccountId(accountId: string | undefined): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-function isMatchingAccountId(
-  currentAccountId: string | undefined,
-  externalAccountId: string | undefined,
-): boolean {
+function isMatchingAccountId(currentAccountId: unknown, externalAccountId: unknown): boolean {
   const current = normalizeAccountId(currentAccountId);
   const external = normalizeAccountId(externalAccountId);
   if (!current && !external) {
@@ -154,7 +151,10 @@ function isNewerOAuthCredential(
   currentExpires: number | undefined,
   candidateExpires: number,
 ): boolean {
-  const current = Number.isFinite(currentExpires) ? currentExpires : Number.NEGATIVE_INFINITY;
+  const current =
+    typeof currentExpires === "number" && Number.isFinite(currentExpires)
+      ? currentExpires
+      : Number.NEGATIVE_INFINITY;
   return Number.isFinite(candidateExpires) && candidateExpires > current;
 }
 
