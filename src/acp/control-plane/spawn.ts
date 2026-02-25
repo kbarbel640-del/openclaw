@@ -14,21 +14,6 @@ export type AcpSpawnRuntimeCloseHandle = {
   handle: { sessionKey: string; backend: string; runtimeSessionName: string };
 };
 
-export function resolveDiscordAcpSpawnFlags(
-  cfg: OpenClawConfig,
-  accountId: string,
-): {
-  enabled: boolean;
-  spawnAcpSessions: boolean;
-} {
-  const root = cfg.channels?.discord?.threadBindings;
-  const account = cfg.channels?.discord?.accounts?.[accountId]?.threadBindings;
-  return {
-    enabled: account?.enabled ?? root?.enabled ?? cfg.session?.threadBindings?.enabled ?? true,
-    spawnAcpSessions: account?.spawnAcpSessions ?? root?.spawnAcpSessions ?? false,
-  };
-}
-
 export async function cleanupFailedAcpSpawn(params: {
   cfg: OpenClawConfig;
   sessionKey: string;

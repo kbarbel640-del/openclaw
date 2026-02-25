@@ -1,11 +1,8 @@
 import { callGateway } from "../../../gateway/call.js";
 import { getSessionBindingService } from "../../../infra/outbound/session-binding-service.js";
-import {
-  isDiscordSurface,
-  resolveDiscordAccountId,
-  resolveRequesterSessionKey,
-} from "../commands-subagents/shared.js";
+import { resolveRequesterSessionKey } from "../commands-subagents/shared.js";
 import type { HandleCommandsParams } from "../commands-types.js";
+import { resolveAcpCommandBindingContext } from "./context.js";
 import { SESSION_ID_RE } from "./shared.js";
 
 async function resolveSessionKeyByToken(token: string): Promise<string | null> {
@@ -38,18 +35,14 @@ async function resolveSessionKeyByToken(token: string): Promise<string | null> {
 }
 
 export function resolveBoundAcpThreadSessionKey(params: HandleCommandsParams): string | undefined {
-  if (!isDiscordSurface(params)) {
-    return undefined;
-  }
-  const threadId =
-    params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId).trim() : "";
-  if (!threadId) {
+  const bindingContext = resolveAcpCommandBindingContext(params);
+  if (!bindingContext.channel || !bindingContext.conversationId) {
     return undefined;
   }
   const binding = getSessionBindingService().resolveByConversation({
-    channel: "discord",
-    accountId: resolveDiscordAccountId(params),
-    conversationId: threadId,
+    channel: bindingContext.channel,
+    accountId: bindingContext.accountId,
+    conversationId: bindingContext.conversationId,
   });
   if (!binding || binding.targetKind !== "session") {
     return undefined;

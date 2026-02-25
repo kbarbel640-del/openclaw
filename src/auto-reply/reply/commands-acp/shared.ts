@@ -4,11 +4,12 @@ import path from "node:path";
 import { toAcpRuntimeErrorText } from "../../../acp/runtime/error-text.js";
 import type { AcpRuntimeError } from "../../../acp/runtime/errors.js";
 import type { AcpRuntimeSessionMode } from "../../../acp/runtime/types.js";
+import { DISCORD_THREAD_BINDING_CHANNEL } from "../../../channels/thread-bindings-policy.js";
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { AcpSessionRuntimeOptions } from "../../../config/sessions/types.js";
 import { normalizeAgentId } from "../../../routing/session-key.js";
-import { isDiscordSurface } from "../commands-subagents/shared.js";
 import type { CommandHandlerResult, HandleCommandsParams } from "../commands-types.js";
+import { resolveAcpCommandChannel, resolveAcpCommandThreadId } from "./context.js";
 
 export const COMMAND = "/acp";
 export const ACP_SPAWN_USAGE =
@@ -154,11 +155,10 @@ function readOptionValue(params: { tokens: string[]; index: number; flag: string
 }
 
 function resolveDefaultSpawnThreadMode(params: HandleCommandsParams): AcpSpawnThreadMode {
-  if (!isDiscordSurface(params)) {
+  if (resolveAcpCommandChannel(params) !== DISCORD_THREAD_BINDING_CHANNEL) {
     return "off";
   }
-  const currentThreadId =
-    params.ctx.MessageThreadId != null ? String(params.ctx.MessageThreadId).trim() : "";
+  const currentThreadId = resolveAcpCommandThreadId(params);
   return currentThreadId ? "here" : "auto";
 }
 

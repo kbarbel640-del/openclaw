@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import { getAcpSessionManager } from "../acp/control-plane/manager.js";
 import {
   cleanupFailedAcpSpawn,
-  resolveDiscordAcpSpawnFlags,
   type AcpSpawnRuntimeCloseHandle,
 } from "../acp/control-plane/spawn.js";
 import { isAcpEnabledByPolicy, resolveAcpAgentPolicyError } from "../acp/policy.js";
@@ -11,13 +10,18 @@ import {
   resolveAcpThreadSessionDetailLines,
 } from "../acp/runtime/session-identifiers.js";
 import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
-import { loadConfig } from "../config/config.js";
-import type { OpenClawConfig } from "../config/config.js";
 import {
-  resolveDiscordThreadBindingSessionTtlMs,
   resolveThreadBindingIntroText,
   resolveThreadBindingThreadName,
-} from "../discord/monitor/thread-bindings.js";
+} from "../channels/thread-bindings-messages.js";
+import {
+  formatThreadBindingDisabledError,
+  formatThreadBindingSpawnDisabledError,
+  resolveThreadBindingSessionTtlMsForChannel,
+  resolveThreadBindingSpawnPolicy,
+} from "../channels/thread-bindings-policy.js";
+import { loadConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
 import { resolveConversationIdFromTargets } from "../infra/outbound/conversation-id.js";
 import {
@@ -63,6 +67,7 @@ export const ACP_SPAWN_SESSION_ACCEPTED_NOTE =
   "thread-bound ACP session stays active after this task; continue in-thread for follow-ups.";
 
 type PreparedAcpThreadBinding = {
+  channel: string;
   accountId: string;
   conversationId: string;
 };
@@ -121,7 +126,7 @@ function summarizeError(err: unknown): string {
   return "error";
 }
 
-function resolveConversationIdForDiscordThreadBinding(params: {
+function resolveConversationIdForThreadBinding(params: {
   to?: string;
   threadId?: string | number;
 }): string | undefined {
@@ -139,61 +144,73 @@ function prepareAcpThreadBinding(params: {
   threadId?: string | number;
 }): { ok: true; binding: PreparedAcpThreadBinding } | { ok: false; error: string } {
   const channel = params.channel?.trim().toLowerCase();
-  if (channel !== "discord") {
+  if (!channel) {
     return {
       ok: false,
-      error: "thread=true for ACP sessions is currently supported only on Discord.",
+      error: "thread=true for ACP sessions requires a channel context.",
     };
   }
 
   const accountId = params.accountId?.trim() || "default";
-  const flags = resolveDiscordAcpSpawnFlags(params.cfg, accountId);
-  if (!flags.enabled) {
+  const policy = resolveThreadBindingSpawnPolicy({
+    cfg: params.cfg,
+    channel,
+    accountId,
+    kind: "acp",
+  });
+  if (!policy.enabled) {
     return {
       ok: false,
-      error:
-        "Discord thread bindings are disabled (set channels.discord.threadBindings.enabled=true to override for this account, or session.threadBindings.enabled=true globally).",
+      error: formatThreadBindingDisabledError({
+        channel: policy.channel,
+        accountId: policy.accountId,
+        kind: "acp",
+      }),
     };
   }
-  if (!flags.spawnAcpSessions) {
+  if (!policy.spawnEnabled) {
     return {
       ok: false,
-      error:
-        "Discord thread-bound ACP spawns are disabled for this account (set channels.discord.threadBindings.spawnAcpSessions=true to enable).",
+      error: formatThreadBindingSpawnDisabledError({
+        channel: policy.channel,
+        accountId: policy.accountId,
+        kind: "acp",
+      }),
     };
   }
   const bindingService = getSessionBindingService();
   const capabilities = bindingService.getCapabilities({
-    channel: "discord",
-    accountId,
+    channel: policy.channel,
+    accountId: policy.accountId,
   });
   if (!capabilities.adapterAvailable) {
     return {
       ok: false,
-      error: "Discord thread bindings are unavailable for this account.",
+      error: `Thread bindings are unavailable for ${policy.channel}.`,
     };
   }
   if (!capabilities.bindSupported || !capabilities.placements.includes("child")) {
     return {
       ok: false,
-      error: "Discord thread bindings do not support ACP thread spawn for this account.",
+      error: `Thread bindings do not support ACP thread spawn for ${policy.channel}.`,
     };
   }
-  const conversationId = resolveConversationIdForDiscordThreadBinding({
+  const conversationId = resolveConversationIdForThreadBinding({
     to: params.to,
     threadId: params.threadId,
   });
   if (!conversationId) {
     return {
       ok: false,
-      error: "Could not resolve a Discord channel for ACP thread spawn.",
+      error: `Could not resolve a ${policy.channel} conversation for ACP thread spawn.`,
     };
   }
 
   return {
     ok: true,
     binding: {
-      accountId,
+      channel: policy.channel,
+      accountId: policy.accountId,
       conversationId,
     },
   };
@@ -296,7 +313,7 @@ export async function spawnAcpDirect(
         targetSessionKey: sessionKey,
         targetKind: "session",
         conversation: {
-          channel: "discord",
+          channel: preparedBinding.channel,
           accountId: preparedBinding.accountId,
           conversationId: preparedBinding.conversationId,
         },
@@ -312,8 +329,9 @@ export async function spawnAcpDirect(
           introText: resolveThreadBindingIntroText({
             agentId: targetAgentId,
             label: params.label || undefined,
-            sessionTtlMs: resolveDiscordThreadBindingSessionTtlMs({
+            sessionTtlMs: resolveThreadBindingSessionTtlMsForChannel({
               cfg,
+              channel: preparedBinding.channel,
               accountId: preparedBinding.accountId,
             }),
             sessionCwd: resolveAcpSessionCwd(initialized.meta),
@@ -325,7 +343,9 @@ export async function spawnAcpDirect(
         },
       });
       if (!binding?.conversation.conversationId) {
-        throw new Error("Failed to create and bind a Discord thread for this ACP session.");
+        throw new Error(
+          `Failed to create and bind a ${preparedBinding.channel} thread for this ACP session.`,
+        );
       }
     }
   } catch (err) {

@@ -1,46 +1,11 @@
+import {
+  resolveThreadBindingSessionTtlMs,
+  resolveThreadBindingsEnabled,
+} from "../../channels/thread-bindings-policy.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { normalizeAccountId } from "../../routing/session-key.js";
 
-const DEFAULT_THREAD_BINDING_TTL_HOURS = 24;
-
-function normalizeThreadBindingTtlHours(raw: unknown): number | undefined {
-  if (typeof raw !== "number" || !Number.isFinite(raw)) {
-    return undefined;
-  }
-  if (raw < 0) {
-    return undefined;
-  }
-  return raw;
-}
-
-export function resolveThreadBindingSessionTtlMs(params: {
-  channelTtlHoursRaw: unknown;
-  sessionTtlHoursRaw: unknown;
-}): number {
-  const ttlHours =
-    normalizeThreadBindingTtlHours(params.channelTtlHoursRaw) ??
-    normalizeThreadBindingTtlHours(params.sessionTtlHoursRaw) ??
-    DEFAULT_THREAD_BINDING_TTL_HOURS;
-  return Math.floor(ttlHours * 60 * 60 * 1000);
-}
-
-function normalizeThreadBindingsEnabled(raw: unknown): boolean | undefined {
-  if (typeof raw !== "boolean") {
-    return undefined;
-  }
-  return raw;
-}
-
-export function resolveThreadBindingsEnabled(params: {
-  channelEnabledRaw: unknown;
-  sessionEnabledRaw: unknown;
-}): boolean {
-  return (
-    normalizeThreadBindingsEnabled(params.channelEnabledRaw) ??
-    normalizeThreadBindingsEnabled(params.sessionEnabledRaw) ??
-    true
-  );
-}
+export { resolveThreadBindingSessionTtlMs, resolveThreadBindingsEnabled };
 
 export function resolveDiscordThreadBindingSessionTtlMs(params: {
   cfg: OpenClawConfig;

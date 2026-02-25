@@ -6,8 +6,8 @@ import { resolveSessionStorePathForAcp } from "../../../acp/runtime/session-meta
 import { loadSessionStore } from "../../../config/sessions.js";
 import type { SessionEntry } from "../../../config/sessions/types.js";
 import { getSessionBindingService } from "../../../infra/outbound/session-binding-service.js";
-import { isDiscordSurface, resolveDiscordAccountId } from "../commands-subagents/shared.js";
 import type { CommandHandlerResult, HandleCommandsParams } from "../commands-types.js";
+import { resolveAcpCommandBindingContext } from "./context.js";
 import {
   ACP_DOCTOR_USAGE,
   ACP_INSTALL_USAGE,
@@ -169,7 +169,9 @@ export function handleAcpSessionsAction(
     store = {};
   }
 
-  const accountId = isDiscordSurface(params) ? resolveDiscordAccountId(params) : undefined;
+  const bindingContext = resolveAcpCommandBindingContext(params);
+  const normalizedChannel = bindingContext.channel;
+  const normalizedAccountId = bindingContext.accountId || undefined;
   const bindingService = getSessionBindingService();
 
   const rows = Object.entries(store)
@@ -181,8 +183,8 @@ export function handleAcpSessionsAction(
         .listBySession(key)
         .find(
           (binding) =>
-            binding.conversation.channel === "discord" &&
-            (!accountId || binding.conversation.accountId === accountId),
+            (!normalizedChannel || binding.conversation.channel === normalizedChannel) &&
+            (!normalizedAccountId || binding.conversation.accountId === normalizedAccountId),
         )?.conversation.conversationId;
       return formatAcpSessionLine({
         key,
