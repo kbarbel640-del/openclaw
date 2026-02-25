@@ -37,10 +37,10 @@ x-i18n:
 </p>
 
 <Columns>
-  <Card title="はじめに" href="/start/getting-started" icon="rocket">
+  <Card title="はじめに" href="/ja-JP/start/getting-started" icon="rocket">
     OpenClawをインストールし、数分でGatewayを起動できます。
   </Card>
-  <Card title="ウィザードを実行" href="/start/wizard" icon="sparkles">
+  <Card title="ウィザードを実行" href="/ja-JP/start/wizard" icon="sparkles">
     `openclaw onboard`とペアリングフローによるガイド付きセットアップ。
   </Card>
   <Card title="Control UIを開く" href="/web/control-ui" icon="layout-dashboard">
