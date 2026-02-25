@@ -29,6 +29,13 @@ import { startGatewayMemoryBackend } from "./server-startup-memory.js";
 
 const SESSION_LOCK_STALE_MS = 30 * 60 * 1000;
 
+/**
+ * Delay before the second cleanup pass (ms).  This gives the previous gateway
+ * process time to exit after a config-watcher-triggered restart so that its
+ * lock files are detected as stale (dead-pid) on the retry.
+ */
+const SESSION_LOCK_DEFERRED_CLEANUP_DELAY_MS = 3_000;
+
 export async function startGatewaySidecars(params: {
   cfg: ReturnType<typeof loadConfig>;
   pluginRegistry: ReturnType<typeof loadOpenClawPlugins>;
@@ -44,16 +51,49 @@ export async function startGatewaySidecars(params: {
   logChannels: { info: (msg: string) => void; error: (msg: string) => void };
   logBrowser: { error: (msg: string) => void };
 }) {
+  // --- Session lock cleanup (two-pass) ------------------------------------
+  // Pass 1: immediate â removes locks with dead PIDs and orphaned self-locks.
+  // Pass 2: deferred  â catches locks whose owning process was still shutting
+  //         down during pass 1 (race condition on config-watcher restarts).
+  let hasLiveForeignLocks = false;
   try {
     const stateDir = resolveStateDir(process.env);
     const sessionDirs = await resolveAgentSessionDirs(stateDir);
     for (const sessionsDir of sessionDirs) {
-      await cleanStaleLockFiles({
+      const result = await cleanStaleLockFiles({
         sessionsDir,
         staleMs: SESSION_LOCK_STALE_MS,
         removeStale: true,
+        checkOrphanedSelf: true,
         log: { warn: (message) => params.log.warn(message) },
       });
+      // If any lock is alive but owned by a *different* process, the previous
+      // gateway may still be shutting down â schedule a deferred retry.
+      if (result.locks.some((l) => !l.removed && !l.stale && l.pid !== process.pid)) {
+        hasLiveForeignLocks = true;
+      }
+    }
+
+    if (hasLiveForeignLocks) {
+      // Deferred second pass: the previous process should have exited by now.
+      setTimeout(() => {
+        void (async () => {
+          try {
+            const dirs = await resolveAgentSessionDirs(resolveStateDir(process.env));
+            for (const sessionsDir of dirs) {
+              await cleanStaleLockFiles({
+                sessionsDir,
+                staleMs: SESSION_LOCK_STALE_MS,
+                removeStale: true,
+                checkOrphanedSelf: true,
+                log: { warn: (message) => params.log.warn(message) },
+              });
+            }
+          } catch (err) {
+            params.log.warn(`deferred session lock cleanup failed: ${String(err)}`);
+          }
+        })();
+      }, SESSION_LOCK_DEFERRED_CLEANUP_DELAY_MS);
     }
   } catch (err) {
     params.log.warn(`session lock cleanup failed on startup: ${String(err)}`);
