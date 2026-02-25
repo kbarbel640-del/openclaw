@@ -498,9 +498,16 @@ describe("runMessageAction sendAttachment hydration", () => {
   }) {
     await restoreRealMediaLoader();
 
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), params.tempPrefix));
+    // Use a path outside any possible localRoots (not under cwd, os.tmpdir(), or state dir)
+    // so loadWebMedia reliably rejects with path-not-allowed when sandboxRoot is missing.
+    const driveRoot = path.parse(process.cwd()).root;
+    const outsideDir = path.join(
+      driveRoot,
+      `openclaw-reject-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    await fs.mkdir(outsideDir, { recursive: true });
     try {
-      const outsidePath = path.join(tempDir, "secret.txt");
+      const outsidePath = path.join(outsideDir, "secret.txt");
       await fs.writeFile(outsidePath, "secret", "utf8");
 
       const actionParams: Record<string, unknown> = {
@@ -520,7 +527,7 @@ describe("runMessageAction sendAttachment hydration", () => {
         }),
       ).rejects.toThrow(/allowed directory|path-not-allowed/i);
     } finally {
-      await fs.rm(tempDir, { recursive: true, force: true });
+      await fs.rm(outsideDir, { recursive: true, force: true });
     }
   }
 

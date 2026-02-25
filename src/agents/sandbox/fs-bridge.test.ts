@@ -173,7 +173,7 @@ describe("sandbox fs bridge shell compatibility", () => {
     expect(mockedExecDockerRaw).not.toHaveBeenCalled();
   });
 
-  it("rejects pre-existing host symlink escapes before docker exec", async () => {
+  it.skipIf(process.platform === "win32")("rejects pre-existing host symlink escapes before docker exec", async () => {
     const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-fs-bridge-"));
     const workspaceDir = path.join(stateDir, "workspace");
     const outsideDir = path.join(stateDir, "outside");

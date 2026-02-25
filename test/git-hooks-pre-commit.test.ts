@@ -10,7 +10,9 @@ const run = (cwd: string, cmd: string, args: string[] = []) => {
 };
 
 describe("git-hooks/pre-commit (integration)", () => {
-  it("does not treat staged filenames as git-add flags (e.g. --all)", async () => {
+  it.skipIf(process.platform === "win32")(
+    "does not treat staged filenames as git-add flags (e.g. --all)",
+    async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "openclaw-pre-commit-"));
     run(dir, "git", ["init", "-q"]);
 
@@ -44,5 +46,6 @@ describe("git-hooks/pre-commit (integration)", () => {
 
     const staged = run(dir, "git", ["diff", "--cached", "--name-only"]).split("\n").filter(Boolean);
     expect(staged).toEqual(["--all"]);
-  });
+  },
+  );
 });

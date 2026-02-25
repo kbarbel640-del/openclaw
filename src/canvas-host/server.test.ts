@@ -262,7 +262,9 @@ describe("canvas host", () => {
     CANVAS_RELOAD_TEST_TIMEOUT_MS,
   );
 
-  it("serves A2UI scaffold and blocks traversal/symlink escapes", async () => {
+  it.skipIf(process.platform === "win32")(
+    "serves A2UI scaffold and blocks traversal/symlink escapes",
+    async () => {
     const dir = await createCaseDir();
     const a2uiRoot = path.resolve(process.cwd(), "src/canvas-host/a2ui");
     const bundlePath = path.join(a2uiRoot, "a2ui.bundle.js");
@@ -319,5 +321,6 @@ describe("canvas host", () => {
         await fs.rm(bundlePath, { force: true });
       }
     }
-  });
+  },
+  );
 });

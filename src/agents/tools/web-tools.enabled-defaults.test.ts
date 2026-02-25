@@ -116,11 +116,13 @@ describe("web_search country and language parameters", () => {
       ui_lang: string;
       freshness: string;
     }>,
+    uniqueQuery?: string,
   ) {
     const mockFetch = installMockFetch({ web: { results: [] } });
     const tool = createWebSearchTool({ config: undefined, sandboxed: true });
     expect(tool).not.toBeNull();
-    await tool?.execute?.("call-1", { query: "test", ...params });
+    const query = uniqueQuery ?? "test";
+    await tool?.execute?.("call-1", { query, ...params });
     expect(mockFetch).toHaveBeenCalled();
     return new URL(mockFetch.mock.calls[0][0] as string);
   }
@@ -128,10 +130,13 @@ describe("web_search country and language parameters", () => {
   it.each([
     { key: "country", value: "DE" },
     { key: "search_lang", value: "de" },
-    { key: "ui_lang", value: "de" },
+    { key: "ui_lang", value: "de-DE" },
     { key: "freshness", value: "pw" },
   ])("passes $key parameter to Brave API", async ({ key, value }) => {
-    const url = await runBraveSearchAndGetUrl({ [key]: value });
+    const url = await runBraveSearchAndGetUrl(
+      { [key]: value },
+      `test-brave-${key}-${value}`,
+    );
     expect(url.searchParams.get(key)).toBe(value);
   });
 
