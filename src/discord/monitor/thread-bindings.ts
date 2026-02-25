@@ -9,6 +9,10 @@ export {
   resolveThreadBindingIntroText,
   resolveThreadBindingThreadName,
 } from "./thread-bindings.messages.js";
+export {
+  resolveThreadBindingPersona,
+  resolveThreadBindingPersonaFromRecord,
+} from "./thread-bindings.persona.js";
 
 export {
   resolveDiscordThreadBindingSessionTtlMs,

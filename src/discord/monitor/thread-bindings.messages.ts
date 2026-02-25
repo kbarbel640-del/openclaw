@@ -1,5 +1,5 @@
 import { prefixMetaMessage } from "../../infra/meta-message.js";
-import { DEFAULT_FAREWELL_TEXT, type ThreadBindingRecord } from "./thread-bindings.types.js";
+import { DEFAULT_FAREWELL_TEXT } from "./thread-bindings.types.js";
 
 function normalizeThreadBindingMessageTtlMs(raw: unknown): number {
   if (typeof raw !== "number" || !Number.isFinite(raw)) {
@@ -79,10 +79,4 @@ export function resolveThreadBindingFarewellText(params: {
     );
   }
   return prefixMetaMessage(DEFAULT_FAREWELL_TEXT);
-}
-
-export function summarizeBindingPersona(record: ThreadBindingRecord): string {
-  const label = record.label?.trim();
-  const base = label || record.agentId;
-  return (`⚙️ ${base}`.trim() || "⚙️ agent").slice(0, 80);
 }
