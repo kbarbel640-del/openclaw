@@ -1048,8 +1048,10 @@ export async function handleFeishuMessage(params: {
         // Merged message: transition it from OK to Typing so user sees it's being processed
         await reactionManager.onProcessingStart(ctx.messageId).catch(() => {});
       } else {
-        // Truly discarded: clean up immediately
+        // Truly discarded: clean up immediately and explicitly clear any remaining queue
+        // states to prevent zombie emojis when a whole batch is silently dropped
         await reactionManager.onCompleted(ctx.messageId);
+        await reactionManager.clearForChat(ctx.chatId, cutoffTimestamp);
       }
     }
   } catch (err) {

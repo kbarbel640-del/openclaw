@@ -116,12 +116,13 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
     const mgr = getReactionStateManager();
     // Clean up THIS message's reaction.
     mgr.onCompleted(replyToMessageId).catch(() => {});
-    // Clean up ALL remaining reactions in this chat (merged messages).
-    // Use the main message's creation time as the cutoff. Merged messages must have
-    // arrived before or exactly when this reply is being dispatched. Any message
-    // arriving AFTER this is a fresh user turn and its emoji must be preserved.
-    const cutoffTimestamp = mgr.getState(replyToMessageId)?.createdAt ?? Date.now();
-    mgr.clearForChat(chatId, cutoffTimestamp).catch(() => {});
+
+    // Note: We purposely DO NOT clear other merged messages here. Their emojis
+    // will either be handled by clearerForChat when the actual main response
+    // arrives, or handled by stale cleanup if the main response is somehow lost.
+    // Clearing them here by cutoffTimestamp causes a race condition where a message
+    // that fails (replies=0) accidentally clears the typing indicator for the message
+    // that is still genuinely being processed.
   };
 
   const closeStreaming = async () => {
