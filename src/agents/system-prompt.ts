@@ -199,6 +199,8 @@ export function buildAgentSystemPrompt(params: {
   toolSummaries?: Record<string, string>;
   modelAliasLines?: string[];
   userTimezone?: string;
+  /** Stable per-install partition key for provider-side prompt caches. */
+  promptCachePartition?: string;
   userTime?: string;
   userTimeFormat?: ResolvedTimeFormat;
   contextFiles?: EmbeddedContextFile[];
@@ -351,6 +353,10 @@ export function buildAgentSystemPrompt(params: {
     : undefined;
   const reasoningLevel = params.reasoningLevel ?? "off";
   const userTimezone = params.userTimezone?.trim();
+  const promptCachePartition = params.promptCachePartition?.trim();
+  const cachePartitionLine = promptCachePartition
+    ? `<!-- openclaw-cache-partition:${promptCachePartition} -->`
+    : "";
   const skillsPrompt = params.skillsPrompt?.trim();
   const heartbeatPrompt = params.heartbeatPrompt?.trim();
   const heartbeatPromptLine = heartbeatPrompt
@@ -404,10 +410,13 @@ export function buildAgentSystemPrompt(params: {
 
   // For "none" mode, return just the basic identity line
   if (promptMode === "none") {
-    return "You are a personal assistant running inside OpenClaw.";
+    return [cachePartitionLine, "You are a personal assistant running inside OpenClaw."]
+      .filter(Boolean)
+      .join("\n");
   }
 
   const lines = [
+    cachePartitionLine,
     "You are a personal assistant running inside OpenClaw.",
     "",
     "## Tooling",

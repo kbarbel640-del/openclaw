@@ -490,6 +490,106 @@ describe("applyExtraParamsToAgent", () => {
     });
   });
 
+  it("injects OpenRouter prompt_cache_key from config prompt cache partition", () => {
+    const payloads: Record<string, unknown>[] = [];
+    const baseStreamFn: StreamFn = (_model, _context, options) => {
+      const payload: Record<string, unknown> = {};
+      options?.onPayload?.(payload);
+      payloads.push(payload);
+      return {} as ReturnType<StreamFn>;
+    };
+    const agent = { streamFn: baseStreamFn };
+    const cfg = {
+      agents: {
+        defaults: {
+          promptCachePartition: "install-key-123",
+        },
+      },
+    };
+
+    applyExtraParamsToAgent(agent, cfg, "openrouter", "moonshotai/kimi-k2.5");
+
+    const model = {
+      api: "openai-completions",
+      provider: "openrouter",
+      id: "moonshotai/kimi-k2.5",
+    } as Model<"openai-completions">;
+    const context: Context = { messages: [] };
+    void agent.streamFn?.(model, context, {});
+
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]?.prompt_cache_key).toBe("install-key-123");
+  });
+
+  it("prefers explicit OpenRouter prompt_cache_key model params over default partition", () => {
+    const payloads: Record<string, unknown>[] = [];
+    const baseStreamFn: StreamFn = (_model, _context, options) => {
+      const payload: Record<string, unknown> = {};
+      options?.onPayload?.(payload);
+      payloads.push(payload);
+      return {} as ReturnType<StreamFn>;
+    };
+    const agent = { streamFn: baseStreamFn };
+    const cfg = {
+      agents: {
+        defaults: {
+          promptCachePartition: "install-key-123",
+          models: {
+            "openrouter/moonshotai/kimi-k2.5": {
+              params: {
+                prompt_cache_key: "model-key-override",
+              },
+            },
+          },
+        },
+      },
+    };
+
+    applyExtraParamsToAgent(agent, cfg, "openrouter", "moonshotai/kimi-k2.5");
+
+    const model = {
+      api: "openai-completions",
+      provider: "openrouter",
+      id: "moonshotai/kimi-k2.5",
+    } as Model<"openai-completions">;
+    const context: Context = { messages: [] };
+    void agent.streamFn?.(model, context, {});
+
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]?.prompt_cache_key).toBe("model-key-override");
+  });
+
+  it("does not overwrite existing payload prompt_cache_key", () => {
+    const payloads: Record<string, unknown>[] = [];
+    const baseStreamFn: StreamFn = (_model, _context, options) => {
+      const payload: Record<string, unknown> = { prompt_cache_key: "already-set" };
+      options?.onPayload?.(payload);
+      payloads.push(payload);
+      return {} as ReturnType<StreamFn>;
+    };
+    const agent = { streamFn: baseStreamFn };
+    const cfg = {
+      agents: {
+        defaults: {
+          promptCachePartition: "install-key-123",
+        },
+      },
+    };
+
+    applyExtraParamsToAgent(agent, cfg, "openrouter", "moonshotai/kimi-k2.5");
+
+    const model = {
+      api: "openai-completions",
+      provider: "openrouter",
+      id: "moonshotai/kimi-k2.5",
+    } as Model<"openai-completions">;
+    const context: Context = { messages: [] };
+    void agent.streamFn?.(model, context, {});
+
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]?.prompt_cache_key).toBe("already-set");
+  });
+
   it("disables prompt caching for non-Anthropic Bedrock models", () => {
     const { calls, agent } = createOptionsCaptureAgent();
 

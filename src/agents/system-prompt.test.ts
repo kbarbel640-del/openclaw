@@ -93,6 +93,26 @@ describe("buildAgentSystemPrompt", () => {
     expect(tokenA).not.toBe(tokenB);
   });
 
+  it("prepends prompt cache partition marker as first line when configured", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      promptCachePartition: "install-abc123",
+    });
+    const firstLine = prompt.split("\n")[0];
+    expect(firstLine).toBe("<!-- openclaw-cache-partition:install-abc123 -->");
+  });
+
+  it("includes partition marker in promptMode=none output", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      promptMode: "none",
+      promptCachePartition: "install-abc123",
+    });
+    expect(prompt).toBe(
+      "<!-- openclaw-cache-partition:install-abc123 -->\nYou are a personal assistant running inside OpenClaw.",
+    );
+  });
+
   it("omits extended sections in minimal prompt mode", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
