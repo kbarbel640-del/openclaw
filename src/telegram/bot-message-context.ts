@@ -238,11 +238,30 @@ export const buildTelegramMessageContext = async ({
     baseRequireMention,
   );
 
-  const sendTyping = async () => {
+  const sendTyping = async (signal?: AbortSignal) => {
     await withTelegramApiErrorLogging({
       operation: "sendChatAction",
-      fn: () => bot.api.sendChatAction(chatId, "typing", buildTypingThreadParams(replyThreadId)),
+      fn: () =>
+        bot.api.sendChatAction(
+          chatId,
+          "typing",
+          buildTypingThreadParams(replyThreadId),
+          // @ts-expect-error — grammY uses abort-controller polyfill whose AbortSignal type diverges from the native one at compile time; runtime-compatible.
+          signal,
+        ),
     });
+  };
+
+  const cancelTyping = async () => {
+    try {
+      await bot.api.sendChatAction(
+        chatId,
+        "cancel" as Parameters<typeof bot.api.sendChatAction>[1],
+        buildTypingThreadParams(replyThreadId),
+      );
+    } catch {
+      // Best-effort: cancel action may not be supported on all Telegram clients.
+    }
   };
 
   const sendRecordVoice = async () => {
@@ -758,6 +777,7 @@ export const buildTelegramMessageContext = async ({
     route,
     skillFilter,
     sendTyping,
+    cancelTyping,
     sendRecordVoice,
     ackReactionPromise,
     reactionApi,
