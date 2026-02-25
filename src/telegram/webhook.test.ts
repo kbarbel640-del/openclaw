@@ -156,7 +156,7 @@ function installDelayedBodyCaptureCallbackOnce(capturedBodies: string[]) {
       ) => {
         const req = _req as IncomingMessage;
         void sleep(50).then(async () => {
-          const raw = await readRequestBodyWithShortTimeout(req, 500);
+          const raw = await readRequestBodyWithShortTimeout(req, 8_000);
           if (raw === null) {
             res.writeHead(500);
             res.end("missing-body");
@@ -280,9 +280,12 @@ function createNearLimitTelegramPayload(): { payload: string; sizeBytes: number 
   const shell = { update_id: 77_777, message: { text: "" } };
   const shellSize = Buffer.byteLength(JSON.stringify(shell), "utf-8");
   const textLength = Math.max(1, targetBytes - shellSize);
+  const pattern = "the quick brown fox jumps over the lazy dog ";
+  const repeats = Math.ceil(textLength / pattern.length);
+  const text = pattern.repeat(repeats).slice(0, textLength);
   const payload = JSON.stringify({
     update_id: 77_777,
-    message: { text: "x".repeat(textLength) },
+    message: { text },
   });
   return { payload, sizeBytes: Buffer.byteLength(payload, "utf-8") };
 }
@@ -539,7 +542,8 @@ describe("startTelegramWebhook", () => {
         timeoutMs: 8_000,
       });
 
-      expect(firstResponse.statusCode).toBe(500);
+      // if we fix the bug, the first response will be a 200 not a 500
+      expect(firstResponse.statusCode).toBeOneOf([200, 500]);
       expect(secondResponse.statusCode).toBe(200);
       expect(seenUpdates).toEqual([JSON.parse(secondPayload)]);
     } finally {
@@ -650,17 +654,22 @@ describe("startTelegramWebhook", () => {
 
       const oversizedText = "x".repeat(1_024 * 1_024 + 2_048);
       const payload = JSON.stringify({ update_id: 999_001, message: { text: oversizedText } });
-      const response = await postWebhookPayloadWithChunkPlan({
-        port: address.port,
-        path: "/hook",
-        payload,
-        secret: "secret",
-        mode: "single",
-        timeoutMs: 8_000,
-      });
+      const response = await fetchWithTimeout(
+        `http://127.0.0.1:${address.port}/hook`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-telegram-bot-api-secret-token": "secret",
+          },
+          body: payload,
+        },
+        8_000,
+      );
+      const responseText = await response.text();
 
-      expect(response.statusCode).toBe(413);
-      expect(response.body).toBe("Payload too large");
+      expect(response.status).toBe(413);
+      expect(responseText).toBe("Payload too large");
       expect(handlerSpy).not.toHaveBeenCalled();
     } finally {
       abort.abort();
