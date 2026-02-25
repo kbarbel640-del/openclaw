@@ -43,7 +43,7 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   const typingCfg = account.config?.typingIndicator;
   const typingEnabled = typingCfg?.enabled !== false;
   // Default to 120s to reduce API quota consumption (SDK default is 3s)
-  const typingIntervalMs = ((typingCfg?.intervalSeconds as number) ?? 120) * 1000;
+  const typingIntervalMs = (typingCfg?.intervalSeconds ?? 120) * 1000;
 
   const typingCallbacks = createTypingCallbacks({
     keepaliveIntervalMs: typingEnabled ? typingIntervalMs : 0,
