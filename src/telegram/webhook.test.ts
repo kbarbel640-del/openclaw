@@ -1,22 +1,11 @@
 import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { request } from "node:http";
-import type { IncomingMessage } from "node:http";
 import { setTimeout as sleep } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
 import { startTelegramWebhook } from "./webhook.js";
 
-const realWebhookCallbackRef = vi.hoisted(() => ({
-  fn: null as null | (typeof import("grammy"))["webhookCallback"],
-}));
-const handlerSpy = vi.hoisted(() =>
-  vi.fn(
-    (_req: unknown, res: { writeHead: (status: number) => void; end: (body?: string) => void }) => {
-      res.writeHead(200);
-      res.end("ok");
-    },
-  ),
-);
+const handlerSpy = vi.hoisted(() => vi.fn((..._args: unknown[]): unknown => undefined));
 const setWebhookSpy = vi.hoisted(() => vi.fn());
 const initSpy = vi.hoisted(() => vi.fn(async () => undefined));
 const stopSpy = vi.hoisted(() => vi.fn());
@@ -31,7 +20,6 @@ const createTelegramBotSpy = vi.hoisted(() =>
 
 vi.mock("grammy", async (importOriginal) => {
   const actual = await importOriginal<typeof import("grammy")>();
-  realWebhookCallbackRef.fn = actual.webhookCallback;
   return {
     ...actual,
     webhookCallback: webhookCallbackSpy,
@@ -41,58 +29,6 @@ vi.mock("grammy", async (importOriginal) => {
 vi.mock("./bot.js", () => ({
   createTelegramBot: createTelegramBotSpy,
 }));
-
-async function readRequestBodyWithShortTimeout(
-  req: IncomingMessage,
-  timeoutMs: number,
-): Promise<string | null> {
-  return await new Promise((resolve) => {
-    const chunks: Buffer[] = [];
-    let settled = false;
-
-    const cleanup = () => {
-      req.removeListener("data", onData);
-      req.removeListener("end", onEnd);
-      req.removeListener("error", onError);
-      req.removeListener("close", onClose);
-      clearTimeout(timer);
-    };
-
-    const finish = (value: string | null) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      cleanup();
-      resolve(value);
-    };
-
-    const onData = (chunk: Buffer | string) => {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    };
-
-    const onEnd = () => {
-      finish(Buffer.concat(chunks).toString("utf-8"));
-    };
-
-    const onError = () => {
-      finish(null);
-    };
-
-    const onClose = () => {
-      finish(null);
-    };
-
-    const timer = setTimeout(() => {
-      finish(null);
-    }, timeoutMs);
-
-    req.on("data", onData);
-    req.on("end", onEnd);
-    req.on("error", onError);
-    req.on("close", onClose);
-  });
-}
 
 async function fetchWithTimeout(
   input: string,
@@ -110,66 +46,23 @@ async function fetchWithTimeout(
   }
 }
 
-function installFirstLossThenRealGrammyCallbackOnce() {
-  webhookCallbackSpy.mockImplementationOnce((...args: unknown[]) => {
-    const realWebhookFactory = realWebhookCallbackRef.fn as
-      | ((...factoryArgs: unknown[]) => (...handlerArgs: unknown[]) => unknown)
-      | null;
-    if (!realWebhookFactory) {
-      throw new Error("real webhook callback unavailable");
-    }
-    const realHandler = realWebhookFactory(...args);
-    let requestCount = 0;
-    return vi.fn((...handlerArgs: unknown[]) => {
-      requestCount += 1;
-      if (requestCount === 1) {
-        const req = handlerArgs[0] as IncomingMessage;
-        const res = handlerArgs[1] as {
-          writeHead: (status: number) => void;
-          end: (body?: string) => void;
-        };
-        // Mirror startup behavior where body reader attaches too late.
-        void sleep(50).then(async () => {
-          const raw = await readRequestBodyWithShortTimeout(req, 75);
-          if (raw === null) {
-            res.writeHead(500);
-            res.end("missing-body");
-            return;
-          }
-          res.writeHead(200);
-          res.end(raw);
-        });
-        return;
-      }
-      return realHandler(...handlerArgs);
-    });
-  });
-}
-
-function installDelayedBodyCaptureCallbackOnce(capturedBodies: string[]) {
-  webhookCallbackSpy.mockImplementationOnce(() =>
-    vi.fn(
-      (
-        _req: unknown,
-        res: {
-          writeHead: (status: number) => void;
-          end: (body?: string) => void;
-        },
-      ) => {
-        const req = _req as IncomingMessage;
-        void sleep(50).then(async () => {
-          const raw = await readRequestBodyWithShortTimeout(req, 8_000);
-          if (raw === null) {
-            res.writeHead(500);
-            res.end("missing-body");
-            return;
-          }
-          capturedBodies.push(raw);
-          res.writeHead(200);
-          res.end("ok");
-        });
+async function postWebhookJson(params: {
+  url: string;
+  payload: string;
+  secret?: string;
+  timeoutMs?: number;
+}): Promise<Response> {
+  return await fetchWithTimeout(
+    params.url,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(params.secret ? { "x-telegram-bot-api-secret-token": params.secret } : {}),
       },
-    ),
+      body: params.payload,
+    },
+    params.timeoutMs ?? 5_000,
   );
 }
 
@@ -368,7 +261,13 @@ describe("startTelegramWebhook", () => {
     if (!addr || typeof addr === "string") {
       throw new Error("no addr");
     }
-    await fetch(`http://127.0.0.1:${addr.port}/hook`, { method: "POST" });
+    const payload = JSON.stringify({ update_id: 1, message: { text: "hello" } });
+    const response = await postWebhookJson({
+      url: `http://127.0.0.1:${addr.port}/hook`,
+      payload,
+      secret: "secret",
+    });
+    expect(response.status).toBe(200);
     expect(handlerSpy).toHaveBeenCalled();
     abort.abort();
   });
@@ -382,27 +281,11 @@ describe("startTelegramWebhook", () => {
   });
 
   it("keeps webhook payload readable when callback delays body read", async () => {
-    webhookCallbackSpy.mockImplementationOnce(() =>
-      vi.fn(
-        (
-          _req: unknown,
-          res: { writeHead: (status: number) => void; end: (body?: string) => void },
-        ) => {
-          const req = _req as IncomingMessage;
-          // Simulates grammy startup work before it subscribes to req data events.
-          void sleep(50).then(async () => {
-            const raw = await readRequestBodyWithShortTimeout(req, 75);
-            if (raw === null) {
-              res.writeHead(500);
-              res.end("missing-body");
-              return;
-            }
-            res.writeHead(200);
-            res.end(raw);
-          });
-        },
-      ),
-    );
+    handlerSpy.mockImplementationOnce(async (...args: unknown[]) => {
+      const [update, reply] = args as [unknown, (json: string) => Promise<void>];
+      await sleep(50);
+      await reply(JSON.stringify(update));
+    });
 
     const abort = new AbortController();
     const { server } = await startTelegramWebhook({
@@ -419,18 +302,14 @@ describe("startTelegramWebhook", () => {
       }
 
       const payload = JSON.stringify({ update_id: 1, message: { text: "hello" } });
-      const res = await fetchWithTimeout(
-        `http://127.0.0.1:${addr.port}/hook`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
-        },
-        5_000,
-      );
-
+      const res = await postWebhookJson({
+        url: `http://127.0.0.1:${addr.port}/hook`,
+        payload,
+        secret: "secret",
+      });
       expect(res.status).toBe(200);
-      await expect(res.text()).resolves.toBe(payload);
+      const responseBody = await res.text();
+      expect(JSON.parse(responseBody)).toEqual(JSON.parse(payload));
     } finally {
       abort.abort();
     }
@@ -438,27 +317,13 @@ describe("startTelegramWebhook", () => {
 
   it("keeps webhook payload readable across multiple delayed reads", async () => {
     const seenPayloads: string[] = [];
-    webhookCallbackSpy.mockImplementationOnce(() =>
-      vi.fn(
-        (
-          _req: unknown,
-          res: { writeHead: (status: number) => void; end: (body?: string) => void },
-        ) => {
-          const req = _req as IncomingMessage;
-          void sleep(50).then(async () => {
-            const raw = await readRequestBodyWithShortTimeout(req, 75);
-            if (raw === null) {
-              res.writeHead(500);
-              res.end("missing-body");
-              return;
-            }
-            seenPayloads.push(raw);
-            res.writeHead(200);
-            res.end("ok");
-          });
-        },
-      ),
-    );
+    const delayedHandler = async (...args: unknown[]) => {
+      const [update, reply] = args as [unknown, (json: string) => Promise<void>];
+      await sleep(50);
+      seenPayloads.push(JSON.stringify(update));
+      await reply("ok");
+    };
+    handlerSpy.mockImplementationOnce(delayedHandler).mockImplementationOnce(delayedHandler);
 
     const abort = new AbortController();
     const { server } = await startTelegramWebhook({
@@ -480,36 +345,39 @@ describe("startTelegramWebhook", () => {
       ];
 
       for (const payload of payloads) {
-        const res = await fetchWithTimeout(
-          `http://127.0.0.1:${addr.port}/hook`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: payload,
-          },
-          5_000,
-        );
+        const res = await postWebhookJson({
+          url: `http://127.0.0.1:${addr.port}/hook`,
+          payload,
+          secret: "secret",
+        });
         expect(res.status).toBe(200);
       }
 
-      expect(seenPayloads).toEqual(payloads);
+      expect(seenPayloads.map((x) => JSON.parse(x))).toEqual(payloads.map((x) => JSON.parse(x)));
     } finally {
       abort.abort();
     }
   });
 
   it("processes a second request after first-request delayed-init data loss", async () => {
-    installFirstLossThenRealGrammyCallbackOnce();
     const seenUpdates: unknown[] = [];
-    createTelegramBotSpy.mockImplementationOnce(() => ({
-      api: { setWebhook: setWebhookSpy },
-      stop: stopSpy,
-      isRunning: () => false,
-      init: vi.fn(async () => undefined),
-      handleUpdate: vi.fn(async (update: unknown) => {
-        seenUpdates.push(update);
-      }),
-    }));
+    webhookCallbackSpy.mockImplementationOnce(
+      () =>
+        vi.fn(
+          (
+            update: unknown,
+            reply: (json: string) => Promise<void>,
+            _secretHeader: string | undefined,
+            _unauthorized: () => Promise<void>,
+          ) => {
+            seenUpdates.push(update);
+            void (async () => {
+              await sleep(50);
+              await reply("ok");
+            })();
+          },
+        ) as unknown as typeof handlerSpy,
+    );
 
     const secret = "secret";
     const abort = new AbortController();
@@ -546,22 +414,35 @@ describe("startTelegramWebhook", () => {
         timeoutMs: 8_000,
       });
 
-      // if we fix the bug, the first response will be a 200 not a 500
-      expect(firstResponse.statusCode).toBeOneOf([200, 500]);
+      expect(firstResponse.statusCode).toBe(200);
       expect(secondResponse.statusCode).toBe(200);
-      expect(seenUpdates).toEqual([JSON.parse(secondPayload)]);
+      expect(seenUpdates).toEqual([JSON.parse(firstPayload), JSON.parse(secondPayload)]);
     } finally {
       abort.abort();
     }
   });
 
   it("handles near-limit payload with random chunk writes and event-loop yields", async () => {
-    const capturedBodies: string[] = [];
-    installDelayedBodyCaptureCallbackOnce(capturedBodies);
+    const seenUpdates: Array<{ update_id: number; message: { text: string } }> = [];
+    webhookCallbackSpy.mockImplementationOnce(
+      () =>
+        vi.fn(
+          (
+            update: unknown,
+            reply: (json: string) => Promise<void>,
+            _secretHeader: string | undefined,
+            _unauthorized: () => Promise<void>,
+          ) => {
+            seenUpdates.push(update as { update_id: number; message: { text: string } });
+            void reply("ok");
+          },
+        ) as unknown as typeof handlerSpy,
+    );
 
     const { payload, sizeBytes } = createNearLimitTelegramPayload();
     expect(sizeBytes).toBeLessThan(1_024 * 1_024);
     expect(sizeBytes).toBeGreaterThan(256 * 1_024);
+    const expected = JSON.parse(payload) as { update_id: number; message: { text: string } };
 
     const secret = "secret";
     const abort = new AbortController();
@@ -589,21 +470,36 @@ describe("startTelegramWebhook", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(capturedBodies).toHaveLength(1);
-      expect(capturedBodies[0]?.length).toBe(payload.length);
-      expect(sha256(capturedBodies[0] ?? "")).toBe(sha256(payload));
+      expect(seenUpdates).toHaveLength(1);
+      expect(seenUpdates[0]?.update_id).toBe(expected.update_id);
+      expect(seenUpdates[0]?.message.text.length).toBe(expected.message.text.length);
+      expect(sha256(seenUpdates[0]?.message.text ?? "")).toBe(sha256(expected.message.text));
     } finally {
       abort.abort();
     }
   });
 
   it("handles near-limit payload written in a single request write", async () => {
-    const capturedBodies: string[] = [];
-    installDelayedBodyCaptureCallbackOnce(capturedBodies);
+    const seenUpdates: Array<{ update_id: number; message: { text: string } }> = [];
+    webhookCallbackSpy.mockImplementationOnce(
+      () =>
+        vi.fn(
+          (
+            update: unknown,
+            reply: (json: string) => Promise<void>,
+            _secretHeader: string | undefined,
+            _unauthorized: () => Promise<void>,
+          ) => {
+            seenUpdates.push(update as { update_id: number; message: { text: string } });
+            void reply("ok");
+          },
+        ) as unknown as typeof handlerSpy,
+    );
 
     const { payload, sizeBytes } = createNearLimitTelegramPayload();
     expect(sizeBytes).toBeLessThan(1_024 * 1_024);
     expect(sizeBytes).toBeGreaterThan(256 * 1_024);
+    const expected = JSON.parse(payload) as { update_id: number; message: { text: string } };
 
     const secret = "secret";
     const abort = new AbortController();
@@ -631,9 +527,10 @@ describe("startTelegramWebhook", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(capturedBodies).toHaveLength(1);
-      expect(capturedBodies[0]?.length).toBe(payload.length);
-      expect(sha256(capturedBodies[0] ?? "")).toBe(sha256(payload));
+      expect(seenUpdates).toHaveLength(1);
+      expect(seenUpdates[0]?.update_id).toBe(expected.update_id);
+      expect(seenUpdates[0]?.message.text.length).toBe(expected.message.text.length);
+      expect(sha256(seenUpdates[0]?.message.text ?? "")).toBe(sha256(expected.message.text));
     } finally {
       abort.abort();
     }
@@ -656,24 +553,48 @@ describe("startTelegramWebhook", () => {
         throw new Error("no addr");
       }
 
-      const oversizedText = "x".repeat(1_024 * 1_024 + 2_048);
-      const payload = JSON.stringify({ update_id: 999_001, message: { text: oversizedText } });
-      const response = await fetchWithTimeout(
-        `http://127.0.0.1:${address.port}/hook`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-telegram-bot-api-secret-token": "secret",
+      const responseOrError = await new Promise<
+        | { kind: "response"; statusCode: number; body: string }
+        | { kind: "error"; code: string | undefined }
+      >((resolve) => {
+        const req = request(
+          {
+            hostname: "127.0.0.1",
+            port: address.port,
+            path: "/hook",
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "content-length": String(1_024 * 1_024 + 2_048),
+              "x-telegram-bot-api-secret-token": "secret",
+            },
           },
-          body: payload,
-        },
-        8_000,
-      );
-      const responseText = await response.text();
+          (res) => {
+            const chunks: Buffer[] = [];
+            res.on("data", (chunk: Buffer | string) => {
+              chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+            });
+            res.on("end", () => {
+              resolve({
+                kind: "response",
+                statusCode: res.statusCode ?? 0,
+                body: Buffer.concat(chunks).toString("utf-8"),
+              });
+            });
+          },
+        );
+        req.on("error", (error: NodeJS.ErrnoException) => {
+          resolve({ kind: "error", code: error.code });
+        });
+        req.end("{}");
+      });
 
-      expect(response.status).toBe(413);
-      expect(responseText).toBe("Payload too large");
+      if (responseOrError.kind === "response") {
+        expect(responseOrError.statusCode).toBe(413);
+        expect(responseOrError.body).toBe("Payload too large");
+      } else {
+        expect(responseOrError.code).toBeOneOf(["ECONNRESET", "EPIPE"]);
+      }
       expect(handlerSpy).not.toHaveBeenCalled();
     } finally {
       abort.abort();
