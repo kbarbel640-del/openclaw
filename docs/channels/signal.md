@@ -17,7 +17,7 @@ Status: external CLI integration. Gateway talks to `signal-cli` over HTTP JSON-R
 - A phone number that can receive one verification SMS (for SMS registration path).
 - Browser access for Signal captcha (`signalcaptchas.org`) during registration.
 
-## Onboarding
+## Quick setup (beginner)
 
 1. Use a **separate Signal number** for the bot (recommended).
 2. Install `signal-cli` (Java required if you use the JVM build).
@@ -195,6 +195,7 @@ Groups:
 
 - `channels.signal.groupPolicy = open | allowlist | disabled`.
 - `channels.signal.groupAllowFrom` controls who can trigger in groups when `allowlist` is set.
+- Runtime note: if `channels.signal` is completely missing, runtime falls back to `groupPolicy="allowlist"` for group checks (even if `channels.defaults.groupPolicy` is set).
 
 ## How it works (behavior)
 
