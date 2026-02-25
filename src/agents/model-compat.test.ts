@@ -1,9 +1,9 @@
 import type { Api, Model } from "@mariozechner/pi-ai";
 import { describe, expect, it } from "vitest";
+import type { ModelRegistry } from "./pi-model-discovery.js";
 import { isModernModelRef } from "./live-model-filter.js";
 import { normalizeModelCompat } from "./model-compat.js";
 import { resolveForwardCompatModel } from "./model-forward-compat.js";
-import type { ModelRegistry } from "./pi-model-discovery.js";
 
 const baseModel = (): Model<Api> =>
   ({

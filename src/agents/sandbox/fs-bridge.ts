@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { SandboxContext, SandboxWorkspaceAccess } from "./types.js";
 import { isNotFoundPathError, isPathInside } from "../../infra/path-guards.js";
 import { execDockerRaw, type ExecDockerRawResult } from "./docker.js";
 import {
@@ -9,7 +10,6 @@ import {
   type SandboxFsMount,
 } from "./fs-paths.js";
 import { isPathInsideContainerRoot, normalizeContainerPath } from "./path-utils.js";
-import type { SandboxContext, SandboxWorkspaceAccess } from "./types.js";
 
 type RunCommandOptions = {
   args?: string[];
