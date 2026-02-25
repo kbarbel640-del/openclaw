@@ -40,7 +40,10 @@ export const formatTokensCompact = (
       typeof used === "number"
         ? used
         : cacheRead + (typeof cacheWrite === "number" ? cacheWrite : 0);
-    const hitRate = Math.round((cacheRead / total) * 100);
+    // Clamp to [0, 100]: for cron/long-running sessions the cumulative cacheRead
+    // can exceed totalTokens (which may only reflect fresh input+output), causing
+    // raw values like 1142%. No meaningful display value can be outside [0, 100].
+    const hitRate = Math.min(100, Math.max(0, Math.round((cacheRead / total) * 100)));
     result += ` · 🗄️ ${hitRate}% cached`;
   }
 
