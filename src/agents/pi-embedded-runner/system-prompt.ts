@@ -48,6 +48,8 @@ export function buildEmbeddedSystemPrompt(params: {
   userTimezone: string;
   userTime?: string;
   userTimeFormat?: ResolvedTimeFormat;
+  /** When true, include the formatted current time in the system prompt. */
+  includeTime?: boolean;
   contextFiles?: EmbeddedContextFile[];
   memoryCitationsMode?: MemoryCitationsMode;
 }): string {
@@ -76,6 +78,7 @@ export function buildEmbeddedSystemPrompt(params: {
     userTimezone: params.userTimezone,
     userTime: params.userTime,
     userTimeFormat: params.userTimeFormat,
+    includeTime: params.includeTime,
     contextFiles: params.contextFiles,
     memoryCitationsMode: params.memoryCitationsMode,
   });
