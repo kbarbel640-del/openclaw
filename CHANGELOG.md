@@ -12,6 +12,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Gateway/Tailscale: when `gateway.tailscale.mode` is `serve` or `funnel` and `gateway.bind` is not loopback, the gateway now auto-corrects the bind to 127.0.0.1 for that session and logs a one-time warning instead of crashing. Config file is unchanged. Closes #14542.
 - Security/Nextcloud Talk: reject unsigned webhook traffic before full body reads, reducing unauthenticated request-body exposure, with auth-order regression coverage. (#26118) Thanks @bmendonca3.
 - Security/Nextcloud Talk: stop treating DM pairing-store entries as group allowlist senders, so group authorization remains bounded to configured group allowlists. (#26116) Thanks @bmendonca3.
 - Security/IRC: keep pairing-store approvals DM-only and out of IRC group allowlist authorization, with policy regression tests for allowlist resolution. (#26112) Thanks @bmendonca3.
