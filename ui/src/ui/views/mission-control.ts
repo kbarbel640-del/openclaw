@@ -13,113 +13,123 @@ export function renderMissionControl(state: AppViewState) {
     return n.toString();
   };
 
-  // Status mapping to cover different naming conventions
   const getCount = (status: string) => {
     const s = status.toLowerCase();
-    if (s === 'pending') return taskStats.find(st => st.status === 'pending' || st.status === 'todo')?.count || 0;
+    if (s === 'pending') return taskStats.find(st => st.status === 'pending' || st.status === 'todo' || st.status === 'blocked')?.count || 0;
     if (s === 'active') return taskStats.find(st => st.status === 'active' || st.status === 'in_progress')?.count || 0;
     if (s === 'completed') return taskStats.find(st => st.status === 'completed' || st.status === 'done')?.count || 0;
     return 0;
   };
 
   return html`
-    <div class="mission-control-dashboard">
-      <!-- Global Status Summary Panel -->
-      <header class="status-summary grid grid-cols-4 gap-4 mb-6">
-        <div class="card stat-card p-4">
-          <div class="stat-label text-xs uppercase text-muted-foreground font-semibold">Tasks</div>
-          <div class="stat-value text-2xl font-bold">
-            ${getCount('pending')} / ${getCount('active')} / ${getCount('completed')}
+    <div class="mission-control-dashboard space-y-6">
+      <!-- Workspace Switcher -->
+      <div class="flex gap-2 overflow-x-auto pb-2">
+        <div class="workspace-pill workspace-pill--active">Main Workspace</div>
+        ${(data?.workspaces || []).map((ws: any) => html`
+          <div class="workspace-pill">${ws.name}</div>
+        `)}
+        <button class="workspace-pill opacity-50 text-xs">+ New</button>
+      </div>
+
+      <!-- Hero Section -->
+      <premium-panel .hoverLift=${false} class="hero-gradient p-0 overflow-hidden">
+        <div class="grid grid-cols-4 divide-x divide-white/10">
+          <div class="p-6">
+            <div class="text-xs uppercase opacity-70 font-semibold mb-2">Tasks</div>
+            <div class="text-3xl font-bold">
+              ${getCount('pending')} / ${getCount('active')} / ${getCount('completed')}
+            </div>
           </div>
-          <div class="stat-sub text-[10px] text-muted-foreground">Backlog / In Progress / Done</div>
+          <div class="p-6">
+            <div class="text-xs uppercase opacity-70 font-semibold mb-2">Active Agents</div>
+            <div class="flex items-center gap-3">
+              <span class="status-dot status-dot--active"></span>
+              <span class="text-3xl font-bold">${agentStats.online}</span>
+            </div>
+          </div>
+          <div class="p-6">
+            <div class="text-xs uppercase opacity-70 font-semibold mb-2">Tokens Today</div>
+            <div class="text-3xl font-bold animate-counter">${formatTokens(stats?.tokens || 0)}</div>
+          </div>
+          <div class="p-6">
+            <div class="text-xs uppercase opacity-70 font-semibold mb-2">Next Heartbeat</div>
+            <div class="text-3xl font-bold">${stats?.heartbeat || 'N/A'}</div>
+          </div>
         </div>
-        <div class="card stat-card p-4">
-          <div class="stat-label text-xs uppercase text-muted-foreground font-semibold">Agents</div>
-          <div class="stat-value text-2xl font-bold">${agentStats.online} / ${agentStats.busy}</div>
-          <div class="stat-sub text-[10px] text-muted-foreground">Online / Busy</div>
-        </div>
-        <div class="card stat-card p-4">
-          <div class="stat-label text-xs uppercase text-muted-foreground font-semibold">Tokens Today</div>
-          <div class="stat-value text-2xl font-bold">${formatTokens(stats?.tokens || 0)}</div>
-          <div class="stat-sub text-[10px] text-muted-foreground">Est. Cost: $${(stats?.cost || 0).toFixed(2)}</div>
-        </div>
-        <div class="card stat-card p-4">
-          <div class="stat-label text-xs uppercase text-muted-foreground font-semibold">Heartbeat</div>
-          <div class="stat-value text-2xl font-bold">${stats?.heartbeat || 'N/A'}</div>
-          <div class="stat-sub text-[10px] text-muted-foreground">Next scheduled run</div>
-        </div>
-      </header>
+      </premium-panel>
 
       <div class="grid grid-cols-3 gap-6">
-        <!-- Activity & Timeline Feed -->
-        <section class="col-span-2 card p-4">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold">Live Activity Feed</h2>
-            <span class="status-dot green"></span>
-          </div>
-          <div class="activity-feed space-y-3 overflow-y-auto max-h-[500px]">
-            ${(data?.audit || []).map((item: any) => html`
-              <div class="feed-item border-l-2 border-blue-500 pl-3 py-1">
-                <div class="flex justify-between text-sm">
-                  <span class="font-medium">${item.action}</span>
-                  <span class="text-xs text-muted-foreground">${new Date(item.created_at).toLocaleTimeString()}</span>
-                </div>
-                <p class="text-xs text-muted-foreground">${item.actor_id || 'System'} performed ${item.action} ${item.resource ? `on ${item.resource}` : ''}.</p>
-              </div>
-            `)}
-            ${!(data?.audit?.length) ? html`<div class="text-muted-foreground text-sm">No recent activity.</div>` : nothing}
-          </div>
-        </section>
+        <!-- Activity Feed -->
+        <div class="col-span-2 space-y-4">
+          <premium-panel title="Live Activity Feed">
+             <div slot="header-action">
+                <span class="status-dot status-dot--active"></span>
+             </div>
+             <div class="activity-feed space-y-3 overflow-y-auto max-h-[600px] pr-2">
+                ${(data?.audit || []).map((item: any) => {
+                  let severity = 'cron';
+                  if (item.action.includes('error') || item.status === 'failed') severity = 'error';
+                  if (item.action.includes('warning')) severity = 'warning';
+                  if (item.status === 'success') severity = 'success';
 
-        <!-- User Intelligence Quick View -->
-        <section class="card p-4">
-          <h2 class="text-lg font-semibold mb-4">User Intelligence</h2>
-          <div class="space-y-4">
-            ${(data?.intel || []).map((item: any) => html`
-              <div class="intel-card p-3 bg-secondary/50 rounded-lg border border-border">
-                <div class="text-sm font-medium">${item.key}</div>
-                <div class="text-xs text-muted-foreground mb-2">${item.value}</div>
-                <div class="w-full bg-muted rounded-full h-1.5">
-                  <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${(item.confidence_score || 0) * 100}%"></div>
+                  return html`
+                    <div class="activity-item activity-item--${severity} p-3 bg-white/5 rounded-lg border border-white/5">
+                      <div class="flex justify-between items-start">
+                        <div>
+                          <div class="text-sm font-semibold">${item.action}</div>
+                          <div class="text-xs text-muted-foreground mt-1">
+                            ${item.actor_id || 'System'} ${item.resource ? `→ ${item.resource}` : ''}
+                          </div>
+                        </div>
+                        <span class="text-[10px] opacity-50">${new Date(item.created_at).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+                  `;
+                })}
+                ${!(data?.audit?.length) ? html`<div class="text-muted-foreground text-sm p-4 text-center italic">No recent activity detected.</div>` : nothing}
+             </div>
+          </premium-panel>
+        </div>
+
+        <!-- Sidebar Intel & Health -->
+        <div class="space-y-6">
+          <premium-panel title="System Health">
+            <div class="space-y-3">
+              ${['hive', 'forge', 'cron', 'db'].map(module => {
+                const health = state.systemHealth?.[module] || { status: 'healthy' };
+                const isActive = health.status === 'healthy';
+                const isDegraded = health.status === 'degraded';
+
+                return html`
+                  <div class="flex justify-between items-center text-sm">
+                    <span class="capitalize font-medium">${module}</span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs opacity-70 capitalize">${health.status}</span>
+                      <span class="status-dot ${isActive ? 'status-dot--active' : (isDegraded ? 'status-dot--busy' : 'status-dot--offline')}"></span>
+                    </div>
+                  </div>
+                `;
+              })}
+            </div>
+          </premium-panel>
+
+          <premium-panel title="User Intelligence">
+            <div class="space-y-4">
+              ${(data?.intel || []).map((item: any) => html`
+                <div class="p-3 bg-white/5 rounded-lg border border-white/5">
+                  <div class="text-sm font-medium mb-1">${item.key}</div>
+                  <div class="text-xs text-muted-foreground line-clamp-2">${item.value}</div>
+                  <div class="mt-2 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div class="h-full bg-blue-500 rounded-full" style="width: ${(item.confidence_score || 0) * 100}%"></div>
+                  </div>
                 </div>
-                <div class="text-[10px] text-right mt-1">${Math.round((item.confidence_score || 0) * 100)}% Confidence</div>
-              </div>
-            `)}
-            ${!(data?.intel?.length) ? html`<div class="text-muted-foreground text-sm">No intelligence insights yet.</div>` : nothing}
-          </div>
-        </section>
+              `)}
+              ${!(data?.intel?.length) ? html`<div class="text-muted-foreground text-sm text-center">No intelligence insights gathered.</div>` : nothing}
+            </div>
+          </premium-panel>
+        </div>
       </div>
     </div>
-
-    <style>
-      .mission-control-dashboard {
-        padding: 1.5rem;
-      }
-      .stat-card {
-        border-radius: 12px;
-        background: var(--card-bg);
-        border: 1px solid var(--border-color);
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      }
-      .status-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        display: inline-block;
-        animation: pulse 2s infinite;
-      }
-      .status-dot.green { background: #10b981; }
-      @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
-      }
-      .feed-item {
-        transition: background 0.2s;
-      }
-      .feed-item:hover {
-        background: rgba(0,0,0,0.02);
-      }
-    </style>
   `;
 }

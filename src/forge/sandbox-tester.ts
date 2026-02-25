@@ -10,6 +10,13 @@ export interface TestResult {
 }
 
 export class SandboxTester {
+  /**
+   * WARNING: This implementation uses node:vm which is NOT a secure sandbox.
+   * It is intended for architectural demonstration only.
+   * In a production environment, this should be replaced with a truly isolated
+   * environment like a Docker container, a Firecracker microVM, or at least
+   * the 'isolate-vm' library.
+   */
   async testSkill(code: string): Promise<TestResult> {
     log.info("Testing skill in sandbox...");
 

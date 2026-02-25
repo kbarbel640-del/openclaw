@@ -144,4 +144,17 @@ export function ensureGlobalSchema(db: DatabaseSync): void {
       created_at INTEGER NOT NULL
     );
   `);
+
+  // System Events for stability logging
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS system_events (
+      id TEXT PRIMARY KEY,
+      module TEXT NOT NULL,
+      severity TEXT NOT NULL, -- info | warning | error | critical
+      message TEXT NOT NULL,
+      stack TEXT,
+      workspace_id TEXT,
+      created_at INTEGER NOT NULL
+    );
+  `);
 }

@@ -559,9 +559,14 @@ export async function applyMediaUnderstanding(params: {
     const nativeAudio: Array<{ data: Buffer; mimeType: string }> = [];
     if (params.activeModel?.provider === "google") {
       const audioAttachments = attachments.filter((a) => resolveAttachmentKind(a) === "audio");
+      const limits = resolveFileLimits(cfg);
       for (const a of audioAttachments) {
         try {
-          const buf = await cache.getBuffer({ attachmentIndex: a.index });
+          const buf = await cache.getBuffer({
+            attachmentIndex: a.index,
+            maxBytes: limits.maxBytes,
+            timeoutMs: limits.timeoutMs,
+          });
           if (buf) {
             nativeAudio.push({ data: buf.buffer, mimeType: buf.mime || "audio/wav" });
           }

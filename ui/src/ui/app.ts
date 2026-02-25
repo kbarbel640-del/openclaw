@@ -345,6 +345,7 @@ export class OpenClawApp extends LitElement {
 
   @state() missionControlData: import("./controllers/mission-control.ts").MissionControlData | null = null;
   @state() missionControlStats: import("./controllers/mission-control.ts").MissionControlStats | null = null;
+  @state() systemHealth: Record<string, import("../../../src/infra/system-health.js").SubsystemHealth> | null = null;
 
   @state() debugLoading = false;
   @state() debugStatus: StatusSummary | null = null;

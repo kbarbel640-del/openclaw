@@ -5,6 +5,7 @@ export type MissionControlData = {
   intel: any[];
   audit: any[];
   scheduled: any[];
+  workspaces: any[];
 };
 
 export type MissionControlStats = {
@@ -38,5 +39,18 @@ export async function loadMissionControlStats(app: OpenClawApp) {
     }
   } catch (err) {
     console.error("Failed to load mission control stats", err);
+  }
+}
+
+export async function loadSystemHealth(app: OpenClawApp) {
+  if (!app.client) return;
+
+  try {
+    const result = await app.client.call<Record<string, any>>("mission_control.system_health", {});
+    if (result) {
+        app.systemHealth = result;
+    }
+  } catch (err) {
+    console.error("Failed to load system health", err);
   }
 }

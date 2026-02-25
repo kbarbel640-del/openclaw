@@ -2,6 +2,8 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getGlobalDb } from "../infra/db.js";
 import { SandboxTester } from "./sandbox-tester.js";
 import { callGateway } from "../gateway/call.js";
+import { SystemLogger } from "../infra/system-logger.js";
+import { SystemHealth } from "../infra/system-health.js";
 
 const log = createSubsystemLogger("forge/engine");
 
@@ -10,25 +12,27 @@ export class ForgeEngine {
   private sandbox = new SandboxTester();
 
   async onTaskFailure(params: { taskId: string; failureReason: string; context: string }) {
-    log.info(`Analyzing failure for task ${params.taskId}: ${params.failureReason}`);
-
     const jobId = crypto.randomUUID();
-    const now = Date.now();
-    this.db.prepare(`
-      INSERT INTO forge_jobs (id, task_id, failure_reason, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(jobId, params.taskId, params.failureReason, 'analyzing', now, now);
-
     try {
+      log.info(`Analyzing failure for task ${params.taskId}: ${params.failureReason}`);
+
+      const now = Date.now();
+      this.db.prepare(`
+        INSERT INTO forge_jobs (id, task_id, failure_reason, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(jobId, params.taskId, params.failureReason, 'analyzing', now, now);
+
       const missingCapability = await this.identifyMissingCapability(params.failureReason, params.context);
       if (missingCapability) {
         await this.generateAndTestSkill(jobId, missingCapability);
       } else {
         this.updateJobStatus(jobId, "failed", "Could not identify missing capability");
       }
+      SystemHealth.update("forge");
     } catch (err) {
-      log.error(`Forge job ${jobId} failed: ${String(err)}`);
+      SystemLogger.error("FORGE", `Forge job ${jobId} failed`, err);
       this.updateJobStatus(jobId, "failed", String(err));
+      SystemHealth.update("forge", err);
     }
   }
 

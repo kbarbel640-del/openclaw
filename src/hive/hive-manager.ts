@@ -3,6 +3,8 @@ import { getGlobalDb } from "../infra/db.js";
 import { callGateway } from "../gateway/call.js";
 import { AGENT_LANE_SUBAGENT } from "../agents/lanes.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../utils/message-channel.js";
+import { SystemLogger } from "../infra/system-logger.js";
+import { SystemHealth } from "../infra/system-health.js";
 
 const log = createSubsystemLogger("hive/manager");
 
@@ -26,52 +28,59 @@ export class HiveManager {
     parentSessionKey: string;
     workspaceId?: string;
   }): Promise<string[]> {
-    log.info(`Spawning team '${params.teamName}' for goal: ${params.goal}`);
+    try {
+      log.info(`Spawning team '${params.teamName}' for goal: ${params.goal}`);
 
-    const prompt = `Suggest a team of specialized sub-agents to achieve this goal: ${params.goal}.
+      const prompt = `Suggest a team of specialized sub-agents to achieve this goal: ${params.goal}.
 Return a JSON array of team members with this structure:
 [
   { "role": "Role Name", "agentId": "agent-type-id", "specialty": ["capability1", "capability2"] }
 ]
 Respond ONLY with JSON.`;
 
-    const response = await callGateway<{ text: string }>({
-      method: "agent",
-      params: {
-        message: prompt,
-        lane: "main",
-        deliver: false,
-        timeout: 30
-      },
-      timeoutMs: 60000
-    });
-
-    let teamMembers: TeamMember[] = [];
-    try {
-        const jsonText = response?.text?.replace(/```json|```/g, "").trim();
-        teamMembers = JSON.parse(jsonText || "[]");
-    } catch (err) {
-        log.error("Failed to parse team composition", err);
-        // Fallback to defaults
-        teamMembers = [
-          { role: "Coordinator", agentId: "coordinator-agent", specialty: ["planning"] },
-          { role: "Researcher", agentId: "researcher-agent", specialty: ["research"] }
-        ];
-    }
-
-    const spawnedRunIds: string[] = [];
-
-    for (const member of teamMembers) {
-      const runId = await this.spawnMember({
-        ...member,
-        goal: params.goal,
-        parentSessionKey: params.parentSessionKey,
-        workspaceId: params.workspaceId
+      const response = await callGateway<{ text: string }>({
+        method: "agent",
+        params: {
+          message: prompt,
+          lane: "main",
+          deliver: false,
+          timeout: 30
+        },
+        timeoutMs: 60000
       });
-      spawnedRunIds.push(runId);
-    }
 
-    return spawnedRunIds;
+      let teamMembers: TeamMember[] = [];
+      try {
+          const jsonText = response?.text?.replace(/```json|```/g, "").trim();
+          teamMembers = JSON.parse(jsonText || "[]");
+      } catch (err) {
+          SystemLogger.warn("HIVE", `Failed to parse team composition for ${params.teamName}, using defaults.`);
+          // Fallback to defaults
+          teamMembers = [
+            { role: "Coordinator", agentId: "coordinator-agent", specialty: ["planning"] },
+            { role: "Researcher", agentId: "researcher-agent", specialty: ["research"] }
+          ];
+      }
+
+      const spawnedRunIds: string[] = [];
+
+      for (const member of teamMembers) {
+        const runId = await this.spawnMember({
+          ...member,
+          goal: params.goal,
+          parentSessionKey: params.parentSessionKey,
+          workspaceId: params.workspaceId
+        });
+        spawnedRunIds.push(runId);
+      }
+
+      SystemHealth.update("hive");
+      return spawnedRunIds;
+    } catch (err) {
+      SystemLogger.error("HIVE", `Critical failure in spawnTeam: ${params.teamName}`, err, params.workspaceId);
+      SystemHealth.update("hive", err);
+      return [];
+    }
   }
 
   private async spawnMember(params: TeamMember & { goal: string; parentSessionKey: string; workspaceId?: string }): Promise<string> {

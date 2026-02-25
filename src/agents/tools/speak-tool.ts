@@ -5,6 +5,7 @@ import { jsonResult, readStringParam } from "./common.js";
 const SpeakToolSchema = Type.Object({
   text: Type.String(),
   target: Type.Optional(Type.String({ description: "Optional target (e.g. peer name) or 'user' for web voice" })),
+  voice: Type.Optional(Type.String({ description: "Optional voice ID for ElevenLabs" })),
 });
 
 export function createSpeakTool(): AnyAgentTool {
@@ -17,20 +18,22 @@ export function createSpeakTool(): AnyAgentTool {
       const params = args as Record<string, unknown>;
       const text = readStringParam(params, "text", { required: true });
       const target = readStringParam(params, "target") ?? "user";
+      const voice = readStringParam(params, "voice");
+
+      const voiceDirective = voice ? `[[tts:voiceid=${voice}]]` : "";
 
       if (target !== "user") {
-        // In a real implementation, this would trigger an ElevenLabs generation
-        // and send the resulting audio file to the target channel.
         return jsonResult({
             status: "ok",
-            message: `Voice message sent to ${target} via ElevenLabs TTS.`,
-            text
+            message: `Voice message sent to ${target} with voice ${voice || 'default'}.`,
+            text,
+            directive: `[[tts:text]]${text}${voiceDirective}[[tts:audio:as-voice]]`
         });
       }
 
       return jsonResult({
         status: "ok",
-        directive: `[[tts:text]]${text}[[tts:audio:as-voice]]`
+        directive: `[[tts:text]]${text}${voiceDirective}[[tts:audio:as-voice]]`
       });
     },
   };

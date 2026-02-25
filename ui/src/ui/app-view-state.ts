@@ -238,6 +238,7 @@ export type AppViewState = {
   skillsBusyKey: string | null;
   missionControlData: import("./controllers/mission-control.ts").MissionControlData | null;
   missionControlStats: import("./controllers/mission-control.ts").MissionControlStats | null;
+  systemHealth: Record<string, import("../../../src/infra/system-health.js").SubsystemHealth> | null;
   debugLoading: boolean;
   debugStatus: StatusSummary | null;
   debugHealth: HealthSnapshot | null;

@@ -54,6 +54,8 @@ import { resolveHeartbeatVisibility } from "./heartbeat-visibility.js";
 import { PatternRecognizer } from "./proactive/pattern-recognizer.js";
 import { getGlobalDb } from "./db.js";
 import { CronEngine } from "./cron-engine.js";
+import { SystemLogger } from "./system-logger.js";
+import { SystemHealth } from "./system-health.js";
 import {
   type HeartbeatRunResult,
   type HeartbeatWakeHandler,
@@ -714,28 +716,36 @@ export async function runHeartbeatOnce(opts: {
 
   try {
     // Proactive Analysis
-    const proactivePatterns = await PatternRecognizer.matchPatterns(ctx.Body);
-    if (proactivePatterns.length > 0) {
-      log.info(`Detected ${proactivePatterns.length} proactive patterns`);
-      // Logic to initiate predictive tasks would go here
+    try {
+      const proactivePatterns = await PatternRecognizer.matchPatterns(ctx.Body);
+      if (proactivePatterns.length > 0) {
+        log.info(`Detected ${proactivePatterns.length} proactive patterns`);
+      }
+    } catch (err) {
+      SystemLogger.error("GENERAL", "Proactive pattern matching failed in heartbeat", err);
     }
 
     // Cron Task Execution
-    const db = getGlobalDb();
-    const cronEngine = new CronEngine(db);
-    const dueTasks = cronEngine.getDueTasks();
-    if (dueTasks.length > 0) {
-      log.info(`Executing ${dueTasks.length} due scheduled tasks`);
-      for (const task of dueTasks) {
-        try {
-          log.info(`Executing task ${task.id}: ${task.task_payload.description}`);
-          // Update task after successful "execution"
-          await cronEngine.updateTaskAfterRun(task.id, true);
-        } catch (err) {
-          log.error(`Failed to execute task ${task.id}: ${String(err)}`);
-          await cronEngine.updateTaskAfterRun(task.id, false);
+    try {
+      const db = getGlobalDb();
+      const cronEngine = new CronEngine(db);
+      const dueTasks = cronEngine.getDueTasks();
+      if (dueTasks.length > 0) {
+        log.info(`Executing ${dueTasks.length} due scheduled tasks`);
+        for (const task of dueTasks) {
+          try {
+            log.info(`Executing task ${task.id}: ${task.task_payload.description}`);
+            await cronEngine.updateTaskAfterRun(task.id, true);
+          } catch (err) {
+            SystemLogger.error("CRON", `Failed to execute task ${task.id}`, err);
+            await cronEngine.updateTaskAfterRun(task.id, false);
+          }
         }
       }
+      SystemHealth.update("cron");
+    } catch (err) {
+      SystemLogger.error("CRON", "Scheduled task loop failed in heartbeat", err);
+      SystemHealth.update("cron", err);
     }
 
     // Capture transcript state before the heartbeat run so we can prune if HEARTBEAT_OK

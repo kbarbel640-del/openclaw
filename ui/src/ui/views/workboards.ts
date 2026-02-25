@@ -22,7 +22,19 @@ export function renderWorkboards(state: AppViewState) {
           <h1 class="text-2xl font-bold">Work Orchestration</h1>
           <p class="text-muted-foreground">Manage tasks and team workflows</p>
         </div>
-        <button class="btn btn-primary" @click=${() => alert('New task creation not implemented in this evolution phase.')}>+ New Task</button>
+        <button class="btn btn-primary" @click=${async () => {
+          const title = prompt('Task Title');
+          if (!title) return;
+          const description = prompt('Description (optional)');
+          try {
+            await state.client?.call('mission_control.create_task', { title, description });
+            alert('Task created successfully');
+            // Refresh data
+            window.dispatchEvent(new CustomEvent('refresh-mission-control'));
+          } catch (err) {
+            alert('Failed to create task: ' + String(err));
+          }
+        }}>+ New Task</button>
       </header>
 
       <div class="grid grid-cols-4 gap-6">

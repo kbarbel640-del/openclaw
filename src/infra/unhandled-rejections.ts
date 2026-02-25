@@ -1,5 +1,7 @@
 import process from "node:process";
 import { extractErrorCode, formatUncaughtError } from "./errors.js";
+import { SystemLogger } from "./system-logger.js";
+import { SystemHealth } from "./system-health.js";
 
 type UnhandledRejectionHandler = (reason: unknown) => boolean;
 
@@ -237,34 +239,44 @@ export function installUnhandledRejectionHandler(): void {
       return;
     }
 
-    // AbortError is typically an intentional cancellation (e.g., during shutdown)
-    // Log it but don't crash - these are expected during graceful shutdown
     if (isAbortError(reason)) {
-      console.warn("[openclaw] Suppressed AbortError:", formatUncaughtError(reason));
+      SystemLogger.info("GENERAL", `Suppressed AbortError: ${formatUncaughtError(reason)}`);
       return;
     }
 
+    const errorMsg = formatUncaughtError(reason);
+
     if (isFatalError(reason)) {
-      console.error("[openclaw] FATAL unhandled rejection:", formatUncaughtError(reason));
-      process.exit(1);
+      SystemLogger.critical("GENERAL", `FATAL unhandled rejection: ${errorMsg}`, reason);
+      // Even fatal ones we try to stay alive unless instructed otherwise,
+      // but we mark system as failed.
+      SystemHealth.update("db", reason); // Critical usually means DB or core
       return;
     }
 
     if (isConfigError(reason)) {
-      console.error("[openclaw] CONFIGURATION ERROR - requires fix:", formatUncaughtError(reason));
-      process.exit(1);
+      SystemLogger.error("GENERAL", `CONFIGURATION ERROR: ${errorMsg}`, reason);
       return;
     }
 
     if (isTransientNetworkError(reason)) {
-      console.warn(
-        "[openclaw] Non-fatal unhandled rejection (continuing):",
-        formatUncaughtError(reason),
-      );
+      SystemLogger.warn("GENERAL", `Non-fatal unhandled rejection: ${errorMsg}`);
       return;
     }
 
-    console.error("[openclaw] Unhandled promise rejection:", formatUncaughtError(reason));
-    process.exit(1);
+    SystemLogger.error("GENERAL", `Unhandled promise rejection: ${errorMsg}`, reason);
+  });
+
+  process.on("uncaughtException", (err) => {
+    const errorMsg = formatUncaughtError(err);
+    SystemLogger.critical("GENERAL", `Uncaught exception: ${errorMsg}`, err);
+
+    // For uncaught exceptions, we might want to exit if it's truly critical,
+    // but the requirement says "Do NOT auto-exit unless critical DB corruption".
+    if (errorMsg.toLowerCase().includes("sqlite") || errorMsg.toLowerCase().includes("database")) {
+       SystemHealth.update("db", err);
+       console.error("[openclaw] Critical DB error, exiting.");
+       process.exit(1);
+    }
   });
 }

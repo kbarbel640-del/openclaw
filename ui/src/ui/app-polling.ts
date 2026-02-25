@@ -2,7 +2,7 @@ import type { OpenClawApp } from "./app.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
-import { loadMissionControlData, loadMissionControlStats } from "./controllers/mission-control.ts";
+import { loadMissionControlData, loadMissionControlStats, loadSystemHealth } from "./controllers/mission-control.ts";
 
 type PollingHost = {
   nodesPollInterval: number | null;
@@ -81,12 +81,14 @@ export function startMissionControlPolling(host: PollingHost) {
     const app = host as unknown as OpenClawApp;
     void loadMissionControlData(app);
     void loadMissionControlStats(app);
+    void loadSystemHealth(app);
   }, 5000);
 
   // Initial load
   const app = host as unknown as OpenClawApp;
   void loadMissionControlData(app);
   void loadMissionControlStats(app);
+  void loadSystemHealth(app);
 }
 
 export function stopMissionControlPolling(host: PollingHost) {

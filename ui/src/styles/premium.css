@@ -1,0 +1,196 @@
+/* Premium Mission Control UI Styles */
+
+[data-theme="midnight"] {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --panel-bg: rgba(30, 41, 59, 0.5);
+  --panel-border: rgba(255, 255, 255, 0.1);
+  --accent: #38bdf8;
+  --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+}
+
+[data-theme="graphite"] {
+  --background: #18181b;
+  --foreground: #f4f4f5;
+  --panel-bg: rgba(39, 39, 42, 0.6);
+  --panel-border: rgba(255, 255, 255, 0.05);
+  --accent: #a1a1aa;
+  --accent-gradient: linear-gradient(135deg, #52525b 0%, #27272a 100%);
+}
+
+[data-theme="aurora"] {
+  --background: #050505;
+  --foreground: #ffffff;
+  --panel-bg: rgba(20, 20, 20, 0.4);
+  --panel-border: rgba(255, 255, 255, 0.1);
+  --accent: #c084fc;
+  --accent-gradient: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%);
+}
+
+:root {
+  --panel-bg: rgba(255, 255, 255, 0.05);
+  --panel-border: rgba(255, 255, 255, 0.1);
+  --panel-blur: blur(16px);
+  --panel-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --panel-radius: 16px;
+
+  --transition-smooth: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glassmorphism Panel */
+.premium-panel {
+  background: var(--panel-bg);
+  backdrop-filter: var(--panel-blur);
+  -webkit-backdrop-filter: var(--panel-blur);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--panel-shadow);
+  border-radius: var(--panel-radius);
+  padding: 1.5rem;
+  transition: transform var(--transition-smooth), box-shadow var(--transition-smooth);
+}
+
+.premium-panel:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 48px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* Agent Status Dots */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+}
+
+.status-dot--active {
+  background-color: #10b981;
+  animation: pulse-glow 1.5s infinite;
+}
+
+@keyframes pulse-glow {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.status-dot--busy {
+  background-color: #f59e0b;
+  overflow: hidden;
+}
+
+.status-dot--busy::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.status-dot--offline {
+  background-color: #6b7280;
+}
+
+/* Activity Feed Items */
+.activity-item {
+  animation: slide-in-fade var(--transition-slow) forwards;
+  opacity: 0;
+  border-left: 3px solid transparent;
+}
+
+@keyframes slide-in-fade {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.activity-item--success { border-left-color: #10b981; }
+.activity-item--warning { border-left-color: #f59e0b; }
+.activity-item--error   { border-left-color: #ef4444; }
+.activity-item--cron    { border-left-color: #3b82f6; }
+
+/* Click Ripple (Pure CSS) */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple::after {
+  content: "";
+  display: block;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, #fff 10%, transparent 10.01%);
+  background-repeat: no-repeat;
+  background-position: 50%;
+  transform: scale(10, 10);
+  opacity: 0;
+  transition: transform .5s, opacity 1s;
+}
+
+.ripple:active::after {
+  transform: scale(0, 0);
+  opacity: .3;
+  transition: 0s;
+}
+
+/* Hero Section Gradient */
+.hero-gradient {
+  background: linear-gradient(135deg, #1e3a8a 0%, #581c87 100%);
+  color: white;
+}
+
+/* Workspace Pill */
+.workspace-pill {
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all var(--transition-smooth);
+  cursor: pointer;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.workspace-pill--active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.animate-counter {
+  animation: counter-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes counter-pop {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}

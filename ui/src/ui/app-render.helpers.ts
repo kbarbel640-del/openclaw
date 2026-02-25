@@ -394,7 +394,7 @@ function resolveSessionOptions(
   return options;
 }
 
-const THEME_ORDER: ThemeMode[] = ["system", "light", "dark"];
+const THEME_ORDER: ThemeMode[] = ["system", "light", "dark", "midnight", "graphite", "aurora"];
 
 export function renderThemeToggle(state: AppViewState) {
   const index = Math.max(0, THEME_ORDER.indexOf(state.theme));
@@ -438,6 +438,33 @@ export function renderThemeToggle(state: AppViewState) {
           title="Dark"
         >
           ${renderMoonIcon()}
+        </button>
+        <button
+          class="theme-toggle__button ${state.theme === "midnight" ? "active" : ""}"
+          @click=${applyTheme("midnight")}
+          aria-pressed=${state.theme === "midnight"}
+          aria-label="Midnight theme"
+          title="Midnight"
+        >
+          <span style="font-size: 10px; font-weight: bold;">M</span>
+        </button>
+        <button
+          class="theme-toggle__button ${state.theme === "graphite" ? "active" : ""}"
+          @click=${applyTheme("graphite")}
+          aria-pressed=${state.theme === "graphite"}
+          aria-label="Graphite theme"
+          title="Graphite"
+        >
+          <span style="font-size: 10px; font-weight: bold;">G</span>
+        </button>
+        <button
+          class="theme-toggle__button ${state.theme === "aurora" ? "active" : ""}"
+          @click=${applyTheme("aurora")}
+          aria-pressed=${state.theme === "aurora"}
+          aria-label="Aurora theme"
+          title="Aurora"
+        >
+          <span style="font-size: 10px; font-weight: bold;">A</span>
         </button>
       </div>
     </div>

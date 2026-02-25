@@ -19,7 +19,6 @@ import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createAgentSendTool } from "./tools/agent-send-tool.js";
 import { createSpeakTool } from "./tools/speak-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
-import { createVoiceMessageTool } from "./tools/voice-message-tool.js";
 import { createRuntimeConfigTool } from "./tools/runtime-config-tool.js";
 import {
   createScheduleTaskTool,
@@ -158,7 +157,6 @@ export function createOpenClawTools(options?: {
       agentChannel: options?.agentChannel,
       sandboxed: options?.sandboxed,
     }),
-    createVoiceMessageTool(),
     createSpeakTool(),
     createRuntimeConfigTool(),
     createScheduleTaskTool(),

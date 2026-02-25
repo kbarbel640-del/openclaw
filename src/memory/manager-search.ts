@@ -57,6 +57,7 @@ export async function searchVector(params: {
       text: string;
       source: SearchSource;
       dist: number;
+      tier: string;
     }>;
     const results = rows.map((row) => ({
       id: row.id,
@@ -132,6 +133,7 @@ export function listChunks(params: {
     text: string;
     embedding: string;
     source: SearchSource;
+    tier: string;
   }>;
 
   return rows.map((row) => ({
@@ -186,6 +188,7 @@ export async function searchKeyword(params: {
     end_line: number;
     text: string;
     rank: number;
+    tier: string;
   }>;
 
   const results = rows.map((row) => {

@@ -10,6 +10,7 @@ import {
   stopMissionControlPolling,
 } from "./app-polling.ts";
 import { observeTopbar, scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
+import { loadMissionControlData, loadMissionControlStats, loadSystemHealth } from "./controllers/mission-control.ts";
 import {
   applySettingsFromUrl,
   attachThemeListener,
@@ -50,6 +51,12 @@ export function handleConnected(host: LifecycleHost) {
   syncThemeWithSettings(host as unknown as Parameters<typeof syncThemeWithSettings>[0]);
   attachThemeListener(host as unknown as Parameters<typeof attachThemeListener>[0]);
   window.addEventListener("popstate", host.popStateHandler);
+  window.addEventListener("refresh-mission-control", () => {
+    const app = host as any;
+    void loadMissionControlData(app);
+    void loadMissionControlStats(app);
+    void loadSystemHealth(app);
+  });
   connectGateway(host as unknown as Parameters<typeof connectGateway>[0]);
   startNodesPolling(host as unknown as Parameters<typeof startNodesPolling>[0]);
   if (host.tab === "logs") {

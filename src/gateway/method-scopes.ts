@@ -77,6 +77,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "agents.files.get",
     "mission_control.get_data",
     "mission_control.get_stats",
+    "mission_control.system_health",
   ],
   [WRITE_SCOPE]: [
     "send",
@@ -95,6 +96,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "chat.abort",
     "browser.request",
     "push.test",
+    "mission_control.create_task",
   ],
   [ADMIN_SCOPE]: [
     "channels.logout",

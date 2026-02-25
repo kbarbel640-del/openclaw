@@ -11,8 +11,6 @@ export interface DetectedPattern {
   confidence: number;
 }
 
-import { callGateway } from "../../gateway/call.js";
-
 export class PatternRecognizer {
   private static db = getGlobalDb();
 
@@ -38,7 +36,7 @@ Respond ONLY with JSON.`;
         const jsonText = response?.text?.replace(/```json|```/g, "").trim();
         patterns = JSON.parse(jsonText || "[]");
     } catch (err) {
-        log.error("Failed to parse patterns", err);
+        log.error("Failed to parse patterns", { error: String(err) });
     }
 
     if (patterns.length > 0) {
