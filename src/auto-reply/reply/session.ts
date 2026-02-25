@@ -32,6 +32,7 @@ import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { normalizeMainKey } from "../../routing/session-key.js";
 import { parseAgentSessionKey } from "../../sessions/session-key-utils.js";
+import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { normalizeSessionDeliveryFields } from "../../utils/delivery-context.js";
 import {
   INTERNAL_MESSAGE_CHANNEL,
@@ -494,6 +495,24 @@ export async function initSessionState(params: {
   const hookRunner = getGlobalHookRunner();
   if (hookRunner && isNewSession) {
     const effectiveSessionId = sessionId ?? "";
+
+    // Emit command:new or command:reset hook events when session is reset via triggers
+    // This ensures hooks like session-memory run for all command sources (Discord slash, WebUI, etc.)
+    if (resetTriggered) {
+      const commandReason = trimmedBodyLower.includes("/new") ? "new" : "reset";
+      const hookEvent = createInternalHookEvent(
+        "command",
+        commandReason,
+        sessionKey,
+        {
+          sessionEntry: entry,
+          previousSessionEntry,
+          commandSource: ctx.CommandSource,
+          cfg,
+        },
+      );
+      await triggerInternalHook(hookEvent);
+    }
 
     // If replacing an existing session, fire session_end for the old one
     if (previousSessionEntry?.sessionId && previousSessionEntry.sessionId !== effectiveSessionId) {
