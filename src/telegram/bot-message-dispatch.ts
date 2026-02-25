@@ -418,14 +418,17 @@ export const dispatchTelegramMessage = async ({
     void statusReactionController.setThinking();
   }
 
-  const typingCallbacks = createTypingCallbacks({
+  // Create typing callbacks to start/stop typing indicator
+  const stopTyping = async () => {
+    // Telegram doesn't have a direct "stop typing" API.
+    // The typing indicator will clear when a message is sent,
+    // or we can try sending a 'cancel' action (not widely supported).
+    // For now, we just log that we're stopping typing.
+    logVerbose(`telegram: stopping typing indicator for chat ${chatId}`);
+  };
+  const telegramTypingCallbacks = createTypingCallbacks({
     start: sendTyping,
-    stop: async () => {
-      // Telegram doesn't have a native "stop typing" action.
-      // The typing indicator auto-clears after ~5 seconds of no new typing action.
-      // We don't need to send any explicit action here - just having the stop
-      // function ensures the keepalive loop is properly managed.
-    },
+    stop: stopTyping,
     onStartError: (err) => {
       logTypingFailure({
         log: logVerbose,
@@ -442,7 +445,10 @@ export const dispatchTelegramMessage = async ({
       cfg,
       dispatcherOptions: {
         ...prefixOptions,
-        typingCallbacks,
+        typingCallbacks: telegramTypingCallbacks,
+        onReplyStart: telegramTypingCallbacks.onReplyStart,
+        onIdle: telegramTypingCallbacks.onIdle,
+        onCleanup: telegramTypingCallbacks.onCleanup,
         deliver: async (payload, info) => {
           const previewButtons = (
             payload.channelData?.telegram as { buttons?: TelegramInlineButtons } | undefined
