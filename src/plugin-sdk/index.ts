@@ -184,7 +184,16 @@ export {
   normalizeAccountId,
   resolveThreadSessionKeys,
 } from "../routing/session-key.js";
-export { formatAllowFromLowercase, isAllowedParsedChatSender } from "./allow-from.js";
+export {
+  formatAllowFromLowercase,
+  isAllowedParsedChatSender,
+  isNormalizedSenderAllowed,
+} from "./allow-from.js";
+export {
+  evaluateSenderGroupAccess,
+  type SenderGroupAccessDecision,
+  type SenderGroupAccessReason,
+} from "./group-access.js";
 export { resolveSenderCommandAuthorization } from "./command-auth.js";
 export { handleSlackMessageAction } from "./slack-message-actions.js";
 export { extractToolSend } from "./tool-send.js";
@@ -203,6 +212,7 @@ export { createLoggerBackedRuntime } from "./runtime.js";
 export { chunkTextForOutbound } from "./text-chunking.js";
 export { readJsonFileWithFallback, writeJsonFileAtomically } from "./json-store.js";
 export { buildRandomTempFilePath, withTempDownloadPath } from "./temp-path.js";
+export { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
 export {
   runPluginCommandWithTimeout,
   type PluginCommandRunOptions,
