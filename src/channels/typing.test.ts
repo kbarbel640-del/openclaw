@@ -6,6 +6,17 @@ const flushMicrotasks = async () => {
   await Promise.resolve();
 };
 
+const createDeferred = () => {
+  let resolve: (() => void) | undefined;
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return {
+    promise,
+    resolve: () => resolve?.(),
+  };
+};
+
 describe("createTypingCallbacks", () => {
   it("invokes start on reply start", async () => {
     const start = vi.fn().mockResolvedValue(undefined);
@@ -84,5 +95,71 @@ describe("createTypingCallbacks", () => {
     await flushMicrotasks();
 
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not restart keepalive when cleanup fires during in-flight start", async () => {
+    vi.useFakeTimers();
+    try {
+      const firstStart = createDeferred();
+      let calls = 0;
+      const start = vi.fn().mockImplementation(async () => {
+        calls += 1;
+        if (calls === 1) {
+          await firstStart.promise;
+        }
+      });
+      const stop = vi.fn().mockResolvedValue(undefined);
+      const onStartError = vi.fn();
+      const callbacks = createTypingCallbacks({
+        start,
+        stop,
+        onStartError,
+        keepaliveIntervalMs: 100,
+      });
+
+      const pendingStart = callbacks.onReplyStart();
+      await flushMicrotasks();
+      callbacks.onCleanup?.();
+      firstStart.resolve();
+      await pendingStart;
+
+      await vi.advanceTimersByTimeAsync(500);
+      expect(start).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not restart keepalive when idle fires during in-flight start", async () => {
+    vi.useFakeTimers();
+    try {
+      const firstStart = createDeferred();
+      let calls = 0;
+      const start = vi.fn().mockImplementation(async () => {
+        calls += 1;
+        if (calls === 1) {
+          await firstStart.promise;
+        }
+      });
+      const stop = vi.fn().mockResolvedValue(undefined);
+      const onStartError = vi.fn();
+      const callbacks = createTypingCallbacks({
+        start,
+        stop,
+        onStartError,
+        keepaliveIntervalMs: 100,
+      });
+
+      const pendingStart = callbacks.onReplyStart();
+      await flushMicrotasks();
+      callbacks.onIdle?.();
+      firstStart.resolve();
+      await pendingStart;
+
+      await vi.advanceTimersByTimeAsync(500);
+      expect(start).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
