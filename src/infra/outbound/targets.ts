@@ -314,20 +314,22 @@ export function resolveHeartbeatDeliveryTarget(params: {
     });
   }
 
-  const sessionChatTypeHint =
-    target === "last" && !heartbeat?.to ? normalizeChatType(entry?.chatType) : undefined;
-  const deliveryChatType = resolveHeartbeatDeliveryChatType({
-    channel: resolvedTarget.channel,
-    to: resolved.to,
-    sessionChatType: sessionChatTypeHint,
-  });
-  if (deliveryChatType === "direct") {
-    return buildNoHeartbeatDeliveryTarget({
-      reason: "dm-blocked",
-      accountId: effectiveAccountId,
-      lastChannel: resolvedTarget.lastChannel,
-      lastAccountId: resolvedTarget.lastAccountId,
+  // Only block DM delivery for implicit routing (target: "last"); explicit targets are intentional
+  if (target === "last") {
+    const sessionChatTypeHint = !heartbeat?.to ? normalizeChatType(entry?.chatType) : undefined;
+    const deliveryChatType = resolveHeartbeatDeliveryChatType({
+      channel: resolvedTarget.channel,
+      to: resolved.to,
+      sessionChatType: sessionChatTypeHint,
     });
+    if (deliveryChatType === "direct") {
+      return buildNoHeartbeatDeliveryTarget({
+        reason: "dm-blocked",
+        accountId: effectiveAccountId,
+        lastChannel: resolvedTarget.lastChannel,
+        lastAccountId: resolvedTarget.lastAccountId,
+      });
+    }
   }
 
   let reason: string | undefined;

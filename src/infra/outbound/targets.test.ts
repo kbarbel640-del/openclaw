@@ -490,6 +490,22 @@ describe("resolveSessionDeliveryTarget", () => {
     expect(resolved.to).toBe("-10063448508");
     expect(resolved.threadId).toBe(1008013);
   });
+
+  it("allows explicit DM target when user intentionally configures heartbeat to a direct chat (#26338)", () => {
+    const cfg: OpenClawConfig = {};
+    const resolved = resolveHeartbeatDeliveryTarget({
+      cfg,
+      heartbeat: {
+        target: "telegram",
+        to: "5232990709",
+      },
+    });
+
+    // Explicit target + explicit to = user intentionally chose a DM; should not be blocked
+    expect(resolved.channel).toBe("telegram");
+    expect(resolved.to).toBe("5232990709");
+    expect(resolved.reason).not.toBe("dm-blocked");
+  });
 });
 
 describe("resolveSessionDeliveryTarget — cross-channel reply guard (#24152)", () => {
