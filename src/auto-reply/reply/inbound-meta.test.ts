@@ -75,6 +75,33 @@ describe("buildInboundMetaSystemPrompt", () => {
     expect(payload["flags"]).toBeUndefined();
   });
 
+  it("includes account_id when set", () => {
+    const prompt = buildInboundMetaSystemPrompt({
+      OriginatingTo: "discord:channel:123",
+      OriginatingChannel: "discord",
+      Provider: "discord",
+      Surface: "discord",
+      ChatType: "channel",
+      AccountId: "work-server",
+    } as TemplateContext);
+
+    const payload = parseInboundMetaPayload(prompt);
+    expect(payload["account_id"]).toBe("work-server");
+  });
+
+  it("omits account_id when not set", () => {
+    const prompt = buildInboundMetaSystemPrompt({
+      OriginatingTo: "telegram:5494292670",
+      OriginatingChannel: "telegram",
+      Provider: "telegram",
+      Surface: "telegram",
+      ChatType: "direct",
+    } as TemplateContext);
+
+    const payload = parseInboundMetaPayload(prompt);
+    expect(payload["account_id"]).toBeUndefined();
+  });
+
   it("omits sender_id when blank", () => {
     const prompt = buildInboundMetaSystemPrompt({
       MessageSid: "458",
