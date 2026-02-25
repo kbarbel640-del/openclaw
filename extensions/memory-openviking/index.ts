@@ -28,19 +28,113 @@ const MEMORY_TRIGGERS = [
   /\+\d{10,}/,
 ];
 
-function getCaptureDecision(text: string): { shouldCapture: boolean; reason: string } {
-  if (text.length < 10 || text.length > 1000) {
-    return { shouldCapture: false, reason: "length_out_of_range" };
-  }
-  if (text.includes("<relevant-memories>")) {
-    return { shouldCapture: false, reason: "injected_memory_context" };
-  }
-  for (const trigger of MEMORY_TRIGGERS) {
-    if (trigger.test(text)) {
-      return { shouldCapture: true, reason: `matched_trigger:${trigger.toString()}` };
+const CJK_CHAR_REGEX = /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]/;
+const RELEVANT_MEMORIES_BLOCK_RE = /<relevant-memories>[\s\S]*?<\/relevant-memories>/gi;
+const CONVERSATION_METADATA_BLOCK_RE =
+  /(?:^|\n)\s*(?:Conversation info|Conversation metadata|会话信息|对话信息)\s*(?:\([^)]+\))?\s*:\s*```[\s\S]*?```/gi;
+const FENCED_JSON_BLOCK_RE = /```json\s*([\s\S]*?)```/gi;
+const METADATA_JSON_KEY_RE =
+  /"(session|sessionid|sessionkey|conversationid|channel|sender|userid|agentid|timestamp|timezone)"\s*:/gi;
+const LEADING_TIMESTAMP_PREFIX_RE = /^\s*\[[^\]\n]{1,120}\]\s*/;
+const CAPTURE_MAX_LENGTH = 1000;
+const CAPTURE_LIMIT = 3;
+
+function resolveCaptureMinLength(text: string): number {
+  return CJK_CHAR_REGEX.test(text) ? 4 : 10;
+}
+
+function looksLikeMetadataJsonBlock(content: string): boolean {
+  const matchedKeys = new Set<string>();
+  const matches = content.matchAll(METADATA_JSON_KEY_RE);
+  for (const match of matches) {
+    const key = (match[1] ?? "").toLowerCase();
+    if (key) {
+      matchedKeys.add(key);
     }
   }
-  return { shouldCapture: false, reason: "no_trigger_matched" };
+  return matchedKeys.size >= 3;
+}
+
+function sanitizeUserTextForCapture(text: string): string {
+  return text
+    .replace(RELEVANT_MEMORIES_BLOCK_RE, " ")
+    .replace(CONVERSATION_METADATA_BLOCK_RE, " ")
+    .replace(FENCED_JSON_BLOCK_RE, (full, inner) =>
+      looksLikeMetadataJsonBlock(String(inner ?? "")) ? " " : full,
+    )
+    .replace(LEADING_TIMESTAMP_PREFIX_RE, "")
+    .replace(/\u0000/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeCaptureDedupeText(text: string): string {
+  return normalizeDedupeText(text).replace(/[\p{P}\p{S}]+/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+function pickRecentUniqueTexts(texts: string[], limit: number): string[] {
+  if (limit <= 0 || texts.length === 0) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const picked: string[] = [];
+  for (let i = texts.length - 1; i >= 0; i -= 1) {
+    const text = texts[i];
+    const key = normalizeCaptureDedupeText(text);
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    picked.push(text);
+    if (picked.length >= limit) {
+      break;
+    }
+  }
+  return picked.reverse();
+}
+
+function getCaptureDecision(text: string): {
+  shouldCapture: boolean;
+  reason: string;
+  normalizedText: string;
+} {
+  const trimmed = text.trim();
+  const normalizedText = sanitizeUserTextForCapture(trimmed);
+  const hadSanitization = normalizedText !== trimmed;
+  if (!normalizedText) {
+    return {
+      shouldCapture: false,
+      reason: /<relevant-memories>/i.test(trimmed) ? "injected_memory_context_only" : "empty_text",
+      normalizedText: "",
+    };
+  }
+
+  const compactText = normalizedText.replace(/\s+/g, "");
+  const minLength = resolveCaptureMinLength(compactText);
+  if (compactText.length < minLength || normalizedText.length > CAPTURE_MAX_LENGTH) {
+    return {
+      shouldCapture: false,
+      reason: "length_out_of_range",
+      normalizedText,
+    };
+  }
+
+  for (const trigger of MEMORY_TRIGGERS) {
+    if (trigger.test(normalizedText)) {
+      return {
+        shouldCapture: true,
+        reason: hadSanitization
+          ? `matched_trigger_after_sanitize:${trigger.toString()}`
+          : `matched_trigger:${trigger.toString()}`,
+        normalizedText,
+      };
+    }
+  }
+  return {
+    shouldCapture: false,
+    reason: hadSanitization ? "no_trigger_matched_after_sanitize" : "no_trigger_matched",
+    normalizedText,
+  };
 }
 
 function clampScore(value: number | undefined): number {
@@ -118,6 +212,61 @@ function formatMemoryLines(items: FindResultItem[]): string {
       return `${index + 1}. [${category}] ${abstract} (${(score * 100).toFixed(0)}%)`;
     })
     .join("\n");
+}
+
+function trimForLog(value: string, limit = 260): string {
+  const normalized = value.trim();
+  if (normalized.length <= limit) {
+    return normalized;
+  }
+  return `${normalized.slice(0, limit)}...`;
+}
+
+function toJsonLog(value: unknown, maxLen = 6000): string {
+  try {
+    const json = JSON.stringify(value);
+    if (json.length <= maxLen) {
+      return json;
+    }
+    return JSON.stringify({
+      truncated: true,
+      length: json.length,
+      preview: `${json.slice(0, maxLen)}...`,
+    });
+  } catch {
+    return JSON.stringify({ error: "stringify_failed" });
+  }
+}
+
+function summarizeInjectionMemories(items: FindResultItem[]): Array<Record<string, unknown>> {
+  return items.map((item) => ({
+    uri: item.uri,
+    category: item.category ?? null,
+    abstract: trimForLog(item.abstract?.trim() || item.overview?.trim() || item.uri, 180),
+    score: clampScore(item.score),
+    is_leaf: item.is_leaf === true,
+  }));
+}
+
+function summarizeExtractedMemories(
+  items: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return items.slice(0, 10).map((item) => {
+    const abstractRaw =
+      typeof item.abstract === "string"
+        ? item.abstract
+        : typeof item.overview === "string"
+          ? item.overview
+          : typeof item.title === "string"
+            ? item.title
+            : "";
+    return {
+      uri: typeof item.uri === "string" ? item.uri : null,
+      category: typeof item.category === "string" ? item.category : null,
+      abstract: trimForLog(abstractRaw, 180),
+      is_leaf: item.is_leaf === true,
+    };
+  });
 }
 
 function isPreferencesMemory(item: FindResultItem): boolean {
@@ -562,6 +711,9 @@ const memoryPlugin = {
           api.logger.info?.(
             `memory-openviking: injecting ${memories.length} memories into context`,
           );
+          api.logger.info?.(
+            `memory-openviking: inject-detail ${toJsonLog({ count: memories.length, memories: summarizeInjectionMemories(memories) })}`,
+          );
           return {
             prependContext:
               "<relevant-memories>\nThe following OpenViking memories may be relevant:\n" +
@@ -588,30 +740,47 @@ const memoryPlugin = {
             `memory-openviking: auto-capture evaluating ${texts.length} text candidates`,
           );
           const decisions = texts
-            .map((text) => ({ text, decision: getCaptureDecision(text) }))
-            .filter((item) => item.text);
+            .map((text) => {
+              const decision = getCaptureDecision(text);
+              return {
+                captureText: decision.normalizedText,
+                decision,
+              };
+            })
+            .filter((item) => item.captureText);
           for (const item of decisions.slice(0, 5)) {
-            const preview = item.text.length > 80 ? `${item.text.slice(0, 80)}...` : item.text;
+            const preview =
+              item.captureText.length > 80
+                ? `${item.captureText.slice(0, 80)}...`
+                : item.captureText;
             api.logger.info(
               `memory-openviking: capture-check shouldCapture=${String(item.decision.shouldCapture)} reason=${item.decision.reason} text="${preview}"`,
             );
           }
           const toCapture = decisions
             .filter((item) => item.decision.shouldCapture)
-            .map((item) => item.text)
-            .slice(0, 3);
-          if (toCapture.length === 0) {
+            .map((item) => item.captureText);
+          const selected = pickRecentUniqueTexts(toCapture, CAPTURE_LIMIT);
+          if (selected.length === 0) {
             api.logger.info("memory-openviking: auto-capture skipped (no matched texts)");
             return;
           }
           const sessionId = await client.createSession();
           try {
-            for (const text of toCapture) {
+            for (const text of selected) {
               await client.addSessionMessage(sessionId, "user", text);
             }
             const extracted = await client.extractSessionMemories(sessionId);
             api.logger.info(
-              `memory-openviking: auto-captured ${toCapture.length} messages, extracted ${extracted.length} memories`,
+              `memory-openviking: auto-captured ${selected.length} messages, extracted ${extracted.length} memories`,
+            );
+            api.logger.info(
+              `memory-openviking: capture-detail ${toJsonLog({
+                capturedCount: selected.length,
+                captured: selected.map((text) => trimForLog(text, 260)),
+                extractedCount: extracted.length,
+                extracted: summarizeExtractedMemories(extracted),
+              })}`,
             );
           } finally {
             await client.deleteSession(sessionId).catch(() => {});

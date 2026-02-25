@@ -40,6 +40,77 @@ describe("memory-openviking plugin search behavior", () => {
     globalThis.fetch = originalFetch;
   });
 
+  async function setupAutoCaptureHarness() {
+    const { default: memoryPlugin } = await import("./index.js");
+    const requests: Array<{ url: string; method: string; body?: Record<string, unknown> }> = [];
+    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      const body =
+        typeof init?.body === "string"
+          ? (JSON.parse(init.body) as Record<string, unknown>)
+          : undefined;
+      requests.push({ url, method, body });
+
+      if (url.endsWith("/api/v1/sessions") && method === "POST") {
+        return new Response(
+          JSON.stringify({ status: "ok", result: { session_id: "session-test" } }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+      if (url.endsWith("/extract") && method === "POST") {
+        return new Response(JSON.stringify({ status: "ok", result: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ status: "ok", result: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const listeners = new Map<string, any>();
+    const mockApi = {
+      id: "memory-openviking",
+      name: "Memory (OpenViking)",
+      source: "test",
+      config: {},
+      pluginConfig: {
+        baseUrl: "http://127.0.0.1:1933",
+        apiKey: "test-key",
+        targetUri: "viking://user/memories",
+        autoCapture: true,
+        autoRecall: false,
+      },
+      runtime: {},
+      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+      // oxlint-disable-next-line typescript/no-explicit-any
+      registerTool: () => {},
+      // oxlint-disable-next-line typescript/no-explicit-any
+      registerService: () => {},
+      // oxlint-disable-next-line typescript/no-explicit-any
+      registerCli: () => {},
+      // oxlint-disable-next-line typescript/no-explicit-any
+      on: (eventName: string, handler: any) => {
+        listeners.set(eventName, handler);
+      },
+      resolvePath: (p: string) => p,
+    };
+
+    // oxlint-disable-next-line typescript/no-explicit-any
+    memoryPlugin.register(mockApi as any);
+
+    const agentEnd = listeners.get("agent_end");
+    expect(agentEnd).toBeDefined();
+    return { requests, agentEnd };
+  }
+
   it("uses hybrid search endpoint defaults and plugin-side postprocess for recall", async () => {
     const { default: memoryPlugin } = await import("./index.js");
 
@@ -155,74 +226,7 @@ describe("memory-openviking plugin search behavior", () => {
   });
 
   it("auto-capture stores only user messages", async () => {
-    const { default: memoryPlugin } = await import("./index.js");
-
-    const requests: Array<{ url: string; method: string; body?: Record<string, unknown> }> = [];
-    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      const method = init?.method ?? "GET";
-      const body =
-        typeof init?.body === "string"
-          ? (JSON.parse(init.body) as Record<string, unknown>)
-          : undefined;
-      requests.push({ url, method, body });
-
-      if (url.endsWith("/api/v1/sessions") && method === "POST") {
-        return new Response(
-          JSON.stringify({ status: "ok", result: { session_id: "session-test" } }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
-      }
-      if (url.endsWith("/extract") && method === "POST") {
-        return new Response(JSON.stringify({ status: "ok", result: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ status: "ok", result: {} }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    });
-
-    // oxlint-disable-next-line typescript/no-explicit-any
-    const listeners = new Map<string, any>();
-    const mockApi = {
-      id: "memory-openviking",
-      name: "Memory (OpenViking)",
-      source: "test",
-      config: {},
-      pluginConfig: {
-        baseUrl: "http://127.0.0.1:1933",
-        apiKey: "test-key",
-        targetUri: "viking://user/memories",
-        autoCapture: true,
-        autoRecall: false,
-      },
-      runtime: {},
-      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-      // oxlint-disable-next-line typescript/no-explicit-any
-      registerTool: () => {},
-      // oxlint-disable-next-line typescript/no-explicit-any
-      registerService: () => {},
-      // oxlint-disable-next-line typescript/no-explicit-any
-      registerCli: () => {},
-      // oxlint-disable-next-line typescript/no-explicit-any
-      on: (eventName: string, handler: any) => {
-        listeners.set(eventName, handler);
-      },
-      resolvePath: (p: string) => p,
-    };
-
-    // oxlint-disable-next-line typescript/no-explicit-any
-    memoryPlugin.register(mockApi as any);
-
-    const agentEnd = listeners.get("agent_end");
-    expect(agentEnd).toBeDefined();
+    const { requests, agentEnd } = await setupAutoCaptureHarness();
 
     await agentEnd({
       success: true,
@@ -238,6 +242,117 @@ describe("memory-openviking plugin search behavior", () => {
     );
     expect(messageCalls).toHaveLength(1);
     expect(messageCalls[0]?.body?.content).toBe("记住：我喜欢红色花朵，买花时优先红色。");
+  });
+
+  it("auto-capture strips injected memories and captures the real user sentence", async () => {
+    const { requests, agentEnd } = await setupAutoCaptureHarness();
+
+    await agentEnd({
+      success: true,
+      messages: [
+        {
+          role: "user",
+          content: `<relevant-memories>
+The following OpenViking memories may be relevant:
+- [] 手机偏好：喜欢华为Mate70，认可其使用体验
+</relevant-memories>
+
+我今天试驾了问界汽车，驾驶体验很好，我喜欢问界汽车`,
+        },
+      ],
+    });
+
+    const messageCalls = requests.filter(
+      (req) => req.url.endsWith("/api/v1/sessions/session-test/messages") && req.method === "POST",
+    );
+    expect(messageCalls).toHaveLength(1);
+    expect(messageCalls[0]?.body?.content).toBe("我今天试驾了问界汽车，驾驶体验很好，我喜欢问界汽车");
+  });
+
+  it("auto-capture accepts short CJK preference text", async () => {
+    const { requests, agentEnd } = await setupAutoCaptureHarness();
+
+    await agentEnd({
+      success: true,
+      messages: [{ role: "user", content: "喜欢问界" }],
+    });
+
+    const messageCalls = requests.filter(
+      (req) => req.url.endsWith("/api/v1/sessions/session-test/messages") && req.method === "POST",
+    );
+    expect(messageCalls).toHaveLength(1);
+    expect(messageCalls[0]?.body?.content).toBe("喜欢问界");
+  });
+
+  it("auto-capture strips conversation metadata and leading timestamp prefix", async () => {
+    const { requests, agentEnd } = await setupAutoCaptureHarness();
+
+    await agentEnd({
+      success: true,
+      messages: [
+        {
+          role: "user",
+          content: `Conversation info (untrusted metadata):
+\`\`\`json
+{"sessionId":"abc","sessionKey":"main","channel":"webchat","sender":"u1"}
+\`\`\`
+[Tue 2026-02-24 15:56 GMT+8] 我喜欢问界汽车`,
+        },
+      ],
+    });
+
+    const messageCalls = requests.filter(
+      (req) => req.url.endsWith("/api/v1/sessions/session-test/messages") && req.method === "POST",
+    );
+    expect(messageCalls).toHaveLength(1);
+    expect(messageCalls[0]?.body?.content).toBe("我喜欢问界汽车");
+  });
+
+  it("auto-capture strips unlabeled metadata json fence", async () => {
+    const { requests, agentEnd } = await setupAutoCaptureHarness();
+
+    await agentEnd({
+      success: true,
+      messages: [
+        {
+          role: "user",
+          content: `\`\`\`json
+{"sessionId":"abc","sessionKey":"main","channel":"webchat","sender":"u1","timestamp":"2026-02-24T12:00:00Z"}
+\`\`\`
+我喜欢问界汽车`,
+        },
+      ],
+    });
+
+    const messageCalls = requests.filter(
+      (req) => req.url.endsWith("/api/v1/sessions/session-test/messages") && req.method === "POST",
+    );
+    expect(messageCalls).toHaveLength(1);
+    expect(messageCalls[0]?.body?.content).toBe("我喜欢问界汽车");
+  });
+
+  it("auto-capture keeps recent unique matched texts only", async () => {
+    const { requests, agentEnd } = await setupAutoCaptureHarness();
+
+    await agentEnd({
+      success: true,
+      messages: [
+        { role: "user", content: "我喜欢红色花" },
+        { role: "user", content: "我喜欢红色花！" },
+        { role: "user", content: "我喜欢问界汽车" },
+        { role: "user", content: "我喜欢华为Mate70" },
+      ],
+    });
+
+    const messageCalls = requests.filter(
+      (req) => req.url.endsWith("/api/v1/sessions/session-test/messages") && req.method === "POST",
+    );
+    expect(messageCalls).toHaveLength(3);
+    expect(messageCalls.map((call) => call.body?.content)).toEqual([
+      "我喜欢红色花！",
+      "我喜欢问界汽车",
+      "我喜欢华为Mate70",
+    ]);
   });
 });
 
