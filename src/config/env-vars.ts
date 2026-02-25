@@ -18,7 +18,7 @@ export function collectConfigEnvVars(cfg?: OpenClawConfig): Record<string, strin
   }
 
   for (const [key, value] of Object.entries(envConfig)) {
-    if (key === "shellEnv" || key === "vars") {
+    if (key === "shellEnv" || key === "doppler" || key === "vars") {
       continue;
     }
     if (typeof value !== "string" || !value.trim()) {

@@ -120,6 +120,15 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        doppler: z
+          .object({
+            enabled: z.boolean().optional(),
+            project: z.string().optional(),
+            config: z.string().optional(),
+            timeoutMs: z.number().int().nonnegative().optional(),
+          })
+          .strict()
+          .optional(),
         vars: z.record(z.string(), z.string()).optional(),
       })
       .catchall(z.string())

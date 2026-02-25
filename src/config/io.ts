@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import JSON5 from "json5";
 import { loadDotEnv } from "../infra/dotenv.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
+import { loadDopplerSecrets, shouldAutoEnableDoppler } from "../infra/doppler.js";
 import {
   loadShellEnvFallback,
   resolveShellEnvFallbackTimeoutMs,
@@ -469,6 +470,17 @@ function maybeLoadDotEnvForConfig(env: NodeJS.ProcessEnv): void {
   loadDotEnv({ quiet: true });
 }
 
+function maybeLoadDopplerSecrets(
+  env: NodeJS.ProcessEnv,
+  logger: Pick<typeof console, "warn">,
+): void {
+  // Only hydrate Doppler secrets for the real process env.
+  if (env !== process.env) {
+    return;
+  }
+  loadDopplerSecrets({ env, logger });
+}
+
 export function parseConfigJson5(
   raw: string,
   json5: { parse: (value: string) => unknown } = JSON5,
@@ -529,6 +541,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
   function loadConfig(): OpenClawConfig {
     try {
       maybeLoadDotEnvForConfig(deps.env);
+      maybeLoadDopplerSecrets(deps.env, deps.logger);
       if (!deps.fs.existsSync(configPath)) {
         if (shouldEnableShellEnvFallback(deps.env) && !shouldDeferShellEnvFallback(deps.env)) {
           loadShellEnvFallback({
@@ -628,6 +641,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
 
   async function readConfigFileSnapshotInternal(): Promise<ReadConfigFileSnapshotInternalResult> {
     maybeLoadDotEnvForConfig(deps.env);
+    maybeLoadDopplerSecrets(deps.env, deps.logger);
     const exists = deps.fs.existsSync(configPath);
     if (!exists) {
       const hash = hashConfigRaw(null);

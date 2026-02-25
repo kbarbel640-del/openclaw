@@ -40,6 +40,13 @@ export type OpenClawConfig = {
       /** Timeout for the login shell exec (ms). Default: 15000. */
       timeoutMs?: number;
     };
+    /** Import secrets from Doppler. Auto-enabled when DOPPLER_TOKEN is set. */
+    doppler?: {
+      enabled?: boolean;
+      project?: string;
+      config?: string;
+      timeoutMs?: number;
+    };
     /** Inline env vars to apply when not already present in the process env. */
     vars?: Record<string, string>;
     /** Sugar: allow env vars directly under env (string values only). */
@@ -47,6 +54,7 @@ export type OpenClawConfig = {
       | string
       | Record<string, string>
       | { enabled?: boolean; timeoutMs?: number }
+      | { enabled?: boolean; project?: string; config?: string; timeoutMs?: number }
       | undefined;
   };
   wizard?: {
