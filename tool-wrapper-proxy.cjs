@@ -3847,6 +3847,84 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
   }
 }
 
+// ---------------------------------------------------------------------------
+// Deterministic Command Executor — no LLM, no Claude session
+// Pattern match → local exec → return result
+// ---------------------------------------------------------------------------
+
+const EXEC_PATTERNS = [
+  // SSH shortcuts
+  { pattern: /^ssh\s+mac-?mini\s+(.+)$/is, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
+  { pattern: /^在\s*mac\s*mini\s*(?:上\s*)?(?:執行|跑|run)\s+(.+)$/is, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
+
+  // Docker
+  { pattern: /^docker\s+ps$/i, parse: () => ({ action: 'docker-ps', args: [] }) },
+  { pattern: /^(?:檢查|查看|看)\s*(?:docker|容器)\s*(?:狀態|status)?$/i, parse: () => ({ action: 'docker-ps', args: [] }) },
+  { pattern: /^(?:重啟|restart)\s+(.+?)\s*(?:容器|container)?$/i, parse: (m) => ({ action: 'docker-restart', args: [m[1].trim()] }) },
+  { pattern: /^docker\s+restart\s+(.+)$/i, parse: (m) => ({ action: 'docker-restart', args: [m[1].trim()] }) },
+  { pattern: /^docker\s+stop\s+(.+)$/i, parse: (m) => ({ action: 'docker-stop', args: [m[1].trim()] }) },
+  { pattern: /^docker\s+logs\s+(.+)$/i, parse: (m) => ({ action: 'docker-logs', args: [m[1].trim()] }) },
+  { pattern: /^(?:看|查看)\s*(.+?)\s*(?:的)?\s*(?:logs?|日誌)$/i, parse: (m) => ({ action: 'docker-logs', args: [m[1].trim()] }) },
+  { pattern: /^docker\s+compose\s+up/i, parse: () => ({ action: 'docker-compose-up', args: [] }) },
+
+  // Deploy
+  { pattern: /^(?:部署|deploy)\s+openclaw$/i, parse: () => ({ action: 'deploy-openclaw', args: [] }) },
+  { pattern: /^(?:更新|update)\s+openclaw$/i, parse: () => ({ action: 'deploy-openclaw', args: [] }) },
+  { pattern: /^(?:部署|deploy)\s+(?:taiwan[- ]?stock|台股)$/i, parse: () => ({ action: 'deploy-taiwan-stock', args: [] }) },
+
+  // Services
+  { pattern: /^(?:重啟|restart)\s+(?:wrapper|proxy)$/i, parse: () => ({ action: 'restart-service', args: ['com.tool-wrapper-proxy'] }) },
+  { pattern: /^(?:重啟|restart)\s+(?:session[- ]?bridge)$/i, parse: () => ({ action: 'restart-service', args: ['com.rexsu.session-bridge'] }) },
+  { pattern: /^(?:重啟|restart)\s+orchestrator$/i, parse: () => ({ action: 'restart-service', args: ['com.rexsu.orchestrator'] }) },
+  { pattern: /^(?:服務|service)\s*(?:列表|list|狀態|status)$/i, parse: () => ({ action: 'service-list', args: [] }) },
+
+  // Git
+  { pattern: /^git\s+status(?:\s+(.+))?$/i, parse: (m) => ({ action: 'git-status', args: m[1] ? [m[1].trim()] : [] }) },
+  { pattern: /^git\s+log(?:\s+(.+))?$/i, parse: (m) => ({ action: 'git-log', args: m[1] ? [m[1].trim()] : [] }) },
+  { pattern: /^git\s+pull(?:\s+(.+))?$/i, parse: (m) => ({ action: 'git-pull', args: m[1] ? [m[1].trim()] : [] }) },
+
+  // System
+  { pattern: /^(?:系統|system)\s*(?:資訊|info|狀態|status)$/i, parse: () => ({ action: 'system-info', args: [] }) },
+  { pattern: /^(?:健康|health)\s*(?:檢查|check)?$/i, parse: () => ({ action: 'health', args: [] }) },
+  { pattern: /^(?:清理|cleanup|prune)\s+(?:docker|容器)\s*(?:volumes?)?$/i, parse: () => ({ action: 'raw', args: ['docker volume prune -f && docker builder prune -f'] }) },
+
+  // Catch-all for explicit exec
+  { pattern: /^(?:exec|執行)\s+(.+)$/i, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
+];
+
+function detectExecAction(text) {
+  for (const { pattern, parse } of EXEC_PATTERNS) {
+    const m = text.match(pattern);
+    if (m) return parse(m);
+  }
+  return null;
+}
+
+function localExec(action, args) {
+  return new Promise((resolve, reject) => {
+    const { execFile } = require('node:child_process');
+    const execPath = '/Users/rexmacmini/openclaw/openclaw-exec.sh';
+    const execArgs = [action, ...args];
+
+    execFile(execPath, execArgs, {
+      timeout: 30000,
+      maxBuffer: 1024 * 1024,
+      env: { ...process.env, PATH: process.env.PATH + ':/opt/homebrew/bin:/usr/local/bin' },
+    }, (err, stdout, stderr) => {
+      if (err && err.killed) {
+        reject(new Error('Command timed out (30s)'));
+        return;
+      }
+      const output = (stdout || '') + (stderr ? '\nSTDERR: ' + stderr : '');
+      if (err && !output.trim()) {
+        reject(new Error(err.message));
+        return;
+      }
+      resolve(output.trim() || '(completed, no output)');
+    });
+  });
+}
+
 async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   // Ollama health check: restart if unresponsive
   const checkOllamaHealth = async () => {
@@ -3998,22 +4076,18 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   }
 
 
-  // Priority 0.6: SSH/privileged command intercept — bypass LLM, route directly
-  // Haiku's model prior believes it's sandboxed and refuses SSH.
-  // Deterministic routing: pattern match → callSessionBridge → return result.
+  // Priority 0.6: Deterministic command executor — LLM completely bypassed
+  // Simple system commands execute locally (wrapper IS on Mac mini).
+  // Complex dev tasks still route to callSessionBridge → Claude agent.
   {
-    const sshMatch = userText.match(/^(?:ssh\s+macmini\s+|ssh\s+mac-?mini\s+|在\s*mac\s*mini\s*(?:上\s*)?(?:執行|跑|run)\s+)(.+)$/is);
-    const directCmdMatch = !sshMatch && userText.match(/^(?:docker\s+(?:ps|restart|stop|logs|exec|compose)|launchctl\s+|systemctl\s+|pm2\s+)(.*)$/is);
-    if (sshMatch || directCmdMatch) {
-      const cmd = sshMatch ? sshMatch[1].trim() : userText.trim();
-      console.log(`[wrapper] #${reqId} SSH_INTERCEPT: "${cmd}"`);
+    const execAction = detectExecAction(userText);
+    if (execAction) {
+      console.log(`[wrapper] #${reqId} EXEC: ${execAction.action} ${execAction.args.join(' ')}`);
       try {
-        const result = await callSessionBridge(cmd, null);
-        const output = result.output || "(completed, no output)";
-        const truncated = output.length > 3000 ? output.slice(0, 3000) + "\n...(truncated)" : output;
-        return sendDirectResponse(reqId, truncated, wantsStream, res);
+        const output = await localExec(execAction.action, execAction.args);
+        return sendDirectResponse(reqId, output, wantsStream, res);
       } catch (e) {
-        console.error(`[wrapper] #${reqId} SSH_INTERCEPT error: ${e.message}`);
+        console.error(`[wrapper] #${reqId} EXEC error: ${e.message}`);
         return sendDirectResponse(reqId, `執行失敗: ${e.message}`, wantsStream, res);
       }
     }
