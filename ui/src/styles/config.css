@@ -8,7 +8,7 @@
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 0;
   height: calc(100vh - 160px);
-  margin: -16px;
+  margin: 0;
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
   background: var(--panel);
@@ -25,6 +25,8 @@
   border-right: 1px solid var(--border);
   min-height: 0;
   overflow: hidden;
+  position: relative;
+  z-index: 10;
 }
 
 :root[data-theme="light"] .config-sidebar {
