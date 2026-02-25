@@ -7,13 +7,14 @@ import { startTelegramWebhook } from "./webhook.js";
 
 const handlerSpy = vi.hoisted(() => vi.fn((..._args: unknown[]): unknown => undefined));
 const setWebhookSpy = vi.hoisted(() => vi.fn());
+const deleteWebhookSpy = vi.hoisted(() => vi.fn(async () => true));
 const initSpy = vi.hoisted(() => vi.fn(async () => undefined));
 const stopSpy = vi.hoisted(() => vi.fn());
 const webhookCallbackSpy = vi.hoisted(() => vi.fn(() => handlerSpy));
 const createTelegramBotSpy = vi.hoisted(() =>
   vi.fn(() => ({
     init: initSpy,
-    api: { setWebhook: setWebhookSpy },
+    api: { setWebhook: setWebhookSpy, deleteWebhook: deleteWebhookSpy },
     stop: stopSpy,
   })),
 );
@@ -278,6 +279,34 @@ describe("startTelegramWebhook", () => {
         token: "tok",
       }),
     ).rejects.toThrow(/requires a non-empty secret token/i);
+  });
+
+  it("registers webhook using the bound listening port when port is 0", async () => {
+    setWebhookSpy.mockClear();
+    const abort = new AbortController();
+    const { server } = await startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      port: 0,
+      abortSignal: abort.signal,
+      path: "/hook",
+    });
+    try {
+      const addr = server.address();
+      if (!addr || typeof addr === "string") {
+        throw new Error("no addr");
+      }
+      expect(addr.port).toBeGreaterThan(0);
+      expect(setWebhookSpy).toHaveBeenCalledTimes(1);
+      expect(setWebhookSpy).toHaveBeenCalledWith(
+        `http://127.0.0.1:${addr.port}/hook`,
+        expect.objectContaining({
+          secret_token: "secret",
+        }),
+      );
+    } finally {
+      abort.abort();
+    }
   });
 
   it("keeps webhook payload readable when callback delays body read", async () => {
@@ -599,5 +628,23 @@ describe("startTelegramWebhook", () => {
     } finally {
       abort.abort();
     }
+  });
+
+  it("de-registers webhook when shutting down", async () => {
+    deleteWebhookSpy.mockClear();
+    const abort = new AbortController();
+    await startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      port: 0,
+      abortSignal: abort.signal,
+      path: "/hook",
+    });
+
+    abort.abort();
+    await sleep(25);
+
+    expect(deleteWebhookSpy).toHaveBeenCalledTimes(1);
+    expect(deleteWebhookSpy).toHaveBeenCalledWith({ drop_pending_updates: false });
   });
 });
