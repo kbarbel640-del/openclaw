@@ -138,7 +138,11 @@ describe("browser chrome profile decoration", () => {
 
 describe("browser chrome helpers", () => {
   function mockLoopbackVersionResponse(params: { statusCode?: number; body?: string }) {
-    return vi.spyOn(http, "request").mockImplementation(((_url, _opts, cb) => {
+    return vi.spyOn(http, "request").mockImplementation(((
+      _url: string | URL | http.RequestOptions,
+      _opts?: http.RequestOptions | ((res: http.IncomingMessage) => void),
+      cb?: (res: http.IncomingMessage) => void,
+    ) => {
       const req = new EventEmitter() as unknown as {
         setTimeout: (ms: number, fn: () => void) => void;
         on: (event: string, fn: (...args: unknown[]) => unknown) => unknown;
@@ -169,7 +173,7 @@ describe("browser chrome helpers", () => {
         res.emit("end");
       };
       return req as never;
-    }) as typeof http.request);
+    }) as unknown as typeof http.request);
   }
 
   function mockExistsSync(match: (pathValue: string) => boolean) {
