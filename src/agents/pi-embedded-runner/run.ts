@@ -850,7 +850,17 @@ export async function runEmbeddedPiAgent(
             };
           }
 
-          if (promptError && !aborted) {
+          // FIX(#24622): Also process prompt errors when the abort was triggered
+          // by a captured streaming rejection (e.g. fetch failed from billing
+          // error). In that case, promptError contains the original streaming
+          // error (not a generic AbortError), and should go through the normal
+          // failover classification path.
+          const isStreamingAbort =
+            aborted &&
+            promptError instanceof Error &&
+            promptError.name !== "AbortError" &&
+            promptError.name !== "TimeoutError";
+          if (promptError && (!aborted || isStreamingAbort)) {
             const errorText = describeUnknownError(promptError);
             // Handle role ordering errors with a user-friendly message
             if (/incorrect role information|roles must alternate/i.test(errorText)) {
