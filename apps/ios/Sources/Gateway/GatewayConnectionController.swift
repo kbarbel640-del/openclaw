@@ -216,6 +216,23 @@ final class GatewayConnectionController {
         }
     }
 
+    /// Rebuild connect options from current local settings (caps/commands/permissions)
+    /// and re-apply the active gateway config so capability changes take effect immediately.
+    func refreshActiveGatewayRegistrationFromSettings() {
+        guard let appModel else { return }
+        guard let cfg = appModel.activeGatewayConnectConfig else { return }
+        guard appModel.gatewayAutoReconnectEnabled else { return }
+
+        let refreshedConfig = GatewayConnectConfig(
+            url: cfg.url,
+            stableID: cfg.stableID,
+            tls: cfg.tls,
+            token: cfg.token,
+            password: cfg.password,
+            nodeOptions: self.makeConnectOptions(stableID: cfg.stableID))
+        appModel.applyGatewayConnectConfig(refreshedConfig)
+    }
+
     func clearPendingTrustPrompt() {
         self.pendingTrustPrompt = nil
         self.pendingTrustConnect = nil
@@ -687,7 +704,7 @@ final class GatewayConnectionController {
         var addr = in_addr()
         let parsed = host.withCString { inet_pton(AF_INET, $0, &addr) == 1 }
         guard parsed else { return false }
-        let value = ntohl(addr.s_addr)
+        let value = UInt32(bigEndian: addr.s_addr)
         let firstOctet = UInt8((value >> 24) & 0xFF)
         return firstOctet == 127
     }
@@ -904,44 +921,6 @@ final class GatewayConnectionController {
     private static func motionAvailable() -> Bool {
         CMMotionActivityManager.isActivityAvailable() || CMPedometer.isStepCountingAvailable()
     }
-
-    private func platformString() -> String {
-        let v = ProcessInfo.processInfo.operatingSystemVersion
-        let name = switch UIDevice.current.userInterfaceIdiom {
-        case .pad:
-            "iPadOS"
-        case .phone:
-            "iOS"
-        default:
-            "iOS"
-        }
-        return "\(name) \(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
-    }
-
-    private func deviceFamily() -> String {
-        switch UIDevice.current.userInterfaceIdiom {
-        case .pad:
-            "iPad"
-        case .phone:
-            "iPhone"
-        default:
-            "iOS"
-        }
-    }
-
-    private func modelIdentifier() -> String {
-        var systemInfo = utsname()
-        uname(&systemInfo)
-        let machine = withUnsafeBytes(of: &systemInfo.machine) { ptr in
-            String(bytes: ptr.prefix { $0 != 0 }, encoding: .utf8)
-        }
-        let trimmed = machine?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? "unknown" : trimmed
-    }
-
-    private func appVersion() -> String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
-    }
 }
 
 #if DEBUG
@@ -963,19 +942,19 @@ extension GatewayConnectionController {
     }
 
     func _test_platformString() -> String {
-        self.platformString()
+        DeviceInfoHelper.platformString()
     }
 
     func _test_deviceFamily() -> String {
-        self.deviceFamily()
+        DeviceInfoHelper.deviceFamily()
     }
 
     func _test_modelIdentifier() -> String {
-        self.modelIdentifier()
+        DeviceInfoHelper.modelIdentifier()
     }
 
     func _test_appVersion() -> String {
-        self.appVersion()
+        DeviceInfoHelper.appVersion()
     }
 
     func _test_setGateways(_ gateways: [GatewayDiscoveryModel.DiscoveredGateway]) {

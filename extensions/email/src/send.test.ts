@@ -8,10 +8,12 @@ import {
 
 const verifyMock = vi.hoisted(() => vi.fn(async () => true));
 const sendMailMock = vi.hoisted(() => vi.fn(async () => ({ messageId: "m-1" })));
+const closeMock = vi.hoisted(() => vi.fn());
 const createTransportMock = vi.hoisted(() =>
   vi.fn(() => ({
     verify: verifyMock,
     sendMail: sendMailMock,
+    close: closeMock,
   })),
 );
 
@@ -60,6 +62,7 @@ describe("email send/probe", () => {
     createTransportMock.mockClear();
     verifyMock.mockClear();
     sendMailMock.mockClear();
+    closeMock.mockClear();
     sendMailMock.mockResolvedValue({ messageId: "m-1" });
     verifyMock.mockResolvedValue(true);
   });
@@ -80,6 +83,7 @@ describe("email send/probe", () => {
         text: "hello",
       }),
     );
+    expect(closeMock).toHaveBeenCalledTimes(1);
   });
 
   it("probes configured accounts", async () => {
@@ -87,6 +91,7 @@ describe("email send/probe", () => {
     const result = await probeEmailAccount(account);
     expect(result.ok).toBe(true);
     expect(verifyMock).toHaveBeenCalledTimes(1);
+    expect(closeMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects send when account lacks required smtp config", async () => {

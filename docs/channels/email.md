@@ -71,3 +71,10 @@ openclaw message send --channel email --to email:user@example.com --text "Hello 
 
 - If status/probe fails, verify host/port/secure settings and SMTP credentials.
 - For Gmail or Microsoft 365, use app passwords or provider-specific SMTP auth setup.
+
+## Security Considerations
+
+- Prefer TLS-secured SMTP (`smtpSecure: true` or STARTTLS on port `587`) and avoid plain SMTP where possible.
+- Use provider-scoped app passwords or service credentials; do not reuse personal passwords.
+- Configure SPF, DKIM, and DMARC for your sending domain to reduce spoofing and improve deliverability.
+- This plugin is outbound-only. It does not verify inbound sender identity because inbound email processing is not part of this MVP.

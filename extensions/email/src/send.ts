@@ -72,6 +72,8 @@ export async function probeEmailAccount(account: ResolvedEmailAccount): Promise<
       secure: account.smtpSecure,
       error: err instanceof Error ? err.message : String(err),
     };
+  } finally {
+    transport.close();
   }
 }
 
@@ -99,15 +101,19 @@ export async function sendMessageEmail(params: {
   });
 
   const subjectPrefix = params.account.subjectPrefix?.trim() || "OpenClaw";
-  const info = await transport.sendMail({
-    from: params.account.from,
-    to,
-    subject: `${subjectPrefix} message`,
-    text: params.text ?? "",
-  });
+  try {
+    const info = await transport.sendMail({
+      from: params.account.from,
+      to,
+      subject: `${subjectPrefix} message`,
+      text: params.text ?? "",
+    });
 
-  return {
-    messageId: info.messageId || `email-${Date.now()}`,
-    to,
-  };
+    return {
+      messageId: info.messageId || `email-${Date.now()}`,
+      to,
+    };
+  } finally {
+    transport.close();
+  }
 }
