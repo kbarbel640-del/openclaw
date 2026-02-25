@@ -73,11 +73,13 @@ Instead of a single `agents.defaults.subagents.model`, you can let agents choose
 
 ```markdown
 ## Claude Haiku 4.5 — anthropic/claude-haiku-4.5
+
 - Strengths: Structured parsing, classification, fast turnaround
 - Cost: $
 - Best when: Task is structured/mechanical, output format is predictable
 
 ## Gemini 2.5 Flash — google/gemini-2.5-flash
+
 - Strengths: Near-free classification, triage, simple yes/no decisions
 - Best when: High-volume simple tasks, binary classification
 ```
