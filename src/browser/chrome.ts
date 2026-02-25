@@ -320,11 +320,10 @@ async function fetchChromeVersionDirect(
 
 async function fetchChromeVersion(cdpUrl: string, timeoutMs = 500): Promise<ChromeVersion | null> {
   const versionUrl = appendCdpPath(cdpUrl, "/json/version");
+  let loopbackTarget = false;
   try {
     const parsed = new URL(versionUrl);
-    if (isLoopbackHostname(parsed.hostname)) {
-      return await fetchChromeVersionDirect(versionUrl, timeoutMs);
-    }
+    loopbackTarget = isLoopbackHostname(parsed.hostname);
   } catch {
     // ignore URL parse errors and let fetch handle/throw below
   }
@@ -347,6 +346,11 @@ async function fetchChromeVersion(cdpUrl: string, timeoutMs = 500): Promise<Chro
     }
     return data;
   } catch (err) {
+    if (loopbackTarget) {
+      // Preserve mocked/global fetch behavior when it succeeds, but fall back
+      // to direct loopback HTTP when fetch transport is unreliable in host envs.
+      return await fetchChromeVersionDirect(versionUrl, timeoutMs);
+    }
     log.debug(`cdp /json/version fetch failed (${versionUrl}): ${String(err)}`);
     return null;
   } finally {

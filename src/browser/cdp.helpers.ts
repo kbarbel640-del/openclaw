@@ -240,26 +240,41 @@ async function fetchChecked(url: string, timeoutMs = 1500, init?: RequestInit): 
   } catch {
     parsed = null;
   }
-
-  if (parsed && isLoopbackHost(parsed.hostname)) {
-    const res = await fetchCheckedLoopback(url, timeoutMs, init);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-    return res;
-  }
+  const loopbackTarget = Boolean(parsed && isLoopbackHost(parsed.hostname));
 
   const ctrl = new AbortController();
+  let upstreamAbortListener: (() => void) | undefined;
+  if (init?.signal) {
+    if (init.signal.aborted) {
+      ctrl.abort(init.signal.reason);
+    } else {
+      upstreamAbortListener = () => ctrl.abort(init.signal?.reason);
+      init.signal.addEventListener("abort", upstreamAbortListener, { once: true });
+    }
+  }
   const t = setTimeout(ctrl.abort.bind(ctrl), timeoutMs);
   try {
     const headers = getHeadersWithAuth(url, headersToRecord(init?.headers));
-    const res = await fetch(url, { ...init, headers, signal: ctrl.signal });
+    const res = await fetch(url, { ...init, headers, signal: ctrl.signal }).catch(async (err) => {
+      const msg = String(err);
+      const isAbort =
+        ctrl.signal.aborted ||
+        msg.toLowerCase().includes("abort") ||
+        msg.toLowerCase().includes("timed out");
+      if (!loopbackTarget || isAbort || msg.startsWith("Error: HTTP ")) {
+        throw err;
+      }
+      return await fetchCheckedLoopback(url, timeoutMs, { ...init, signal: ctrl.signal });
+    });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
     return res;
   } finally {
     clearTimeout(t);
+    if (init?.signal && upstreamAbortListener) {
+      init.signal.removeEventListener("abort", upstreamAbortListener);
+    }
   }
 }
 
