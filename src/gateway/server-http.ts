@@ -206,14 +206,24 @@ export function createHooksRequestHandler(
     bindHost: string;
     port: number;
     logHooks: SubsystemLogger;
+    /** Exempt loopback addresses from hook auth rate-limiting. Default: false (secure for proxied webhooks). */
+    exemptLoopback?: boolean;
   } & HookDispatchers,
 ): HooksRequestHandler {
-  const { getHooksConfig, bindHost, port, logHooks, dispatchAgentHook, dispatchWakeHook } = opts;
+  const {
+    getHooksConfig,
+    bindHost,
+    port,
+    logHooks,
+    dispatchAgentHook,
+    dispatchWakeHook,
+    exemptLoopback = false,
+  } = opts;
   const hookAuthLimiter = createAuthRateLimiter({
     maxAttempts: HOOK_AUTH_FAILURE_LIMIT,
     windowMs: HOOK_AUTH_FAILURE_WINDOW_MS,
     lockoutMs: HOOK_AUTH_FAILURE_WINDOW_MS,
-    exemptLoopback: false,
+    exemptLoopback,
     // Handler lifetimes are tied to gateway runtime/tests; skip background timer fanout.
     pruneIntervalMs: 0,
   });

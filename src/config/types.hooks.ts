@@ -138,5 +138,7 @@ export type HooksConfig = {
   gmail?: HooksGmailConfig;
   /** Internal agent event hooks */
   internal?: InternalHooksConfig;
+  /** Exempt loopback addresses from hook auth rate-limiting. Default: false (secure for proxied webhooks). */
+  exemptLoopback?: boolean;
 };
 import type { InstallRecordBase } from "./types.installs.js";
