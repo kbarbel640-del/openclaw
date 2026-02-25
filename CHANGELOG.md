@@ -11,6 +11,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Windows/Process: enable `shell:true` for `.cmd` files on Windows to prevent `spawn EINVAL` when running npm/pnpm/yarn/npx. Scoped to the hardcoded `resolveCommand()` allowlist only. (#7631) Thanks @arosstale.
 - Security/Nextcloud Talk: reject unsigned webhook traffic before full body reads, reducing unauthenticated request-body exposure, with auth-order regression coverage. (#26118) Thanks @bmendonca3.
 - Security/Nextcloud Talk: stop treating DM pairing-store entries as group allowlist senders, so group authorization remains bounded to configured group allowlists. (#26116) Thanks @bmendonca3.
 - Security/IRC: keep pairing-store approvals DM-only and out of IRC group allowlist authorization, with policy regression tests for allowlist resolution. (#26112) Thanks @bmendonca3.
