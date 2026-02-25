@@ -17,11 +17,18 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function getFirstDeliveryText(deliver: ReturnType<typeof vi.fn>): string {
+function getFirstDeliveryPayload(deliver: ReturnType<typeof vi.fn>): {
+  text?: string;
+  channelData?: Record<string, unknown>;
+} {
   const firstCall = deliver.mock.calls[0]?.[0] as
-    | { payloads?: Array<{ text?: string }> }
+    | { payloads?: Array<{ text?: string; channelData?: Record<string, unknown> }> }
     | undefined;
-  return firstCall?.payloads?.[0]?.text ?? "";
+  return firstCall?.payloads?.[0] ?? {};
+}
+
+function getFirstDeliveryText(deliver: ReturnType<typeof vi.fn>): string {
+  return getFirstDeliveryPayload(deliver).text ?? "";
 }
 
 const TARGETS_CFG = {
@@ -150,6 +157,63 @@ describe("exec approval forwarder", () => {
     ).resolves.toBe(true);
 
     expect(getFirstDeliveryText(deliver)).toContain("Command:\n```\necho `uname`\necho done\n```");
+  });
+
+  it("adds Telegram inline approval buttons when inline buttons are enabled", async () => {
+    vi.useFakeTimers();
+    const cfg = {
+      channels: {
+        telegram: {
+          capabilities: { inlineButtons: "all" },
+        },
+      },
+      approvals: {
+        exec: {
+          enabled: true,
+          mode: "targets",
+          targets: [{ channel: "telegram", to: "123" }],
+        },
+      },
+    } as OpenClawConfig;
+    const { deliver, forwarder } = createForwarder({ cfg });
+
+    await expect(forwarder.handleRequested(baseRequest)).resolves.toBe(true);
+
+    const payload = getFirstDeliveryPayload(deliver);
+    expect(payload.channelData).toEqual({
+      telegram: {
+        buttons: [
+          [
+            { text: "Allow Once", callback_data: "/approve req-1 allow-once" },
+            { text: "Always Allow", callback_data: "/approve req-1 allow-always" },
+            { text: "Deny", callback_data: "/approve req-1 deny" },
+          ],
+        ],
+      },
+    });
+  });
+
+  it("keeps Telegram approval forwarding text-only when inline buttons are disabled", async () => {
+    vi.useFakeTimers();
+    const cfg = {
+      channels: {
+        telegram: {
+          capabilities: { inlineButtons: "off" },
+        },
+      },
+      approvals: {
+        exec: {
+          enabled: true,
+          mode: "targets",
+          targets: [{ channel: "telegram", to: "123" }],
+        },
+      },
+    } as OpenClawConfig;
+    const { deliver, forwarder } = createForwarder({ cfg });
+
+    await expect(forwarder.handleRequested(baseRequest)).resolves.toBe(true);
+
+    expect(getFirstDeliveryPayload(deliver).channelData).toBeUndefined();
   });
 
   it("returns false when forwarding is disabled", async () => {

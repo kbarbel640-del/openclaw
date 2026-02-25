@@ -9,6 +9,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { normalizeAccountId, parseAgentSessionKey } from "../routing/session-key.js";
 import { compileSafeRegex } from "../security/safe-regex.js";
 import { isDeliverableMessageChannel, normalizeMessageChannel } from "../utils/message-channel.js";
+import { isTelegramInlineButtonsEnabled } from "../telegram/inline-buttons.js";
 import type {
   ExecApprovalDecision,
   ExecApprovalRequest,
@@ -156,6 +157,11 @@ function formatApprovalCommand(command: string): { inline: boolean; text: string
   return { inline: false, text: `${fence}\n${command}\n${fence}` };
 }
 
+type ReplyPayloadLike = {
+  text: string;
+  channelData?: Record<string, unknown>;
+};
+
 function buildRequestMessage(request: ExecApprovalRequest, nowMs: number) {
   const lines: string[] = ["🔒 Exec approval required", `ID: ${request.id}`];
   const command = formatApprovalCommand(request.request.command);
@@ -187,6 +193,40 @@ function buildRequestMessage(request: ExecApprovalRequest, nowMs: number) {
   lines.push(`Expires in: ${expiresIn}s`);
   lines.push("Reply with: /approve <id> allow-once|allow-always|deny");
   return lines.join("\n");
+}
+
+function buildTelegramApprovalButtons(requestId: string) {
+  return [
+    [
+      { text: "Allow Once", callback_data: `/approve ${requestId} allow-once` },
+      { text: "Always Allow", callback_data: `/approve ${requestId} allow-always` },
+      { text: "Deny", callback_data: `/approve ${requestId} deny` },
+    ],
+  ];
+}
+
+function buildRequestPayload(params: {
+  cfg: OpenClawConfig;
+  target: ForwardTarget;
+  request: ExecApprovalRequest;
+  nowMs: number;
+}): ReplyPayloadLike {
+  const text = buildRequestMessage(params.request, params.nowMs);
+  const channel = normalizeMessageChannel(params.target.channel) ?? params.target.channel;
+  if (channel !== "telegram") {
+    return { text };
+  }
+  if (!isTelegramInlineButtonsEnabled({ cfg: params.cfg, accountId: params.target.accountId })) {
+    return { text };
+  }
+  return {
+    text,
+    channelData: {
+      telegram: {
+        buttons: buildTelegramApprovalButtons(params.request.id),
+      },
+    },
+  };
 }
 
 function decisionLabel(decision: ExecApprovalDecision): string {
@@ -243,7 +283,7 @@ function defaultResolveSessionTarget(params: {
 async function deliverToTargets(params: {
   cfg: OpenClawConfig;
   targets: ForwardTarget[];
-  text: string;
+  payloadByTarget: (target: ForwardTarget) => ReplyPayloadLike;
   deliver: typeof deliverOutboundPayloads;
   shouldSend?: () => boolean;
 }) {
@@ -256,13 +296,14 @@ async function deliverToTargets(params: {
       return;
     }
     try {
+      const payload = params.payloadByTarget(target);
       await params.deliver({
         cfg: params.cfg,
         channel,
         to: target.to,
         accountId: target.accountId,
         threadId: target.threadId,
-        payloads: [{ text: params.text }],
+        payloads: [payload],
       });
     } catch (err) {
       log.error(`exec approvals: failed to deliver to ${channel}:${target.to}: ${String(err)}`);
@@ -348,7 +389,12 @@ export function createExecApprovalForwarder(
         }
         pending.delete(request.id);
         const expiredText = buildExpiredMessage(request);
-        await deliverToTargets({ cfg, targets: entry.targets, text: expiredText, deliver });
+        await deliverToTargets({
+          cfg,
+          targets: entry.targets,
+          payloadByTarget: () => ({ text: expiredText }),
+          deliver,
+        });
       })();
     }, expiresInMs);
     timeoutId.unref?.();
@@ -360,11 +406,16 @@ export function createExecApprovalForwarder(
       return false;
     }
 
-    const text = buildRequestMessage(request, nowMs());
     void deliverToTargets({
       cfg,
       targets: filteredTargets,
-      text,
+      payloadByTarget: (target) =>
+        buildRequestPayload({
+          cfg,
+          target,
+          request,
+          nowMs: nowMs(),
+        }),
       deliver,
       shouldSend: () => pending.get(request.id) === pendingEntry,
     }).catch((err) => {
@@ -405,7 +456,12 @@ export function createExecApprovalForwarder(
       return;
     }
     const text = buildResolvedMessage(resolved);
-    await deliverToTargets({ cfg, targets, text, deliver });
+    await deliverToTargets({
+      cfg,
+      targets,
+      payloadByTarget: () => ({ text }),
+      deliver,
+    });
   };
 
   const stop = () => {
