@@ -66,20 +66,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import ai.openclaw.android.LocationMode
 import ai.openclaw.android.MainViewModel
-import ai.openclaw.android.R
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
@@ -95,81 +92,13 @@ private enum class GatewayInputMode {
   Manual,
 }
 
-private val onboardingBackgroundGradient =
-  listOf(
-    Color(0xFFFFFFFF),
-    Color(0xFFF7F8FA),
-    Color(0xFFEFF1F5),
-  )
-
-private val onboardingFontFamily =
-  FontFamily(
-    Font(resId = R.font.manrope_400_regular, weight = FontWeight.Normal),
-    Font(resId = R.font.manrope_500_medium, weight = FontWeight.Medium),
-    Font(resId = R.font.manrope_600_semibold, weight = FontWeight.SemiBold),
-    Font(resId = R.font.manrope_700_bold, weight = FontWeight.Bold),
-  )
-
-private val onboardingDisplayStyle =
-  TextStyle(
-    fontFamily = onboardingFontFamily,
-    fontWeight = FontWeight.Bold,
-    fontSize = 34.sp,
-    lineHeight = 40.sp,
-    letterSpacing = (-0.8).sp,
-  )
-
-private val onboardingTitle1Style =
-  TextStyle(
-    fontFamily = onboardingFontFamily,
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 24.sp,
-    lineHeight = 30.sp,
-    letterSpacing = (-0.5).sp,
-  )
-
-private val onboardingHeadlineStyle =
-  TextStyle(
-    fontFamily = onboardingFontFamily,
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 16.sp,
-    lineHeight = 22.sp,
-    letterSpacing = (-0.1).sp,
-  )
-
-private val onboardingBodyStyle =
-  TextStyle(
-    fontFamily = onboardingFontFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 15.sp,
-    lineHeight = 22.sp,
-  )
-
-private val onboardingCalloutStyle =
-  TextStyle(
-    fontFamily = onboardingFontFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 14.sp,
-    lineHeight = 20.sp,
-  )
-
-private val onboardingCaption1Style =
-  TextStyle(
-    fontFamily = onboardingFontFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 12.sp,
-    lineHeight = 16.sp,
-    letterSpacing = 0.2.sp,
-  )
-
-private val onboardingCaption2Style =
-  TextStyle(
-    fontFamily = onboardingFontFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 11.sp,
-    lineHeight = 14.sp,
-    letterSpacing = 0.4.sp,
-  )
+private val onboardingDisplayStyle = TextStyle(fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 40.sp, letterSpacing = (-0.8).sp)
+private val onboardingTitle1Style = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 30.sp, letterSpacing = (-0.5).sp)
+private val onboardingHeadlineStyle = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp, letterSpacing = (-0.1).sp)
+private val onboardingBodyStyle = TextStyle(fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 22.sp)
+private val onboardingCalloutStyle = TextStyle(fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp)
+private val onboardingCaption1Style = TextStyle(fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.2.sp)
+private val onboardingCaption2Style = TextStyle(fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.4.sp)
 
 @Composable
 fun OnboardingFlow(viewModel: MainViewModel, modifier: Modifier = Modifier) {
@@ -287,7 +216,7 @@ fun OnboardingFlow(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     modifier =
       modifier
         .fillMaxSize()
-        .background(Brush.verticalGradient(onboardingBackgroundGradient)),
+        .background(MaterialTheme.colorScheme.surface),
   ) {
     Column(
       modifier =

@@ -10,6 +10,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import ai.openclaw.android.SecurePrefsThemeMode
 
 private val LightColorScheme = lightColorScheme(
   primary = Color(0xFF006A67),
@@ -83,11 +84,17 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun OpenClawTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  themeMode: SecurePrefsThemeMode = SecurePrefsThemeMode.System,
   dynamicColor: Boolean = true,
   content: @Composable () -> Unit,
 ) {
   val context = LocalContext.current
+  val systemDarkTheme = isSystemInDarkTheme()
+  val darkTheme = when (themeMode) {
+    SecurePrefsThemeMode.System -> systemDarkTheme
+    SecurePrefsThemeMode.Light -> false
+    SecurePrefsThemeMode.Dark -> true
+  }
   val colorScheme = when {
     dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

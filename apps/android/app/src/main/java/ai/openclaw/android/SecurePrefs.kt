@@ -15,6 +15,18 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import java.util.UUID
 
+enum class SecurePrefsThemeMode(val rawValue: String) {
+  System("system"),
+  Light("light"),
+  Dark("dark");
+
+  companion object {
+    fun fromRawValue(value: String?): SecurePrefsThemeMode {
+      return entries.find { it.rawValue == value } ?: System
+    }
+  }
+}
+
 class SecurePrefs(context: Context) {
   companion object {
     val defaultWakeWords: List<String> = listOf("openclaw", "claude")
@@ -95,6 +107,10 @@ class SecurePrefs(context: Context) {
   private val _voiceWakeMode = MutableStateFlow(loadVoiceWakeMode())
   val voiceWakeMode: StateFlow<VoiceWakeMode> = _voiceWakeMode
 
+  private val _themeMode =
+    MutableStateFlow(SecurePrefsThemeMode.fromRawValue(prefs.getString("ui.themeMode", "system")))
+  val themeMode: StateFlow<SecurePrefsThemeMode> = _themeMode
+
   private val _talkEnabled = MutableStateFlow(prefs.getBoolean("talk.enabled", false))
   val talkEnabled: StateFlow<Boolean> = _talkEnabled
 
@@ -169,6 +185,11 @@ class SecurePrefs(context: Context) {
   fun setCanvasDebugStatusEnabled(value: Boolean) {
     prefs.edit { putBoolean("canvas.debugStatusEnabled", value) }
     _canvasDebugStatusEnabled.value = value
+  }
+
+  fun setThemeMode(mode: SecurePrefsThemeMode) {
+    prefs.edit { putString("ui.themeMode", mode.rawValue) }
+    _themeMode.value = mode
   }
 
   fun loadGatewayToken(): String? {

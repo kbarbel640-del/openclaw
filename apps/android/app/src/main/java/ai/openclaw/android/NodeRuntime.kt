@@ -431,6 +431,7 @@ class NodeRuntime(context: Context) {
   fun setOnboardingCompleted(value: Boolean) = prefs.setOnboardingCompleted(value)
   val lastDiscoveredStableId: StateFlow<String> = prefs.lastDiscoveredStableId
   val canvasDebugStatusEnabled: StateFlow<Boolean> = prefs.canvasDebugStatusEnabled
+  val themeMode: StateFlow<SecurePrefsThemeMode> = prefs.themeMode
 
   private var didAutoConnect = false
 
@@ -558,6 +559,10 @@ class NodeRuntime(context: Context) {
 
   fun setCanvasDebugStatusEnabled(value: Boolean) {
     prefs.setCanvasDebugStatusEnabled(value)
+  }
+
+  fun setThemeMode(mode: SecurePrefsThemeMode) {
+    prefs.setThemeMode(mode)
   }
 
   fun setMicEnabled(value: Boolean) {

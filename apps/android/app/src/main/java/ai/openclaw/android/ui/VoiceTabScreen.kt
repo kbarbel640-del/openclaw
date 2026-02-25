@@ -145,11 +145,6 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-          "VOICE",
-          style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.sp),
-          color = MaterialTheme.colorScheme.primary,
-        )
         Text("Voice mode", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
       }
       Surface(

@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import ai.openclaw.android.BuildConfig
 import ai.openclaw.android.LocationMode
 import ai.openclaw.android.MainViewModel
+import ai.openclaw.android.SecurePrefsThemeMode
 
 @Composable
 fun SettingsSheet(viewModel: MainViewModel) {
@@ -68,6 +69,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
   val locationPreciseEnabled by viewModel.locationPreciseEnabled.collectAsState()
   val preventSleep by viewModel.preventSleep.collectAsState()
   val canvasDebugStatusEnabled by viewModel.canvasDebugStatusEnabled.collectAsState()
+  val themeMode by viewModel.themeMode.collectAsState()
 
   val listState = rememberLazyListState()
   val deviceModel =
@@ -245,14 +247,6 @@ fun SettingsSheet(viewModel: MainViewModel) {
       item {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
           Text(
-            "SETTINGS",
-            style = MaterialTheme.typography.labelSmall.copy(
-              fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-              letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-            ),
-            color = MaterialTheme.colorScheme.primary,
-          )
-          Text(
             "Settings",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
@@ -264,6 +258,92 @@ fun SettingsSheet(viewModel: MainViewModel) {
           )
         }
       }
+      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
+
+      // Appearance
+      item {
+        Text(
+          "APPEARANCE",
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+          ),
+          color = MaterialTheme.colorScheme.primary,
+        )
+      }
+      item {
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+          ListItem(
+            modifier = Modifier.fillMaxWidth(),
+            headlineContent = {
+              Text(
+                "System",
+                style = MaterialTheme.typography.bodyLarge,
+              )
+            },
+            supportingContent = {
+              Text(
+                "Follow system theme setting.",
+                style = MaterialTheme.typography.bodyMedium,
+              )
+            },
+            trailingContent = {
+              RadioButton(
+                selected = themeMode == SecurePrefsThemeMode.System,
+                onClick = { viewModel.setThemeMode(SecurePrefsThemeMode.System) },
+                colors = RadioButtonDefaults.colors(),
+              )
+            },
+          )
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          ListItem(
+            modifier = Modifier.fillMaxWidth(),
+            headlineContent = {
+              Text(
+                "Light",
+                style = MaterialTheme.typography.bodyLarge,
+              )
+            },
+            supportingContent = {
+              Text(
+                "Always use light theme.",
+                style = MaterialTheme.typography.bodyMedium,
+              )
+            },
+            trailingContent = {
+              RadioButton(
+                selected = themeMode == SecurePrefsThemeMode.Light,
+                onClick = { viewModel.setThemeMode(SecurePrefsThemeMode.Light) },
+                colors = RadioButtonDefaults.colors(),
+              )
+            },
+          )
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          ListItem(
+            modifier = Modifier.fillMaxWidth(),
+            headlineContent = {
+              Text(
+                "Dark",
+                style = MaterialTheme.typography.bodyLarge,
+              )
+            },
+            supportingContent = {
+              Text(
+                "Always use dark theme.",
+                style = MaterialTheme.typography.bodyMedium,
+              )
+            },
+            trailingContent = {
+              RadioButton(
+                selected = themeMode == SecurePrefsThemeMode.Dark,
+                onClick = { viewModel.setThemeMode(SecurePrefsThemeMode.Dark) },
+                colors = RadioButtonDefaults.colors(),
+              )
+            },
+          )
+        }
+      }
+
       item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
 
       // Order parity: Node → Voice → Camera → Messaging → Location → Screen.
