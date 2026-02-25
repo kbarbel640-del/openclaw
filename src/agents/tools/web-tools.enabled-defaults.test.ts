@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { withFetchPreconnect } from "../../test-utils/fetch-mock.js";
 import { createWebFetchTool, createWebSearchTool } from "./web-tools.js";
 
@@ -100,12 +100,7 @@ describe("web tools defaults", () => {
 describe("web_search country and language parameters", () => {
   const priorFetch = global.fetch;
 
-  beforeEach(() => {
-    vi.stubEnv("BRAVE_API_KEY", "test-key");
-  });
-
   afterEach(() => {
-    vi.unstubAllEnvs();
     global.fetch = priorFetch;
   });
 
@@ -118,7 +113,18 @@ describe("web_search country and language parameters", () => {
     }>,
   ) {
     const mockFetch = installMockFetch({ web: { results: [] } });
-    const tool = createWebSearchTool({ config: undefined, sandboxed: true });
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              apiKey: "test-key",
+            },
+          },
+        },
+      },
+      sandboxed: true,
+    });
     expect(tool).not.toBeNull();
     await tool?.execute?.("call-1", { query: "test", ...params });
     expect(mockFetch).toHaveBeenCalled();
@@ -137,7 +143,18 @@ describe("web_search country and language parameters", () => {
 
   it("rejects invalid freshness values", async () => {
     const mockFetch = installMockFetch({ web: { results: [] } });
-    const tool = createWebSearchTool({ config: undefined, sandboxed: true });
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              apiKey: "test-key",
+            },
+          },
+        },
+      },
+      sandboxed: true,
+    });
     const result = await tool?.execute?.("call-1", { query: "test", freshness: "yesterday" });
 
     expect(mockFetch).not.toHaveBeenCalled();

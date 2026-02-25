@@ -1,3 +1,4 @@
+import { resolveMemoryEmbeddingModel, type MemoryEmbeddingProviderId } from "openclaw/plugin-sdk";
 import { describe, expect, it } from "vitest";
 import { memorySupabaseConfigSchema } from "./config.js";
 import {
@@ -69,20 +70,23 @@ describe("memory-supabase config schema", () => {
     expect(parsed.maxRecallResults).toBe(5);
   });
 
-  it("allows provider auth resolution without embedding.apiKey", () => {
-    const parsed = memorySupabaseConfigSchema.parse({
-      supabase: {
-        url: "https://example.supabase.co",
-        serviceKey: "service-role-key",
-      },
-      embedding: {
-        provider: "gemini",
-      },
-    });
-    expect(parsed.embedding.provider).toBe("gemini");
-    expect(parsed.embedding.apiKey).toBeUndefined();
-    expect(parsed.embedding.model).toBe("gemini-embedding-001");
-  });
+  it.each(["openai", "gemini", "voyage", "mistral", "local"] as const)(
+    "allows provider auth resolution without embedding.apiKey (%s)",
+    (provider: MemoryEmbeddingProviderId) => {
+      const parsed = memorySupabaseConfigSchema.parse({
+        supabase: {
+          url: "https://example.supabase.co",
+          serviceKey: "service-role-key",
+        },
+        embedding: {
+          provider,
+        },
+      });
+      expect(parsed.embedding.provider).toBe(provider);
+      expect(parsed.embedding.apiKey).toBeUndefined();
+      expect(parsed.embedding.model).toBe(resolveMemoryEmbeddingModel(provider));
+    },
+  );
 
   it("resolves env vars", () => {
     process.env.TEST_SUPABASE_URL = "https://env.supabase.co";

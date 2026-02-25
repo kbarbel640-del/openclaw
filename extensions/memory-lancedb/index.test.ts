@@ -11,6 +11,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { resolveMemoryEmbeddingModel, type MemoryEmbeddingProviderId } from "openclaw/plugin-sdk";
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-key";
@@ -84,20 +85,23 @@ describe("memory plugin e2e", () => {
     delete process.env.TEST_MEMORY_API_KEY;
   });
 
-  test("config schema allows provider auth resolution without embedding.apiKey", async () => {
-    const { default: memoryPlugin } = await import("./index.js");
+  test.each(["openai", "gemini", "voyage", "mistral", "local"] as const)(
+    "config schema allows provider auth resolution without embedding.apiKey (%s)",
+    async (provider: MemoryEmbeddingProviderId) => {
+      const { default: memoryPlugin } = await import("./index.js");
 
-    const config = memoryPlugin.configSchema?.parse?.({
-      embedding: {
-        provider: "gemini",
-      },
-      dbPath,
-    });
+      const config = memoryPlugin.configSchema?.parse?.({
+        embedding: {
+          provider,
+        },
+        dbPath,
+      });
 
-    expect(config?.embedding?.provider).toBe("gemini");
-    expect(config?.embedding?.apiKey).toBeUndefined();
-    expect(config?.embedding?.model).toBe("gemini-embedding-001");
-  });
+      expect(config?.embedding?.provider).toBe(provider);
+      expect(config?.embedding?.apiKey).toBeUndefined();
+      expect(config?.embedding?.model).toBe(resolveMemoryEmbeddingModel(provider));
+    },
+  );
 
   test("config schema validates captureMaxChars range", async () => {
     const { default: memoryPlugin } = await import("./index.js");
