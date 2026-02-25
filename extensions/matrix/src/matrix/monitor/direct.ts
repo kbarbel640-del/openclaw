@@ -83,12 +83,6 @@ export function createDirectRoomTracker(client: MatrixClient, opts: DirectRoomTr
         return true;
       }
 
-      const memberCount = await resolveMemberCount(roomId);
-      if (memberCount === 2) {
-        log(`matrix: dm detected via member count room=${roomId} members=${memberCount}`);
-        return true;
-      }
-
       const selfUserId = params.selfUserId ?? (await ensureSelfUserId());
       const directViaState =
         (await hasDirectFlag(roomId, senderId)) || (await hasDirectFlag(roomId, selfUserId ?? ""));
@@ -97,6 +91,11 @@ export function createDirectRoomTracker(client: MatrixClient, opts: DirectRoomTr
         return true;
       }
 
+      // Member count is no longer used for DM classification — only for diagnostic logging.
+      // The memberCount === 2 heuristic was removed because it misclassifies 2-person group
+      // rooms (admin channels, monitoring rooms) as DMs. Protocol-level signals (m.direct,
+      // is_direct) are authoritative; member count only added false positives.
+      const memberCount = await resolveMemberCount(roomId);
       log(`matrix: dm check room=${roomId} result=group members=${memberCount ?? "unknown"}`);
       return false;
     },
