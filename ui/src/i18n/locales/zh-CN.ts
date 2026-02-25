@@ -115,6 +115,18 @@ export const zh_CN: TranslationMap = {
     focusToggle: "切换专注模式 (隐藏侧边栏 + 页面标题)",
     onboardingDisabled: "引导期间禁用",
   },
+  instances: {
+    title: "已连接实例",
+    subtitle: "来自网关和客户端的在线信号。",
+    refresh: "刷新",
+    loading: "加载中…",
+    noInstances: "尚未报告任何实例。",
+    unknownHost: "未知主机",
+    scopes: "作用域",
+    scopesCount: "{count} 个作用域",
+    lastInput: "最后输入",
+    reason: "原因",
+  },
   config: {
     title: "设置",
     searchPlaceholder: "搜索设置...",
