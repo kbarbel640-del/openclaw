@@ -8,7 +8,7 @@
  * @module infra/docker-paths
  */
 
-import type { OpenClawConfig } from "../config/zod-schema.js";
+import type { OpenClawSchema } from "../config/zod-schema.js";
 
 /**
  * Resolve the host state directory from config or environment.
