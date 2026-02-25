@@ -29,6 +29,12 @@ import {
   buildTogetherModelDefinition,
 } from "./together-models.js";
 import { discoverVeniceModels, VENICE_BASE_URL } from "./venice-models.js";
+import {
+  discoverMorpheusModels,
+  MORPHEUS_BASE_URL,
+  MORPHEUS_MODEL_CATALOG,
+  buildMorpheusModelDefinition,
+} from "./morpheus-models.js";
 
 type ModelsConfig = NonNullable<OpenClawConfig["models"]>;
 export type ProviderConfig = NonNullable<ModelsConfig["providers"]>[string];
@@ -545,6 +551,15 @@ async function buildVeniceProvider(): Promise<ProviderConfig> {
   };
 }
 
+async function buildMorpheusProvider(): Promise<ProviderConfig> {
+  const models = await discoverMorpheusModels();
+  return {
+    baseUrl: MORPHEUS_BASE_URL,
+    api: "openai-completions",
+    models,
+  };
+}
+
 async function buildOllamaProvider(configuredBaseUrl?: string): Promise<ProviderConfig> {
   const models = await discoverOllamaModels(configuredBaseUrl);
   return {
@@ -699,6 +714,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "venice", store: authStore });
   if (veniceKey) {
     providers.venice = { ...(await buildVeniceProvider()), apiKey: veniceKey };
+  }
+
+  const morpheusKey =
+    resolveEnvApiKeyVarName("morpheus") ??
+    resolveApiKeyFromProfiles({ provider: "morpheus", store: authStore });
+  if (morpheusKey) {
+    providers.morpheus = { ...(await buildMorpheusProvider()), apiKey: morpheusKey };
   }
 
   const qwenProfiles = listProfilesForProvider(authStore, "qwen-portal");

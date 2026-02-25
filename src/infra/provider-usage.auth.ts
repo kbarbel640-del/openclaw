@@ -93,6 +93,13 @@ function resolveXiaomiApiKey(): string | undefined {
   });
 }
 
+function resolveMorpheusApiKey(): string | undefined {
+  return resolveProviderApiKeyFromConfigAndStore({
+    providerId: "morpheus",
+    envDirect: [process.env.MORPHEUS_API_KEY, process.env.MOR_API_KEY],
+  });
+}
+
 function resolveProviderApiKeyFromConfigAndStore(params: {
   providerId: UsageProviderId;
   envDirect: Array<string | undefined>;
@@ -250,6 +257,13 @@ export async function resolveProviderAuths(params: {
     }
     if (provider === "xiaomi") {
       const apiKey = resolveXiaomiApiKey();
+      if (apiKey) {
+        auths.push({ provider, token: apiKey });
+      }
+      continue;
+    }
+    if (provider === "morpheus") {
+      const apiKey = resolveMorpheusApiKey();
       if (apiKey) {
         auths.push({ provider, token: apiKey });
       }
