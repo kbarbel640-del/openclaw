@@ -643,8 +643,16 @@ function resolveConfigForRead(
   env: NodeJS.ProcessEnv,
 ): ConfigReadResolution {
   // Apply config.env to process.env BEFORE substitution so ${VAR} can reference config-defined vars.
+  // Pre-resolve ${VAR} references within the env block itself using the current env first, so
+  // that indirect references like `"ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY_CO}"` are expanded
+  // before being written to the process environment (issue #26460).
   if (resolvedIncludes && typeof resolvedIncludes === "object" && "env" in resolvedIncludes) {
-    applyConfigEnvVars(resolvedIncludes as OpenClawConfig, env);
+    const rawCfg = resolvedIncludes as OpenClawConfig;
+    const resolvedEnvBlock = resolveConfigEnvVars({ env: rawCfg.env }, env) as Pick<
+      OpenClawConfig,
+      "env"
+    >;
+    applyConfigEnvVars(resolvedEnvBlock as OpenClawConfig, env);
   }
 
   return {

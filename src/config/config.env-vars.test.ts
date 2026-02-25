@@ -2,9 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadDotEnv } from "../infra/dotenv.js";
+import { createConfigIO } from "./io.js";
 import { resolveConfigEnvVars } from "./env-substitution.js";
 import { applyConfigEnvVars, collectConfigRuntimeEnvVars } from "./env-vars.js";
-import { withEnvOverride, withTempHome } from "./test-helpers.js";
+import { withEnvOverride, withTempHome, withTempHomeConfig } from "./test-helpers.js";
 import type { OpenClawConfig } from "./types.js";
 
 describe("config env vars", () => {
@@ -83,6 +84,55 @@ describe("config env vars", () => {
       expect(entries[" BAD KEY"]).toBeUndefined();
       expect(entries["NOT-PORTABLE"]).toBeUndefined();
     });
+  });
+
+  it("resolves ${VAR} references within env block values before applying to process.env (issue #26460)", async () => {
+    // Simulates: env: { ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY_CO}" }
+    // where ANTHROPIC_API_KEY_CO is already in process.env.
+    // Before the fix, the literal "${ANTHROPIC_API_KEY_CO}" string was written to
+    // process.env.ANTHROPIC_API_KEY instead of the resolved value.
+    await withTempHomeConfig(
+      {
+        env: {
+          ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY_CO}",
+        },
+      },
+      async ({ configPath }) => {
+        await withEnvOverride(
+          { ANTHROPIC_API_KEY: undefined, ANTHROPIC_API_KEY_CO: "real-api-key-from-co" },
+          async () => {
+            const io = createConfigIO({ configPath });
+            const snapshot = await io.readConfigFileSnapshot();
+            expect(snapshot.valid).toBe(true);
+            // The env block value should have been resolved before being applied to process.env.
+            // process.env.ANTHROPIC_API_KEY must hold the actual value, not the literal reference.
+            expect(process.env.ANTHROPIC_API_KEY).toBe("real-api-key-from-co");
+          },
+        );
+      },
+    );
+  });
+
+  it("resolves ${VAR} references within env.vars before applying to process.env (issue #26460)", async () => {
+    await withTempHomeConfig(
+      {
+        env: {
+          vars: {
+            OPENROUTER_API_KEY: "${OPENROUTER_API_KEY_SECRET}",
+          },
+        },
+      },
+      async ({ configPath }) => {
+        await withEnvOverride(
+          { OPENROUTER_API_KEY: undefined, OPENROUTER_API_KEY_SECRET: "or-key-resolved" },
+          async () => {
+            const io = createConfigIO({ configPath });
+            await io.readConfigFileSnapshot();
+            expect(process.env.OPENROUTER_API_KEY).toBe("or-key-resolved");
+          },
+        );
+      },
+    );
   });
 
   it("loads ${VAR} substitutions from ~/.openclaw/.env on repeated runtime loads", async () => {
