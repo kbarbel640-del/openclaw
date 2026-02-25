@@ -271,6 +271,7 @@ Fetch a URL and extract readable content.
 ### web_fetch requirements
 
 - `tools.web.fetch.enabled` must not be `false` (default: enabled)
+- Optional OpenGraph.io fallback: set `tools.web.fetch.opengraph.apiKey` or `OPENGRAPH_APP_ID`. Includes AI-powered prompt injection protection.
 - Optional Firecrawl fallback: set `tools.web.fetch.firecrawl.apiKey` or `FIRECRAWL_API_KEY`.
 
 ### web_fetch config
@@ -289,6 +290,14 @@ Fetch a URL and extract readable content.
         maxRedirects: 3,
         userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         readability: true,
+        opengraph: {
+          enabled: true,
+          apiKey: "OPENGRAPH_APP_ID_HERE", // optional if OPENGRAPH_APP_ID is set
+          baseUrl: "https://opengraph.io",
+          aiSanitize: true,       // AI-powered prompt injection protection
+          aiSanitizeMode: "sanitize", // "sanitize" or "flag"
+          timeoutSeconds: 60,
+        },
         firecrawl: {
           enabled: true,
           apiKey: "FIRECRAWL_API_KEY_HERE", // optional if FIRECRAWL_API_KEY is set
@@ -311,13 +320,15 @@ Fetch a URL and extract readable content.
 
 Notes:
 
-- `web_fetch` uses Readability (main-content extraction) first, then Firecrawl (if configured). If both fail, the tool returns an error.
+- `web_fetch` uses Readability (main-content extraction) first, then OpenGraph.io (if configured), then Firecrawl (if configured). If all fail, the tool returns an error.
+- OpenGraph.io requests include AI sanitization by default, protecting agents from prompt injection in scraped content.
 - Firecrawl requests use bot-circumvention mode and cache results by default.
 - `web_fetch` sends a Chrome-like User-Agent and `Accept-Language` by default; override `userAgent` if needed.
 - `web_fetch` blocks private/internal hostnames and re-checks redirects (limit with `maxRedirects`).
 - `maxChars` is clamped to `tools.web.fetch.maxCharsCap`.
 - `web_fetch` caps the downloaded response body size to `tools.web.fetch.maxResponseBytes` before parsing; oversized responses are truncated and include a warning.
 - `web_fetch` is best-effort extraction; some sites will need the browser tool.
+- See [OpenGraph.io](/tools/opengraph) for setup and AI sanitization details.
 - See [Firecrawl](/tools/firecrawl) for key setup and service details.
 - Responses are cached (default 15 minutes) to reduce repeated fetches.
 - If you use tool profiles/allowlists, add `web_search`/`web_fetch` or `group:web`.

@@ -506,6 +506,20 @@ export type ToolsConfig = {
         /** Timeout in seconds for Firecrawl requests. */
         timeoutSeconds?: number;
       };
+      opengraph?: {
+        /** Enable OpenGraph.io extraction (default: true when apiKey is set). */
+        enabled?: boolean;
+        /** OpenGraph.io app_id (optional; defaults to OPENGRAPH_APP_ID env var). */
+        apiKey?: string;
+        /** OpenGraph.io base URL (default: https://opengraph.io). */
+        baseUrl?: string;
+        /** Enable AI-powered prompt injection sanitization (default: true). */
+        aiSanitize?: boolean;
+        /** AI sanitize mode: "sanitize" returns cleaned content, "flag" warns but returns original (default: "sanitize"). */
+        aiSanitizeMode?: "sanitize" | "flag";
+        /** Timeout in seconds for OpenGraph.io requests. */
+        timeoutSeconds?: number;
+      };
     };
   };
   media?: MediaToolsConfig;

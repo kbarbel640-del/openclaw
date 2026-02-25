@@ -41,6 +41,7 @@ const DEFAULT_ERROR_MAX_CHARS = 4_000;
 const DEFAULT_ERROR_MAX_BYTES = 64_000;
 const DEFAULT_FIRECRAWL_BASE_URL = "https://api.firecrawl.dev";
 const DEFAULT_FIRECRAWL_MAX_AGE_MS = 172_800_000;
+const DEFAULT_OPENGRAPH_BASE_URL = "https://opengraph.io";
 const DEFAULT_FETCH_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
@@ -187,6 +188,74 @@ function resolveFirecrawlMaxAgeMsOrDefault(firecrawl?: FirecrawlFetchConfig): nu
     return resolved;
   }
   return DEFAULT_FIRECRAWL_MAX_AGE_MS;
+}
+
+type OpengraphFetchConfig =
+  | {
+      enabled?: boolean;
+      apiKey?: string;
+      baseUrl?: string;
+      aiSanitize?: boolean;
+      aiSanitizeMode?: "sanitize" | "flag";
+      timeoutSeconds?: number;
+    }
+  | undefined;
+
+function resolveOpengraphConfig(fetch?: WebFetchConfig): OpengraphFetchConfig {
+  if (!fetch || typeof fetch !== "object") {
+    return undefined;
+  }
+  const opengraph = "opengraph" in fetch ? fetch.opengraph : undefined;
+  if (!opengraph || typeof opengraph !== "object") {
+    return undefined;
+  }
+  return opengraph as OpengraphFetchConfig;
+}
+
+function resolveOpengraphApiKey(opengraph?: OpengraphFetchConfig): string | undefined {
+  const fromConfig =
+    opengraph && "apiKey" in opengraph && typeof opengraph.apiKey === "string"
+      ? normalizeSecretInput(opengraph.apiKey)
+      : "";
+  const fromEnv = normalizeSecretInput(process.env.OPENGRAPH_APP_ID);
+  return fromConfig || fromEnv || undefined;
+}
+
+function resolveOpengraphEnabled(params: {
+  opengraph?: OpengraphFetchConfig;
+  apiKey?: string;
+}): boolean {
+  if (typeof params.opengraph?.enabled === "boolean") {
+    return params.opengraph.enabled;
+  }
+  return Boolean(params.apiKey);
+}
+
+function resolveOpengraphBaseUrl(opengraph?: OpengraphFetchConfig): string {
+  const raw =
+    opengraph && "baseUrl" in opengraph && typeof opengraph.baseUrl === "string"
+      ? opengraph.baseUrl.trim()
+      : "";
+  return raw || DEFAULT_OPENGRAPH_BASE_URL;
+}
+
+function resolveOpengraphAiSanitize(opengraph?: OpengraphFetchConfig): boolean {
+  if (typeof opengraph?.aiSanitize === "boolean") {
+    return opengraph.aiSanitize;
+  }
+  return true;
+}
+
+function resolveOpengraphAiSanitizeMode(
+  opengraph?: OpengraphFetchConfig,
+): "sanitize" | "flag" {
+  if (
+    opengraph?.aiSanitizeMode === "sanitize" ||
+    opengraph?.aiSanitizeMode === "flag"
+  ) {
+    return opengraph.aiSanitizeMode;
+  }
+  return "sanitize";
 }
 
 function resolveMaxChars(value: unknown, fallback: number, cap: number): number {
@@ -425,6 +494,99 @@ export async function fetchFirecrawlContent(params: {
   };
 }
 
+export async function fetchOpengraphContent(params: {
+  url: string;
+  extractMode: ExtractMode;
+  apiKey: string;
+  baseUrl: string;
+  aiSanitize: boolean;
+  aiSanitizeMode: "sanitize" | "flag";
+  timeoutSeconds: number;
+}): Promise<{
+  text: string;
+  title?: string;
+  finalUrl?: string;
+  status?: number;
+  warning?: string;
+}> {
+  const encodedUrl = encodeURIComponent(params.url);
+  const baseUrl = params.baseUrl.replace(/\/+$/, "");
+  const queryParams = new URLSearchParams({
+    app_id: params.apiKey,
+    html_elements: "h1,h2,h3,p,li,td,th,pre,code,blockquote",
+  });
+  if (params.aiSanitize) {
+    queryParams.set("ai_sanitize", "true");
+  }
+  const endpoint = `${baseUrl}/api/1.1/extract/${encodedUrl}?${queryParams.toString()}`;
+
+  const res = await fetch(endpoint, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    signal: withTimeout(undefined, params.timeoutSeconds * 1000),
+  });
+
+  const payload = (await res.json()) as {
+    error?: boolean;
+    message?: string;
+    htmlContent?: string;
+    allTags?: Array<{ tag?: string; content?: string }>;
+    aiSanitize?: {
+      injectionDetected?: boolean;
+      safeContent?: string;
+      flaggedContent?: string;
+    };
+    hybridGraph?: {
+      title?: string;
+      url?: string;
+    };
+  };
+
+  if (!res.ok || payload?.error) {
+    const detail = payload?.message ?? "";
+    throw new Error(
+      `OpenGraph.io fetch failed (${res.status}): ${wrapWebContent(detail || res.statusText, "web_fetch")}`.trim(),
+    );
+  }
+
+  let rawText = payload.htmlContent ?? "";
+
+  // Handle AI sanitization results
+  let warning: string | undefined;
+  if (params.aiSanitize && payload.aiSanitize?.injectionDetected) {
+    logDebug(
+      `[web-fetch] OpenGraph.io detected prompt injection in ${redactUrlForDebugLog(params.url)}`,
+    );
+    warning = "OpenGraph.io AI sanitizer detected potential prompt injection in this content.";
+    if (params.aiSanitizeMode === "sanitize" && payload.aiSanitize.safeContent) {
+      rawText = payload.aiSanitize.safeContent;
+    }
+    // In "flag" mode, keep original content but pass the warning through
+  } else if (params.aiSanitize && payload.aiSanitize?.safeContent) {
+    // No injection detected but sanitized content available — use it for consistency
+    rawText = payload.aiSanitize.safeContent;
+  }
+
+  const text = params.extractMode === "text" ? markdownToText(rawText) : rawText;
+
+  return {
+    text,
+    title: payload.hybridGraph?.title,
+    finalUrl: payload.hybridGraph?.url,
+    status: res.status,
+    warning,
+  };
+}
+
+type OpengraphRuntimeParams = {
+  opengraphEnabled: boolean;
+  opengraphApiKey?: string;
+  opengraphBaseUrl: string;
+  opengraphAiSanitize: boolean;
+  opengraphAiSanitizeMode: "sanitize" | "flag";
+  opengraphTimeoutSeconds: number;
+};
+
 type FirecrawlRuntimeParams = {
   firecrawlEnabled: boolean;
   firecrawlApiKey?: string;
@@ -436,7 +598,7 @@ type FirecrawlRuntimeParams = {
   firecrawlTimeoutSeconds: number;
 };
 
-type WebFetchRuntimeParams = FirecrawlRuntimeParams & {
+type WebFetchRuntimeParams = FirecrawlRuntimeParams & OpengraphRuntimeParams & {
   url: string;
   extractMode: ExtractMode;
   maxChars: number;
@@ -465,6 +627,96 @@ function toFirecrawlContentParams(
     storeInCache: params.firecrawlStoreInCache,
     timeoutSeconds: params.firecrawlTimeoutSeconds,
   };
+}
+
+function toOpengraphContentParams(
+  params: OpengraphRuntimeParams & { url: string; extractMode: ExtractMode },
+): Parameters<typeof fetchOpengraphContent>[0] | null {
+  if (!params.opengraphEnabled || !params.opengraphApiKey) {
+    return null;
+  }
+  return {
+    url: params.url,
+    extractMode: params.extractMode,
+    apiKey: params.opengraphApiKey,
+    baseUrl: params.opengraphBaseUrl,
+    aiSanitize: params.opengraphAiSanitize,
+    aiSanitizeMode: params.opengraphAiSanitizeMode,
+    timeoutSeconds: params.opengraphTimeoutSeconds,
+  };
+}
+
+function buildOpengraphWebFetchPayload(params: {
+  opengraph: Awaited<ReturnType<typeof fetchOpengraphContent>>;
+  rawUrl: string;
+  finalUrlFallback: string;
+  statusFallback: number;
+  extractMode: ExtractMode;
+  maxChars: number;
+  tookMs: number;
+}): Record<string, unknown> {
+  const wrapped = wrapWebFetchContent(params.opengraph.text, params.maxChars);
+  const wrappedTitle = params.opengraph.title
+    ? wrapWebFetchField(params.opengraph.title)
+    : undefined;
+  return {
+    url: params.rawUrl,
+    finalUrl: params.opengraph.finalUrl || params.finalUrlFallback,
+    status: params.opengraph.status ?? params.statusFallback,
+    contentType: "text/markdown",
+    title: wrappedTitle,
+    extractMode: params.extractMode,
+    extractor: "opengraph",
+    externalContent: {
+      untrusted: true,
+      source: "web_fetch",
+      wrapped: true,
+    },
+    truncated: wrapped.truncated,
+    length: wrapped.wrappedLength,
+    rawLength: wrapped.rawLength,
+    wrappedLength: wrapped.wrappedLength,
+    fetchedAt: new Date().toISOString(),
+    tookMs: params.tookMs,
+    text: wrapped.text,
+    warning: wrapWebFetchField(params.opengraph.warning),
+  };
+}
+
+async function maybeFetchOpengraphWebFetchPayload(
+  params: WebFetchRuntimeParams & {
+    urlToFetch: string;
+    finalUrlFallback: string;
+    statusFallback: number;
+    cacheKey: string;
+    tookMs: number;
+  },
+): Promise<Record<string, unknown> | null> {
+  const opengraphParams = toOpengraphContentParams({
+    ...params,
+    url: params.urlToFetch,
+    extractMode: params.extractMode,
+  });
+  if (!opengraphParams) {
+    return null;
+  }
+
+  try {
+    const opengraph = await fetchOpengraphContent(opengraphParams);
+    const payload = buildOpengraphWebFetchPayload({
+      opengraph,
+      rawUrl: params.url,
+      finalUrlFallback: params.finalUrlFallback,
+      statusFallback: params.statusFallback,
+      extractMode: params.extractMode,
+      maxChars: params.maxChars,
+      tookMs: params.tookMs,
+    });
+    writeCache(FETCH_CACHE, params.cacheKey, payload, params.cacheTtlMs);
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 async function maybeFetchFirecrawlWebFetchPayload(
@@ -550,30 +802,40 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
     if (error instanceof SsrFBlockedError) {
       throw error;
     }
-    const payload = await maybeFetchFirecrawlWebFetchPayload({
+    const fallbackParams = {
       ...params,
       urlToFetch: finalUrl,
       finalUrlFallback: finalUrl,
       statusFallback: 200,
       cacheKey,
       tookMs: Date.now() - start,
-    });
-    if (payload) {
-      return payload;
+    };
+    const ogPayload = await maybeFetchOpengraphWebFetchPayload(fallbackParams);
+    if (ogPayload) {
+      return ogPayload;
+    }
+    const fcPayload = await maybeFetchFirecrawlWebFetchPayload(fallbackParams);
+    if (fcPayload) {
+      return fcPayload;
     }
     throw error;
   }
 
   try {
     if (!res.ok) {
-      const payload = await maybeFetchFirecrawlWebFetchPayload({
+      const errorFallbackParams = {
         ...params,
         urlToFetch: params.url,
         finalUrlFallback: finalUrl,
         statusFallback: res.status,
         cacheKey,
         tookMs: Date.now() - start,
-      });
+      };
+      const ogPayload = await maybeFetchOpengraphWebFetchPayload(errorFallbackParams);
+      if (ogPayload) {
+        return ogPayload;
+      }
+      const payload = await maybeFetchFirecrawlWebFetchPayload(errorFallbackParams);
       if (payload) {
         return payload;
       }
@@ -617,15 +879,22 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
           title = readable.title;
           extractor = "readability";
         } else {
-          const firecrawl = await tryFirecrawlFallback({ ...params, url: finalUrl });
-          if (firecrawl) {
-            text = firecrawl.text;
-            title = firecrawl.title;
-            extractor = "firecrawl";
+          const opengraph = await tryOpengraphFallback({ ...params, url: finalUrl });
+          if (opengraph) {
+            text = opengraph.text;
+            title = opengraph.title;
+            extractor = "opengraph";
           } else {
-            throw new Error(
-              "Web fetch extraction failed: Readability and Firecrawl returned no content.",
-            );
+            const firecrawl = await tryFirecrawlFallback({ ...params, url: finalUrl });
+            if (firecrawl) {
+              text = firecrawl.text;
+              title = firecrawl.title;
+              extractor = "firecrawl";
+            } else {
+              throw new Error(
+                "Web fetch extraction failed: Readability, OpenGraph.io, and Firecrawl returned no content.",
+              );
+            }
           }
         }
       } else {
@@ -674,6 +943,21 @@ async function runWebFetch(params: WebFetchRuntimeParams): Promise<Record<string
     if (release) {
       await release();
     }
+  }
+}
+
+async function tryOpengraphFallback(
+  params: OpengraphRuntimeParams & { url: string; extractMode: ExtractMode },
+): Promise<{ text: string; title?: string; warning?: string } | null> {
+  const opengraphParams = toOpengraphContentParams(params);
+  if (!opengraphParams) {
+    return null;
+  }
+  try {
+    const result = await fetchOpengraphContent(opengraphParams);
+    return { text: result.text, title: result.title, warning: result.warning };
+  } catch {
+    return null;
   }
 }
 
@@ -728,6 +1012,16 @@ export function createWebFetchTool(options?: {
     firecrawl?.timeoutSeconds ?? fetch?.timeoutSeconds,
     DEFAULT_TIMEOUT_SECONDS,
   );
+  const opengraph = resolveOpengraphConfig(fetch);
+  const opengraphApiKey = resolveOpengraphApiKey(opengraph);
+  const opengraphEnabled = resolveOpengraphEnabled({ opengraph, apiKey: opengraphApiKey });
+  const opengraphBaseUrl = resolveOpengraphBaseUrl(opengraph);
+  const opengraphAiSanitize = resolveOpengraphAiSanitize(opengraph);
+  const opengraphAiSanitizeMode = resolveOpengraphAiSanitizeMode(opengraph);
+  const opengraphTimeoutSeconds = resolveTimeoutSeconds(
+    opengraph?.timeoutSeconds ?? fetch?.timeoutSeconds,
+    DEFAULT_TIMEOUT_SECONDS,
+  );
   const userAgent =
     (fetch && "userAgent" in fetch && typeof fetch.userAgent === "string" && fetch.userAgent) ||
     DEFAULT_FETCH_USER_AGENT;
@@ -766,6 +1060,12 @@ export function createWebFetchTool(options?: {
         firecrawlProxy: "auto",
         firecrawlStoreInCache: true,
         firecrawlTimeoutSeconds,
+        opengraphEnabled,
+        opengraphApiKey,
+        opengraphBaseUrl,
+        opengraphAiSanitize,
+        opengraphAiSanitizeMode,
+        opengraphTimeoutSeconds,
       });
       return jsonResult(result);
     },

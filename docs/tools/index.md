@@ -286,6 +286,7 @@ Notes:
 - Responses are cached (default 15 min).
 - For JS-heavy sites, prefer the browser tool.
 - See [Web tools](/tools/web) for setup.
+- See [OpenGraph.io](/tools/opengraph) for the optional extraction provider with AI prompt injection protection.
 - See [Firecrawl](/tools/firecrawl) for the optional anti-bot fallback.
 
 ### `browser`
