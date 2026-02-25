@@ -314,20 +314,25 @@ export function resolveHeartbeatDeliveryTarget(params: {
     });
   }
 
-  const sessionChatTypeHint =
-    target === "last" && !heartbeat?.to ? normalizeChatType(entry?.chatType) : undefined;
-  const deliveryChatType = resolveHeartbeatDeliveryChatType({
-    channel: resolvedTarget.channel,
-    to: resolved.to,
-    sessionChatType: sessionChatTypeHint,
-  });
-  if (deliveryChatType === "direct") {
-    return buildNoHeartbeatDeliveryTarget({
-      reason: "dm-blocked",
-      accountId: effectiveAccountId,
-      lastChannel: resolvedTarget.lastChannel,
-      lastAccountId: resolvedTarget.lastAccountId,
+  // Block DM delivery when routing relies on session state: either the channel
+  // is implicit (target: "last") or the channel is explicit but `to` was not
+  // provided, so it fell back to lastTo from the session.
+  const toIsImplicit = !heartbeat?.to;
+  if (target === "last" || toIsImplicit) {
+    const sessionChatTypeHint = toIsImplicit ? normalizeChatType(entry?.chatType) : undefined;
+    const deliveryChatType = resolveHeartbeatDeliveryChatType({
+      channel: resolvedTarget.channel,
+      to: resolved.to,
+      sessionChatType: sessionChatTypeHint,
     });
+    if (deliveryChatType === "direct") {
+      return buildNoHeartbeatDeliveryTarget({
+        reason: "dm-blocked",
+        accountId: effectiveAccountId,
+        lastChannel: resolvedTarget.lastChannel,
+        lastAccountId: resolvedTarget.lastAccountId,
+      });
+    }
   }
 
   let reason: string | undefined;
