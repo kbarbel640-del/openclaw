@@ -28,17 +28,28 @@ export function registerPendingMessage(messageId: string, chatId: string, accoun
     accountId,
     receivedAt: Date.now(),
   });
+  // FR-006 log: message enters the timeout monitor
+  console.log(
+    `[feishu][timeout-monitor][FR-006] registered ${messageId} for chat ${chatId} (total pending: ${pendingMessages.size})`,
+  );
 }
 
 export function markProcessingStarted(messageId: string) {
   const pending = pendingMessages.get(messageId);
   if (pending) {
     pending.processingStartedAt = Date.now();
+    console.log(`[feishu][timeout-monitor][FR-006] processing started for ${messageId}`);
   }
 }
 
 export function removePendingMessage(messageId: string) {
+  const existed = pendingMessages.has(messageId);
   pendingMessages.delete(messageId);
+  if (existed) {
+    console.log(
+      `[feishu][timeout-monitor][FR-006] removed ${messageId} (total pending: ${pendingMessages.size})`,
+    );
+  }
 }
 
 export function startTimeoutMonitor(cfg: ClawdbotConfig, log?: (msg: string) => void) {

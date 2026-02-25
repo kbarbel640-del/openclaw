@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { ClawdbotConfig, RuntimeEnv } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount } from "./accounts.js";
@@ -30,15 +33,54 @@ function initFeishuHistoryDb(db: DatabaseSync) {
 }
 
 /**
- * Returns the current node:sqlite connection from the core if provided,
- * or fallback to an in-memory db wrapper (if isolated).
- * Usually we pass down a core or db instance from monitor.
+ * Resolve the directory where OpenClaw stores its state files.
+ * Matches the core's resolveStateDir() logic: respects OPENCLAW_STATE_DIR and
+ * CLAWDBOT_STATE_DIR env vars, then falls back to ~/.openclaw / ~/.clawdbot.
  */
-function attemptRequireSqlite(): DatabaseSync | undefined {
+function resolveOpenClawStateDir(): string {
+  const override = process.env.OPENCLAW_STATE_DIR?.trim() || process.env.CLAWDBOT_STATE_DIR?.trim();
+  if (override) return path.resolve(override);
+  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
+  // Prefer ~/.openclaw if it exists, otherwise fallback to new default anyway
+  const candidates = [".openclaw", ".clawdbot", ".moldbot", ".moltbot"];
+  for (const dir of candidates) {
+    const p = path.join(home, dir);
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {
+      // ignore
+    }
+  }
+  return path.join(home, ".openclaw");
+}
+
+/**
+ * Path to the feishu plugin's persistent SQLite database.
+ * Stored alongside other OpenClaw state files so it survives restarts.
+ */
+function resolveFeishuHistoryDbPath(): string {
+  return path.join(resolveOpenClawStateDir(), "feishu-history.db");
+}
+
+/**
+ * Open (or create) the persistent SQLite database for feishu history.
+ * Returns undefined if node:sqlite is not available (Node < 22.5).
+ */
+let _dbMode: "persistent" | "unavailable" = "unavailable";
+
+function openPersistentDb(): DatabaseSync | undefined {
   try {
-    const sqlite = require("node:sqlite");
-    return new sqlite.DatabaseSync(":memory:"); // Fallback
-  } catch {
+    const { DatabaseSync } = require("node:sqlite");
+    const dbPath = resolveFeishuHistoryDbPath();
+    // Ensure parent directory exists
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    const db = new DatabaseSync(dbPath);
+    _dbMode = "persistent";
+    console.log(`[feishu][history] SQLite opened at ${dbPath} (FR-002 persistence enabled)`);
+    return db;
+  } catch (err) {
+    _dbMode = "unavailable";
+    console.log(`[feishu][history] SQLite unavailable — FR-002 message recovery disabled: ${err}`);
     return undefined;
   }
 }
@@ -47,7 +89,7 @@ let sharedDb: DatabaseSync | null = null;
 
 function getDb(): DatabaseSync | undefined {
   if (sharedDb) return sharedDb;
-  const db = attemptRequireSqlite();
+  const db = openPersistentDb();
   if (db) {
     initFeishuHistoryDb(db);
     sharedDb = db;
@@ -58,15 +100,23 @@ function getDb(): DatabaseSync | undefined {
 export function setGatewayStartupTs() {
   const db = getDb();
   if (!db) return;
+  const now = Date.now();
   const stmt = db.prepare(`UPDATE feishu_gateway_timestamp SET last_startup_ts = ? WHERE id = 1`);
-  stmt.run(Date.now());
+  stmt.run(now);
+  console.log(
+    `[feishu][history] Gateway startup timestamp set: ${new Date(now).toISOString()} (db=${_dbMode})`,
+  );
 }
 
 export function setGatewayShutdownTs() {
   const db = getDb();
   if (!db) return;
+  const now = Date.now();
   const stmt = db.prepare(`UPDATE feishu_gateway_timestamp SET last_shutdown_ts = ? WHERE id = 1`);
-  stmt.run(Date.now());
+  stmt.run(now);
+  console.log(
+    `[feishu][history] Gateway shutdown timestamp set: ${new Date(now).toISOString()} (db=${_dbMode})`,
+  );
 }
 
 function getGatewayTimestamps() {
@@ -128,6 +178,10 @@ export async function recoverMissedMessages(params: {
   const { cfg, accountId, chatIds, log, error } = params;
   const { lastShutdownTs } = getGatewayTimestamps();
 
+  log?.(
+    `[feishu][history][FR-002] db=${_dbMode}, lastShutdownTs=${lastShutdownTs ? new Date(lastShutdownTs).toISOString() : "none"}, chatIds=${chatIds.length}`,
+  );
+
   if (lastShutdownTs === 0) {
     log?.(`feishu[${accountId}]: no past shutdown timestamp found, skipping recovery.`);
     return;
@@ -135,7 +189,11 @@ export async function recoverMissedMessages(params: {
 
   // Need elapsed time to be at least more than few seconds to warrant fetching
   const elapsedOffline = Date.now() - lastShutdownTs;
+  log?.(
+    `[feishu][history][FR-002] offline for ${Math.round(elapsedOffline / 1000)}s, recovering messages since ${new Date(lastShutdownTs).toISOString()}`,
+  );
   if (elapsedOffline < 5000) {
+    log?.(`[feishu][history][FR-002] offline window too short (<5s), skipping`);
     return;
   }
 

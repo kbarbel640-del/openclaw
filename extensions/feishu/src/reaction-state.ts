@@ -257,22 +257,30 @@ export class ReactionStateManager {
   }
 
   /**
-   * Clear all reaction states for a specific chat/conversation.
-   * Useful when the agent sends a final reply, meaning all queued processing is done.
+   * Clear all reaction states for a specific chat/conversation that arrived BEFORE or AT
+   * the same time as a given timestamp.
+   * Useful when the agent sends a final reply, meaning all queued processing up to this point is done.
+   * By using a cutoff timestamp, we prevent accidentally clearing the state of brand newly arrived
+   * messages that get QUEUED while the current reply is being dispatched.
    */
-  async clearForChat(chatId: string): Promise<void> {
+  async clearForChat(chatId: string, cutoffTimestamp: number): Promise<void> {
     const log = this.config.log ?? console.log;
     let clearedCount = 0;
 
     for (const [messageId, state] of this.states) {
-      if (state.chatId === chatId) {
+      // Only clean up states that belong to this chat AND were created before or at our cutoff time.
+      // Emojis created AFTER this cutoff are part of the *next* turn of conversation, not the one
+      // we are currently replying to.
+      if (state.chatId === chatId && state.createdAt <= cutoffTimestamp) {
         await this.onCompleted(messageId);
         clearedCount++;
       }
     }
 
     if (clearedCount > 0) {
-      log(`[reaction-state] Cleared ${clearedCount} states for chat ${chatId}`);
+      log(
+        `[reaction-state] Cleared ${clearedCount} merged states for chat ${chatId} (cutoff <= ${cutoffTimestamp})`,
+      );
     }
   }
 
@@ -313,14 +321,18 @@ export class ReactionStateManager {
   }
 
   /**
-   * Check if there are any OTHER messages in QUEUED or PROCESSING state for a chat.
-   * Excludes the specified messageId (the current message checking its own status).
-   * Used by bot.ts to decide whether a merged message should keep its emoji.
+   * Checks if there's any active (QUEUED or PROCESSING) message in the chat
+   * that was created BEFORE or AT the same time as `cutoffTimestamp`.
+   * Optionally exclude a specific messageId from the check.
    */
-  hasActiveInChat(chatId: string, excludeMessageId?: string): boolean {
+  hasActiveInChat(chatId: string, cutoffTimestamp: number, excludeMessageId?: string): boolean {
     for (const [messageId, state] of this.states) {
       if (messageId === excludeMessageId) continue;
-      if (state.chatId === chatId && (state.status === "QUEUED" || state.status === "PROCESSING")) {
+      if (
+        state.chatId === chatId &&
+        state.createdAt <= cutoffTimestamp &&
+        (state.status === "QUEUED" || state.status === "PROCESSING")
+      ) {
         return true;
       }
     }
