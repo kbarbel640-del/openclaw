@@ -26,6 +26,12 @@ export const SendParamsSchema = Type.Object(
     threadId: Type.Optional(Type.String()),
     /** Optional session key for mirroring delivered output back into the transcript. */
     sessionKey: Type.Optional(Type.String()),
+    /**
+     * Agent id that owns the send. When provided, media files are resolved
+     * relative to the agent's workspace directory instead of the default
+     * agent's workspace, preventing LocalMediaAccessError for custom workspaces.
+     */
+    agentId: Type.Optional(Type.String()),
     idempotencyKey: NonEmptyString,
   },
   { additionalProperties: false },

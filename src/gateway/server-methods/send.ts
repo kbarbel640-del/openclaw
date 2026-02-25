@@ -108,6 +108,7 @@ export const sendHandlers: GatewayRequestHandlers = {
       accountId?: string;
       threadId?: string;
       sessionKey?: string;
+      agentId?: string;
       idempotencyKey: string;
     };
     const idem = request.idempotencyKey;
@@ -206,7 +207,14 @@ export const sendHandlers: GatewayRequestHandlers = {
           typeof request.sessionKey === "string" && request.sessionKey.trim()
             ? request.sessionKey.trim().toLowerCase()
             : undefined;
-        const derivedAgentId = resolveSessionAgentId({ config: cfg });
+        // Prefer the caller-supplied agentId (e.g. from a non-default agent workspace)
+        // so media files resolve against the correct workspace root. Fall back to
+        // deriving from the session key or the config default.
+        const callerAgentId =
+          typeof request.agentId === "string" && request.agentId.trim()
+            ? request.agentId.trim()
+            : undefined;
+        const derivedAgentId = callerAgentId ?? resolveSessionAgentId({ config: cfg });
         // If callers omit sessionKey, derive a target session key from the outbound route.
         const derivedRoute = !providedSessionKey
           ? await resolveOutboundSessionRoute({
