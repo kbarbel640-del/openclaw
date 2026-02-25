@@ -176,7 +176,7 @@ export function inferUniqueProviderFromConfiguredModels(params: {
   model: string;
 }): string | undefined {
   const model = params.model.trim();
-  if (!model || model.includes("/")) {
+  if (!model) {
     return undefined;
   }
   const configuredModels = params.cfg.agents?.defaults?.models;

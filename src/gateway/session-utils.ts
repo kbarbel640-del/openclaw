@@ -706,6 +706,13 @@ export function resolveSessionModelIdentityRef(
     if (runtimeProvider) {
       return { provider: runtimeProvider, model: runtimeModel };
     }
+    const inferredProvider = inferUniqueProviderFromConfiguredModels({
+      cfg,
+      model: runtimeModel,
+    });
+    if (inferredProvider) {
+      return { provider: inferredProvider, model: runtimeModel };
+    }
     if (runtimeModel.includes("/")) {
       const parsedRuntime = parseModelRef(runtimeModel, DEFAULT_PROVIDER);
       if (parsedRuntime) {
@@ -713,13 +720,7 @@ export function resolveSessionModelIdentityRef(
       }
       return { model: runtimeModel };
     }
-    const inferredProvider = inferUniqueProviderFromConfiguredModels({
-      cfg,
-      model: runtimeModel,
-    });
-    return inferredProvider
-      ? { provider: inferredProvider, model: runtimeModel }
-      : { model: runtimeModel };
+    return { model: runtimeModel };
   }
   const resolved = resolveSessionModelRef(cfg, entry, agentId);
   return { provider: resolved.provider, model: resolved.model };

@@ -193,6 +193,25 @@ describe("model-selection", () => {
         }),
       ).toBeUndefined();
     });
+
+    it("infers provider for slash-containing model id when allowlist match is unique", () => {
+      const cfg = {
+        agents: {
+          defaults: {
+            models: {
+              "vercel-ai-gateway/anthropic/claude-sonnet-4-6": {},
+            },
+          },
+        },
+      } as OpenClawConfig;
+
+      expect(
+        inferUniqueProviderFromConfiguredModels({
+          cfg,
+          model: "anthropic/claude-sonnet-4-6",
+        }),
+      ).toBe("vercel-ai-gateway");
+    });
   });
 
   describe("buildModelAliasIndex", () => {

@@ -468,6 +468,31 @@ describe("resolveSessionModelIdentityRef", () => {
 
     expect(resolved).toEqual({ provider: "anthropic", model: "claude-sonnet-4-6" });
   });
+
+  test("infers wrapper provider for slash-prefixed runtime model when allowlist match is unique", () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "google-gemini-cli/gemini-3-pro-preview" },
+          models: {
+            "vercel-ai-gateway/anthropic/claude-sonnet-4-6": {},
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    const resolved = resolveSessionModelIdentityRef(cfg, {
+      sessionId: "slash-model",
+      updatedAt: Date.now(),
+      model: "anthropic/claude-sonnet-4-6",
+      modelProvider: undefined,
+    });
+
+    expect(resolved).toEqual({
+      provider: "vercel-ai-gateway",
+      model: "anthropic/claude-sonnet-4-6",
+    });
+  });
 });
 
 describe("deriveSessionTitle", () => {
@@ -717,6 +742,38 @@ describe("listSessionsFromStore search", () => {
 
     expect(result.sessions[0]?.modelProvider).toBe("anthropic");
     expect(result.sessions[0]?.model).toBe("claude-sonnet-4-6");
+  });
+
+  test("infers wrapper provider for slash-prefixed legacy runtime model when allowlist match is unique", () => {
+    const cfg = {
+      session: { mainKey: "main" },
+      agents: {
+        defaults: {
+          model: { primary: "google-gemini-cli/gemini-3-pro-preview" },
+          models: {
+            "vercel-ai-gateway/anthropic/claude-sonnet-4-6": {},
+          },
+        },
+      },
+    } as OpenClawConfig;
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {
+      "agent:main:main": {
+        sessionId: "sess-main",
+        updatedAt: now,
+        model: "anthropic/claude-sonnet-4-6",
+      } as SessionEntry,
+    };
+
+    const result = listSessionsFromStore({
+      cfg,
+      storePath: "/tmp/sessions.json",
+      store,
+      opts: {},
+    });
+
+    expect(result.sessions[0]?.modelProvider).toBe("vercel-ai-gateway");
+    expect(result.sessions[0]?.model).toBe("anthropic/claude-sonnet-4-6");
   });
 
   test("exposes unknown totals when freshness is stale or missing", () => {
