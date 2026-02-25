@@ -93,6 +93,9 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
     if (isEnabled("createForumTopic")) {
       actions.add("topic-create");
     }
+    if (gate("messages")) {
+      actions.add("read");
+    }
     return Array.from(actions);
   },
   supportsButtons: ({ cfg }) => {
@@ -193,6 +196,27 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
         },
         cfg,
         { mediaLocalRoots },
+      );
+    }
+
+    if (action === "read") {
+      const chatId =
+        readStringOrNumberParam(params, "chatId") ??
+        readStringOrNumberParam(params, "channelId") ??
+        readStringOrNumberParam(params, "to", { required: true });
+      const limit = readNumberParam(params, "limit", { integer: true });
+      const before = readNumberParam(params, "before", { integer: true });
+      const after = readNumberParam(params, "after", { integer: true });
+      return await handleTelegramAction(
+        {
+          action: "readMessages",
+          chatId,
+          limit: limit ?? undefined,
+          before: before ?? undefined,
+          after: after ?? undefined,
+          accountId: accountId ?? undefined,
+        },
+        cfg,
       );
     }
 
