@@ -172,7 +172,7 @@ vi.mock("../../auto-reply/commands-registry.js", () => {
 type RegisterFn = (params: { ctx: unknown; account: unknown }) => Promise<void>;
 let registerSlackMonitorSlashCommands: RegisterFn;
 
-const { dispatchMock } = getSlackSlashMocks();
+const { dispatchMock, readAllowFromStoreMock, upsertPairingRequestMock } = getSlackSlashMocks();
 
 beforeAll(async () => {
   ({ registerSlackMonitorSlashCommands } = (await import("./slash.js")) as unknown as {
@@ -606,6 +606,7 @@ describe("Slack native command argument menus", () => {
 
 function createPolicyHarness(overrides?: {
   groupPolicy?: "open" | "allowlist";
+  dmPolicy?: "open" | "pairing" | "allowlist" | "disabled";
   channelsConfig?: Record<string, { allow?: boolean; requireMention?: boolean }>;
   channelId?: string;
   channelName?: string;
@@ -627,13 +628,14 @@ function createPolicyHarness(overrides?: {
 
   const ctx = {
     cfg: { commands: { native: false } },
+    accountId: "acct",
     runtime: {},
     botToken: "bot-token",
     botUserId: "bot",
     teamId: "T1",
     allowFrom: overrides?.allowFrom ?? ["*"],
     dmEnabled: true,
-    dmPolicy: "open",
+    dmPolicy: overrides?.dmPolicy ?? "open",
     groupDmEnabled: false,
     groupDmChannels: [],
     defaultRequireMention: true,
@@ -833,6 +835,40 @@ describe("slack slash commands access groups", () => {
       ctx?: { CommandAuthorized?: boolean };
     };
     expect(dispatchArg?.ctx?.CommandAuthorized).toBe(false);
+  });
+
+  it("scopes DM pairing-store reads and writes to the active account", async () => {
+    const harness = createPolicyHarness({
+      allowFrom: [],
+      dmPolicy: "pairing",
+      channelId: "D401",
+      channelName: "directmessage",
+      resolveChannelName: async () => ({ name: "directmessage", type: "im" }),
+    });
+    const { respond } = await registerAndRunPolicySlash({
+      harness,
+      command: {
+        user_id: "U_ATTACKER",
+        user_name: "Mallory",
+        channel_id: "D401",
+        channel_name: "directmessage",
+      },
+    });
+
+    expect(readAllowFromStoreMock).toHaveBeenCalledWith("slack", process.env, "acct");
+    expect(upsertPairingRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "slack",
+        id: "U_ATTACKER",
+        accountId: "acct",
+      }),
+    );
+    expect(dispatchMock).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      expect.objectContaining({
+        response_type: "ephemeral",
+      }),
+    );
   });
 
   it("enforces access-group gating when lookup fails for private channels", async () => {

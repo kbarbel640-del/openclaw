@@ -338,7 +338,7 @@ export async function registerSlackMonitorSlashCommands(params: {
       const storeAllowFrom =
         ctx.dmPolicy === "allowlist"
           ? []
-          : await readChannelAllowFromStore("slack").catch(() => []);
+          : await readChannelAllowFromStore("slack", process.env, ctx.accountId).catch(() => []);
       const effectiveAllowFrom = normalizeAllowList([...ctx.allowFrom, ...storeAllowFrom]);
       const effectiveAllowFromLower = normalizeAllowListLower(effectiveAllowFrom);
 
@@ -369,6 +369,7 @@ export async function registerSlackMonitorSlashCommands(params: {
               const { code, created } = await upsertChannelPairingRequest({
                 channel: "slack",
                 id: command.user_id,
+                accountId: ctx.accountId,
                 meta: { name: senderName },
               });
               if (created) {
