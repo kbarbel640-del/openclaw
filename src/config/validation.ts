@@ -1,6 +1,8 @@
+import fs from "node:fs";
 import path from "node:path";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { CHANNEL_IDS, normalizeChatChannelId } from "../channels/registry.js";
+import { resolveBundledPluginsDir } from "../plugins/bundled-dir.js";
 import {
   normalizePluginsConfig,
   resolveEffectiveEnableState,
@@ -315,16 +317,28 @@ function validateConfigObjectWithPluginsBase(
   }
 
   const { registry, knownIds, normalizedPlugins } = ensureRegistry();
-  const pushMissingPluginIssue = (path: string, pluginId: string) => {
+  const bundledDir = resolveBundledPluginsDir();
+  const pushMissingPluginIssue = (issuePath: string, pluginId: string) => {
     if (LEGACY_REMOVED_PLUGIN_IDS.has(pluginId)) {
       warnings.push({
-        path,
+        path: issuePath,
         message: `plugin removed: ${pluginId} (stale config entry ignored; remove it from plugins config)`,
       });
       return;
     }
+    // If the plugin physically exists in the bundled extensions directory,
+    // treat it as a transient discovery failure rather than a hard error.
+    // This prevents the entire config from being rejected when plugin
+    // enumeration fails transiently (e.g. during process respawn/rebuild).
+    if (bundledDir && fs.existsSync(path.join(bundledDir, pluginId))) {
+      warnings.push({
+        path: issuePath,
+        message: `plugin not found in registry but exists on disk: ${pluginId} (transient discovery issue)`,
+      });
+      return;
+    }
     issues.push({
-      path,
+      path: issuePath,
       message: `plugin not found: ${pluginId}`,
     });
   };
