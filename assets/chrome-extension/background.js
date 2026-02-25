@@ -512,20 +512,21 @@ async function connectOrToggleForActiveTab() {
   if (!tabId) return
 
   const existing = tabs.get(tabId)
-  // Escape hatch: second click while "connecting" cancels and allows retry.
-  if (existing?.state === 'connecting') {
-    tabs.delete(tabId)
-    setBadge(tabId, 'off')
-    void chrome.action.setTitle({
-      tabId,
-      title: 'OpenClaw Browser Relay (click to attach/detach)',
-    })
-    return
-  }
-
   // Prevent concurrent operations on the same tab.
   if (tabOperationLocks.has(tabId)) return
   tabOperationLocks.add(tabId)
+
+  try {
+    // Escape hatch: second click while "connecting" cancels and allows retry.
+    if (existing?.state === 'connecting') {
+      tabs.delete(tabId)
+      setBadge(tabId, 'off')
+      void chrome.action.setTitle({
+        tabId,
+        title: 'OpenClaw Browser Relay (click to attach/detach)',
+      })
+      return
+    }
 
   try {
     if (reattachPending.has(tabId)) {
