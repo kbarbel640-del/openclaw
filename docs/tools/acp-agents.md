@@ -52,6 +52,13 @@ When thread bindings are enabled for a channel adapter, ACP sessions can be boun
 
 Thread binding support is adapter-specific. If the active channel adapter does not support thread bindings, OpenClaw returns a clear unsupported/unavailable message.
 
+Required feature flags for thread-bound ACP:
+
+- `acp.enabled=true`
+- `acp.dispatch.enabled=true`
+- Channel-adapter ACP thread-spawn flag enabled (adapter-specific)
+  - Discord: `channels.discord.threadBindings.spawnAcpSessions=true`
+
 ### Thread supporting channels
 
 - Any channel adapter that exposes session/thread binding capability.
@@ -180,6 +187,10 @@ Thread binding config is channel-adapter specific. Example for Discord:
   },
 }
 ```
+
+If thread-bound ACP spawn does not work, verify the adapter feature flag first:
+
+- Discord: `channels.discord.threadBindings.spawnAcpSessions=true`
 
 See [Configuration Reference](/gateway/configuration-reference).
 
