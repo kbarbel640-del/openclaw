@@ -1,4 +1,4 @@
-export type TtsProvider = "elevenlabs" | "openai" | "edge";
+export type TtsProvider = "elevenlabs" | "openai" | "edge" | "qwen";
 
 export type TtsMode = "final" | "all";
 
@@ -58,6 +58,14 @@ export type TtsConfig = {
     apiKey?: string;
     model?: string;
     voice?: string;
+  };
+  /** Alibaba DashScope Qwen TTS configuration. */
+  qwen?: {
+    apiKey?: string;
+    model?: string;
+    voice?: string;
+    language?: string;
+    instruction?: string;
   };
   /** Microsoft Edge (node-edge-tts) configuration. */
   edge?: {

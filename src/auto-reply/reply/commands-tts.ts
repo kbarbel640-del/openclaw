@@ -55,6 +55,7 @@ function ttsUsage(): ReplyPayload {
       `• /tts audio <text> — Generate audio from text\n\n` +
       `**Providers:**\n` +
       `• edge — Free, fast (default)\n` +
+      `• qwen — Fast, high quality (requires API key)\n` +
       `• openai — High quality (requires API key)\n` +
       `• elevenlabs — Premium voices (requires API key)\n\n` +
       `**Text Limit (default: 1500, max: 4096):**\n` +
@@ -126,7 +127,7 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
 
     if (result.success && result.audioPath) {
       // Store last attempt for `/tts status`.
-      setLastTtsAttempt({
+      setLastTtsAttempt(prefsPath, {
         timestamp: Date.now(),
         success: true,
         textLength: args.length,
@@ -142,7 +143,7 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
     }
 
     // Store failure details for `/tts status`.
-    setLastTtsAttempt({
+    setLastTtsAttempt(prefsPath, {
       timestamp: Date.now(),
       success: false,
       textLength: args.length,
@@ -161,6 +162,7 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
     if (!args.trim()) {
       const hasOpenAI = Boolean(resolveTtsApiKey(config, "openai"));
       const hasElevenLabs = Boolean(resolveTtsApiKey(config, "elevenlabs"));
+      const hasQwen = Boolean(resolveTtsApiKey(config, "qwen"));
       const hasEdge = isTtsProviderConfigured(config, "edge");
       return {
         shouldContinue: false,
@@ -168,16 +170,22 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
           text:
             `🎙️ TTS provider\n` +
             `Primary: ${currentProvider}\n` +
+            `Qwen key: ${hasQwen ? "✅" : "❌"}\n` +
             `OpenAI key: ${hasOpenAI ? "✅" : "❌"}\n` +
             `ElevenLabs key: ${hasElevenLabs ? "✅" : "❌"}\n` +
             `Edge enabled: ${hasEdge ? "✅" : "❌"}\n` +
-            `Usage: /tts provider openai | elevenlabs | edge`,
+            `Usage: /tts provider qwen | openai | elevenlabs | edge`,
         },
       };
     }
 
     const requested = args.trim().toLowerCase();
-    if (requested !== "openai" && requested !== "elevenlabs" && requested !== "edge") {
+    if (
+      requested !== "openai" &&
+      requested !== "elevenlabs" &&
+      requested !== "edge" &&
+      requested !== "qwen"
+    ) {
       return { shouldContinue: false, reply: ttsUsage() };
     }
 
@@ -252,7 +260,7 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
     const hasKey = isTtsProviderConfigured(config, provider);
     const maxLength = getTtsMaxLength(prefsPath);
     const summarize = isSummarizationEnabled(prefsPath);
-    const last = getLastTtsAttempt();
+    const last = getLastTtsAttempt(prefsPath);
     const lines = [
       "📊 TTS status",
       `State: ${enabled ? "✅ enabled" : "❌ disabled"}`,
@@ -271,6 +279,9 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
       } else if (last.error) {
         lines.push(`Error: ${last.error}`);
       }
+    } else {
+      lines.push("");
+      lines.push("Last attempt: none");
     }
     return { shouldContinue: false, reply: { text: lines.join("\n") } };
   }
