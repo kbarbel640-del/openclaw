@@ -71,8 +71,7 @@ export const en: TranslationMap = {
       uptime: "Uptime",
       tickInterval: "Tick Interval",
       lastChannelsRefresh: "Last Channels Refresh",
-      channelsHint:
-        "Use Channels to link WhatsApp, Telegram, Discord, Signal, or iMessage.",
+      channelsHint: "Use Channels to link WhatsApp, Telegram, Discord, Signal, or iMessage.",
     },
     stats: {
       instances: "Instances",
@@ -86,16 +85,14 @@ export const en: TranslationMap = {
       title: "Notes",
       subtitle: "Quick reminders for remote control setups.",
       tailscaleTitle: "Tailscale serve",
-      tailscaleText:
-        "Prefer serve mode to keep the gateway on loopback with tailnet auth.",
+      tailscaleText: "Prefer serve mode to keep the gateway on loopback with tailnet auth.",
       sessionTitle: "Session hygiene",
       sessionText: "Use /new or sessions.patch to reset context.",
       cronTitle: "Cron reminders",
       cronText: "Use isolated sessions for recurring runs.",
     },
     auth: {
-      required:
-        "This gateway requires auth. Add a token or password, then click Connect.",
+      required: "This gateway requires auth. Add a token or password, then click Connect.",
       failed:
         "Auth failed. Re-copy a tokenized URL with {command}, or update the token, then click Connect.",
     },
