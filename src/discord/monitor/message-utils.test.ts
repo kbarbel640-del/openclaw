@@ -279,6 +279,24 @@ describe("resolveMediaList", () => {
 });
 
 describe("resolveDiscordMessageText", () => {
+  it("includes embed title and description in primary text", () => {
+    const text = resolveDiscordMessageText(
+      asMessage({
+        content: "",
+        embeds: [
+          {
+            title: "🚨 SNIPER SIGNAL: AMZN",
+            description: "The bullish fundamental catalyst is exceptionally strong.",
+          },
+        ],
+      }),
+    );
+
+    expect(text).toBe(
+      "🚨 SNIPER SIGNAL: AMZN\nThe bullish fundamental catalyst is exceptionally strong.",
+    );
+  });
+
   it("includes forwarded message snapshots in body text", () => {
     const text = resolveDiscordMessageText(
       asMessage({
@@ -305,6 +323,41 @@ describe("resolveDiscordMessageText", () => {
 
     expect(text).toContain("[Forwarded message from @Bob]");
     expect(text).toContain("forwarded hello");
+  });
+
+  it("includes forwarded embed title alongside description", () => {
+    const text = resolveDiscordMessageText(
+      asMessage({
+        content: "",
+        rawData: {
+          message_snapshots: [
+            {
+              message: {
+                content: "",
+                embeds: [
+                  {
+                    title: "🚨 SNIPER SIGNAL: AMZN",
+                    description: "The bullish fundamental catalyst is exceptionally strong.",
+                  },
+                ],
+                attachments: [],
+                author: {
+                  id: "u3",
+                  username: "SignalsBot",
+                  discriminator: "0",
+                },
+              },
+            },
+          ],
+        },
+      }),
+      { includeForwarded: true },
+    );
+
+    expect(text).toContain("[Forwarded message from @SignalsBot]");
+    expect(text).toContain(
+      "🚨 SNIPER SIGNAL: AMZN\nThe bullish fundamental catalyst is exceptionally strong.",
+    );
   });
 
   it("uses sticker placeholders when content is empty", () => {

@@ -403,6 +403,23 @@ function buildDiscordMediaPlaceholder(params: {
   return attachmentText || stickerText || "";
 }
 
+function resolveDiscordPrimaryEmbedText(
+  embed:
+    | {
+        title?: string | null;
+        description?: string | null;
+      }
+    | null
+    | undefined,
+): string {
+  const title = embed?.title?.trim() ?? "";
+  const description = embed?.description?.trim() ?? "";
+  if (title && description) {
+    return `${title}\n${description}`;
+  }
+  return title || description;
+}
+
 export function resolveDiscordMessageText(
   message: Message,
   options?: { fallbackText?: string; includeForwarded?: boolean },
@@ -413,7 +430,7 @@ export function resolveDiscordMessageText(
       attachments: message.attachments ?? undefined,
       stickers: resolveDiscordMessageStickers(message),
     }) ||
-    message.embeds?.[0]?.description ||
+    resolveDiscordPrimaryEmbedText(message.embeds?.[0]) ||
     options?.fallbackText?.trim() ||
     "";
   if (!options?.includeForwarded) {
@@ -477,8 +494,7 @@ function resolveDiscordSnapshotMessageText(snapshot: DiscordSnapshotMessage): st
     attachments: snapshot.attachments ?? undefined,
     stickers: resolveDiscordSnapshotStickers(snapshot),
   });
-  const embed = snapshot.embeds?.[0];
-  const embedText = embed?.description?.trim() || embed?.title?.trim() || "";
+  const embedText = resolveDiscordPrimaryEmbedText(snapshot.embeds?.[0]);
   return content || attachmentText || embedText || "";
 }
 
