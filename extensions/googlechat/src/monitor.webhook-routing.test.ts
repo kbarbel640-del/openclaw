@@ -5,7 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import { createMockServerResponse } from "../../../src/test-utils/mock-http-response.js";
 import type { ResolvedGoogleChatAccount } from "./accounts.js";
 import { verifyGoogleChatRequest } from "./auth.js";
-import { handleGoogleChatWebhookRequest, registerGoogleChatWebhookTarget } from "./monitor.js";
+import {
+  handleGoogleChatWebhookRequest,
+  registerGoogleChatWebhookTarget,
+  type GoogleChatRuntimeEnv,
+} from "./monitor.js";
 
 vi.mock("./auth.js", () => ({
   verifyGoogleChatRequest: vi.fn(),
@@ -131,6 +135,43 @@ describe("Google Chat webhook routing", () => {
       expect(res.statusCode).toBe(200);
       expect(sinkA).not.toHaveBeenCalled();
       expect(sinkB).toHaveBeenCalledTimes(1);
+    } finally {
+      unregister();
+    }
+  });
+
+  it("logs auth failure reason when verification fails", async () => {
+    vi.mocked(verifyGoogleChatRequest).mockResolvedValue({
+      ok: false,
+      reason: "No pem found for envelope",
+    });
+
+    const errorSpy = vi.fn();
+    const runtime: GoogleChatRuntimeEnv = { error: errorSpy };
+    const core = {} as PluginRuntime;
+    const config = {} as OpenClawConfig;
+
+    const unregister = registerGoogleChatWebhookTarget({
+      account: baseAccount("test-acct"),
+      config,
+      runtime,
+      core,
+      path: "/googlechat",
+      mediaMaxMb: 5,
+    });
+
+    try {
+      const res = createMockServerResponse();
+      await handleGoogleChatWebhookRequest(
+        createWebhookRequest({
+          authorization: "Bearer bad-token",
+          payload: { type: "MESSAGE", space: { name: "spaces/X" }, message: { text: "hi" } },
+        }),
+        res,
+      );
+
+      expect(res.statusCode).toBe(401);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("No pem found for envelope"));
     } finally {
       unregister();
     }
