@@ -185,7 +185,8 @@ export async function runServiceStart(params: {
         });
         return;
       } catch {
-        // Service file not found — fall through to the normal "not installed" hint.
+        // Load failed (service file not found, bootstrap/kickstart failure, permission
+        // error, etc.) — fall through to the normal "not installed" hint.
       }
     }
     await handleServiceNotLoaded({
