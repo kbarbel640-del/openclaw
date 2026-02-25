@@ -299,6 +299,7 @@ async function deliverReplies(params: {
         to: target,
         content: payload.text,
         channel: "signal",
+        accountId,
       });
       if (hookResult === null) {
         continue;

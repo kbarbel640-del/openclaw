@@ -50,6 +50,8 @@ export async function deliverLineAutoReply(params: {
   deps: LineAutoReplyDeps;
 }): Promise<{ replyTokenUsed: boolean }> {
   const { payload, lineData, replyToken, accountId, to, textLimit, deps } = params;
+  let replyTokenUsed = params.replyTokenUsed;
+
   // Run message_sending plugin hook (may modify content or cancel).
   if (payload.text) {
     const hookResult = await runOutboundMessageHook({
@@ -63,8 +65,6 @@ export async function deliverLineAutoReply(params: {
     }
     payload.text = hookResult.content;
   }
-
-  let replyTokenUsed = params.replyTokenUsed;
 
   const pushLineMessages = async (messages: messagingApi.Message[]): Promise<void> => {
     if (messages.length === 0) {
