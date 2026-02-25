@@ -30,6 +30,10 @@
       "timeoutSeconds": {
         "type": "number",
         "minimum": 0.001
+      },
+      "queueOwnerTtlSeconds": {
+        "type": "number",
+        "minimum": 0
       }
     }
   },
@@ -57,6 +61,11 @@
     "timeoutSeconds": {
       "label": "Prompt Timeout Seconds",
       "help": "Optional acpx timeout for each runtime turn.",
+      "advanced": true
+    },
+    "queueOwnerTtlSeconds": {
+      "label": "Queue Owner TTL Seconds",
+      "help": "Idle queue-owner TTL for acpx prompt turns. Keep this short in OpenClaw to avoid delayed completion after each turn.",
       "advanced": true
     }
   }

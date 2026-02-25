@@ -99,33 +99,43 @@ describe("createAcpxRuntimeService", () => {
     }
   });
 
-  it("passes runtime TTL from acp.runtime.ttlMinutes", async () => {
+  it("passes queue-owner TTL from plugin config", async () => {
     const { runtime } = createRuntimeStub(true);
     const runtimeFactory = vi.fn(() => runtime);
     const service = createAcpxRuntimeService({
       runtimeFactory,
       pluginConfig: {
         command: "acpx-custom",
+        queueOwnerTtlSeconds: 0.25,
       },
     });
-    const context = createServiceContext({
-      config: {
-        acp: {
-          runtime: {
-            ttlMinutes: 2,
-          },
-        },
-      },
-    });
+    const context = createServiceContext();
 
     await service.start(context);
 
     expect(runtimeFactory).toHaveBeenCalledWith(
       expect.objectContaining({
-        ttlSeconds: 120,
+        queueOwnerTtlSeconds: 0.25,
         pluginConfig: expect.objectContaining({
           command: "acpx-custom",
         }),
+      }),
+    );
+  });
+
+  it("uses a short default queue-owner TTL", async () => {
+    const { runtime } = createRuntimeStub(true);
+    const runtimeFactory = vi.fn(() => runtime);
+    const service = createAcpxRuntimeService({
+      runtimeFactory,
+    });
+    const context = createServiceContext();
+
+    await service.start(context);
+
+    expect(runtimeFactory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queueOwnerTtlSeconds: 0.1,
       }),
     );
   });

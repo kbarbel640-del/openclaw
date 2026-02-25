@@ -360,11 +360,16 @@ export async function spawnAcpDirect(
     to: ctx.agentTo,
     threadId: ctx.agentThreadId,
   });
-  const deliveryThreadIdRaw = binding?.conversation.conversationId ?? requesterOrigin?.threadId;
-  const deliveryThreadId =
-    deliveryThreadIdRaw != null ? String(deliveryThreadIdRaw).trim() || undefined : undefined;
-  const inferredDeliveryTo =
-    requesterOrigin?.to?.trim() || (deliveryThreadId ? `channel:${deliveryThreadId}` : undefined);
+  // For thread-bound ACP spawns, force bootstrap delivery to the new child thread.
+  const boundThreadIdRaw = binding?.conversation.conversationId;
+  const boundThreadId = boundThreadIdRaw ? String(boundThreadIdRaw).trim() || undefined : undefined;
+  const fallbackThreadIdRaw = requesterOrigin?.threadId;
+  const fallbackThreadId =
+    fallbackThreadIdRaw != null ? String(fallbackThreadIdRaw).trim() || undefined : undefined;
+  const deliveryThreadId = boundThreadId ?? fallbackThreadId;
+  const inferredDeliveryTo = boundThreadId
+    ? `channel:${boundThreadId}`
+    : requesterOrigin?.to?.trim() || (deliveryThreadId ? `channel:${deliveryThreadId}` : undefined);
   const hasDeliveryTarget = Boolean(requesterOrigin?.channel && inferredDeliveryTo);
   const childIdem = crypto.randomUUID();
   let childRunId: string = childIdem;

@@ -241,7 +241,7 @@ const tempDirs: string[] = [];
 
 async function createMockRuntime(params?: {
   permissionMode?: ResolvedAcpxPluginConfig["permissionMode"];
-  ttlSeconds?: number;
+  queueOwnerTtlSeconds?: number;
 }): Promise<{
   runtime: AcpxRuntime;
   logPath: string;
@@ -260,11 +260,12 @@ async function createMockRuntime(params?: {
     cwd: dir,
     permissionMode: params?.permissionMode ?? "approve-all",
     nonInteractivePermissions: "fail",
+    queueOwnerTtlSeconds: params?.queueOwnerTtlSeconds ?? 0.1,
   };
 
   return {
     runtime: new AcpxRuntime(config, {
-      ttlSeconds: params?.ttlSeconds,
+      queueOwnerTtlSeconds: params?.queueOwnerTtlSeconds,
       logger: NOOP_LOGGER,
     }),
     logPath,
@@ -321,7 +322,7 @@ describe("AcpxRuntime", () => {
   });
 
   it("ensures sessions and streams prompt events", async () => {
-    const { runtime, logPath } = await createMockRuntime({ ttlSeconds: 180 });
+    const { runtime, logPath } = await createMockRuntime({ queueOwnerTtlSeconds: 180 });
 
     const handle = await runtime.ensureSession({
       sessionKey: "agent:codex:acp:123",
@@ -374,6 +375,32 @@ describe("AcpxRuntime", () => {
     expect(promptArgs).toContain("--ttl");
     expect(promptArgs).toContain("180");
     expect(promptArgs).toContain("--approve-all");
+  });
+
+  it("passes a queue-owner TTL by default to avoid long idle stalls", async () => {
+    const { runtime, logPath } = await createMockRuntime();
+    const handle = await runtime.ensureSession({
+      sessionKey: "agent:codex:acp:ttl-default",
+      agent: "codex",
+      mode: "persistent",
+    });
+
+    for await (const _event of runtime.runTurn({
+      handle,
+      text: "ttl-default",
+      mode: "prompt",
+      requestId: "req-ttl-default",
+    })) {
+      // drain
+    }
+
+    const logs = await readLogEntries(logPath);
+    const prompt = logs.find((entry) => entry.kind === "prompt");
+    expect(prompt).toBeDefined();
+    const promptArgs = (prompt?.args as string[]) ?? [];
+    const ttlFlagIndex = promptArgs.indexOf("--ttl");
+    expect(ttlFlagIndex).toBeGreaterThanOrEqual(0);
+    expect(promptArgs[ttlFlagIndex + 1]).toBe("0.1");
   });
 
   it("preserves leading spaces across streamed text deltas", async () => {

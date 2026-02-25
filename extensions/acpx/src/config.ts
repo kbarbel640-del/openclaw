@@ -16,6 +16,7 @@ export type AcpxPluginConfig = {
   permissionMode?: AcpxPermissionMode;
   nonInteractivePermissions?: AcpxNonInteractivePermissionPolicy;
   timeoutSeconds?: number;
+  queueOwnerTtlSeconds?: number;
 };
 
 export type ResolvedAcpxPluginConfig = {
@@ -25,11 +26,13 @@ export type ResolvedAcpxPluginConfig = {
   permissionMode: AcpxPermissionMode;
   nonInteractivePermissions: AcpxNonInteractivePermissionPolicy;
   timeoutSeconds?: number;
+  queueOwnerTtlSeconds: number;
 };
 
 const DEFAULT_PERMISSION_MODE: AcpxPermissionMode = "approve-reads";
 const DEFAULT_NON_INTERACTIVE_POLICY: AcpxNonInteractivePermissionPolicy = "fail";
 const DEFAULT_ACPX_COMMAND = "acpx";
+const DEFAULT_QUEUE_OWNER_TTL_SECONDS = 0.1;
 const ACPX_BIN_NAME = process.platform === "win32" ? "acpx.cmd" : "acpx";
 const ACPX_PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ACPX_BUNDLED_BIN = path.join(ACPX_PLUGIN_ROOT, "node_modules", ".bin", ACPX_BIN_NAME);
@@ -76,6 +79,7 @@ function parseAcpxPluginConfig(value: unknown): ParseResult {
     "permissionMode",
     "nonInteractivePermissions",
     "timeoutSeconds",
+    "queueOwnerTtlSeconds",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -129,6 +133,16 @@ function parseAcpxPluginConfig(value: unknown): ParseResult {
     return { ok: false, message: "timeoutSeconds must be a positive number" };
   }
 
+  const queueOwnerTtlSeconds = value.queueOwnerTtlSeconds;
+  if (
+    queueOwnerTtlSeconds !== undefined &&
+    (typeof queueOwnerTtlSeconds !== "number" ||
+      !Number.isFinite(queueOwnerTtlSeconds) ||
+      queueOwnerTtlSeconds < 0)
+  ) {
+    return { ok: false, message: "queueOwnerTtlSeconds must be a non-negative number" };
+  }
+
   return {
     ok: true,
     value: {
@@ -140,6 +154,8 @@ function parseAcpxPluginConfig(value: unknown): ParseResult {
       nonInteractivePermissions:
         typeof nonInteractivePermissions === "string" ? nonInteractivePermissions : undefined,
       timeoutSeconds: typeof timeoutSeconds === "number" ? timeoutSeconds : undefined,
+      queueOwnerTtlSeconds:
+        typeof queueOwnerTtlSeconds === "number" ? queueOwnerTtlSeconds : undefined,
     },
   };
 }
@@ -183,6 +199,7 @@ export function createAcpxPluginConfigSchema(): OpenClawPluginConfigSchema {
           enum: [...ACPX_NON_INTERACTIVE_POLICIES],
         },
         timeoutSeconds: { type: "number", minimum: 0.001 },
+        queueOwnerTtlSeconds: { type: "number", minimum: 0 },
       },
     },
   };
@@ -208,5 +225,6 @@ export function resolveAcpxPluginConfig(params: {
     nonInteractivePermissions:
       normalized.nonInteractivePermissions ?? DEFAULT_NON_INTERACTIVE_POLICY,
     timeoutSeconds: normalized.timeoutSeconds,
+    queueOwnerTtlSeconds: normalized.queueOwnerTtlSeconds ?? DEFAULT_QUEUE_OWNER_TTL_SECONDS,
   };
 }

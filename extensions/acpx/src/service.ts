@@ -15,7 +15,7 @@ type AcpxRuntimeLike = AcpRuntime & {
 
 type AcpxRuntimeFactoryParams = {
   pluginConfig: ResolvedAcpxPluginConfig;
-  ttlSeconds?: number;
+  queueOwnerTtlSeconds: number;
   logger?: PluginLogger;
 };
 
@@ -24,17 +24,10 @@ type CreateAcpxRuntimeServiceParams = {
   runtimeFactory?: (params: AcpxRuntimeFactoryParams) => AcpxRuntimeLike;
 };
 
-function resolveTtlSeconds(ttlMinutes: unknown): number | undefined {
-  if (typeof ttlMinutes !== "number" || !Number.isFinite(ttlMinutes) || ttlMinutes <= 0) {
-    return undefined;
-  }
-  return Math.round(ttlMinutes * 60);
-}
-
 function createDefaultRuntime(params: AcpxRuntimeFactoryParams): AcpxRuntimeLike {
   return new AcpxRuntime(params.pluginConfig, {
     logger: params.logger,
-    ttlSeconds: params.ttlSeconds,
+    queueOwnerTtlSeconds: params.queueOwnerTtlSeconds,
   });
 }
 
@@ -50,11 +43,10 @@ export function createAcpxRuntimeService(
         rawConfig: params.pluginConfig,
         workspaceDir: ctx.workspaceDir,
       });
-      const ttlSeconds = resolveTtlSeconds(ctx.config.acp?.runtime?.ttlMinutes);
       const runtimeFactory = params.runtimeFactory ?? createDefaultRuntime;
       runtime = runtimeFactory({
         pluginConfig,
-        ttlSeconds,
+        queueOwnerTtlSeconds: pluginConfig.queueOwnerTtlSeconds,
         logger: ctx.logger,
       });
 

@@ -87,17 +87,23 @@ export function decodeAcpxRuntimeHandleState(runtimeSessionName: string): AcpxHa
 export class AcpxRuntime implements AcpRuntime {
   private healthy = true;
   private readonly logger?: PluginLogger;
-  private readonly ttlSeconds?: number;
+  private readonly queueOwnerTtlSeconds: number;
 
   constructor(
     private readonly config: ResolvedAcpxPluginConfig,
     opts?: {
       logger?: PluginLogger;
-      ttlSeconds?: number;
+      queueOwnerTtlSeconds?: number;
     },
   ) {
     this.logger = opts?.logger;
-    this.ttlSeconds = opts?.ttlSeconds;
+    const requestedQueueOwnerTtlSeconds = opts?.queueOwnerTtlSeconds;
+    this.queueOwnerTtlSeconds =
+      typeof requestedQueueOwnerTtlSeconds === "number" &&
+      Number.isFinite(requestedQueueOwnerTtlSeconds) &&
+      requestedQueueOwnerTtlSeconds >= 0
+        ? requestedQueueOwnerTtlSeconds
+        : this.config.queueOwnerTtlSeconds;
   }
 
   isHealthy(): boolean {
@@ -466,9 +472,7 @@ export class AcpxRuntime implements AcpRuntime {
     if (this.config.timeoutSeconds) {
       args.push("--timeout", String(this.config.timeoutSeconds));
     }
-    if (typeof this.ttlSeconds === "number") {
-      args.push("--ttl", String(this.ttlSeconds));
-    }
+    args.push("--ttl", String(this.queueOwnerTtlSeconds));
     args.push(params.agent, "prompt", "--session", params.sessionName, "--file", "-");
     return args;
   }
