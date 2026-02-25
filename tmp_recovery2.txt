@@ -1,0 +1,6 @@
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:50.672Z [feishu] starting feishu[default] (mode: websocket)
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:50.686Z [feishu] feishu[default]: no past shutdown timestamp found, skipping recovery.
+Feb 22 18:37:51 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:51.285Z [feishu] feishu[default]: bot open_id resolved: ou_eb157dbd151393217665d192fa59dad6
+Feb 22 18:37:51 VM-0-16-opencloudos node[2511815]: 2026-02-22T18:37:51.286+08:00 [info]: [ 'event-dispatch is ready' ]
+Feb 22 18:37:51 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:51.289Z [feishu] feishu[default]: starting WebSocket connection...
+Feb 22 18:37:51 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:51.295Z [feishu] feishu[default]: WebSocket client started

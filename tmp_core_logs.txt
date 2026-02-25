@@ -1,0 +1,259 @@
+Feb 22 15:57:31 VM-0-16-opencloudos systemd[660]: Stopping openclaw-gateway.service - OpenClaw Gateway (v2026.2.21)...
+Feb 22 15:57:31 VM-0-16-opencloudos node[2449208]: 2026-02-22T07:57:31.387Z [gateway] signal SIGTERM received
+Feb 22 15:57:31 VM-0-16-opencloudos node[2449208]: 2026-02-22T07:57:31.391Z [gateway] received SIGTERM; shutting down
+Feb 22 15:57:31 VM-0-16-opencloudos node[2449208]: 2026-02-22T07:57:31.417Z [feishu] feishu[default]: abort signal received, stopping
+Feb 22 15:57:31 VM-0-16-opencloudos node[2449208]: 2026-02-22T07:57:31.421Z [gmail-watcher] gmail watcher stopped
+Feb 22 15:57:32 VM-0-16-opencloudos systemd[660]: Stopped openclaw-gateway.service - OpenClaw Gateway (v2026.2.21).
+Feb 22 15:57:32 VM-0-16-opencloudos systemd[660]: openclaw-gateway.service: Consumed 20.578s CPU time.
+Feb 22 15:57:32 VM-0-16-opencloudos systemd[660]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.21).
+Feb 22 15:57:36 VM-0-16-opencloudos node[2451152]: │
+Feb 22 15:57:36 VM-0-16-opencloudos node[2451152]: ◇  Doctor warnings ──────────────────────────────────────╮
+Feb 22 15:57:36 VM-0-16-opencloudos node[2451152]: │                                                        │
+Feb 22 15:57:36 VM-0-16-opencloudos node[2451152]: │  - State dir migration skipped: target already exists  │
+Feb 22 15:57:36 VM-0-16-opencloudos node[2451152]: │    (/root/.openclaw). Remove or merge manually.        │
+Feb 22 15:57:36 VM-0-16-opencloudos node[2451152]: │                                                        │
+Feb 22 15:57:36 VM-0-16-opencloudos node[2451152]: ├────────────────────────────────────────────────────────╯
+Feb 22 15:57:37 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:37.108Z [gateway] [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: unbrowse-openclaw (/root/.openclaw/workspace/unbrowser/unbrowse-openclaw/index.ts). Set plugins.allow to explicit trusted ids.
+Feb 22 15:57:37 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:37.268Z [gateway] [unbrowse] Auto-discover: 5 existing skills loaded
+Feb 22 15:57:37 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:37.270Z [gateway] [token-refresh] Scheduler started (checking every 1min)
+Feb 22 15:57:37 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:37.272Z [gateway] [unbrowse] Auto-discovery hook active
+Feb 22 15:57:37 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:37.274Z [gateway] [unbrowse] Plugin registered (16 tools, auto-discover)
+Feb 22 15:57:41 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:41.574Z [gateway] feishu_doc: Registered feishu_doc, feishu_app_scopes
+Feb 22 15:57:41 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:41.578Z [gateway] feishu_wiki: Registered feishu_wiki tool
+Feb 22 15:57:41 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:41.582Z [gateway] feishu_drive: Registered feishu_drive tool
+Feb 22 15:57:41 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:41.588Z [gateway] feishu_bitable: Registered bitable tools
+Feb 22 15:57:41 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:41.610Z [gateway] Control UI assets missing; building (ui:build, auto-installs UI deps)…
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.434Z [canvas] host mounted at http://127.0.0.1:18789/__openclaw__/canvas/ (root /root/.openclaw/canvas)
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.576Z [heartbeat] started
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.580Z [health-monitor] started (interval: 300s, grace: 60s)
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.584Z [gateway] agent model: aliyun/MiniMax/MiniMax-M2.5
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.586Z [gateway] listening on ws://127.0.0.1:18789 (PID 2451152)
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.588Z [gateway] listening on ws://[::1]:18789
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.590Z [gateway] log file: /tmp/openclaw/openclaw-2026-02-22.log
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T15:57:46.609+08:00 [info]: [ 'client ready' ]
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.686Z [browser/service] Browser control service ready (profiles=2)
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.700Z [feishu] starting feishu[default] (mode: websocket)
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T15:57:46.703+08:00 [feishu][history] SQLite opened at /root/.openclaw/feishu-history.db (FR-002 persistence enabled)
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T15:57:46.725+08:00 [feishu][history] Gateway startup timestamp set: 2026-02-22T07:57:46.719Z (db=persistent)
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.728Z [feishu] [history][FR-002] db=persistent, lastShutdownTs=none, chatIds=0
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.729Z [feishu] feishu[default]: no past shutdown timestamp found, skipping recovery.
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T15:57:46.734+08:00 (node:2451152) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: (Use `node --trace-warnings ...` to show where the warning was created)
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.749Z [delivery-recovery] Found 6 pending delivery entries — starting recovery
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.751Z [delivery-recovery] Recovery time budget exceeded — 6 entries deferred to next restart
+Feb 22 15:57:46 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:46.753Z [delivery-recovery] Delivery recovery complete: 0 recovered, 0 failed, 0 skipped (max retries)
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:47.685Z [feishu] feishu[default]: bot open_id resolved: ou_eb157dbd151393217665d192fa59dad6
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]: 2026-02-22T15:57:47.687+08:00 [info]: [ 'event-dispatch is ready' ]
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:47.690Z [feishu] feishu[default]: starting WebSocket connection...
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]: 2026-02-22T15:57:47.692+08:00 [info]: [
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:   '[ws]',
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:   'receive events or callbacks through persistent connection only available in self-build & Feishu app, Configured in:\n' +
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:     '        Developer Console(开发者后台) \n' +
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:     '          ->\n' +
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:     '        Events and Callbacks(事件与回调)\n' +
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:     '          -> \n' +
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:     '        Mode of event/callback subscription(订阅方式)\n' +
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:     '          -> \n' +
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]:     '        Receive events/callbacks through persistent connection(使用 长连接 接收事件/回调)'
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]: ]
+Feb 22 15:57:47 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:57:47.696Z [feishu] feishu[default]: WebSocket client started
+Feb 22 15:57:48 VM-0-16-opencloudos node[2451152]: 2026-02-22T15:57:48.704+08:00 [info]: [ '[ws]', 'ws client ready' ]
+Feb 22 15:59:08 VM-0-16-opencloudos systemd[660]: Stopping openclaw-gateway.service - OpenClaw Gateway (v2026.2.21)...
+Feb 22 15:59:08 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:59:08.852Z [gateway] signal SIGTERM received
+Feb 22 15:59:08 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:59:08.855Z [gateway] received SIGTERM; shutting down
+Feb 22 15:59:08 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:59:08.889Z [feishu] feishu[default]: abort signal received, stopping
+Feb 22 15:59:08 VM-0-16-opencloudos node[2451152]: 2026-02-22T07:59:08.895Z [gmail-watcher] gmail watcher stopped
+Feb 22 15:59:09 VM-0-16-opencloudos systemd[660]: Stopped openclaw-gateway.service - OpenClaw Gateway (v2026.2.21).
+Feb 22 15:59:09 VM-0-16-opencloudos systemd[660]: openclaw-gateway.service: Consumed 19.723s CPU time.
+Feb 22 15:59:09 VM-0-16-opencloudos systemd[660]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.21).
+Feb 22 15:59:13 VM-0-16-opencloudos node[2451859]: │
+Feb 22 15:59:13 VM-0-16-opencloudos node[2451859]: ◇  Doctor warnings ──────────────────────────────────────╮
+Feb 22 15:59:13 VM-0-16-opencloudos node[2451859]: │                                                        │
+Feb 22 15:59:13 VM-0-16-opencloudos node[2451859]: │  - State dir migration skipped: target already exists  │
+Feb 22 15:59:13 VM-0-16-opencloudos node[2451859]: │    (/root/.openclaw). Remove or merge manually.        │
+Feb 22 15:59:13 VM-0-16-opencloudos node[2451859]: │                                                        │
+Feb 22 15:59:13 VM-0-16-opencloudos node[2451859]: ├────────────────────────────────────────────────────────╯
+Feb 22 15:59:14 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:14.318Z [gateway] [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: unbrowse-openclaw (/root/.openclaw/workspace/unbrowser/unbrowse-openclaw/index.ts). Set plugins.allow to explicit trusted ids.
+Feb 22 15:59:14 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:14.493Z [gateway] [unbrowse] Auto-discover: 5 existing skills loaded
+Feb 22 15:59:14 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:14.496Z [gateway] [token-refresh] Scheduler started (checking every 1min)
+Feb 22 15:59:14 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:14.498Z [gateway] [unbrowse] Auto-discovery hook active
+Feb 22 15:59:14 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:14.500Z [gateway] [unbrowse] Plugin registered (16 tools, auto-discover)
+Feb 22 15:59:18 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:18.364Z [gateway] feishu_doc: Registered feishu_doc, feishu_app_scopes
+Feb 22 15:59:18 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:18.367Z [gateway] feishu_wiki: Registered feishu_wiki tool
+Feb 22 15:59:18 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:18.370Z [gateway] feishu_drive: Registered feishu_drive tool
+Feb 22 15:59:18 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:18.377Z [gateway] feishu_bitable: Registered bitable tools
+Feb 22 15:59:18 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:18.397Z [gateway] Control UI assets missing; building (ui:build, auto-installs UI deps)…
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.167Z [canvas] host mounted at http://127.0.0.1:18789/__openclaw__/canvas/ (root /root/.openclaw/canvas)
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.303Z [heartbeat] started
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.310Z [health-monitor] started (interval: 300s, grace: 60s)
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.314Z [gateway] agent model: aliyun/MiniMax/MiniMax-M2.5
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.315Z [gateway] listening on ws://127.0.0.1:18789 (PID 2451859)
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.317Z [gateway] listening on ws://[::1]:18789
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.321Z [gateway] log file: /tmp/openclaw/openclaw-2026-02-22.log
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T15:59:23.341+08:00 [info]: [ 'client ready' ]
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.415Z [browser/service] Browser control service ready (profiles=2)
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.428Z [feishu] starting feishu[default] (mode: websocket)
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T15:59:23.432+08:00 [feishu][history] SQLite opened at /root/.openclaw/feishu-history.db (FR-002 persistence enabled)
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T15:59:23.439+08:00 [feishu][history] Gateway startup timestamp set: 2026-02-22T07:59:23.433Z (db=persistent)
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.442Z [feishu] [history][FR-002] db=persistent, lastShutdownTs=none, chatIds=0
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.444Z [feishu] feishu[default]: no past shutdown timestamp found, skipping recovery.
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T15:59:23.448+08:00 (node:2451859) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: (Use `node --trace-warnings ...` to show where the warning was created)
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.476Z [delivery-recovery] Found 6 pending delivery entries — starting recovery
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.477Z [delivery-recovery] Recovery time budget exceeded — 6 entries deferred to next restart
+Feb 22 15:59:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:23.479Z [delivery-recovery] Delivery recovery complete: 0 recovered, 0 failed, 0 skipped (max retries)
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:24.043Z [feishu] feishu[default]: bot open_id resolved: ou_eb157dbd151393217665d192fa59dad6
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]: 2026-02-22T15:59:24.045+08:00 [info]: [ 'event-dispatch is ready' ]
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:24.047Z [feishu] feishu[default]: starting WebSocket connection...
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]: 2026-02-22T15:59:24.049+08:00 [info]: [
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:   '[ws]',
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:   'receive events or callbacks through persistent connection only available in self-build & Feishu app, Configured in:\n' +
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:     '        Developer Console(开发者后台) \n' +
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:     '          ->\n' +
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:     '        Events and Callbacks(事件与回调)\n' +
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:     '          -> \n' +
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:     '        Mode of event/callback subscription(订阅方式)\n' +
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:     '          -> \n' +
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]:     '        Receive events/callbacks through persistent connection(使用 长连接 接收事件/回调)'
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]: ]
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]: 2026-02-22T07:59:24.053Z [feishu] feishu[default]: WebSocket client started
+Feb 22 15:59:24 VM-0-16-opencloudos node[2451859]: 2026-02-22T15:59:24.628+08:00 [info]: [ '[ws]', 'ws client ready' ]
+Feb 22 16:00:23 VM-0-16-opencloudos systemd[660]: Stopping openclaw-gateway.service - OpenClaw Gateway (v2026.2.21)...
+Feb 22 16:00:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T08:00:23.660Z [gateway] signal SIGTERM received
+Feb 22 16:00:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T08:00:23.662Z [gateway] received SIGTERM; shutting down
+Feb 22 16:00:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T08:00:23.687Z [feishu] feishu[default]: abort signal received, stopping
+Feb 22 16:00:23 VM-0-16-opencloudos node[2451859]: 2026-02-22T08:00:23.690Z [gmail-watcher] gmail watcher stopped
+Feb 22 16:00:24 VM-0-16-opencloudos systemd[660]: Stopped openclaw-gateway.service - OpenClaw Gateway (v2026.2.21).
+Feb 22 16:00:24 VM-0-16-opencloudos systemd[660]: openclaw-gateway.service: Consumed 21.071s CPU time.
+Feb 22 16:00:24 VM-0-16-opencloudos systemd[660]: Started openclaw-gateway.service - OpenClaw Gateway (v2026.2.21).
+Feb 22 16:00:27 VM-0-16-opencloudos node[2452623]: │
+Feb 22 16:00:27 VM-0-16-opencloudos node[2452623]: ◇  Doctor warnings ──────────────────────────────────────╮
+Feb 22 16:00:27 VM-0-16-opencloudos node[2452623]: │                                                        │
+Feb 22 16:00:27 VM-0-16-opencloudos node[2452623]: │  - State dir migration skipped: target already exists  │
+Feb 22 16:00:27 VM-0-16-opencloudos node[2452623]: │    (/root/.openclaw). Remove or merge manually.        │
+Feb 22 16:00:27 VM-0-16-opencloudos node[2452623]: │                                                        │
+Feb 22 16:00:27 VM-0-16-opencloudos node[2452623]: ├────────────────────────────────────────────────────────╯
+Feb 22 16:00:27 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:27.894Z [gateway] [plugins] plugins.allow is empty; discovered non-bundled plugins may auto-load: unbrowse-openclaw (/root/.openclaw/workspace/unbrowser/unbrowse-openclaw/index.ts). Set plugins.allow to explicit trusted ids.
+Feb 22 16:00:28 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:28.055Z [gateway] [unbrowse] Auto-discover: 5 existing skills loaded
+Feb 22 16:00:28 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:28.058Z [gateway] [token-refresh] Scheduler started (checking every 1min)
+Feb 22 16:00:28 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:28.060Z [gateway] [unbrowse] Auto-discovery hook active
+Feb 22 16:00:28 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:28.062Z [gateway] [unbrowse] Plugin registered (16 tools, auto-discover)
+Feb 22 16:00:32 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:32.901Z [gateway] feishu_doc: Registered feishu_doc, feishu_app_scopes
+Feb 22 16:00:32 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:32.904Z [gateway] feishu_wiki: Registered feishu_wiki tool
+Feb 22 16:00:32 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:32.908Z [gateway] feishu_drive: Registered feishu_drive tool
+Feb 22 16:00:32 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:32.915Z [gateway] feishu_bitable: Registered bitable tools
+Feb 22 16:00:32 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:32.937Z [gateway] Control UI assets missing; building (ui:build, auto-installs UI deps)…
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.704Z [canvas] host mounted at http://127.0.0.1:18789/__openclaw__/canvas/ (root /root/.openclaw/canvas)
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.820Z [heartbeat] started
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.824Z [health-monitor] started (interval: 300s, grace: 60s)
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.829Z [gateway] agent model: aliyun/MiniMax/MiniMax-M2.5
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.831Z [gateway] listening on ws://127.0.0.1:18789 (PID 2452623)
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.833Z [gateway] listening on ws://[::1]:18789
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.838Z [gateway] log file: /tmp/openclaw/openclaw-2026-02-22.log
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:00:37.865+08:00 [info]: [ 'client ready' ]
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.949Z [browser/service] Browser control service ready (profiles=2)
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.965Z [feishu] starting feishu[default] (mode: websocket)
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:00:37.968+08:00 [feishu][history] SQLite opened at /root/.openclaw/feishu-history.db (FR-002 persistence enabled)
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:00:37.975+08:00 [feishu][history] Gateway startup timestamp set: 2026-02-22T08:00:37.969Z (db=persistent)
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.984Z [feishu] [history][FR-002] db=persistent, lastShutdownTs=none, chatIds=0
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:37.986Z [feishu] feishu[default]: no past shutdown timestamp found, skipping recovery.
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:00:37.990+08:00 (node:2452623) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+Feb 22 16:00:37 VM-0-16-opencloudos node[2452623]: (Use `node --trace-warnings ...` to show where the warning was created)
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:38.015Z [delivery-recovery] Found 6 pending delivery entries — starting recovery
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:38.017Z [delivery-recovery] Recovery time budget exceeded — 6 entries deferred to next restart
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:38.019Z [delivery-recovery] Delivery recovery complete: 0 recovered, 0 failed, 0 skipped (max retries)
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:38.597Z [feishu] feishu[default]: bot open_id resolved: ou_eb157dbd151393217665d192fa59dad6
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:00:38.599+08:00 [info]: [ 'event-dispatch is ready' ]
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:38.602Z [feishu] feishu[default]: starting WebSocket connection...
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:00:38.604+08:00 [info]: [
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:   '[ws]',
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:   'receive events or callbacks through persistent connection only available in self-build & Feishu app, Configured in:\n' +
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:     '        Developer Console(开发者后台) \n' +
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:     '          ->\n' +
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:     '        Events and Callbacks(事件与回调)\n' +
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:     '          -> \n' +
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:     '        Mode of event/callback subscription(订阅方式)\n' +
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:     '          -> \n' +
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]:     '        Receive events/callbacks through persistent connection(使用 长连接 接收事件/回调)'
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: ]
+Feb 22 16:00:38 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:00:38.608Z [feishu] feishu[default]: WebSocket client started
+Feb 22 16:00:39 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:00:39.443+08:00 [info]: [ '[ws]', 'ws client ready' ]
+Feb 22 16:00:43 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:00:43.419+08:00 [warn]: [ 'no im.chat.access_event.bot_p2p_chat_entered_v1 handle' ]
+Feb 22 16:02:54 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:02:54.466Z [feishu] [bot.ts] Reaction manager initialized for om_x100b569fcc173ca8b3f8abe5ccbe32e. Triggering onMessageQueued...
+Feb 22 16:02:55 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:02:55.239Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e, reactionId=OTNdsy1aQt608n8WVbegMYqIoN95Cvg4VEriqbzOfqsrSoK-unZlFeYxV0ROZ3_1
+Feb 22 16:02:55 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:02:55.243Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:02:55 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:02:55.244+08:00 [feishu][timeout-monitor][FR-006] registered om_x100b569fcc173ca8b3f8abe5ccbe32e for chat oc_36a6c8f7b6378fbfabb6ac3243e1d247 (total pending: 1)
+Feb 22 16:02:55 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:02:55.528+08:00 [warn]: [ 'no im.message.reaction.created_v1 handle' ]
+Feb 22 16:02:55 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:02:55.768Z [feishu] feishu[default]: received message from ou_e0db3df0266584594b1d9cb412425331 in oc_36a6c8f7b6378fbfabb6ac3243e1d247 (p2p)
+Feb 22 16:02:55 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:02:55.769+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:02:55 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:02:55.779Z [feishu] feishu[default]: dispatching to agent (session=agent:main:main)
+Feb 22 16:02:55 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:02:55.974Z [feishu] [reaction-state] Transitioning 1 message(s) to PROCESSING in chat oc_36a6c8f7b6378fbfabb6ac3243e1d247
+Feb 22 16:02:56 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:02:56.595Z [feishu] [reaction-state] Removed QUEUED emoji: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:02:56 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:02:56.839+08:00 [warn]: [ 'no im.message.reaction.deleted_v1 handle' ]
+Feb 22 16:02:57 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:02:57.188Z [feishu] [reaction-state] PROCESSING emoji added: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:02:57 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:02:57.449+08:00 [warn]: [ 'no im.message.reaction.created_v1 handle' ]
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:00.053Z [feishu] [bot.ts] Reaction manager initialized for om_x100b569fcdf8e4a8b2d0fe0113e2e4d. Triggering onMessageQueued...
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:00.658Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b569fcdf8e4a8b2d0fe0113e2e4d, reactionId=Gsvg2hhUBH_7OU0ISrGFVcX0mjCC3w0OUukaajUmFAzfeBHUNOCb_rotr1tsdOhx
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:00.660Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b569fcdf8e4a8b2d0fe0113e2e4d
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:00.661+08:00 [feishu][timeout-monitor][FR-006] registered om_x100b569fcdf8e4a8b2d0fe0113e2e4d for chat oc_36a6c8f7b6378fbfabb6ac3243e1d247 (total pending: 2)
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:00.663Z [feishu] feishu[default]: received message from ou_e0db3df0266584594b1d9cb412425331 in oc_36a6c8f7b6378fbfabb6ac3243e1d247 (p2p)
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:00.665+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b569fcdf8e4a8b2d0fe0113e2e4d
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:00.669Z [feishu] feishu[default]: dispatching to agent (session=agent:main:main)
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:00.720+08:00 [feishu][timeout-monitor][FR-006] removed om_x100b569fcdf8e4a8b2d0fe0113e2e4d (total pending: 1)
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:00.722Z [feishu] feishu[default]: dispatch complete (queuedFinal=false, replies=0)
+Feb 22 16:03:00 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:00.991+08:00 [warn]: [ 'no im.message.reaction.created_v1 handle' ]
+Feb 22 16:03:05 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:05.655Z [feishu] [bot.ts] Reaction manager initialized for om_x100b569fcd5df8a0b3291243a0a382c. Triggering onMessageQueued...
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:06.695Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b569fcd5df8a0b3291243a0a382c, reactionId=qbeSBqlS1v9jQ_yOVh46vMHYVUP5Sl7uhCAOTBzqRf9U3lMpkpknQ5YflMaOrSTg
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:06.698Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b569fcd5df8a0b3291243a0a382c
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:06.700+08:00 [feishu][timeout-monitor][FR-006] registered om_x100b569fcd5df8a0b3291243a0a382c for chat oc_36a6c8f7b6378fbfabb6ac3243e1d247 (total pending: 2)
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:06.702Z [feishu] feishu[default]: received message from ou_e0db3df0266584594b1d9cb412425331 in oc_36a6c8f7b6378fbfabb6ac3243e1d247 (p2p)
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:06.703+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b569fcd5df8a0b3291243a0a382c
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:06.707Z [feishu] feishu[default]: dispatching to agent (session=agent:main:main)
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:06.755+08:00 [feishu][timeout-monitor][FR-006] removed om_x100b569fcd5df8a0b3291243a0a382c (total pending: 1)
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:06.757Z [feishu] feishu[default]: dispatch complete (queuedFinal=false, replies=0)
+Feb 22 16:03:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:06.936+08:00 [warn]: [ 'no im.message.reaction.created_v1 handle' ]
+Feb 22 16:03:14 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:14.067Z [feishu] skipping duplicate message om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:03:17 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:17.881+08:00 [feishu][timeout-monitor][FR-006] removed om_x100b569fcc173ca8b3f8abe5ccbe32e (total pending: 0)
+Feb 22 16:03:17 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:17.883Z [feishu] feishu[default]: dispatch complete (queuedFinal=true, replies=1)
+Feb 22 16:03:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:19.085Z [feishu] [reaction-state] Removed Typing emoji on completion: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:03:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:19.116Z [feishu] [reaction-state] Removed null emoji on completion: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:03:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:19.188Z [feishu] [reaction-state] Removed null emoji on completion: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:03:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:19.400+08:00 [warn]: [ 'no im.message.reaction.deleted_v1 handle' ]
+Feb 22 16:03:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:19.440+08:00 [warn]: [ 'no im.message.reaction.deleted_v1 handle' ]
+Feb 22 16:03:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:19.558+08:00 [warn]: [ 'no im.message.reaction.deleted_v1 handle' ]
+Feb 22 16:03:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:19.574Z [feishu] [reaction-state] Removed OK emoji on completion: messageId=om_x100b569fcdf8e4a8b2d0fe0113e2e4d
+Feb 22 16:03:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:19.944+08:00 [warn]: [ 'no im.message.reaction.deleted_v1 handle' ]
+Feb 22 16:03:20 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:20.036Z [feishu] [reaction-state] Removed OK emoji on completion: messageId=om_x100b569fcd5df8a0b3291243a0a382c
+Feb 22 16:03:20 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:20.037Z [feishu] [reaction-state] Cleared 3 states for chat oc_36a6c8f7b6378fbfabb6ac3243e1d247
+Feb 22 16:03:20 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:20.321+08:00 [warn]: [ 'no im.message.reaction.deleted_v1 handle' ]
+Feb 22 16:03:57 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:57.944Z [feishu] [bot.ts] Reaction manager initialized for om_x100b569fc819c4a4b247e502991c3fd. Triggering onMessageQueued...
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:58.441Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b569fc819c4a4b247e502991c3fd, reactionId=5eXc8ZC5HN9_bExwERFFf5UjqCpdWfK5_3AjVoxdlw78DX6RLtS0DIvcDrXtN9o1
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:58.442Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b569fc819c4a4b247e502991c3fd
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:58.444+08:00 [feishu][timeout-monitor][FR-006] registered om_x100b569fc819c4a4b247e502991c3fd for chat oc_36a6c8f7b6378fbfabb6ac3243e1d247 (total pending: 1)
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:58.446Z [feishu] feishu[default]: received message from ou_e0db3df0266584594b1d9cb412425331 in oc_36a6c8f7b6378fbfabb6ac3243e1d247 (p2p)
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:58.447+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b569fc819c4a4b247e502991c3fd
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:58.450Z [feishu] feishu[default]: dispatching to agent (session=agent:main:main)
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:58.485Z [feishu] [reaction-state] Transitioning 1 message(s) to PROCESSING in chat oc_36a6c8f7b6378fbfabb6ac3243e1d247
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:58.735+08:00 [warn]: [ 'no im.message.reaction.created_v1 handle' ]
+Feb 22 16:03:58 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:58.945Z [feishu] [reaction-state] Removed QUEUED emoji: messageId=om_x100b569fc819c4a4b247e502991c3fd
+Feb 22 16:03:59 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:59.230+08:00 [warn]: [ 'no im.message.reaction.deleted_v1 handle' ]
+Feb 22 16:03:59 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:03:59.407Z [feishu] [reaction-state] PROCESSING emoji added: messageId=om_x100b569fc819c4a4b247e502991c3fd
+Feb 22 16:03:59 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:03:59.685+08:00 [warn]: [ 'no im.message.reaction.created_v1 handle' ]
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:06.193Z [feishu] [bot.ts] Reaction manager initialized for om_x100b569fc994bca4b3f2eaccdaced5f. Triggering onMessageQueued...
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:06.778Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b569fc994bca4b3f2eaccdaced5f, reactionId=CcroWLp7BvuKGtxVZZER0ZNHyUyJjx7DMHm-GwTlks9yHmuzu4nZcPZH7dsn8vOD
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:06.779Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b569fc994bca4b3f2eaccdaced5f
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:04:06.781+08:00 [feishu][timeout-monitor][FR-006] registered om_x100b569fc994bca4b3f2eaccdaced5f for chat oc_36a6c8f7b6378fbfabb6ac3243e1d247 (total pending: 2)
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:06.784Z [feishu] feishu[default]: received message from ou_e0db3df0266584594b1d9cb412425331 in oc_36a6c8f7b6378fbfabb6ac3243e1d247 (p2p)
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:04:06.785+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b569fc994bca4b3f2eaccdaced5f
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:06.793Z [feishu] feishu[default]: dispatching to agent (session=agent:main:main)
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:04:06.836+08:00 [feishu][timeout-monitor][FR-006] removed om_x100b569fc994bca4b3f2eaccdaced5f (total pending: 1)
+Feb 22 16:04:06 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:06.840Z [feishu] feishu[default]: dispatch complete (queuedFinal=false, replies=0)
+Feb 22 16:04:07 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:04:07.626+08:00 [warn]: [ 'no im.message.reaction.created_v1 handle' ]
+Feb 22 16:04:09 VM-0-16-opencloudos node[2452623]: 2026-02-22T16:04:09.668+08:00 [feishu][timeout-monitor][FR-006] removed om_x100b569fc819c4a4b247e502991c3fd (total pending: 0)
+Feb 22 16:04:09 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:09.670Z [feishu] feishu[default]: dispatch complete (queuedFinal=false, replies=0)
+Feb 22 16:04:18 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:18.126Z [feishu] skipping duplicate message om_x100b569fc819c4a4b247e502991c3fd
+Feb 22 16:04:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:19.087Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:04:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:19.119Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:04:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:19.190Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569fcc173ca8b3f8abe5ccbe32e
+Feb 22 16:04:19 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:19.576Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569fcdf8e4a8b2d0fe0113e2e4d
+Feb 22 16:04:20 VM-0-16-opencloudos node[2452623]: 2026-02-22T08:04:20.037Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569fcd5df8a0b3291243a0a382c

@@ -185,6 +185,8 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
 
         const text = payload.text ?? "";
         if (!text.trim()) {
+          // If the agent decides to output nothing, we still need to clear the reaction
+          completeReaction();
           return;
         }
 
@@ -248,8 +250,9 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
         params.runtime.error?.(
           `feishu[${account.accountId}] ${info.kind} reply failed: ${String(error)}`,
         );
+
         await closeStreaming();
-        // FR-001: "异常处理 → onCompleted() (确保清理)" — design spec requires cleanup on error
+        // Ensure reaction is cleared on error so it doesn't get stuck
         completeReaction();
         typingCallbacks.onIdle?.();
       },

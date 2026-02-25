@@ -1,0 +1,60 @@
+Feb 22 18:09:30 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:30.748Z [feishu] [bot.ts] Reaction manager initialized for om_x100b569913528cacb28f17d1919bb6c. Triggering onMessageQueued...
+Feb 22 18:09:31 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:31.254Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b569913528cacb28f17d1919bb6c, reactionId=JmXgnv71bPB0hD_VHAg8vHSWK3r2ueIru9WNARYyUFDABqJBvT9x3e3TSt5CsEEJ
+Feb 22 18:09:31 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:31.257Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:09:31 VM-0-16-opencloudos node[2486479]: 2026-02-22T18:09:31.674+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:09:32 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:32.089Z [feishu] [reaction-state] Transitioning 1 message(s) to PROCESSING in chat oc_36a6c8f7b6378fbfabb6ac3243e1d247
+Feb 22 18:09:32 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:32.881Z [feishu] [reaction-state] Removed QUEUED emoji: messageId=om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:09:33 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:33.369Z [feishu] [reaction-state] PROCESSING emoji added: messageId=om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:09:33 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:33.983Z [feishu] [bot.ts] Reaction manager initialized for om_x100b5699131e38a0b3b2164a8432f3b. Triggering onMessageQueued...
+Feb 22 18:09:34 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:34.457Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b5699131e38a0b3b2164a8432f3b, reactionId=CjZO2e-Lqy11vPF3THY4q3LaldxOjHDUAOGcyEkGNbV0DSsBWR-YvzikK8KdVm_p
+Feb 22 18:09:34 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:34.459Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b5699131e38a0b3b2164a8432f3b
+Feb 22 18:09:34 VM-0-16-opencloudos node[2486479]: 2026-02-22T18:09:34.464+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b5699131e38a0b3b2164a8432f3b
+Feb 22 18:09:34 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:34.523Z [feishu] feishu[default]: dispatch complete (queuedFinal=false, replies=0)
+Feb 22 18:09:39 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:39.702Z [feishu] [bot.ts] Reaction manager initialized for om_x100b569910fd10a0b273bed3c3ef8a8. Triggering onMessageQueued...
+Feb 22 18:09:40 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:40.428Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b569910fd10a0b273bed3c3ef8a8, reactionId=YHMQ5cq4xlZHs4Py_NIuJO_K01d-XuSH3Yv1DBfOdBuDZ8kac3DfcxoDQIipXGId
+Feb 22 18:09:40 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:40.431Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b569910fd10a0b273bed3c3ef8a8
+Feb 22 18:09:40 VM-0-16-opencloudos node[2486479]: 2026-02-22T18:09:40.446+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b569910fd10a0b273bed3c3ef8a8
+Feb 22 18:09:40 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:09:40.514Z [feishu] feishu[default]: dispatch complete (queuedFinal=false, replies=0)
+Feb 22 18:10:01 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:01.608Z [feishu] [bot.ts] Reaction manager initialized for om_x100b569911420ca0b2ceda8a40b8b0c. Triggering onMessageQueued...
+Feb 22 18:10:02 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:02.075Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b569911420ca0b2ceda8a40b8b0c, reactionId=wA1185Ca4oEgvGEiC-ieyjiTIcAQKSqa1bsY0kh0_cNs5G-9_WTva8ScCOL9wOGE
+Feb 22 18:10:02 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:02.079Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b569911420ca0b2ceda8a40b8b0c
+Feb 22 18:10:02 VM-0-16-opencloudos node[2486479]: 2026-02-22T18:10:02.087+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b569911420ca0b2ceda8a40b8b0c
+Feb 22 18:10:02 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:02.172Z [feishu] feishu[default]: dispatch complete (queuedFinal=false, replies=0)
+Feb 22 18:10:02 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:02.493Z [feishu] feishu[default]: dispatch complete (queuedFinal=true, replies=1)
+Feb 22 18:10:02 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:02.969Z [feishu] [reaction-state] Removed Typing emoji on completion: messageId=om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:10:03 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:03.001Z [feishu] [reaction-state] Removed null emoji on completion: messageId=om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:10:03 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:03.435Z [feishu] [reaction-state] Removed OK emoji on completion: messageId=om_x100b5699131e38a0b3b2164a8432f3b
+Feb 22 18:10:03 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:03.881Z [feishu] [reaction-state] Removed OK emoji on completion: messageId=om_x100b569910fd10a0b273bed3c3ef8a8
+Feb 22 18:10:04 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:04.346Z [feishu] [reaction-state] Removed OK emoji on completion: messageId=om_x100b569911420ca0b2ceda8a40b8b0c
+Feb 22 18:10:04 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:04.348Z [feishu] [reaction-state] Cleared 4 states for chat oc_36a6c8f7b6378fbfabb6ac3243e1d247
+Feb 22 18:10:29 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:29.807Z [feishu] [bot.ts] Reaction manager initialized for om_x100b56992f9c1d30b4c9322d775f1dd. Triggering onMessageQueued...
+Feb 22 18:10:30 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:30.305Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b56992f9c1d30b4c9322d775f1dd, reactionId=A4XZ8UszSzNT3TfjmRLNnhfY9CijMAlCld_oPIWll1F97eNeHy3G2mxJMC96lXhG
+Feb 22 18:10:30 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:30.307Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:10:30 VM-0-16-opencloudos node[2486479]: 2026-02-22T18:10:30.312+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:10:30 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:30.349Z [feishu] [reaction-state] Transitioning 1 message(s) to PROCESSING in chat oc_36a6c8f7b6378fbfabb6ac3243e1d247
+Feb 22 18:10:30 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:30.869Z [feishu] [reaction-state] Removed QUEUED emoji: messageId=om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:10:31 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:31.322Z [feishu] [reaction-state] PROCESSING emoji added: messageId=om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:10:35 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:35.465Z [feishu] [bot.ts] Reaction manager initialized for om_x100b56992f61bca0b348b861a398899. Triggering onMessageQueued...
+Feb 22 18:10:35 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:35.935Z [feishu] [reaction-state] QUEUED emoji added: messageId=om_x100b56992f61bca0b348b861a398899, reactionId=RxI1PGHlWWLh1PB4cA_2wYDrXCW0WBO4Xq4GTkR1VIiHA1U6EcmxUXkJoeV4KuS_
+Feb 22 18:10:35 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:35.936Z [feishu] [bot.ts] onMessageQueued completed successfully for om_x100b56992f61bca0b348b861a398899
+Feb 22 18:10:35 VM-0-16-opencloudos node[2486479]: 2026-02-22T18:10:35.941+08:00 [feishu][timeout-monitor][FR-006] processing started for om_x100b56992f61bca0b348b861a398899
+Feb 22 18:10:36 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:36.077Z [feishu] feishu[default]: dispatch complete (queuedFinal=false, replies=0)
+Feb 22 18:10:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:42.113Z [feishu] feishu[default]: dispatch complete (queuedFinal=true, replies=1)
+Feb 22 18:10:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:42.549Z [feishu] [reaction-state] Removed Typing emoji on completion: messageId=om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:10:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:42.635Z [feishu] [reaction-state] Removed null emoji on completion: messageId=om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:10:43 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:43.122Z [feishu] [reaction-state] Removed OK emoji on completion: messageId=om_x100b56992f61bca0b348b861a398899
+Feb 22 18:10:43 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:10:43.124Z [feishu] [reaction-state] Cleared 6 states for chat oc_36a6c8f7b6378fbfabb6ac3243e1d247
+Feb 22 18:11:02 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:02.972Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:11:03 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:03.003Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:11:03 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:03.135Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:11:03 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:03.437Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b5699131e38a0b3b2164a8432f3b
+Feb 22 18:11:03 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:03.883Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569910fd10a0b273bed3c3ef8a8
+Feb 22 18:11:04 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:04.349Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569911420ca0b2ceda8a40b8b0c
+Feb 22 18:11:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:42.113Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569913528cacb28f17d1919bb6c
+Feb 22 18:11:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:42.117Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b5699131e38a0b3b2164a8432f3b
+Feb 22 18:11:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:42.119Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569910fd10a0b273bed3c3ef8a8
+Feb 22 18:11:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:42.122Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b569911420ca0b2ceda8a40b8b0c
+Feb 22 18:11:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:42.551Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:11:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:42.637Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:11:42 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:42.733Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b56992f9c1d30b4c9322d775f1dd
+Feb 22 18:11:43 VM-0-16-opencloudos node[2486479]: 2026-02-22T10:11:43.125Z [feishu] [reaction-state] State cleaned up: messageId=om_x100b56992f61bca0b348b861a398899

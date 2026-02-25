@@ -1,0 +1,7 @@
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T18:37:50.674+08:00 [feishu][history] SQLite opened at /root/.openclaw/feishu-history.db (FR-002 persistence enabled)
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T18:37:50.680+08:00 [feishu][history] Gateway startup timestamp set: 2026-02-22T10:37:50.675Z (db=persistent)
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:50.683Z [feishu] [history][FR-002] db=persistent, lastShutdownTs=none, chatIds=0
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:50.686Z [feishu] feishu[default]: no past shutdown timestamp found, skipping recovery.
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:50.752Z [delivery-recovery] Found 6 pending delivery entries — starting recovery
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:50.754Z [delivery-recovery] Recovery time budget exceeded — 6 entries deferred to next restart
+Feb 22 18:37:50 VM-0-16-opencloudos node[2511815]: 2026-02-22T10:37:50.755Z [delivery-recovery] Delivery recovery complete: 0 recovered, 0 failed, 0 skipped (max retries)

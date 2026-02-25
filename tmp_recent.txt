@@ -1,0 +1,2 @@
+Feb 23 16:42:43 VM-0-16-opencloudos node[2873988]: 2026-02-23T08:42:43.974Z [agent/embedded] Removed orphaned user message to prevent consecutive user turns. runId=cf940d22-40ff-49bf-b004-44ed9b5a9198 sessionId=4386ff06-f852-4f79-8de7-e4de3f7f6f22
+Feb 23 17:00:00 VM-0-16-opencloudos node[2873988]: 2026-02-23T09:00:00.185Z [agent/embedded] Removed orphaned user message to prevent consecutive user turns. runId=d81e4cd2-00f3-44da-a2c2-86fb3c651cae sessionId=4386ff06-f852-4f79-8de7-e4de3f7f6f22

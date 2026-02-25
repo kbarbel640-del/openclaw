@@ -1,0 +1,4 @@
+CONTAINER ID   IMAGE                                COMMAND                  CREATED       STATUS      PORTS                                         NAMES
+fbf5b543515e   daveved/clawwatch-webapp:latest      "/app/entrypoint-web…"   2 weeks ago   Up 3 days   0.0.0.0:5173->3000/tcp, [::]:5173->3000/tcp   clawwatch-web
+9a687763f74e   daveved/clawwatch-collector:latest   "/usr/local/bin/dock…"   2 weeks ago   Up 3 days                                                 clawwatch-collector
+-- No entries --

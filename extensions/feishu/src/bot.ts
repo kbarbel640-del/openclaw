@@ -1054,8 +1054,10 @@ export async function handleFeishuMessage(params: {
     }
   } catch (err) {
     error(`feishu[${account.accountId}]: failed to dispatch message: ${String(err)}`);
-    // Ensure emoji is cleaned up on error
-    await reactionManager.onCompleted(ctx.messageId);
+    // Ensure emoji is cleaned up on error - for this message AND any merged ones
+    // that might be waiting for it in PROCESSING/QUEUED state.
+    const cutoffTimestamp = reactionManager.getState(ctx.messageId)?.createdAt ?? Date.now();
+    await reactionManager.clearForChat(ctx.chatId, cutoffTimestamp);
     removePendingMessage(ctx.messageId); // clean from queue
   }
 }
