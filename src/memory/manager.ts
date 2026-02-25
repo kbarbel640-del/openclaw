@@ -52,6 +52,7 @@ import { searchKeyword, searchVector } from "./manager-search.js";
 import { ensureMemoryIndexSchema } from "./memory-schema.js";
 import { loadSqliteVecExtension } from "./sqlite-vec.js";
 import { requireNodeSqlite } from "./sqlite.js";
+import { recordAgentWrite } from "./integrity.js";
 
 type MemoryIndexMeta = {
   model: string;
@@ -1101,6 +1102,10 @@ export class MemoryIndexManager implements MemorySearchManager {
         return;
       }
       await this.indexFile(entry, { source: "memory" });
+      // Update integrity manifest so external-tamper detection has a baseline
+      await recordAgentWrite(this.workspaceDir, entry.path, entry.hash).catch(() => {
+        // non-fatal: manifest update failure should not block indexing
+      });
       if (params.progress) {
         params.progress.completed += 1;
         params.progress.report({

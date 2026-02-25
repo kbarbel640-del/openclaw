@@ -232,5 +232,5 @@ function isValidIPv4(host: string): boolean {
 }
 
 export function isLoopbackHost(host: string): boolean {
-  return isLoopbackAddress(host);
+  return host === "localhost" || isLoopbackAddress(host);
 }
