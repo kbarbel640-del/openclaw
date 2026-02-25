@@ -58,6 +58,9 @@ export async function prepareClaudeSdkSession(
     // Explicit user directive (anything other than the "off" default) takes precedence
     // over the config-level thinkingDefault. If no directive was given, the config acts
     // as the agent-level default, falling back to the runtime "off" if unset.
+    // TODO: explicit user "off" is indistinguishable from the default "off", so
+    // thinkingDefault can override an explicit user choice. Proper fix requires
+    // threading `thinkLevelExplicit` from message parsing.
     thinkLevel:
       params.thinkLevel !== "off"
         ? params.thinkLevel
