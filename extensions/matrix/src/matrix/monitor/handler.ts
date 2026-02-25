@@ -655,17 +655,26 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
           },
         });
 
-      const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
-        ctx: ctxPayload,
-        cfg,
-        dispatcher,
-        replyOptions: {
-          ...replyOptions,
-          skillFilter: roomConfig?.skills,
-          onModelSelected,
-        },
-      });
-      markDispatchIdle();
+      let queuedFinal: boolean;
+      let counts: Record<string, number>;
+      try {
+        ({ queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
+          ctx: ctxPayload,
+          cfg,
+          dispatcher,
+          replyOptions: {
+            ...replyOptions,
+            skillFilter: roomConfig?.skills,
+            onModelSelected,
+          },
+        }));
+      } finally {
+        // Match withReplyDispatcher: release reservation + await all deliveries
+        // before stopping typing. Without this, typing=false races message delivery.
+        dispatcher.markComplete();
+        await dispatcher.waitForIdle();
+        markDispatchIdle();
+      }
       if (!queuedFinal) {
         return;
       }
