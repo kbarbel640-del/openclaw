@@ -59,6 +59,7 @@ export type TelegramBotOptions = {
   testTimings?: {
     mediaGroupFlushMs?: number;
     textFragmentGapMs?: number;
+    forwardedBurstDebounceMs?: number;
   };
 };
 
