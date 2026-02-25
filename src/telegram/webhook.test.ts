@@ -87,6 +87,9 @@ async function postWebhookPayloadWithChunkPlan(params: {
 }): Promise<{ statusCode: number; body: string }> {
   const payloadBuffer = Buffer.from(params.payload, "utf-8");
   return await new Promise((resolve, reject) => {
+    let bytesQueued = 0;
+    let chunksQueued = 0;
+    let phase: "writing" | "awaiting-response" = "writing";
     let settled = false;
     const finishResolve = (value: { statusCode: number; body: string }) => {
       if (settled) {
@@ -132,7 +135,11 @@ async function postWebhookPayloadWithChunkPlan(params: {
     );
 
     const timeout = setTimeout(() => {
-      finishReject(new Error(`webhook post timed out after ${params.timeoutMs ?? 15_000}ms`));
+      finishReject(
+        new Error(
+          `webhook post timed out after ${params.timeoutMs ?? 15_000}ms (phase=${phase}, bytesQueued=${bytesQueued}, chunksQueued=${chunksQueued}, totalBytes=${payloadBuffer.length})`,
+        ),
+      );
       req.destroy();
     }, params.timeoutMs ?? 15_000);
 
@@ -148,21 +155,24 @@ async function postWebhookPayloadWithChunkPlan(params: {
 
       const rng = createDeterministicRng(26156);
       let offset = 0;
-      let chunkCount = 0;
       while (offset < payloadBuffer.length) {
         const remaining = payloadBuffer.length - offset;
         const nextSize = Math.max(1, Math.min(remaining, 1 + Math.floor(rng() * 8_192)));
         const chunk = payloadBuffer.subarray(offset, offset + nextSize);
         const canContinue = req.write(chunk);
         offset += nextSize;
-        chunkCount += 1;
-        if (chunkCount % 10 === 0) {
+        bytesQueued = offset;
+        chunksQueued += 1;
+        if (chunksQueued % 10 === 0) {
           await sleep(1 + Math.floor(rng() * 3));
         }
         if (!canContinue) {
-          await once(req, "drain");
+          // Windows CI occasionally stalls on waiting for drain indefinitely.
+          // Bound the wait, then continue queuing this small (~1MB) payload.
+          await Promise.race([once(req, "drain"), sleep(25)]);
         }
       }
+      phase = "awaiting-response";
       req.end();
     };
 
