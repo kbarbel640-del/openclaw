@@ -19,6 +19,6 @@ export function resolveStateDirFromEnv(env: NodeJS.ProcessEnv = process.env): st
     return resolveUserPath(stateOverride);
   }
   const profile = env.OPENCLAW_PROFILE?.trim() || env.CLAWDBOT_PROFILE?.trim();
-  const suffix = profile ? `-${profile}` : "";
+  const suffix = profile && profile.toLowerCase() !== "default" ? `-${profile}` : "";
   return path.join(os.homedir(), `.openclaw${suffix}`);
 }

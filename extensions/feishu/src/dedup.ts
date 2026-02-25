@@ -30,7 +30,7 @@ function resolveStateDirFromEnv(env: NodeJS.ProcessEnv = process.env): string {
     return path.join(os.tmpdir(), ["openclaw-vitest", String(process.pid)].join("-"));
   }
   const profile = env.OPENCLAW_PROFILE?.trim() || env.CLAWDBOT_PROFILE?.trim();
-  const suffix = profile ? `-${profile}` : "";
+  const suffix = profile && profile.toLowerCase() !== "default" ? `-${profile}` : "";
   return path.join(os.homedir(), `.openclaw${suffix}`);
 }
 

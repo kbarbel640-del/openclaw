@@ -15,7 +15,7 @@ function resolveDefaultStateDir(runtime: PluginRuntime): string {
     return runtime.state.resolveStateDir(process.env, os.homedir);
   } catch {
     const profile = process.env.OPENCLAW_PROFILE?.trim() || process.env.CLAWDBOT_PROFILE?.trim();
-    const suffix = profile ? `-${profile}` : "";
+    const suffix = profile && profile.toLowerCase() !== "default" ? `-${profile}` : "";
     return path.join(os.homedir(), `.openclaw${suffix}`);
   }
 }
