@@ -14,6 +14,7 @@ import { applyGroupGating } from "./group-gating.js";
 import { updateLastRouteInBackground } from "./last-route.js";
 import { resolvePeerId } from "./peer.js";
 import { processMessage } from "./process-message.js";
+import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 
 export function createWebOnMessageHandler(params: {
   cfg: ReturnType<typeof loadConfig>;
@@ -93,6 +94,40 @@ export function createWebOnMessageHandler(params: {
       logVerbose("Skipping auto-reply: detected echo (message matches recently sent text)");
       params.echoTracker.forget(msg.body);
       return;
+    }
+
+    // Fire message_inbound hook before any gating so plugins
+    // can observe all authorized inbound messages regardless of mention status.
+    const hookRunner = getGlobalHookRunner();
+    if (hookRunner?.hasHooks("message_inbound")) {
+      void hookRunner
+        .runMessageInbound(
+          {
+            from: msg.senderJid ?? msg.senderE164 ?? msg.from,
+            content: msg.body,
+            timestamp: msg.timestamp,
+            metadata: {
+              to: msg.to,
+              provider: "whatsapp",
+              surface: "whatsapp",
+              originatingChannel: "whatsapp",
+              originatingTo: conversationId,
+              senderId: msg.senderJid?.trim() || msg.senderE164,
+              senderName: msg.senderName,
+              senderE164: msg.senderE164,
+              chatType: msg.chatType,
+              groupSubject: msg.groupSubject,
+            },
+          },
+          {
+            channelId: "whatsapp",
+            accountId: route.accountId,
+            conversationId,
+          },
+        )
+        .catch((err) => {
+          logVerbose(`on-message: message_inbound plugin hook failed: ${String(err)}`);
+        });
     }
 
     if (msg.chatType === "group") {

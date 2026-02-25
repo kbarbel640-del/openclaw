@@ -376,6 +376,20 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
   // =========================================================================
 
   /**
+   * Run message_inbound hook.
+   * Fires after sender authorization but before mention gating,
+   * so plugins can observe all authorized inbound messages regardless
+   * of whether the agent will process them.
+   * Runs in parallel (fire-and-forget).
+   */
+  async function runMessageInbound(
+    event: PluginHookMessageReceivedEvent,
+    ctx: PluginHookMessageContext,
+  ): Promise<void> {
+    return runVoidHook("message_inbound", event, ctx);
+  }
+
+  /**
    * Run message_received hook.
    * Runs in parallel (fire-and-forget).
    */
@@ -725,6 +739,7 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     runAfterCompaction,
     runBeforeReset,
     // Message hooks
+    runMessageInbound,
     runMessageReceived,
     runMessageSending,
     runMessageSent,
