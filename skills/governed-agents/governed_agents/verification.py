@@ -2,11 +2,11 @@
 Verification Gates — deterministic checks on agent output.
 No LLM needed. Pure code.
 """
-import subprocess
 import ast
 import re
-from pathlib import Path
+import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal, Optional
 
 
@@ -216,9 +216,9 @@ def run_full_verification(contract, base_dir: str = ".") -> VerificationResult:
 
 
 def run_non_coding_verification(output: str, contract) -> VerificationResult:
+    from governed_agents.grounding_gate import run_grounding_gate
     from governed_agents.profiles import get_profile
     from governed_agents.structural_gate import run_structural_gate
-    from governed_agents.grounding_gate import run_grounding_gate
 
     if contract.task_type == "custom" or contract.verification_mode == "deterministic":
         return VerificationResult(

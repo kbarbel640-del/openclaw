@@ -2,8 +2,8 @@
 Structural Gate — Layer 1 deterministic checks for non-coding task verification.
 Fast (< 1s), no external calls. Runs before Grounding Gate and LLM Council.
 """
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 
 
 @dataclass

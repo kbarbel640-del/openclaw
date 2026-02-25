@@ -49,8 +49,8 @@ def test_spawn_endpoint_exists():
 
 def test_spawn_governed_http_import():
     """Test that spawn_governed_http is callable and returns a valid TaskResult."""
-    from governed_agents.openclaw_wrapper import spawn_governed_http
     from governed_agents.contract import TaskContract, TaskStatus
+    from governed_agents.openclaw_wrapper import spawn_governed_http
 
     contract = TaskContract(
         objective="Write the text 'governed_test_ok' to /tmp/governed_http_test.txt",

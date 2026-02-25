@@ -6,9 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from governed_agents.verifier import Verifier
 from governed_agents.orchestrator import GovernedOrchestrator
-from governed_agents.reputation import init_db, get_task_history
+from governed_agents.reputation import get_task_history, init_db
+from governed_agents.verifier import Verifier
 
 
 def test_files_gate_pass():

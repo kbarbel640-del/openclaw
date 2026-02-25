@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from governed_agents.reputation import update_reputation, init_db
+from governed_agents.reputation import init_db, update_reputation
 
 STATUS_SCORES = {
     "success": 1.0,

@@ -2,10 +2,10 @@
 LLM Council Gate — open-ended verification via independent reviewer agents.
 Gate 5 of the Governed Agents verification pipeline.
 """
-from dataclasses import dataclass, field
-from typing import Optional
 import json
 import re
+from dataclasses import dataclass, field
+from typing import Optional
 
 from governed_agents.contract import ContextEntry
 

@@ -1,9 +1,15 @@
+from governed_agents.contract import ContextEntry, TaskContract
 from governed_agents.council import (
-    generate_reviewer_prompt, aggregate_votes, CouncilVerdict,
-    run_council, Claim, check_claim_context, compute_context_score,
-    _check_numeric_match, _context_match,
+    Claim,
+    CouncilVerdict,
+    _check_numeric_match,
+    _context_match,
+    aggregate_votes,
+    check_claim_context,
+    compute_context_score,
+    generate_reviewer_prompt,
+    run_council,
 )
-from governed_agents.contract import TaskContract, ContextEntry
 from governed_agents.orchestrator import GovernedOrchestrator
 
 

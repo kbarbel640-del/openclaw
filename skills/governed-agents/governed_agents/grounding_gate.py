@@ -2,10 +2,10 @@
 Grounding Gate — Layer 2 semi-deterministic checks for non-coding task verification.
 Uses stdlib only (no external deps). Runs after Structural Gate, before LLM Council.
 """
-from dataclasses import dataclass, field
 import re
-import urllib.request
 import urllib.error
+import urllib.request
+from dataclasses import dataclass, field
 from datetime import datetime
 
 

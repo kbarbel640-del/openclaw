@@ -6,7 +6,6 @@ import sqlite3
 import time
 from pathlib import Path
 
-
 DB_PATH = Path.home() / ".openclaw/workspace/.state/governed_agents/reputation.db"
 
 # Scoring constants

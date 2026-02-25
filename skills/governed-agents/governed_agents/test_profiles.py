@@ -1,9 +1,12 @@
+from governed_agents.contract import TaskContract
+from governed_agents.grounding_gate import run_grounding_gate
 from governed_agents.profiles import TASK_PROFILES, get_profile
 from governed_agents.structural_gate import run_structural_gate
-from governed_agents.grounding_gate import run_grounding_gate
-from governed_agents.verification import run_non_coding_verification, classify_pointer, count_sources
-from governed_agents.contract import TaskContract
-
+from governed_agents.verification import (
+    classify_pointer,
+    count_sources,
+    run_non_coding_verification,
+)
 
 # ── Profiles ──────────────────────────────────────────────────────────
 

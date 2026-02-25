@@ -4,16 +4,16 @@ Uses sessions_spawn tool directly (via inspect/call) and performs verification +
 """
 from __future__ import annotations
 
-import json
-import time
 import inspect
+import json
 import os
 import re
-import uuid
 import shutil
 import subprocess
+import time
+import uuid
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 from .contract import TaskContract, TaskResult, TaskStatus
 from .reputation import init_db, update_reputation
@@ -348,8 +348,8 @@ def spawn_governed_http(
 
     Fallback: Returns FAILED TaskResult wenn Endpoint nicht erreichbar.
     """
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     if auth_token is None:
         auth_token = os.environ.get("GOVERNED_AUTH_TOKEN") or os.environ.get("AUTH_TOKEN")

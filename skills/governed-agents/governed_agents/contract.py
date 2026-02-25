@@ -2,11 +2,11 @@
 Task Contracts & Result Schemas for Governed Agents.
 Defines the "legal code" between Orchestrator and Sub-Agent.
 """
+import json
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Literal, Optional
-import json
-import uuid
 
 
 class TaskStatus(Enum):

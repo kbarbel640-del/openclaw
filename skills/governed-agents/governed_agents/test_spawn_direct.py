@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from governed_agents.contract import TaskContract
-from governed_agents.openclaw_wrapper import spawn_governed, _update_reputation_direct
+from governed_agents.openclaw_wrapper import _update_reputation_direct, spawn_governed
 
 
 def test_import():

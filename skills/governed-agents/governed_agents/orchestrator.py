@@ -10,16 +10,23 @@ import time
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from governed_agents.council import CouncilResult
 from .contract import TaskContract, TaskResult, TaskStatus
-from .verification import run_full_verification
 from .reputation import (
-    init_db, get_reputation, update_reputation, get_supervision_level,
-    SCORE_FIRST_PASS, SCORE_RETRY_PASS, SCORE_HONEST_BLOCK,
-    SCORE_FAILED_TRIED, SCORE_SILENT_FAIL, SCORE_SCHEMA_INVALID
+    SCORE_FAILED_TRIED,
+    SCORE_FIRST_PASS,
+    SCORE_HONEST_BLOCK,
+    SCORE_RETRY_PASS,
+    SCORE_SCHEMA_INVALID,
+    SCORE_SILENT_FAIL,
+    get_reputation,
+    get_supervision_level,
+    init_db,
+    update_reputation,
 )
-
+from .verification import run_full_verification
 
 SELF_REPORT_SCRIPT = str(Path(__file__).parent / "self_report.py")
 
