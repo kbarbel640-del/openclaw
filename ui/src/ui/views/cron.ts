@@ -1216,8 +1216,10 @@ function renderFieldError(message?: string, id?: string) {
 function renderJob(job: CronJob, props: CronProps) {
   const isSelected = props.runsJobId === job.id;
   const itemClass = `list-item list-item-clickable cron-job${isSelected ? " list-item-selected" : ""}`;
-  const selectAnd = (action: () => void) => {
-    props.onLoadRuns(job.id);
+  const runAction = (action: () => void, opts?: { loadRuns?: boolean }) => {
+    if (opts?.loadRuns) {
+      props.onLoadRuns(job.id);
+    }
     action();
   };
   return html`
@@ -1245,7 +1247,7 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              selectAnd(() => props.onEdit(job));
+              runAction(() => props.onEdit(job), { loadRuns: true });
             }}
           >
             Edit
@@ -1255,7 +1257,7 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              selectAnd(() => props.onClone(job));
+              runAction(() => props.onClone(job), { loadRuns: true });
             }}
           >
             Clone
@@ -1265,7 +1267,7 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              selectAnd(() => props.onToggle(job, !job.enabled));
+              runAction(() => props.onToggle(job, !job.enabled));
             }}
           >
             ${job.enabled ? "Disable" : "Enable"}
@@ -1275,7 +1277,7 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              selectAnd(() => props.onRun(job));
+              runAction(() => props.onRun(job));
             }}
           >
             Run
@@ -1285,7 +1287,7 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              selectAnd(() => props.onLoadRuns(job.id));
+              props.onLoadRuns(job.id);
             }}
           >
             History
@@ -1295,7 +1297,7 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
-              selectAnd(() => props.onRemove(job));
+              runAction(() => props.onRemove(job));
             }}
           >
             Remove

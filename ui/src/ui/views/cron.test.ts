@@ -577,7 +577,7 @@ describe("cron view", () => {
     expect(onLoadRuns).toHaveBeenCalledWith("job-clone");
   });
 
-  it("selects row when clicking Enable/Disable, Run, and Remove actions", () => {
+  it("does not load run history when clicking Enable/Disable, Run, and Remove actions", () => {
     const container = document.createElement("div");
     const onToggle = vi.fn();
     const onRun = vi.fn();
@@ -618,10 +618,7 @@ describe("cron view", () => {
     expect(onToggle).toHaveBeenCalledWith(job, false);
     expect(onRun).toHaveBeenCalledWith(job);
     expect(onRemove).toHaveBeenCalledWith(job);
-    expect(onLoadRuns).toHaveBeenCalledTimes(3);
-    expect(onLoadRuns).toHaveBeenNthCalledWith(1, "job-actions");
-    expect(onLoadRuns).toHaveBeenNthCalledWith(2, "job-actions");
-    expect(onLoadRuns).toHaveBeenNthCalledWith(3, "job-actions");
+    expect(onLoadRuns).not.toHaveBeenCalled();
   });
 
   it("renders suggestion datalists for agent/model/thinking/timezone", () => {
