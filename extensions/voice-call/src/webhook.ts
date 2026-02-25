@@ -443,6 +443,9 @@ export class VoiceCallWebhookServer {
   /**
    * Handle auto-response for inbound calls using the agent system.
    * Supports tool calling for richer voice interactions.
+   *
+   * Uses streaming TTS to begin playing audio as soon as the first sentence
+   * is ready, while Claude continues generating the rest of the response.
    */
   private async handleInboundResponse(callId: string, userMessage: string): Promise<void> {
     console.log(`[voice-call] Auto-responding to inbound call ${callId}: "${userMessage}"`);
@@ -460,16 +463,73 @@ export class VoiceCallWebhookServer {
     }
 
     try {
-      const { generateVoiceResponse } = await import("./response-generator.js");
+      const { generateVoiceResponseStream } = await import("./response-generator.js");
 
-      const result = await generateVoiceResponse({
-        voiceConfig: this.config,
-        coreConfig: this.coreConfig,
-        callId,
-        from: call.from,
-        transcript: call.transcript,
-        userMessage,
-      });
+      // Bridge the callback-based onSentenceChunk into an async iterable so
+      // speakStream can consume chunks as they arrive.  The queue holds pending
+      // chunks while speakStream is busy synthesizing the previous one, and
+      // signals completion via a sentinel (null) after generation finishes.
+      const chunkQueue: Array<string | null> = [];
+      let resolveWaiter: (() => void) | null = null;
+
+      // Async iterable consumed by speakStream; yields sentence chunks as they
+      // are pushed by onSentenceChunk, terminates when null is pushed.
+      async function* sentenceIterable(): AsyncIterable<string> {
+        for (;;) {
+          if (chunkQueue.length === 0) {
+            // Wait until a chunk (or the sentinel) is pushed.
+            await new Promise<void>((resolve) => {
+              resolveWaiter = resolve;
+            });
+          }
+          const item = chunkQueue.shift();
+          if (item === null) {
+            // Sentinel — generation is complete.
+            return;
+          }
+          if (item !== undefined) {
+            yield item;
+          }
+        }
+      }
+
+      const pushChunk = (text: string): void => {
+        chunkQueue.push(text);
+        if (resolveWaiter) {
+          const fn = resolveWaiter;
+          resolveWaiter = null;
+          fn();
+        }
+      };
+
+      const pushDone = (): void => {
+        chunkQueue.push(null);
+        if (resolveWaiter) {
+          const fn = resolveWaiter;
+          resolveWaiter = null;
+          fn();
+        }
+      };
+
+      // Run generation and stream speaking concurrently.
+      // speakStream consumes chunks as they arrive from onSentenceChunk.
+      const [result] = await Promise.all([
+        generateVoiceResponseStream({
+          voiceConfig: this.config,
+          coreConfig: this.coreConfig,
+          callId,
+          from: call.from,
+          transcript: call.transcript,
+          userMessage,
+          onSentenceChunk: async (text: string) => {
+            pushChunk(text);
+          },
+        }).finally(() => {
+          // Signal the iterable consumer that no more chunks are coming.
+          pushDone();
+        }),
+        this.manager.speakStream(callId, sentenceIterable()),
+      ]);
 
       if (result.error) {
         console.error(`[voice-call] Response generation error: ${result.error}`);
@@ -477,8 +537,19 @@ export class VoiceCallWebhookServer {
       }
 
       if (result.text) {
-        console.log(`[voice-call] AI response: "${result.text}"`);
-        await this.manager.speak(callId, result.text);
+        console.log(`[voice-call] AI response (streaming): "${result.text}"`);
+        // Add the complete bot response to the call transcript now that we have
+        // the full assembled text.  speakStream intentionally skips this because
+        // it only sees chunks, not the final text.
+        const liveCall = this.manager.getCall(callId);
+        if (liveCall) {
+          liveCall.transcript.push({
+            timestamp: Date.now(),
+            speaker: "bot",
+            text: result.text,
+            isFinal: true,
+          });
+        }
       }
     } catch (err) {
       console.error(`[voice-call] Auto-response error:`, err);
