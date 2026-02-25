@@ -109,22 +109,6 @@ describe("web_search country and language parameters", () => {
     global.fetch = priorFetch;
   });
 
-  async function runBraveSearchAndGetUrl(
-    params: Partial<{
-      country: string;
-      search_lang: string;
-      ui_lang: string;
-      freshness: string;
-    }>,
-  ) {
-    const mockFetch = installMockFetch({ web: { results: [] } });
-    const tool = createWebSearchTool({ config: undefined, sandboxed: true });
-    expect(tool).not.toBeNull();
-    await tool?.execute?.("call-1", { query: "test", ...params });
-    expect(mockFetch).toHaveBeenCalled();
-    return new URL(mockFetch.mock.calls[0][0] as string);
-  }
-
   it.each([
     { key: "country", value: "DE" },
     { key: "search_lang", value: "de" },
