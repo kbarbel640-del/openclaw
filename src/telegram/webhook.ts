@@ -26,10 +26,11 @@ async function initializeTelegramWebhookBot(params: {
   runtime: RuntimeEnv;
   abortSignal?: AbortSignal;
 }) {
+  const initSignal = params.abortSignal as Parameters<(typeof params.bot)["init"]>[0];
   await withTelegramApiErrorLogging({
     operation: "getMe",
     runtime: params.runtime,
-    fn: () => params.bot.init(params.abortSignal),
+    fn: () => params.bot.init(initSignal),
   });
 }
 
