@@ -17,6 +17,14 @@ const SessionsSpawnToolSchema = Type.Object({
   thread: Type.Optional(Type.Boolean()),
   mode: optionalStringEnum(SUBAGENT_SPAWN_MODES),
   cleanup: optionalStringEnum(["delete", "keep"] as const),
+  sessionKey: Type.Optional(
+    Type.String({
+      description:
+        "Reuse an existing sub-agent session instead of creating a new one. " +
+        "When provided, the sub-agent runs in the session keyed by this value, " +
+        "preserving conversation history across spawns.",
+    }),
+  ),
 });
 
 export function createSessionsSpawnTool(opts?: {
@@ -61,6 +69,7 @@ export function createSessionsSpawnTool(opts?: {
           : undefined;
       const thread = params.thread === true;
 
+      const sessionKey = readStringParam(params, "sessionKey");
       const result = await spawnSubagentDirect(
         {
           task,
@@ -73,6 +82,7 @@ export function createSessionsSpawnTool(opts?: {
           mode,
           cleanup,
           expectsCompletionMessage: true,
+          sessionKey: sessionKey || undefined,
         },
         {
           agentSessionKey: opts?.agentSessionKey,
