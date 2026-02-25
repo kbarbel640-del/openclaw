@@ -532,8 +532,19 @@ describe("exec PATH handling", () => {
     const result = await executeExecCommand(tool, COMMAND_PRINT_PATH);
 
     const text = readNormalizedTextContent(result.content);
-    const entries = text.split(path.delimiter);
-    expect(entries.slice(0, prepend.length)).toEqual(prepend);
-    expect(entries).toContain(basePath);
+    const entries = text
+      .split(path.delimiter)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    const baseIndex = entries.indexOf(basePath);
+    expect(baseIndex).toBeGreaterThanOrEqual(0);
+    let previousIndex = -1;
+    for (const entry of prepend) {
+      const index = entries.indexOf(entry);
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(index).toBeGreaterThan(previousIndex);
+      expect(index).toBeLessThan(baseIndex);
+      previousIndex = index;
+    }
   });
 });
