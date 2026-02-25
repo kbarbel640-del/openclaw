@@ -4,6 +4,7 @@ import {
   buildTokenChannelStatusSummary,
   collectDiscordAuditChannelIds,
   collectDiscordStatusIssues,
+  createApplyAccountConfig,
   DEFAULT_ACCOUNT_ID,
   deleteAccountFromConfigSection,
   discordOnboardingAdapter,
@@ -14,7 +15,6 @@ import {
   listDiscordDirectoryGroupsFromConfig,
   listDiscordDirectoryPeersFromConfig,
   looksLikeDiscordTargetId,
-  migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   normalizeDiscordMessagingTarget,
   normalizeDiscordOutboundTarget,
@@ -249,52 +249,12 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
       }
       return null;
     },
-    applyAccountConfig: ({ cfg, accountId, input }) => {
-      const namedConfig = applyAccountNameToChannelSection({
-        cfg,
-        channelKey: "discord",
-        accountId,
-        name: input.name,
-      });
-      const next =
-        accountId !== DEFAULT_ACCOUNT_ID
-          ? migrateBaseNameToDefaultAccount({
-              cfg: namedConfig,
-              channelKey: "discord",
-            })
-          : namedConfig;
-      if (accountId === DEFAULT_ACCOUNT_ID) {
-        return {
-          ...next,
-          channels: {
-            ...next.channels,
-            discord: {
-              ...next.channels?.discord,
-              enabled: true,
-              ...(input.useEnv ? {} : input.token ? { token: input.token } : {}),
-            },
-          },
-        };
-      }
-      return {
-        ...next,
-        channels: {
-          ...next.channels,
-          discord: {
-            ...next.channels?.discord,
-            enabled: true,
-            accounts: {
-              ...next.channels?.discord?.accounts,
-              [accountId]: {
-                ...next.channels?.discord?.accounts?.[accountId],
-                enabled: true,
-                ...(input.token ? { token: input.token } : {}),
-              },
-            },
-          },
-        },
-      };
-    },
+    applyAccountConfig: createApplyAccountConfig({
+      channelKey: "discord",
+      mapInputToFields: (input) => ({
+        ...(input.useEnv ? {} : input.token ? { token: input.token } : {}),
+      }),
+    }),
   },
   outbound: {
     deliveryMode: "direct",
