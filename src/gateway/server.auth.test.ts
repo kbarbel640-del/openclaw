@@ -1199,6 +1199,86 @@ describe("gateway server auth/connect", () => {
     restoreGatewayToken(prevToken);
   });
 
+  test("auto-approves remote node repair requests when shared auth succeeds", async () => {
+    const { mkdtemp } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { loadConfig, writeConfigFile } = await import("../config/config.js");
+    const { loadOrCreateDeviceIdentity, publicKeyRawBase64UrlFromPem, signDevicePayload } =
+      await import("../infra/device-identity.js");
+    const { approveDevicePairing, getPairedDevice, listDevicePairing, requestDevicePairing } =
+      await import("../infra/device-pairing.js");
+
+    const currentConfig = loadConfig();
+    await writeConfigFile({
+      ...currentConfig,
+      gateway: {
+        ...currentConfig.gateway,
+        trustedProxies: ["127.0.0.1"],
+      },
+    });
+
+    const identityDir = await mkdtemp(join(tmpdir(), "openclaw-device-repair-"));
+    const identity = loadOrCreateDeviceIdentity(join(identityDir, "device.json"));
+    const repairedPublicKey = publicKeyRawBase64UrlFromPem(identity.publicKeyPem);
+    const seeded = await requestDevicePairing({
+      deviceId: identity.deviceId,
+      publicKey: "stale-public-key",
+      role: "node",
+      scopes: [],
+      clientId: TEST_OPERATOR_CLIENT.id,
+      clientMode: TEST_OPERATOR_CLIENT.mode,
+      displayName: "repair-seed",
+      platform: TEST_OPERATOR_CLIENT.platform,
+    });
+    await approveDevicePairing(seeded.request.requestId);
+    const before = await getPairedDevice(identity.deviceId);
+    expect(before?.publicKey).toBe("stale-public-key");
+
+    const { server, ws, port, prevToken } = await startServerWithClient("secret");
+    let remoteWs: WebSocket | undefined;
+    try {
+      ws.close();
+
+      remoteWs = await openWs(port, { "x-forwarded-for": "203.0.113.10" });
+      const nonce = await readConnectChallengeNonce(remoteWs);
+      const signedAtMs = Date.now();
+      const payload = buildDeviceAuthPayload({
+        deviceId: identity.deviceId,
+        clientId: TEST_OPERATOR_CLIENT.id,
+        clientMode: TEST_OPERATOR_CLIENT.mode,
+        role: "node",
+        scopes: [],
+        signedAtMs,
+        token: "secret",
+        nonce,
+      });
+      const repaired = await connectReq(remoteWs, {
+        token: "secret",
+        role: "node",
+        scopes: [],
+        client: TEST_OPERATOR_CLIENT,
+        device: {
+          id: identity.deviceId,
+          publicKey: repairedPublicKey,
+          signature: signDevicePayload(identity.privateKeyPem, payload),
+          signedAt: signedAtMs,
+          nonce,
+        },
+      });
+      expect(repaired.ok).toBe(true);
+
+      const list = await listDevicePairing();
+      expect(list.pending.filter((entry) => entry.deviceId === identity.deviceId)).toEqual([]);
+      const updated = await getPairedDevice(identity.deviceId);
+      expect(updated?.publicKey).toBe(repairedPublicKey);
+    } finally {
+      remoteWs?.close();
+      await server.close();
+      restoreGatewayToken(prevToken);
+    }
+  });
+
   test("still requires node pairing while operator shared auth succeeds for the same device", async () => {
     const { mkdtemp } = await import("node:fs/promises");
     const { tmpdir } = await import("node:os");
