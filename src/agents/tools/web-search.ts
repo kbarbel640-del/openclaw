@@ -1226,6 +1226,12 @@ async function runWebSearch(params: {
       query: params.query,
       provider: params.provider,
       tookMs: Date.now() - start,
+      externalContent: {
+        untrusted: true,
+        source: "web_search",
+        provider: params.provider,
+        wrapped: true,
+      },
       results: results,
     };
     writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
