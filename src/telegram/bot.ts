@@ -399,6 +399,7 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     runtime,
     mediaMaxBytes,
     telegramCfg,
+    allowFrom,
     groupAllowFrom,
     resolveGroupPolicy,
     resolveTelegramGroupConfig,
