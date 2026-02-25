@@ -34,6 +34,8 @@ export type ResolvedGatewayAuth = {
   password?: string;
   allowTailscale: boolean;
   trustedProxy?: GatewayTrustedProxyConfig;
+  /** Resolved clock-skew tolerance for device signature verification (ms). */
+  deviceSignatureSkewMs?: number;
 };
 
 export type GatewayAuthResult = {
@@ -285,6 +287,7 @@ export function resolveGatewayAuth(params: {
     password,
     allowTailscale,
     trustedProxy,
+    deviceSignatureSkewMs: authConfig.deviceSignatureSkewMs,
   };
 }
 
