@@ -1,5 +1,8 @@
 """pytest configuration for governed-agents tests."""
 import os
+import subprocess
+from pathlib import Path
+
 import pytest
 
 # Skip integration tests that require live Command Center
@@ -10,7 +13,6 @@ CC_REACHABLE = False
 if os.environ.get("CI"):
     CC_REACHABLE = False  # Always skip in CI
 else:
-    import subprocess
     try:
         r = subprocess.run(
             ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", f"{CC_URL}/api/health"],
