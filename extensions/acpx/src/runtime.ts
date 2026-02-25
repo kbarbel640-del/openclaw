@@ -145,14 +145,11 @@ export class AcpxRuntime implements AcpRuntime {
       fallbackCode: "ACP_SESSION_INIT_FAILED",
     });
     const ensuredEvent = events.find(
-      (event) =>
-        asOptionalString(event.agentSessionId) ||
-        asOptionalString(event.acpxSessionId) ||
-        asOptionalString(event.acpxRecordId),
+      (event) => asOptionalString(event.agentSessionId) || asOptionalString(event.acpxSessionId),
     );
     const agentSessionId = ensuredEvent ? asOptionalString(ensuredEvent.agentSessionId) : undefined;
     const backendSessionId = ensuredEvent
-      ? asOptionalString(ensuredEvent.acpxSessionId) || asOptionalString(ensuredEvent.acpxRecordId)
+      ? asOptionalString(ensuredEvent.acpxSessionId)
       : undefined;
 
     return {
@@ -293,6 +290,7 @@ export class AcpxRuntime implements AcpRuntime {
     }
     const status = asTrimmedString(detail.status) || "unknown";
     const acpxSessionId = asOptionalString(detail.acpxSessionId);
+    const agentSessionId = asOptionalString(detail.agentSessionId);
     const pid = typeof detail.pid === "number" && Number.isFinite(detail.pid) ? detail.pid : null;
     const summary = [
       `status=${status}`,
@@ -303,6 +301,8 @@ export class AcpxRuntime implements AcpRuntime {
       .join(" ");
     return {
       summary,
+      ...(acpxSessionId ? { backendSessionId: acpxSessionId } : {}),
+      ...(agentSessionId ? { agentSessionId } : {}),
       details: detail,
     };
   }

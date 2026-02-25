@@ -242,7 +242,7 @@ describe("spawnAcpDirect", () => {
     expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({
-          introText: expect.stringContaining("inner session id: codex-inner-1"),
+          introText: expect.stringContaining("agent session id: codex-inner-1"),
         }),
       }),
     );

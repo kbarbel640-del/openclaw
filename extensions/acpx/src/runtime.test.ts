@@ -108,6 +108,7 @@ if (command === "status") {
   writeLog({ kind: "status", agent, args, sessionName: sessionFromOption });
   process.stdout.write(JSON.stringify({
     acpxSessionId: sessionFromOption ? "sid-" + sessionFromOption : null,
+    agentSessionId: sessionFromOption ? "inner-" + sessionFromOption : null,
     status: sessionFromOption ? "alive" : "no-session",
     pid: 4242,
     uptime: 120,
@@ -500,8 +501,11 @@ describe("AcpxRuntime", () => {
       value: "openai-codex/gpt-5.3-codex",
     });
     const status = await runtime.getStatus({ handle });
+    const ensuredSessionName = "agent:codex:acp:controls";
 
     expect(status.summary).toContain("status=alive");
+    expect(status.backendSessionId).toBe("sid-" + ensuredSessionName);
+    expect(status.agentSessionId).toBe("inner-" + ensuredSessionName);
     expect(status.details?.status).toBe("alive");
     expect(status.details?.pid).toBe(4242);
 

@@ -41,6 +41,10 @@ export type AcpRuntimeCapabilities = {
 
 export type AcpRuntimeStatus = {
   summary?: string;
+  /** Backend-level ACP session identifier, if known at status time. */
+  backendSessionId?: string;
+  /** Upstream harness session identifier, if known at status time. */
+  agentSessionId?: string;
   details?: Record<string, unknown>;
 };
 

@@ -309,7 +309,7 @@ describe("/acp command", () => {
         targetKind: "session",
         placement: "child",
         metadata: expect.objectContaining({
-          introText: expect.stringContaining("inner session id: codex-inner-1"),
+          introText: expect.stringContaining("agent session id: codex-inner-1"),
         }),
       }),
     );
@@ -591,6 +591,8 @@ describe("/acp command", () => {
         backend: "acpx",
         agent: "codex",
         runtimeSessionName: "runtime-1",
+        backendSessionId: "acpx-sid-1",
+        agentSessionId: "codex-sid-1",
         mode: "persistent",
         state: "idle",
         lastActivityAt: Date.now(),
@@ -603,6 +605,8 @@ describe("/acp command", () => {
 
     expect(result?.reply?.text).toContain("ACP status:");
     expect(result?.reply?.text).toContain("session: agent:codex:acp:s1");
+    expect(result?.reply?.text).toContain("agent session id: codex-sid-1");
+    expect(result?.reply?.text).toContain("acpx session id: acpx-sid-1");
     expect(result?.reply?.text).toContain("capabilities:");
     expect(hoisted.getStatusMock).toHaveBeenCalledTimes(1);
   });

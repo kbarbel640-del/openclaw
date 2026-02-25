@@ -17,7 +17,7 @@ export function resolveAcpSessionIdentifierLines(params: {
   const backendSessionId = normalizeText(params.meta?.backendSessionId);
   const lines: string[] = [];
   if (agentSessionId) {
-    lines.push(`inner session id: ${agentSessionId}`);
+    lines.push(`agent session id: ${agentSessionId}`);
   }
   if (backendSessionId) {
     lines.push(`${backend} session id: ${backendSessionId}`);

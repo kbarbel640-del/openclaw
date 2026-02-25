@@ -195,6 +195,33 @@ function resolveRuntimeIdleTtlMs(cfg: OpenClawConfig): number {
   return Math.round(ttlMinutes * 60 * 1000);
 }
 
+function normalizeStatusField(
+  details: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  return normalizeText(details?.[key]);
+}
+
+function extractStatusSessionIdentifiers(status: AcpRuntimeStatus | undefined): {
+  backendSessionId?: string;
+  agentSessionId?: string;
+} {
+  if (!status) {
+    return {};
+  }
+  const details = status.details;
+  const backendSessionId =
+    normalizeText(status.backendSessionId) ??
+    normalizeStatusField(details, "backendSessionId") ??
+    normalizeStatusField(details, "acpxSessionId");
+  const agentSessionId =
+    normalizeText(status.agentSessionId) ?? normalizeStatusField(details, "agentSessionId");
+  return {
+    ...(backendSessionId ? { backendSessionId } : {}),
+    ...(agentSessionId ? { agentSessionId } : {}),
+  };
+}
+
 export class AcpSessionManager {
   private readonly actorQueue = new SessionActorQueue();
   private readonly actorTailBySession = this.actorQueue.getTailMapForTesting();
@@ -380,11 +407,17 @@ export class AcpSessionManager {
       if (resolution.kind === "stale") {
         throw resolution.error;
       }
-      const { runtime, handle, meta } = await this.ensureRuntimeHandle({
+      const {
+        runtime,
+        handle: ensuredHandle,
+        meta: ensuredMeta,
+      } = await this.ensureRuntimeHandle({
         cfg: params.cfg,
         sessionKey,
         meta: resolution.meta,
       });
+      let handle = ensuredHandle;
+      let meta = ensuredMeta;
       const capabilities = await this.resolveRuntimeCapabilities({ runtime, handle });
       let runtimeStatus: AcpRuntimeStatus | undefined;
       if (runtime.getStatus) {
@@ -398,6 +431,15 @@ export class AcpSessionManager {
           });
         }
       }
+      ({ handle, meta, runtimeStatus } = await this.reconcileRuntimeSessionIdentifiers({
+        cfg: params.cfg,
+        sessionKey,
+        runtime,
+        handle,
+        meta,
+        runtimeStatus,
+        failOnStatusError: true,
+      }));
       return {
         sessionKey,
         backend: handle.backend || meta.backend,
@@ -675,11 +717,17 @@ export class AcpSessionManager {
         throw resolution.error;
       }
 
-      const { runtime, handle, meta } = await this.ensureRuntimeHandle({
+      const {
+        runtime,
+        handle: ensuredHandle,
+        meta: ensuredMeta,
+      } = await this.ensureRuntimeHandle({
         cfg: input.cfg,
         sessionKey,
         meta: resolution.meta,
       });
+      let handle = ensuredHandle;
+      const meta = ensuredMeta;
       await this.applyRuntimeControls({
         sessionKey,
         runtime,
@@ -771,6 +819,16 @@ export class AcpSessionManager {
         }
         if (this.activeTurnBySession.get(actorKey) === activeTurn) {
           this.activeTurnBySession.delete(actorKey);
+        }
+        if (meta.mode !== "oneshot") {
+          ({ handle } = await this.reconcileRuntimeSessionIdentifiers({
+            cfg: input.cfg,
+            sessionKey,
+            runtime,
+            handle,
+            meta,
+            failOnStatusError: false,
+          }));
         }
         if (meta.mode === "oneshot") {
           try {
@@ -1007,12 +1065,14 @@ export class AcpSessionManager {
     }
 
     const previousMeta = params.meta;
+    const backendSessionId = ensured.backendSessionId ?? previousMeta.backendSessionId;
+    const agentSessionId = ensured.agentSessionId ?? previousMeta.agentSessionId;
     const nextMeta: SessionAcpMeta = {
       ...params.meta,
       backend: ensured.backend || backend.id,
       runtimeSessionName: ensured.runtimeSessionName,
-      backendSessionId: ensured.backendSessionId,
-      agentSessionId: ensured.agentSessionId,
+      ...(backendSessionId ? { backendSessionId } : {}),
+      ...(agentSessionId ? { agentSessionId } : {}),
       agent,
       runtimeOptions,
       cwd,
@@ -1322,6 +1382,106 @@ export class AcpSessionManager {
         return next;
       },
     });
+  }
+
+  private async reconcileRuntimeSessionIdentifiers(params: {
+    cfg: OpenClawConfig;
+    sessionKey: string;
+    runtime: AcpRuntime;
+    handle: AcpRuntimeHandle;
+    meta: SessionAcpMeta;
+    runtimeStatus?: AcpRuntimeStatus;
+    failOnStatusError: boolean;
+  }): Promise<{
+    handle: AcpRuntimeHandle;
+    meta: SessionAcpMeta;
+    runtimeStatus?: AcpRuntimeStatus;
+  }> {
+    let runtimeStatus = params.runtimeStatus;
+    if (!runtimeStatus && params.runtime.getStatus) {
+      try {
+        runtimeStatus = await params.runtime.getStatus({
+          handle: params.handle,
+        });
+      } catch (error) {
+        if (params.failOnStatusError) {
+          throw toAcpRuntimeError({
+            error,
+            fallbackCode: "ACP_TURN_FAILED",
+            fallbackMessage: "Could not read ACP runtime status.",
+          });
+        }
+        logVerbose(
+          `acp-manager: failed to refresh ACP runtime status for ${params.sessionKey}: ${String(error)}`,
+        );
+        return {
+          handle: params.handle,
+          meta: params.meta,
+          runtimeStatus,
+        };
+      }
+    }
+    const identifiers = extractStatusSessionIdentifiers(runtimeStatus);
+    const backendSessionId = identifiers.backendSessionId ?? params.meta.backendSessionId;
+    const agentSessionId = identifiers.agentSessionId ?? params.meta.agentSessionId;
+
+    const handleChanged =
+      backendSessionId !== params.handle.backendSessionId ||
+      agentSessionId !== params.handle.agentSessionId;
+    const nextHandle: AcpRuntimeHandle = handleChanged
+      ? {
+          ...params.handle,
+          ...(backendSessionId ? { backendSessionId } : {}),
+          ...(agentSessionId ? { agentSessionId } : {}),
+        }
+      : params.handle;
+    if (handleChanged) {
+      const cached = this.getCachedRuntimeState(params.sessionKey);
+      if (cached) {
+        cached.handle = nextHandle;
+      }
+    }
+
+    const metaChanged =
+      backendSessionId !== params.meta.backendSessionId ||
+      agentSessionId !== params.meta.agentSessionId;
+    if (!metaChanged) {
+      return {
+        handle: nextHandle,
+        meta: params.meta,
+        runtimeStatus,
+      };
+    }
+    const nextMeta: SessionAcpMeta = {
+      ...params.meta,
+      ...(backendSessionId ? { backendSessionId } : {}),
+      ...(agentSessionId ? { agentSessionId } : {}),
+      lastActivityAt: Date.now(),
+    };
+    await this.writeSessionMeta({
+      cfg: params.cfg,
+      sessionKey: params.sessionKey,
+      mutate: (current, entry) => {
+        if (!entry) {
+          return null;
+        }
+        const base = current ?? entry.acp;
+        if (!base) {
+          return null;
+        }
+        return {
+          ...base,
+          ...(backendSessionId ? { backendSessionId } : {}),
+          ...(agentSessionId ? { agentSessionId } : {}),
+          lastActivityAt: Date.now(),
+        };
+      },
+    });
+    return {
+      handle: nextHandle,
+      meta: nextMeta,
+      runtimeStatus,
+    };
   }
 
   private async writeSessionMeta(params: {

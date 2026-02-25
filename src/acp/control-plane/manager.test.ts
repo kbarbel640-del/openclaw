@@ -803,6 +803,107 @@ describe("AcpSessionManager", () => {
     );
   });
 
+  it("reconciles persisted ACP session identifiers from runtime status after a turn", async () => {
+    const runtimeState = createRuntime();
+    runtimeState.ensureSession.mockResolvedValue({
+      sessionKey: "agent:codex:acp:session-1",
+      backend: "acpx",
+      runtimeSessionName: "runtime-1",
+      backendSessionId: "acpx-stale",
+      agentSessionId: "agent-stale",
+    });
+    runtimeState.getStatus.mockResolvedValue({
+      summary: "status=alive",
+      backendSessionId: "acpx-fresh",
+      agentSessionId: "agent-fresh",
+      details: { status: "alive" },
+    });
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+
+    let currentMeta: SessionAcpMeta = {
+      ...readySessionMeta(),
+      backendSessionId: "acpx-stale",
+      agentSessionId: "agent-stale",
+    };
+    hoisted.readAcpSessionEntryMock.mockImplementation((paramsUnknown: unknown) => {
+      const sessionKey =
+        (paramsUnknown as { sessionKey?: string }).sessionKey ?? "agent:codex:acp:session-1";
+      return {
+        sessionKey,
+        storeSessionKey: sessionKey,
+        acp: currentMeta,
+      };
+    });
+    hoisted.upsertAcpSessionMetaMock.mockImplementation(async (paramsUnknown: unknown) => {
+      const params = paramsUnknown as {
+        mutate: (
+          current: SessionAcpMeta | undefined,
+          entry: { acp?: SessionAcpMeta } | undefined,
+        ) => SessionAcpMeta | null | undefined;
+      };
+      const next = params.mutate(currentMeta, { acp: currentMeta });
+      if (next) {
+        currentMeta = next;
+      }
+      return {
+        sessionId: "session-1",
+        updatedAt: Date.now(),
+        acp: currentMeta,
+      };
+    });
+
+    const manager = new AcpSessionManager();
+    await manager.runTurn({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      text: "do work",
+      mode: "prompt",
+      requestId: "run-1",
+    });
+
+    expect(runtimeState.getStatus).toHaveBeenCalledTimes(1);
+    expect(currentMeta.backendSessionId).toBe("acpx-fresh");
+    expect(currentMeta.agentSessionId).toBe("agent-fresh");
+  });
+
+  it("preserves existing ACP session identifiers when ensure returns none", async () => {
+    const runtimeState = createRuntime();
+    runtimeState.ensureSession.mockResolvedValue({
+      sessionKey: "agent:codex:acp:session-1",
+      backend: "acpx",
+      runtimeSessionName: "runtime-2",
+    });
+    runtimeState.getStatus.mockResolvedValue({
+      summary: "status=alive",
+      details: { status: "alive" },
+    });
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: {
+        ...readySessionMeta(),
+        backendSessionId: "acpx-stable",
+        agentSessionId: "agent-stable",
+      },
+    });
+
+    const manager = new AcpSessionManager();
+    const status = await manager.getSessionStatus({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+    });
+
+    expect(status.backendSessionId).toBe("acpx-stable");
+    expect(status.agentSessionId).toBe("agent-stable");
+  });
+
   it("applies persisted runtime options before running turns", async () => {
     const runtimeState = createRuntime();
     hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
