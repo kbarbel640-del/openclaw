@@ -38,9 +38,17 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   const prefixContext = createReplyPrefixContext({ cfg, agentId });
 
   let typingState: TypingIndicatorState | null = null;
+
+  // Resolve typing indicator config (account-level overrides top-level)
+  const typingCfg = account.config?.typingIndicator;
+  const typingEnabled = typingCfg?.enabled !== false;
+  // Default to 120s to reduce API quota consumption (SDK default is 3s)
+  const typingIntervalMs = ((typingCfg?.intervalSeconds as number) ?? 120) * 1000;
+
   const typingCallbacks = createTypingCallbacks({
+    keepaliveIntervalMs: typingEnabled ? typingIntervalMs : 0,
     start: async () => {
-      if (!replyToMessageId) {
+      if (!typingEnabled || !replyToMessageId) {
         return;
       }
       typingState = await addTypingIndicator({ cfg, messageId: replyToMessageId, accountId });
