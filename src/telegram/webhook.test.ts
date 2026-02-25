@@ -35,6 +35,7 @@ describe("startTelegramWebhook", () => {
   it("starts server, registers webhook, and serves health", async () => {
     createTelegramBotSpy.mockClear();
     webhookCallbackSpy.mockClear();
+    setWebhookSpy.mockClear();
     const abort = new AbortController();
     const cfg = { bindings: [] };
     const { server } = await startTelegramWebhook({
@@ -80,6 +81,7 @@ describe("startTelegramWebhook", () => {
   it("invokes webhook handler on matching path", async () => {
     handlerSpy.mockClear();
     createTelegramBotSpy.mockClear();
+    setWebhookSpy.mockClear();
     const abort = new AbortController();
     const cfg = { bindings: [] };
     const { server } = await startTelegramWebhook({
@@ -103,6 +105,125 @@ describe("startTelegramWebhook", () => {
     }
     await fetch(`http://127.0.0.1:${addr.port}/hook`, { method: "POST" });
     expect(handlerSpy).toHaveBeenCalled();
+    abort.abort();
+  });
+
+  it("uses account-specific default path for non-default accounts", async () => {
+    setWebhookSpy.mockClear();
+    const abort = new AbortController();
+
+    await startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      accountId: "work",
+      port: 0,
+      abortSignal: abort.signal,
+    });
+
+    const webhookUrl = String(setWebhookSpy.mock.calls[0]?.[0] ?? "");
+    expect(webhookUrl).toContain("/telegram-webhook/work");
+    abort.abort();
+  });
+
+  it("derives account-specific webhook URL paths from an inherited base webhookUrl", async () => {
+    setWebhookSpy.mockClear();
+    const abortDefault = new AbortController();
+    const abortWork = new AbortController();
+
+    await startTelegramWebhook({
+      token: "tok-default",
+      secret: "secret-default",
+      accountId: "default",
+      publicUrl: "https://example.test/telegram-webhook",
+      port: 0,
+      abortSignal: abortDefault.signal,
+    });
+
+    await startTelegramWebhook({
+      token: "tok-work",
+      secret: "secret-work",
+      accountId: "work",
+      publicUrl: "https://example.test/telegram-webhook",
+      port: 0,
+      abortSignal: abortWork.signal,
+    });
+
+    const [defaultUrl, workUrl] = setWebhookSpy.mock.calls.map((call) => String(call[0] ?? ""));
+    expect(defaultUrl).toBe("https://example.test/telegram-webhook");
+    expect(workUrl).toBe("https://example.test/telegram-webhook/work");
+
+    abortWork.abort();
+    abortDefault.abort();
+  });
+
+  it("fails fast when explicit webhookPath conflicts with webhookUrl path", async () => {
+    await expect(
+      startTelegramWebhook({
+        token: "tok",
+        secret: "secret",
+        accountId: "work",
+        path: "/custom-work-path",
+        publicUrl: "https://example.test/telegram-webhook/work",
+        port: 0,
+      }),
+    ).rejects.toThrow(/path mismatch/i);
+  });
+
+  it("shares one listener for multiple accounts with distinct paths", async () => {
+    handlerSpy.mockClear();
+    setWebhookSpy.mockClear();
+    const abortDefault = new AbortController();
+    const abortWork = new AbortController();
+
+    const first = await startTelegramWebhook({
+      token: "tok-default",
+      secret: "secret-default",
+      accountId: "default",
+      port: 0,
+      abortSignal: abortDefault.signal,
+    });
+    const second = await startTelegramWebhook({
+      token: "tok-work",
+      secret: "secret-work",
+      accountId: "work",
+      port: 0,
+      abortSignal: abortWork.signal,
+    });
+
+    expect(first.server).toBe(second.server);
+    const addr = first.server.address();
+    if (!addr || typeof addr === "string") {
+      throw new Error("no addr");
+    }
+    await fetch(`http://127.0.0.1:${addr.port}/telegram-webhook`, { method: "POST" });
+    await fetch(`http://127.0.0.1:${addr.port}/telegram-webhook/work`, { method: "POST" });
+    expect(handlerSpy).toHaveBeenCalledTimes(2);
+
+    abortWork.abort();
+    abortDefault.abort();
+  });
+
+  it("rejects path conflicts between accounts on the same listener", async () => {
+    const abort = new AbortController();
+    await startTelegramWebhook({
+      token: "tok-default",
+      secret: "secret-default",
+      accountId: "default",
+      path: "/same",
+      port: 0,
+      abortSignal: abort.signal,
+    });
+
+    await expect(
+      startTelegramWebhook({
+        token: "tok-work",
+        secret: "secret-work",
+        accountId: "work",
+        path: "/same",
+        port: 0,
+      }),
+    ).rejects.toThrow(/path conflict/i);
+
     abort.abort();
   });
 
