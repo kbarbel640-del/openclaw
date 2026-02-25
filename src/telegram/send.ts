@@ -273,7 +273,7 @@ function buildTelegramThreadReplyParams(params: {
         quote: params.quoteText.trim(),
       };
     } else {
-      threadParams.reply_to_message_id = replyToMessageId;
+      threadParams.reply_parameters = { message_id: replyToMessageId };
     }
   }
   return threadParams;
