@@ -373,13 +373,8 @@ export function buildConfigSchema(params?: {
   const mergedSchema = applyChannelSchemas(applyPluginSchemas(base.schema, plugins), channels);
   return {
     ...base,
-    uiHints: applySensitiveHints(
-      applyHeartbeatTargetHints(
-        applyChannelHints(applyPluginHints(base.uiHints, plugins), channels),
-        channels,
-      ),
-    ),
-    schema: applyChannelSchemas(applyPluginSchemas(base.schema, plugins), channels),
+    uiHints: mergedHints,
+    schema: mergedSchema,
   };
 }
 
