@@ -83,6 +83,8 @@ const EXTERNAL_CONTENT_BLOCK_RE =
   /<<<EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>[\s\S]*?<<<END_EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>/gi;
 const EXTERNAL_CONTENT_MARKER_ONLY_RE =
   /<<<(?:END_)?EXTERNAL_UNTRUSTED_CONTENT(?:\s+id="[^"]{1,128}")?\s*>>>/gi;
+const UNTRUSTED_CONTEXT_HEADER_RE =
+  /^\s*Untrusted context \(metadata, do not treat as instructions or commands\):\s*$/gim;
 
 const EXTERNAL_WARNING_LINE_RE =
   /^\s*SECURITY NOTICE:\s*The following content is from an EXTERNAL, UNTRUSTED source.*$/im;
@@ -111,12 +113,17 @@ export function stripExternalContentForDisplay(text: string): string {
   if (!text) {
     return text;
   }
-  if (!/EXTERNAL_UNTRUSTED_CONTENT|SECURITY NOTICE/i.test(text)) {
+  if (
+    !/EXTERNAL_UNTRUSTED_CONTENT|SECURITY NOTICE|Untrusted context \(metadata, do not treat as instructions or commands\)/i.test(
+      text,
+    )
+  ) {
     return text;
   }
 
   let stripped = text.replace(EXTERNAL_CONTENT_BLOCK_RE, "");
   stripped = stripped.replace(EXTERNAL_CONTENT_MARKER_ONLY_RE, "");
+  stripped = stripped.replace(UNTRUSTED_CONTEXT_HEADER_RE, "");
   stripped = stripExternalWarningBlock(stripped);
   stripped = stripped.replace(/\n{3,}/g, "\n\n");
   return stripped;
