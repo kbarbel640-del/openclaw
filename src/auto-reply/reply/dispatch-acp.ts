@@ -11,8 +11,8 @@ import { readAcpSessionEntry } from "../../acp/runtime/session-meta.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { TtsAutoMode } from "../../config/types.tts.js";
 import { logVerbose } from "../../globals.js";
-import { prefixMetaMessage } from "../../infra/meta-message.js";
 import { getSessionBindingService } from "../../infra/outbound/session-binding-service.js";
+import { prefixSystemMessage } from "../../infra/system-message.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { maybeApplyTtsToPayload, resolveTtsConfig } from "../../tts/tts.js";
 import {
@@ -330,7 +330,7 @@ export async function tryDispatchAcpReply(params: {
         });
         if (resolvedDetails.length > 0) {
           const delivered = await deliverAcpPayload("final", {
-            text: prefixMetaMessage(["Session ids resolved.", ...resolvedDetails].join("\n")),
+            text: prefixSystemMessage(["Session ids resolved.", ...resolvedDetails].join("\n")),
           });
           queuedFinal = queuedFinal || delivered;
         }

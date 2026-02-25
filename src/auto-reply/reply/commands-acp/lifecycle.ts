@@ -346,7 +346,7 @@ export async function handleAcpSpawnAction(
       parts.push(`Created thread ${boundConversationId} and bound it to ${sessionKey}.`);
     }
   } else {
-    parts.push("Session is unbound (use /focus <session-key> to bind a Discord thread).");
+    parts.push("Session is unbound (use /focus <session-key> to bind this thread/conversation).");
   }
 
   const dispatchNote = resolveAcpDispatchPolicyMessage(params.cfg);

@@ -18,6 +18,15 @@ const channelCoreProtectedSources = [
   path.join(repoRoot, "src", "channels", "thread-bindings-policy.ts"),
   path.join(repoRoot, "src", "channels", "thread-bindings-messages.ts"),
 ];
+const acpUserFacingTextSources = [
+  path.join(repoRoot, "src", "auto-reply", "reply", "commands-acp"),
+];
+const systemMarkLiteralGuardSources = [
+  path.join(repoRoot, "src", "auto-reply", "reply", "commands-acp"),
+  path.join(repoRoot, "src", "auto-reply", "reply", "dispatch-acp.ts"),
+  path.join(repoRoot, "src", "auto-reply", "reply", "directive-handling.shared.ts"),
+  path.join(repoRoot, "src", "channels", "thread-bindings-messages.ts"),
+];
 
 const channelIds = [
   "bluebubbles",
@@ -126,6 +135,22 @@ function getPropertyNameText(name) {
     return name.text;
   }
   return null;
+}
+
+const userFacingChannelNameRe =
+  /\b(?:discord|telegram|slack|signal|imessage|whatsapp|google\s*chat|irc|line|zalo|matrix|msteams|bluebubbles)\b/i;
+const systemMarkLiteral = "⚙️";
+
+function isModuleSpecifierStringNode(node) {
+  const parent = node.parent;
+  if (ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent)) {
+    return true;
+  }
+  return (
+    ts.isCallExpression(parent) &&
+    parent.expression.kind === ts.SyntaxKind.ImportKeyword &&
+    parent.arguments[0] === node
+  );
 }
 
 export function findChannelAgnosticBoundaryViolations(
@@ -257,6 +282,44 @@ export function findChannelCoreReverseDependencyViolations(content, fileName = "
   });
 }
 
+export function findAcpUserFacingChannelNameViolations(content, fileName = "source.ts") {
+  const sourceFile = ts.createSourceFile(fileName, content, ts.ScriptTarget.Latest, true);
+  const violations = [];
+
+  const visit = (node) => {
+    const text = readStringLiteral(node);
+    if (text && userFacingChannelNameRe.test(text) && !isModuleSpecifierStringNode(node)) {
+      violations.push({
+        line: toLine(sourceFile, node),
+        reason: `user-facing text references channel name (${JSON.stringify(text)})`,
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return violations;
+}
+
+export function findSystemMarkLiteralViolations(content, fileName = "source.ts") {
+  const sourceFile = ts.createSourceFile(fileName, content, ts.ScriptTarget.Latest, true);
+  const violations = [];
+
+  const visit = (node) => {
+    const text = readStringLiteral(node);
+    if (text && text.includes(systemMarkLiteral) && !isModuleSpecifierStringNode(node)) {
+      violations.push({
+        line: toLine(sourceFile, node),
+        reason: `hardcoded system mark literal (${JSON.stringify(text)})`,
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return violations;
+}
+
 const boundaryRuleSets = [
   {
     id: "acp-core",
@@ -267,6 +330,16 @@ const boundaryRuleSets = [
     id: "channel-core-reverse-deps",
     sources: channelCoreProtectedSources,
     scan: (content, fileName) => findChannelCoreReverseDependencyViolations(content, fileName),
+  },
+  {
+    id: "acp-user-facing-text",
+    sources: acpUserFacingTextSources,
+    scan: (content, fileName) => findAcpUserFacingChannelNameViolations(content, fileName),
+  },
+  {
+    id: "system-mark-literal-usage",
+    sources: systemMarkLiteralGuardSources,
+    scan: (content, fileName) => findSystemMarkLiteralViolations(content, fileName),
   },
 ];
 

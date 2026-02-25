@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   findChannelAgnosticBoundaryViolations,
+  findAcpUserFacingChannelNameViolations,
   findChannelCoreReverseDependencyViolations,
+  findSystemMarkLiteralViolations,
 } from "../../scripts/check-channel-agnostic-boundaries.mjs";
 
 describe("check-channel-agnostic-boundaries", () => {
@@ -83,5 +85,43 @@ describe("check-channel-agnostic-boundaries", () => {
       const x = cfg.channels.discord?.threadBindings?.enabled;
     `;
     expect(findChannelCoreReverseDependencyViolations(source)).toEqual([]);
+  });
+
+  it("user-facing text mode flags channel names in string literals", () => {
+    const source = `
+      const message = "Bind a Discord thread first.";
+    `;
+    expect(findAcpUserFacingChannelNameViolations(source)).toEqual([
+      {
+        line: 2,
+        reason: 'user-facing text references channel name ("Bind a Discord thread first.")',
+      },
+    ]);
+  });
+
+  it("user-facing text mode ignores channel names in import specifiers", () => {
+    const source = `
+      import { x } from "../discord/monitor/thread-bindings.js";
+    `;
+    expect(findAcpUserFacingChannelNameViolations(source)).toEqual([]);
+  });
+
+  it("system-mark guard flags hardcoded gear literals", () => {
+    const source = `
+      const line = "⚙️ Thread bindings enabled.";
+    `;
+    expect(findSystemMarkLiteralViolations(source)).toEqual([
+      {
+        line: 2,
+        reason: 'hardcoded system mark literal ("⚙️ Thread bindings enabled.")',
+      },
+    ]);
+  });
+
+  it("system-mark guard ignores module import specifiers", () => {
+    const source = `
+      import { x } from "../infra/system-message.js";
+    `;
+    expect(findSystemMarkLiteralViolations(source)).toEqual([]);
   });
 });

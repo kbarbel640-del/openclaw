@@ -1,4 +1,4 @@
-import { prefixMetaMessage } from "../infra/meta-message.js";
+import { prefixSystemMessage } from "../infra/system-message.js";
 
 const DEFAULT_THREAD_BINDING_FAREWELL_TEXT =
   "Session ended. Messages here will no longer be routed.";
@@ -61,9 +61,9 @@ export function resolveThreadBindingIntroText(params: {
       ? `${normalized} session active (auto-unfocus in ${formatThreadBindingTtlLabel(ttlMs)}). Messages here go directly to this session.`
       : `${normalized} session active. Messages here go directly to this session.`;
   if (details.length === 0) {
-    return prefixMetaMessage(intro);
+    return prefixSystemMessage(intro);
   }
-  return prefixMetaMessage(`${intro}\n${details.join("\n")}`);
+  return prefixSystemMessage(`${intro}\n${details.join("\n")}`);
 }
 
 export function resolveThreadBindingFarewellText(params: {
@@ -73,12 +73,12 @@ export function resolveThreadBindingFarewellText(params: {
 }): string {
   const custom = params.farewellText?.trim();
   if (custom) {
-    return prefixMetaMessage(custom);
+    return prefixSystemMessage(custom);
   }
   if (params.reason === "ttl-expired") {
-    return prefixMetaMessage(
+    return prefixSystemMessage(
       `Session ended automatically after ${formatThreadBindingTtlLabel(params.sessionTtlMs)}. Messages here will no longer be routed.`,
     );
   }
-  return prefixMetaMessage(DEFAULT_THREAD_BINDING_FAREWELL_TEXT);
+  return prefixSystemMessage(DEFAULT_THREAD_BINDING_FAREWELL_TEXT);
 }
