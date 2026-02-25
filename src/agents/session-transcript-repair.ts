@@ -113,7 +113,7 @@ function sanitizeToolCallBlock(block: RawToolCallBlock): ToolCallBlock {
 
   const normalized: ToolCallBlock = {
     id: typeof block.id === "string" ? block.id : "unknown",
-    type: "toolCall",
+    type: typeof block.type === "string" ? (block.type as "toolCall") : "toolCall",
     name: typeof block.name === "string" && block.name ? block.name : "unknown",
     arguments: argCandidate,
   };
