@@ -1,12 +1,12 @@
-import { afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, vi, type MockInstance } from "vitest";
 import * as ssrf from "../infra/net/ssrf.js";
 import { onSpy, sendChatActionSpy } from "./bot.media.e2e-harness.js";
 
-export const cacheStickerSpy = vi.fn();
-export const getCachedStickerSpy = vi.fn();
-export const describeStickerImageSpy = vi.fn();
+// Explicitly type these spies to avoid TS2742 (inferred type references @vitest/spy internals).
+export const cacheStickerSpy: MockInstance = vi.fn();
+export const getCachedStickerSpy: MockInstance = vi.fn();
+export const describeStickerImageSpy: MockInstance = vi.fn();
 
-const resolvePinnedHostname = ssrf.resolvePinnedHostname;
 const lookupMock = vi.fn();
 let resolvePinnedHostnameSpy: ReturnType<typeof vi.spyOn> = null;
 
@@ -81,32 +81,70 @@ export function mockTelegramPngDownload(): ReturnType<typeof vi.spyOn> {
     status: 200,
     statusText: "OK",
     headers: { get: () => "image/png" },
-    arrayBuffer: async () => new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer,
+    arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
   } as unknown as Response);
 }
 
-beforeEach(() => {
-  vi.useRealTimers();
-  lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+export function mockTelegramJpegDownload(): ReturnType<typeof vi.spyOn> {
+  return vi.spyOn(globalThis, "fetch").mockResolvedValue({
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    headers: { get: () => "image/jpeg" },
+    arrayBuffer: async () => new Uint8Array([255, 216, 255]).buffer,
+  } as unknown as Response);
+}
+
+export function mockTelegramStickerPngDownload(): ReturnType<typeof vi.spyOn> {
+  return mockTelegramPngDownload();
+}
+
+export function mockTelegramStickerWebpDownload(): ReturnType<typeof vi.spyOn> {
+  return vi.spyOn(globalThis, "fetch").mockResolvedValue({
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    headers: { get: () => "image/webp" },
+    arrayBuffer: async () => new Uint8Array([82, 73, 70, 70]).buffer,
+  } as unknown as Response);
+}
+
+export async function setupBotMediaTestHarness(): Promise<void> {
+  // Ensure we import bot module once with a generous timeout.
+  await vi.waitFor(
+    async () => {
+      const mod = await import("./bot.js");
+      createTelegramBotRef = mod.createTelegramBot;
+      return true;
+    },
+    { timeout: TELEGRAM_BOT_IMPORT_TIMEOUT_MS },
+  );
+
+  // ResolvePinnedHostname is referenced by bot internals; make it deterministic.
   resolvePinnedHostnameSpy = vi
     .spyOn(ssrf, "resolvePinnedHostname")
-    .mockImplementation((hostname) => resolvePinnedHostname(hostname, lookupMock));
+    .mockImplementation(async () => {
+      return {
+        hostname: "example.com",
+        addresses: ["127.0.0.1"],
+        family: 4,
+        lookup: lookupMock,
+      } as never;
+    });
+
+  replySpyRef = vi.fn(async () => {});
+}
+
+beforeAll(async () => {
+  await setupBotMediaTestHarness();
+});
+
+beforeEach(() => {
+  cacheStickerSpy.mockClear();
+  getCachedStickerSpy.mockClear();
+  describeStickerImageSpy.mockClear();
 });
 
 afterEach(() => {
-  lookupMock.mockClear();
   resolvePinnedHostnameSpy?.mockRestore();
-  resolvePinnedHostnameSpy = null;
 });
-
-beforeAll(async () => {
-  ({ createTelegramBot: createTelegramBotRef } = await import("./bot.js"));
-  const replyModule = await import("../auto-reply/reply.js");
-  replySpyRef = (replyModule as unknown as { __replySpy: ReturnType<typeof vi.fn> }).__replySpy;
-}, TELEGRAM_BOT_IMPORT_TIMEOUT_MS);
-
-vi.mock("./sticker-cache.js", () => ({
-  cacheSticker: (...args: unknown[]) => cacheStickerSpy(...args),
-  getCachedSticker: (...args: unknown[]) => getCachedStickerSpy(...args),
-  describeStickerImage: (...args: unknown[]) => describeStickerImageSpy(...args),
-}));

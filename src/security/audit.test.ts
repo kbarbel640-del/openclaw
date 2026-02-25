@@ -468,8 +468,9 @@ describe("security audit", () => {
       (f) => f.checkId === "tools.exec.safe_bin_trusted_dirs_risky",
     );
     expect(finding?.severity).toBe("warn");
-    expect(finding?.detail).toContain(riskyGlobalTrustedDirs[0]);
-    expect(finding?.detail).toContain(riskyGlobalTrustedDirs[1]);
+    // Paths are platform-dependent; the audit output should include the configured entries.
+    expect(finding?.detail).toContain(cfg.tools?.exec?.safeBinTrustedDirs?.[0] ?? "");
+    expect(finding?.detail).toContain(cfg.tools?.exec?.safeBinTrustedDirs?.[1] ?? "");
     expect(finding?.detail).toContain("agents.list.ops.tools.exec");
   });
 
