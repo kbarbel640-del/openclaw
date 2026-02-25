@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/whatsapp-passive-monitor",
+  "version": "2026.2.23",
+  "private": true,
+  "description": "Passively monitors WhatsApp messages via local LLM classification",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
