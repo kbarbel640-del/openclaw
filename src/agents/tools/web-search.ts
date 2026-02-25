@@ -1150,7 +1150,7 @@ async function runWebSearch(params: {
           ? `${params.provider}:${params.query}:${params.kimiBaseUrl ?? DEFAULT_KIMI_BASE_URL}:${params.kimiModel ?? DEFAULT_KIMI_MODEL}`
           : params.provider === "gemini"
             ? `${params.provider}:${params.query}:${params.geminiModel ?? DEFAULT_GEMINI_MODEL}`
-            : params.provider == "baidu"
+            : params.provider === "baidu"
               ? `${params.provider}:${params.query}:${params.count}`
               : `${params.provider}:${params.query}:${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`,
   );
