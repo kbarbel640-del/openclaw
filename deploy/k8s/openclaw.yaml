@@ -1,0 +1,269 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openclaw-secret
+type: Opaque
+stringData:
+  OPENCLAW_GATEWAY_TOKEN: "openclaw-token-123"
+
+  # ==========================================
+  # LLM Configuration Examples
+  # Choose ONE provider and uncomment the corresponding section
+  # ==========================================
+
+  # --- Option 1: DeepSeek / Custom OpenAI Compatible ---
+  #LLM_PROVIDER: "custom"
+  #LLM_BASE_URL: "https://api.deepseek.com/v1"
+  #LLM_MODEL_ID: "deepseek-chat"
+  #LLM_API_KEY: "" 
+
+  # --- Option 2: Anthropic ---
+  # LLM_PROVIDER: "anthropic"
+  # LLM_API_KEY: "sk-ant-..." 
+
+  # --- Option 3: Moonshot (Kimi) ---
+  # LLM_PROVIDER: "moonshot"
+  # LLM_BASE_URL: "https://api.moonshot.ai/v1"
+  # LLM_API_KEY: "sk-..."
+  # LLM_MODEL_ID: "moonshot/kimi-k2.5"
+
+  # --- Option 4: Z.AI (GLM) ---
+  LLM_PROVIDER: "zai"
+  LLM_BASE_URL: "https://api.z.ai/api/paas/v4" 
+  LLM_API_KEY: "..your-api-key"
+  LLM_MODEL_ID: "zai/glm-4.7"
+
+  # --- Option 5: OpenRouter ---
+  # LLM_PROVIDER: "openrouter"
+  # LLM_API_KEY: "sk-or-..."
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-config
+data:
+  openclaw.json: |-
+    {
+      "gateway": {
+        "mode": "local",
+        "bind": "lan",
+        "port": 18789,
+        "auth": { "mode": "token"},
+        "controlUi": {
+          "allowInsecureAuth": true,
+          "dangerouslyAllowHostHeaderOriginFallback": true,
+          "dangerouslyDisableDeviceAuth": true
+        }
+      },
+      "browser": {
+        "defaultProfile": "openclaw",
+        "headless": true,
+        "noSandbox": true,
+        "executablePath": "/home/node/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome"
+      },
+      "agents": { "defaults": { "workspace": "/data/workspace" } }
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openclaw-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openclaw-gateway
+spec:
+  type: NodePort
+  selector:
+    app: openclaw
+  ports:
+    - name: gateway
+      port: 18789
+      targetPort: 18789 
+      nodePort: 31889 # should be auto-assigned, put here for easy access for tutorial
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openclaw-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openclaw
+  template:
+    metadata:
+      labels:
+        app: openclaw
+    spec:
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: init-container
+          image: openclaw:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OPENCLAW_STATE_DIR
+              value: /data/.openclaw
+            - name: OPENCLAW_WORKSPACE_DIR
+              value: /data/workspace
+          envFrom:
+            - secretRef:
+                name: openclaw-secret
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              # 1. Initialize config
+              mkdir -p /data/.openclaw
+              mkdir -p /data/workspace
+              
+              # Always copy ConfigMap to ensure latest settings
+              cp /config/openclaw.json /data/.openclaw/openclaw.json
+              touch /data/.openclaw/.env
+              
+              # 2. Create CLI wrapper
+              cat << 'EOF' > /data/openclaw
+              #!/bin/sh
+              if [ -f "./openclaw.mjs" ]; then
+                exec node ./openclaw.mjs "$@"
+              elif [ -f "/app/openclaw.mjs" ]; then
+                exec node /app/openclaw.mjs "$@"
+              else
+                echo "Error: openclaw.mjs not found"
+                exit 1
+              fi
+              EOF
+              chmod 755 /data/openclaw
+
+              # 3. Configure LLM
+              if [ -n "$LLM_API_KEY" ]; then
+                echo "Configuring LLM..."
+                PROVIDER="${LLM_PROVIDER:-custom}"
+                
+                # 1. Native Providers: Inject into config env block (more reliable than .env)
+                if [ "$PROVIDER" != "custom" ]; then
+                   VAR_NAME=$(echo "$PROVIDER" | tr '[:lower:]' '[:upper:]' | tr '-' '_')_API_KEY
+                   export CONF_VAR_NAME="$VAR_NAME"
+                fi
+
+                # 2. Update JSON config (Simple Node script)
+                export CONF_PROVIDER="$PROVIDER"
+                export CONF_API_KEY="$LLM_API_KEY"
+                export CONF_BASE_URL="$LLM_BASE_URL"
+                export CONF_MODEL_ID="$LLM_MODEL_ID"
+
+                node -e '
+                  const fs = require("fs");
+                  const file = "/data/.openclaw/openclaw.json";
+                  const c = JSON.parse(fs.readFileSync(file));
+                  
+                  // Ensure object structure exists
+                  c.env = c.env || {};
+                  c.models = c.models || {};
+                  c.models.providers = c.models.providers || {};
+                  c.agents = c.agents || {};
+                  c.agents.defaults = c.agents.defaults || {};
+                  c.agents.defaults.model = c.agents.defaults.model || {};
+
+                  const p = process.env.CONF_PROVIDER;
+                  
+                  if (p === "custom") {
+                     c.models.providers.custom = {
+                       baseUrl: process.env.CONF_BASE_URL,
+                       api: "openai-completions",
+                       apiKey: process.env.CONF_API_KEY,
+                       models: process.env.CONF_MODEL_ID ? [{ id: process.env.CONF_MODEL_ID }] : []
+                     };
+                     if (process.env.CONF_MODEL_ID) {
+                        c.agents.defaults.model.primary = "custom/" + process.env.CONF_MODEL_ID;
+                     }
+                  } else {
+                     // Inject API Key into config.env for native providers
+                     const varName = process.env.CONF_VAR_NAME;
+                     if (varName && process.env.CONF_API_KEY) {
+                        c.env[varName] = process.env.CONF_API_KEY;
+                     }
+
+                     // Simple default model mapping
+                     let m = process.env.CONF_MODEL_ID;
+                     if (!m) {
+                        m = p + "/default"; 
+                     }
+                     // Add provider prefix if needed
+                     if (!m.startsWith(p + "/")) m = p + "/" + m;
+                     
+                     c.agents.defaults.model.primary = m;
+                  }
+                  
+                  fs.writeFileSync(file, JSON.stringify(c, null, 2));
+                '
+              fi
+
+              # 4. run doctor
+              echo "$(ls -lt /data/openclaw )"
+              #/data/openclaw doctor --fix
+
+              # 5. Fix permissions (Critical: main container runs as user 'node')
+              chown -R node:node /data/.openclaw
+              chown -R node:node /data/workspace
+
+              echo "Config seeded and CLI wrapper created at /data/openclaw"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config
+              readOnly: true
+      containers:
+        - name: openclaw-gateway
+          image: openclaw:local
+          imagePullPolicy: IfNotPresent
+          command: ["node","openclaw.mjs","gateway","--bind","lan","--port","18789","--allow-unconfigured"]
+          ports:
+            - name: gateway
+              containerPort: 18789
+            - name: bridge
+              containerPort: 18790
+          env:
+            - name: PATH
+              value: "/data:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            - name: HOME
+              value: /home/node
+            - name: TERM
+              value: xterm-256color
+            - name: OPENCLAW_STATE_DIR
+              value: /data/.openclaw
+            - name: OPENCLAW_WORKSPACE_DIR
+              value: /data/workspace
+          envFrom:
+            - secretRef:
+                name: openclaw-secret
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 18789
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 18789
+          securityContext:
+            runAsUser: 1000
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: openclaw-data
+        - name: config
+          configMap:
+            name: openclaw-config
