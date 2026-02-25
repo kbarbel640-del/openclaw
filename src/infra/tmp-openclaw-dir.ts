@@ -93,7 +93,8 @@ export function resolvePreferredOpenClawTmpDir(
       }
       return "invalid";
     }
-    return path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
+    const res = path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
+    return res;
   } catch (err) {
     if (!isNodeErrorWithCode(err, "ENOENT")) {
       return fallback();
@@ -107,7 +108,8 @@ export function resolvePreferredOpenClawTmpDir(
     if (resolvePreferredState(true) !== "available") {
       return fallback();
     }
-    return path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
+    const res = path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
+    return res;
   } catch {
     return fallback();
   }
