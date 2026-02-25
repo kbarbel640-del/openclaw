@@ -115,16 +115,17 @@ export function createSessionActions(context: SessionActionContext) {
   };
 
   const resolveModelSelection = (entry?: SessionInfoEntry) => {
+    const overrideModel = entry?.modelOverride?.trim();
+    if (overrideModel) {
+      const overrideProvider =
+        entry?.providerOverride?.trim() || entry?.modelProvider || state.sessionInfo.modelProvider;
+      return { modelProvider: overrideProvider, model: overrideModel };
+    }
     if (entry?.modelProvider || entry?.model) {
       return {
         modelProvider: entry.modelProvider ?? state.sessionInfo.modelProvider,
         model: entry.model ?? state.sessionInfo.model,
       };
-    }
-    const overrideModel = entry?.modelOverride?.trim();
-    if (overrideModel) {
-      const overrideProvider = entry?.providerOverride?.trim() || state.sessionInfo.modelProvider;
-      return { modelProvider: overrideProvider, model: overrideModel };
     }
     return {
       modelProvider: state.sessionInfo.modelProvider,
@@ -270,14 +271,21 @@ export function createSessionActions(context: SessionActionContext) {
       updateHeader();
     }
     const resolved = result.resolved;
-    const entry =
-      resolved && (resolved.modelProvider || resolved.model)
+    const hasSelected = Boolean(resolved?.selectedModelProvider || resolved?.selectedModel);
+    const entry: SessionInfoEntry = {
+      ...result.entry,
+      ...(hasSelected
         ? {
-            ...result.entry,
-            modelProvider: resolved.modelProvider ?? result.entry.modelProvider,
-            model: resolved.model ?? result.entry.model,
+            modelProvider:
+              resolved?.selectedModelProvider ??
+              result.entry.providerOverride ??
+              result.entry.modelProvider,
+            model: resolved?.selectedModel ?? result.entry.modelOverride ?? result.entry.model,
+            providerOverride: resolved?.selectedModelProvider ?? result.entry.providerOverride,
+            modelOverride: resolved?.selectedModel ?? result.entry.modelOverride,
           }
-        : result.entry;
+        : {}),
+    };
     applySessionInfo({ entry, force: true });
   };
 

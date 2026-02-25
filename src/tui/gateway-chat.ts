@@ -67,6 +67,8 @@ export type GatewaySessionList = {
       updatedAt?: number | null;
       sendPolicy?: string;
       responseUsage?: ResponseUsageMode;
+      providerOverride?: string;
+      modelOverride?: string;
       label?: string;
       provider?: string;
       groupChannel?: string;

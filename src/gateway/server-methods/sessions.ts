@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { clearBootstrapSnapshot } from "../../agents/bootstrap-cache.js";
+import { resolveDefaultModelForAgent } from "../../agents/model-selection.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../../agents/pi-embedded.js";
+import { resolveSelectedAndActiveModel } from "../../auto-reply/model-runtime.js";
 import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
 import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
 import { loadConfig } from "../../config/config.js";
@@ -41,7 +43,6 @@ import {
   pruneLegacyStoreKeys,
   readSessionPreviewItemsFromTranscript,
   resolveGatewaySessionStoreTarget,
-  resolveSessionModelRef,
   resolveSessionTranscriptCandidates,
   type SessionsPatchResult,
   type SessionsPreviewEntry,
@@ -324,15 +325,26 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     }
     const parsed = parseAgentSessionKey(target.canonicalKey ?? key);
     const agentId = normalizeAgentId(parsed?.agentId ?? resolveDefaultAgentId(cfg));
-    const resolved = resolveSessionModelRef(cfg, applied.entry, agentId);
+    const agentDefault = resolveDefaultModelForAgent({ cfg, agentId });
+    const selectedProvider = applied.entry.providerOverride?.trim() || agentDefault.provider;
+    const selectedModel = applied.entry.modelOverride?.trim() || agentDefault.model;
+    const selectedActive = resolveSelectedAndActiveModel({
+      selectedProvider,
+      selectedModel,
+      sessionEntry: applied.entry,
+    });
     const result: SessionsPatchResult = {
       ok: true,
       path: storePath,
       key: target.canonicalKey,
       entry: applied.entry,
       resolved: {
-        modelProvider: resolved.provider,
-        model: resolved.model,
+        modelProvider: selectedActive.active.provider,
+        model: selectedActive.active.model,
+        selectedModelProvider: selectedActive.selected.provider,
+        selectedModel: selectedActive.selected.model,
+        activeModelProvider: selectedActive.active.provider,
+        activeModel: selectedActive.active.model,
       },
     };
     respond(true, result, undefined);
