@@ -1,18 +1,18 @@
 ---
 name: acp-router
-description: Route plain-language requests for Codex, Claude Code, Gemini CLI, OpenCode, Pi, or ACP harness work into either OpenClaw ACP runtime sessions or direct acpx-driven sessions ("telephone game" flow).
+description: Route plain-language requests for Pi, Claude Code, Codex, OpenCode, Gemini CLI, or ACP harness work into either OpenClaw ACP runtime sessions or direct acpx-driven sessions ("telephone game" flow).
 user-invocable: false
 ---
 
 # ACP Harness Router
 
-When user intent is "run this in Codex/Claude Code/Gemini/OpenCode/Pi (ACP harness)", do not use subagent runtime or PTY scraping. Route through ACP-aware flows.
+When user intent is "run this in Pi/Claude Code/Codex/OpenCode/Gemini (ACP harness)", do not use subagent runtime or PTY scraping. Route through ACP-aware flows.
 
 ## Intent detection
 
 Trigger this skill when the user asks OpenClaw to:
 
-- run something in Codex / Claude Code / Gemini / OpenCode / Pi
+- run something in Pi / Claude Code / Codex / OpenCode / Gemini
 - continue existing harness work
 - relay instructions to an external coding harness
 - keep an external harness conversation in a thread-like conversation
@@ -34,17 +34,17 @@ Do not use:
 
 - `subagents` runtime for harness control
 - `/acp` command delegation as a requirement for the user
-- PTY scraping of codex/claude/gemini/opencode/pi CLIs when `acpx` is available
+- PTY scraping of pi/claude/codex/opencode/gemini CLIs when `acpx` is available
 
 ## AgentId mapping
 
 Use these defaults when user names a harness directly:
 
-- "codex" -> `agentId: "codex"`
-- "claude" or "claude code" -> `agentId: "claude"`
-- "gemini" or "gemini cli" -> `agentId: "gemini"`
-- "opencode" -> `agentId: "opencode"`
 - "pi" -> `agentId: "pi"`
+- "claude" or "claude code" -> `agentId: "claude"`
+- "codex" -> `agentId: "codex"`
+- "opencode" -> `agentId: "opencode"`
+- "gemini" or "gemini cli" -> `agentId: "gemini"`
 
 These defaults match current acpx built-in aliases.
 
@@ -129,11 +129,11 @@ acpx codex sessions close oc-codex-<conversationId>
 
 ### Harness aliases in acpx
 
-- `codex`
-- `claude`
-- `gemini`
-- `opencode`
 - `pi`
+- `claude`
+- `codex`
+- `opencode`
+- `gemini`
 
 ### Failure handling
 
