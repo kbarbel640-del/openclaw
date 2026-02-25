@@ -163,6 +163,7 @@ function createPluginRecord(params: {
     hookNames: [],
     channelIds: [],
     providerIds: [],
+    embeddingProviderIds: [],
     gatewayMethods: [],
     cliCommands: [],
     services: [],

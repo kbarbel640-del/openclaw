@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createEmptyPluginRegistry } from "./registry.js";
-import type { OpenClawPluginService, OpenClawPluginServiceContext } from "./types.js";
+import type {
+  OpenClawPluginEmbeddingProvider,
+  OpenClawPluginService,
+  OpenClawPluginServiceContext,
+} from "./types.js";
 
 const mockedLogger = vi.hoisted(() => ({
   info: vi.fn<(msg: string) => void>(),
@@ -16,10 +20,16 @@ vi.mock("../logging/subsystem.js", () => ({
 import { STATE_DIR } from "../config/paths.js";
 import { startPluginServices } from "./services.js";
 
-function createRegistry(services: OpenClawPluginService[]) {
+function createRegistry(
+  services: OpenClawPluginService[],
+  embeddingProviders: OpenClawPluginEmbeddingProvider[] = [],
+) {
   const registry = createEmptyPluginRegistry();
   for (const service of services) {
     registry.services.push({ pluginId: "plugin:test", service, source: "test" });
+  }
+  for (const provider of embeddingProviders) {
+    registry.embeddingProviders.push({ pluginId: "plugin:test", provider, source: "test" });
   }
   return registry;
 }
@@ -81,7 +91,37 @@ describe("startPluginServices", () => {
       expect(typeof ctx.logger.info).toBe("function");
       expect(typeof ctx.logger.warn).toBe("function");
       expect(typeof ctx.logger.error).toBe("function");
+      expect(typeof ctx.resolveEmbeddingProvider).toBe("function");
+      expect(ctx.resolveEmbeddingProvider("missing-provider")).toBeNull();
     }
+  });
+
+  it("resolves registered embedding providers from service context", async () => {
+    const embeddingProvider: OpenClawPluginEmbeddingProvider = {
+      id: "memory-supabase/default",
+      model: "text-embedding-3-small",
+      embedQuery: async () => [1, 2, 3],
+      embedBatch: async () => [[1, 2, 3]],
+    };
+    let resolvedProvider: OpenClawPluginEmbeddingProvider | null = null;
+
+    const handle = await startPluginServices({
+      registry: createRegistry(
+        [
+          {
+            id: "memory-lancedb",
+            start: (ctx) => {
+              resolvedProvider = ctx.resolveEmbeddingProvider("memory-supabase/default");
+            },
+          },
+        ],
+        [embeddingProvider],
+      ),
+      config: {} as Parameters<typeof startPluginServices>[0]["config"],
+    });
+
+    await handle.stop();
+    expect(resolvedProvider).toBe(embeddingProvider);
   });
 
   it("logs start/stop failures and continues", async () => {

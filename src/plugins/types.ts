@@ -209,11 +209,19 @@ export type OpenClawPluginCliContext = {
 
 export type OpenClawPluginCliRegistrar = (ctx: OpenClawPluginCliContext) => void | Promise<void>;
 
+export type OpenClawPluginEmbeddingProvider = {
+  id: string;
+  model?: string;
+  embedQuery: (text: string) => Promise<number[]>;
+  embedBatch?: (texts: string[]) => Promise<number[][]>;
+};
+
 export type OpenClawPluginServiceContext = {
   config: OpenClawConfig;
   workspaceDir?: string;
   stateDir: string;
   logger: PluginLogger;
+  resolveEmbeddingProvider: (id: string) => OpenClawPluginEmbeddingProvider | null;
 };
 
 export type OpenClawPluginService = {
@@ -268,6 +276,8 @@ export type OpenClawPluginApi = {
   registerCli: (registrar: OpenClawPluginCliRegistrar, opts?: { commands?: string[] }) => void;
   registerService: (service: OpenClawPluginService) => void;
   registerProvider: (provider: ProviderPlugin) => void;
+  registerEmbeddingProvider?: (provider: OpenClawPluginEmbeddingProvider) => void;
+  resolveEmbeddingProvider?: (id: string) => OpenClawPluginEmbeddingProvider | null;
   /**
    * Register a custom command that bypasses the LLM agent.
    * Plugin commands are processed before built-in commands and before agent invocation.

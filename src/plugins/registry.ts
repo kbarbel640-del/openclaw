@@ -20,6 +20,7 @@ import type {
   OpenClawPluginHttpHandler,
   OpenClawPluginHttpRouteHandler,
   OpenClawPluginHookOptions,
+  OpenClawPluginEmbeddingProvider,
   ProviderPlugin,
   OpenClawPluginService,
   OpenClawPluginToolContext,
@@ -88,6 +89,12 @@ export type PluginServiceRegistration = {
   source: string;
 };
 
+export type PluginEmbeddingProviderRegistration = {
+  pluginId: string;
+  provider: OpenClawPluginEmbeddingProvider;
+  source: string;
+};
+
 export type PluginCommandRegistration = {
   pluginId: string;
   command: OpenClawPluginCommandDefinition;
@@ -110,6 +117,7 @@ export type PluginRecord = {
   hookNames: string[];
   channelIds: string[];
   providerIds: string[];
+  embeddingProviderIds: string[];
   gatewayMethods: string[];
   cliCommands: string[];
   services: string[];
@@ -128,6 +136,7 @@ export type PluginRegistry = {
   typedHooks: TypedPluginHookRegistration[];
   channels: PluginChannelRegistration[];
   providers: PluginProviderRegistration[];
+  embeddingProviders: PluginEmbeddingProviderRegistration[];
   gatewayHandlers: GatewayRequestHandlers;
   httpHandlers: PluginHttpRegistration[];
   httpRoutes: PluginHttpRouteRegistration[];
@@ -151,6 +160,7 @@ export function createEmptyPluginRegistry(): PluginRegistry {
     typedHooks: [],
     channels: [],
     providers: [],
+    embeddingProviders: [],
     gatewayHandlers: {},
     httpHandlers: [],
     httpRoutes: [],
@@ -386,6 +396,41 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     });
   };
 
+  const registerEmbeddingProvider = (
+    record: PluginRecord,
+    provider: OpenClawPluginEmbeddingProvider,
+  ) => {
+    const id = typeof provider?.id === "string" ? provider.id.trim() : "";
+    if (!id) {
+      pushDiagnostic({
+        level: "error",
+        pluginId: record.id,
+        source: record.source,
+        message: "embedding provider registration missing id",
+      });
+      return;
+    }
+    const existing = registry.embeddingProviders.find((entry) => entry.provider.id === id);
+    if (existing) {
+      pushDiagnostic({
+        level: "error",
+        pluginId: record.id,
+        source: record.source,
+        message: `embedding provider already registered: ${id} (${existing.pluginId})`,
+      });
+      return;
+    }
+    record.embeddingProviderIds.push(id);
+    registry.embeddingProviders.push({
+      pluginId: record.id,
+      provider: {
+        ...provider,
+        id,
+      },
+      source: record.source,
+    });
+  };
+
   const registerCli = (
     record: PluginRecord,
     registrar: OpenClawPluginCliRegistrar,
@@ -493,6 +538,15 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       registerHttpRoute: (params) => registerHttpRoute(record, params),
       registerChannel: (registration) => registerChannel(record, registration),
       registerProvider: (provider) => registerProvider(record, provider),
+      registerEmbeddingProvider: (provider) => registerEmbeddingProvider(record, provider),
+      resolveEmbeddingProvider: (id) => {
+        const key = id.trim();
+        if (!key) {
+          return null;
+        }
+        const found = registry.embeddingProviders.find((entry) => entry.provider.id === key);
+        return found?.provider ?? null;
+      },
       registerGatewayMethod: (method, handler) => registerGatewayMethod(record, method, handler),
       registerCli: (registrar, opts) => registerCli(record, registrar, opts),
       registerService: (service) => registerService(record, service),
@@ -509,6 +563,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     registerTool,
     registerChannel,
     registerProvider,
+    registerEmbeddingProvider,
     registerGatewayMethod,
     registerCli,
     registerService,
