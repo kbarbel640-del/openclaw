@@ -654,10 +654,7 @@ function applyBailianProviderConfigWithBaseUrl(
 }
 
 export function applyBailianProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
-  const existingBaseUrl = cfg.models?.providers?.bailian?.baseUrl;
-  const resolvedBaseUrl =
-    typeof existingBaseUrl === "string" ? existingBaseUrl : BAILIAN_GLOBAL_BASE_URL;
-  return applyBailianProviderConfigWithBaseUrl(cfg, resolvedBaseUrl);
+  return applyBailianProviderConfigWithBaseUrl(cfg, BAILIAN_GLOBAL_BASE_URL);
 }
 
 export function applyBailianProviderConfigCn(cfg: OpenClawConfig): OpenClawConfig {
