@@ -128,6 +128,7 @@ vi.mock("../../infra/provider-usage.js", async (importOriginal) => {
 });
 
 import { modelsStatusCommand } from "./list.status-command.js";
+import type { ProviderAuthOverview } from "./list.types.js";
 
 const defaultResolveEnvApiKeyImpl:
   | ((provider: string) => { apiKey: string; source: string } | null)
@@ -313,6 +314,91 @@ describe("modelsStatusCommand auth overview", () => {
         mocks.resolveEnvApiKey.mockImplementation(defaultResolveEnvApiKeyImpl);
       } else {
         mocks.resolveEnvApiKey.mockImplementation(() => null);
+      }
+    }
+  });
+
+  it("marks disabled providers in JSON output", async () => {
+    const originalConfig = mocks.loadConfig.getMockImplementation();
+    mocks.loadConfig.mockReturnValue({
+      agents: {
+        defaults: {
+          model: { primary: "anthropic/claude-opus-4-5", fallbacks: [] },
+          models: { "anthropic/claude-opus-4-5": { alias: "Opus" } },
+        },
+      },
+      models: {
+        providers: {
+          anthropic: { enabled: false, baseUrl: "", models: [] },
+        },
+      },
+      env: { shellEnv: { enabled: true } },
+    });
+    const localRuntime = createRuntime();
+
+    try {
+      await modelsStatusCommand({ json: true }, localRuntime as never);
+      const payload = JSON.parse(String((localRuntime.log as Mock).mock.calls[0]?.[0]));
+      const anthropic = (payload.auth.providers as ProviderAuthOverview[]).find(
+        (p) => p.provider === "anthropic",
+      );
+      expect(anthropic?.disabled).toBe(true);
+    } finally {
+      if (originalConfig) {
+        mocks.loadConfig.mockImplementation(originalConfig);
+      } else {
+        mocks.loadConfig.mockReturnValue({
+          agents: {
+            defaults: {
+              model: { primary: "anthropic/claude-opus-4-5", fallbacks: [] },
+              models: { "anthropic/claude-opus-4-5": { alias: "Opus" } },
+            },
+          },
+          models: { providers: {} },
+          env: { shellEnv: { enabled: true } },
+        });
+      }
+    }
+  });
+
+  it("shows disabled tag in rich output", async () => {
+    const originalConfig = mocks.loadConfig.getMockImplementation();
+    mocks.loadConfig.mockReturnValue({
+      agents: {
+        defaults: {
+          model: { primary: "anthropic/claude-opus-4-5", fallbacks: [] },
+          models: { "anthropic/claude-opus-4-5": { alias: "Opus" } },
+        },
+      },
+      models: {
+        providers: {
+          anthropic: { enabled: false, baseUrl: "", models: [] },
+        },
+      },
+      env: { shellEnv: { enabled: true } },
+    });
+    const localRuntime = createRuntime();
+
+    try {
+      await modelsStatusCommand({}, localRuntime as never);
+      const output = (localRuntime.log as Mock).mock.calls
+        .map((call: unknown[]) => String(call[0]))
+        .join("\n");
+      expect(output).toContain("(disabled)");
+    } finally {
+      if (originalConfig) {
+        mocks.loadConfig.mockImplementation(originalConfig);
+      } else {
+        mocks.loadConfig.mockReturnValue({
+          agents: {
+            defaults: {
+              model: { primary: "anthropic/claude-opus-4-5", fallbacks: [] },
+              models: { "anthropic/claude-opus-4-5": { alias: "Opus" } },
+            },
+          },
+          models: { providers: {} },
+          env: { shellEnv: { enabled: true } },
+        });
       }
     }
   });

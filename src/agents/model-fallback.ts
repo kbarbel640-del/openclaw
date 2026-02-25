@@ -22,6 +22,7 @@ import {
   buildModelAliasIndex,
   modelKey,
   normalizeModelRef,
+  normalizeProviderId,
   resolveConfiguredModelRef,
   resolveModelRefFromString,
 } from "./model-selection.js";
@@ -133,6 +134,19 @@ function throwFallbackFailureSummary(params: {
   );
 }
 
+function isProviderDisabled(cfg: OpenClawConfig | undefined, provider: string): boolean {
+  const providers = cfg?.models?.providers;
+  if (!providers) {
+    return false;
+  }
+  for (const [key, providerCfg] of Object.entries(providers)) {
+    if (normalizeProviderId(key) === provider && providerCfg.enabled === false) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function resolveImageFallbackCandidates(params: {
   cfg: OpenClawConfig | undefined;
   defaultProvider: string;
@@ -182,7 +196,7 @@ function resolveImageFallbackCandidates(params: {
     addRaw(raw);
   }
 
-  return candidates;
+  return candidates.filter((c) => !isProviderDisabled(params.cfg, c.provider));
 }
 
 function resolveFallbackCandidates(params: {
@@ -259,7 +273,7 @@ function resolveFallbackCandidates(params: {
     addExplicitCandidate({ provider: primary.provider, model: primary.model });
   }
 
-  return candidates;
+  return candidates.filter((c) => !isProviderDisabled(params.cfg, c.provider));
 }
 
 const lastProbeAttempt = new Map<string, number>();
