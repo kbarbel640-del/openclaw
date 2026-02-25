@@ -47,10 +47,16 @@ export function restartGatewayProcessWithFreshPid(): GatewayRespawnResult {
 
   try {
     const args = [...process.execArgv, ...process.argv.slice(1)];
+    // On Windows, inherited stdio handles become invalid (EBADF) after the
+    // parent exits because the OS closes them immediately.  The child then
+    // crashes on its first console.log.  Using "ignore" lets the child open
+    // its own stdio handles once it starts.  On Unix the fd-inheritance
+    // semantics are fine, so we keep "inherit" there for log continuity.
+    const stdio = process.platform === "win32" ? "ignore" : "inherit";
     const child = spawn(process.execPath, args, {
       env: process.env,
       detached: true,
-      stdio: "inherit",
+      stdio,
     });
     child.unref();
     return { mode: "spawned", pid: child.pid ?? undefined };
