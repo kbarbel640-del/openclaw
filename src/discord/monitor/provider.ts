@@ -219,11 +219,15 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   let guildEntries = rawDiscordCfg.guilds;
   const defaultGroupPolicy = resolveDefaultGroupPolicy(cfg);
   const providerConfigPresent = cfg.channels?.discord !== undefined;
-  const { groupPolicy, providerMissingFallbackApplied } = resolveOpenProviderRuntimeGroupPolicy({
-    providerConfigPresent,
-    groupPolicy: rawDiscordCfg.groupPolicy,
-    defaultGroupPolicy,
-  });
+  const { groupPolicy: rawGroupPolicy, providerMissingFallbackApplied } =
+    resolveOpenProviderRuntimeGroupPolicy({
+      providerConfigPresent,
+      groupPolicy: rawDiscordCfg.groupPolicy,
+      defaultGroupPolicy,
+    });
+  // "members" is Telegram-only; normalize to "open" for Discord
+  const groupPolicy: "open" | "allowlist" | "disabled" =
+    rawGroupPolicy === "members" ? "open" : rawGroupPolicy;
   const discordCfg =
     rawDiscordCfg.groupPolicy === groupPolicy ? rawDiscordCfg : { ...rawDiscordCfg, groupPolicy };
   warnMissingProviderGroupPolicyFallbackOnce({
