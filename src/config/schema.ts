@@ -1,7 +1,7 @@
 import { CHANNEL_IDS } from "../channels/registry.js";
 import { VERSION } from "../version.js";
-import { applySensitiveHints, buildBaseHints } from "./schema.hints.js";
-import { LIMITS_FIELD_LABELS, LIMITS_FIELD_HELP } from "./schema.rate-limits.js";
+import { applySensitiveHints, buildBaseHints, mapSensitivePaths } from "./schema.hints.js";
+import { applyDerivedTags } from "./schema.tags.js";
 import {
   ConfigSchema,
   ConfigSchemaResponse,
@@ -12,10 +12,7 @@ import {
 } from "./schema.types.js";
 import { OpenClawSchema } from "./zod-schema.js";
 
-import type { ConfigUiHint, ConfigUiHints } from "./schema.hints.js";
-import { applySensitiveHints, buildBaseHints, mapSensitivePaths } from "./schema.hints.js";
-import { applyDerivedTags } from "./schema.tags.js";
-import { OpenClawSchema } from "./zod-schema.js";
+import type { ConfigUiHint } from "./schema.hints.js";
 
 export type { ConfigUiHint, ConfigUiHints } from "./schema.hints.js";
 
@@ -285,9 +282,9 @@ function applyPluginSchemas(schema: ConfigSchema, plugins: PluginUiMetadata[]): 
       ...entryObject.properties,
       config:
         baseConfigSchema &&
-        pluginSchema &&
-        isObjectSchema(baseConfigSchema) &&
-        isObjectSchema(pluginSchema)
+          pluginSchema &&
+          isObjectSchema(baseConfigSchema) &&
+          isObjectSchema(pluginSchema)
           ? mergeObjectSchema(baseConfigSchema, pluginSchema)
           : cloneSchema(plugin.configSchema),
     };
@@ -331,8 +328,6 @@ let cachedBase: ConfigSchemaResponse | null = null;
 function stripChannelSchema(schema: ConfigSchema): ConfigSchema {
   const next = cloneSchema(schema);
   const root = asSchemaObject(next);
-  const channelsNode = asSchemaObject(root?.properties?.channels);
-
   if (!root || !root.properties) {
     return next;
   }
@@ -364,12 +359,6 @@ function buildBaseConfigSchema(): ConfigSchemaResponse {
 
   schema.title = "OpenClawConfig";
 
-  const hints = applySensitiveHints(buildBaseHints());
-
-  // merge rate-limit UI metadata
-  Object.assign(hints, LIMITS_FIELD_LABELS, LIMITS_FIELD_HELP);
-
-  cachedBase = {
   const hints = applyDerivedTags(mapSensitivePaths(OpenClawSchema, "", buildBaseHints()));
   const next = {
     schema: stripChannelSchema(schema),
@@ -377,8 +366,8 @@ function buildBaseConfigSchema(): ConfigSchemaResponse {
     version: VERSION,
     generatedAt: new Date().toISOString(),
   };
-
-  return cachedBase;
+  cachedBase = next;
+  return next;
 }
 
 export function buildConfigSchema(params?: {
