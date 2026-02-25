@@ -6,7 +6,6 @@ import {
   resolveExistingPathsWithinRoot,
   resolvePathsWithinRoot,
   resolvePathWithinRoot,
-  resolveStrictExistingPathsWithinRoot,
   resolveWritablePathWithinRoot,
 } from "./paths.js";
 
@@ -46,6 +45,17 @@ describe("resolveExistingPathsWithinRoot", () => {
     return resolveExistingPathsWithinRoot({
       rootDir: params.uploadsDir,
       requestedPaths: params.requestedPaths,
+      scopeLabel: "uploads directory",
+    });
+  }
+
+  function resolveWritableWithinUploads(params: {
+    uploadsDir: string;
+    requestedPath: string;
+  }): Promise<Awaited<ReturnType<typeof resolveWritablePathWithinRoot>>> {
+    return resolveWritablePathWithinRoot({
+      rootDir: params.uploadsDir,
+      requestedPath: params.requestedPath,
       scopeLabel: "uploads directory",
     });
   }
@@ -140,6 +150,59 @@ describe("resolveExistingPathsWithinRoot", () => {
       });
     },
   );
+
+  it.runIf(process.platform !== "win32")(
+    "rejects writable paths that traverse symlinked ancestors outside upload root",
+    async () => {
+      await withFixtureRoot(async ({ baseDir, uploadsDir }) => {
+        const outsideDir = path.join(baseDir, "outside");
+        await fs.mkdir(outsideDir, { recursive: true });
+        await fs.symlink(outsideDir, path.join(uploadsDir, "escape"));
+
+        const result = await resolveWritableWithinUploads({
+          uploadsDir,
+          requestedPath: "escape/pwned.txt",
+        });
+
+        expectInvalidResult(result, "must stay within uploads directory");
+      });
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
+    "rejects writable hardlink targets outside upload root",
+    async () => {
+      await withFixtureRoot(async ({ baseDir, uploadsDir }) => {
+        const outsidePath = path.join(baseDir, "outside.txt");
+        await fs.writeFile(outsidePath, "secret", "utf8");
+        await fs.link(outsidePath, path.join(uploadsDir, "hardlink.txt"));
+
+        const result = await resolveWritableWithinUploads({
+          uploadsDir,
+          requestedPath: "hardlink.txt",
+        });
+
+        expectInvalidResult(result, "must stay within uploads directory");
+      });
+    },
+  );
+
+  it("accepts writable paths under upload root", async () => {
+    await withFixtureRoot(async ({ uploadsDir }) => {
+      const nestedDir = path.join(uploadsDir, "nested");
+      await fs.mkdir(nestedDir, { recursive: true });
+
+      const result = await resolveWritableWithinUploads({
+        uploadsDir,
+        requestedPath: "nested/new.txt",
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        path: path.join(uploadsDir, "nested", "new.txt"),
+      });
+    });
+  });
 
   it.runIf(process.platform !== "win32")(
     "accepts canonical absolute paths when upload root is a symlink alias",

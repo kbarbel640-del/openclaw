@@ -7,8 +7,7 @@ import {
   resolveTargetIdFromQuery,
   withPlaywrightRouteContext,
 } from "./agent.shared.js";
-import { resolveWritableOutputPathOrRespond } from "./output-paths.js";
-import { DEFAULT_TRACE_DIR } from "./path-output.js";
+import { DEFAULT_TRACE_DIR, resolveWritablePathWithinRoot } from "./path-output.js";
 import type { BrowserRouteRegistrar } from "./types.js";
 import { toBoolean, toStringOrEmpty } from "./utils.js";
 
@@ -120,9 +119,10 @@ export function registerBrowserAgentDebugRoutes(
       feature: "trace stop",
       run: async ({ cdpUrl, tab, pw }) => {
         const id = crypto.randomUUID();
-        const tracePath = await resolveWritableOutputPathOrRespond({
-          res,
-          rootDir: DEFAULT_TRACE_DIR,
+        const dir = DEFAULT_TRACE_DIR;
+        await fs.mkdir(dir, { recursive: true });
+        const tracePathResult = await resolveWritablePathWithinRoot({
+          rootDir: dir,
           requestedPath: out,
           scopeLabel: "trace directory",
           defaultFileName: `browser-trace-${id}.zip`,

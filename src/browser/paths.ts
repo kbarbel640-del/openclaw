@@ -83,44 +83,75 @@ export function resolvePathWithinRoot(params: {
   return { ok: true, path: resolved };
 }
 
+async function resolveExistingAncestorRealPath(targetPath: string): Promise<string | null> {
+  let current = path.resolve(targetPath);
+  while (true) {
+    try {
+      return await fs.realpath(current);
+    } catch (err) {
+      if (!isNotFoundPathError(err)) {
+        throw err;
+      }
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
 export async function resolveWritablePathWithinRoot(params: {
   rootDir: string;
   requestedPath: string;
   scopeLabel: string;
   defaultFileName?: string;
 }): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
-  const lexical = resolvePathWithinRoot(params);
-  if (!lexical.ok) {
-    return lexical;
+  const lexicalPathResult = resolvePathWithinRoot(params);
+  if (!lexicalPathResult.ok) {
+    return lexicalPathResult;
   }
 
   const rootDir = path.resolve(params.rootDir);
-  const rootRealPath = await resolveTrustedRootRealPath(rootDir);
-  if (!rootRealPath) {
-    return invalidPath(params.scopeLabel);
+  const resolvedPath = lexicalPathResult.path;
+  let rootRealPath: string;
+  try {
+    rootRealPath = await fs.realpath(rootDir);
+  } catch (err) {
+    if (isNotFoundPathError(err)) {
+      // Preserve historical behavior when the caller has not created the root yet.
+      return lexicalPathResult;
+    }
+    throw err;
   }
 
-  const requestedPath = lexical.path;
-  const parentDir = path.dirname(requestedPath);
-  const parentStatus = await validateCanonicalPathWithinRoot({
-    rootRealPath,
-    candidatePath: parentDir,
-    expect: "directory",
-  });
-  if (parentStatus !== "ok") {
-    return invalidPath(params.scopeLabel);
+  const anchorRealPath = await resolveExistingAncestorRealPath(resolvedPath);
+  if (anchorRealPath && !isPathInside(rootRealPath, anchorRealPath)) {
+    return { ok: false, error: `Invalid path: must stay within ${params.scopeLabel}` };
   }
 
-  const targetStatus = await validateCanonicalPathWithinRoot({
-    rootRealPath,
-    candidatePath: requestedPath,
-    expect: "file",
-  });
-  if (targetStatus === "invalid") {
-    return invalidPath(params.scopeLabel);
+  try {
+    const [targetLstat, targetStat] = await Promise.all([
+      fs.lstat(resolvedPath),
+      fs.stat(resolvedPath),
+    ]);
+    if (targetLstat.isSymbolicLink()) {
+      return { ok: false, error: `Invalid path: must stay within ${params.scopeLabel}` };
+    }
+    if (targetStat.nlink > 1) {
+      return { ok: false, error: `Invalid path: must stay within ${params.scopeLabel}` };
+    }
+    const targetRealPath = await fs.realpath(resolvedPath);
+    if (!isPathInside(rootRealPath, targetRealPath)) {
+      return { ok: false, error: `Invalid path: must stay within ${params.scopeLabel}` };
+    }
+  } catch (err) {
+    if (!isNotFoundPathError(err)) {
+      throw err;
+    }
   }
 
-  return lexical;
+  return lexicalPathResult;
 }
 
 export function resolvePathsWithinRoot(params: {
