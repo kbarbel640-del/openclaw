@@ -611,7 +611,9 @@ export async function applyAuthChoiceApiProviders(
     });
 
     await params.prompter.note(
-      `Saved Z.AI API key to ${resolveAuthStorePathForDisplay(params.agentDir)}.`,
+      `Z.AI API key configured. Credential store: ${resolveAuthStorePathForDisplay(
+        params.agentDir,
+      )}.`,
       "Credentials saved",
     );
 

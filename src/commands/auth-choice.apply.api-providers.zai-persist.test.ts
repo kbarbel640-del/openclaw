@@ -47,7 +47,7 @@ describe("applyAuthChoiceApiProviders (zai)", () => {
     expect(mocks.setZaiApiKey).toHaveBeenCalledWith("zai-test-key", undefined);
     expect(
       notes.some(
-        (n) => n.title === "Credentials saved" && n.message.includes("Saved Z.AI API key"),
+        (n) => n.title === "Credentials saved" && n.message.includes("Z.AI API key configured"),
       ),
     ).toBe(true);
     expect(notes.some((n) => n.message.includes("/tmp/auth-profiles.json"))).toBe(true);
