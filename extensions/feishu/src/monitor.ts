@@ -74,7 +74,10 @@ function recordWebhookStatus(
 
 async function fetchBotOpenId(account: ResolvedFeishuAccount): Promise<string | undefined> {
   try {
-    const result = await probeFeishu(account);
+    const result = await probeFeishu({
+      ...account,
+      probeCacheTtlMinutes: account.config?.probeCacheTtlMinutes,
+    });
     return result.ok ? result.botOpenId : undefined;
   } catch {
     return undefined;

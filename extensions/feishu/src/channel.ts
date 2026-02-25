@@ -323,7 +323,11 @@ export const feishuPlugin: ChannelPlugin<ResolvedFeishuAccount> = {
       probe: snapshot.probe,
       lastProbeAt: snapshot.lastProbeAt ?? null,
     }),
-    probeAccount: async ({ account }) => await probeFeishu(account),
+    probeAccount: async ({ account }) =>
+      await probeFeishu({
+        ...account,
+        probeCacheTtlMinutes: account.config?.probeCacheTtlMinutes,
+      }),
     buildAccountSnapshot: ({ account, runtime, probe }) => ({
       accountId: account.accountId,
       enabled: account.enabled,
