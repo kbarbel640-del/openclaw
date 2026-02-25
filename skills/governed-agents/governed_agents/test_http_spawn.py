@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 CC_URL = os.environ.get("CC_URL", "http://localhost:3010")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -22,6 +24,10 @@ def test_import():
     print("✅ Import OK")
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Integration test requires live Command Center — skipped in CI"
+)
 def test_endpoint_reachable():
     r = subprocess.run(
         ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", f"{CC_URL}/api/health"],
@@ -32,6 +38,10 @@ def test_endpoint_reachable():
     print(f"✅ Command Center reachable (HTTP {code})")
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Integration test requires live Command Center — skipped in CI"
+)
 def test_spawn_endpoint_exists():
     token = os.environ.get("GOVERNED_AUTH_TOKEN") or os.environ.get("AUTH_TOKEN", "")
     r = subprocess.run([
@@ -47,6 +57,10 @@ def test_spawn_endpoint_exists():
     print(f"✅ Endpoint exists (HTTP {code})")
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Integration test requires live Command Center — skipped in CI"
+)
 def test_spawn_governed_http_import():
     """Test that spawn_governed_http is callable and returns a valid TaskResult."""
     from governed_agents.contract import TaskContract, TaskStatus
@@ -70,7 +84,9 @@ def test_spawn_governed_http_import():
 
 if __name__ == "__main__":
     test_import()
-    test_endpoint_reachable()
-    test_spawn_endpoint_exists()
-    test_spawn_governed_http_import()
+    # Only run integration tests if not in CI
+    if os.environ.get("CI") != "true":
+        test_endpoint_reachable()
+        test_spawn_endpoint_exists()
+        test_spawn_governed_http_import()
     print("\n✅ All tests passed — spawn_governed_http ready")

@@ -22,7 +22,9 @@ ALPHA = 0.1  # Learning rate for EMA
 
 def init_db(db_path: str = None):
     """Create tables if they don't exist."""
-    conn = sqlite3.connect(db_path or str(DB_PATH))
+    path = Path(db_path) if db_path else DB_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("""
