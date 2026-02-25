@@ -380,6 +380,19 @@ function isLoopbackAddress(address?: string): boolean {
   return false;
 }
 
+function stripPortFromUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.port) {
+      return url;
+    }
+    parsed.port = "";
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 /**
  * Result of Twilio webhook verification with detailed info.
  */
@@ -590,6 +603,26 @@ export function verifyTwilioWebhook(
     const replayKey = createTwilioReplayKey({ ctx, signature, verificationUrl });
     const isReplay = markReplay(twilioReplayCache, replayKey);
     return { ok: true, verificationUrl, isReplay };
+  }
+
+  // Twilio may omit the port when signing the URL. Retry without the port if present.
+  const verificationUrlWithoutPort = stripPortFromUrl(verificationUrl);
+  if (verificationUrlWithoutPort !== verificationUrl) {
+    const isValidWithoutPort = validateTwilioSignature(
+      authToken,
+      signature,
+      verificationUrlWithoutPort,
+      params,
+    );
+    if (isValidWithoutPort) {
+      const replayKey = createTwilioReplayKey({
+        ctx,
+        signature,
+        verificationUrl: verificationUrlWithoutPort,
+      });
+      const isReplay = markReplay(twilioReplayCache, replayKey);
+      return { ok: true, verificationUrl: verificationUrlWithoutPort, isReplay };
+    }
   }
 
   // Check if this is ngrok free tier - the URL might have different format

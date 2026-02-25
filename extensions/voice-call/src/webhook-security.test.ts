@@ -517,4 +517,31 @@ describe("verifyTwilioWebhook", () => {
     expect(result.ok).toBe(false);
     expect(result.verificationUrl).toBe("https://legitimate.example.com/voice/webhook");
   });
+
+  it("succeeds when Twilio signs URL without port but server URL has port", () => {
+    const authToken = "test-auth-token";
+    const postBody = "CallSid=CS123&CallStatus=completed&From=%2B15550000000";
+    // Twilio signs using URL without port
+    const urlWithoutPort = "https://example.com:8443/voice/webhook";
+    const urlWithPort = "https://example.com:8443/voice/webhook";
+    const signedUrl = "https://example.com/voice/webhook";
+
+    const signature = twilioSignature({ authToken, url: signedUrl, postBody });
+
+    const result = verifyTwilioWebhook(
+      {
+        headers: {
+          host: "example.com:8443",
+          "x-twilio-signature": signature,
+        },
+        rawBody: postBody,
+        url: urlWithPort,
+        method: "POST",
+      },
+      authToken,
+      { publicUrl: urlWithoutPort },
+    );
+
+    expect(result.ok).toBe(true);
+  });
 });
