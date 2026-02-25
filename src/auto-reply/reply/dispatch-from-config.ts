@@ -166,10 +166,10 @@ export async function dispatchReplyFromConfig(params: {
   const channelId = (ctx.OriginatingChannel ?? ctx.Surface ?? ctx.Provider ?? "").toLowerCase();
   const conversationId = ctx.OriginatingTo ?? ctx.To ?? ctx.From ?? undefined;
 
-  // Trigger plugin hooks (fire-and-forget)
+  // Trigger plugin hooks — blocking so plugins can return { handled: true } to cancel dispatch
   if (hookRunner?.hasHooks("message_received")) {
-    void hookRunner
-      .runMessageReceived(
+    try {
+      const receivedResult = await hookRunner.runMessageReceived(
         {
           from: ctx.From ?? "",
           content,
@@ -193,10 +193,15 @@ export async function dispatchReplyFromConfig(params: {
           accountId: ctx.AccountId,
           conversationId,
         },
-      )
-      .catch((err) => {
-        logVerbose(`dispatch-from-config: message_received plugin hook failed: ${String(err)}`);
-      });
+      );
+      // Plugin signalled it handled the message — skip agent dispatch
+      if (receivedResult?.handled) {
+        recordProcessed("skipped", { reason: "plugin_handled" });
+        return { queuedFinal: false, counts: { tool: 0, block: 0, final: 0 } };
+      }
+    } catch (err) {
+      logVerbose(`dispatch-from-config: message_received plugin hook failed: ${String(err)}`);
+    }
   }
 
   // Bridge to internal hooks (HOOK.md discovery system) - refs #8807
