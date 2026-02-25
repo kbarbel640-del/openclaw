@@ -11,6 +11,15 @@ describe("normalizeSandboxHostPath", () => {
   it("normalizes dot segments and strips trailing slash", () => {
     expect(normalizeSandboxHostPath("/tmp/a/../b//")).toBe("/tmp/b");
   });
+
+  it("normalizes Windows drive-letter paths", () => {
+    expect(normalizeSandboxHostPath("C:\\tmp\\a\\..\\b\\\\")).toBe("C:\\tmp\\b");
+  });
+
+  it("preserves UNC root semantics while trimming non-root separators", () => {
+    expect(normalizeSandboxHostPath("\\\\server\\share\\")).toBe("\\\\server\\share\\");
+    expect(normalizeSandboxHostPath("\\\\server\\share\\dir\\\\")).toBe("\\\\server\\share\\dir");
+  });
 });
 
 describe("resolveSandboxHostPathViaExistingAncestor", () => {

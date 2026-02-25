@@ -1,12 +1,21 @@
 import { existsSync, realpathSync } from "node:fs";
-import { posix } from "node:path";
+import path from "node:path";
+
+type HostPathStyle = "posix" | "win32" | "other";
 
 /**
- * Normalize a POSIX host path: resolve `.`, `..`, collapse `//`, strip trailing `/`.
+ * Normalize an absolute host path while preserving the native root semantics.
  */
 export function normalizeSandboxHostPath(raw: string): string {
   const trimmed = raw.trim();
-  return posix.normalize(trimmed).replace(/\/+$/, "") || "/";
+  const style = detectHostPathStyle(trimmed);
+  if (style === "posix") {
+    return path.posix.normalize(trimmed).replace(/\/+$/, "") || "/";
+  }
+  if (style === "win32") {
+    return normalizeWindowsHostPath(trimmed);
+  }
+  return trimmed;
 }
 
 /**
@@ -14,17 +23,19 @@ export function normalizeSandboxHostPath(raw: string): string {
  * even when the final source leaf does not exist yet.
  */
 export function resolveSandboxHostPathViaExistingAncestor(sourcePath: string): string {
-  if (!sourcePath.startsWith("/")) {
+  const style = detectHostPathStyle(sourcePath);
+  if (style === "other") {
     return sourcePath;
   }
 
   const normalized = normalizeSandboxHostPath(sourcePath);
   let current = normalized;
   const missingSegments: string[] = [];
+  const root = getPathRoot(current, style);
 
-  while (current !== "/" && !existsSync(current)) {
-    missingSegments.unshift(posix.basename(current));
-    const parent = posix.dirname(current);
+  while (current !== root && !existsSync(current)) {
+    missingSegments.unshift(getPathBasename(current, style));
+    const parent = getPathDirname(current, style);
     if (parent === current) {
       break;
     }
@@ -40,8 +51,62 @@ export function resolveSandboxHostPathViaExistingAncestor(sourcePath: string): s
     if (missingSegments.length === 0) {
       return resolvedAncestor;
     }
-    return normalizeSandboxHostPath(posix.join(resolvedAncestor, ...missingSegments));
+    return normalizeSandboxHostPath(joinPathSegments(resolvedAncestor, missingSegments, style));
   } catch {
     return normalized;
   }
+}
+
+function detectHostPathStyle(value: string): HostPathStyle {
+  if (value.startsWith("/")) {
+    return "posix";
+  }
+  if (path.win32.isAbsolute(value)) {
+    return "win32";
+  }
+  return "other";
+}
+
+function normalizeWindowsHostPath(raw: string): string {
+  const normalized = path.win32.normalize(raw);
+  const root = path.win32.parse(normalized).root;
+  if (!root) {
+    return normalized.replace(/[\\/]+$/, "");
+  }
+  if (normalized === root) {
+    return root;
+  }
+  return normalized.replace(/[\\/]+$/, "");
+}
+
+function getPathRoot(value: string, style: Exclude<HostPathStyle, "other">): string {
+  if (style === "posix") {
+    return path.posix.parse(value).root || "/";
+  }
+  return path.win32.parse(value).root || value;
+}
+
+function getPathDirname(value: string, style: Exclude<HostPathStyle, "other">): string {
+  if (style === "posix") {
+    return path.posix.dirname(value);
+  }
+  return path.win32.dirname(value);
+}
+
+function getPathBasename(value: string, style: Exclude<HostPathStyle, "other">): string {
+  if (style === "posix") {
+    return path.posix.basename(value);
+  }
+  return path.win32.basename(value);
+}
+
+function joinPathSegments(
+  base: string,
+  segments: string[],
+  style: Exclude<HostPathStyle, "other">,
+): string {
+  if (style === "posix") {
+    return path.posix.join(base, ...segments);
+  }
+  return path.win32.join(base, ...segments);
 }
