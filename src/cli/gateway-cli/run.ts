@@ -322,7 +322,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
   const drainTimeoutRaw = toOptionString(opts.drainTimeout);
   if (drainTimeoutRaw) {
     try {
-      drainTimeoutMs = Math.max(1, parseDurationMs(drainTimeoutRaw, { defaultUnit: "ms" }));
+      drainTimeoutMs = Math.max(1, parseDurationMs(drainTimeoutRaw, { defaultUnit: "s" }));
     } catch {
       defaultRuntime.error('Invalid --drain-timeout (use e.g. "30s", "5m", "120000ms")');
       defaultRuntime.exit(1);
