@@ -42,8 +42,13 @@ describe("resolveSlackStreamingConfig", () => {
 
   it("moves legacy streaming boolean to native streaming toggle", () => {
     expect(resolveSlackStreamingConfig({ streaming: false })).toEqual({
-      mode: "partial",
+      mode: "off",
       nativeStreaming: false,
+      draftMode: "replace",
+    });
+    expect(resolveSlackStreamingConfig({ streaming: true })).toEqual({
+      mode: "partial",
+      nativeStreaming: true,
       draftMode: "replace",
     });
   });
