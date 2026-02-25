@@ -420,6 +420,12 @@ export const dispatchTelegramMessage = async ({
 
   const typingCallbacks = createTypingCallbacks({
     start: sendTyping,
+    stop: async () => {
+      // Telegram doesn't have a native "stop typing" action.
+      // The typing indicator auto-clears after ~5 seconds of no new typing action.
+      // We don't need to send any explicit action here - just having the stop
+      // function ensures the keepalive loop is properly managed.
+    },
     onStartError: (err) => {
       logTypingFailure({
         log: logVerbose,
