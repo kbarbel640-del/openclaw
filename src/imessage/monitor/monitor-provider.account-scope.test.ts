@@ -106,6 +106,7 @@ describe("monitorIMessageProvider account-scoped pairing store", () => {
       runtime: {
         log: vi.fn(),
         error: vi.fn(),
+        exit: vi.fn(),
       },
       accountId: "work",
     });
