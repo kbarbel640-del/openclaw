@@ -1,4 +1,4 @@
-import { lookupContextTokens } from "../agents/context.js";
+import { resolveContextTokensForModel } from "../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../agents/defaults.js";
 import { loadConfig } from "../config/config.js";
 import { loadSessionStore, resolveFreshSessionTotalTokens } from "../config/sessions.js";
@@ -163,7 +163,7 @@ export async function sessionsCommand(
               totalTokensFresh:
                 typeof r.totalTokens === "number" ? r.totalTokensFresh !== false : false,
               contextTokens:
-                r.contextTokens ?? lookupContextTokens(model) ?? configContextTokens ?? null,
+                r.contextTokens ?? resolveContextTokensForModel({ cfg, model, fallbackContextTokens: configContextTokens ?? undefined }) ?? null,
               model,
             };
           }),
@@ -207,7 +207,7 @@ export async function sessionsCommand(
 
   for (const row of rows) {
     const model = resolveSessionDisplayModel(cfg, row, displayDefaults);
-    const contextTokens = row.contextTokens ?? lookupContextTokens(model) ?? configContextTokens;
+    const contextTokens = row.contextTokens ?? resolveContextTokensForModel({ cfg, model, fallbackContextTokens: configContextTokens }) ?? configContextTokens;
     const total = resolveFreshSessionTotalTokens(row);
 
     const line = [
