@@ -110,8 +110,7 @@ vi.mock("../../cli/outbound-send-deps.js", () => ({
 }));
 
 vi.mock("../../config/sessions.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../../config/sessions.js")>();
+  const actual = await importOriginal<typeof import("../../config/sessions.js")>();
   return {
     ...actual,
     resolveAgentMainSessionKey: vi.fn().mockReturnValue("main:default"),

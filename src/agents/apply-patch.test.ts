@@ -138,26 +138,31 @@ describe("applyPatch", () => {
     });
   });
 
-  it.skipIf(process.platform === "win32")("rejects symlink escape attempts by default", async () => {
-    await withTempDir(async (dir) => {
-      const outside = path.join(path.dirname(dir), "outside-target.txt");
-      const linkPath = path.join(dir, "link.txt");
-      await fs.writeFile(outside, "initial\n", "utf8");
-      await fs.symlink(outside, linkPath);
+  it.skipIf(process.platform === "win32")(
+    "rejects symlink escape attempts by default",
+    async () => {
+      await withTempDir(async (dir) => {
+        const outside = path.join(path.dirname(dir), "outside-target.txt");
+        const linkPath = path.join(dir, "link.txt");
+        await fs.writeFile(outside, "initial\n", "utf8");
+        await fs.symlink(outside, linkPath);
 
-      const patch = `*** Begin Patch
+        const patch = `*** Begin Patch
 *** Update File: link.txt
 @@
 -initial
 +pwned
 *** End Patch`;
 
-      await expect(applyPatch(patch, { cwd: dir })).rejects.toThrow(/Symlink escapes sandbox root/);
-      const outsideContents = await fs.readFile(outside, "utf8");
-      expect(outsideContents).toBe("initial\n");
-      await fs.rm(outside, { force: true });
-    });
-  });
+        await expect(applyPatch(patch, { cwd: dir })).rejects.toThrow(
+          /Symlink escapes sandbox root/,
+        );
+        const outsideContents = await fs.readFile(outside, "utf8");
+        expect(outsideContents).toBe("initial\n");
+        await fs.rm(outside, { force: true });
+      });
+    },
+  );
 
   it.skipIf(process.platform === "win32")(
     "allows symlinks that resolve within cwd by default",
@@ -240,7 +245,9 @@ describe("applyPatch", () => {
     "allows deleting a symlink itself even if it points outside cwd",
     async () => {
       await withTempDir(async (dir) => {
-        const outsideDir = await fs.mkdtemp(path.join(path.dirname(dir), "openclaw-patch-outside-"));
+        const outsideDir = await fs.mkdtemp(
+          path.join(path.dirname(dir), "openclaw-patch-outside-"),
+        );
         try {
           const outsideTarget = path.join(outsideDir, "target.txt");
           await fs.writeFile(outsideTarget, "keep\n", "utf8");

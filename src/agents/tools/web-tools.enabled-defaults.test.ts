@@ -133,10 +133,7 @@ describe("web_search country and language parameters", () => {
     { key: "ui_lang", value: "de-DE" },
     { key: "freshness", value: "pw" },
   ])("passes $key parameter to Brave API", async ({ key, value }) => {
-    const url = await runBraveSearchAndGetUrl(
-      { [key]: value },
-      `test-brave-${key}-${value}`,
-    );
+    const url = await runBraveSearchAndGetUrl({ [key]: value }, `test-brave-${key}-${value}`);
     expect(url.searchParams.get(key)).toBe(value);
   });
 
