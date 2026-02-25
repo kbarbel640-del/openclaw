@@ -562,6 +562,45 @@ describe("thread binding ttl", () => {
     expect(hoisted.sendWebhookMessageDiscord).not.toHaveBeenCalled();
   });
 
+  it("keeps ACP bindings when session store reads fail during startup reconciliation", async () => {
+    const manager = createThreadBindingManager({
+      accountId: "default",
+      persist: false,
+      enableSweeper: false,
+      sessionTtlMs: 24 * 60 * 60 * 1000,
+    });
+
+    await manager.bindTarget({
+      threadId: "thread-acp-uncertain",
+      channelId: "parent-1",
+      targetKind: "acp",
+      targetSessionKey: "agent:codex:acp:uncertain",
+      agentId: "codex",
+      webhookId: "wh-1",
+      webhookToken: "tok-1",
+    });
+
+    hoisted.readAcpSessionEntry.mockReturnValue({
+      sessionKey: "agent:codex:acp:uncertain",
+      storeSessionKey: "agent:codex:acp:uncertain",
+      cfg: {} as OpenClawConfig,
+      storePath: "/tmp/mock-sessions.json",
+      storeReadFailed: true,
+      entry: undefined,
+      acp: undefined,
+    });
+
+    const result = reconcileAcpThreadBindingsOnStartup({
+      cfg: {} as OpenClawConfig,
+      accountId: "default",
+    });
+
+    expect(result.checked).toBe(1);
+    expect(result.removed).toBe(0);
+    expect(result.staleSessionKeys).toEqual([]);
+    expect(manager.getByThreadId("thread-acp-uncertain")).toBeDefined();
+  });
+
   it("persists unbinds even when no manager is active", () => {
     const previousStateDir = process.env.OPENCLAW_STATE_DIR;
     const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-thread-bindings-"));

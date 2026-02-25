@@ -17,7 +17,11 @@ import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { maybeApplyTtsToPayload, normalizeTtsAutoMode, resolveTtsConfig } from "../../tts/tts.js";
-import { maybeResolveTextAlias } from "../commands-registry.js";
+import {
+  isCommandEnabled,
+  maybeResolveTextAlias,
+  shouldHandleTextCommands,
+} from "../commands-registry.js";
 import { getReplyFromConfig } from "../reply.js";
 import type { FinalizedMsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
@@ -123,10 +127,28 @@ const shouldBypassAcpDispatchForCommand = (
   if (!candidate) {
     return false;
   }
-  if (candidate.startsWith("!")) {
+  if (maybeResolveTextAlias(candidate, cfg) != null) {
     return true;
   }
-  return maybeResolveTextAlias(candidate, cfg) != null;
+
+  const normalized = candidate.trim();
+  if (!normalized.startsWith("!")) {
+    return false;
+  }
+
+  if (!ctx.CommandAuthorized) {
+    return false;
+  }
+
+  if (!isCommandEnabled(cfg, "bash")) {
+    return false;
+  }
+
+  return shouldHandleTextCommands({
+    cfg,
+    surface: ctx.Surface ?? ctx.Provider,
+    commandSource: ctx.CommandSource,
+  });
 };
 
 const resolveAcpRequestId = (ctx: FinalizedMsgContext): string => {

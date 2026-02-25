@@ -15,6 +15,7 @@ export type AcpSessionStoreEntry = {
   storeSessionKey: string;
   entry?: SessionEntry;
   acp?: SessionAcpMeta;
+  storeReadFailed?: boolean;
 };
 
 function resolveStoreSessionKey(store: Record<string, SessionEntry>, sessionKey: string): string {
@@ -62,9 +63,11 @@ export function readAcpSessionEntry(params: {
     cfg: params.cfg,
   });
   let store: Record<string, SessionEntry>;
+  let storeReadFailed = false;
   try {
     store = loadSessionStore(storePath);
   } catch {
+    storeReadFailed = true;
     store = {};
   }
   const storeSessionKey = resolveStoreSessionKey(store, sessionKey);
@@ -76,6 +79,7 @@ export function readAcpSessionEntry(params: {
     storeSessionKey,
     entry,
     acp: entry?.acp,
+    storeReadFailed,
   };
 }
 

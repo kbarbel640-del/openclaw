@@ -49,9 +49,17 @@ function parseStringList(value: unknown): string[] | null {
   if (!Array.isArray(value)) {
     return null;
   }
-  const parsed = value
-    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-    .filter(Boolean);
+  const parsed: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      return null;
+    }
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      return null;
+    }
+    parsed.push(trimmed);
+  }
   return parsed;
 }
 

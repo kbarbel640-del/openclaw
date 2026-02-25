@@ -245,6 +245,10 @@ export function reconcileAcpThreadBindingsOnStartup(params: {
       cfg: params.cfg,
       sessionKey,
     });
+    // Session store read failures are transient; never auto-unbind on uncertain reads.
+    if (session?.storeReadFailed) {
+      return false;
+    }
     return !session?.acp;
   });
   if (staleBindings.length === 0) {

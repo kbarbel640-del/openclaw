@@ -314,15 +314,33 @@ function buildChatCommands(): ChatCommandDefinition[] {
     defineChatCommand({
       key: "acp",
       nativeName: "acp",
-      description: "Manage ACP sessions (spawn, cancel, steer, close, list).",
+      description: "Manage ACP sessions and runtime options.",
       textAlias: "/acp",
       category: "management",
       args: [
         {
           name: "action",
-          description: "spawn | cancel | steer | close | sessions | help",
+          description:
+            "spawn | cancel | steer | close | sessions | status | set-mode | set | cwd | permissions | timeout | model | reset-options | doctor | install | help",
           type: "string",
-          choices: ["spawn", "cancel", "steer", "close", "sessions", "help"],
+          choices: [
+            "spawn",
+            "cancel",
+            "steer",
+            "close",
+            "sessions",
+            "status",
+            "set-mode",
+            "set",
+            "cwd",
+            "permissions",
+            "timeout",
+            "model",
+            "reset-options",
+            "doctor",
+            "install",
+            "help",
+          ],
         },
         {
           name: "value",
