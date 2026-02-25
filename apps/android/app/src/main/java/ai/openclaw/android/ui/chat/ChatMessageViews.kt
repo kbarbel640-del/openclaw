@@ -348,7 +348,7 @@ fun ChatCodeBlock(code: String, language: String?) {
   Surface(
     shape = RoundedCornerShape(8.dp),
     color = MaterialTheme.colorScheme.surfaceContainerHighest,
-    border = BorderStroke(1.dp, Color(0xFF2B2E35)),
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     modifier = Modifier.fillMaxWidth(),
   ) {
     Column(
