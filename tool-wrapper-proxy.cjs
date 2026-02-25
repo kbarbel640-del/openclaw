@@ -2447,9 +2447,17 @@ function learningRoute(intent, ruleBasedDecision) {
     if (sesFailRate > 0.3) sesCost *= FAILURE_PENALTY;
   }
 
+  // Mode bias: coding mode reduces session cost (favors Claude), ops mode increases it
+  const _lrMode = getActiveMode();
+  if (_lrMode) {
+    const _adj = getModeAdjustments(_lrMode);
+    sesCost *= _adj.sessionCostMultiplier;
+  }
+
   // Cooldown enforcement: if session was spawned recently, bias toward dev_loop
+  const effectiveCooldown = (_lrMode && getModeAdjustments(_lrMode).cooldownOverride) || SESSION_COOLDOWN_MS;
   const timeSinceLastSession = Date.now() - _lastSessionSpawn;
-  if (timeSinceLastSession < SESSION_COOLDOWN_MS) {
+  if (timeSinceLastSession < effectiveCooldown) {
     return { route: "dev_loop", reason: `cooldown(${Math.round((SESSION_COOLDOWN_MS - timeSinceLastSession) / 1000)}s remaining)` };
   }
 
@@ -2496,6 +2504,142 @@ function recordRoutingOutcome(intent, executor, success, latencyMs) {
 }
 
 
+
+
+
+// ─── Intent Momentum — adaptive mode system with decay ────────────────
+const MODE_DECAY = 0.85;           // decay factor per task
+const MODE_BOOST = 2;              // boost for matching intent
+const MODE_PENALTY = -0.5;         // penalty for non-matching
+const MODE_THRESHOLD = 3;          // minimum score to activate mode
+
+const _modeScores = {
+  coding: 0,     // implementation, refactor, design
+  ops: 0,        // docker, service_ops, deploy, cleanup
+  debugging: 0,  // git (diff/log), system, test
+  research: 0,   // general, config, file_ops, install
+};
+
+// Map intents to modes
+const INTENT_TO_MODE = {
+  implementation: "coding",
+  refactor: "coding",
+  design: "coding",
+  docker: "ops",
+  service_ops: "ops",
+  deploy: "ops",
+  cleanup: "ops",
+  git: "debugging",
+  system: "debugging",
+  test: "debugging",
+  general: "research",
+  config: "research",
+  file_ops: "research",
+  install: "research",
+};
+
+function updateMomentum(intent) {
+  const targetMode = INTENT_TO_MODE[intent] || "research";
+
+  // Decay all scores
+  for (const mode of Object.keys(_modeScores)) {
+    _modeScores[mode] *= MODE_DECAY;
+  }
+  // Boost matching mode
+  _modeScores[targetMode] += MODE_BOOST;
+  // Small penalty to others (keeps modes competitive)
+  for (const mode of Object.keys(_modeScores)) {
+    if (mode !== targetMode) _modeScores[mode] += MODE_PENALTY;
+    if (_modeScores[mode] < 0) _modeScores[mode] = 0;
+  }
+}
+
+function getActiveMode() {
+  let best = null;
+  let bestScore = MODE_THRESHOLD; // must exceed threshold
+  for (const [mode, score] of Object.entries(_modeScores)) {
+    if (score > bestScore) {
+      best = mode;
+      bestScore = score;
+    }
+  }
+  return best; // null = no dominant mode
+}
+
+// Mode effects on routing parameters (only touches control plane)
+function getModeAdjustments(mode) {
+  switch (mode) {
+    case "coding":
+      return { sessionCostMultiplier: 0.8, cooldownOverride: 5000, predictionThreshold: 0.45 };
+    case "ops":
+      return { sessionCostMultiplier: 1.5, cooldownOverride: null, predictionThreshold: 0.7 };
+    case "debugging":
+      return { sessionCostMultiplier: 1.0, cooldownOverride: null, predictionThreshold: 0.6 };
+    case "research":
+      return { sessionCostMultiplier: 1.2, cooldownOverride: null, predictionThreshold: 0.65 };
+    default:
+      return { sessionCostMultiplier: 1.0, cooldownOverride: null, predictionThreshold: PREDICTION_CONFIDENCE };
+  }
+}
+
+// ─── Predictive Routing — task transition tracking + executor prediction ───
+const TRANSITIONS_PATH = path.join(
+  process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
+  "task-transitions.json"
+);
+const PREDICTION_CONFIDENCE = 0.6; // minimum probability to act on prediction
+let _lastIntent = null;
+
+function loadTransitions() {
+  try {
+    if (fs.existsSync(TRANSITIONS_PATH)) {
+      return JSON.parse(fs.readFileSync(TRANSITIONS_PATH, "utf8"));
+    }
+  } catch (e) {
+    console.error("[wrapper] Failed to load transitions:", e.message);
+  }
+  return {};
+}
+
+function saveTransitions(data) {
+  try {
+    fs.writeFileSync(TRANSITIONS_PATH, JSON.stringify(data, null, 2), "utf8");
+  } catch (e) {
+    console.error("[wrapper] Failed to save transitions:", e.message);
+  }
+}
+
+// Record intent-to-executor transition (not intent-to-intent)
+function recordTransition(intent, executor) {
+  if (!intent) return;
+  const data = loadTransitions();
+  if (!data[intent]) data[intent] = { dev_loop: 0, session_bridge: 0 };
+  data[intent][executor] = (data[intent][executor] || 0) + 1;
+  saveTransitions(data);
+}
+
+// Predict which executor the next task for this intent will need
+// Returns: "session_bridge" | null (null = no prediction / not confident enough)
+function predictExecutor(intent) {
+  const data = loadTransitions();
+  const stats = data[intent];
+  if (!stats) return null;
+
+  const total = (stats.dev_loop || 0) + (stats.session_bridge || 0);
+  if (total < MIN_SAMPLES_FOR_LEARNING) return null;
+
+  const probSession = (stats.session_bridge || 0) / total;
+  if (probSession > PREDICTION_CONFIDENCE) return "session_bridge";
+  return null;
+}
+
+// Soft pre-warm: notify session bridge to prepare (non-blocking)
+function softPreWarm(project) {
+  // Fire-and-forget: just ping session bridge health to keep connection warm
+  // In future: can send prepare signal with project context
+  callSessionBridgeAPI("GET", "/health", null).catch(() => {});
+  console.log("[wrapper] PREDICTIVE_PREWARM: pinged session-bridge" + (project ? " for " + project : ""));
+}
 
 function callSessionBridgeAPI(method, path, body) {
   return new Promise((resolve, reject) => {
@@ -3449,6 +3593,9 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
         // --- Learning Router feedback ---
         if (req._cpIntent) {
           recordRoutingOutcome(req._cpIntent, "dev_loop", true, Date.now() - (req._cpStartTime || Date.now()));
+          // Predictive: pre-warm if next task likely needs session
+          const _devPredicted = predictExecutor(req._cpIntent);
+          if (_devPredicted === "session_bridge") softPreWarm();
         }
         return sendDirectResponse(reqId, finalContent, wantsStream, res);
       }
@@ -3689,6 +3836,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
 
       // --- Step 2: Intent fingerprint + learning router ---
       const cpIntent = extractIntent(userText);
+      _lastIntent = cpIntent;
       const { route: finalRoute, reason: routeReason } = learningRoute(cpIntent, ruleBasedDecision);
 
       // Detect project from PROJECT_ROUTES
@@ -3700,8 +3848,23 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
         }
       }
 
+      // --- Momentum update ---
+      updateMomentum(cpIntent);
+      const activeMode = getActiveMode();
+      const modeAdj = getModeAdjustments(activeMode);
+
+      // --- Learning router (with mode adjustments) ---
+      // Mode can bias session cost to favor/disfavor session bridge
+      const origRoute = finalRoute;
+
+      // --- Predictive: record transition + check pre-warm ---
+      recordTransition(cpIntent, finalRoute);
+      const predictedExecutor = predictExecutor(cpIntent);
+      const effectiveThreshold = modeAdj.predictionThreshold || PREDICTION_CONFIDENCE;
+
       // --- Observability ---
-      console.log(`[wrapper] #${reqId} CONTROL_PLANE_V3: intent=${cpIntent} score=${complexityScore} rule=${ruleBasedDecision} final=${finalRoute} reason=${routeReason} project=${cpProject || "none"}`);
+      const modeStr = activeMode ? `${activeMode}(${Object.entries(_modeScores).map(([k,v])=>k[0]+"="+v.toFixed(1)).join(",")})` : "none";
+      console.log(`[wrapper] #${reqId} CONTROL_PLANE_V3: intent=${cpIntent} score=${complexityScore} rule=${ruleBasedDecision} final=${finalRoute} reason=${routeReason} mode=${modeStr} predicted=${predictedExecutor || "none"} project=${cpProject || "none"}`);
 
       const cpStartTime = Date.now();
 
@@ -3720,6 +3883,9 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
             const output = result.output || result.lastMessage || "(session completed, no output captured)";
             const truncated = output.length > 3000 ? output.slice(0, 3000) + "\n...(truncated)" : output;
             recordRoutingOutcome(cpIntent, "session_bridge", true, Date.now() - cpStartTime);
+            // Predictive: pre-warm for likely next task
+            const _pPredicted = predictExecutor(cpIntent);
+            if (_pPredicted === "session_bridge") softPreWarm(cpProject);
             return sendDirectResponse(reqId, truncated, wantsStream, res);
           } catch (e) {
             console.error(`[wrapper] #${reqId} control_plane error: ${e.message}`);
@@ -4600,7 +4766,39 @@ const server = http.createServer((req, res) => {
   }
 
   // Routing stats — self-learning router visibility
-  if (req.url === "/routing-stats" && req.method === "GET") {
+  
+  // Mode status — current momentum state
+  if (req.url === "/mode-status" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      activeMode: getActiveMode(),
+      scores: _modeScores,
+      adjustments: getModeAdjustments(getActiveMode()),
+      lastIntent: _lastIntent,
+    }, null, 2));
+    return;
+  }
+
+  // Task transitions — prediction data
+  if (req.url === "/transitions" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    const data = loadTransitions();
+    // Add prediction for each intent
+    const enriched = {};
+    for (const [intent, stats] of Object.entries(data)) {
+      const total = (stats.dev_loop || 0) + (stats.session_bridge || 0);
+      enriched[intent] = {
+        ...stats,
+        total,
+        session_probability: total > 0 ? ((stats.session_bridge || 0) / total).toFixed(2) : "0.00",
+        predicted_executor: predictExecutor(intent) || "dev_loop",
+      };
+    }
+    res.end(JSON.stringify(enriched, null, 2));
+    return;
+  }
+
+if (req.url === "/routing-stats" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
     const stats = loadRoutingStats();
     const enriched = {};
