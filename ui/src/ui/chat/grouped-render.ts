@@ -183,9 +183,9 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
         ? assistantName.charAt(0).toUpperCase() || "A"
         : normalized === "system"
           ? "S"
-        : normalized === "tool"
-          ? "⚙"
-          : "?";
+          : normalized === "tool"
+            ? "⚙"
+            : "?";
   const className =
     normalized === "user"
       ? "user"
@@ -193,9 +193,9 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
         ? "assistant"
         : normalized === "system"
           ? "system"
-        : normalized === "tool"
-          ? "tool"
-          : "other";
+          : normalized === "tool"
+            ? "tool"
+            : "other";
 
   if (assistantAvatar && normalized === "assistant") {
     if (isAvatarUrl(assistantAvatar)) {
@@ -213,11 +213,7 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
 
 function isAvatarUrl(value: string): boolean {
   // Relative paths come from the avatar endpoint.
-  return (
-    /^https?:\/\//i.test(value) ||
-    /^data:image\//i.test(value) ||
-    value.startsWith("/")
-  );
+  return /^https?:\/\//i.test(value) || /^data:image\//i.test(value) || value.startsWith("/");
 }
 
 function renderMessageImages(images: ImageBlock[]) {
