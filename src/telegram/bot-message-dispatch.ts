@@ -593,6 +593,10 @@ export const dispatchTelegramMessage = async ({
       },
     }));
   } finally {
+    // Stop the typing indicator keepalive loop.
+    // This ensures "typing..." clears even on NO_REPLY or errors.
+    typingCallbacks.onCleanup?.();
+
     // Must stop() first to flush debounced content before clear() wipes state.
     const streamCleanupStates = new Map<
       NonNullable<DraftLaneState["stream"]>,
