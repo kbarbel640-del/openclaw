@@ -105,6 +105,33 @@ function stripUnknownConfigKeys(config: OpenClawConfig): {
   return { config: next, removed };
 }
 
+function repairInvalidCompactionMode(config: OpenClawConfig): {
+  config: OpenClawConfig;
+  repaired: boolean;
+} {
+  const mode = config.agents?.defaults?.compaction?.mode;
+  if (mode === undefined || mode === "default" || mode === "safeguard") {
+    return { config, repaired: false };
+  }
+
+  return {
+    config: {
+      ...config,
+      agents: {
+        ...config.agents,
+        defaults: {
+          ...config.agents?.defaults,
+          compaction: {
+            ...config.agents?.defaults?.compaction,
+            mode: "safeguard",
+          },
+        },
+      },
+    },
+    repaired: true,
+  };
+}
+
 function noteOpencodeProviderOverrides(cfg: OpenClawConfig) {
   const providers = cfg.models?.providers;
   if (!providers) {
@@ -283,6 +310,25 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     } else {
       note(lines, "Unknown config keys");
       fixHints.push('Run "openclaw doctor --fix" to remove these keys.');
+    }
+  }
+
+  const compactionModeRepair = repairInvalidCompactionMode(candidate);
+  if (compactionModeRepair.repaired) {
+    candidate = compactionModeRepair.config;
+    pendingChanges = true;
+    if (shouldRepair) {
+      cfg = candidate;
+      note(
+        "- agents.defaults.compaction.mode had an invalid value; reset to safeguard",
+        "Doctor changes",
+      );
+    } else {
+      note(
+        '- agents.defaults.compaction.mode is invalid (expected "default" or "safeguard")',
+        "Config warnings",
+      );
+      fixHints.push(`Run "${formatCliCommand("openclaw doctor --fix")}" to reset compaction mode.`);
     }
   }
 
