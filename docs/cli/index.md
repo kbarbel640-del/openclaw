@@ -281,7 +281,7 @@ Vector search over `MEMORY.md` + `memory/*.md`:
 
 - `openclaw memory status` — show index stats.
 - `openclaw memory index` — reindex memory files.
-- `openclaw memory search "<query>"` — semantic search over memory.
+- `openclaw memory search "<query>"` or `openclaw memory search --query "<query>"` — semantic search over memory.
 
 ## Chat slash commands
 

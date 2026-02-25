@@ -26,6 +26,7 @@ openclaw memory status --deep --index --verbose
 openclaw memory index
 openclaw memory index --verbose
 openclaw memory search "release checklist"
+openclaw memory search --query "release checklist"
 openclaw memory status --agent main
 openclaw memory index --agent main --verbose
 ```
@@ -43,3 +44,4 @@ Notes:
 - `memory status --deep --index` runs a reindex if the store is dirty.
 - `memory index --verbose` prints per-phase details (provider, model, sources, batch activity).
 - `memory status` includes any extra paths configured via `memorySearch.extraPaths`.
+- `memory search` accepts either `openclaw memory search <query>` or `openclaw memory search --query <query>`.
