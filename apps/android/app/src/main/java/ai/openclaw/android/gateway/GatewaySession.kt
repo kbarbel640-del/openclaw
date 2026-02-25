@@ -202,7 +202,12 @@ class GatewaySession(
       val url = "$scheme://${endpoint.host}:${endpoint.port}"
       val httpScheme = if (tls != null) "https" else "http"
       val origin = "$httpScheme://${endpoint.host}:${endpoint.port}"
-      val request = Request.Builder().url(url).header("Origin", origin).build()
+      val requestBuilder = Request.Builder().url(url).header("Origin", origin)
+      val ua = options.userAgent?.trim()
+      if (!ua.isNullOrEmpty()) {
+        requestBuilder.header("User-Agent", ua)
+      }
+      val request = requestBuilder.build()
       socket = client.newWebSocket(request, Listener())
       try {
         connectDeferred.await()
