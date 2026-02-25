@@ -1,5 +1,5 @@
 import { clearSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
-import { lookupContextTokens } from "../../agents/context.js";
+import { lookupContextTokens, resolveContextTokensForModel } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
 import { loadModelCatalog } from "../../agents/model-catalog.js";
 import {
@@ -600,9 +600,26 @@ export function resolveModelDirectiveSelection(params: {
 
 export function resolveContextTokens(params: {
   agentCfg: NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]> | undefined;
+  cfg?: OpenClawConfig;
+  provider?: string;
   model: string;
 }): number {
-  return (
-    params.agentCfg?.contextTokens ?? lookupContextTokens(params.model) ?? DEFAULT_CONTEXT_TOKENS
-  );
+  if (typeof params.agentCfg?.contextTokens === "number" && params.agentCfg.contextTokens > 0) {
+    return params.agentCfg.contextTokens;
+  }
+
+  // Check for context1m in configured model params (e.g. agents.defaults.models)
+  if (params.cfg && params.provider) {
+    const resolved = resolveContextTokensForModel({
+      cfg: params.cfg,
+      provider: params.provider,
+      model: params.model,
+      fallbackContextTokens: undefined,
+    });
+    if (typeof resolved === "number" && resolved > 0) {
+      return resolved;
+    }
+  }
+
+  return lookupContextTokens(params.model) ?? DEFAULT_CONTEXT_TOKENS;
 }
