@@ -79,6 +79,7 @@ describe("enqueueSend", () => {
     await vi.advanceTimersByTimeAsync(DEFAULT_SEND_GAP_MS);
     const firstResult = await first;
     expect(firstResult.ok).toBe(false);
+    if (firstResult.ok) throw new Error("expected failure");
     expect(firstResult.error).toBeInstanceOf(Error);
     expect((firstResult.error as Error).message).toBe("boom");
 
@@ -110,6 +111,7 @@ describe("enqueueSend", () => {
     gate.resolve();
     const firstResult = await first;
     expect(firstResult.ok).toBe(false);
+    if (firstResult.ok) throw new Error("expected failure");
     expect(firstResult.error).toBeInstanceOf(Error);
 
     await vi.advanceTimersByTimeAsync(DEFAULT_SEND_GAP_MS);

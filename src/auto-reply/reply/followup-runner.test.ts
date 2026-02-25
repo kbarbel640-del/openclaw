@@ -130,6 +130,17 @@ describe("createFollowupRunner compaction", () => {
 
     const queued = createQueuedRun({
       run: {
+        // Provide required run fields (kept minimal for test).
+        agentId: "agent",
+        agentDir: "/tmp/agent",
+        sessionId: "session",
+        sessionFile: "/tmp/session.jsonl",
+        workspaceDir: "/tmp",
+        config: {},
+        provider: "anthropic",
+        model: "claude",
+        timeoutMs: 1_000,
+        blockReplyBreak: "message_end",
         verboseLevel: "on",
       },
     });
