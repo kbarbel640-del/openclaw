@@ -18,10 +18,12 @@ const handlerSpy = vi.hoisted(() =>
   ),
 );
 const setWebhookSpy = vi.hoisted(() => vi.fn());
+const initSpy = vi.hoisted(() => vi.fn(async () => undefined));
 const stopSpy = vi.hoisted(() => vi.fn());
 const webhookCallbackSpy = vi.hoisted(() => vi.fn(() => handlerSpy));
 const createTelegramBotSpy = vi.hoisted(() =>
   vi.fn(() => ({
+    init: initSpy,
     api: { setWebhook: setWebhookSpy },
     stop: stopSpy,
   })),
@@ -296,6 +298,7 @@ function sha256(text: string): string {
 
 describe("startTelegramWebhook", () => {
   it("starts server, registers webhook, and serves health", async () => {
+    initSpy.mockClear();
     createTelegramBotSpy.mockClear();
     webhookCallbackSpy.mockClear();
     const abort = new AbortController();
@@ -322,6 +325,7 @@ describe("startTelegramWebhook", () => {
 
     const health = await fetch(`${url}/healthz`);
     expect(health.status).toBe(200);
+    expect(initSpy).toHaveBeenCalledTimes(1);
     expect(setWebhookSpy).toHaveBeenCalled();
     expect(webhookCallbackSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -329,7 +333,7 @@ describe("startTelegramWebhook", () => {
           setWebhook: expect.any(Function),
         }),
       }),
-      "http",
+      "callback",
       {
         secretToken: "secret",
         onTimeout: "return",

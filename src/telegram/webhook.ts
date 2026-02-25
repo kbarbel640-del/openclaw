@@ -3,7 +3,7 @@ import { webhookCallback } from "grammy";
 import type { OpenClawConfig } from "../config/config.js";
 import { isDiagnosticsEnabled } from "../infra/diagnostic-events.js";
 import { formatErrorMessage } from "../infra/errors.js";
-import { installRequestBodyLimitGuard } from "../infra/http-body.js";
+import { readJsonBodyWithLimit } from "../infra/http-body.js";
 import {
   logWebhookError,
   logWebhookProcessed,
@@ -20,6 +20,18 @@ import { createTelegramBot } from "./bot.js";
 const TELEGRAM_WEBHOOK_MAX_BODY_BYTES = 1024 * 1024;
 const TELEGRAM_WEBHOOK_BODY_TIMEOUT_MS = 30_000;
 const TELEGRAM_WEBHOOK_CALLBACK_TIMEOUT_MS = 10_000;
+
+async function initializeTelegramWebhookBot(params: {
+  bot: ReturnType<typeof createTelegramBot>;
+  runtime: RuntimeEnv;
+  abortSignal?: AbortSignal;
+}) {
+  await withTelegramApiErrorLogging({
+    operation: "getMe",
+    runtime: params.runtime,
+    fn: () => params.bot.init(params.abortSignal),
+  });
+}
 
 export async function startTelegramWebhook(opts: {
   token: string;
@@ -55,7 +67,12 @@ export async function startTelegramWebhook(opts: {
     config: opts.config,
     accountId: opts.accountId,
   });
-  const handler = webhookCallback(bot, "http", {
+  await initializeTelegramWebhookBot({
+    bot,
+    runtime,
+    abortSignal: opts.abortSignal,
+  });
+  const handler = webhookCallback(bot, "callback", {
     secretToken: secret,
     onTimeout: "return",
     timeoutMilliseconds: TELEGRAM_WEBHOOK_CALLBACK_TIMEOUT_MS,
@@ -66,6 +83,14 @@ export async function startTelegramWebhook(opts: {
   }
 
   const server = createServer((req, res) => {
+    const respondText = (statusCode: number, text = "") => {
+      if (res.headersSent || res.writableEnded) {
+        return;
+      }
+      res.writeHead(statusCode, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end(text);
+    };
+
     if (req.url === healthPath) {
       res.writeHead(200);
       res.end("ok");
@@ -80,50 +105,75 @@ export async function startTelegramWebhook(opts: {
     if (diagnosticsEnabled) {
       logWebhookReceived({ channel: "telegram", updateType: "telegram-post" });
     }
-    const guard = installRequestBodyLimitGuard(req, res, {
-      maxBytes: TELEGRAM_WEBHOOK_MAX_BODY_BYTES,
-      timeoutMs: TELEGRAM_WEBHOOK_BODY_TIMEOUT_MS,
-      responseFormat: "text",
-    });
-    if (guard.isTripped()) {
-      return;
-    }
-    const handled = handler(req, res);
-    if (handled && typeof handled.catch === "function") {
-      void handled
-        .then(() => {
-          if (diagnosticsEnabled) {
-            logWebhookProcessed({
-              channel: "telegram",
-              updateType: "telegram-post",
-              durationMs: Date.now() - startTime,
-            });
-          }
-        })
-        .catch((err) => {
-          if (guard.isTripped()) {
-            return;
-          }
-          const errMsg = formatErrorMessage(err);
-          if (diagnosticsEnabled) {
-            logWebhookError({
-              channel: "telegram",
-              updateType: "telegram-post",
-              error: errMsg,
-            });
-          }
-          runtime.log?.(`webhook handler failed: ${errMsg}`);
-          if (!res.headersSent) {
-            res.writeHead(500);
-          }
-          res.end();
-        })
-        .finally(() => {
-          guard.dispose();
+    void (async () => {
+      const body = await readJsonBodyWithLimit(req, {
+        maxBytes: TELEGRAM_WEBHOOK_MAX_BODY_BYTES,
+        timeoutMs: TELEGRAM_WEBHOOK_BODY_TIMEOUT_MS,
+        emptyObjectOnEmpty: false,
+      });
+      if (!body.ok) {
+        if (body.code === "PAYLOAD_TOO_LARGE") {
+          respondText(413, body.error);
+          return;
+        }
+        if (body.code === "REQUEST_BODY_TIMEOUT") {
+          respondText(408, body.error);
+          return;
+        }
+        if (body.code === "CONNECTION_CLOSED") {
+          respondText(400, body.error);
+          return;
+        }
+        respondText(400, body.error);
+        return;
+      }
+
+      let replied = false;
+      const reply = async (json: string) => {
+        if (replied) {
+          return;
+        }
+        replied = true;
+        if (res.headersSent || res.writableEnded) {
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(json);
+      };
+      const unauthorized = async () => {
+        if (replied) {
+          return;
+        }
+        replied = true;
+        respondText(401, "unauthorized");
+      };
+      const secretHeaderRaw = req.headers["x-telegram-bot-api-secret-token"];
+      const secretHeader = Array.isArray(secretHeaderRaw) ? secretHeaderRaw[0] : secretHeaderRaw;
+
+      await handler(body.value, reply, secretHeader, unauthorized);
+      if (!replied) {
+        respondText(200);
+      }
+
+      if (diagnosticsEnabled) {
+        logWebhookProcessed({
+          channel: "telegram",
+          updateType: "telegram-post",
+          durationMs: Date.now() - startTime,
         });
-      return;
-    }
-    guard.dispose();
+      }
+    })().catch((err) => {
+      const errMsg = formatErrorMessage(err);
+      if (diagnosticsEnabled) {
+        logWebhookError({
+          channel: "telegram",
+          updateType: "telegram-post",
+          error: errMsg,
+        });
+      }
+      runtime.log?.(`webhook handler failed: ${errMsg}`);
+      respondText(500);
+    });
   });
 
   const publicUrl =
