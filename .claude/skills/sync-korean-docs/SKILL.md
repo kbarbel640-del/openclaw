@@ -75,12 +75,21 @@ git rev-parse origin/main  # 새 SHA 확인
 
 ### 6단계: 변경사항 커밋
 
+`scripts/committer`를 사용해 변경된 파일만 스코프를 맞춰 커밋합니다:
+
 ```bash
-git add docs/ko-KR/ docs/.i18n/sync-state.ko-KR.json
-git commit -m "chore(i18n): translate ko-KR docs synced from main (<SHORT_SHA>)"
+scripts/committer "chore(i18n): translate ko-KR docs synced from main (<SHORT_SHA>)" \
+  docs/.i18n/sync-state.ko-KR.json \
+  docs/ko-KR/<변경된 파일들...>
 ```
 
 SHORT_SHA는 새 sync SHA의 앞 7자리입니다.
+
+### 7단계: Push
+
+```bash
+git push origin korean
+```
 
 ## 중요 규칙
 
