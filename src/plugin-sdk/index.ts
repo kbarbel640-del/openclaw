@@ -74,6 +74,7 @@ export {
 export type {
   AnyAgentTool,
   OpenClawPluginApi,
+  OpenClawPluginEmbeddingProvider,
   OpenClawPluginService,
   OpenClawPluginServiceContext,
   ProviderAuthContext,

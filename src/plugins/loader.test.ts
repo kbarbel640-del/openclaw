@@ -386,6 +386,107 @@ describe("loadOpenClawPlugins", () => {
     expect(channel).toBeDefined();
   });
 
+  it("registers and resolves plugin embedding providers", async () => {
+    process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = "/nonexistent/bundled/plugins";
+    const providerPlugin = writePlugin({
+      id: "memory-supabase",
+      body: `export default { id: "memory-supabase", register(api) {
+  api.registerEmbeddingProvider?.({
+    id: "memory-supabase/default",
+    model: "text-embedding-3-small",
+    embedQuery: async () => [1, 2, 3],
+    embedBatch: async () => [[1, 2, 3]],
+  });
+} };`,
+    });
+    const consumerPlugin = writePlugin({
+      id: "memory-lancedb-bridge",
+      body: `export default { id: "memory-lancedb-bridge", register(api) {
+  const provider = api.resolveEmbeddingProvider?.("memory-supabase/default");
+  api.registerGatewayMethod("memory.bridge.provider", ({ respond }) => {
+    respond(true, { providerId: provider?.id ?? null });
+  });
+} };`,
+    });
+
+    const registry = loadOpenClawPlugins({
+      cache: false,
+      workspaceDir: providerPlugin.dir,
+      config: {
+        plugins: {
+          load: { paths: [providerPlugin.file, consumerPlugin.file] },
+          allow: ["memory-supabase", "memory-lancedb-bridge"],
+        },
+      },
+    });
+
+    expect(
+      registry.embeddingProviders.some((entry) => entry.provider.id === "memory-supabase/default"),
+    ).toBe(true);
+
+    const handler = registry.gatewayHandlers["memory.bridge.provider"];
+    expect(handler).toBeDefined();
+    let payload: Record<string, unknown> | null = null;
+    await handler?.({
+      req: {
+        type: "req",
+        id: "test-request-id",
+        method: "memory.bridge.provider",
+      },
+      params: {},
+      client: null,
+      isWebchatConnect: () => false,
+      respond: (_ok, value) => {
+        payload = value as Record<string, unknown>;
+      },
+      context: {
+        deps: {} as never,
+        cron: {} as never,
+        cronStorePath: "/tmp/cron",
+        loadGatewayModelCatalog: async () => [],
+        getHealthCache: () => null,
+        refreshHealthSnapshot: async () => ({}) as never,
+        logHealth: { error: () => {} },
+        logGateway: {
+          info: () => {},
+          warn: () => {},
+          error: () => {},
+          debug: () => {},
+        } as never,
+        incrementPresenceVersion: () => 0,
+        getHealthVersion: () => 0,
+        broadcast: () => {},
+        broadcastToConnIds: () => {},
+        nodeSendToSession: () => {},
+        nodeSendToAllSubscribed: () => {},
+        nodeSubscribe: () => {},
+        nodeUnsubscribe: () => {},
+        nodeUnsubscribeAll: () => {},
+        hasConnectedMobileNode: () => false,
+        nodeRegistry: {} as never,
+        agentRunSeq: new Map(),
+        chatAbortControllers: new Map(),
+        chatAbortedRuns: new Map(),
+        chatRunBuffers: new Map(),
+        chatDeltaSentAt: new Map(),
+        addChatRun: () => {},
+        removeChatRun: () => undefined,
+        registerToolEventRecipient: () => {},
+        dedupe: new Map(),
+        wizardSessions: new Map(),
+        findRunningWizard: () => null,
+        purgeWizardSession: () => {},
+        getRuntimeSnapshot: () => ({}) as never,
+        startChannel: async () => {},
+        stopChannel: async () => {},
+        markChannelLoggedOut: () => {},
+        wizardRunner: async () => {},
+        broadcastVoiceWakeChanged: () => {},
+      },
+    });
+    expect(payload).toEqual({ providerId: "memory-supabase/default" });
+  });
+
   it("registers http handlers", () => {
     process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = "/nonexistent/bundled/plugins";
     const plugin = writePlugin({

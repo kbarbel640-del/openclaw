@@ -148,6 +148,7 @@ function createOtelContext(
     },
     logger: createLogger(),
     stateDir: OTEL_TEST_STATE_DIR,
+    resolveEmbeddingProvider: () => null,
   };
 }
 
