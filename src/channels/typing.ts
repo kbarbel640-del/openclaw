@@ -8,7 +8,7 @@ export type TypingCallbacks = {
 };
 
 export function createTypingCallbacks(params: {
-  start: () => Promise<void>;
+  start: (signal?: AbortSignal) => Promise<void>;
   stop?: () => Promise<void>;
   onStartError: (err: unknown) => void;
   onStopError?: (err: unknown) => void;
@@ -18,9 +18,9 @@ export function createTypingCallbacks(params: {
   const keepaliveIntervalMs = params.keepaliveIntervalMs ?? 3_000;
   let stopSent = false;
 
-  const fireStart = async () => {
+  const fireStart = async (signal?: AbortSignal) => {
     try {
-      await params.start();
+      await params.start(signal);
     } catch (err) {
       params.onStartError(err);
     }
@@ -28,7 +28,7 @@ export function createTypingCallbacks(params: {
 
   const keepaliveLoop = createTypingKeepaliveLoop({
     intervalMs: keepaliveIntervalMs,
-    onTick: fireStart,
+    onTick: (signal: AbortSignal) => fireStart(signal),
   });
 
   const onReplyStart = async () => {

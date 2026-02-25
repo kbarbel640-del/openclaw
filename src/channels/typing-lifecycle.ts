@@ -1,4 +1,4 @@
-type AsyncTick = () => Promise<void> | void;
+type AsyncTick = (signal: AbortSignal) => Promise<void> | void;
 
 export type TypingKeepaliveLoop = {
   tick: () => Promise<void>;
@@ -13,16 +13,25 @@ export function createTypingKeepaliveLoop(params: {
 }): TypingKeepaliveLoop {
   let timer: ReturnType<typeof setInterval> | undefined;
   let tickInFlight = false;
+  let abortController: AbortController | undefined;
 
   const tick = async () => {
     if (tickInFlight) {
       return;
     }
     tickInFlight = true;
+    abortController = new AbortController();
     try {
-      await params.onTick();
+      await params.onTick(abortController.signal);
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // Swallow abort errors — expected when stop() cancels an in-flight tick.
+        return;
+      }
+      throw err;
     } finally {
       tickInFlight = false;
+      abortController = undefined;
     }
   };
 
@@ -36,6 +45,11 @@ export function createTypingKeepaliveLoop(params: {
   };
 
   const stop = () => {
+    // Always abort any in-flight tick, even if the interval was never started.
+    if (abortController) {
+      abortController.abort();
+      abortController = undefined;
+    }
     if (!timer) {
       return;
     }

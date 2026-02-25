@@ -95,7 +95,7 @@ export function createTypingController(params: {
 
   const isActive = () => active && !sealed;
 
-  const triggerTyping = async () => {
+  const triggerTyping = async (_signal?: AbortSignal) => {
     if (sealed) {
       return;
     }

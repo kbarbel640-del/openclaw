@@ -475,7 +475,7 @@ describe("createTelegramBot", () => {
       getFile: async () => ({ download: async () => new Uint8Array() }),
     });
 
-    expect(sendChatActionSpy).toHaveBeenCalledWith(42, "typing", undefined);
+    expect(sendChatActionSpy).toHaveBeenCalledWith(42, "typing", undefined, undefined);
   });
 
   it("dedupes duplicate updates for callback_query, message, and channel_post", async () => {
@@ -1482,9 +1482,14 @@ describe("createTelegramBot", () => {
         expect(payload.MessageThreadId).toBe(99);
         expect(payload.IsForum).toBe(true);
       }
-      expect(sendChatActionSpy).toHaveBeenCalledWith(-1001234567890, "typing", {
-        message_thread_id: testCase.expectedTypingThreadId,
-      });
+      expect(sendChatActionSpy).toHaveBeenCalledWith(
+        -1001234567890,
+        "typing",
+        {
+          message_thread_id: testCase.expectedTypingThreadId,
+        },
+        undefined,
+      );
     }
   });
   it("threads forum replies only when a topic id exists", async () => {
