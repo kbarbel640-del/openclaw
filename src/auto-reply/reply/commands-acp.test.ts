@@ -309,16 +309,9 @@ describe("/acp command", () => {
         targetKind: "session",
         placement: "child",
         metadata: expect.objectContaining({
-          introText: expect.stringContaining("agent session id: codex-inner-1"),
-        }),
-      }),
-    );
-    expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        targetKind: "session",
-        placement: "child",
-        metadata: expect.objectContaining({
-          introText: expect.stringContaining("acpx session id: acpx-1"),
+          introText: expect.stringContaining(
+            "session ids: pending (available after the first reply)",
+          ),
         }),
       }),
     );

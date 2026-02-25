@@ -334,6 +334,7 @@ export class AcpSessionManager {
         runtimeSessionName: handle.runtimeSessionName,
         ...(handle.backendSessionId ? { backendSessionId: handle.backendSessionId } : {}),
         ...(handle.agentSessionId ? { agentSessionId: handle.agentSessionId } : {}),
+        sessionIdsProvisional: true,
         mode: input.mode,
         ...(Object.keys(initialRuntimeOptions).length > 0
           ? { runtimeOptions: initialRuntimeOptions }
@@ -444,8 +445,12 @@ export class AcpSessionManager {
         sessionKey,
         backend: handle.backend || meta.backend,
         agent: meta.agent,
-        backendSessionId: meta.backendSessionId,
-        agentSessionId: meta.agentSessionId,
+        ...(meta.sessionIdsProvisional !== true && meta.backendSessionId
+          ? { backendSessionId: meta.backendSessionId }
+          : {}),
+        ...(meta.sessionIdsProvisional !== true && meta.agentSessionId
+          ? { agentSessionId: meta.agentSessionId }
+          : {}),
         state: meta.state,
         mode: meta.mode,
         runtimeOptions: resolveRuntimeOptionsFromMeta(meta),
@@ -1073,6 +1078,7 @@ export class AcpSessionManager {
       runtimeSessionName: ensured.runtimeSessionName,
       ...(backendSessionId ? { backendSessionId } : {}),
       ...(agentSessionId ? { agentSessionId } : {}),
+      sessionIdsProvisional: previousMeta.sessionIdsProvisional ?? false,
       agent,
       runtimeOptions,
       cwd,
@@ -1084,6 +1090,7 @@ export class AcpSessionManager {
       previousMeta.runtimeSessionName !== nextMeta.runtimeSessionName ||
       previousMeta.backendSessionId !== nextMeta.backendSessionId ||
       previousMeta.agentSessionId !== nextMeta.agentSessionId ||
+      previousMeta.sessionIdsProvisional !== nextMeta.sessionIdsProvisional ||
       previousMeta.agent !== nextMeta.agent ||
       previousMeta.cwd !== nextMeta.cwd ||
       !runtimeOptionsEqual(previousMeta.runtimeOptions, nextMeta.runtimeOptions);
@@ -1422,8 +1429,14 @@ export class AcpSessionManager {
       }
     }
     const identifiers = extractStatusSessionIdentifiers(runtimeStatus);
+    const statusProvidedIdentifiers = Boolean(
+      identifiers.backendSessionId || identifiers.agentSessionId,
+    );
     const backendSessionId = identifiers.backendSessionId ?? params.meta.backendSessionId;
     const agentSessionId = identifiers.agentSessionId ?? params.meta.agentSessionId;
+    const sessionIdsProvisional = statusProvidedIdentifiers
+      ? false
+      : params.meta.sessionIdsProvisional;
 
     const handleChanged =
       backendSessionId !== params.handle.backendSessionId ||
@@ -1444,7 +1457,8 @@ export class AcpSessionManager {
 
     const metaChanged =
       backendSessionId !== params.meta.backendSessionId ||
-      agentSessionId !== params.meta.agentSessionId;
+      agentSessionId !== params.meta.agentSessionId ||
+      sessionIdsProvisional !== params.meta.sessionIdsProvisional;
     if (!metaChanged) {
       return {
         handle: nextHandle,
@@ -1456,6 +1470,7 @@ export class AcpSessionManager {
       ...params.meta,
       ...(backendSessionId ? { backendSessionId } : {}),
       ...(agentSessionId ? { agentSessionId } : {}),
+      ...(sessionIdsProvisional !== undefined ? { sessionIdsProvisional } : {}),
       lastActivityAt: Date.now(),
     };
     await this.writeSessionMeta({
@@ -1473,6 +1488,7 @@ export class AcpSessionManager {
           ...base,
           ...(backendSessionId ? { backendSessionId } : {}),
           ...(agentSessionId ? { agentSessionId } : {}),
+          ...(sessionIdsProvisional !== undefined ? { sessionIdsProvisional } : {}),
           lastActivityAt: Date.now(),
         };
       },

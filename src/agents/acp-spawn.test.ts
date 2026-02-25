@@ -170,6 +170,7 @@ describe("spawnAcpDirect", () => {
           runtimeSessionName,
           agentSessionId: "codex-inner-1",
           backendSessionId: "acpx-1",
+          sessionIdsProvisional: true,
           mode: args.mode,
           state: "idle",
           lastActivityAt: Date.now(),
@@ -242,14 +243,9 @@ describe("spawnAcpDirect", () => {
     expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({
-          introText: expect.stringContaining("agent session id: codex-inner-1"),
-        }),
-      }),
-    );
-    expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          introText: expect.stringContaining("acpx session id: acpx-1"),
+          introText: expect.stringContaining(
+            "session ids: pending (available after the first reply)",
+          ),
         }),
       }),
     );

@@ -13,8 +13,12 @@ export function resolveAcpSessionIdentifierLines(params: {
   meta?: SessionAcpMeta;
 }): string[] {
   const backend = normalizeText(params.meta?.backend) ?? "backend";
+  const provisional = params.meta?.sessionIdsProvisional === true;
   const agentSessionId = normalizeText(params.meta?.agentSessionId);
   const backendSessionId = normalizeText(params.meta?.backendSessionId);
+  if (provisional && (agentSessionId || backendSessionId)) {
+    return ["session ids: pending (available after the first reply)"];
+  }
   const lines: string[] = [];
   if (agentSessionId) {
     lines.push(`agent session id: ${agentSessionId}`);

@@ -30,6 +30,11 @@ export type SessionAcpMeta = {
   backendSessionId?: string;
   /** Upstream harness session identifier (for example Codex/Claude session id), if exposed. */
   agentSessionId?: string;
+  /**
+   * True while identifiers are still provisional (for example right after spawn, before first turn).
+   * When false/undefined, identifiers are treated as stable enough for user-facing surfaces.
+   */
+  sessionIdsProvisional?: boolean;
   mode: "persistent" | "oneshot";
   runtimeOptions?: AcpSessionRuntimeOptions;
   cwd?: string;
