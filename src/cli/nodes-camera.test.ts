@@ -12,16 +12,23 @@ import {
 } from "./nodes-camera.js";
 import { parseScreenRecordPayload, screenRecordTempPath } from "./nodes-screen.js";
 
+vi.mock("../infra/net/fetch-guard.js", () => ({
+  fetchWithSsrFGuard: vi.fn(),
+}));
+
+import { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
+
 async function withCameraTempDir<T>(run: (dir: string) => Promise<T>): Promise<T> {
   return await withTempDir("openclaw-test-", run);
 }
 
 describe("nodes camera helpers", () => {
   function stubFetchResponse(response: Response) {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => response),
-    );
+    vi.mocked(fetchWithSsrFGuard).mockResolvedValue({
+      response,
+      finalUrl: "https://example.com/mocked",
+      release: async () => {},
+    });
   }
 
   it("parses camera.snap payload", () => {
@@ -120,7 +127,7 @@ describe("nodes camera helpers", () => {
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.mocked(fetchWithSsrFGuard).mockReset();
   });
 
   it("writes url payload to file", async () => {
@@ -175,6 +182,29 @@ describe("nodes camera helpers", () => {
         testCase.expectedMessage,
       );
     }
+  });
+
+  it("passes SSRF audit context to fetch guard", async () => {
+    stubFetchResponse(new Response("ok", { status: 200 }));
+    await withCameraTempDir(async (dir) => {
+      const out = path.join(dir, "audit.bin");
+      await writeUrlToFile(out, "https://example.com/file.bin");
+      expect(fetchWithSsrFGuard).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: "https://example.com/file.bin",
+          auditContext: "nodes-camera-download",
+        }),
+      );
+    });
+  });
+
+  it("rejects when SSRF guard blocks the URL", async () => {
+    vi.mocked(fetchWithSsrFGuard).mockRejectedValue(
+      new Error("SsrFBlockedError: hostname resolves to private IP"),
+    );
+    await expect(
+      writeUrlToFile("/tmp/ignored", "https://internal.example.com/secret"),
+    ).rejects.toThrow(/private IP/i);
   });
 
   it("removes partially written file when url stream fails", async () => {
