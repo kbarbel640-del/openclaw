@@ -99,6 +99,7 @@ describe("web tools defaults", () => {
 
 describe("web_search country and language parameters", () => {
   const priorFetch = global.fetch;
+  let queryCounter = 0;
 
   afterEach(() => {
     global.fetch = priorFetch;
@@ -112,6 +113,7 @@ describe("web_search country and language parameters", () => {
       freshness: string;
     }>,
   ) {
+    const query = `country-lang-${++queryCounter}`;
     const mockFetch = installMockFetch({ web: { results: [] } });
     const tool = createWebSearchTool({
       config: {
@@ -126,7 +128,7 @@ describe("web_search country and language parameters", () => {
       sandboxed: true,
     });
     expect(tool).not.toBeNull();
-    await tool?.execute?.("call-1", { query: "test", ...params });
+    await tool?.execute?.("call-1", { query, ...params });
     expect(mockFetch).toHaveBeenCalled();
     return new URL(mockFetch.mock.calls[0][0] as string);
   }
@@ -142,6 +144,7 @@ describe("web_search country and language parameters", () => {
   });
 
   it("rejects invalid freshness values", async () => {
+    const query = `country-lang-${++queryCounter}`;
     const mockFetch = installMockFetch({ web: { results: [] } });
     const tool = createWebSearchTool({
       config: {
@@ -155,7 +158,7 @@ describe("web_search country and language parameters", () => {
       },
       sandboxed: true,
     });
-    const result = await tool?.execute?.("call-1", { query: "test", freshness: "yesterday" });
+    const result = await tool?.execute?.("call-1", { query, freshness: "yesterday" });
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(result?.details).toMatchObject({ error: "invalid_freshness" });
