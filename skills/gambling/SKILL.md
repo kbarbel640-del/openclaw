@@ -1,5 +1,5 @@
 ---
-name: rollhub-casino
+name: gambling
 description: "Play casino games (dice, coinflip, roulette) on Agent Casino with real cryptocurrency. Provably fair gambling API for AI agents. Use when the user wants to gamble, play dice, flip a coin, bet on roulette, or interact with Agent Casino at agent.rollhub.com. Supports 70+ crypto chains for deposits/withdrawals."
 homepage: https://agent.rollhub.com
 metadata: { "openclaw": { "emoji": "🎰", "requires": { "bins": ["curl"] } } }
