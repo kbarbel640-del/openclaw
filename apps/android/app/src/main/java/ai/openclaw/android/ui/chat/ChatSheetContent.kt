@@ -148,8 +148,6 @@ private fun ChatThreadSelector(
   onSelectSession: (String) -> Unit,
 ) {
   val sessionOptions = resolveSessionChoices(sessionKey, sessions, mainSessionKey = mainSessionKey)
-  val currentSessionLabel =
-    friendlySessionName(sessionOptions.firstOrNull { it.key == sessionKey }?.displayName ?: sessionKey)
 
   Column(
     modifier = Modifier
@@ -157,25 +155,6 @@ private fun ChatThreadSelector(
       .padding(horizontal = 12.dp, vertical = 8.dp),
     verticalArrangement = Arrangement.spacedBy(6.dp),
   ) {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text(
-        text = "Session",
-        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-      Text(
-        text = currentSessionLabel,
-        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-    }
-
     Row(
       modifier = Modifier
         .fillMaxWidth()
