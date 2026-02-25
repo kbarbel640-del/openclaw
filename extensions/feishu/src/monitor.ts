@@ -28,8 +28,14 @@ const FEISHU_WEBHOOK_BODY_TIMEOUT_MS = 30_000;
 const FEISHU_WEBHOOK_RATE_LIMIT_WINDOW_MS = 60_000;
 const FEISHU_WEBHOOK_RATE_LIMIT_MAX_REQUESTS = 120;
 const FEISHU_WEBHOOK_COUNTER_LOG_EVERY = 25;
+const FEISHU_STARTUP_ACCOUNT_STAGGER_MS = 1_500;
+const FEISHU_BOT_INFO_RETRY_MAX_ATTEMPTS = 4;
+const FEISHU_BOT_INFO_RETRY_BASE_DELAY_MS = 1_000;
+const FEISHU_BOT_INFO_RETRY_MAX_DELAY_MS = 20_000;
 const feishuWebhookRateLimits = new Map<string, { count: number; windowStartMs: number }>();
 const feishuWebhookStatusCounters = new Map<string, number>();
+let feishuStartupGate: Promise<void> = Promise.resolve();
+let feishuStartupCount = 0;
 
 function isJsonContentType(value: string | string[] | undefined): boolean {
   const first = Array.isArray(value) ? value[0] : value;
@@ -72,12 +78,62 @@ function recordWebhookStatus(
   }
 }
 
-async function fetchBotOpenId(account: ResolvedFeishuAccount): Promise<string | undefined> {
-  try {
+function isRateLimitedProbeError(message: string | undefined): boolean {
+  const text = (message ?? "").toLowerCase();
+  return text.includes("429") || text.includes("too many requests") || text.includes("rate limit");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchBotOpenIdWithRetry(
+  account: ResolvedFeishuAccount,
+  runtime?: RuntimeEnv,
+): Promise<string | undefined> {
+  const log = runtime?.log ?? console.log;
+  for (let attempt = 1; attempt <= FEISHU_BOT_INFO_RETRY_MAX_ATTEMPTS; attempt++) {
     const result = await probeFeishu(account);
-    return result.ok ? result.botOpenId : undefined;
-  } catch {
-    return undefined;
+    if (result.ok) {
+      return result.botOpenId;
+    }
+    if (!isRateLimitedProbeError(result.error)) {
+      return undefined;
+    }
+    if (attempt >= FEISHU_BOT_INFO_RETRY_MAX_ATTEMPTS) {
+      return undefined;
+    }
+    const delayMs = Math.min(
+      FEISHU_BOT_INFO_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+      FEISHU_BOT_INFO_RETRY_MAX_DELAY_MS,
+    );
+    log(
+      `feishu[${account.accountId}]: bot info probe rate-limited, retrying in ${delayMs}ms (attempt ${attempt}/${FEISHU_BOT_INFO_RETRY_MAX_ATTEMPTS})`,
+    );
+    await sleep(delayMs);
+  }
+  return undefined;
+}
+
+async function acquireStartupSlot(runtime?: RuntimeEnv, accountId?: string): Promise<void> {
+  let release!: () => void;
+  const nextGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const prevGate = feishuStartupGate;
+  feishuStartupGate = nextGate;
+  await prevGate;
+  try {
+    if (feishuStartupCount > 0) {
+      const log = runtime?.log ?? console.log;
+      log(
+        `feishu[${accountId ?? "unknown"}]: startup stagger ${FEISHU_STARTUP_ACCOUNT_STAGGER_MS}ms`,
+      );
+      await sleep(FEISHU_STARTUP_ACCOUNT_STAGGER_MS);
+    }
+    feishuStartupCount += 1;
+  } finally {
+    release();
   }
 }
 
@@ -160,10 +216,16 @@ async function monitorSingleAccount(params: MonitorAccountParams): Promise<void>
   const { accountId } = account;
   const log = runtime?.log ?? console.log;
 
-  // Fetch bot open_id
-  const botOpenId = await fetchBotOpenId(account);
+  await acquireStartupSlot(runtime, accountId);
+
+  const shouldProbeBotInfo = account.config?.probeBotInfoOnStartup === true;
+  const botOpenId = shouldProbeBotInfo ? await fetchBotOpenIdWithRetry(account, runtime) : undefined;
   botOpenIds.set(accountId, botOpenId ?? "");
-  log(`feishu[${accountId}]: bot open_id resolved: ${botOpenId ?? "unknown"}`);
+  if (shouldProbeBotInfo) {
+    log(`feishu[${accountId}]: bot open_id resolved: ${botOpenId ?? "unknown"}`);
+  } else {
+    log(`feishu[${accountId}]: bot info probe skipped on startup`);
+  }
 
   const connectionMode = account.config.connectionMode ?? "websocket";
   if (connectionMode === "webhook" && !account.verificationToken?.trim()) {
@@ -361,17 +423,19 @@ export async function monitorFeishuProvider(opts: MonitorFeishuOpts = {}): Promi
     `feishu: starting ${accounts.length} account(s): ${accounts.map((a) => a.accountId).join(", ")}`,
   );
 
-  // Start all accounts in parallel
-  await Promise.all(
-    accounts.map((account) =>
-      monitorSingleAccount({
-        cfg,
-        account,
-        runtime: opts.runtime,
-        abortSignal: opts.abortSignal,
-      }),
-    ),
-  );
+  // Start accounts with deterministic stagger to avoid bot-info probe bursts.
+  for (let i = 0; i < accounts.length; i++) {
+    const account = accounts[i];
+    if (i > 0) {
+      await sleep(FEISHU_STARTUP_ACCOUNT_STAGGER_MS);
+    }
+    await monitorSingleAccount({
+      cfg,
+      account,
+      runtime: opts.runtime,
+      abortSignal: opts.abortSignal,
+    });
+  }
 }
 
 /**
