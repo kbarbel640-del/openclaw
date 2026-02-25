@@ -129,6 +129,35 @@ describe("resolveApiKeyForProfile config compatibility", () => {
       email: undefined,
     });
   });
+
+  it("returns token+project JSON for google-antigravity oauth credentials", async () => {
+    const profileId = "google-antigravity:oauth";
+    const store: AuthProfileStore = {
+      version: 1,
+      profiles: {
+        [profileId]: {
+          type: "oauth",
+          provider: "google-antigravity",
+          access: "access-123",
+          refresh: "refresh-123",
+          projectId: "proj-123",
+          expires: Date.now() + 60_000,
+        },
+      },
+    };
+
+    const result = await resolveApiKeyForProfile({
+      cfg: cfgFor(profileId, "google-antigravity", "oauth"),
+      store,
+      profileId,
+    });
+
+    expect(result).toEqual({
+      apiKey: JSON.stringify({ token: "access-123", projectId: "proj-123" }),
+      provider: "google-antigravity",
+      email: undefined,
+    });
+  });
 });
 
 describe("resolveApiKeyForProfile token expiry handling", () => {
