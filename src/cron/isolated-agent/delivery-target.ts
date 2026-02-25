@@ -19,6 +19,7 @@ export async function resolveDeliveryTarget(
   jobPayload: {
     channel?: "last" | ChannelId;
     to?: string;
+    announce?: boolean;
   },
 ): Promise<{
   channel: Exclude<OutboundChannel, "none">;
@@ -70,12 +71,14 @@ export async function resolveDeliveryTarget(
   const mode = resolved.mode as "explicit" | "implicit";
   const toCandidate = resolved.to;
 
-  // Only carry threadId when delivering to the same recipient as the session's
-  // last conversation. This prevents stale thread IDs (e.g. from a Telegram
-  // supergroup topic) from being sent to a different target (e.g. a private
-  // chat) where they would cause API errors.
+  // Announcements (scheduled reminders, cron outputs) should always be
+  // top-level messages, never replies in an existing thread.
+  // For non-announce deliveries, carry threadId only when delivering to the
+  // same recipient as the session's last conversation. This prevents stale
+  // thread IDs (e.g. from a Telegram supergroup topic) from being sent to a
+  // different target (e.g. a private chat) where they would cause API errors.
   const threadId =
-    resolved.threadId && resolved.to && resolved.to === resolved.lastTo
+    !jobPayload.announce && resolved.threadId && resolved.to && resolved.to === resolved.lastTo
       ? resolved.threadId
       : undefined;
 
