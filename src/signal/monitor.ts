@@ -12,6 +12,7 @@ import type { SignalReactionNotificationMode } from "../config/types.js";
 import type { BackoffPolicy } from "../infra/backoff.js";
 import { waitForTransportReady } from "../infra/transport-ready.js";
 import { saveMediaBuffer } from "../media/store.js";
+import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { createNonExitingRuntime, type RuntimeEnv } from "../runtime.js";
 import { normalizeStringEntries } from "../shared/string-normalization.js";
 import { normalizeE164 } from "../utils.js";
@@ -25,6 +26,7 @@ import type {
   SignalReactionMessage,
   SignalReactionTarget,
 } from "./monitor/event-handler.types.js";
+import type { SignalEnhancementDeps } from "./monitor/signal-enhancements.js";
 import { sendMessageSignal } from "./send.js";
 import { runSignalSseLoop } from "./sse-reconnect.js";
 
@@ -291,9 +293,31 @@ async function deliverReplies(params: {
 }) {
   const { replies, target, baseUrl, account, accountId, runtime, maxBytes, textLimit, chunkMode } =
     params;
+  const hookRunner = getGlobalHookRunner();
   for (const payload of replies) {
     const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
-    const text = payload.text ?? "";
+    let text = payload.text ?? "";
+    if (!text && mediaList.length === 0) {
+      continue;
+    }
+
+    if (hookRunner?.hasHooks("message_sending")) {
+      try {
+        const hookResult = await hookRunner.runMessageSending(
+          { to: target, content: text, metadata: { channel: "signal", accountId } },
+          { channelId: "signal", accountId: accountId ?? undefined },
+        );
+        if (hookResult?.cancel) {
+          continue;
+        }
+        if (hookResult?.content != null) {
+          text = hookResult.content;
+        }
+      } catch {
+        // Don't block delivery on hook failure
+      }
+    }
+
     if (!text && mediaList.length === 0) {
       continue;
     }
@@ -418,6 +442,18 @@ export async function monitorSignalProvider(opts: MonitorSignalOpts = {}): Promi
       }
     }
 
+    // Signal enhancements: build enhancement deps
+    const enhancementDeps: SignalEnhancementDeps = {
+      cfg,
+      baseUrl,
+      account,
+      accountId: accountInfo.accountId,
+      mediaMaxBytes,
+      ignoreAttachments,
+      fetchAttachment,
+      groups: accountInfo.config.groups,
+    };
+
     const handleEvent = createSignalEventHandler({
       runtime,
       cfg,
@@ -444,6 +480,7 @@ export async function monitorSignalProvider(opts: MonitorSignalOpts = {}): Promi
       isSignalReactionMessage,
       shouldEmitSignalReactionNotification,
       buildSignalReactionSystemEventText,
+      enhancementDeps,
     });
 
     await runSignalSseLoop({
