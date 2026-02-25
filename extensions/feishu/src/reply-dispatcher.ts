@@ -328,12 +328,17 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
             if (!payload.text || payload.text === lastPartial) {
               return;
             }
-            // Suppress post-tool confirmation text (e.g. "NO") when the outbound
-            // adapter (message tool) already wrote to the streaming card. This mirrors
-            // the framework's isMessagingToolDuplicateNormalized suppression for onBlockReply.
-            // appendToStream clears lastPartial, so we can't rely on isNewMessage detection.
+            // Suppress the post-tool confirmation message (e.g. "NO") when the
+            // outbound adapter wrote to the card. Track the suppressed text via
+            // lastPartial; when a genuinely new message starts, reset the flag so
+            // subsequent AI text flows normally (fixes multi-tool-call sessions).
             if (outboundAppended) {
-              return;
+              if (!lastPartial || payload.text.startsWith(lastPartial)) {
+                lastPartial = payload.text;
+                return;
+              }
+              outboundAppended = false;
+              lastPartial = "";
             }
             const isNewMessage = Boolean(lastPartial && !payload.text.startsWith(lastPartial));
             if (isNewMessage) {

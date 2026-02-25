@@ -24,41 +24,40 @@ export const feishuOutbound: ChannelOutboundAdapter = {
   sendMedia: async ({ cfg, to, text, mediaUrl, accountId }) => {
     const appender = getStreamAppender(to);
 
-    if (appender && mediaUrl) {
-      // Streaming active: embed media into the card instead of sending separately
-      try {
-        const loaded = await getFeishuRuntime().media.loadWebMedia(mediaUrl, {
-          maxBytes: 30 * 1024 * 1024,
-          optimizeImages: false,
-        });
-        const ext = path.extname(loaded.fileName ?? "file").toLowerCase();
-        if (IMAGE_EXTS.has(ext)) {
-          const { imageKey } = await uploadImageFeishu({
-            cfg,
-            image: loaded.buffer,
-            accountId: accountId ?? undefined,
+    if (appender) {
+      // Streaming active: embed everything into the card
+      if (mediaUrl) {
+        try {
+          const loaded = await getFeishuRuntime().media.loadWebMedia(mediaUrl, {
+            maxBytes: 30 * 1024 * 1024,
+            optimizeImages: false,
           });
-          appender(`\n![image](${imageKey})\n`);
-          if (text?.trim()) {
-            appender(`\n\n${text}`);
+          const ext = path.extname(loaded.fileName ?? "file").toLowerCase();
+          if (IMAGE_EXTS.has(ext)) {
+            const { imageKey } = await uploadImageFeishu({
+              cfg,
+              image: loaded.buffer,
+              accountId: accountId ?? undefined,
+            });
+            appender(`\n![image](${imageKey})\n`);
+          } else {
+            appender(`\n📎 [${loaded.fileName ?? "file"}](${mediaUrl})\n`);
           }
-          return { channel: "feishu", messageId: "", chatId: to };
+        } catch (err) {
+          console.error(`[feishu] streaming media embed failed:`, err);
+          appender(`\n📎 ${mediaUrl}\n`);
         }
-      } catch (err) {
-        console.error(`[feishu] streaming media embed failed, falling back:`, err);
       }
-    }
-
-    // No active stream or non-image media: send normally
-    if (text?.trim()) {
-      if (appender) {
+      if (text?.trim()) {
         appender(`\n\n${text}`);
-      } else {
-        await sendMessageFeishu({ cfg, to, text, accountId: accountId ?? undefined });
       }
+      return { channel: "feishu", messageId: "", chatId: to };
     }
 
-    // Upload and send media if URL provided
+    // No active stream: send normally
+    if (text?.trim()) {
+      await sendMessageFeishu({ cfg, to, text, accountId: accountId ?? undefined });
+    }
     if (mediaUrl) {
       try {
         const result = await sendMediaFeishu({
