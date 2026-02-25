@@ -2392,25 +2392,25 @@ function saveRoutingStats(stats) {
 // Intent fingerprint — stable, explainable, near-zero cost
 function extractIntent(text) {
   const lower = text.toLowerCase();
-  if (/docker|container|image|volume/.test(lower)) return "docker";
-  if (/git|commit|diff|branch|push|pull|merge/.test(lower)) return "git";
-  if (/endpoint|api|feature|module|component/.test(lower)) return "implementation";
-  if (/memory|disk|process|cpu|系統|system_info/.test(lower)) return "system";
-  if (/deploy|部署|上線|release/.test(lower)) return "deploy";
-  if (/cleanup|清理|刪除|remove|prune/.test(lower)) return "cleanup";
-  if (/config|設定|configure/.test(lower)) return "config";
-  if (/test|測試|spec/.test(lower)) return "test";
-  if (/file|檔案|read|write|list|目錄|directory|backup|備份/.test(lower)) return "file_ops";
-  if (/install|安裝|update|更新|upgrade/.test(lower)) return "install";
-  if (/restart|重啟|start|stop|啟動|停止/.test(lower)) return "service_ops";
-  if (/refactor|重構|migrate|遷移|整合|integrate/.test(lower)) return "refactor";
-  if (/design|設計|architecture|架構/.test(lower)) return "design";
+  if (/docker|container|image|volume/.test(lower)) {return "docker";}
+  if (/git|commit|diff|branch|push|pull|merge/.test(lower)) {return "git";}
+  if (/endpoint|api|feature|module|component/.test(lower)) {return "implementation";}
+  if (/memory|disk|process|cpu|系統|system_info/.test(lower)) {return "system";}
+  if (/deploy|部署|上線|release/.test(lower)) {return "deploy";}
+  if (/cleanup|清理|刪除|remove|prune/.test(lower)) {return "cleanup";}
+  if (/config|設定|configure/.test(lower)) {return "config";}
+  if (/test|測試|spec/.test(lower)) {return "test";}
+  if (/file|檔案|read|write|list|目錄|directory|backup|備份/.test(lower)) {return "file_ops";}
+  if (/install|安裝|update|更新|upgrade/.test(lower)) {return "install";}
+  if (/restart|重啟|start|stop|啟動|停止/.test(lower)) {return "service_ops";}
+  if (/refactor|重構|migrate|遷移|整合|integrate/.test(lower)) {return "refactor";}
+  if (/design|設計|architecture|架構/.test(lower)) {return "design";}
   return "general";
 }
 
 // Expected cost = latency / success_rate (lower is better)
 function expectedCost(stats) {
-  if (!stats || (stats.success + stats.fail) === 0) return Infinity;
+  if (!stats || (stats.success + stats.fail) === 0) {return Infinity;}
   const successRate = stats.success / Math.max(1, stats.success + stats.fail);
   return stats.avg_latency / Math.max(successRate, 0.2);
 }
@@ -2440,11 +2440,11 @@ function learningRoute(intent, ruleBasedDecision) {
   // Apply failure penalty: if recent failure rate > 30%, increase cost
   if (intentStats.dev_loop && intentStats.dev_loop.fail > 0) {
     const devFailRate = intentStats.dev_loop.fail / (intentStats.dev_loop.success + intentStats.dev_loop.fail);
-    if (devFailRate > 0.3) devCost *= FAILURE_PENALTY;
+    if (devFailRate > 0.3) {devCost *= FAILURE_PENALTY;}
   }
   if (intentStats.session_bridge && intentStats.session_bridge.fail > 0) {
     const sesFailRate = intentStats.session_bridge.fail / (intentStats.session_bridge.success + intentStats.session_bridge.fail);
-    if (sesFailRate > 0.3) sesCost *= FAILURE_PENALTY;
+    if (sesFailRate > 0.3) {sesCost *= FAILURE_PENALTY;}
   }
 
   // Mode bias: coding mode reduces session cost (favors Claude), ops mode increases it
@@ -2487,13 +2487,13 @@ function learningRoute(intent, ruleBasedDecision) {
 // Record execution outcome — called after task completes
 function recordRoutingOutcome(intent, executor, success, latencyMs) {
   const allStats = loadRoutingStats();
-  if (!allStats[intent]) allStats[intent] = {};
+  if (!allStats[intent]) {allStats[intent] = {};}
   if (!allStats[intent][executor]) {
     allStats[intent][executor] = { success: 0, fail: 0, avg_latency: 0, samples: 0 };
   }
   const s = allStats[intent][executor];
   s.samples = (s.samples || 0) + 1;
-  if (success) s.success++; else s.fail++;
+  if (success) {s.success++;} else {s.fail++;}
   // Exponential moving average for latency (alpha=0.3 for responsiveness)
   const alpha = 0.3;
   s.avg_latency = s.avg_latency === 0
@@ -2549,9 +2549,10 @@ function updateMomentum(intent) {
   _modeScores[targetMode] += MODE_BOOST;
   // Small penalty to others (keeps modes competitive)
   for (const mode of Object.keys(_modeScores)) {
-    if (mode !== targetMode) _modeScores[mode] += MODE_PENALTY;
-    if (_modeScores[mode] < 0) _modeScores[mode] = 0;
+    if (mode !== targetMode) {_modeScores[mode] += MODE_PENALTY;}
+    if (_modeScores[mode] < 0) {_modeScores[mode] = 0;}
   }
+  recordLatencyDrift(latencyMs);
 }
 
 function getActiveMode() {
@@ -2599,9 +2600,10 @@ const MAX_EVENTS = 200;
 function recordRoutingEvent(event) {
   event.ts = Date.now();
   _routingEvents.push(event);
-  if (_routingEvents.length > MAX_EVENTS) _routingEvents.shift();
+  if (_routingEvents.length > MAX_EVENTS) {_routingEvents.shift();}
   // Append to file (non-blocking)
   try { fs.appendFileSync(CP_EVENTS_PATH, JSON.stringify(event) + "\n"); } catch {}
+  updateDrift(event);
 }
 
 function recordModeSnapshot() {
@@ -2616,7 +2618,7 @@ function recordModeSnapshot() {
 }
 
 function trackPrediction(predicted, actual) {
-  if (!predicted) return; // no prediction made
+  if (!predicted) {return;} // no prediction made
   _predictionTracker.total++;
   if (predicted === actual) {
     _predictionTracker.hits++;
@@ -2626,7 +2628,115 @@ function trackPrediction(predicted, actual) {
       _predictionTracker.falseWarms++;
     }
   }
+  recordFalseWarmDrift(predicted === "session_bridge" && actual === "dev_loop");
 }
+
+// ─── Drift Detection ──────────────────────────────────────────────
+const DRIFT_ALPHA = 0.1;
+const DRIFT_BASELINE_MIN = 30;
+
+const _driftState = {
+  baselinePredAcc: null, baselineLatency: null, baselineSessionRatio: null, baselineFalseWarm: null,
+  samplesForBaseline: 0,
+  currentPredAcc: null, currentLatency: null, currentSessionRatio: null, currentFalseWarm: null,
+  recentModes: [],
+  lastStatsUpdate: Date.now(),
+  alerts: [],
+};
+
+function updateDrift(event) {
+  const s = _driftState;
+  s.samplesForBaseline++;
+  s.lastStatsUpdate = Date.now();
+  if (event.predicted) {
+    const hit = event.predicted === event.executor ? 1 : 0;
+    s.currentPredAcc = s.currentPredAcc === null ? hit : s.currentPredAcc * (1 - DRIFT_ALPHA) + hit * DRIFT_ALPHA;
+  }
+  const isSes = event.executor === "session_bridge" ? 1 : 0;
+  s.currentSessionRatio = s.currentSessionRatio === null ? isSes : s.currentSessionRatio * (1 - DRIFT_ALPHA) + isSes * DRIFT_ALPHA;
+  if (event.mode) { s.recentModes.push(event.mode); if (s.recentModes.length > 20) {s.recentModes.shift();} }
+  if (s.samplesForBaseline === DRIFT_BASELINE_MIN) {
+    s.baselinePredAcc = s.currentPredAcc;
+    s.baselineSessionRatio = s.currentSessionRatio;
+  }
+  if (s.samplesForBaseline > DRIFT_BASELINE_MIN) {checkDriftAlerts();}
+}
+
+function recordLatencyDrift(latencyMs) {
+  const s = _driftState;
+  s.currentLatency = s.currentLatency === null ? latencyMs : s.currentLatency * (1 - DRIFT_ALPHA) + latencyMs * DRIFT_ALPHA;
+  if (s.samplesForBaseline === DRIFT_BASELINE_MIN && s.baselineLatency === null) {s.baselineLatency = s.currentLatency;}
+}
+
+function recordFalseWarmDrift(isFalseWarm) {
+  const s = _driftState;
+  const v = isFalseWarm ? 1 : 0;
+  s.currentFalseWarm = s.currentFalseWarm === null ? v : s.currentFalseWarm * (1 - DRIFT_ALPHA) + v * DRIFT_ALPHA;
+  if (s.samplesForBaseline === DRIFT_BASELINE_MIN && s.baselineFalseWarm === null) {s.baselineFalseWarm = s.currentFalseWarm;}
+}
+
+function checkDriftAlerts() {
+  const s = _driftState;
+  const now = Date.now();
+  const alerts = [];
+  if (s.baselinePredAcc !== null && s.currentPredAcc !== null) {
+    const drop = s.baselinePredAcc - s.currentPredAcc;
+    if (drop > 0.15) {alerts.push({ type: "pred_accuracy", severity: drop > 0.25 ? "critical" : "warning", msg: "預測準確率下降 " + (drop*100).toFixed(0) + "%", baseline: s.baselinePredAcc, current: s.currentPredAcc });}
+  }
+  if (s.baselineLatency !== null && s.currentLatency !== null) {
+    const inc = (s.currentLatency - s.baselineLatency) / s.baselineLatency;
+    if (inc > 0.30) {alerts.push({ type: "latency", severity: inc > 0.5 ? "critical" : "warning", msg: "延遲上升 " + (inc*100).toFixed(0) + "%", baseline: s.baselineLatency, current: s.currentLatency });}
+  }
+  if (s.recentModes.length >= 10) {
+    let sw = 0; for (let i = 1; i < s.recentModes.length; i++) {if (s.recentModes[i] !== s.recentModes[i-1]) { sw++; }}
+    const rate = sw / (s.recentModes.length - 1);
+    if (rate > 0.25) {alerts.push({ type: "mode_oscillation", severity: rate > 0.4 ? "critical" : "warning", msg: "模式震盪率 " + (rate*100).toFixed(0) + "%", rate });}
+  }
+  if (s.baselineSessionRatio !== null && s.currentSessionRatio !== null) {
+    const shift = Math.abs(s.currentSessionRatio - s.baselineSessionRatio);
+    if (shift > 0.20) {alerts.push({ type: "executor_imbalance", severity: shift > 0.35 ? "critical" : "warning", msg: "執行器比例偏移 " + (shift*100).toFixed(0) + "%", baseline: s.baselineSessionRatio, current: s.currentSessionRatio });}
+  }
+  if (now - s.lastStatsUpdate > 2 * 3600 * 1000) {
+    alerts.push({ type: "staleness", severity: "warning", msg: "學習數據已 " + ((now - s.lastStatsUpdate) / 3600000).toFixed(1) + "h 未更新" });
+  }
+  if (s.currentFalseWarm !== null && s.currentFalseWarm > 0.30) {
+    alerts.push({ type: "false_warm", severity: s.currentFalseWarm > 0.45 ? "critical" : "warning", msg: "誤預熱率 " + (s.currentFalseWarm*100).toFixed(0) + "%", rate: s.currentFalseWarm });
+  }
+  for (const a of alerts) {
+    a.ts = now;
+    const idx = s.alerts.findIndex(x => x.type === a.type);
+    if (idx !== -1) {s.alerts[idx] = a;} else {s.alerts.push(a);}
+    if (s.alerts.length > 50) {s.alerts.shift();}
+  }
+  const activeTypes = new Set(alerts.map(a => a.type));
+  s.alerts = s.alerts.filter(a => activeTypes.has(a.type) || now - a.ts < 600000);
+}
+
+function getDriftAnalysis() {
+  const s = _driftState;
+  const msr = s.recentModes.length >= 2 ? (() => { let sw = 0; for (let i = 1; i < s.recentModes.length; i++) {if (s.recentModes[i] !== s.recentModes[i-1]) { sw++; }} return (sw / (s.recentModes.length - 1) * 100).toFixed(1) + "%"; })() : null;
+  return {
+    status: s.alerts.some(a => a.severity === "critical") ? "critical" : s.alerts.length > 0 ? "warning" : "healthy",
+    samples: s.samplesForBaseline,
+    baselineEstablished: s.samplesForBaseline >= DRIFT_BASELINE_MIN,
+    baselines: {
+      predAccuracy: s.baselinePredAcc !== null ? (s.baselinePredAcc * 100).toFixed(1) + "%" : null,
+      latency: s.baselineLatency !== null ? Math.round(s.baselineLatency) + "ms" : null,
+      sessionRatio: s.baselineSessionRatio !== null ? (s.baselineSessionRatio * 100).toFixed(1) + "%" : null,
+      falseWarmRate: s.baselineFalseWarm !== null ? (s.baselineFalseWarm * 100).toFixed(1) + "%" : null,
+    },
+    current: {
+      predAccuracy: s.currentPredAcc !== null ? (s.currentPredAcc * 100).toFixed(1) + "%" : null,
+      latency: s.currentLatency !== null ? Math.round(s.currentLatency) + "ms" : null,
+      sessionRatio: s.currentSessionRatio !== null ? (s.currentSessionRatio * 100).toFixed(1) + "%" : null,
+      falseWarmRate: s.currentFalseWarm !== null ? (s.currentFalseWarm * 100).toFixed(1) + "%" : null,
+      modeSwitchRate: msr,
+    },
+    alerts: s.alerts,
+    lastUpdate: s.lastStatsUpdate,
+  };
+}
+
 
 // ─── Predictive Routing — task transition tracking + executor prediction ───
 const TRANSITIONS_PATH = path.join(
@@ -2657,9 +2767,9 @@ function saveTransitions(data) {
 
 // Record intent-to-executor transition (not intent-to-intent)
 function recordTransition(intent, executor) {
-  if (!intent) return;
+  if (!intent) {return;}
   const data = loadTransitions();
-  if (!data[intent]) data[intent] = { dev_loop: 0, session_bridge: 0 };
+  if (!data[intent]) {data[intent] = { dev_loop: 0, session_bridge: 0 };}
   data[intent][executor] = (data[intent][executor] || 0) + 1;
   saveTransitions(data);
 }
@@ -2669,13 +2779,13 @@ function recordTransition(intent, executor) {
 function predictExecutor(intent) {
   const data = loadTransitions();
   const stats = data[intent];
-  if (!stats) return null;
+  if (!stats) {return null;}
 
   const total = (stats.dev_loop || 0) + (stats.session_bridge || 0);
-  if (total < MIN_SAMPLES_FOR_LEARNING) return null;
+  if (total < MIN_SAMPLES_FOR_LEARNING) {return null;}
 
   const probSession = (stats.session_bridge || 0) / total;
-  if (probSession > PREDICTION_CONFIDENCE) return "session_bridge";
+  if (probSession > PREDICTION_CONFIDENCE) {return "session_bridge";}
   return null;
 }
 
@@ -3641,7 +3751,7 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
           recordRoutingOutcome(req._cpIntent, "dev_loop", true, Date.now() - (req._cpStartTime || Date.now()));
           // Predictive: pre-warm if next task likely needs session
           const _devPredicted = predictExecutor(req._cpIntent);
-          if (_devPredicted === "session_bridge") softPreWarm();
+          if (_devPredicted === "session_bridge") {softPreWarm();}
         }
         return sendDirectResponse(reqId, finalContent, wantsStream, res);
       }
@@ -3951,7 +4061,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
             recordRoutingOutcome(cpIntent, "session_bridge", true, Date.now() - cpStartTime);
             // Predictive: pre-warm for likely next task
             const _pPredicted = predictExecutor(cpIntent);
-            if (_pPredicted === "session_bridge") softPreWarm(cpProject);
+            if (_pPredicted === "session_bridge") {softPreWarm(cpProject);}
             return sendDirectResponse(reqId, truncated, wantsStream, res);
           } catch (e) {
             console.error(`[wrapper] #${reqId} control_plane error: ${e.message}`);
@@ -4905,6 +5015,13 @@ const server = http.createServer((req, res) => {
   }
 
   // Task transitions — prediction data
+  // Drift analysis
+  if (req.url === "/drift-analysis" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    res.end(JSON.stringify(getDriftAnalysis()));
+    return;
+  }
+
   if (req.url === "/transitions" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     const data = loadTransitions();
