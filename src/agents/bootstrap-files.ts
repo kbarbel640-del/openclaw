@@ -3,6 +3,7 @@ import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import { applyBootstrapHookOverrides } from "./bootstrap-hooks.js";
 import { buildBootstrapContextFiles, resolveBootstrapMaxChars } from "./pi-embedded-helpers.js";
 import {
+  DEFAULT_HEARTBEAT_FILENAME,
   filterBootstrapFilesForSession,
   loadWorkspaceBootstrapFiles,
   type WorkspaceBootstrapFile,
@@ -24,12 +25,18 @@ export async function resolveBootstrapFilesForRun(params: {
   sessionKey?: string;
   sessionId?: string;
   agentId?: string;
+  /** When true, include HEARTBEAT.md in bootstrap files. Defaults to false (skip). */
+  isHeartbeat?: boolean;
 }): Promise<WorkspaceBootstrapFile[]> {
   const sessionKey = params.sessionKey ?? params.sessionId;
-  const bootstrapFiles = filterBootstrapFilesForSession(
+  let bootstrapFiles = filterBootstrapFilesForSession(
     await loadWorkspaceBootstrapFiles(params.workspaceDir),
     sessionKey,
   );
+  // Skip HEARTBEAT.md injection for non-heartbeat messages to save ~300-400 tokens per call.
+  if (!params.isHeartbeat) {
+    bootstrapFiles = bootstrapFiles.filter((f) => f.name !== DEFAULT_HEARTBEAT_FILENAME);
+  }
   return applyBootstrapHookOverrides({
     files: bootstrapFiles,
     workspaceDir: params.workspaceDir,
@@ -46,6 +53,8 @@ export async function resolveBootstrapContextForRun(params: {
   sessionKey?: string;
   sessionId?: string;
   agentId?: string;
+  /** When true, include HEARTBEAT.md in bootstrap files. Defaults to false (skip). */
+  isHeartbeat?: boolean;
   warn?: (message: string) => void;
 }): Promise<{
   bootstrapFiles: WorkspaceBootstrapFile[];

@@ -434,6 +434,7 @@ export async function runAgentTurnWithFallback(params: {
                     await blockReplyPipeline.flush({ force: true });
                   }
                 : undefined,
+            isHeartbeat: params.isHeartbeat,
             shouldEmitToolResult: params.shouldEmitToolResult,
             shouldEmitToolOutput: params.shouldEmitToolOutput,
             onToolResult: onToolResult

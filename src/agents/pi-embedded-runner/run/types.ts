@@ -89,6 +89,8 @@ export type EmbeddedRunAttemptParams = {
   streamParams?: AgentStreamParams;
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
+  /** When true, include HEARTBEAT.md in bootstrap files. */
+  isHeartbeat?: boolean;
 };
 
 export type EmbeddedRunAttemptResult = {

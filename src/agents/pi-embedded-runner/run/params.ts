@@ -102,4 +102,6 @@ export type RunEmbeddedPiAgentParams = {
   streamParams?: AgentStreamParams;
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
+  /** When true, include HEARTBEAT.md in the system prompt bootstrap files. */
+  isHeartbeat?: boolean;
 };
