@@ -8,5 +8,6 @@ describe("buildControlUiCspHeader", () => {
     expect(csp).toContain("script-src 'self'");
     expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
     expect(csp).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com");
+    expect(csp).toContain("font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com");
   });
 });
