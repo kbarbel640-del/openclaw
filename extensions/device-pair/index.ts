@@ -25,8 +25,6 @@ type DevicePairPluginConfig = {
 
 type SetupPayload = {
   url: string;
-  token?: string;
-  password?: string;
 };
 
 type ResolveUrlResult = {
@@ -293,7 +291,7 @@ function formatSetupReply(payload: SetupPayload, authLabel: string): string {
     "Pairing setup code generated.",
     "",
     "1) Open the iOS app → Settings → Gateway",
-    "2) Paste the setup code below and tap Connect",
+    "2) Paste the setup code below, then enter your gateway auth manually in the app",
     "3) Back here, run /pair approve",
     "",
     "Setup code:",
@@ -309,7 +307,7 @@ function formatSetupInstructions(): string {
     "Pairing setup code generated.",
     "",
     "1) Open the iOS app → Settings → Gateway",
-    "2) Paste the setup code from my next message and tap Connect",
+    "2) Paste the setup code from my next message, then enter your gateway auth manually in the app",
     "3) Back here, run /pair approve",
   ].join("\n");
 }
@@ -414,8 +412,6 @@ export default function register(api: OpenClawPluginApi) {
 
       const payload: SetupPayload = {
         url: urlResult.url,
-        token: auth.token,
-        password: auth.password,
       };
 
       if (action === "qr") {
