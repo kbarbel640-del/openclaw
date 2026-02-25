@@ -61,6 +61,9 @@ export function markdownToWhatsApp(text: string): string {
   // 4. Convert ~~strikethrough~~ → ~strikethrough~
   result = result.replace(/~~(.+?)~~/g, "~$1~");
 
+  // 4b. Strip markdown headers (WhatsApp doesn't render them) → bold text
+  result = result.replace(/^#{1,6}\s+(.+)$/gm, "*$1*");
+
   // 5. Restore inline code
   result = result.replace(
     new RegExp(`${escapeRegExp(INLINE_CODE_PLACEHOLDER)}(\\d+)`, "g"),
