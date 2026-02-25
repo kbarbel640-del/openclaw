@@ -46,7 +46,8 @@ func skipLinkRewrite(path, locale string) bool {
 	if strings.HasPrefix(path, "/"+locale+"/") {
 		return true
 	}
-	if strings.HasPrefix(path, "/assets/") {
+	// shared static resources live at docs root, not per-locale
+	if strings.HasPrefix(path, "/assets/") || strings.HasPrefix(path, "/images/") {
 		return true
 	}
 	return false
