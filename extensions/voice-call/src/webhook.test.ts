@@ -166,3 +166,73 @@ describe("VoiceCallWebhookServer replay handling", () => {
     }
   });
 });
+
+describe("VoiceCallWebhookServer webhook path matching", () => {
+  it("rejects prefix-matched sibling paths and only accepts exact webhook path", async () => {
+    const processEvent = vi.fn();
+    const eventfulProvider: VoiceCallProvider = {
+      ...provider,
+      parseWebhookEvent: () => ({
+        events: [
+          {
+            id: "evt-path-boundary",
+            dedupeKey: "path-boundary",
+            type: "call.speech",
+            callId: "call-1",
+            providerCallId: "provider-call-1",
+            timestamp: Date.now(),
+            transcript: "hello",
+            isFinal: true,
+          },
+        ],
+        statusCode: 200,
+      }),
+    };
+    const manager = {
+      getActiveCalls: () => [],
+      endCall: vi.fn(async () => ({ success: true })),
+      processEvent,
+    } as unknown as CallManager;
+    const config = createConfig({ serve: { port: 0, bind: "127.0.0.1", path: "/voice/webhook" } });
+    const server = new VoiceCallWebhookServer(config, manager, eventfulProvider);
+
+    try {
+      const baseUrl = await server.start();
+      const address = (
+        server as unknown as { server?: { address?: () => unknown } }
+      ).server?.address?.();
+      const base = new URL(baseUrl);
+      if (address && typeof address === "object" && "port" in address && address.port) {
+        base.port = String(address.port);
+      }
+
+      const sibling = new URL(base.toString());
+      sibling.pathname = "/voice/webhook-evil";
+      const siblingResponse = await fetch(sibling.toString(), {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "CallSid=CA111&SpeechResult=ignored",
+      });
+
+      const exact = new URL(base.toString());
+      exact.pathname = "/voice/webhook";
+      const exactResponse = await fetch(exact.toString(), {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "CallSid=CA222&SpeechResult=processed",
+      });
+
+      expect(siblingResponse.status).toBe(404);
+      expect(exactResponse.status).toBe(200);
+      expect(processEvent).toHaveBeenCalledTimes(1);
+      expect(processEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "evt-path-boundary",
+          type: "call.speech",
+        }),
+      );
+    } finally {
+      await server.stop();
+    }
+  });
+});
