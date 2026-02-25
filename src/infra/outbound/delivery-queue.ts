@@ -18,6 +18,25 @@ const BACKOFF_MS: readonly number[] = [
   600_000, // retry 4: 10m
 ];
 
+/** Check if entry should be garbage collected */
+function shouldGcEntry(entry: QueuedDelivery, now: number): { gc: boolean; reason?: string } {
+  const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
+  const age = now - entry.enqueuedAt;
+
+  // Age-based GC
+  if (age > MAX_AGE_MS) return { gc: true, reason: "age" };
+
+  // Undeliverable errors (token/auth/channel config issues)
+  const lastError = entry.lastError || "";
+  if (
+    /token_missing|device_token_mismatch|unauthorized|outbound not configured/i.test(lastError)
+  ) {
+    return { gc: true, reason: "undeliverable" };
+  }
+
+  return { gc: false };
+}
+
 type DeliveryMirrorPayload = {
   sessionKey: string;
   agentId?: string;
@@ -232,6 +251,18 @@ export async function recoverPendingDeliveries(opts: {
 
   for (const entry of pending) {
     const now = Date.now();
+    const gc = shouldGcEntry(entry, now);
+    if (gc.gc) {
+      opts.log.warn(`Delivery ${entry.id} marked for GC (${gc.reason}) — moving to failed/`);
+      try {
+        await moveToFailed(entry.id, opts.stateDir);
+      } catch (err) {
+        opts.log.error(`Failed to move entry ${entry.id} to failed/: ${String(err)}`);
+      }
+      skipped += 1;
+      continue;
+    }
+
     if (now >= deadline) {
       const deferred = pending.length - recovered - failed - skipped;
       opts.log.warn(`Recovery time budget exceeded — ${deferred} entries deferred to next restart`);
