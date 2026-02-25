@@ -2,9 +2,9 @@ import { afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 import * as ssrf from "../infra/net/ssrf.js";
 import { onSpy, sendChatActionSpy } from "./bot.media.e2e-harness.js";
 
-export const cacheStickerSpy = vi.fn();
-export const getCachedStickerSpy = vi.fn();
-export const describeStickerImageSpy = vi.fn();
+export const cacheStickerSpy = vi.fn<(...args: unknown[]) => unknown>();
+export const getCachedStickerSpy = vi.fn<(...args: unknown[]) => unknown>();
+export const describeStickerImageSpy = vi.fn<(...args: unknown[]) => unknown>();
 
 const resolvePinnedHostname = ssrf.resolvePinnedHostname;
 const lookupMock = vi.fn();
