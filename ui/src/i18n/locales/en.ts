@@ -168,6 +168,8 @@ export const en: TranslationMap = {
       loadMore: "Load more runs",
       loadingMore: "Loading...",
       openChat: "Open run chat",
+      noSummary: "No summary.",
+      runAt: "Run at",
     },
     form: {
       newJob: "New Job",
