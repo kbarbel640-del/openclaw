@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+// Manual ACP thread smoke for plain-language routing.
+// Keep this script available for regression/debug validation. Do not delete.
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -143,7 +145,7 @@ function hasFlag(flag: string): boolean {
 
 function usage(): string {
   return (
-    "Usage: bun scripts/e2e/discord-acp-plain-language-smoke.ts " +
+    "Usage: bun scripts/dev/discord-acp-plain-language-smoke.ts " +
     "--channel <discord-channel-id> [--token <driver-token> | --driver webhook --bot-token <bot-token>] [options]\n\n" +
     "Manual live smoke only (not CI). Sends a plain-language instruction in Discord and verifies:\n" +
     "1) OpenClaw spawned an ACP thread binding\n" +
