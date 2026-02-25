@@ -110,7 +110,7 @@ function clearStaleUsageOnPreservedMessages(ctx: EmbeddedPiSubscribeContext): vo
       (msg as { role?: string }).role === "assistant" &&
       (msg as { usage?: unknown }).usage
     ) {
-      const usage = (msg as { usage: Record<string, unknown> }).usage;
+      const usage = (msg as unknown as { usage: Record<string, unknown> }).usage;
       if (typeof usage.totalTokens === "number") {
         delete usage.totalTokens;
       }
