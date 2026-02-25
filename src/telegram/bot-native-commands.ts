@@ -585,7 +585,10 @@ export const registerTelegramNativeCommands = ({
             WasMentioned: true,
             CommandAuthorized: commandAuthorized,
             CommandSource: "native" as const,
-            SessionKey: `telegram:slash:${senderId || chatId}`,
+            // Canonical session key: agent:<agentId>:telegram:slash:<userId>.
+            // Using the bare `telegram:slash:<id>` form (without the agent prefix)
+            // created a legacy-format key that openclaw doctor flagged on every run.
+            SessionKey: `agent:${route.agentId}:telegram:slash:${senderId || chatId}`,
             AccountId: route.accountId,
             CommandTargetSessionKey: sessionKey,
             MessageThreadId: threadSpec.id,
