@@ -43,6 +43,8 @@ export type OpenClawConfig = {
     /** Import secrets from Doppler. Auto-enabled when DOPPLER_TOKEN is set. */
     doppler?: {
       enabled?: boolean;
+      /** When true, the gateway refuses to start if Doppler secrets cannot be loaded. */
+      required?: boolean;
       project?: string;
       config?: string;
       timeoutMs?: number;
@@ -54,7 +56,7 @@ export type OpenClawConfig = {
       | string
       | Record<string, string>
       | { enabled?: boolean; timeoutMs?: number }
-      | { enabled?: boolean; project?: string; config?: string; timeoutMs?: number }
+      | { enabled?: boolean; required?: boolean; project?: string; config?: string; timeoutMs?: number }
       | undefined;
   };
   wizard?: {

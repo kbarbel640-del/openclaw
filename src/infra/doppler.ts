@@ -5,6 +5,7 @@ const DEFAULT_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 
 export type DopplerConfig = {
   enabled?: boolean;
+  required?: boolean;
   project?: string;
   config?: string;
   timeoutMs?: number;
@@ -64,9 +65,13 @@ export function loadDopplerSecrets(opts: DopplerOptions): DopplerResult {
   const logger = opts.logger ?? console;
   const exec = opts.exec ?? execFileSync;
   const dopplerConfig = opts.dopplerConfig;
+  const isRequired = dopplerConfig?.required === true;
 
   // Explicit disable takes priority
   if (dopplerConfig?.enabled === false) {
+    if (isRequired) {
+      throw new Error("[openclaw] Doppler is required but explicitly disabled in config.");
+    }
     return { ok: true, applied: [], skippedReason: "disabled" };
   }
 
@@ -75,11 +80,19 @@ export function loadDopplerSecrets(opts: DopplerOptions): DopplerResult {
   const explicitlyEnabled = dopplerConfig?.enabled === true;
 
   if (!hasToken && !explicitlyEnabled) {
+    if (isRequired) {
+      throw new Error(
+        "[openclaw] Doppler is required but DOPPLER_TOKEN is not set and env.doppler.enabled is not true.",
+      );
+    }
     return { ok: true, applied: [], skippedReason: "no-token" };
   }
 
   // Check CLI availability
   if (!isDopplerInstalled(exec)) {
+    if (isRequired) {
+      throw new Error("[openclaw] Doppler is required but the CLI is not installed.");
+    }
     if (explicitlyEnabled) {
       logger.warn("[openclaw] Doppler is enabled in config but the CLI is not installed.");
     }
@@ -107,6 +120,9 @@ export function loadDopplerSecrets(opts: DopplerOptions): DopplerResult {
     }) as string;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (isRequired) {
+      throw new Error(`[openclaw] Doppler is required but secrets fetch failed: ${msg}`);
+    }
     logger.warn(`[openclaw] Doppler secrets fetch failed: ${msg}`);
     return { ok: false, error: msg, applied: [] };
   }
@@ -129,6 +145,9 @@ export function loadDopplerSecrets(opts: DopplerOptions): DopplerResult {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (isRequired) {
+      throw new Error(`[openclaw] Doppler is required but secrets parse failed: ${msg}`);
+    }
     logger.warn(`[openclaw] Doppler secrets parse failed: ${msg}`);
     return { ok: false, error: msg, applied: [] };
   }

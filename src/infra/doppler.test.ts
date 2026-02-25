@@ -165,7 +165,7 @@ describe("loadDopplerSecrets", () => {
 
     loadDopplerSecrets({
       env,
-      dopplerConfig: { project: "rosie", config: "prod" },
+      dopplerConfig: { project: "my-app", config: "stg" },
       exec: exec as unknown as Parameters<typeof loadDopplerSecrets>[0]["exec"],
     });
 
@@ -174,9 +174,9 @@ describe("loadDopplerSecrets", () => {
     expect(callArgs[0]).toBe("doppler");
     const cliArgs = callArgs[1] as string[];
     expect(cliArgs).toContain("--project");
-    expect(cliArgs).toContain("rosie");
+    expect(cliArgs).toContain("my-app");
     expect(cliArgs).toContain("--config");
-    expect(cliArgs).toContain("prod");
+    expect(cliArgs).toContain("stg");
   });
 
   it("returns error on fetch failure", () => {
@@ -215,6 +215,77 @@ describe("loadDopplerSecrets", () => {
     expect(res.ok).toBe(true);
     expect(res.applied).toContain("SECRET");
     expect(env.SECRET).toBe("value");
+  });
+
+  describe("required: true", () => {
+    it("throws when no token and not explicitly enabled", () => {
+      const env = makeEnv();
+      const exec = vi.fn();
+
+      expect(() =>
+        loadDopplerSecrets({
+          env,
+          dopplerConfig: { required: true },
+          exec: exec as unknown as Parameters<typeof loadDopplerSecrets>[0]["exec"],
+        }),
+      ).toThrow("DOPPLER_TOKEN is not set");
+    });
+
+    it("throws when CLI is not installed", () => {
+      const env = makeEnv({ DOPPLER_TOKEN: "dp.st.xxx" });
+      const exec = vi.fn(() => {
+        throw new Error("ENOENT");
+      });
+
+      expect(() =>
+        loadDopplerSecrets({
+          env,
+          dopplerConfig: { required: true },
+          exec: exec as unknown as Parameters<typeof loadDopplerSecrets>[0]["exec"],
+        }),
+      ).toThrow("CLI is not installed");
+    });
+
+    it("throws on fetch failure", () => {
+      const env = makeEnv({ DOPPLER_TOKEN: "dp.st.xxx" });
+      const exec = makeExec(new Error("Connection refused"));
+
+      expect(() =>
+        loadDopplerSecrets({
+          env,
+          dopplerConfig: { required: true },
+          exec: exec as unknown as Parameters<typeof loadDopplerSecrets>[0]["exec"],
+        }),
+      ).toThrow("secrets fetch failed");
+    });
+
+    it("throws when enabled is false but required is true", () => {
+      const env = makeEnv({ DOPPLER_TOKEN: "dp.st.xxx" });
+      const exec = vi.fn();
+
+      expect(() =>
+        loadDopplerSecrets({
+          env,
+          dopplerConfig: { enabled: false, required: true },
+          exec: exec as unknown as Parameters<typeof loadDopplerSecrets>[0]["exec"],
+        }),
+      ).toThrow("explicitly disabled");
+    });
+
+    it("succeeds normally when secrets load", () => {
+      const env = makeEnv({ DOPPLER_TOKEN: "dp.st.xxx" });
+      const secretsJson = JSON.stringify({ MY_KEY: "value" });
+      const exec = makeExec(secretsJson);
+
+      const res = loadDopplerSecrets({
+        env,
+        dopplerConfig: { required: true },
+        exec: exec as unknown as Parameters<typeof loadDopplerSecrets>[0]["exec"],
+      });
+
+      expect(res.ok).toBe(true);
+      expect(res.applied).toContain("MY_KEY");
+    });
   });
 
   it("skips blank secret values", () => {

@@ -40,6 +40,7 @@ Add an `env.doppler` block to `openclaw.json` for fine-grained control:
   "env": {
     "doppler": {
       "enabled": true,       // force enable without DOPPLER_TOKEN (or false to disable)
+      "required": true,      // hard-fail: gateway refuses to start if Doppler fails
       "project": "my-app",   // --project flag
       "config": "prod",      // --config flag
       "timeoutMs": 15000     // CLI timeout (default: 10000)
@@ -51,6 +52,7 @@ Add an `env.doppler` block to `openclaw.json` for fine-grained control:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | `boolean` | auto | `true` forces Doppler on; `false` disables it even when `DOPPLER_TOKEN` is set |
+| `required` | `boolean` | `false` | When `true`, the gateway throws and refuses to start if Doppler secrets cannot be loaded (missing token, CLI not installed, fetch failure) |
 | `project` | `string` | — | Doppler project to target (passed as `--project`) |
 | `config` | `string` | — | Doppler config/environment to target (passed as `--config`) |
 | `timeoutMs` | `number` | `10000` | Timeout for the Doppler CLI call in milliseconds |

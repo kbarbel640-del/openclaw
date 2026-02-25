@@ -123,6 +123,7 @@ export const OpenClawSchema = z
         doppler: z
           .object({
             enabled: z.boolean().optional(),
+            required: z.boolean().optional(),
             project: z.string().optional(),
             config: z.string().optional(),
             timeoutMs: z.number().int().nonnegative().optional(),
