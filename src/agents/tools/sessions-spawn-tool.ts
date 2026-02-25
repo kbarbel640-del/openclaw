@@ -726,6 +726,7 @@ export function createSessionsSpawnTool(opts?: {
         label: label || undefined,
         model: resolvedModel,
         runTimeoutSeconds,
+        expectsCompletionMessage: true,
         spawnMode,
         attachmentsDir: attachmentAbsDir,
         attachmentsRootDir: attachmentRootDir,
