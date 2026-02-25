@@ -823,6 +823,23 @@ async function sendSubagentAnnounceDirectly(params: {
               timeoutMs: announceTimeoutMs,
             }),
         });
+        await runAnnounceDeliveryWithRetry({
+          operation: "completion direct inject",
+          signal: params.signal,
+          run: async () =>
+            await callGateway({
+              method: "agent",
+              params: {
+                sessionKey: canonicalRequesterSessionKey,
+                message: params.triggerMessage,
+                deliver: false,
+                bestEffortDeliver: params.bestEffortDeliver,
+                idempotencyKey: `${params.directIdempotencyKey}:inject`,
+              },
+              expectFinal: true,
+              timeoutMs: announceTimeoutMs,
+            }),
+        });
 
         return {
           delivered: true,
