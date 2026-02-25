@@ -643,7 +643,7 @@ describe("runMessageAction sandboxed media validation", () => {
       if (result.kind !== "send") {
         throw new Error("expected send result");
       }
-      expect(result.sendResult?.mediaUrl).toBe(tmpFile);
+      expect(result.sendResult?.mediaUrl).toBe(path.resolve(tmpFile));
     } finally {
       await fs.rm(sandboxDir, { recursive: true, force: true });
     }
