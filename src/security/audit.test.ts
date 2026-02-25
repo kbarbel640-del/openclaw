@@ -464,8 +464,9 @@ describe("security audit", () => {
       (f) => f.checkId === "tools.exec.safe_bin_trusted_dirs_risky",
     );
     expect(finding?.severity).toBe("warn");
-    expect(finding?.detail).toContain("/usr/local/bin");
-    expect(finding?.detail).toContain("/tmp/openclaw-safe-bins");
+    // Paths are platform-dependent; the audit output should include the configured entries.
+    expect(finding?.detail).toContain(cfg.tools?.exec?.safeBinTrustedDirs?.[0] ?? "");
+    expect(finding?.detail).toContain(cfg.tools?.exec?.safeBinTrustedDirs?.[1] ?? "");
     expect(finding?.detail).toContain("agents.list.ops.tools.exec");
   });
 

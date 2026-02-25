@@ -50,7 +50,8 @@ describe("resolveSandboxedMediaSource", () => {
         media,
         sandboxRoot: sandboxDir,
       });
-      expect(result).toBe(expected);
+      // Windows may return an absolute path with a drive prefix; compare normalized paths.
+      expect(path.resolve(result)).toBe(path.resolve(expected));
     });
   });
 
