@@ -532,6 +532,57 @@ describe("gateway agent handler", () => {
     );
   });
 
+  it("rejects agent/session mismatch when explicit session key targets another agent", async () => {
+    mocks.agentCommand.mockClear();
+
+    const respond = await invokeAgent(
+      {
+        message: "resume",
+        agentId: "main",
+        sessionKey: "agent:ops:main",
+        idempotencyKey: "test-explicit-session-agent-mismatch",
+      },
+      { reqId: "explicit-session-agent-mismatch" },
+    );
+
+    expect(mocks.agentCommand).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: expect.stringContaining('does not match session agent "ops"'),
+      }),
+    );
+  });
+
+  it("rejects agent/resolved-session mismatch when derived key targets another agent", async () => {
+    mocks.agentCommand.mockClear();
+    mocks.resolveSessionKeyForRequest.mockClear();
+    mocks.resolveSessionKeyForRequest.mockReturnValueOnce({
+      sessionKey: "agent:ops:main",
+      sessionStore: {},
+      storePath: "/tmp/ops-sessions.json",
+    });
+
+    const respond = await invokeAgent(
+      {
+        message: "resume",
+        agentId: "main",
+        idempotencyKey: "test-derived-session-agent-mismatch",
+      },
+      { reqId: "derived-session-agent-mismatch" },
+    );
+
+    expect(mocks.agentCommand).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: expect.stringContaining('does not match resolved session agent "ops"'),
+      }),
+    );
+  });
+
   it("rejects malformed agent session keys early in agent handler", async () => {
     mocks.agentCommand.mockClear();
     const respond = await invokeAgent(

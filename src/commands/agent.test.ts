@@ -289,6 +289,35 @@ describe("agentCommand", () => {
     });
   });
 
+  it("rejects agent/session mismatch when explicit session key targets another agent", async () => {
+    await withTempHome(async (home) => {
+      const storePattern = path.join(home, "sessions", "{agentId}", "sessions.json");
+      const opsStore = path.join(home, "sessions", "ops", "sessions.json");
+      writeSessionStoreSeed(opsStore, {
+        "agent:ops:main": {
+          sessionId: "session-ops-main",
+          updatedAt: Date.now(),
+          systemSent: true,
+        },
+      });
+      mockConfig(home, storePattern, undefined, undefined, [
+        { id: "main", default: true },
+        { id: "ops" },
+      ]);
+
+      await expect(
+        agentCommand(
+          {
+            message: "resume me",
+            agentId: "main",
+            sessionKey: "agent:ops:main",
+          },
+          runtime,
+        ),
+      ).rejects.toThrow('Agent id "main" does not match session key agent "ops".');
+    });
+  });
+
   it("resolves resumed session transcript path from custom session store directory", async () => {
     await withTempHome(async (home) => {
       const customStoreDir = path.join(home, "custom-state");
