@@ -760,6 +760,54 @@ describe("dispatchTelegramMessage draft streaming", () => {
     expect(deliverReplies).not.toHaveBeenCalled();
   });
 
+  it("deletes narration preview instead of archiving when tool calls follow", async () => {
+    // Scenario: Model streams narration ("Let me check…"), then makes tool calls,
+    // then writes final response.  The narration preview should be deleted (not
+    // archived) so the final payload is delivered via the live preview at the
+    // correct chat position.
+    const answerDraftStream = createSequencedDraftStream(1001);
+    const reasoningDraftStream = createDraftStream();
+    createTelegramDraftStream
+      .mockImplementationOnce(() => answerDraftStream)
+      .mockImplementationOnce(() => reasoningDraftStream);
+
+    const bot = createBot();
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(
+      async ({ dispatcherOptions, replyOptions }) => {
+        // Turn 1: narration streams, then tool call starts
+        await replyOptions?.onPartialReply?.({ text: "Let me check that…" });
+        await replyOptions?.onToolStart?.({ name: "web_fetch" });
+        // Turn 2: new assistant message starts (archives/deletes Turn 1 preview)
+        await replyOptions?.onAssistantMessageStart?.();
+        // Turn 2: final response streams
+        await replyOptions?.onPartialReply?.({ text: "Here is the information you requested" });
+        // Final delivery
+        await dispatcherOptions.deliver(
+          { text: "Here is the information you requested" },
+          { kind: "final" },
+        );
+        return { queuedFinal: true };
+      },
+    );
+    deliverReplies.mockResolvedValue({ delivered: true });
+    editMessageTelegram.mockResolvedValue({ ok: true, chatId: "123", messageId: "1002" });
+
+    await dispatchWithContext({ context: createContext(), streamMode: "partial", bot });
+
+    // The narration preview (1001) should have been deleted, not archived
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(bot.api.deleteMessage).toHaveBeenCalledWith(123, 1001);
+    // The final response should be finalized via the live preview (1002)
+    expect(editMessageTelegram).toHaveBeenCalledWith(
+      123,
+      1002,
+      "Here is the information you requested",
+      expect.any(Object),
+    );
+    // Should NOT have been sent via deliverReplies (would mean preview failed)
+    expect(deliverReplies).not.toHaveBeenCalled();
+  });
+
   it.each(["block", "partial"] as const)(
     "splits reasoning lane only when a later reasoning block starts (%s mode)",
     async (streamMode) => {

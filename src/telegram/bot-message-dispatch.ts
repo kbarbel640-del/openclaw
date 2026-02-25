@@ -200,6 +200,7 @@ export const dispatchTelegramMessage = async ({
   const answerLane = lanes.answer;
   const reasoningLane = lanes.reasoning;
   let splitReasoningOnNextStream = false;
+  let lastAssistantMessageHadToolCalls = false;
   const reasoningStepState = createTelegramReasoningStepState();
   type SplitLaneSegment = { lane: LaneName; text: string };
   type SplitLaneSegmentsResult = {
@@ -568,13 +569,32 @@ export const dispatchTelegramMessage = async ({
               if (answerLane.hasStreamedMessage) {
                 const previewMessageId = answerLane.stream?.messageId();
                 if (typeof previewMessageId === "number") {
-                  archivedAnswerPreviews.push({
-                    messageId: previewMessageId,
-                    textSnapshot: answerLane.lastPartialText,
-                  });
+                  // When the previous message contained tool calls, any text
+                  // streamed during that turn was narration (e.g. "Let me check
+                  // that…") that handleMessageEnd splices from assistantTexts.
+                  // The preview for that narration has no corresponding final
+                  // payload, so archiving it would cause a later final payload
+                  // to be edited into the wrong chat position while the live
+                  // preview (at the correct position) is orphaned and deleted.
+                  // Delete the narration preview immediately instead.
+                  if (lastAssistantMessageHadToolCalls) {
+                    try {
+                      await bot.api.deleteMessage(chatId, previewMessageId);
+                    } catch (err) {
+                      logVerbose(
+                        `telegram: narration preview cleanup failed (${previewMessageId}): ${String(err)}`,
+                      );
+                    }
+                  } else {
+                    archivedAnswerPreviews.push({
+                      messageId: previewMessageId,
+                      textSnapshot: answerLane.lastPartialText,
+                    });
+                  }
                 }
                 answerLane.stream?.forceNewMessage();
               }
+              lastAssistantMessageHadToolCalls = false;
               resetDraftLaneState(answerLane);
             }
           : undefined,
@@ -584,11 +604,16 @@ export const dispatchTelegramMessage = async ({
               splitReasoningOnNextStream = reasoningLane.hasStreamedMessage;
             }
           : undefined,
-        onToolStart: statusReactionController
-          ? async (payload) => {
-              await statusReactionController.setTool(payload.name);
-            }
-          : undefined,
+        onToolStart: async (payload) => {
+          // Track that the current assistant message has tool calls so
+          // onAssistantMessageStart can distinguish narration previews
+          // (which should be deleted) from real content previews
+          // (which should be archived for final delivery).
+          lastAssistantMessageHadToolCalls = true;
+          if (statusReactionController) {
+            await statusReactionController.setTool(payload.name);
+          }
+        },
         onModelSelected,
       },
     }));
