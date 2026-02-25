@@ -585,7 +585,7 @@ async function safeRemoveAttachmentsDir(entry: SubagentRunRecord): Promise<void>
     }
 
     const rootBase = rootReal ?? path.resolve(entry.attachmentsRootDir);
-    const dirBase = rootReal ? dirReal : path.resolve(entry.attachmentsDir);
+    const dirBase = dirReal ?? path.resolve(entry.attachmentsDir);
     const rootWithSep = rootBase.endsWith(path.sep) ? rootBase : `${rootBase}${path.sep}`;
     if (!dirBase.startsWith(rootWithSep)) {
       return;
