@@ -146,7 +146,7 @@ const shouldBypassAcpDispatchForCommand = (
 
   return shouldHandleTextCommands({
     cfg,
-    surface: ctx.Surface ?? ctx.Provider,
+    surface: ctx.Surface ?? ctx.Provider ?? "",
     commandSource: ctx.CommandSource,
   });
 };
