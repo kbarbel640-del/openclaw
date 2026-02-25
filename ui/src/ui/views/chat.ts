@@ -311,8 +311,7 @@ export function renderChat(props: ChatProps) {
           }
 
           if (item.kind === "tool-collapse") {
-            const collapseItem = item as ToolCollapseGroup;
-            const toolGroupsHtml = collapseItem.groups.map((g) =>
+            const toolGroupsHtml = item.groups.map((g) =>
               renderMessageGroup(g, {
                 onOpenSidebar: props.onOpenSidebar,
                 showReasoning,
@@ -320,7 +319,7 @@ export function renderChat(props: ChatProps) {
                 assistantAvatar: assistantIdentity.avatar,
               }),
             );
-            return renderToolCollapseWrapper(collapseItem.groups.length, toolGroupsHtml);
+            return renderToolCollapseWrapper(item.groups.length, toolGroupsHtml);
           }
 
           if (item.kind === "group") {
@@ -550,19 +549,27 @@ function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup> {
  * Check if a MessageGroup contains only tool calls (no user-visible text).
  */
 function isToolOnlyAssistantGroup(group: MessageGroup): boolean {
-  if (group.role !== "assistant") return false;
+  if (group.role !== "assistant") {
+    return false;
+  }
   for (const { message } of group.messages) {
     const cards = extractToolCards(message);
-    if (cards.length === 0) return false;
+    if (cards.length === 0) {
+      return false;
+    }
     // Check if there's any meaningful text beyond tool cards
     const m = message as Record<string, unknown>;
     const content = m.content;
-    if (typeof content === "string" && content.trim()) return false;
+    if (typeof content === "string" && content.trim()) {
+      return false;
+    }
     if (Array.isArray(content)) {
       for (const block of content) {
         const b = block as Record<string, unknown>;
         const t = (typeof b.type === "string" ? b.type : "").toLowerCase();
-        if (t === "text" && typeof b.text === "string" && b.text.trim()) return false;
+        if (t === "text" && typeof b.text === "string" && b.text.trim()) {
+          return false;
+        }
       }
     }
   }
@@ -595,7 +602,7 @@ function wrapToolBlocks(items: Array<ChatItem | MessageGroup>): RenderItem[] {
       continue;
     }
 
-    const group = item as MessageGroup;
+    const group = item;
     if (!isToolResultGroup(group) && !isToolOnlyAssistantGroup(group)) {
       result.push(item);
       i++;
@@ -607,10 +614,13 @@ function wrapToolBlocks(items: Array<ChatItem | MessageGroup>): RenderItem[] {
     let j = i + 1;
     while (j < items.length) {
       const next = items[j];
-      if (next.kind !== "group") break;
-      const nextGroup = next as MessageGroup;
-      if (!isToolResultGroup(nextGroup) && !isToolOnlyAssistantGroup(nextGroup)) break;
-      toolGroups.push(nextGroup);
+      if (next.kind !== "group") {
+        break;
+      }
+      if (!isToolResultGroup(next) && !isToolOnlyAssistantGroup(next)) {
+        break;
+      }
+      toolGroups.push(next);
       j++;
     }
 

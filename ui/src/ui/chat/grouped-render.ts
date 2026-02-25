@@ -64,7 +64,9 @@ export function renderToolCollapseWrapper(count: number, toolGroupsHtml: unknown
   const handleToggle = (e: Event) => {
     const btn = e.currentTarget as HTMLElement;
     const wrapper = btn.closest(".tool-collapse-wrapper");
-    if (!wrapper) return;
+    if (!wrapper) {
+      return;
+    }
     const isCollapsed = wrapper.classList.toggle("tool-collapse--collapsed");
     const label = btn.querySelector(".tool-collapse-btn__label") as HTMLElement;
     const arrow = btn.querySelector(".tool-collapse-btn__arrow") as HTMLElement;
