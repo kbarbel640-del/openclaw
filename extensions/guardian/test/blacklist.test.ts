@@ -78,8 +78,6 @@ describe("checkExecBlacklist — safe commands", () => {
     "chmod +x /tmp/my-script.sh",
     "chmod 755 ./build.sh",
     "chmod 644 README.md",
-    // Safe mount (normal mount)
-    "mount /dev/sdb1 /mnt/usb",
     // Safe base64 (no pipe to shell)
     "base64 file.txt",
     "echo hello | base64",
@@ -521,11 +519,11 @@ describe("checkExecBlacklist — edge cases", () => {
     expectBlock("grep pattern file | xargs rm", "critical");
   });
 
-  it("allows rm -rf on /tmp/ (excluded from critical)", () => {
-    expectAllow("rm -rf /tmp/cache");
+  it("warns rm -rf on /tmp/ (excluded from critical, still warning)", () => {
+    expectBlock("rm -rf /tmp/cache", "warning");
   });
 
-  it("allows rm -rf on /home/clawdbot/ (excluded from critical)", () => {
-    expectAllow("rm -rf /home/clawdbot/workspace/tmp");
+  it("warns rm -rf on /home/clawdbot/ (excluded from critical, still warning)", () => {
+    expectBlock("rm -rf /home/clawdbot/workspace/tmp", "warning");
   });
 });

@@ -73,7 +73,7 @@ const CRITICAL_EXEC: Rule[] = [
   // Node: network server creation
   {
     pattern:
-      /\bnode\s+(-e|--eval)\s+.*(net\.createServer|http\.createServer|https\.createServer|dgram\.createSocket|tls\.createServer|require\s*\(\s*['"](?:net|http|https|dgram|tls)['"]\s*\)\.create)/,
+      /\bnode\s+(-e|--eval)\s+.*(net\.createServer|http\.createServer|https\.createServer|dgram\.createSocket|tls\.createServer|require\s*\(\s*['"](?:net|http|https|dgram|tls)['"]\s*\)\.create|\.createServer\s*\(|\.createSocket\s*\()/,
     reason: "node -e with network server creation",
   },
   // Node: vm sandbox escape / eval+require
