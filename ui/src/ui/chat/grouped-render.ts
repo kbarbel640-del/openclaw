@@ -116,14 +116,15 @@ export function renderMessageGroup(
 ) {
   const normalizedRole = normalizeRoleForGrouping(group.role);
   const assistantName = opts.assistantName ?? "Assistant";
-  const who =
-    normalizedRole === "user"
-      ? "You"
-      : normalizedRole === "assistant"
-        ? assistantName
-        : normalizedRole;
+  const who = resolveSenderLabel(normalizedRole, assistantName);
   const roleClass =
-    normalizedRole === "user" ? "user" : normalizedRole === "assistant" ? "assistant" : "other";
+    normalizedRole === "user"
+      ? "user"
+      : normalizedRole === "assistant"
+        ? "assistant"
+        : normalizedRole === "system"
+          ? "system"
+          : "other";
   const timestamp = new Date(group.timestamp).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
@@ -155,6 +156,22 @@ export function renderMessageGroup(
   `;
 }
 
+export function resolveSenderLabel(role: string, assistantName: string): string {
+  if (role === "user") {
+    return "You";
+  }
+  if (role === "assistant") {
+    return assistantName;
+  }
+  if (role === "system") {
+    return "System";
+  }
+  if (role === "tool") {
+    return "Tool";
+  }
+  return role;
+}
+
 function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" | "avatar">) {
   const normalized = normalizeRoleForGrouping(role);
   const assistantName = assistant?.name?.trim() || "Assistant";
@@ -164,6 +181,8 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
       ? "U"
       : normalized === "assistant"
         ? assistantName.charAt(0).toUpperCase() || "A"
+        : normalized === "system"
+          ? "S"
         : normalized === "tool"
           ? "⚙"
           : "?";
@@ -172,6 +191,8 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
       ? "user"
       : normalized === "assistant"
         ? "assistant"
+        : normalized === "system"
+          ? "system"
         : normalized === "tool"
           ? "tool"
           : "other";
