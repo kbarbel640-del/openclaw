@@ -18,12 +18,7 @@ import {
   parsePollStartContent,
   type PollStartContent,
 } from "../poll-types.js";
-import {
-  reactMatrixMessage,
-  sendMessageMatrix,
-  sendReadReceiptMatrix,
-  sendTypingMatrix,
-} from "../send.js";
+import { reactMatrixMessage, sendMessageMatrix, sendTypingMatrix } from "../send.js";
 import {
   normalizeMatrixAllowList,
   resolveMatrixAllowListMatch,
@@ -218,9 +213,10 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
       }
 
       const senderName = await getMemberDisplayName(roomId, senderId);
-      const storeAllowFrom = await core.channel.pairing
-        .readAllowFromStore("matrix")
-        .catch(() => []);
+      const storeAllowFrom =
+        dmPolicy === "allowlist"
+          ? []
+          : await core.channel.pairing.readAllowFromStore("matrix").catch(() => []);
       const effectiveAllowFrom = normalizeMatrixAllowList([...allowFrom, ...storeAllowFrom]);
       const groupAllowFrom = cfg.channels?.matrix?.groupAllowFrom ?? [];
       const effectiveGroupAllowFrom = normalizeMatrixAllowList(groupAllowFrom);
@@ -599,14 +595,6 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
       if (!replyTarget) {
         runtime.error?.("matrix: missing reply target");
         return;
-      }
-
-      if (messageId) {
-        sendReadReceiptMatrix(roomId, messageId, client).catch((err) => {
-          logVerboseMessage(
-            `matrix: read receipt failed room=${roomId} id=${messageId}: ${String(err)}`,
-          );
-        });
       }
 
       let didSendReply = false;
