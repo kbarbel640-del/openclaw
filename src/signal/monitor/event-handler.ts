@@ -25,7 +25,7 @@ import { normalizeSignalMessagingTarget } from "../../channels/plugins/normalize
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { recordInboundSession } from "../../channels/session.js";
 import { createTypingCallbacks } from "../../channels/typing.js";
-import { resolveChannelGroupRequireMention } from "../../config/group-policy.js";
+import { resolveChannelGroupPolicy, resolveChannelGroupRequireMention } from "../../config/group-policy.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../globals.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
@@ -493,7 +493,29 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       logVerbose("Blocked signal group message (groupPolicy: disabled)");
       return;
     }
-    if (isGroup && deps.groupPolicy === "allowlist") {
+    // Group-level allowlist: check if this specific group is explicitly allowed via groups config.
+    // This is checked BEFORE sender-level gating so explicitly allowed groups bypass sender checks.
+    const groupListPolicy =
+      isGroup && groupId
+        ? resolveChannelGroupPolicy({
+            cfg: deps.cfg,
+            channel: "signal",
+            accountId: deps.accountId,
+            groupId,
+            hasGroupAllowFrom: effectiveGroupAllow.length > 0,
+          })
+        : { allowlistEnabled: false, allowed: true };
+
+    // If groups allowlist is configured and this group is not in it, block.
+    if (isGroup && groupListPolicy.allowlistEnabled && !groupListPolicy.allowed) {
+      logVerbose(`Blocked signal group message (group ${groupId} not in groups allowlist)`);
+      return;
+    }
+
+    // If group is explicitly allowed via groups config, bypass sender-level gating.
+    // Otherwise, apply sender-level gating when groupPolicy is "allowlist".
+    const groupExplicitlyAllowed = groupListPolicy.allowlistEnabled && groupListPolicy.allowed;
+    if (isGroup && deps.groupPolicy === "allowlist" && !groupExplicitlyAllowed) {
       if (effectiveGroupAllow.length === 0) {
         logVerbose("Blocked signal group message (groupPolicy: allowlist, no groupAllowFrom)");
         return;
@@ -506,13 +528,14 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
 
     const useAccessGroups = deps.cfg.commands?.useAccessGroups !== false;
     const ownerAllowedForCommands = isSignalSenderAllowed(sender, effectiveDmAllow);
-    const groupAllowedForCommands = isSignalSenderAllowed(sender, effectiveGroupAllow);
+    const groupAllowedForCommands =
+      groupExplicitlyAllowed || isSignalSenderAllowed(sender, effectiveGroupAllow);
     const hasControlCommandInMessage = hasControlCommand(messageText, deps.cfg);
     const commandGate = resolveControlCommandGate({
       useAccessGroups,
       authorizers: [
         { configured: effectiveDmAllow.length > 0, allowed: ownerAllowedForCommands },
-        { configured: effectiveGroupAllow.length > 0, allowed: groupAllowedForCommands },
+        { configured: effectiveGroupAllow.length > 0 || groupExplicitlyAllowed, allowed: groupAllowedForCommands },
       ],
       allowTextCommands: true,
       hasControlCommand: hasControlCommandInMessage,
