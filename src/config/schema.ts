@@ -15,10 +15,6 @@ import { OpenClawSchema } from "./zod-schema.js";
 
 export type { ConfigUiHint, ConfigUiHints } from "./schema.hints.js";
 
-export type ConfigSchema = ReturnType<typeof OpenClawSchema.toJSONSchema>;
-
-type JsonSchemaNode = Record<string, unknown>;
-
 type JsonSchemaObject = JsonSchemaNode & {
   type?: string | string[];
   properties?: Record<string, JsonSchemaObject>;
@@ -74,32 +70,6 @@ function mergeObjectSchema(base: JsonSchemaObject, extension: JsonSchemaObject):
 
   return merged;
 }
-
-export type ConfigSchemaResponse = {
-  schema: ConfigSchema;
-  uiHints: ConfigUiHints;
-  version: string;
-  generatedAt: string;
-};
-
-export type PluginUiMetadata = {
-  id: string;
-  name?: string;
-  description?: string;
-  configUiHints?: Record<
-    string,
-    Pick<ConfigUiHint, "label" | "help" | "tags" | "advanced" | "sensitive" | "placeholder">
-  >;
-  configSchema?: JsonSchemaNode;
-};
-
-export type ChannelUiMetadata = {
-  id: string;
-  label?: string;
-  description?: string;
-  configSchema?: JsonSchemaNode;
-  configUiHints?: Record<string, ConfigUiHint>;
-};
 
 function collectExtensionHintKeys(
   hints: ConfigUiHints,

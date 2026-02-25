@@ -3,6 +3,7 @@ import { OpenClawSchema } from "./zod-schema.js";
 export type ConfigUiHint = {
   label?: string;
   help?: string;
+  tags?: string[];
   group?: string;
   order?: number;
   advanced?: boolean;
@@ -30,7 +31,7 @@ export type PluginUiMetadata = {
   description?: string;
   configUiHints?: Record<
     string,
-    Pick<ConfigUiHint, "label" | "help" | "advanced" | "sensitive" | "placeholder">
+    Pick<ConfigUiHint, "label" | "help" | "tags" | "advanced" | "sensitive" | "placeholder">
   >;
   configSchema?: JsonSchemaNode;
 };
