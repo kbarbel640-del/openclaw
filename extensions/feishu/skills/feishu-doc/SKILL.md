@@ -28,9 +28,25 @@ Returns: title, plain text content, block statistics. Check `hint` field - if pr
 { "action": "write", "doc_token": "ABC123def", "content": "# Title\n\nMarkdown content..." }
 ```
 
-Replaces entire document with markdown content. Supports: headings, lists, code blocks, quotes, links, images (`![](url)` auto-uploaded), bold/italic/strikethrough.
+Replaces entire document with markdown content. Supports: headings, lists (with nesting), code blocks, quotes, links, images (`![](url)` auto-uploaded), bold/italic/strikethrough, **tables**.
 
-**Limitation:** Markdown tables are NOT supported.
+**Table Example:**
+
+```markdown
+| Header 1 | Header 2 |
+| -------- | -------- |
+| Cell 1   | Cell 2   |
+```
+
+**Nested List Example:**
+
+```markdown
+- Item 1
+  - Nested item 1.1
+    - Deep nested 1.1.1
+  - Nested item 1.2
+- Item 2
+```
 
 ### Append Content
 

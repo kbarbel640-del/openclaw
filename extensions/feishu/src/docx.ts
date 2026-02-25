@@ -52,30 +52,32 @@ const BLOCK_TYPE_NAMES: Record<number, string> = {
   32: "TableCell",
 };
 
-// Block types that cannot be created via documentBlockChildren.create API
-const UNSUPPORTED_CREATE_TYPES = new Set([31, 32]);
-
-/** Clean blocks for insertion (remove unsupported types and read-only fields) */
+/**
+ * Clean blocks for Descendant API - keeps block_id and children, removes parent_id.
+ * For table blocks: removes read-only fields (cells, merge_info, column_width).
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block types
-function cleanBlocksForInsert(blocks: any[]): { cleaned: any[]; skipped: string[] } {
-  const skipped: string[] = [];
-  const cleaned = blocks
-    .filter((block) => {
-      if (UNSUPPORTED_CREATE_TYPES.has(block.block_type)) {
-        const typeName = BLOCK_TYPE_NAMES[block.block_type] || `type_${block.block_type}`;
-        skipped.push(typeName);
-        return false;
+function cleanBlocksForDescendant(blocks: any[]): any[] {
+  return blocks.map((block) => {
+    const { parent_id: _parentId, ...cleanBlock } = block;
+
+    // Fix: Convert API returns children as string for table_cell blocks (type 32)
+    if (cleanBlock.block_type === 32 && typeof cleanBlock.children === "string") {
+      cleanBlock.children = [cleanBlock.children];
+    }
+
+    // Clean table blocks - remove read-only fields
+    if (cleanBlock.block_type === 31 && cleanBlock.table) {
+      const { cells: _cells, ...tableWithoutCells } = cleanBlock.table;
+      if (tableWithoutCells.property) {
+        const { row_size, column_size } = tableWithoutCells.property;
+        tableWithoutCells.property = { row_size, column_size };
       }
-      return true;
-    })
-    .map((block) => {
-      if (block.block_type === 31 && block.table?.merge_info) {
-        const { merge_info: _merge_info, ...tableRest } = block.table;
-        return { ...block, table: tableRest };
-      }
-      return block;
-    });
-  return { cleaned, skipped };
+      cleanBlock.table = tableWithoutCells;
+    }
+
+    return cleanBlock;
+  });
 }
 
 // ============ Core Functions ============
@@ -101,29 +103,41 @@ function sortBlocksByFirstLevel(blocks: any[], firstLevelIds: string[]): any[] {
   return [...sorted, ...remaining];
 }
 
+/**
+ * Insert blocks using Descendant API.
+ * Supports all block types including tables and nested structures.
+ */
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
-async function insertBlocks(
+async function insertBlocksWithDescendant(
   client: Lark.Client,
   docToken: string,
   blocks: any[],
+  firstLevelBlockIds: string[],
   parentBlockId?: string,
 ): Promise<{ children: any[]; skipped: string[] }> {
   /* eslint-enable @typescript-eslint/no-explicit-any */
-  const { cleaned, skipped } = cleanBlocksForInsert(blocks);
   const blockId = parentBlockId ?? docToken;
+  const descendants = cleanBlocksForDescendant(blocks);
 
-  if (cleaned.length === 0) {
-    return { children: [], skipped };
+  if (descendants.length === 0) {
+    return { children: [], skipped: [] };
   }
 
-  const res = await client.docx.documentBlockChildren.create({
+  const res = await client.docx.documentBlockDescendant.create({
     path: { document_id: docToken, block_id: blockId },
-    data: { children: cleaned },
+    data: {
+      children_id: firstLevelBlockIds,
+      descendants,
+    },
   });
+
   if (res.code !== 0) {
-    throw new Error(res.msg);
+    throw new Error(`${res.msg} (code: ${res.code})`);
   }
-  return { children: res.data?.children ?? [], skipped };
+
+  // Return inserted blocks for compatibility with insertBlocks return type
+  const children = res.data?.children ?? [];
+  return { children, skipped: [] };
 }
 
 async function clearDocumentContent(client: Lark.Client, docToken: string) {
@@ -292,7 +306,14 @@ async function writeDoc(client: Lark.Client, docToken: string, markdown: string,
   }
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
-  const { children: inserted, skipped } = await insertBlocks(client, docToken, sortedBlocks);
+  // Use Descendant API - supports all block types including tables
+  const { children: inserted } = await insertBlocksWithDescendant(
+    client,
+    docToken,
+    sortedBlocks,
+    firstLevelBlockIds,
+  );
+
   const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
 
   return {
@@ -300,9 +321,6 @@ async function writeDoc(client: Lark.Client, docToken: string, markdown: string,
     blocks_deleted: deleted,
     blocks_added: inserted.length,
     images_processed: imagesProcessed,
-    ...(skipped.length > 0 && {
-      warning: `Skipped unsupported block types: ${skipped.join(", ")}. Tables are not supported via this API.`,
-    }),
   };
 }
 
@@ -318,7 +336,14 @@ async function appendDoc(
   }
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
-  const { children: inserted, skipped } = await insertBlocks(client, docToken, sortedBlocks);
+  // Use Descendant API - supports all block types including tables
+  const { children: inserted } = await insertBlocksWithDescendant(
+    client,
+    docToken,
+    sortedBlocks,
+    firstLevelBlockIds,
+  );
+
   const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
 
   return {
@@ -327,9 +352,6 @@ async function appendDoc(
     images_processed: imagesProcessed,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block type
     block_ids: inserted.map((b: any) => b.block_id),
-    ...(skipped.length > 0 && {
-      warning: `Skipped unsupported block types: ${skipped.join(", ")}. Tables are not supported via this API.`,
-    }),
   };
 }
 
