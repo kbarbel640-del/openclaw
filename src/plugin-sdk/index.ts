@@ -217,6 +217,9 @@ export {
 } from "./run-command.js";
 export { resolveGatewayBindUrl } from "../shared/gateway-bind-url.js";
 export type { GatewayBindUrlResult } from "../shared/gateway-bind-url.js";
+export { callGateway } from "../gateway/call.js";
+export type { CallGatewayOptions } from "../gateway/call.js";
+export { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 export { resolveTailnetHostWithRunner } from "../shared/tailscale-status.js";
 export type {
   TailscaleStatusCommandResult,
