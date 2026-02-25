@@ -6,7 +6,16 @@ import {
   getAcpRuntimeBackend,
   requireAcpRuntimeBackend,
 } from "../../../src/acp/runtime/registry.js";
+import { ACPX_BUNDLED_BIN } from "./config.js";
 import { createAcpxRuntimeService } from "./service.js";
+
+const { ensurePinnedAcpxSpy } = vi.hoisted(() => ({
+  ensurePinnedAcpxSpy: vi.fn(async () => {}),
+}));
+
+vi.mock("./ensure.js", () => ({
+  ensurePinnedAcpx: ensurePinnedAcpxSpy,
+}));
 
 type RuntimeStub = AcpRuntime & {
   probeAvailability(): Promise<void>;
@@ -64,6 +73,8 @@ function createServiceContext(
 describe("createAcpxRuntimeService", () => {
   beforeEach(() => {
     __testing.resetAcpRuntimeBackendsForTests();
+    ensurePinnedAcpxSpy.mockReset();
+    ensurePinnedAcpxSpy.mockImplementation(async () => {});
   });
 
   it("registers and unregisters the acpx backend", async () => {
@@ -74,8 +85,12 @@ describe("createAcpxRuntimeService", () => {
     const context = createServiceContext();
 
     await service.start(context);
-    expect(probeAvailabilitySpy).toHaveBeenCalledOnce();
     expect(getAcpRuntimeBackend("acpx")?.runtime).toBe(runtime);
+
+    await vi.waitFor(() => {
+      expect(ensurePinnedAcpxSpy).toHaveBeenCalledOnce();
+      expect(probeAvailabilitySpy).toHaveBeenCalledOnce();
+    });
 
     await service.stop?.(context);
     expect(getAcpRuntimeBackend("acpx")).toBeNull();
@@ -105,7 +120,6 @@ describe("createAcpxRuntimeService", () => {
     const service = createAcpxRuntimeService({
       runtimeFactory,
       pluginConfig: {
-        command: "acpx-custom",
         queueOwnerTtlSeconds: 0.25,
       },
     });
@@ -117,7 +131,7 @@ describe("createAcpxRuntimeService", () => {
       expect.objectContaining({
         queueOwnerTtlSeconds: 0.25,
         pluginConfig: expect.objectContaining({
-          command: "acpx-custom",
+          command: ACPX_BUNDLED_BIN,
         }),
       }),
     );
@@ -138,5 +152,22 @@ describe("createAcpxRuntimeService", () => {
         queueOwnerTtlSeconds: 0.1,
       }),
     );
+  });
+
+  it("does not block startup while acpx ensure runs", async () => {
+    const { runtime } = createRuntimeStub(true);
+    ensurePinnedAcpxSpy.mockImplementation(() => new Promise<void>(() => {}));
+    const service = createAcpxRuntimeService({
+      runtimeFactory: () => runtime,
+    });
+    const context = createServiceContext();
+
+    const startResult = await Promise.race([
+      Promise.resolve(service.start(context)).then(() => "started"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("timed_out"), 100)),
+    ]);
+
+    expect(startResult).toBe("started");
+    expect(getAcpRuntimeBackend("acpx")?.runtime).toBe(runtime);
   });
 });

@@ -1,21 +1,12 @@
 {
   "id": "acpx",
   "name": "ACPX Runtime",
-  "description": "ACP runtime backend powered by the acpx CLI.",
+  "description": "ACP runtime backend powered by a pinned plugin-local acpx CLI.",
   "skills": ["./skills"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "command": {
-        "type": "string"
-      },
-      "commandArgs": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
       "cwd": {
         "type": "string"
       },
@@ -38,14 +29,6 @@
     }
   },
   "uiHints": {
-    "command": {
-      "label": "acpx Command",
-      "help": "CLI command used to invoke acpx (default: plugin-local acpx binary, fallback: acpx on PATH)."
-    },
-    "commandArgs": {
-      "label": "acpx Command Args",
-      "help": "Extra leading args for the acpx command."
-    },
     "cwd": {
       "label": "Default Working Directory",
       "help": "Default cwd for ACP session operations when not set per session."

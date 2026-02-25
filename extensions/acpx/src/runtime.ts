@@ -13,7 +13,12 @@ import type {
   PluginLogger,
 } from "openclaw/plugin-sdk";
 import { AcpRuntimeError } from "openclaw/plugin-sdk";
-import type { ResolvedAcpxPluginConfig } from "./config.js";
+import {
+  ACPX_LOCAL_INSTALL_COMMAND,
+  ACPX_PINNED_VERSION,
+  type ResolvedAcpxPluginConfig,
+} from "./config.js";
+import { checkPinnedAcpxVersion } from "./ensure.js";
 import {
   parseJsonLines,
   parsePromptEventLine,
@@ -34,7 +39,6 @@ export const ACPX_BACKEND_ID = "acpx";
 
 const ACPX_RUNTIME_HANDLE_PREFIX = "acpx:v1:";
 const DEFAULT_AGENT_FALLBACK = "codex";
-const ACPX_INSTALL_COMMAND_HINT = "npm install -g acpx@0.1.11";
 const ACPX_CAPABILITIES: AcpRuntimeCapabilities = {
   controls: ["session/set_mode", "session/set_config_option", "session/status"],
 };
@@ -87,7 +91,7 @@ export function decodeAcpxRuntimeHandleState(runtimeSessionName: string): AcpxHa
 }
 
 export class AcpxRuntime implements AcpRuntime {
-  private healthy = true;
+  private healthy = false;
   private readonly logger?: PluginLogger;
   private readonly queueOwnerTtlSeconds: number;
 
@@ -113,11 +117,20 @@ export class AcpxRuntime implements AcpRuntime {
   }
 
   async probeAvailability(): Promise<void> {
+    const versionCheck = await checkPinnedAcpxVersion({
+      command: this.config.command,
+      cwd: this.config.cwd,
+      expectedVersion: ACPX_PINNED_VERSION,
+    });
+    if (!versionCheck.ok) {
+      this.healthy = false;
+      return;
+    }
+
     try {
-      const args = [...this.config.commandArgs, "--help"];
       const result = await spawnAndCollect({
         command: this.config.command,
-        args,
+        args: ["--help"],
         cwd: this.config.cwd,
       });
       this.healthy = result.error == null && (result.code ?? 0) === 0;
@@ -359,11 +372,30 @@ export class AcpxRuntime implements AcpRuntime {
   }
 
   async doctor(): Promise<AcpRuntimeDoctorReport> {
+    const versionCheck = await checkPinnedAcpxVersion({
+      command: this.config.command,
+      cwd: this.config.cwd,
+      expectedVersion: ACPX_PINNED_VERSION,
+    });
+    if (!versionCheck.ok) {
+      this.healthy = false;
+      const details = [
+        `expected=${versionCheck.expectedVersion}`,
+        versionCheck.installedVersion ? `installed=${versionCheck.installedVersion}` : null,
+      ].filter((detail): detail is string => Boolean(detail));
+      return {
+        ok: false,
+        code: "ACP_BACKEND_UNAVAILABLE",
+        message: versionCheck.message,
+        installCommand: versionCheck.installCommand,
+        details,
+      };
+    }
+
     try {
-      const args = [...this.config.commandArgs, "--help"];
       const result = await spawnAndCollect({
         command: this.config.command,
-        args,
+        args: ["--help"],
         cwd: this.config.cwd,
       });
       if (result.error) {
@@ -374,7 +406,7 @@ export class AcpxRuntime implements AcpRuntime {
             ok: false,
             code: "ACP_BACKEND_UNAVAILABLE",
             message: `acpx command not found: ${this.config.command}`,
-            installCommand: ACPX_INSTALL_COMMAND_HINT,
+            installCommand: ACPX_LOCAL_INSTALL_COMMAND,
           };
         }
         if (spawnFailure === "missing-cwd") {
@@ -404,7 +436,7 @@ export class AcpxRuntime implements AcpRuntime {
       this.healthy = true;
       return {
         ok: true,
-        message: `acpx command available (${this.config.command})`,
+        message: `acpx command available (${this.config.command}, version ${versionCheck.version})`,
       };
     } catch (error) {
       this.healthy = false;
@@ -465,20 +497,11 @@ export class AcpxRuntime implements AcpRuntime {
   }
 
   private buildControlArgs(params: { cwd: string; command: string[] }): string[] {
-    return [
-      ...this.config.commandArgs,
-      "--format",
-      "json",
-      "--json-strict",
-      "--cwd",
-      params.cwd,
-      ...params.command,
-    ];
+    return ["--format", "json", "--json-strict", "--cwd", params.cwd, ...params.command];
   }
 
   private buildPromptArgs(params: { agent: string; sessionName: string; cwd: string }): string[] {
     const args = [
-      ...this.config.commandArgs,
       "--format",
       "json",
       "--json-strict",

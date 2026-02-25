@@ -1,10 +1,10 @@
 import fs from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runAcpRuntimeAdapterContract } from "../../../src/acp/runtime/adapter-contract.testkit.js";
-import type { ResolvedAcpxPluginConfig } from "./config.js";
+import { ACPX_PINNED_VERSION, type ResolvedAcpxPluginConfig } from "./config.js";
 import { AcpxRuntime, decodeAcpxRuntimeHandleState } from "./runtime.js";
 
 const NOOP_LOGGER = {
@@ -24,8 +24,13 @@ const writeLog = (entry) => {
   fs.appendFileSync(logPath, JSON.stringify(entry) + "\n");
 };
 
-if (args.includes("--version") || args.includes("--help")) {
-  process.stdout.write("mock-acpx 0.0.0\n");
+if (args.includes("--version")) {
+  process.stdout.write("mock-acpx ${ACPX_PINNED_VERSION}\\n");
+  process.exit(0);
+}
+
+if (args.includes("--help")) {
+  process.stdout.write("mock-acpx help\\n");
   process.exit(0);
 }
 
@@ -255,11 +260,11 @@ async function createMockRuntime(params?: {
   const scriptPath = path.join(dir, "mock-acpx.cjs");
   const logPath = path.join(dir, "calls.log");
   await writeFile(scriptPath, MOCK_CLI_SCRIPT, "utf8");
+  await chmod(scriptPath, 0o755);
   process.env.MOCK_ACPX_LOG = logPath;
 
   const config: ResolvedAcpxPluginConfig = {
-    command: process.execPath,
-    commandArgs: [scriptPath],
+    command: scriptPath,
     cwd: dir,
     permissionMode: params?.permissionMode ?? "approve-all",
     nonInteractivePermissions: "fail",
@@ -550,6 +555,9 @@ describe("AcpxRuntime", () => {
     const { runtime } = await createMockRuntime();
     const missingCwd = path.join(os.tmpdir(), "openclaw-acpx-runtime-test-missing-cwd");
 
+    await runtime.probeAvailability();
+    expect(runtime.isHealthy()).toBe(true);
+
     await expect(
       runtime.ensureSession({
         sessionKey: "agent:codex:acp:missing-cwd",
@@ -568,7 +576,6 @@ describe("AcpxRuntime", () => {
     const runtime = new AcpxRuntime(
       {
         command: "/definitely/missing/acpx",
-        commandArgs: [],
         cwd: process.cwd(),
         permissionMode: "approve-reads",
         nonInteractivePermissions: "fail",
@@ -591,7 +598,6 @@ describe("AcpxRuntime", () => {
     const runtime = new AcpxRuntime(
       {
         command: "/definitely/missing/acpx",
-        commandArgs: [],
         cwd: process.cwd(),
         permissionMode: "approve-reads",
         nonInteractivePermissions: "fail",

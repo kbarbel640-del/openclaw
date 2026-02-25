@@ -1,37 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { createAcpxPluginConfigSchema, resolveAcpxPluginConfig } from "./config.js";
+import {
+  ACPX_BUNDLED_BIN,
+  createAcpxPluginConfigSchema,
+  resolveAcpxPluginConfig,
+} from "./config.js";
 
 describe("acpx plugin config parsing", () => {
-  it("accepts and trims valid commandArgs entries", () => {
+  it("resolves a strict plugin-local acpx command", () => {
     const resolved = resolveAcpxPluginConfig({
       rawConfig: {
-        commandArgs: ["  --foo  ", "--bar=baz"],
+        cwd: "/tmp/workspace",
       },
       workspaceDir: "/tmp/workspace",
     });
 
-    expect(resolved.commandArgs).toEqual(["--foo", "--bar=baz"]);
+    expect(resolved.command).toBe(ACPX_BUNDLED_BIN);
+    expect(resolved.cwd).toBe("/tmp/workspace");
   });
 
-  it("rejects commandArgs arrays containing non-string entries", () => {
+  it("rejects command overrides", () => {
     expect(() =>
       resolveAcpxPluginConfig({
         rawConfig: {
-          commandArgs: ["--ok", 123],
+          command: "acpx-custom",
         },
         workspaceDir: "/tmp/workspace",
       }),
-    ).toThrow("commandArgs must be an array of strings");
+    ).toThrow("unknown config key: command");
   });
 
-  it("rejects commandArgs arrays containing empty strings", () => {
+  it("rejects commandArgs overrides", () => {
+    expect(() =>
+      resolveAcpxPluginConfig({
+        rawConfig: {
+          commandArgs: ["--foo"],
+        },
+        workspaceDir: "/tmp/workspace",
+      }),
+    ).toThrow("unknown config key: commandArgs");
+  });
+
+  it("schema rejects empty cwd", () => {
     const schema = createAcpxPluginConfigSchema();
     if (!schema.safeParse) {
       throw new Error("acpx config schema missing safeParse");
     }
-    const parsed = schema.safeParse({
-      commandArgs: ["--ok", "   "],
-    });
+    const parsed = schema.safeParse({ cwd: "   " });
 
     expect(parsed.success).toBe(false);
   });

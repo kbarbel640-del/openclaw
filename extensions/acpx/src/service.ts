@@ -5,7 +5,12 @@ import type {
   PluginLogger,
 } from "openclaw/plugin-sdk";
 import { registerAcpRuntimeBackend, unregisterAcpRuntimeBackend } from "openclaw/plugin-sdk";
-import { resolveAcpxPluginConfig, type ResolvedAcpxPluginConfig } from "./config.js";
+import {
+  ACPX_PINNED_VERSION,
+  resolveAcpxPluginConfig,
+  type ResolvedAcpxPluginConfig,
+} from "./config.js";
+import { ensurePinnedAcpx } from "./ensure.js";
 import { ACPX_BACKEND_ID, AcpxRuntime } from "./runtime.js";
 
 type AcpxRuntimeLike = AcpRuntime & {
@@ -35,6 +40,7 @@ export function createAcpxRuntimeService(
   params: CreateAcpxRuntimeServiceParams = {},
 ): OpenClawPluginService {
   let runtime: AcpxRuntimeLike | null = null;
+  let lifecycleRevision = 0;
 
   return {
     id: "acpx-runtime",
@@ -50,22 +56,45 @@ export function createAcpxRuntimeService(
         logger: ctx.logger,
       });
 
-      try {
-        await runtime.probeAvailability();
-      } catch (err) {
-        ctx.logger.warn(
-          `acpx runtime probe failed (${pluginConfig.command}): ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-
       registerAcpRuntimeBackend({
         id: ACPX_BACKEND_ID,
         runtime,
         healthy: () => runtime?.isHealthy() ?? false,
       });
-      ctx.logger.info(`acpx runtime backend registered (command: ${pluginConfig.command})`);
+      ctx.logger.info(
+        `acpx runtime backend registered (command: ${pluginConfig.command}, pinned: ${ACPX_PINNED_VERSION})`,
+      );
+
+      lifecycleRevision += 1;
+      const currentRevision = lifecycleRevision;
+      void (async () => {
+        try {
+          await ensurePinnedAcpx({
+            command: pluginConfig.command,
+            logger: ctx.logger,
+            expectedVersion: ACPX_PINNED_VERSION,
+          });
+          if (currentRevision !== lifecycleRevision) {
+            return;
+          }
+          await runtime?.probeAvailability();
+          if (runtime?.isHealthy()) {
+            ctx.logger.info("acpx runtime backend ready");
+          } else {
+            ctx.logger.warn("acpx runtime backend probe failed after local install");
+          }
+        } catch (err) {
+          if (currentRevision !== lifecycleRevision) {
+            return;
+          }
+          ctx.logger.warn(
+            `acpx runtime setup failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      })();
     },
     async stop(_ctx: OpenClawPluginServiceContext): Promise<void> {
+      lifecycleRevision += 1;
       unregisterAcpRuntimeBackend(ACPX_BACKEND_ID);
       runtime = null;
     },
