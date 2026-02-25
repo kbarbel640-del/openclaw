@@ -21,6 +21,46 @@ const TELEGRAM_WEBHOOK_MAX_BODY_BYTES = 1024 * 1024;
 const TELEGRAM_WEBHOOK_BODY_TIMEOUT_MS = 30_000;
 const TELEGRAM_WEBHOOK_CALLBACK_TIMEOUT_MS = 10_000;
 
+async function listenHttpServer(params: {
+  server: ReturnType<typeof createServer>;
+  port: number;
+  host: string;
+}) {
+  await new Promise<void>((resolve, reject) => {
+    const onError = (err: Error) => {
+      params.server.off("error", onError);
+      reject(err);
+    };
+    params.server.once("error", onError);
+    params.server.listen(params.port, params.host, () => {
+      params.server.off("error", onError);
+      resolve();
+    });
+  });
+}
+
+function resolveWebhookPublicUrl(params: {
+  configuredPublicUrl?: string;
+  server: ReturnType<typeof createServer>;
+  path: string;
+  host: string;
+  port: number;
+}) {
+  if (params.configuredPublicUrl) {
+    return params.configuredPublicUrl;
+  }
+  const address = params.server.address();
+  if (address && typeof address !== "string") {
+    const resolvedHost =
+      params.host === "0.0.0.0" || address.address === "0.0.0.0" || address.address === "::"
+        ? "localhost"
+        : address.address;
+    return `http://${resolvedHost}:${address.port}${params.path}`;
+  }
+  const fallbackHost = params.host === "0.0.0.0" ? "localhost" : params.host;
+  return `http://${fallbackHost}:${params.port}${params.path}`;
+}
+
 async function initializeTelegramWebhookBot(params: {
   bot: ReturnType<typeof createTelegramBot>;
   runtime: RuntimeEnv;
@@ -177,23 +217,54 @@ export async function startTelegramWebhook(opts: {
     });
   });
 
-  const publicUrl =
-    opts.publicUrl ?? `http://${host === "0.0.0.0" ? "localhost" : host}:${port}${path}`;
-
-  await withTelegramApiErrorLogging({
-    operation: "setWebhook",
-    runtime,
-    fn: () =>
-      bot.api.setWebhook(publicUrl, {
-        secret_token: secret,
-        allowed_updates: resolveTelegramAllowedUpdates(),
-      }),
+  await listenHttpServer({
+    server,
+    port,
+    host,
   });
 
-  await new Promise<void>((resolve) => server.listen(port, host, resolve));
+  const publicUrl = resolveWebhookPublicUrl({
+    configuredPublicUrl: opts.publicUrl,
+    server,
+    path,
+    host,
+    port,
+  });
+
+  try {
+    await withTelegramApiErrorLogging({
+      operation: "setWebhook",
+      runtime,
+      fn: () =>
+        bot.api.setWebhook(publicUrl, {
+          secret_token: secret,
+          allowed_updates: resolveTelegramAllowedUpdates(),
+        }),
+    });
+  } catch (err) {
+    server.close();
+    void bot.stop();
+    if (diagnosticsEnabled) {
+      stopDiagnosticHeartbeat();
+    }
+    throw err;
+  }
+
   runtime.log?.(`webhook listening on ${publicUrl}`);
 
+  let shutDown = false;
   const shutdown = () => {
+    if (shutDown) {
+      return;
+    }
+    shutDown = true;
+    void withTelegramApiErrorLogging({
+      operation: "deleteWebhook",
+      runtime,
+      fn: () => bot.api.deleteWebhook({ drop_pending_updates: false }),
+    }).catch(() => {
+      // withTelegramApiErrorLogging has already emitted the failure.
+    });
     server.close();
     void bot.stop();
     if (diagnosticsEnabled) {
