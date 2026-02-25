@@ -12,6 +12,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { extensionForMime } from "../../media/mime.js";
 import { parseSlackTarget } from "../../slack/targets.js";
 import { parseTelegramTarget } from "../../telegram/targets.js";
+import { resolveUserPath } from "../../utils.js";
 import { loadWebMedia, validateLocalMediaPathAllowed } from "../../web/media.js";
 
 export function readBooleanParam(
@@ -300,7 +301,9 @@ export async function normalizeSandboxMediaParams(params: {
     // Defense-in-depth: validate local paths against allowlisted roots before
     // hydration tries to read files.
     if (/^(?:\/|\\|[A-Za-z]:[\\/])/.test(raw) || raw.startsWith("~")) {
-      await validateLocalMediaPathAllowed(raw, params.mediaPolicy.localRoots);
+      const expandedPath = raw.startsWith("~") ? resolveUserPath(raw) : raw;
+      const localRoots = params.mediaPolicy.mode === "host" ? params.mediaPolicy.localRoots : undefined;
+      await validateLocalMediaPathAllowed(expandedPath, localRoots);
     }
   }
 }
