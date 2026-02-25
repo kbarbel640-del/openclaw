@@ -202,6 +202,48 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).not.toContain("OpenClaw is controlled via subcommands");
   });
 
+  it("supports alternate filenames for prompt section overrides", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      contextFiles: [
+        {
+          path: "TOOL_CALL_STYLE.md",
+          content: "Use {{EXEC_TOOL_NAME}} with care.",
+        },
+        {
+          path: "OPENCLAW_CLI.md",
+          content: "Workspace root: {{WORKSPACE_DIR}}",
+        },
+      ],
+    });
+
+    expect(prompt).toContain("## Tool Call Style");
+    expect(prompt).toContain("Use exec with care.");
+    expect(prompt).toContain("## OpenClaw CLI Quick Reference");
+    expect(prompt).toContain("Workspace root: /tmp/openclaw");
+    expect(prompt).not.toContain("OpenClaw is controlled via subcommands");
+  });
+
+  it("omits overrideable sections when OPENCLAW:SECTION_OFF marker is present", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      contextFiles: [
+        {
+          path: "SYSTEM_TIPS.md",
+          content: "<!-- OPENCLAW:SECTION_OFF -->",
+        },
+        {
+          path: "OPENCLAW_CLI.md",
+          content: "<!-- OPENCLAW:SECTION_OFF -->",
+        },
+      ],
+    });
+
+    expect(prompt).not.toContain("## Tool Call Style");
+    expect(prompt).not.toContain("## OpenClaw CLI Quick Reference");
+    expect(prompt).not.toContain("OpenClaw is controlled via subcommands");
+  });
+
   it("includes voice hint when provided", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
