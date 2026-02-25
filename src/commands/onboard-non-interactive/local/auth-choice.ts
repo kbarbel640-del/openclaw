@@ -22,6 +22,7 @@ import {
   applyMoonshotConfigCn,
   applyOpencodeZenConfig,
   applyOpenrouterConfig,
+  applySkillBossConfig,
   applySyntheticConfig,
   applyVeniceConfig,
   applyTogetherConfig,
@@ -44,6 +45,7 @@ import {
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
+  setSkillBossApiKey,
   setSyntheticApiKey,
   setXaiApiKey,
   setVeniceApiKey,
@@ -627,6 +629,29 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applySyntheticConfig(nextConfig);
+  }
+
+  if (authChoice === "skillboss-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "skillboss",
+      cfg: baseConfig,
+      flagValue: opts.skillbossApiKey,
+      flagName: "--skillboss-api-key",
+      envVar: "SKILLBOSS_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setSkillBossApiKey(resolved.key);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "skillboss:default",
+      provider: "skillboss",
+      mode: "api_key",
+    });
+    return applySkillBossConfig(nextConfig);
   }
 
   if (authChoice === "venice-api-key") {

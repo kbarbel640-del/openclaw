@@ -23,6 +23,7 @@ type OnboardProviderAuthOptionKey = keyof Pick<
   | "xaiApiKey"
   | "litellmApiKey"
   | "qianfanApiKey"
+  | "skillbossApiKey"
   | "volcengineApiKey"
   | "byteplusApiKey"
 >;
@@ -183,6 +184,13 @@ export const ONBOARD_PROVIDER_AUTH_FLAGS: ReadonlyArray<OnboardProviderAuthFlag>
     cliFlag: "--qianfan-api-key",
     cliOption: "--qianfan-api-key <key>",
     description: "QIANFAN API key",
+  },
+  {
+    optionKey: "skillbossApiKey",
+    authChoice: "skillboss-api-key",
+    cliFlag: "--skillboss-api-key",
+    cliOption: "--skillboss-api-key <key>",
+    description: "SkillBoss API key",
   },
   {
     optionKey: "volcengineApiKey",
