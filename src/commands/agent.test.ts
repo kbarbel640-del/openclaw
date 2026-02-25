@@ -6,6 +6,8 @@ import "../cron/isolated-agent.mocks.js";
 import * as cliRunnerModule from "../agents/cli-runner.js";
 import { loadModelCatalog } from "../agents/model-catalog.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
+import { getSkillsSnapshotVersion } from "../agents/skills/refresh.js";
 import type { OpenClawConfig } from "../config/config.js";
 import * as configModule from "../config/config.js";
 import * as sessionsModule from "../config/sessions.js";
@@ -37,6 +39,7 @@ vi.mock("../agents/skills.js", () => ({
 
 vi.mock("../agents/skills/refresh.js", () => ({
   getSkillsSnapshotVersion: vi.fn(() => 0),
+  ensureSkillsWatcher: vi.fn(),
 }));
 
 const runtime: RuntimeEnv = {
@@ -687,6 +690,66 @@ describe("agentCommand", () => {
       });
 
       expect(runtime.log).toHaveBeenCalledWith("ok");
+    });
+  });
+
+  it("refreshes skill snapshot when version is stale", async () => {
+    await withTempHome(async (home) => {
+      const store = path.join(home, "sessions.json");
+      writeSessionStoreSeed(store, {
+        "agent:main:main": {
+          sessionId: "existing-session",
+          updatedAt: Date.now(),
+          systemSent: true,
+          skillsSnapshot: {
+            prompt: "old skills",
+            skills: [],
+            version: 100,
+          },
+        },
+      });
+      mockConfig(home, store);
+
+      vi.mocked(getSkillsSnapshotVersion).mockReturnValue(200);
+      vi.mocked(buildWorkspaceSkillSnapshot).mockReturnValue({
+        prompt: "new skills",
+        skills: [],
+        version: 200,
+      });
+
+      await agentCommand({ message: "hello", sessionKey: "agent:main:main" }, runtime);
+
+      expect(buildWorkspaceSkillSnapshot).toHaveBeenCalled();
+    });
+  });
+
+  it("refreshes skill snapshot after restart when version resets to zero", async () => {
+    await withTempHome(async (home) => {
+      const store = path.join(home, "sessions.json");
+      writeSessionStoreSeed(store, {
+        "agent:main:main": {
+          sessionId: "existing-session",
+          updatedAt: Date.now(),
+          systemSent: true,
+          skillsSnapshot: {
+            prompt: "old skills",
+            skills: [],
+            version: 1708905600000,
+          },
+        },
+      });
+      mockConfig(home, store);
+
+      vi.mocked(getSkillsSnapshotVersion).mockReturnValue(0);
+      vi.mocked(buildWorkspaceSkillSnapshot).mockReturnValue({
+        prompt: "fresh skills",
+        skills: [],
+        version: 0,
+      });
+
+      await agentCommand({ message: "hello", sessionKey: "agent:main:main" }, runtime);
+
+      expect(buildWorkspaceSkillSnapshot).toHaveBeenCalled();
     });
   });
 });
