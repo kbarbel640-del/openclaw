@@ -41,6 +41,11 @@
       - any-glob-to-any-file:
           - "extensions/matrix/**"
           - "docs/channels/matrix.md"
+"channel: openchat":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/openchat/**"
+          - "docs/channels/openchat.md"
 "channel: mattermost":
   - changed-files:
       - any-glob-to-any-file:

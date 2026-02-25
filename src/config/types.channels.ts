@@ -54,6 +54,7 @@ export type ChannelsConfig = {
   signal?: SignalConfig;
   imessage?: IMessageConfig;
   msteams?: MSTeamsConfig;
+  openchat?: ExtensionChannelConfig;
   // Extension channels use dynamic keys - use ExtensionChannelConfig in extensions
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
