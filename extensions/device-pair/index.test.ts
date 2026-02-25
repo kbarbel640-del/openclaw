@@ -1,6 +1,9 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+type RegisteredCommand = Parameters<OpenClawPluginApi["registerCommand"]>[0];
+type RegisteredCommandHandler = RegisteredCommand["handler"];
+
 const resolveGatewayBindUrlMock = vi.hoisted(() =>
   vi.fn(() => ({ url: "ws://public.example:18789", source: "gateway.bind=lan" })),
 );
@@ -8,7 +11,7 @@ const resolveGatewayBindUrlMock = vi.hoisted(() =>
 vi.mock("openclaw/plugin-sdk", () => ({
   approveDevicePairing: vi.fn(),
   listDevicePairing: vi.fn(async () => ({ pending: [] })),
-  resolveGatewayBindUrl: (...args: unknown[]) => resolveGatewayBindUrlMock(...args),
+  resolveGatewayBindUrl: resolveGatewayBindUrlMock,
   runPluginCommandWithTimeout: vi.fn(),
   resolveTailnetHostWithRunner: vi.fn(async () => null),
 }));
@@ -22,10 +25,13 @@ function decodeSetupCode(setupCode: string): Record<string, unknown> {
   return JSON.parse(json) as Record<string, unknown>;
 }
 
-function registerPairCommand(config: OpenClawPluginApi["config"]) {
-  let pairCommand: {
-    handler: (ctx: Record<string, unknown>) => Promise<{ text?: string }>;
-  } | null = null;
+function registerPairCommand(config: OpenClawPluginApi["config"]): RegisteredCommandHandler {
+  let pairCommandHandler: RegisteredCommandHandler | null = null;
+  const registerCommand: OpenClawPluginApi["registerCommand"] = (command: RegisteredCommand) => {
+    if (command.name === "pair") {
+      pairCommandHandler = command.handler;
+    }
+  };
   const api: OpenClawPluginApi = {
     id: "device-pair",
     name: "device-pair",
@@ -49,21 +55,17 @@ function registerPairCommand(config: OpenClawPluginApi["config"]) {
     registerService: vi.fn(),
     registerConfigHook: vi.fn(),
     registerChannel: vi.fn(),
-    registerCommand: vi.fn((command) => {
-      if (command.name === "pair") {
-        pairCommand = command;
-      }
-    }),
+    registerCommand,
     getPluginConfig: vi.fn(),
     getDataDir: vi.fn(),
     getStateDir: vi.fn(),
     getWorkspaceDir: vi.fn(),
   } as unknown as OpenClawPluginApi;
   register(api);
-  if (!pairCommand) {
+  if (!pairCommandHandler) {
     throw new Error("pair command was not registered");
   }
-  return pairCommand;
+  return pairCommandHandler;
 }
 
 describe("device-pair setup code", () => {
@@ -77,13 +79,13 @@ describe("device-pair setup code", () => {
   it("does not embed gateway credentials in generated setup code", async () => {
     process.env.OPENCLAW_GATEWAY_TOKEN = "super-secret-token";
 
-    const command = registerPairCommand({
+    const pairCommandHandler = registerPairCommand({
       gateway: {
         bind: "lan",
       },
     });
 
-    const result = await command.handler({
+    const result = await pairCommandHandler({
       senderId: "user-1",
       channel: "discord",
       isAuthorizedSender: true,
