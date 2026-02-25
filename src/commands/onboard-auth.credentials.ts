@@ -6,7 +6,11 @@ import { upsertAuthProfile } from "../agents/auth-profiles.js";
 import { resolveStateDir } from "../config/paths.js";
 import { KILOCODE_DEFAULT_MODEL_REF } from "../providers/kilocode-shared.js";
 export { CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF } from "../agents/cloudflare-ai-gateway.js";
-export { MISTRAL_DEFAULT_MODEL_REF, XAI_DEFAULT_MODEL_REF } from "./onboard-auth.models.js";
+export {
+  MISTRAL_DEFAULT_MODEL_REF,
+  XAI_DEFAULT_MODEL_REF,
+  BAILIAN_DEFAULT_MODEL_REF,
+} from "./onboard-auth.models.js";
 export { KILOCODE_DEFAULT_MODEL_REF };
 
 const resolveAuthAgentDir = (agentDir?: string) => agentDir ?? resolveOpenClawAgentDir();
@@ -357,6 +361,18 @@ export function setXaiApiKey(key: string, agentDir?: string) {
     credential: {
       type: "api_key",
       provider: "xai",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
+export function setBailianApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "bailian:default",
+    credential: {
+      type: "api_key",
+      provider: "bailian",
       key,
     },
     agentDir: resolveAuthAgentDir(agentDir),

@@ -39,6 +39,10 @@ export {
   applyXiaomiProviderConfig,
   applyZaiConfig,
   applyZaiProviderConfig,
+  applyBailianConfig,
+  applyBailianConfigCn,
+  applyBailianProviderConfig,
+  applyBailianProviderConfigCn,
   KILOCODE_BASE_URL,
 } from "./onboard-auth.config-core.js";
 export {
@@ -81,6 +85,7 @@ export {
   setXiaomiApiKey,
   setZaiApiKey,
   setXaiApiKey,
+  setBailianApiKey,
   writeOAuthCredentials,
   HUGGINGFACE_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
@@ -89,6 +94,7 @@ export {
   TOGETHER_DEFAULT_MODEL_REF,
   MISTRAL_DEFAULT_MODEL_REF,
   XAI_DEFAULT_MODEL_REF,
+  BAILIAN_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
 export {
   buildKilocodeModelDefinition,

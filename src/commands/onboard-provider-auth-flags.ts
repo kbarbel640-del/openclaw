@@ -23,6 +23,8 @@ type OnboardProviderAuthOptionKey = keyof Pick<
   | "xaiApiKey"
   | "litellmApiKey"
   | "qianfanApiKey"
+  | "bailianApiKeyCn"
+  | "bailianApiKey"
   | "volcengineApiKey"
   | "byteplusApiKey"
 >;
@@ -197,5 +199,19 @@ export const ONBOARD_PROVIDER_AUTH_FLAGS: ReadonlyArray<OnboardProviderAuthFlag>
     cliFlag: "--byteplus-api-key",
     cliOption: "--byteplus-api-key <key>",
     description: "BytePlus API key",
+  },
+  {
+    optionKey: "bailianApiKeyCn",
+    authChoice: "bailian-api-key-cn",
+    cliFlag: "--bailian-api-key-cn",
+    cliOption: "--bailian-api-key-cn <key>",
+    description: "Alibaba Bailian Coding Plan API key (China)",
+  },
+  {
+    optionKey: "bailianApiKey",
+    authChoice: "bailian-api-key",
+    cliFlag: "--bailian-api-key",
+    cliOption: "--bailian-api-key <key>",
+    description: "Alibaba Bailian Coding Plan API key (Global/Intl)",
   },
 ];
