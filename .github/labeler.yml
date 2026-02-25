@@ -228,6 +228,10 @@
   - changed-files:
       - any-glob-to-any-file:
           - "extensions/memory-lancedb/**"
+"extensions: memory-supabase":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/memory-supabase/**"
 "extensions: open-prose":
   - changed-files:
       - any-glob-to-any-file:

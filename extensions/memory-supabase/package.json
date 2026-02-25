@@ -1,0 +1,19 @@
+{
+  "name": "@openclaw/memory-supabase",
+  "version": "2026.2.24",
+  "private": true,
+  "description": "OpenClaw Supabase-backed long-term memory plugin with auto-recall/capture",
+  "type": "module",
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48",
+    "openai": "^6.22.0"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
