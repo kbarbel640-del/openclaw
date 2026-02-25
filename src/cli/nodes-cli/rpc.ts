@@ -1,10 +1,10 @@
 import type { Command } from "commander";
+import type { NodeListNode, NodesRpcOpts } from "./types.js";
 import { callGateway, randomIdempotencyKey } from "../../gateway/call.js";
 import { resolveNodeIdFromCandidates } from "../../shared/node-match.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../../utils/message-channel.js";
 import { withProgress } from "../progress.js";
 import { parseNodeList, parsePairingList } from "./format.js";
-import type { NodeListNode, NodesRpcOpts } from "./types.js";
 
 export const nodesCallOpts = (cmd: Command, defaults?: { timeoutMs?: number }) =>
   cmd
@@ -72,20 +72,14 @@ export function unauthorizedHintForMessage(message: string): string | null {
   return null;
 }
 
-export async function resolveNodeId(opts: NodesRpcOpts, query: string) {
-  const q = String(query ?? "").trim();
-  if (!q) {
-    throw new Error("node required");
-  }
-
-  let nodes: NodeListNode[] = [];
+async function listNodesCli(opts: NodesRpcOpts): Promise<NodeListNode[]> {
   try {
     const res = await callGatewayCli("node.list", opts, {});
-    nodes = parseNodeList(res);
+    return parseNodeList(res);
   } catch {
     const res = await callGatewayCli("node.pair.list", opts, {});
     const { paired } = parsePairingList(res);
-    nodes = paired.map((n) => ({
+    return paired.map((n) => ({
       nodeId: n.nodeId,
       displayName: n.displayName,
       platform: n.platform,
@@ -93,5 +87,27 @@ export async function resolveNodeId(opts: NodesRpcOpts, query: string) {
       remoteIp: n.remoteIp,
     }));
   }
+}
+
+export async function resolveNodeId(opts: NodesRpcOpts, query: string) {
+  const q = String(query ?? "").trim();
+  if (!q) {
+    throw new Error("node required");
+  }
+  const nodes = await listNodesCli(opts);
   return resolveNodeIdFromCandidates(nodes, q);
+}
+
+export async function resolveNode(opts: NodesRpcOpts, query: string): Promise<NodeListNode> {
+  const q = String(query ?? "").trim();
+  if (!q) {
+    throw new Error("node required");
+  }
+  const nodes = await listNodesCli(opts);
+  const nodeId = resolveNodeIdFromCandidates(nodes, q);
+  const node = nodes.find((n) => n.nodeId === nodeId);
+  if (!node) {
+    throw new Error(`node not found: ${nodeId}`);
+  }
+  return node;
 }

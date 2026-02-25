@@ -93,6 +93,7 @@ describe("nodes camera helpers", () => {
           hasAudio: false,
         },
         facing: "front",
+        expectedHost: "10.0.0.5",
         tmpDir: dir,
         id: "clip1",
       });
