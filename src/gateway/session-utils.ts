@@ -634,6 +634,42 @@ export function getSessionDefaults(cfg: OpenClawConfig): GatewaySessionsDefaults
   };
 }
 
+function inferProviderFromConfiguredModels(
+  cfg: OpenClawConfig,
+  runtimeModel: string,
+): string | undefined {
+  const model = runtimeModel.trim();
+  if (!model || model.includes("/")) {
+    return undefined;
+  }
+  const configuredModels = cfg.agents?.defaults?.models;
+  if (!configuredModels) {
+    return undefined;
+  }
+  const normalized = model.toLowerCase();
+  const providers = new Set<string>();
+  for (const key of Object.keys(configuredModels)) {
+    const ref = key.trim();
+    if (!ref || !ref.includes("/")) {
+      continue;
+    }
+    const parsed = parseModelRef(ref, DEFAULT_PROVIDER);
+    if (!parsed) {
+      continue;
+    }
+    if (parsed.model === model || parsed.model.toLowerCase() === normalized) {
+      providers.add(parsed.provider);
+      if (providers.size > 1) {
+        return undefined;
+      }
+    }
+  }
+  if (providers.size !== 1) {
+    return undefined;
+  }
+  return providers.values().next().value;
+}
+
 export function resolveSessionModelRef(
   cfg: OpenClawConfig,
   entry?:
@@ -665,19 +701,7 @@ export function resolveSessionModelRef(
       // provider the user has no credentials for.
       return { provider: runtimeProvider, model: runtimeModel };
     }
-    // Legacy session entries may have model recorded without modelProvider.
-    // When runtimeModel has no "/" prefix, parseModelRef would use the fallback
-    // provider — but using `resolved.provider` (from config default_model) is wrong
-    // because the default model may belong to a completely different provider.
-    // Example: config default_model = "google-gemini-cli/gemini-3-pro-preview" but
-    // session model = "claude-sonnet-4-6" → would wrongly resolve to
-    // { provider: "google-gemini-cli", model: "claude-sonnet-4-6" }.
-    // Fix: use DEFAULT_PROVIDER as the fallback for unprefixed model names so we
-    // don't cross-contaminate the provider from an unrelated config default.
-    const fallbackProvider = runtimeModel.includes("/")
-      ? provider || DEFAULT_PROVIDER
-      : DEFAULT_PROVIDER;
-    const parsedRuntime = parseModelRef(runtimeModel, fallbackProvider);
+    const parsedRuntime = parseModelRef(runtimeModel, provider || DEFAULT_PROVIDER);
     if (parsedRuntime) {
       provider = parsedRuntime.provider;
       model = parsedRuntime.model;
@@ -702,6 +726,35 @@ export function resolveSessionModelRef(
     }
   }
   return { provider, model };
+}
+
+export function resolveSessionModelIdentityRef(
+  cfg: OpenClawConfig,
+  entry?:
+    | SessionEntry
+    | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">,
+  agentId?: string,
+): { provider?: string; model: string } {
+  const runtimeModel = entry?.model?.trim();
+  const runtimeProvider = entry?.modelProvider?.trim();
+  if (runtimeModel) {
+    if (runtimeProvider) {
+      return { provider: runtimeProvider, model: runtimeModel };
+    }
+    if (runtimeModel.includes("/")) {
+      const parsedRuntime = parseModelRef(runtimeModel, DEFAULT_PROVIDER);
+      if (parsedRuntime) {
+        return { provider: parsedRuntime.provider, model: parsedRuntime.model };
+      }
+      return { model: runtimeModel };
+    }
+    const inferredProvider = inferProviderFromConfiguredModels(cfg, runtimeModel);
+    return inferredProvider
+      ? { provider: inferredProvider, model: runtimeModel }
+      : { model: runtimeModel };
+  }
+  const resolved = resolveSessionModelRef(cfg, entry, agentId);
+  return { provider: resolved.provider, model: resolved.model };
 }
 
 export function listSessionsFromStore(params: {
@@ -794,8 +847,8 @@ export function listSessionsFromStore(params: {
       const deliveryFields = normalizeSessionDeliveryFields(entry);
       const parsedAgent = parseAgentSessionKey(key);
       const sessionAgentId = normalizeAgentId(parsedAgent?.agentId ?? resolveDefaultAgentId(cfg));
-      const resolvedModel = resolveSessionModelRef(cfg, entry, sessionAgentId);
-      const modelProvider = resolvedModel.provider ?? DEFAULT_PROVIDER;
+      const resolvedModel = resolveSessionModelIdentityRef(cfg, entry, sessionAgentId);
+      const modelProvider = resolvedModel.provider;
       const model = resolvedModel.model ?? DEFAULT_MODEL;
       return {
         key,
