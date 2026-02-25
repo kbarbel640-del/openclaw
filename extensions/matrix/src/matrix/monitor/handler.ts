@@ -212,6 +212,18 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         }
       }
 
+      if (
+        isRoom &&
+        roomConfig &&
+        Array.isArray(roomConfig.users) &&
+        roomConfig.users.length === 0
+      ) {
+        logVerboseMessage(
+          `matrix: drop room message (explicit empty room users allowlist, ${roomMatchMeta})`,
+        );
+        return;
+      }
+
       const senderName = await getMemberDisplayName(roomId, senderId);
       const storeAllowFrom =
         dmPolicy === "allowlist"
