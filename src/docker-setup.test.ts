@@ -10,9 +10,9 @@ const repoRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 // Detect if running on Windows without proper bash support
 const isWindows = platform() === "win32";
 const hasBashSupport = (() => {
-if (!isWindows) {
-  return true;
-}
+  if (!isWindows) {
+    return true;
+  }
   // Check if bash is available (e.g., via WSL or Git Bash)
   const result = spawnSync("bash", ["-c", "exit 0"], { encoding: "utf8" });
   return !result.error && result.status === 0;
