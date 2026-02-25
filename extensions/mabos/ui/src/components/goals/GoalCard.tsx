@@ -1,12 +1,32 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { BusinessGoal, GoalLevel } from "@/lib/types";
+import type { BusinessGoal, GoalLevel, GoalState } from "@/lib/types";
 import { WorkflowSteps } from "./WorkflowSteps";
 
 const levelColors: Record<GoalLevel, string> = {
   strategic: "var(--accent-purple)",
   tactical: "var(--accent-blue)",
   operational: "var(--accent-orange)",
+};
+
+const stateColors: Record<GoalState, string> = {
+  pending: "var(--text-muted, #6b7280)",
+  active: "var(--accent-green, #22c55e)",
+  in_progress: "var(--accent-blue, #3b82f6)",
+  achieved: "var(--accent-green, #22c55e)",
+  failed: "var(--accent-red, #ef4444)",
+  suspended: "var(--accent-orange, #f59e0b)",
+  abandoned: "var(--text-muted, #6b7280)",
+};
+
+const stateLabels: Record<GoalState, string> = {
+  pending: "Pending",
+  active: "Active",
+  in_progress: "In Progress",
+  achieved: "Achieved",
+  failed: "Failed",
+  suspended: "Suspended",
+  abandoned: "Abandoned",
 };
 
 type GoalCardProps = {
@@ -16,6 +36,8 @@ type GoalCardProps = {
 
 export function GoalCard({ goal, onSelect }: GoalCardProps) {
   const borderColor = levelColors[goal.level];
+  const goalState = goal.goalState ?? "active";
+  const stateColor = stateColors[goalState] ?? stateColors.active;
 
   return (
     <Card
@@ -28,6 +50,16 @@ export function GoalCard({ goal, onSelect }: GoalCardProps) {
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-medium text-[var(--text-primary)]">{goal.name}</h3>
           <div className="flex items-center gap-1.5 shrink-0">
+            <Badge
+              variant="outline"
+              className="text-[10px] capitalize"
+              style={{
+                borderColor: `color-mix(in srgb, ${stateColor} 40%, transparent)`,
+                color: stateColor,
+              }}
+            >
+              {stateLabels[goalState] ?? goalState}
+            </Badge>
             <Badge
               variant="outline"
               className="text-[10px] capitalize"
@@ -81,6 +113,29 @@ export function GoalCard({ goal, onSelect }: GoalCardProps) {
                 }}
               >
                 {desire}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Preconditions */}
+        {goal.preconditions && goal.preconditions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {goal.preconditions.map((pc) => (
+              <span
+                key={pc.id}
+                className="px-2 py-0.5 text-[10px] rounded-full inline-flex items-center gap-1"
+                style={{
+                  color: pc.satisfied
+                    ? "var(--accent-green, #22c55e)"
+                    : "var(--accent-orange, #f59e0b)",
+                  backgroundColor: pc.satisfied
+                    ? "color-mix(in srgb, var(--accent-green, #22c55e) 10%, transparent)"
+                    : "color-mix(in srgb, var(--accent-orange, #f59e0b) 10%, transparent)",
+                }}
+              >
+                <span>{pc.satisfied ? "\u2713" : "\u25CB"}</span>
+                {pc.name}
               </span>
             ))}
           </div>

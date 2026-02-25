@@ -60,6 +60,11 @@ const typeColors: Record<GoalType, string> = {
   softgoal: "var(--accent-purple)",
   task: "var(--accent-green)",
   resource: "var(--accent-orange)",
+  achieve: "var(--accent-green)",
+  maintain: "var(--accent-blue)",
+  cease: "var(--accent-red, #ef4444)",
+  avoid: "var(--accent-orange)",
+  query: "var(--accent-purple)",
 };
 
 const typeGroups: GoalGroup[] = [
@@ -87,12 +92,42 @@ const typeGroups: GoalGroup[] = [
     color: typeColors.resource,
     filterFn: (g) => g.type === "resource",
   },
+  {
+    id: "achieve",
+    label: "Achieve",
+    color: typeColors.achieve,
+    filterFn: (g) => g.type === "achieve",
+  },
+  {
+    id: "maintain",
+    label: "Maintain",
+    color: typeColors.maintain,
+    filterFn: (g) => g.type === "maintain",
+  },
+  {
+    id: "cease",
+    label: "Cease",
+    color: typeColors.cease,
+    filterFn: (g) => g.type === "cease",
+  },
+  {
+    id: "avoid",
+    label: "Avoid",
+    color: typeColors.avoid,
+    filterFn: (g) => g.type === "avoid",
+  },
+  {
+    id: "query",
+    label: "Query",
+    color: typeColors.query,
+    filterFn: (g) => g.type === "query",
+  },
 ];
 
 const typePerspective: GoalPerspectiveConfig = {
   id: "type",
   label: "Type",
-  description: "Group by goal type (hardgoal, softgoal, task, resource)",
+  description: "Group by goal type (Tropos + BDI)",
   icon: "Shapes",
   groups: typeGroups,
 };

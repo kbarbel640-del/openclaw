@@ -28,6 +28,7 @@ import { textResult } from "./common.js";
 // ── Seed Data ───────────────────────────────────────────────────────────
 
 const AGENTS = [
+  // Core agents
   { id: "vw-ceo", name: "CEO Agent" },
   { id: "vw-cfo", name: "CFO Agent" },
   { id: "vw-cmo", name: "CMO Agent" },
@@ -37,6 +38,15 @@ const AGENTS = [
   { id: "vw-legal", name: "Legal Agent" },
   { id: "vw-knowledge", name: "Knowledge Agent" },
   { id: "vw-strategy", name: "Strategy Agent" },
+  // Domain agents
+  { id: "vw-inventory-mgr", name: "Inventory Manager" },
+  { id: "vw-fulfillment-mgr", name: "Fulfillment Manager" },
+  { id: "vw-product-mgr", name: "Product Manager" },
+  { id: "vw-marketing-director", name: "Marketing Director" },
+  { id: "vw-sales-director", name: "Sales Director" },
+  { id: "vw-compliance-director", name: "Compliance Director" },
+  { id: "vw-creative-director", name: "Creative Director" },
+  { id: "vw-cs-director", name: "Customer Service Director" },
 ];
 
 interface DesireSeed {
@@ -271,6 +281,7 @@ interface GoalSeed {
   deadline?: string;
   parent_goal_id?: string;
   desire_ids: string[]; // desires that motivate this goal
+  goal_type?: string; // BDI goal type: achieve, maintain, cease, avoid, query
 }
 
 const GOALS: GoalSeed[] = [
@@ -286,6 +297,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "Annual revenue >= $13.7M",
     deadline: "2030-12-31",
     desire_ids: ["D-CFO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-S002",
@@ -298,6 +310,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "EBITDA margin >= 26%",
     deadline: "2030-12-31",
     desire_ids: ["D-CFO-001", "D-CFO-003"],
+    goal_type: "achieve",
   },
   {
     id: "G-S003",
@@ -309,6 +322,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "Annual orders >= 18,767",
     deadline: "2030-12-31",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-S004",
@@ -320,6 +334,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "AOV >= $730",
     deadline: "2030-12-31",
     desire_ids: ["D-CMO-001", "D-CMO-003"],
+    goal_type: "achieve",
   },
   {
     id: "G-S005",
@@ -331,6 +346,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "Repeat rate >= 45%",
     deadline: "2030-12-31",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-S006",
@@ -343,6 +359,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "CAC <= $60",
     deadline: "2030-12-31",
     desire_ids: ["D-CMO-002", "D-CFO-003"],
+    goal_type: "achieve",
   },
   {
     id: "G-S007",
@@ -355,6 +372,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "LE revenue mix >= 20%",
     deadline: "2030-12-31",
     desire_ids: ["D-CMO-003"],
+    goal_type: "achieve",
   },
   {
     id: "G-S008",
@@ -366,6 +384,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "Active in >= 3 international markets",
     deadline: "2030-12-31",
     desire_ids: ["D-CEO-003"],
+    goal_type: "achieve",
   },
   {
     id: "G-S009",
@@ -377,6 +396,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "AR feature live in production",
     deadline: "2028-12-31",
     desire_ids: ["D-CTO-003"],
+    goal_type: "achieve",
   },
   {
     id: "G-S010",
@@ -388,6 +408,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "AI generation MVP launched",
     deadline: "2030-12-31",
     desire_ids: ["D-CTO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-S011",
@@ -399,6 +420,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "Showroom open and operational",
     deadline: "2030-12-31",
     desire_ids: ["D-COO-001"],
+    goal_type: "achieve",
   },
   {
     id: "G-S012",
@@ -410,6 +432,7 @@ const GOALS: GoalSeed[] = [
     success_criteria: "Rev/employee >= $1.14M",
     deadline: "2030-12-31",
     desire_ids: ["D-COO-001"],
+    goal_type: "achieve",
   },
 
   // ── Tactical Goals (Year 1-2) ─────────────────────────────────────
@@ -424,6 +447,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S001",
     desire_ids: ["D-CFO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-T002",
@@ -436,6 +460,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2027-12-31",
     parent_goal_id: "G-S001",
     desire_ids: ["D-CFO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-T003",
@@ -448,6 +473,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2027-12-31",
     parent_goal_id: "G-S002",
     desire_ids: ["D-CFO-001"],
+    goal_type: "achieve",
   },
   {
     id: "G-T004",
@@ -460,6 +486,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S003",
     desire_ids: ["D-COO-001"],
+    goal_type: "achieve",
   },
   {
     id: "G-T005",
@@ -472,6 +499,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S004",
     desire_ids: ["D-CMO-001"],
+    goal_type: "maintain",
   },
   {
     id: "G-T006",
@@ -484,6 +512,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S005",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-T007",
@@ -496,6 +525,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S006",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-T008",
@@ -508,6 +538,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S007",
     desire_ids: ["D-CMO-003"],
+    goal_type: "achieve",
   },
   {
     id: "G-T009",
@@ -520,6 +551,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S007",
     desire_ids: ["D-CMO-003"],
+    goal_type: "maintain",
   },
   {
     id: "G-T010",
@@ -532,6 +564,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2027-06-30",
     parent_goal_id: "G-S009",
     desire_ids: ["D-CTO-003"],
+    goal_type: "query",
   },
   {
     id: "G-T011",
@@ -544,6 +577,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S003",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-T012",
@@ -556,6 +590,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2027-12-31",
     parent_goal_id: "G-S003",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-T013",
@@ -568,6 +603,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2027-12-31",
     parent_goal_id: "G-S003",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-T014",
@@ -580,6 +616,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-S012",
     desire_ids: ["D-COO-001"],
+    goal_type: "achieve",
   },
   {
     id: "G-T015",
@@ -592,6 +629,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2027-12-31",
     parent_goal_id: "G-S002",
     desire_ids: ["D-COO-001", "D-CFO-003"],
+    goal_type: "achieve",
   },
 
   // ── Operational Goals (Monthly/Weekly) ────────────────────────────
@@ -606,6 +644,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T001",
     desire_ids: ["D-CFO-002"],
+    goal_type: "maintain",
   },
   {
     id: "G-O002",
@@ -618,6 +657,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T004",
     desire_ids: ["D-COO-001"],
+    goal_type: "maintain",
   },
   {
     id: "G-O003",
@@ -630,6 +670,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T005",
     desire_ids: ["D-CMO-001"],
+    goal_type: "maintain",
   },
   {
     id: "G-O004",
@@ -642,6 +683,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T006",
     desire_ids: ["D-CMO-002"],
+    goal_type: "maintain",
   },
   {
     id: "G-O005",
@@ -654,6 +696,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T007",
     desire_ids: ["D-CMO-002"],
+    goal_type: "maintain",
   },
   {
     id: "G-O006",
@@ -666,6 +709,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-06-30",
     parent_goal_id: "G-T008",
     desire_ids: ["D-CMO-003"],
+    goal_type: "achieve",
   },
   {
     id: "G-O007",
@@ -678,6 +722,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T008",
     desire_ids: ["D-COO-001", "D-COO-003"],
+    goal_type: "maintain",
   },
   {
     id: "G-O008",
@@ -690,6 +735,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T009",
     desire_ids: ["D-CMO-003"],
+    goal_type: "maintain",
   },
   {
     id: "G-O009",
@@ -702,6 +748,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T014",
     desire_ids: ["D-COO-001"],
+    goal_type: "maintain",
   },
   {
     id: "G-O010",
@@ -714,6 +761,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T014",
     desire_ids: ["D-COO-003"],
+    goal_type: "maintain",
   },
   {
     id: "G-O011",
@@ -726,6 +774,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-09-30",
     parent_goal_id: "G-T015",
     desire_ids: ["D-COO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-O012",
@@ -738,6 +787,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T011",
     desire_ids: ["D-CMO-002"],
+    goal_type: "maintain",
   },
   {
     id: "G-O013",
@@ -750,6 +800,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-T012",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-O014",
@@ -762,6 +813,7 @@ const GOALS: GoalSeed[] = [
     deadline: "2026-12-31",
     parent_goal_id: "G-T013",
     desire_ids: ["D-CMO-002"],
+    goal_type: "achieve",
   },
   {
     id: "G-O015",
@@ -774,6 +826,7 @@ const GOALS: GoalSeed[] = [
     deadline: "ongoing",
     parent_goal_id: "G-T015",
     desire_ids: ["D-COO-003"],
+    goal_type: "avoid",
   },
 ];
 
@@ -876,6 +929,124 @@ const BELIEFS: BeliefSeed[] = [
       "Hotels, offices, and healthcare facilities represent $3,600 average order commercial segment",
     source: "BMC segment analysis",
     supports_goals: ["G-T013", "G-O014"],
+  },
+];
+
+// ── Precondition Seed Data ────────────────────────────────────────────────
+
+interface PreconditionSeed {
+  id: string;
+  agentId: string;
+  goalId: string;
+  name: string;
+  type: string;
+  expression: string;
+  referencedGoalId?: string;
+  satisfied?: boolean;
+}
+
+const PRECONDITIONS: PreconditionSeed[] = [
+  {
+    id: "PC-001",
+    agentId: "vw-cfo",
+    goalId: "G-T001",
+    name: "Budget Approved",
+    type: "condition",
+    expression: "budget_approved == true",
+    satisfied: true,
+  },
+  {
+    id: "PC-002",
+    agentId: "vw-cmo",
+    goalId: "G-T008",
+    name: "Consumer Segment Established",
+    type: "goal_state",
+    expression: "G-T011.goal_state == active",
+    referencedGoalId: "G-T011",
+    satisfied: true,
+  },
+  {
+    id: "PC-003",
+    agentId: "vw-coo",
+    goalId: "G-T014",
+    name: "Fulfillment Capacity Ready",
+    type: "goal_state",
+    expression: "G-T004.goal_state == active",
+    referencedGoalId: "G-T004",
+    satisfied: true,
+  },
+  {
+    id: "PC-004",
+    agentId: "vw-cto",
+    goalId: "G-T010",
+    name: "Platform Infrastructure Stable",
+    type: "condition",
+    expression: "platform_uptime >= 99.5",
+    satisfied: true,
+  },
+  {
+    id: "PC-005",
+    agentId: "vw-cmo",
+    goalId: "G-T012",
+    name: "Trade Program Designed",
+    type: "condition",
+    expression: "trade_program_spec_approved == true",
+    satisfied: false,
+  },
+];
+
+// ── Delegation Seed Data ─────────────────────────────────────────────────
+
+interface DelegationSeed {
+  from: string;
+  to: string;
+  goalIds: string[];
+}
+
+const DELEGATIONS: DelegationSeed[] = [
+  // Stakeholder → C-suite (strategic goals)
+  // CMO → Marketing Director, Sales Director, Creative Director
+  {
+    from: "vw-cmo",
+    to: "vw-marketing-director",
+    goalIds: ["G-T011", "G-T007", "G-O012", "G-O005"],
+  },
+  {
+    from: "vw-cmo",
+    to: "vw-sales-director",
+    goalIds: ["G-T012", "G-T013", "G-O013", "G-O014"],
+  },
+  {
+    from: "vw-cmo",
+    to: "vw-creative-director",
+    goalIds: ["G-T008", "G-T009", "G-O006", "G-O008"],
+  },
+  // COO → Inventory Mgr, Fulfillment Mgr, Product Mgr, CS Director
+  {
+    from: "vw-coo",
+    to: "vw-inventory-mgr",
+    goalIds: ["G-O011", "G-T015"],
+  },
+  {
+    from: "vw-coo",
+    to: "vw-fulfillment-mgr",
+    goalIds: ["G-T004", "G-T014", "G-O002", "G-O007"],
+  },
+  {
+    from: "vw-coo",
+    to: "vw-product-mgr",
+    goalIds: ["G-S011", "G-O010", "G-O015"],
+  },
+  {
+    from: "vw-coo",
+    to: "vw-cs-director",
+    goalIds: ["G-O009"],
+  },
+  // CFO → Compliance Director
+  {
+    from: "vw-cfo",
+    to: "vw-compliance-director",
+    goalIds: ["G-T003", "G-S002"],
   },
 ];
 
@@ -2397,6 +2568,7 @@ export function createGoalSeedTools(_api: OpenClawPluginApi): AnyAgentTool[] {
               success_criteria: g.success_criteria,
               deadline: g.deadline,
               parent_goal_id: g.parent_goal_id,
+              goal_type: g.goal_type,
             });
             await client.insertData(typeql, dbName);
             counts.goals++;
@@ -2453,7 +2625,47 @@ export function createGoalSeedTools(_api: OpenClawPluginApi): AnyAgentTool[] {
           }
         }
 
-        // 7. Insert decisions
+        // 7. Insert preconditions
+        let preconditionCount = 0;
+        for (const pc of PRECONDITIONS) {
+          try {
+            const typeql = GoalStoreQueries.createPrecondition(pc.agentId, {
+              id: pc.id,
+              goalId: pc.goalId,
+              name: pc.name,
+              type: pc.type,
+              expression: pc.expression,
+              referencedGoalId: pc.referencedGoalId,
+              satisfied: pc.satisfied,
+            });
+            await client.insertData(typeql, dbName);
+            preconditionCount++;
+          } catch (e) {
+            counts.errors.push(
+              `Precondition ${pc.id}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+        }
+
+        // 8. Insert delegations
+        let delegationCount = 0;
+        for (const del of DELEGATIONS) {
+          for (const goalId of del.goalIds) {
+            try {
+              await client.insertData(
+                GoalStoreQueries.createDelegation(del.from, del.to, goalId),
+                dbName,
+              );
+              delegationCount++;
+            } catch (e) {
+              counts.errors.push(
+                `Delegation ${del.from}→${del.to}/${goalId}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            }
+          }
+        }
+
+        // 9. Insert decisions
         let decisionCount = 0;
         let decisionGoalLinks = 0;
         for (const d of DECISIONS) {
@@ -2612,6 +2824,8 @@ insert (container: $plan, contained: $step) isa plan_contains_step;`,
 - Desires: ${counts.desires}/${DESIRES.length}
 - Goals: ${counts.goals}/${GOALS.length} (${GOALS.filter((g) => g.hierarchy_level === "strategic").length} strategic, ${GOALS.filter((g) => g.hierarchy_level === "tactical").length} tactical, ${GOALS.filter((g) => g.hierarchy_level === "operational").length} operational)
 - Beliefs: ${counts.beliefs}/${BELIEFS.length}
+- Preconditions: ${preconditionCount}/${PRECONDITIONS.length}
+- Delegations: ${delegationCount}/${DELEGATIONS.reduce((a, d) => a + d.goalIds.length, 0)}
 - Decisions: ${decisionCount}/${DECISIONS.length}
 - Workflows: ${workflowCount}/${WORKFLOWS.length}
 - Plans: ${planCount}/${WORKFLOWS.length}
@@ -2621,6 +2835,8 @@ insert (container: $plan, contained: $step) isa plan_contains_step;`,
 ### Relations Created
 - desire_motivates_goal: ${counts.desire_goal_links}
 - belief_supports_goal: ${counts.belief_goal_links}
+- goal_has_precondition: ${preconditionCount}
+- goal_delegation: ${delegationCount}
 - decision_resolves_goal: ${decisionGoalLinks}
 - goal_requires_plan: ${goalPlanLinks}
 - plan_contains_step: ${planStepLinks}${errorSummary}`);

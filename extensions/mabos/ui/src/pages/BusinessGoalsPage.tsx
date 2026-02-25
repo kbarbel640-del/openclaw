@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePanels } from "@/contexts/PanelContext";
 import { useGoalModel } from "@/hooks/useGoalModel";
-import type { BusinessGoal, GoalLevel, GoalPerspective, GoalType } from "@/lib/types";
+import type { BusinessGoal, GoalLevel, GoalPerspective, GoalState, GoalType } from "@/lib/types";
 
 const BUSINESS_ID = "vividwalls";
 
@@ -35,6 +35,7 @@ export function BusinessGoalsPage() {
   const { data: goalModel, isLoading, error } = useGoalModel(BUSINESS_ID);
   const [levelFilter, setLevelFilter] = useState<GoalLevel | "all">("all");
   const [typeFilter, setTypeFilter] = useState<GoalType | "all">("all");
+  const [stateFilter, setStateFilter] = useState<GoalState | "all">("all");
   const [viewMode, setViewMode] = useState<GoalViewMode>("grid");
   const [perspective, setPerspective] = useState<GoalPerspective>("level");
   const { openDetailPanel } = usePanels();
@@ -81,6 +82,7 @@ export function BusinessGoalsPage() {
       domain: g.domain,
       parentGoalId: g.parentGoalId,
       actor: g.actor,
+      goalState: (g as any).goalState ?? undefined,
     }));
   }, [goalModel]);
 
@@ -88,9 +90,10 @@ export function BusinessGoalsPage() {
     return goals.filter((g) => {
       if (levelFilter !== "all" && g.level !== levelFilter) return false;
       if (typeFilter !== "all" && g.type !== typeFilter) return false;
+      if (stateFilter !== "all" && (g.goalState ?? "active") !== stateFilter) return false;
       return true;
     });
-  }, [goals, levelFilter, typeFilter]);
+  }, [goals, levelFilter, typeFilter, stateFilter]);
 
   return (
     <div className="space-y-6">
@@ -156,10 +159,34 @@ export function BusinessGoalsPage() {
             className="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-purple)]"
           >
             <option value="all">All Types</option>
-            <option value="hardgoal">Hard Goal</option>
-            <option value="softgoal">Soft Goal</option>
-            <option value="task">Task</option>
-            <option value="resource">Resource</option>
+            <optgroup label="Tropos">
+              <option value="hardgoal">Hard Goal</option>
+              <option value="softgoal">Soft Goal</option>
+              <option value="task">Task</option>
+              <option value="resource">Resource</option>
+            </optgroup>
+            <optgroup label="BDI">
+              <option value="achieve">Achieve</option>
+              <option value="maintain">Maintain</option>
+              <option value="cease">Cease</option>
+              <option value="avoid">Avoid</option>
+              <option value="query">Query</option>
+            </optgroup>
+          </select>
+
+          <select
+            value={stateFilter}
+            onChange={(e) => setStateFilter(e.target.value as GoalState | "all")}
+            className="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-purple)]"
+          >
+            <option value="all">All States</option>
+            <option value="pending">Pending</option>
+            <option value="active">Active</option>
+            <option value="in_progress">In Progress</option>
+            <option value="achieved">Achieved</option>
+            <option value="failed">Failed</option>
+            <option value="suspended">Suspended</option>
+            <option value="abandoned">Abandoned</option>
           </select>
         </div>
       )}
