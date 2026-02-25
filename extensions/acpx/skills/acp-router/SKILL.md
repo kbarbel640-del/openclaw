@@ -12,7 +12,7 @@ When user intent is "run this in Codex/Claude Code/Gemini/OpenCode/Pi (ACP harne
 
 Trigger this skill when the user asks OpenClaw to:
 
-- run something in Codex / Claude Code / Gemini
+- run something in Codex / Claude Code / Gemini / OpenCode / Pi
 - continue existing harness work
 - relay instructions to an external coding harness
 - keep an external harness conversation in a thread-like conversation
@@ -41,10 +41,12 @@ Do not use:
 Use these defaults when user names a harness directly:
 
 - "codex" -> `agentId: "codex"`
-- "claude code" -> `agentId: "claudecode"`
+- "claude" or "claude code" -> `agentId: "claude"`
 - "gemini" or "gemini cli" -> `agentId: "gemini"`
 - "opencode" -> `agentId: "opencode"`
 - "pi" -> `agentId: "pi"`
+
+These defaults match current acpx built-in aliases.
 
 If policy rejects the chosen id, report the policy error clearly and ask for the allowed ACP agent id.
 

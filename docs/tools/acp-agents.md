@@ -143,6 +143,20 @@ Available command family:
 
 Some controls depend on backend capabilities. If a backend does not support a control, OpenClaw returns a clear unsupported-control error.
 
+## acpx harness support (current)
+
+Current acpx built-in harness aliases:
+
+- `codex`
+- `claude`
+- `gemini`
+- `opencode`
+- `pi`
+
+When OpenClaw uses the acpx backend, prefer these values for `agentId` unless your acpx config defines custom agent aliases.
+
+Direct acpx CLI usage can also target arbitrary adapters via `--agent <command>`, but that raw escape hatch is an acpx CLI feature (not the normal OpenClaw `agentId` path).
+
 ## Required config
 
 Core ACP baseline:
