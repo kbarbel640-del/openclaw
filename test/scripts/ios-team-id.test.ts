@@ -135,7 +135,7 @@ echo '{}'`,
       path.join(binDir, "defaults"),
       `#!/usr/bin/env bash
 if [[ "$3" == "DVTDeveloperAccountManagerAppleIDLists" ]]; then
-  echo '(identifier = "dev@example.com";)'  
+  echo '(identifier = "dev@example.com";)'
   exit 0
 fi
 echo "Domain/default pair of (com.apple.dt.Xcode, $3) does not exist" >&2
