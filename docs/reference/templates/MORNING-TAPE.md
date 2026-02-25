@@ -9,43 +9,50 @@ read_when:
 
 # MORNING-TAPE.md — Session Continuity
 
-_Named after the tape Leonard watches every morning in Memento to remember who he is._
+_Named after the tape Lucy watches every morning in 50 First Dates — context about her life that doesn't survive overnight, reconstructed fresh each day._
 
 OpenClaw agents start fresh each session. SOUL.md tells you who you are. USER.md tells you who you're helping. MORNING-TAPE.md tells you what's been happening lately — the living context that makes continuity possible.
 
-## What Goes Here
+## Step 1: Read It at Startup
 
-Write this file at the end of each session (or periodically) with:
-
-- **Where things stand** — active projects, what's in progress, what's blocked
-- **Recent conversations** — key things said or decided in the last 1-3 sessions
-- **Pending questions / proposals** — anything waiting for a response (verbatim if important)
-- **Emotional/conversational tone** — is this a working session? A personal check-in? Tense? Relaxed?
-- **What I should NOT do** — active constraints or paused work
-- **Anything I'd be embarrassed to forget** — the stuff that makes re-introductions feel disrespectful
-
-## How to Use It
-
-Add it to your startup sequence in AGENTS.md:
+The file only helps if the agent actually reads it. Add it explicitly to your startup sequence in AGENTS.md:
 
 ```markdown
 ## Every Session — Startup Sequence
 
-1. **Read `memory/MORNING-TAPE.md`** — your 50 First Dates tape. Always start here.
+Before doing anything else:
+
+1. **Read `memory/MORNING-TAPE.md`** — your continuity tape. Always start here.
 2. Read `SOUL.md` — who you are
 3. Read `USER.md` — who you're helping
-4. Read today's memory file if you keep one
 ```
 
-Keep it short (< 500 tokens). You want fast context recovery, not a novel.
+The `read` tool call should be the very first action in any session:
 
-## When to Update It
+```
+read file_path="memory/MORNING-TAPE.md"
+```
 
-- Before ending a long session
-- After something significant happens (decision, conflict, new direction)
-- When you notice you're about to lose important context
+Don't skip it. Don't assume you remember. Read it.
 
-Update it with a simple write — no ceremony needed.
+## Step 2: Write It When Context Changes
+
+Update MORNING-TAPE.md whenever something important happens — before ending a session, after a significant decision, or when you notice you're about to lose context:
+
+```
+write path="memory/MORNING-TAPE.md" content="..."
+```
+
+Keep it short (under 500 tokens). You want fast recovery, not a novel.
+
+## What Goes Here
+
+- **Where things stand** — active projects, what's in progress, what's blocked
+- **Recent conversations** — key things said or decided in the last 1-3 sessions
+- **Pending questions / proposals** — anything waiting for a response (quote verbatim if critical)
+- **Emotional/conversational tone** — is this a working session? A personal check-in?
+- **What I should NOT do** — active constraints, paused work, things to avoid
+- **Anything I'd be embarrassed to forget** — the stuff that makes re-introductions feel disrespectful
 
 ## Template
 
@@ -79,6 +86,9 @@ Update it with a simple write — no ceremony needed.
 
 The difference between a session that picks up seamlessly and one where the user has to re-explain everything is usually one file read. SOUL.md is stable. USER.md is stable. MORNING-TAPE is the moving part — the thing that makes you feel present rather than just capable.
 
+Without it: "Hey! I'm here. What would you like to do?"
+With it: you already know what's in progress, what's pending, and what the vibe is before the first message arrives.
+
 ---
 
-_Update this file. It's how you persist._
+_Read it first. Write it last. That's the whole protocol._
