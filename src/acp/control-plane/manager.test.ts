@@ -380,6 +380,46 @@ describe("AcpSessionManager", () => {
     expect(runtimeState.ensureSession).toHaveBeenCalledTimes(1);
   });
 
+  it("enforces acp.maxConcurrentSessions during initializeSession", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.upsertAcpSessionMetaMock.mockResolvedValue({
+      sessionKey: "agent:codex:acp:session-a",
+      storeSessionKey: "agent:codex:acp:session-a",
+      acp: readySessionMeta(),
+    });
+    const limitedCfg = {
+      acp: {
+        ...baseCfg.acp,
+        maxConcurrentSessions: 1,
+      },
+    } as OpenClawConfig;
+
+    const manager = new AcpSessionManager();
+    await manager.initializeSession({
+      cfg: limitedCfg,
+      sessionKey: "agent:codex:acp:session-a",
+      agent: "codex",
+      mode: "persistent",
+    });
+
+    await expect(
+      manager.initializeSession({
+        cfg: limitedCfg,
+        sessionKey: "agent:codex:acp:session-b",
+        agent: "codex",
+        mode: "persistent",
+      }),
+    ).rejects.toMatchObject({
+      code: "ACP_SESSION_INIT_FAILED",
+      message: expect.stringContaining("max concurrent sessions"),
+    });
+    expect(runtimeState.ensureSession).toHaveBeenCalledTimes(1);
+  });
+
   it("drops cached runtime handles when close tolerates backend-unavailable errors", async () => {
     const runtimeState = createRuntime();
     runtimeState.close.mockRejectedValueOnce(
@@ -1180,5 +1220,31 @@ describe("AcpSessionManager", () => {
     expect(result.runtimeNotice).toContain("not configured");
     expect(result.metaCleared).toBe(true);
     expect(hoisted.upsertAcpSessionMetaMock).toHaveBeenCalled();
+  });
+
+  it("surfaces metadata clear errors during closeSession", async () => {
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: readySessionMeta(),
+    });
+    hoisted.requireAcpRuntimeBackendMock.mockImplementation(() => {
+      throw new AcpRuntimeError(
+        "ACP_BACKEND_MISSING",
+        "ACP runtime backend is not configured. Install and enable the acpx runtime plugin.",
+      );
+    });
+    hoisted.upsertAcpSessionMetaMock.mockRejectedValueOnce(new Error("disk locked"));
+
+    const manager = new AcpSessionManager();
+    await expect(
+      manager.closeSession({
+        cfg: baseCfg,
+        sessionKey: "agent:codex:acp:session-1",
+        reason: "manual-close",
+        allowBackendUnavailable: true,
+        clearMeta: true,
+      }),
+    ).rejects.toThrow("disk locked");
   });
 });

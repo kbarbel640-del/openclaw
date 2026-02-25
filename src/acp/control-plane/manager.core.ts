@@ -222,6 +222,10 @@ export class AcpSessionManager {
       const runtime = backend.runtime;
       const initialRuntimeOptions = validateRuntimeOptionPatch({ cwd: input.cwd });
       const requestedCwd = initialRuntimeOptions.cwd;
+      this.enforceConcurrentSessionLimit({
+        cfg: input.cfg,
+        sessionKey,
+      });
       const handle = await withAcpRuntimeErrorBoundary({
         run: async () =>
           await runtime.ensureSession({
@@ -920,6 +924,7 @@ export class AcpSessionManager {
             }
             return null;
           },
+          failOnError: true,
         });
         metaCleared = true;
       }
