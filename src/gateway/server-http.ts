@@ -213,7 +213,7 @@ export function createHooksRequestHandler(
     maxAttempts: HOOK_AUTH_FAILURE_LIMIT,
     windowMs: HOOK_AUTH_FAILURE_WINDOW_MS,
     lockoutMs: HOOK_AUTH_FAILURE_WINDOW_MS,
-    exemptLoopback: false,
+    exemptLoopback: true,
     // Handler lifetimes are tied to gateway runtime/tests; skip background timer fanout.
     pruneIntervalMs: 0,
   });
