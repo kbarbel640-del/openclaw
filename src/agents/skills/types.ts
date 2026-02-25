@@ -30,6 +30,19 @@ export type OpenClawSkillMetadata = {
     config?: string[];
   };
   install?: SkillInstallSpec[];
+  /**
+   * Skill names this skill replaces (for migration tracking).
+   * When a skill is renamed or merged, list the old name(s) here so the
+   * loader can warn if stale references are found in AGENTS.md / HEARTBEAT.md.
+   */
+  replaces?: string[];
+  /**
+   * Mark a skill as deprecated. Agents will see a warning when the skill loads.
+   */
+  deprecated?: {
+    reason: string;
+    replacement?: string; // name of the skill to use instead
+  };
 };
 
 export type SkillInvocationPolicy = {

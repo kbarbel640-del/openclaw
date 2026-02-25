@@ -191,10 +191,20 @@ function loadSkillEntries(
     } catch {
       // ignore malformed skills
     }
+    const metadata = resolveOpenClawMetadata(frontmatter);
+    // Warn if skill is marked deprecated
+    if (metadata?.deprecated) {
+      const { reason, replacement } = metadata.deprecated;
+      skillsLogger.warn("deprecated skill loaded", {
+        name: skill.name,
+        reason,
+        replacement: replacement ?? "(none specified)",
+      });
+    }
     return {
       skill,
       frontmatter,
-      metadata: resolveOpenClawMetadata(frontmatter),
+      metadata,
       invocation: resolveSkillInvocationPolicy(frontmatter),
     };
   });
