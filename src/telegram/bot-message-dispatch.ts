@@ -418,6 +418,27 @@ export const dispatchTelegramMessage = async ({
     void statusReactionController.setThinking();
   }
 
+  // Create typing callbacks to start/stop typing indicator
+  const stopTyping = async () => {
+    // Telegram doesn't have a direct "stop typing" API.
+    // The typing indicator will clear when a message is sent,
+    // or we can try sending a 'cancel' action (not widely supported).
+    // For now, we just log that we're stopping typing.
+    logVerbose(`telegram: stopping typing indicator for chat ${chatId}`);
+  };
+  const telegramTypingCallbacks = createTypingCallbacks({
+    start: sendTyping,
+    stop: stopTyping,
+    onStartError: (err) => {
+      logTypingFailure({
+        log: logVerbose,
+        channel: "telegram",
+        target: String(chatId),
+        error: err,
+      });
+    },
+  });
+
   try {
     ({ queuedFinal } = await dispatchReplyWithBufferedBlockDispatcher({
       ctx: ctxPayload,
@@ -528,17 +549,9 @@ export const dispatchTelegramMessage = async ({
           deliveryState.markNonSilentFailure();
           runtime.error?.(danger(`telegram ${info.kind} reply failed: ${String(err)}`));
         },
-        onReplyStart: createTypingCallbacks({
-          start: sendTyping,
-          onStartError: (err) => {
-            logTypingFailure({
-              log: logVerbose,
-              channel: "telegram",
-              target: String(chatId),
-              error: err,
-            });
-          },
-        }).onReplyStart,
+        onReplyStart: telegramTypingCallbacks.onReplyStart,
+        onIdle: telegramTypingCallbacks.onIdle,
+        onCleanup: telegramTypingCallbacks.onCleanup,
       },
       replyOptions: {
         skillFilter,
