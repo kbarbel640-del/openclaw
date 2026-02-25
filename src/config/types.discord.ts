@@ -113,6 +113,13 @@ export type DiscordVoiceConfig = {
   decryptionFailureTolerance?: number;
   /** Optional TTS overrides for Discord voice output. */
   tts?: TtsConfig;
+
+  /**
+   * DAVE-related options passed through to @discordjs/voice joinVoiceChannel.
+   * These are intentionally permissive to allow forward-compatible config.
+   */
+  daveEncryption?: boolean;
+  decryptionFailureTolerance?: number;
 };
 
 export type DiscordExecApprovalConfig = {

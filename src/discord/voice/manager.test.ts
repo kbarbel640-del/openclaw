@@ -246,17 +246,23 @@ describe("DiscordVoiceManager", () => {
 
     await manager.join({ guildId: "g1", channelId: "c1" });
 
-    const entry = (manager as { sessions: Map<string, unknown> }).sessions.get("g1");
+    const anyManager = manager as unknown as { sessions: Map<string, unknown> };
+    const entry = anyManager.sessions.get("g1");
     expect(entry).toBeDefined();
-    (manager as { handleReceiveError: (e: unknown, err: unknown) => void }).handleReceiveError(
+
+    const anyManagerWithErrorHandler = manager as unknown as {
+      handleReceiveError: (e: unknown, err: unknown) => void;
+    };
+
+    anyManagerWithErrorHandler.handleReceiveError(
       entry,
       new Error("Failed to decrypt: DecryptionFailed(UnencryptedWhenPassthroughDisabled)"),
     );
-    (manager as { handleReceiveError: (e: unknown, err: unknown) => void }).handleReceiveError(
+    anyManagerWithErrorHandler.handleReceiveError(
       entry,
       new Error("Failed to decrypt: DecryptionFailed(UnencryptedWhenPassthroughDisabled)"),
     );
-    (manager as { handleReceiveError: (e: unknown, err: unknown) => void }).handleReceiveError(
+    anyManagerWithErrorHandler.handleReceiveError(
       entry,
       new Error("Failed to decrypt: DecryptionFailed(UnencryptedWhenPassthroughDisabled)"),
     );
