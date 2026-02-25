@@ -5,8 +5,7 @@
   "description": "OpenClaw Supabase-backed long-term memory plugin with auto-recall/capture",
   "type": "module",
   "dependencies": {
-    "@sinclair/typebox": "0.34.48",
-    "openai": "^6.22.0"
+    "@sinclair/typebox": "0.34.48"
   },
   "devDependencies": {
     "openclaw": "workspace:*"

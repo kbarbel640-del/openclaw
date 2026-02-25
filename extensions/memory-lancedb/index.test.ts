@@ -50,6 +50,7 @@ describe("memory plugin e2e", () => {
 
     const config = memoryPlugin.configSchema?.parse?.({
       embedding: {
+        provider: "openai",
         apiKey: OPENAI_API_KEY,
         model: "text-embedding-3-small",
       },
@@ -72,6 +73,7 @@ describe("memory plugin e2e", () => {
 
     const config = memoryPlugin.configSchema?.parse?.({
       embedding: {
+        provider: "openai",
         apiKey: "${TEST_MEMORY_API_KEY}",
       },
       dbPath,
@@ -82,15 +84,19 @@ describe("memory plugin e2e", () => {
     delete process.env.TEST_MEMORY_API_KEY;
   });
 
-  test("config schema rejects missing apiKey", async () => {
+  test("config schema allows provider auth resolution without embedding.apiKey", async () => {
     const { default: memoryPlugin } = await import("./index.js");
 
-    expect(() => {
-      memoryPlugin.configSchema?.parse?.({
-        embedding: {},
-        dbPath,
-      });
-    }).toThrow("embedding.apiKey is required");
+    const config = memoryPlugin.configSchema?.parse?.({
+      embedding: {
+        provider: "gemini",
+      },
+      dbPath,
+    });
+
+    expect(config?.embedding?.provider).toBe("gemini");
+    expect(config?.embedding?.apiKey).toBeUndefined();
+    expect(config?.embedding?.model).toBe("gemini-embedding-001");
   });
 
   test("config schema validates captureMaxChars range", async () => {
@@ -98,7 +104,7 @@ describe("memory plugin e2e", () => {
 
     expect(() => {
       memoryPlugin.configSchema?.parse?.({
-        embedding: { apiKey: OPENAI_API_KEY },
+        embedding: { provider: "openai", apiKey: OPENAI_API_KEY },
         dbPath,
         captureMaxChars: 99,
       });
@@ -110,6 +116,7 @@ describe("memory plugin e2e", () => {
 
     const config = memoryPlugin.configSchema?.parse?.({
       embedding: {
+        provider: "openai",
         apiKey: OPENAI_API_KEY,
         model: "text-embedding-3-small",
       },
@@ -125,6 +132,7 @@ describe("memory plugin e2e", () => {
 
     const config = memoryPlugin.configSchema?.parse?.({
       embedding: {
+        provider: "openai",
         apiKey: OPENAI_API_KEY,
         model: "text-embedding-3-small",
       },
@@ -232,6 +240,7 @@ describeLive("memory plugin live tests", () => {
       config: {},
       pluginConfig: {
         embedding: {
+          provider: "openai",
           apiKey: liveApiKey,
           model: "text-embedding-3-small",
         },

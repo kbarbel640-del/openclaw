@@ -92,6 +92,17 @@ export type { OpenClawConfig } from "../config/config.js";
 /** @deprecated Use OpenClawConfig instead */
 export type { OpenClawConfig as ClawdbotConfig } from "../config/config.js";
 export { isDangerousNameMatchingEnabled } from "../config/dangerous-name-matching.js";
+export {
+  createPluginMemoryEmbeddingAdapter,
+  defaultMemoryEmbeddingApiKeyEnvVar,
+  defaultMemoryEmbeddingModel,
+  resolveMemoryEmbeddingModel,
+} from "./memory-embeddings.js";
+export type {
+  MemoryEmbeddingProviderId,
+  PluginMemoryEmbeddingAdapter,
+  PluginMemoryEmbeddingConfig,
+} from "./memory-embeddings.js";
 
 export type { FileLockHandle, FileLockOptions } from "./file-lock.js";
 export { acquireFileLock, withFileLock } from "./file-lock.js";

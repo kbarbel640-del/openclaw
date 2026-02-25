@@ -2,21 +2,23 @@
  * OpenClaw Memory (LanceDB) Plugin
  *
  * Long-term memory with vector search for AI conversations.
- * Uses LanceDB for storage and OpenAI for embeddings.
+ * Uses LanceDB for storage and provider-pluggable embeddings.
  * Provides seamless auto-recall and auto-capture via lifecycle hooks.
  */
 
 import { randomUUID } from "node:crypto";
 import type * as LanceDB from "@lancedb/lancedb";
 import { Type } from "@sinclair/typebox";
-import OpenAI from "openai";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import {
+  createPluginMemoryEmbeddingAdapter,
+  type OpenClawPluginApi,
+  type PluginMemoryEmbeddingAdapter,
+} from "openclaw/plugin-sdk";
 import {
   DEFAULT_CAPTURE_MAX_CHARS,
   MEMORY_CATEGORIES,
   type MemoryCategory,
   memoryConfigSchema,
-  vectorDimsForModel,
 } from "./config.js";
 
 // ============================================================================
@@ -61,12 +63,9 @@ class MemoryDB {
   private table: LanceDB.Table | null = null;
   private initPromise: Promise<void> | null = null;
 
-  constructor(
-    private readonly dbPath: string,
-    private readonly vectorDim: number,
-  ) {}
+  constructor(private readonly dbPath: string) {}
 
-  private async ensureInitialized(): Promise<void> {
+  private async ensureInitialized(vectorDimHint?: number): Promise<void> {
     if (this.table) {
       return;
     }
@@ -74,23 +73,36 @@ class MemoryDB {
       return this.initPromise;
     }
 
-    this.initPromise = this.doInitialize();
+    this.initPromise = this.doInitialize(vectorDimHint).finally(() => {
+      this.initPromise = null;
+    });
     return this.initPromise;
   }
 
-  private async doInitialize(): Promise<void> {
-    const lancedb = await loadLanceDB();
-    this.db = await lancedb.connect(this.dbPath);
+  private async doInitialize(vectorDimHint?: number): Promise<void> {
+    if (!this.db) {
+      const lancedb = await loadLanceDB();
+      this.db = await lancedb.connect(this.dbPath);
+    }
     const tables = await this.db.tableNames();
 
     if (tables.includes(TABLE_NAME)) {
       this.table = await this.db.openTable(TABLE_NAME);
+      return;
+    }
+
+    const vectorDim =
+      typeof vectorDimHint === "number" && Number.isFinite(vectorDimHint)
+        ? Math.floor(vectorDimHint)
+        : 0;
+    if (vectorDim <= 0) {
+      return;
     } else {
       this.table = await this.db.createTable(TABLE_NAME, [
         {
           id: "__schema__",
           text: "",
-          vector: Array.from({ length: this.vectorDim }).fill(0),
+          vector: Array.from({ length: vectorDim }).fill(0),
           importance: 0,
           category: "other",
           createdAt: 0,
@@ -101,7 +113,10 @@ class MemoryDB {
   }
 
   async store(entry: Omit<MemoryEntry, "id" | "createdAt">): Promise<MemoryEntry> {
-    await this.ensureInitialized();
+    await this.ensureInitialized(entry.vector.length);
+    if (!this.table) {
+      throw new Error("memory-lancedb: failed to initialize table");
+    }
 
     const fullEntry: MemoryEntry = {
       ...entry,
@@ -114,7 +129,10 @@ class MemoryDB {
   }
 
   async search(vector: number[], limit = 5, minScore = 0.5): Promise<MemorySearchResult[]> {
-    await this.ensureInitialized();
+    await this.ensureInitialized(vector.length);
+    if (!this.table) {
+      return [];
+    }
 
     const results = await this.table!.vectorSearch(vector).limit(limit).toArray();
 
@@ -141,6 +159,9 @@ class MemoryDB {
 
   async delete(id: string): Promise<boolean> {
     await this.ensureInitialized();
+    if (!this.table) {
+      return false;
+    }
     // Validate UUID format to prevent injection
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(id)) {
@@ -152,30 +173,10 @@ class MemoryDB {
 
   async count(): Promise<number> {
     await this.ensureInitialized();
+    if (!this.table) {
+      return 0;
+    }
     return this.table!.countRows();
-  }
-}
-
-// ============================================================================
-// OpenAI Embeddings
-// ============================================================================
-
-class Embeddings {
-  private client: OpenAI;
-
-  constructor(
-    apiKey: string,
-    private model: string,
-  ) {
-    this.client = new OpenAI({ apiKey });
-  }
-
-  async embed(text: string): Promise<number[]> {
-    const response = await this.client.embeddings.create({
-      model: this.model,
-      input: text,
-    });
-    return response.data[0].embedding;
   }
 }
 
@@ -293,11 +294,25 @@ const memoryPlugin = {
   register(api: OpenClawPluginApi) {
     const cfg = memoryConfigSchema.parse(api.pluginConfig);
     const resolvedDbPath = api.resolvePath(cfg.dbPath!);
-    const vectorDim = vectorDimsForModel(cfg.embedding.model ?? "text-embedding-3-small");
-    const db = new MemoryDB(resolvedDbPath, vectorDim);
-    const embeddings = new Embeddings(cfg.embedding.apiKey, cfg.embedding.model!);
+    const db = new MemoryDB(resolvedDbPath);
+    let embeddingsPromise: Promise<PluginMemoryEmbeddingAdapter> | null = null;
+    const getEmbeddings = async () => {
+      if (!embeddingsPromise) {
+        embeddingsPromise = createPluginMemoryEmbeddingAdapter({
+          config: api.config,
+          embedding: cfg.embedding,
+        });
+      }
+      return await embeddingsPromise;
+    };
+    const embedText = async (text: string): Promise<number[]> => {
+      const embeddings = await getEmbeddings();
+      return await embeddings.embed(text);
+    };
 
-    api.logger.info(`memory-lancedb: plugin registered (db: ${resolvedDbPath}, lazy init)`);
+    api.logger.info(
+      `memory-lancedb: plugin registered (db: ${resolvedDbPath}, provider: ${cfg.embedding.provider}, model: ${cfg.embedding.model})`,
+    );
 
     // ========================================================================
     // Tools
@@ -316,7 +331,7 @@ const memoryPlugin = {
         async execute(_toolCallId, params) {
           const { query, limit = 5 } = params as { query: string; limit?: number };
 
-          const vector = await embeddings.embed(query);
+          const vector = await embedText(query);
           const results = await db.search(vector, limit, 0.1);
 
           if (results.length === 0) {
@@ -378,7 +393,7 @@ const memoryPlugin = {
             category?: MemoryEntry["category"];
           };
 
-          const vector = await embeddings.embed(text);
+          const vector = await embedText(text);
 
           // Check for duplicates
           const existing = await db.search(vector, 1, 0.95);
@@ -435,7 +450,7 @@ const memoryPlugin = {
           }
 
           if (query) {
-            const vector = await embeddings.embed(query);
+            const vector = await embedText(query);
             const results = await db.search(vector, 5, 0.7);
 
             if (results.length === 0) {
@@ -507,7 +522,7 @@ const memoryPlugin = {
           .argument("<query>", "Search query")
           .option("--limit <n>", "Max results", "5")
           .action(async (query, opts) => {
-            const vector = await embeddings.embed(query);
+            const vector = await embedText(query);
             const results = await db.search(vector, parseInt(opts.limit), 0.3);
             // Strip vectors for output
             const output = results.map((r) => ({
@@ -543,7 +558,7 @@ const memoryPlugin = {
         }
 
         try {
-          const vector = await embeddings.embed(event.prompt);
+          const vector = await embedText(event.prompt);
           const results = await db.search(vector, 3, 0.3);
 
           if (results.length === 0) {
@@ -623,7 +638,7 @@ const memoryPlugin = {
           let stored = 0;
           for (const text of toCapture.slice(0, 3)) {
             const category = detectCategory(text);
-            const vector = await embeddings.embed(text);
+            const vector = await embedText(text);
 
             // Check for duplicates (high similarity threshold)
             const existing = await db.search(vector, 1, 0.95);
@@ -657,7 +672,7 @@ const memoryPlugin = {
       id: "memory-lancedb",
       start: () => {
         api.logger.info(
-          `memory-lancedb: initialized (db: ${resolvedDbPath}, model: ${cfg.embedding.model})`,
+          `memory-lancedb: initialized (db: ${resolvedDbPath}, provider: ${cfg.embedding.provider}, model: ${cfg.embedding.model})`,
         );
       },
       stop: () => {

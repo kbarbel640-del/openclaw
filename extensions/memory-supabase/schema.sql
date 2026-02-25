@@ -1,6 +1,6 @@
 -- OpenClaw Memory (Supabase) schema
--- Default embedding dimension below is 1536 (text-embedding-3-small).
--- If you use text-embedding-3-large, change vector(1536) -> vector(3072).
+-- Default embedding dimension below is 1536 (openai/text-embedding-3-small).
+-- Update vector(1536) to match your selected embedding model dimensions.
 
 create extension if not exists vector;
 create extension if not exists pgcrypto;
@@ -176,4 +176,3 @@ grant execute on function public.openclaw_match_memories(text, text, integer, do
 grant execute on function public.openclaw_get_memory(text, uuid) to service_role;
 grant execute on function public.openclaw_forget_memory(text, uuid) to service_role;
 grant execute on function public.openclaw_memory_count(text) to service_role;
-

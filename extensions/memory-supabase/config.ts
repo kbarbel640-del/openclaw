@@ -1,3 +1,9 @@
+import {
+  defaultMemoryEmbeddingApiKeyEnvVar,
+  resolveMemoryEmbeddingModel,
+  type MemoryEmbeddingProviderId,
+} from "openclaw/plugin-sdk";
+
 export type MemoryCategory = "preference" | "fact" | "decision" | "entity" | "other";
 
 export type MemorySupabaseConfig = {
@@ -13,9 +19,13 @@ export type MemorySupabaseConfig = {
     };
   };
   embedding: {
-    provider: "openai";
-    apiKey: string;
-    model?: string;
+    provider: MemoryEmbeddingProviderId;
+    apiKey?: string;
+    model: string;
+    local?: {
+      modelPath?: string;
+      modelCacheDir?: string;
+    };
   };
   autoCapture?: boolean;
   autoRecall?: boolean;
@@ -32,11 +42,19 @@ export const MEMORY_CATEGORIES: readonly MemoryCategory[] = [
   "other",
 ];
 
-const DEFAULT_MODEL = "text-embedding-3-small";
+const DEFAULT_PROVIDER: MemoryEmbeddingProviderId = "openai";
+const DEFAULT_MODEL = resolveMemoryEmbeddingModel(DEFAULT_PROVIDER);
 export const DEFAULT_CAPTURE_MAX_CHARS = 500;
 const DEFAULT_MAX_RECALL_RESULTS = 5;
 const DEFAULT_MIN_SCORE = 0.3;
 const DEFAULT_SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+const SUPPORTED_EMBEDDING_PROVIDERS: MemoryEmbeddingProviderId[] = [
+  "openai",
+  "gemini",
+  "voyage",
+  "mistral",
+  "local",
+];
 
 const DEFAULT_FUNCTION_NAMES = {
   search: "openclaw_match_memories",
@@ -45,11 +63,6 @@ const DEFAULT_FUNCTION_NAMES = {
   forget: "openclaw_forget_memory",
   count: "openclaw_memory_count",
 } as const;
-
-const EMBEDDING_DIMENSIONS: Record<string, number> = {
-  "text-embedding-3-small": 1536,
-  "text-embedding-3-large": 3072,
-};
 
 function assertAllowedKeys(value: Record<string, unknown>, allowed: string[], label: string) {
   const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
@@ -80,12 +93,29 @@ function normalizeFunctionName(value: string, fallback: string): string {
   return trimmed;
 }
 
-export function vectorDimsForModel(model: string): number {
-  const dims = EMBEDDING_DIMENSIONS[model];
-  if (!dims) {
-    throw new Error(`Unsupported embedding model: ${model}`);
+function parseEmbeddingProvider(raw: unknown): MemoryEmbeddingProviderId {
+  if (typeof raw !== "string") {
+    return DEFAULT_PROVIDER;
   }
-  return dims;
+  const normalized = raw.trim().toLowerCase();
+  if (SUPPORTED_EMBEDDING_PROVIDERS.includes(normalized as MemoryEmbeddingProviderId)) {
+    return normalized as MemoryEmbeddingProviderId;
+  }
+  throw new Error(`Unsupported embedding provider: ${raw}`);
+}
+
+function resolveOptionalEnvVar(raw: unknown, field: string): string | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (typeof raw !== "string") {
+    throw new Error(`${field} must be a string`);
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return resolveEnvVars(trimmed);
 }
 
 export const memorySupabaseConfigSchema = {
@@ -133,12 +163,21 @@ export const memorySupabaseConfigSchema = {
     if (!embedding || typeof embedding !== "object" || Array.isArray(embedding)) {
       throw new Error("embedding config is required");
     }
-    assertAllowedKeys(embedding, ["apiKey", "model"], "embedding config");
-    if (typeof embedding.apiKey !== "string" || !embedding.apiKey.trim()) {
-      throw new Error("embedding.apiKey is required");
+    assertAllowedKeys(embedding, ["provider", "apiKey", "model", "local"], "embedding config");
+    const provider = parseEmbeddingProvider(embedding.provider);
+    const model = resolveMemoryEmbeddingModel(
+      provider,
+      typeof embedding.model === "string" ? resolveEnvVars(embedding.model) : undefined,
+    );
+    const apiKey = resolveOptionalEnvVar(embedding.apiKey, "embedding.apiKey");
+
+    const local = embedding.local as Record<string, unknown> | undefined;
+    if (local && (typeof local !== "object" || Array.isArray(local))) {
+      throw new Error("embedding.local must be an object");
     }
-    const model = typeof embedding.model === "string" ? embedding.model : DEFAULT_MODEL;
-    vectorDimsForModel(model);
+    if (local) {
+      assertAllowedKeys(local, ["modelPath", "modelCacheDir"], "embedding.local");
+    }
 
     const captureMaxChars =
       typeof cfg.captureMaxChars === "number"
@@ -189,9 +228,21 @@ export const memorySupabaseConfigSchema = {
         },
       },
       embedding: {
-        provider: "openai",
-        apiKey: resolveEnvVars(embedding.apiKey),
+        provider,
+        apiKey,
         model,
+        local: local
+          ? {
+              modelPath:
+                typeof local.modelPath === "string"
+                  ? resolveEnvVars(local.modelPath).trim() || undefined
+                  : undefined,
+              modelCacheDir:
+                typeof local.modelCacheDir === "string"
+                  ? resolveEnvVars(local.modelCacheDir).trim() || undefined
+                  : undefined,
+            }
+          : undefined,
       },
       autoCapture: cfg.autoCapture === true,
       autoRecall: cfg.autoRecall !== false,
@@ -238,16 +289,36 @@ export const memorySupabaseConfigSchema = {
       placeholder: DEFAULT_FUNCTION_NAMES.count,
       advanced: true,
     },
+    "embedding.provider": {
+      label: "Embedding Provider",
+      placeholder: DEFAULT_PROVIDER,
+      help: "Supported: openai, gemini, voyage, mistral, local",
+    },
     "embedding.apiKey": {
-      label: "OpenAI API Key",
+      label: "Embedding API Key",
       sensitive: true,
-      placeholder: "sk-proj-...",
-      help: "Embedding API key (or use ${OPENAI_API_KEY})",
+      placeholder: "sk-...",
+      help: `Optional override. Defaults to core auth/env resolution (for example ${defaultMemoryEmbeddingApiKeyEnvVar(
+        "openai",
+      )}, GEMINI_API_KEY, VOYAGE_API_KEY, MISTRAL_API_KEY).`,
     },
     "embedding.model": {
       label: "Embedding Model",
       placeholder: DEFAULT_MODEL,
-      help: "Must match your pgvector dimension in Supabase schema",
+      help: "Model id for the selected provider. Keep pgvector dimensions in schema.sql aligned.",
+    },
+    "embedding.local.modelPath": {
+      label: "Local Model Path",
+      advanced: true,
+      placeholder:
+        "hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf",
+      help: "Used when embedding.provider is local",
+    },
+    "embedding.local.modelCacheDir": {
+      label: "Local Model Cache Dir",
+      advanced: true,
+      placeholder: "~/.cache/openclaw/models",
+      help: "Optional cache directory for local embeddings",
     },
     autoCapture: {
       label: "Auto-Capture",

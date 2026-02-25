@@ -38,14 +38,31 @@
       "placeholder": "openclaw_memory_count",
       "advanced": true
     },
+    "embedding.provider": {
+      "label": "Embedding Provider",
+      "placeholder": "openai",
+      "help": "Supported: openai, gemini, voyage, mistral, local"
+    },
     "embedding.apiKey": {
-      "label": "OpenAI API Key",
+      "label": "Embedding API Key",
       "sensitive": true,
-      "placeholder": "sk-proj-..."
+      "placeholder": "sk-...",
+      "help": "Optional override. Otherwise uses core auth/env resolution."
     },
     "embedding.model": {
       "label": "Embedding Model",
-      "placeholder": "text-embedding-3-small"
+      "placeholder": "text-embedding-3-small",
+      "help": "Model id for the selected provider. Keep pgvector dimensions aligned."
+    },
+    "embedding.local.modelPath": {
+      "label": "Local Model Path",
+      "advanced": true,
+      "placeholder": "hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf"
+    },
+    "embedding.local.modelCacheDir": {
+      "label": "Local Model Cache Dir",
+      "advanced": true,
+      "placeholder": "~/.cache/openclaw/models"
     },
     "autoCapture": {
       "label": "Auto-Capture"
@@ -111,15 +128,29 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["openai", "gemini", "voyage", "mistral", "local"]
+          },
           "apiKey": {
             "type": "string"
           },
           "model": {
-            "type": "string",
-            "enum": ["text-embedding-3-small", "text-embedding-3-large"]
+            "type": "string"
+          },
+          "local": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "modelPath": {
+                "type": "string"
+              },
+              "modelCacheDir": {
+                "type": "string"
+              }
+            }
           }
-        },
-        "required": ["apiKey"]
+        }
       },
       "autoCapture": {
         "type": "boolean"

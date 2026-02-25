@@ -58,13 +58,30 @@ describe("memory-supabase config schema", () => {
         serviceKey: "service-role-key",
       },
       embedding: {
+        provider: "openai",
         apiKey: "openai-key",
         model: "text-embedding-3-small",
       },
     });
     expect(parsed.supabase.url).toBe("https://example.supabase.co");
     expect(parsed.embedding.model).toBe("text-embedding-3-small");
+    expect(parsed.embedding.provider).toBe("openai");
     expect(parsed.maxRecallResults).toBe(5);
+  });
+
+  it("allows provider auth resolution without embedding.apiKey", () => {
+    const parsed = memorySupabaseConfigSchema.parse({
+      supabase: {
+        url: "https://example.supabase.co",
+        serviceKey: "service-role-key",
+      },
+      embedding: {
+        provider: "gemini",
+      },
+    });
+    expect(parsed.embedding.provider).toBe("gemini");
+    expect(parsed.embedding.apiKey).toBeUndefined();
+    expect(parsed.embedding.model).toBe("gemini-embedding-001");
   });
 
   it("resolves env vars", () => {
