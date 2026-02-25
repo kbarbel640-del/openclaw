@@ -229,6 +229,27 @@ Then verify backend health:
 /acp doctor
 ```
 
+### Pinned acpx install strategy (recommended)
+
+For production, use a strict plugin-local acpx strategy so OpenClaw always runs the intended acpx version.
+
+1. Pin exact dependency in the extension package (`extensions/acpx/package.json`), for example: `acpx: "0.1.11"`.
+2. Resolve the runtime command to the plugin-local binary (`extensions/acpx/node_modules/.bin/acpx`), not a global `PATH` binary.
+3. Avoid command overrides (`command`, `commandArgs`) in strict mode so runtime cannot drift to another acpx binary.
+4. On plugin startup, verify local acpx version (`acpx --version`) and require an exact match.
+5. If missing or mismatched, run plugin-local install for the pinned version, then re-verify before marking backend healthy.
+   Example install step:
+   - `npm install --omit=dev --no-save acpx@0.1.11`
+6. Keep startup non-blocking:
+   - Register backend as not-ready first.
+   - Run version ensure/install in background.
+   - Mark backend healthy when verification succeeds.
+
+Notes:
+
+- This prevents accidental use of a different globally installed acpx version.
+- First-time ensure may require network and can fail offline; in that case backend stays unavailable and `/acp doctor` should show an actionable fix.
+
 See [Plugins](/tools/plugin).
 
 ## Troubleshooting
