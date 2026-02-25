@@ -1,5 +1,6 @@
 package ai.openclaw.android.ui.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,15 +9,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ai.openclaw.android.chat.ChatMessage
 import ai.openclaw.android.chat.ChatPendingToolCall
@@ -31,18 +32,32 @@ fun ChatMessageListCard(
   modifier: Modifier = Modifier,
 ) {
   val listState = rememberLazyListState()
+  val surfaceColor = MaterialTheme.colorScheme.surface
+  val isDark = surfaceColor.red * 0.299 + surfaceColor.green * 0.587 + surfaceColor.blue * 0.114 < 0.5
+  val bgColor = if (isDark) Color(0xFF17212B) else Color(0xFFEFEFF3)
 
   LaunchedEffect(messages.size, pendingRunCount, pendingToolCalls.size, streamingAssistantText) {
-    listState.animateScrollToItem(index = 0)
+    if (messages.isNotEmpty()) {
+      listState.animateScrollToItem(index = 0)
+    }
   }
 
-  Box(modifier = modifier.fillMaxWidth()) {
+  Box(
+    modifier = modifier
+      .fillMaxWidth()
+      .background(bgColor),
+  ) {
     LazyColumn(
-      modifier = Modifier.fillMaxSize(),
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(horizontal = 16.dp),
       state = listState,
       reverseLayout = true,
-      verticalArrangement = Arrangement.spacedBy(12.dp),
-      contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 8.dp),
+      verticalArrangement = Arrangement.spacedBy(2.dp),
+      contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        top = 4.dp,
+        bottom = 8.dp,
+      ),
     ) {
       val stream = streamingAssistantText?.trim()
       if (!stream.isNullOrEmpty()) {
@@ -69,37 +84,37 @@ fun ChatMessageListCard(
     }
 
     if (messages.isEmpty() && pendingRunCount == 0 && pendingToolCalls.isEmpty() && streamingAssistantText.isNullOrBlank()) {
-      EmptyChatHint(modifier = Modifier.align(Alignment.Center), healthOk = healthOk)
+      EmptyChatHint(
+        modifier = Modifier.align(Alignment.Center),
+        healthOk = healthOk,
+        isDark = isDark,
+      )
     }
   }
 }
 
 @Composable
-private fun EmptyChatHint(modifier: Modifier = Modifier, healthOk: Boolean) {
-  Surface(
-    modifier = modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(16.dp),
-    color = MaterialTheme.colorScheme.surfaceContainerLow,
-    tonalElevation = 1.dp,
+private fun EmptyChatHint(modifier: Modifier = Modifier, healthOk: Boolean, isDark: Boolean) {
+  val hintBg = if (isDark) Color(0xFF17212B).copy(alpha = 0.8f) else Color(0xFFEFEFF3).copy(alpha = 0.8f)
+  val textColor = if (isDark) Color(0xFFA8B2BC) else Color(0xFF5D6472)
+
+  Column(
+    modifier = modifier.padding(32.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(4.dp),
   ) {
-    Column(
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-      verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
+    Text(
+      if (healthOk) "Start a conversation" else "Connect gateway first",
+      style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+      color = textColor,
+      textAlign = TextAlign.Center,
+    )
+    if (healthOk) {
       Text(
-        "No messages yet",
-        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Text(
-        text =
-          if (healthOk) {
-            "Send the first prompt to start this session."
-          } else {
-            "Connect gateway first, then return to chat."
-          },
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        "Send a message to begin",
+        style = MaterialTheme.typography.bodySmall,
+        color = textColor.copy(alpha = 0.7f),
+        textAlign = TextAlign.Center,
       )
     }
   }

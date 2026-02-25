@@ -1,38 +1,38 @@
 package ai.openclaw.android.ui.chat
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,9 +43,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun ChatComposer(
@@ -62,204 +67,291 @@ fun ChatComposer(
 ) {
   var input by rememberSaveable { mutableStateOf("") }
   var showThinkingMenu by remember { mutableStateOf(false) }
+  var expanded by rememberSaveable { mutableStateOf(false) }
 
   val canSend = pendingRunCount == 0 && (input.trim().isNotEmpty() || attachments.isNotEmpty()) && healthOk
   val sendBusy = pendingRunCount > 0
 
-  Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Box(modifier = Modifier.weight(1f)) {
-        Surface(
-          onClick = { showThinkingMenu = true },
-          shape = RoundedCornerShape(12.dp),
-          color = MaterialTheme.colorScheme.secondaryContainer,
-          tonalElevation = 1.dp,
-        ) {
-          Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-          ) {
-            Text(
-              text = "Thinking: ${thinkingLabel(thinkingLevel)}",
-              style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-              color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            Icon(
-              Icons.Default.ArrowDropDown,
-              contentDescription = "Select thinking level",
-              tint = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-          }
-        }
-
-        DropdownMenu(expanded = showThinkingMenu, onDismissRequest = { showThinkingMenu = false }) {
-          ThinkingMenuItem("off", thinkingLevel, onSetThinkingLevel) { showThinkingMenu = false }
-          ThinkingMenuItem("low", thinkingLevel, onSetThinkingLevel) { showThinkingMenu = false }
-          ThinkingMenuItem("medium", thinkingLevel, onSetThinkingLevel) { showThinkingMenu = false }
-          ThinkingMenuItem("high", thinkingLevel, onSetThinkingLevel) { showThinkingMenu = false }
-        }
-      }
-
-      IconButton(
-        onClick = onPickImages,
-        modifier = Modifier.size(40.dp),
-      ) {
-        Icon(
-          Icons.Default.AttachFile,
-          contentDescription = "Attach images",
-          tint = MaterialTheme.colorScheme.primary,
-        )
-      }
-    }
-
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .imePadding(),
+    verticalArrangement = Arrangement.spacedBy(6.dp),
+  ) {
     if (attachments.isNotEmpty()) {
       AttachmentsStrip(attachments = attachments, onRemoveAttachment = onRemoveAttachment)
     }
 
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Surface(
+      modifier = Modifier.fillMaxWidth(),
+      shape = RoundedCornerShape(22.dp),
+      color = MaterialTheme.colorScheme.surfaceContainerLow,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+    ) {
+      Column(
+        modifier = Modifier.padding(vertical = 6.dp),
+      ) {
+        if (thinkingLevel != "off") {
+          ThinkingBlock(
+            thinkingLevel = thinkingLevel,
+            expanded = expanded,
+            onToggle = { expanded = !expanded },
+            showThinkingMenu = showThinkingMenu,
+            onShowMenu = { showThinkingMenu = true },
+            onDismissMenu = { showThinkingMenu = false },
+            onSetThinkingLevel = onSetThinkingLevel,
+          )
+        }
 
-    Text(
-      text = "MESSAGE",
-      style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          IconButton(
+            onClick = onPickImages,
+            modifier = Modifier.size(36.dp),
+          ) {
+            Icon(
+              Icons.Default.AttachFile,
+              contentDescription = "Attach",
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(22.dp),
+            )
+          }
 
-    OutlinedTextField(
-      value = input,
-      onValueChange = { input = it },
-      modifier = Modifier.fillMaxWidth().height(96.dp),
-      placeholder = {
-        Text(
-          "Type a message",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      },
-      minLines = 2,
-      maxLines = 5,
-      textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-      shape = RoundedCornerShape(12.dp),
-      colors = m3TextFieldColors(),
-    )
+          Box(
+            modifier = Modifier
+              .weight(1f)
+              .heightIn(min = 36.dp, max = 120.dp)
+              .padding(horizontal = 4.dp),
+          ) {
+            if (input.isEmpty()) {
+              Text(
+                text = "Message",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 2.dp, top = 8.dp),
+              )
+            }
+            BasicTextField(
+              value = input,
+              onValueChange = { input = it },
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+              textStyle = MaterialTheme.typography.bodyMedium.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+              ),
+              cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+              keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+              keyboardActions = KeyboardActions(
+                onSend = {
+                  if (canSend) {
+                    val text = input
+                    input = ""
+                    onSend(text)
+                  }
+                },
+              ),
+              singleLine = false,
+            )
+          }
+
+          // Right side buttons: Stop / Refresh / Mic / Send
+          if (pendingRunCount > 0) {
+            // Show stop button when processing
+            IconButton(
+              onClick = onAbort,
+              modifier = Modifier.size(36.dp),
+            ) {
+              Icon(
+                Icons.Default.Close,
+                contentDescription = "Stop",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(22.dp),
+              )
+            }
+          } else if (input.isEmpty() && attachments.isEmpty()) {
+            // Show refresh when empty and not processing
+            IconButton(
+              onClick = onRefresh,
+              modifier = Modifier.size(36.dp),
+            ) {
+              Icon(
+                Icons.Default.Refresh,
+                contentDescription = "Refresh",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+              )
+            }
+          } else if (input.isEmpty()) {
+            // Show mic only when there's attachment but no text
+            IconButton(
+              onClick = { },
+              modifier = Modifier.size(36.dp),
+            ) {
+              Icon(
+                Icons.Default.Mic,
+                contentDescription = "Voice",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+              )
+            }
+          } else {
+            // Show send button when there's text
+            IconButton(
+              onClick = {
+                val text = input
+                input = ""
+                onSend(text)
+              },
+              enabled = canSend,
+              modifier = Modifier.size(36.dp),
+            ) {
+              if (sendBusy) {
+                androidx.compose.material3.CircularProgressIndicator(
+                  modifier = Modifier.size(20.dp),
+                  strokeWidth = 2.dp,
+                  color = MaterialTheme.colorScheme.primary,
+                )
+              } else {
+                Surface(
+                  shape = RoundedCornerShape(18.dp),
+                  color = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                  Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Send",
+                    tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                      .size(20.dp)
+                      .padding(4.dp),
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+    }
 
     if (!healthOk) {
       Text(
-        text = "Gateway is offline. Connect first in the Connect tab.",
-        style = MaterialTheme.typography.bodySmall,
+        text = "Gateway offline",
+        style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.padding(horizontal = 4.dp),
       )
     }
+  }
+}
 
+@Composable
+private fun ThinkingBlock(
+  thinkingLevel: String,
+  expanded: Boolean,
+  onToggle: () -> Unit,
+  showThinkingMenu: Boolean,
+  onShowMenu: () -> Unit,
+  onDismissMenu: () -> Unit,
+  onSetThinkingLevel: (level: String) -> Unit,
+) {
+  val accentColor = MaterialTheme.colorScheme.primary
+
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+      ) { onToggle() }
+      .animateContentSize(),
+  ) {
     Row(
-      modifier = Modifier.fillMaxWidth(),
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(if (expanded) 48.dp else 32.dp)
+        .padding(horizontal = 12.dp),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-      Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        SecondaryActionButton(
-          icon = Icons.Default.Refresh,
-          enabled = true,
-          onClick = onRefresh,
-        )
-
-        SecondaryActionButton(
-          icon = Icons.Default.Stop,
-          enabled = pendingRunCount > 0,
-          onClick = onAbort,
-        )
+      Box(
+        modifier = Modifier
+          .width(3.dp)
+          .height(if (expanded) 24.dp else 16.dp)
+          .clip(RoundedCornerShape(2.dp))
+          .clickable { onShowMenu() }
+          .padding(end = 8.dp),
+      ) {
+        Surface(
+          modifier = Modifier.fillMaxWidth().height(if (expanded) 24.dp else 16.dp),
+          color = accentColor,
+        ) {}
       }
 
-      Button(
-        onClick = {
-          val text = input
-          input = ""
-          onSend(text)
-        },
-        enabled = canSend,
-        modifier = Modifier.weight(1f).height(48.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors =
-          ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-          ),
+      Row(
+        modifier = Modifier
+          .weight(1f)
+          .clickable { onShowMenu() },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
       ) {
-        if (sendBusy) {
-          CircularProgressIndicator(
-            modifier = Modifier.size(16.dp),
-            strokeWidth = 2.dp,
-            color = MaterialTheme.colorScheme.onPrimary,
-          )
-        } else {
-          Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
-        }
-        Spacer(modifier = Modifier.width(6.dp))
         Text(
-          text = "Send",
-          style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
+          text = thinkingLabel(thinkingLevel),
+          style = MaterialTheme.typography.bodySmall.copy(
+            fontStyle = FontStyle.Italic,
+            fontSize = 13.sp,
+          ),
+          color = accentColor,
+        )
+        Text(
+          text = if (expanded) "▼" else "▶",
+          style = MaterialTheme.typography.labelSmall,
+          color = accentColor,
         )
       }
     }
-  }
-}
 
-@Composable
-private fun SecondaryActionButton(
-  icon: androidx.compose.ui.graphics.vector.ImageVector,
-  enabled: Boolean,
-  onClick: () -> Unit,
-) {
-  IconButton(
-    onClick = onClick,
-    enabled = enabled,
-    modifier = Modifier.size(40.dp),
-  ) {
-    Icon(
-      icon,
-      contentDescription = null,
-      tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-  }
-}
-
-@Composable
-private fun ThinkingMenuItem(
-  value: String,
-  current: String,
-  onSet: (String) -> Unit,
-  onDismiss: () -> Unit,
-) {
-  DropdownMenuItem(
-    text = { Text(thinkingLabel(value), style = MaterialTheme.typography.bodyMedium) },
-    onClick = {
-      onSet(value)
-      onDismiss()
-    },
-    trailingIcon = {
-      if (value == current.trim().lowercase()) {
-        Text("✓", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-      } else {
-        Spacer(modifier = Modifier.width(24.dp))
+    if (expanded) {
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .heightIn(max = 200.dp)
+          .padding(horizontal = 12.dp),
+      ) {
+        Text(
+          text = "Reasoning enabled: ${thinkingLabel(thinkingLevel)} mode",
+          style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
       }
-    },
-  )
-}
+    }
 
-private fun thinkingLabel(raw: String): String {
-  return when (raw.trim().lowercase()) {
-    "low" -> "Low"
-    "medium" -> "Medium"
-    "high" -> "High"
-    else -> "Off"
+    DropdownMenu(
+      expanded = showThinkingMenu,
+      onDismissRequest = onDismissMenu,
+    ) {
+      listOf("off", "low", "medium", "high").forEach { level ->
+        DropdownMenuItem(
+          text = {
+            Text(
+              thinkingLabel(level),
+              style = MaterialTheme.typography.bodySmall,
+            )
+          },
+          onClick = {
+            onSetThinkingLevel(level)
+            onDismissMenu()
+          },
+          trailingIcon = {
+            if (level == thinkingLevel.trim().lowercase()) {
+              Text("✓", style = MaterialTheme.typography.bodySmall, color = accentColor)
+            }
+          },
+        )
+      }
+    }
   }
 }
 
@@ -269,8 +361,10 @@ private fun AttachmentsStrip(
   onRemoveAttachment: (id: String) -> Unit,
 ) {
   Row(
-    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    modifier = Modifier
+      .fillMaxWidth()
+      .horizontalScroll(rememberScrollState()),
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     for (att in attachments) {
       AttachmentChip(
@@ -284,48 +378,43 @@ private fun AttachmentsStrip(
 @Composable
 private fun AttachmentChip(fileName: String, onRemove: () -> Unit) {
   Surface(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(16.dp),
     color = MaterialTheme.colorScheme.secondaryContainer,
     tonalElevation = 0.dp,
   ) {
     Row(
-      modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+      modifier = Modifier.padding(start = 10.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
       Text(
         text = fileName,
-        style = MaterialTheme.typography.labelMedium,
+        style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSecondaryContainer,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.width(100.dp),
+        modifier = Modifier.width(80.dp),
       )
       IconButton(
         onClick = onRemove,
-        modifier = Modifier.size(24.dp),
+        modifier = Modifier.size(20.dp),
       ) {
         Icon(
           Icons.Default.Close,
           contentDescription = "Remove",
           tint = MaterialTheme.colorScheme.onSecondaryContainer,
-          modifier = Modifier.size(14.dp),
+          modifier = Modifier.size(12.dp),
         )
       }
     }
   }
 }
 
-@Composable
-private fun m3TextFieldColors() =
-  OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = MaterialTheme.colorScheme.surface,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-    focusedBorderColor = MaterialTheme.colorScheme.primary,
-    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-    cursorColor = MaterialTheme.colorScheme.primary,
-    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-  )
+private fun thinkingLabel(raw: String): String {
+  return when (raw.trim().lowercase()) {
+    "low" -> "Low"
+    "medium" -> "Medium"
+    "high" -> "High"
+    else -> "Off"
+  }
+}

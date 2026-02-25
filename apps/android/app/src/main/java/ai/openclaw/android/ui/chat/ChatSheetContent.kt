@@ -84,11 +84,9 @@ fun ChatSheetContent(viewModel: MainViewModel) {
     }
 
   Column(
-    modifier =
-      Modifier
-        .fillMaxSize()
-        .padding(horizontal = 16.dp, vertical = 12.dp),
-    verticalArrangement = Arrangement.spacedBy(8.dp),
+    modifier = Modifier
+      .fillMaxSize()
+      .imePadding(),
   ) {
     ChatThreadSelector(
       sessionKey = sessionKey,
@@ -107,38 +105,38 @@ fun ChatSheetContent(viewModel: MainViewModel) {
       pendingToolCalls = pendingToolCalls,
       streamingAssistantText = streamingAssistantText,
       healthOk = healthOk,
-      modifier = Modifier.weight(1f, fill = true),
+      modifier = Modifier
+        .weight(1f, fill = true)
+        .fillMaxWidth(),
     )
 
-    Row(modifier = Modifier.fillMaxWidth().imePadding()) {
-      ChatComposer(
-        healthOk = healthOk,
-        thinkingLevel = thinkingLevel,
-        pendingRunCount = pendingRunCount,
-        attachments = attachments,
-        onPickImages = { pickImages.launch("image/*") },
-        onRemoveAttachment = { id -> attachments.removeAll { it.id == id } },
-        onSetThinkingLevel = { level -> viewModel.setChatThinkingLevel(level) },
-        onRefresh = {
-          viewModel.refreshChat()
-          viewModel.refreshChatSessions(limit = 200)
-        },
-        onAbort = { viewModel.abortChat() },
-        onSend = { text ->
-          val outgoing =
-            attachments.map { att ->
-              OutgoingAttachment(
-                type = "image",
-                mimeType = att.mimeType,
-                fileName = att.fileName,
-                base64 = att.base64,
-              )
-            }
-          viewModel.sendChat(message = text, thinking = thinkingLevel, attachments = outgoing)
-          attachments.clear()
-        },
-      )
-    }
+    ChatComposer(
+      healthOk = healthOk,
+      thinkingLevel = thinkingLevel,
+      pendingRunCount = pendingRunCount,
+      attachments = attachments,
+      onPickImages = { pickImages.launch("image/*") },
+      onRemoveAttachment = { id -> attachments.removeAll { it.id == id } },
+      onSetThinkingLevel = { level -> viewModel.setChatThinkingLevel(level) },
+      onRefresh = {
+        viewModel.refreshChat()
+        viewModel.refreshChatSessions(limit = 200)
+      },
+      onAbort = { viewModel.abortChat() },
+      onSend = { text ->
+        val outgoing =
+          attachments.map { att ->
+            OutgoingAttachment(
+              type = "image",
+              mimeType = att.mimeType,
+              fileName = att.fileName,
+              base64 = att.base64,
+            )
+          }
+        viewModel.sendChat(message = text, thinking = thinkingLevel, attachments = outgoing)
+        attachments.clear()
+      },
+    )
   }
 }
 
@@ -153,20 +151,25 @@ private fun ChatThreadSelector(
   val currentSessionLabel =
     friendlySessionName(sessionOptions.firstOrNull { it.key == sessionKey }?.displayName ?: sessionKey)
 
-  Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp, vertical = 8.dp),
+    verticalArrangement = Arrangement.spacedBy(6.dp),
+  ) {
     Row(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(
-        text = "SESSION",
-        style = MaterialTheme.typography.labelSmall,
+        text = "Session",
+        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
       Text(
         text = currentSessionLabel,
-        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -174,8 +177,10 @@ private fun ChatThreadSelector(
     }
 
     Row(
-      modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      modifier = Modifier
+        .fillMaxWidth()
+        .horizontalScroll(rememberScrollState()),
+      horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
       for (entry in sessionOptions) {
         val active = entry.key == sessionKey
@@ -187,11 +192,18 @@ private fun ChatThreadSelector(
               text = friendlySessionName(entry.displayName ?: entry.key),
               maxLines = 1,
               overflow = TextOverflow.Ellipsis,
+              style = MaterialTheme.typography.labelSmall,
             )
           },
           colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+          ),
+          border = FilterChipDefaults.filterChipBorder(
+            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+            selectedBorderColor = MaterialTheme.colorScheme.primary,
+            enabled = true,
+            selected = active,
           ),
         )
       }
@@ -202,18 +214,18 @@ private fun ChatThreadSelector(
 @Composable
 private fun ChatErrorRail(errorText: String) {
   Surface(
-    modifier = Modifier.fillMaxWidth(),
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp),
     color = MaterialTheme.colorScheme.errorContainer,
-    shape = RoundedCornerShape(12.dp),
+    shape = RoundedCornerShape(8.dp),
   ) {
-    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-      Text(
-        text = "CHAT ERROR",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onErrorContainer,
-      )
-      Text(text = errorText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
-    }
+    Text(
+      text = errorText,
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onErrorContainer,
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+    )
   }
 }
 

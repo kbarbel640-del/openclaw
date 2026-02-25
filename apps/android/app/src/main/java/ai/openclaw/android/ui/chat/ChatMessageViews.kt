@@ -4,15 +4,20 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,19 +42,6 @@ import ai.openclaw.android.chat.ChatMessage
 import ai.openclaw.android.chat.ChatMessageContent
 import ai.openclaw.android.chat.ChatPendingToolCall
 import ai.openclaw.android.tools.ToolDisplayRegistry
-import ai.openclaw.android.ui.mobileAccent
-import ai.openclaw.android.ui.mobileAccentSoft
-import ai.openclaw.android.ui.mobileBorder
-import ai.openclaw.android.ui.mobileBorderStrong
-import ai.openclaw.android.ui.mobileCallout
-import ai.openclaw.android.ui.mobileCaption1
-import ai.openclaw.android.ui.mobileCaption2
-import ai.openclaw.android.ui.mobileCodeBg
-import ai.openclaw.android.ui.mobileCodeText
-import ai.openclaw.android.ui.mobileHeadline
-import androidx.compose.material3.MaterialTheme
-import ai.openclaw.android.ui.mobileWarning
-import ai.openclaw.android.ui.mobileWarningSoft
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -57,8 +49,7 @@ import kotlinx.coroutines.withContext
 private data class ChatBubbleStyle(
   val alignEnd: Boolean,
   val containerColor: Color,
-  val borderColor: Color,
-  val roleColor: Color,
+  val textColor: Color,
 )
 
 @Composable
@@ -66,7 +57,6 @@ fun ChatMessageBubble(message: ChatMessage) {
   val role = message.role.trim().lowercase(Locale.US)
   val style = bubbleStyle(role)
 
-  // Filter to only displayable content parts (text with content, or base64 images).
   val displayableContent =
     message.content.filter { part ->
       when (part.type) {
@@ -77,40 +67,25 @@ fun ChatMessageBubble(message: ChatMessage) {
 
   if (displayableContent.isEmpty()) return
 
-  ChatBubbleContainer(style = style, roleLabel = roleLabel(role)) {
-    ChatMessageBody(content = displayableContent, textColor = MaterialTheme.colorScheme.onSurface)
-  }
-}
-
-@Composable
-private fun ChatBubbleContainer(
-  style: ChatBubbleStyle,
-  roleLabel: String,
-  modifier: Modifier = Modifier,
-  content: @Composable () -> Unit,
-) {
   Row(
-    modifier = modifier.fillMaxWidth(),
+    modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = if (style.alignEnd) Arrangement.End else Arrangement.Start,
   ) {
     Surface(
-      shape = RoundedCornerShape(12.dp),
-      border = BorderStroke(1.dp, style.borderColor),
+      shape = RoundedCornerShape(
+        topStart = 18.dp,
+        topEnd = 18.dp,
+        bottomStart = if (style.alignEnd) 18.dp else 4.dp,
+        bottomEnd = if (style.alignEnd) 4.dp else 18.dp,
+      ),
       color = style.containerColor,
-      tonalElevation = 0.dp,
-      shadowElevation = 0.dp,
-      modifier = Modifier.fillMaxWidth(0.90f),
+      modifier = Modifier.fillMaxWidth(0.85f),
     ) {
       Column(
-        modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
       ) {
-        Text(
-          text = roleLabel,
-          style = mobileCaption2.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp),
-          color = style.roleColor,
-        )
-        content()
+        ChatMessageBody(content = displayableContent, textColor = style.textColor)
       }
     }
   }
@@ -118,7 +93,7 @@ private fun ChatBubbleContainer(
 
 @Composable
 private fun ChatMessageBody(content: List<ChatMessageContent>, textColor: Color) {
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
     for (part in content) {
       when (part.type) {
         "text" -> {
@@ -136,16 +111,29 @@ private fun ChatMessageBody(content: List<ChatMessageContent>, textColor: Color)
 
 @Composable
 fun ChatTypingIndicatorBubble() {
-  ChatBubbleContainer(
-    style = bubbleStyle("assistant"),
-    roleLabel = roleLabel("assistant"),
+  val bubbleColor = MaterialTheme.colorScheme.surfaceContainerLow
+
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.Start,
   ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Surface(
+      shape = RoundedCornerShape(
+        topStart = 18.dp,
+        topEnd = 18.dp,
+        bottomStart = 4.dp,
+        bottomEnd = 18.dp,
+      ),
+      color = bubbleColor,
+      modifier = Modifier.fillMaxWidth(0.4f),
     ) {
-      DotPulse(color = MaterialTheme.colorScheme.onSurfaceVariant)
-      Text("Thinking...", style = mobileCallout, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Row(
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        DotPulse(color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
     }
   }
 }
@@ -158,36 +146,73 @@ fun ChatPendingToolsBubble(toolCalls: List<ChatPendingToolCall>) {
       toolCalls.map { ToolDisplayRegistry.resolve(context, it.name, it.args) }
     }
 
-  ChatBubbleContainer(
-    style = bubbleStyle("assistant"),
-    roleLabel = "TOOLS",
+  val bubbleColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+  val accentColor = MaterialTheme.colorScheme.primary
+
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.Start,
   ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-      Text("Running tools...", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
-      for (display in displays.take(6)) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Surface(
+      shape = RoundedCornerShape(
+        topStart = 0.dp,
+        topEnd = 12.dp,
+        bottomStart = 12.dp,
+        bottomEnd = 12.dp,
+      ),
+      color = bubbleColor,
+      border = BorderStroke(0.dp, Color.Transparent),
+      modifier = Modifier.fillMaxWidth(0.9f),
+    ) {
+      Row(
+        modifier = Modifier.padding(start = 4.dp),
+      ) {
+        Box(
+          modifier = Modifier
+            .width(3.dp)
+            .heightIn(min = 40.dp)
+            .background(
+              color = accentColor,
+              shape = RoundedCornerShape(2.dp),
+            ),
+        )
+        Column(
+          modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+          verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
           Text(
-            "${display.emoji} ${display.label}",
-            style = mobileCallout,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontFamily = FontFamily.Monospace,
+            "Running...",
+            style = MaterialTheme.typography.labelSmall.copy(
+              fontWeight = FontWeight.SemiBold,
+              fontSize = 12.sp,
+            ),
+            color = accentColor,
           )
-          display.detailLine?.let { detail ->
+          for (display in displays.take(4)) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+              Text(
+                display.emoji,
+                style = MaterialTheme.typography.bodySmall,
+              )
+              Text(
+                display.label,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = FontFamily.Monospace,
+              )
+            }
+          }
+          if (toolCalls.size > 4) {
             Text(
-              detail,
-              style = mobileCaption1,
+              "+${toolCalls.size - 4} more",
+              style = MaterialTheme.typography.labelSmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
-              fontFamily = FontFamily.Monospace,
             )
           }
         }
-      }
-      if (toolCalls.size > 6) {
-        Text(
-          text = "... +${toolCalls.size - 6} more",
-          style = mobileCaption1,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
       }
     }
   }
@@ -195,11 +220,39 @@ fun ChatPendingToolsBubble(toolCalls: List<ChatPendingToolCall>) {
 
 @Composable
 fun ChatStreamingAssistantBubble(text: String) {
-  ChatBubbleContainer(
-    style = bubbleStyle("assistant").copy(borderColor = mobileAccent),
-    roleLabel = "ASSISTANT · LIVE",
+  val bubbleColor = MaterialTheme.colorScheme.surfaceContainerLow
+
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.Start,
   ) {
-    ChatMarkdown(text = text, textColor = MaterialTheme.colorScheme.onSurface)
+    Surface(
+      shape = RoundedCornerShape(
+        topStart = 4.dp,
+        topEnd = 18.dp,
+        bottomStart = 18.dp,
+        bottomEnd = 18.dp,
+      ),
+      color = bubbleColor,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      modifier = Modifier.fillMaxWidth(0.85f),
+    ) {
+      Column(
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+      ) {
+        Text(
+          "ASSISTANT",
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 10.sp,
+            letterSpacing = 0.5.sp,
+          ),
+          color = MaterialTheme.colorScheme.primary,
+        )
+        ChatMarkdown(text = text, textColor = MaterialTheme.colorScheme.onSurface)
+      }
+    }
   }
 }
 
@@ -210,33 +263,22 @@ private fun bubbleStyle(role: String): ChatBubbleStyle {
       ChatBubbleStyle(
         alignEnd = true,
         containerColor = MaterialTheme.colorScheme.primaryContainer,
-        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-        roleColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        textColor = MaterialTheme.colorScheme.onPrimaryContainer,
       )
 
     "system" ->
       ChatBubbleStyle(
         alignEnd = false,
         containerColor = MaterialTheme.colorScheme.errorContainer,
-        borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.45f),
-        roleColor = MaterialTheme.colorScheme.onErrorContainer,
+        textColor = MaterialTheme.colorScheme.onErrorContainer,
       )
 
     else ->
       ChatBubbleStyle(
         alignEnd = false,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        borderColor = MaterialTheme.colorScheme.outlineVariant,
-        roleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        textColor = MaterialTheme.colorScheme.onSurface,
       )
-  }
-}
-
-private fun roleLabel(role: String): String {
-  return when (role) {
-    "user" -> "USER"
-    "system" -> "SYSTEM"
-    else -> "ASSISTANT"
   }
 }
 
@@ -262,62 +304,69 @@ private fun ChatBase64Image(base64: String, mimeType: String?) {
 
   if (image != null) {
     Surface(
-      shape = RoundedCornerShape(10.dp),
-      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      shape = RoundedCornerShape(12.dp),
       color = MaterialTheme.colorScheme.surfaceContainerHighest,
       modifier = Modifier.fillMaxWidth(),
     ) {
       Image(
         bitmap = image!!,
         contentDescription = mimeType ?: "attachment",
-        contentScale = ContentScale.Fit,
+        contentScale = ContentScale.FillWidth,
         modifier = Modifier.fillMaxWidth(),
       )
     }
   } else if (failed) {
-    Text("Unsupported attachment", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(
+      "Unsupported attachment",
+      style = MaterialTheme.typography.labelSmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
   }
 }
 
 @Composable
 private fun DotPulse(color: Color) {
-  Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-    PulseDot(alpha = 0.38f, color = color)
-    PulseDot(alpha = 0.62f, color = color)
-    PulseDot(alpha = 0.90f, color = color)
+  Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+    PulseDot(alpha = 0.4f, color = color)
+    PulseDot(alpha = 0.6f, color = color)
+    PulseDot(alpha = 0.8f, color = color)
   }
 }
 
 @Composable
 private fun PulseDot(alpha: Float, color: Color) {
-  Surface(
-    modifier = Modifier.size(6.dp).alpha(alpha),
-    shape = CircleShape,
-    color = color,
-  ) {}
+  Box(
+    modifier = Modifier
+      .size(8.dp)
+      .alpha(alpha)
+      .background(color, CircleShape),
+  )
 }
 
 @Composable
 fun ChatCodeBlock(code: String, language: String?) {
   Surface(
     shape = RoundedCornerShape(8.dp),
-    color = mobileCodeBg,
+    color = MaterialTheme.colorScheme.surfaceContainerHighest,
     border = BorderStroke(1.dp, Color(0xFF2B2E35)),
     modifier = Modifier.fillMaxWidth(),
   ) {
-    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+      verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
       if (!language.isNullOrBlank()) {
         Text(
           text = language.uppercase(Locale.US),
-          style = mobileCaption2.copy(letterSpacing = 0.4.sp),
+          style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
       Text(
         text = code.trimEnd(),
         fontFamily = FontFamily.Monospace,
-        style = mobileCallout,
-        color = mobileCodeText,
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+        color = MaterialTheme.colorScheme.onSurface,
       )
     }
   }
