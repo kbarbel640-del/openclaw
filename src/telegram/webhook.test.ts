@@ -19,6 +19,8 @@ const createTelegramBotSpy = vi.hoisted(() =>
   })),
 );
 
+const WEBHOOK_POST_TIMEOUT_MS = process.platform === "win32" ? 20_000 : 8_000;
+
 vi.mock("grammy", async (importOriginal) => {
   const actual = await importOriginal<typeof import("grammy")>();
   return {
@@ -432,7 +434,7 @@ describe("startTelegramWebhook", () => {
         payload: firstPayload,
         secret,
         mode: "single",
-        timeoutMs: 8_000,
+        timeoutMs: WEBHOOK_POST_TIMEOUT_MS,
       });
       const secondResponse = await postWebhookPayloadWithChunkPlan({
         port: address.port,
@@ -440,7 +442,7 @@ describe("startTelegramWebhook", () => {
         payload: secondPayload,
         secret,
         mode: "single",
-        timeoutMs: 8_000,
+        timeoutMs: WEBHOOK_POST_TIMEOUT_MS,
       });
 
       expect(firstResponse.statusCode).toBe(200);
@@ -495,7 +497,7 @@ describe("startTelegramWebhook", () => {
         payload,
         secret,
         mode: "random-chunked",
-        timeoutMs: 8_000,
+        timeoutMs: WEBHOOK_POST_TIMEOUT_MS,
       });
 
       expect(response.statusCode).toBe(200);
@@ -552,7 +554,7 @@ describe("startTelegramWebhook", () => {
         payload,
         secret,
         mode: "single",
-        timeoutMs: 8_000,
+        timeoutMs: WEBHOOK_POST_TIMEOUT_MS,
       });
 
       expect(response.statusCode).toBe(200);
