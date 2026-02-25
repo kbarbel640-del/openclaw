@@ -47,4 +47,15 @@ describe("extractMessagingToolSend", () => {
     expect(result?.provider).toBe("telegram");
     expect(result?.to).toBe("telegram:123");
   });
+
+  it("keeps provider unset when message send omits channel/provider", () => {
+    const result = extractMessagingToolSend("message", {
+      action: "send",
+      to: "268300329",
+    });
+
+    expect(result?.tool).toBe("message");
+    expect(result?.provider).toBeUndefined();
+    expect(result?.to).toBe("268300329");
+  });
 });
