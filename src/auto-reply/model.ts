@@ -34,11 +34,12 @@ export function extractModelDirective(
   let rawModel = raw;
   let rawProfile: string | undefined;
   if (raw) {
-    const atIndex = raw.lastIndexOf("@");
-    if (atIndex > 0) {
-      const candidateModel = raw.slice(0, atIndex).trim();
-      const candidateProfile = raw.slice(atIndex + 1).trim();
-      if (candidateModel && candidateProfile && !candidateProfile.includes("/")) {
+    const profileDelimiter = raw.lastIndexOf("@");
+    const lastSlash = raw.lastIndexOf("/");
+    if (profileDelimiter > 0 && profileDelimiter > lastSlash) {
+      const candidateModel = raw.slice(0, profileDelimiter).trim();
+      const candidateProfile = raw.slice(profileDelimiter + 1).trim();
+      if (candidateModel && candidateProfile) {
         rawModel = candidateModel;
         rawProfile = candidateProfile;
       }
