@@ -388,7 +388,8 @@ export async function sendMediaFeishu(params: {
   accountId?: string;
   localRoots?: readonly string[];
 }): Promise<SendMediaResult> {
-  const { cfg, to, mediaUrl, mediaBuffer, fileName, replyToMessageId, accountId, localRoots } = params;
+  const { cfg, to, mediaUrl, mediaBuffer, fileName, replyToMessageId, accountId, localRoots } =
+    params;
   const account = resolveFeishuAccount({ cfg, accountId });
   if (!account.configured) {
     throw new Error(`Feishu account "${account.accountId}" not configured`);
