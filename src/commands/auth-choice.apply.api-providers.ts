@@ -1,4 +1,8 @@
-import { ensureAuthProfileStore, resolveAuthProfileOrder } from "../agents/auth-profiles.js";
+import {
+  ensureAuthProfileStore,
+  resolveAuthProfileOrder,
+  resolveAuthStorePathForDisplay,
+} from "../agents/auth-profiles.js";
 import { resolveEnvApiKey } from "../agents/model-auth.js";
 import {
   formatApiKeyPreview,
@@ -605,6 +609,11 @@ export async function applyAuthChoiceApiProviders(
       prompter: params.prompter,
       setCredential: async (apiKey) => setZaiApiKey(apiKey, params.agentDir),
     });
+
+    await params.prompter.note(
+      `Saved Z.AI API key to ${resolveAuthStorePathForDisplay(params.agentDir)}.`,
+      "Credentials saved",
+    );
 
     // zai-api-key: auto-detect endpoint + choose a working default model.
     let modelIdOverride: string | undefined;
