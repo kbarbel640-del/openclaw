@@ -442,7 +442,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     const groupName = dataMessage.groupInfo?.groupName ?? undefined;
     const isGroup = Boolean(groupId);
     const storeAllowFrom =
-      deps.dmPolicy === "allowlist"
+      isGroup || deps.dmPolicy === "allowlist"
         ? []
         : await readChannelAllowFromStore("signal").catch(() => []);
     const effectiveDmAllow = [...deps.allowFrom, ...storeAllowFrom];

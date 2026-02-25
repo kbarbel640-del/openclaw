@@ -49,12 +49,15 @@ vi.mock("../../pairing/pairing-store.js", () => ({
   upsertChannelPairingRequest: vi.fn(),
 }));
 
+import { readChannelAllowFromStore } from "../../pairing/pairing-store.js";
+
 describe("signal createSignalEventHandler inbound contract", () => {
   beforeEach(() => {
     capture.ctx = undefined;
     sendTypingMock.mockReset().mockResolvedValue(true);
     sendReadReceiptMock.mockReset().mockResolvedValue(true);
     dispatchInboundMessageMock.mockClear();
+    vi.mocked(readChannelAllowFromStore).mockReset().mockResolvedValue([]);
   });
 
   it("passes a finalized MsgContext to dispatchInboundMessage", async () => {
@@ -142,5 +145,35 @@ describe("signal createSignalEventHandler inbound contract", () => {
       1700000000000,
       expect.any(Object),
     );
+  });
+
+  it("blocks group messages when only DM pairing-store entries match sender", async () => {
+    vi.mocked(readChannelAllowFromStore).mockResolvedValue(["+15550001111"]);
+    const handler = createSignalEventHandler(
+      createBaseSignalEventHandlerDeps({
+        cfg: {
+          messages: { inbound: { debounceMs: 0 } },
+          channels: { signal: { groups: { "*": { requireMention: false } } } },
+        },
+        dmPolicy: "pairing",
+        allowFrom: [],
+        groupPolicy: "allowlist",
+        groupAllowFrom: [],
+        historyLimit: 0,
+      }),
+    );
+
+    await handler(
+      createSignalReceiveEvent({
+        dataMessage: {
+          message: "hello from group",
+          attachments: [],
+          groupInfo: { groupId: "g1", groupName: "Test Group" },
+        },
+      }),
+    );
+
+    expect(dispatchInboundMessageMock).not.toHaveBeenCalled();
+    expect(capture.ctx).toBeUndefined();
   });
 });
