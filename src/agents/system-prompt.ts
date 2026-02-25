@@ -205,6 +205,7 @@ function findContextFileOverride(
   if (normalizedNames.size === 0) {
     return undefined;
   }
+  // Iterate from the end so the most recently discovered matching context file wins.
   for (let i = contextFiles.length - 1; i >= 0; i -= 1) {
     const file = contextFiles[i];
     if (!file || typeof file.path !== "string" || typeof file.content !== "string") {
