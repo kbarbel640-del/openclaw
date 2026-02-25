@@ -35,4 +35,22 @@ export const DEFAULT_CONFIG: TheLabConfig = {
     observerPollMs: 3000,
     minSamplesForProfile: 3,
   },
+  iqa: {
+    enabled: false,
+    timeoutMs: 120_000,
+  },
+  embeddings: {
+    enabled: false,
+    timeoutMs: 120_000,
+    dbPath: "~/.thelab/embeddings.db",
+  },
+  teach: {
+    targetImages: 50,
+    autoGenerateSoul: true,
+  },
+  lightroomTcp: {
+    enabled: false,
+    port: 47290,
+    host: "127.0.0.1",
+  },
 };

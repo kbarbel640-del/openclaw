@@ -109,7 +109,7 @@ export class SceneClassifier {
    * Classify a photo using only EXIF data (no vision model needed).
    * Fast, runs on every photo during catalog ingestion.
    */
-  classifyFromExif(exif: CatalogExifData): SceneClassification {
+  classifyFromExif(exif: Partial<CatalogExifData>): SceneClassification {
     return {
       timeOfDay: this.classifyTimeOfDay(exif),
       location: this.classifyLocation(exif),
@@ -165,7 +165,7 @@ export class SceneClassifier {
     };
   }
 
-  private classifyTimeOfDay(exif: CatalogExifData): TimeOfDay {
+  private classifyTimeOfDay(exif: Partial<CatalogExifData>): TimeOfDay {
     if (!exif.dateTimeOriginal) {
       return "unknown";
     }
@@ -211,7 +211,7 @@ export class SceneClassifier {
     return "unknown";
   }
 
-  private classifyLocation(exif: CatalogExifData): Location {
+  private classifyLocation(exif: Partial<CatalogExifData>): Location {
     // High ISO + no flash often suggests indoor
     if (exif.isoSpeedRating && exif.isoSpeedRating >= 1600 && !exif.flashFired) {
       return "indoor";
@@ -228,7 +228,7 @@ export class SceneClassifier {
     return "unknown";
   }
 
-  private classifyLighting(exif: CatalogExifData): Lighting {
+  private classifyLighting(exif: Partial<CatalogExifData>): Lighting {
     if (exif.flashFired) {
       // Flash + low ambient ISO = flash-dominant
       if (exif.isoSpeedRating && exif.isoSpeedRating <= 800) {
@@ -258,7 +258,7 @@ export class SceneClassifier {
     return "unknown";
   }
 
-  private classifySubject(exif: CatalogExifData): Subject {
+  private classifySubject(exif: Partial<CatalogExifData>): Subject {
     if (!exif.focalLength) {
       return "unknown";
     }
@@ -289,7 +289,7 @@ export class SceneClassifier {
     return "unknown";
   }
 
-  private classifySpecial(exif: CatalogExifData): Special | null {
+  private classifySpecial(exif: Partial<CatalogExifData>): Special | null {
     if (!exif.dateTimeOriginal) {
       return null;
     }
@@ -318,7 +318,7 @@ export class SceneClassifier {
    * Estimate how confident we are in the EXIF-only classification.
    * More EXIF data available = higher confidence.
    */
-  private computeExifConfidence(exif: CatalogExifData): number {
+  private computeExifConfidence(exif: Partial<CatalogExifData>): number {
     let score = 0;
     let maxScore = 0;
 

@@ -18,6 +18,17 @@ export { evaluateGate, filterConfidentAdjustments } from "./loop/gate.js";
 export { LightroomController } from "./lightroom/controller.js";
 export { LightroomWindow } from "./lightroom/window.js";
 export { SliderController } from "./lightroom/sliders.js";
+export { LightroomTcpClient } from "./lightroom/tcp-client.js";
+export type {
+  TcpClientConfig,
+  DevelopSettings as TcpDevelopSettings,
+} from "./lightroom/tcp-client.js";
+export {
+  isPluginAvailable,
+  forceProbe,
+  resetPluginDetectorCache,
+} from "./lightroom/plugin-detector.js";
+export type { PluginDetectorConfig } from "./lightroom/plugin-detector.js";
 
 // --- Vision ---
 export { VisionTool } from "./vision/vision-tool.js";
@@ -100,6 +111,25 @@ export type {
   CullCallbacks,
   RejectReason,
 } from "./culling/index.js";
+export { assessQuality, assessQualityBatch, shouldReject } from "./culling/index.js";
+export type { QualityAssessment } from "./culling/index.js";
+export {
+  detectFaces,
+  isFaceDetectorAvailable,
+  resetFaceDetectorCache,
+  hasClosedEyes,
+  faceQualityScore,
+} from "./culling/index.js";
+export type {
+  DetectedFace,
+  FaceDetectionResult,
+  FaceDetectorConfig,
+  FaceOrientation,
+} from "./culling/index.js";
+export { detectDuplicates, areDuplicates } from "./culling/index.js";
+export type { DuplicateGroup, DuplicateGroupMember } from "./culling/index.js";
+export { rankImages } from "./culling/index.js";
+export type { RankedImage, ScoreBreakdown } from "./culling/index.js";
 
 // --- Schemas ---
 export {
@@ -144,6 +174,65 @@ export {
   isExiftoolAvailable,
 } from "./exif/index.js";
 export type { ExifQuickData } from "./exif/index.js";
+
+// --- Teach flow ---
+export { TeachFlow } from "./teach/index.js";
+export type { TeachState, TeachProgress, TeachCallbacks } from "./teach/index.js";
+
+// --- Feedback ---
+export { FeedbackHandler } from "./feedback/index.js";
+export type { Correction, CorrectionPattern, FeedbackCallbacks } from "./feedback/index.js";
+
+// --- Approval flow ---
+export { ApprovalFlow } from "./notifications/approval-flow.js";
+export type {
+  ApprovalResponse,
+  FlaggedImageInfo,
+  ApprovalCallbacks,
+} from "./notifications/approval-flow.js";
+
+// --- IQA scoring ---
+export {
+  scoreImage,
+  isIqaAvailable,
+  resetIqaAvailabilityCache,
+  iqaConfigFromLabConfig,
+} from "./iqa/index.js";
+export type { IqaResult, ClipIqaScores, IqaScorerConfig } from "./iqa/index.js";
+
+// --- Image embeddings ---
+export {
+  computeEmbedding,
+  isEmbedderAvailable,
+  resetEmbedderAvailabilityCache,
+  decodeEmbedding,
+  encodeEmbedding,
+  cosineSimilarity,
+  embedderConfigFromLabConfig,
+  EmbeddingStore,
+} from "./embeddings/index.js";
+export type {
+  EmbeddingVector,
+  EmbeddingResult,
+  EmbedderConfig,
+  SimilarImage,
+  StoredEmbedding,
+} from "./embeddings/index.js";
+
+// --- Native inference (MLX-Swift, CoreML) ---
+export {
+  mlxSwiftClassifyImage,
+  mlxSwiftClassifyScreenshot,
+  isMlxSwiftAvailable,
+  resetMlxSwiftAvailabilityCache,
+  coremlComputeEmbedding,
+  isCoremlClipAvailable,
+  resetCoremlClipAvailabilityCache,
+  coremlScoreImage,
+  isCoremlIqaAvailable,
+  resetCoremlIqaAvailabilityCache,
+} from "./native/index.js";
+export type { MlxSwiftConfig, CoreMlClipConfig, CoreMlIqaConfig } from "./native/index.js";
 
 // --- Config ---
 export type { TheLabConfig } from "./config/thelab-config.js";

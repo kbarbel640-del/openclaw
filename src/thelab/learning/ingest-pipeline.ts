@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { computeEmbedding } from "../embeddings/embedder.js";
+import type { EmbedderConfig } from "../embeddings/embedder.js";
+import { EmbeddingStore } from "../embeddings/embedding-store.js";
 import { classifyImage } from "../vision/vlm-adapter.js";
 import type { VlmAdapterConfig } from "../vision/vlm-adapter.js";
 import { CatalogIngester } from "./catalog-ingester.js";
@@ -40,18 +43,26 @@ export class IngestPipeline {
   private callbacks: IngestCallbacks;
   /** Optional VLM config for vision-augmented classification during ingestion */
   private vlmConfig: VlmAdapterConfig | null;
+  /** Optional embedder config for computing image embeddings during ingestion */
+  private embedderConfig: EmbedderConfig | null;
+  /** Optional embedding store path */
+  private embeddingDbPath: string | null;
 
   constructor(
     catalogPath: string,
     styleDbPath: string,
     callbacks: IngestCallbacks = {},
     vlmConfig?: VlmAdapterConfig,
+    embedderConfig?: EmbedderConfig,
+    embeddingDbPath?: string,
   ) {
     this.catalogPath = catalogPath;
     this.styleDbPath = styleDbPath;
     this.classifier = new SceneClassifier();
     this.callbacks = callbacks;
     this.vlmConfig = vlmConfig ?? null;
+    this.embedderConfig = embedderConfig ?? null;
+    this.embeddingDbPath = embeddingDbPath ?? null;
   }
 
   /**
@@ -160,6 +171,40 @@ export class IngestPipeline {
 
       progress.scenariosFound = scenariosSeenSet.size;
       console.log(`[IngestPipeline] Found ${progress.scenariosFound} distinct scenarios`);
+
+      // Step 5.5: Optional embedding computation (Phase 4)
+      if (this.embedderConfig?.enabled && this.embeddingDbPath) {
+        console.log("[IngestPipeline] Computing image embeddings...");
+        const embeddingStore = new EmbeddingStore(this.embeddingDbPath);
+        let embCount = 0;
+        try {
+          for (const record of batch) {
+            // Find the original photo path from the catalog photos
+            const photo = photos.find(
+              (p) =>
+                createHash("sha256")
+                  .update(p.filePath + p.imageId)
+                  .digest("hex")
+                  .slice(0, 16) === record.photoHash,
+            );
+            if (!photo?.filePath || embeddingStore.has(record.photoHash)) {
+              continue;
+            }
+            try {
+              const embResult = await computeEmbedding(photo.filePath, this.embedderConfig);
+              if (embResult.embedding) {
+                embeddingStore.store(record.photoHash, embResult.embedding, record.scenarioKey);
+                embCount++;
+              }
+            } catch {
+              // Embedding failures are non-fatal
+            }
+          }
+          console.log(`[IngestPipeline] Computed ${embCount} embeddings`);
+        } finally {
+          embeddingStore.close();
+        }
+      }
 
       // Step 6: Recompute all scenario profiles
       console.log("[IngestPipeline] Computing scenario profiles...");

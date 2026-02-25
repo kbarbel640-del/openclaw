@@ -611,7 +611,7 @@ async function testSophieBrain(): Promise<void> {
 async function testCuller(): Promise<void> {
   console.log("\n--- Culler ---");
 
-  const config = resolveConfigPaths({ ...DEFAULT_CONFIG });
+  const config = resolveConfigPaths({ ...DEFAULT_CONFIG }, "/tmp/thelab-test");
   const results: string[] = [];
 
   const culler = new Culler(config, {

@@ -1,7 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { TheLabConfig } from "../config/thelab-config.js";
+import { computeEmbedding, embedderConfigFromLabConfig } from "../embeddings/embedder.js";
+import type { EmbedderConfig } from "../embeddings/embedder.js";
+import { EmbeddingStore } from "../embeddings/embedding-store.js";
+import type { SimilarImage } from "../embeddings/embedding-store.js";
 import { extractFullExif } from "../exif/exif-reader.js";
+import { scoreImage, iqaConfigFromLabConfig } from "../iqa/iqa-scorer.js";
+import type { IqaResult, IqaScorerConfig } from "../iqa/iqa-scorer.js";
 import type { CatalogExifData } from "../learning/catalog-ingester.js";
 import { SceneClassifier, scenarioKey, scenarioLabel } from "../learning/scene-classifier.js";
 import type { SceneClassification } from "../learning/scene-classifier.js";
@@ -69,11 +75,19 @@ export class EditingLoop {
   private styleDb: StyleDatabase;
   private aborted = false;
   private vlmConfig: VlmAdapterConfig;
+  private iqaConfig: IqaScorerConfig;
+  private embedderConfig: EmbedderConfig;
+  private embeddingStore: EmbeddingStore | null = null;
 
   /** Photographer's Soul — qualitative style context for the VLM. */
   private soulContext: string | null = null;
 
   private scenariosUsed = new Set<string>();
+
+  /** Circuit breaker for vision tool failures */
+  private visionFailureCount = 0;
+  private readonly visionFailureThreshold = 5;
+  private visionCircuitOpen = false;
 
   /**
    * Optional film stock target path for hybrid mode:
@@ -97,6 +111,14 @@ export class EditingLoop {
     this.classifier = new SceneClassifier();
     this.styleDb = new StyleDatabase(styleDbPath);
     this.vlmConfig = vlmConfigFromLabConfig(config);
+    this.iqaConfig = iqaConfigFromLabConfig(config);
+    this.embedderConfig = embedderConfigFromLabConfig(config);
+
+    // Open embedding store if embeddings are enabled
+    if (this.embedderConfig.enabled && config.embeddings?.dbPath) {
+      this.embeddingStore = new EmbeddingStore(config.embeddings.dbPath);
+    }
+
     this.session = new SessionStore(config.session.sessionDir, "personal-style", imagePaths);
     this.queue = new ImageQueue();
     this.queue.loadFromPaths(imagePaths);
@@ -169,6 +191,7 @@ export class EditingLoop {
 
     await this.session.finalize();
     this.styleDb.close();
+    this.embeddingStore?.close();
 
     const elapsedMs = Date.now() - startTime;
     const progress = this.session.getCurrentProgress();
@@ -236,6 +259,25 @@ export class EditingLoop {
     // Step 3: LOOKUP — get the photographer's profile for this scenario
     const profile = this.styleDb.findClosestProfile(classification);
 
+    // Also do embedding search for similar past edits (Phase 4)
+    let similarImages: SimilarImage[] = [];
+    if (this.embeddingStore && this.embedderConfig.enabled) {
+      try {
+        const embResult = await computeEmbedding(imagePath, this.embedderConfig);
+        if (embResult.embedding) {
+          similarImages = this.embeddingStore.findSimilar(embResult.embedding, 5);
+          if (similarImages.length > 0) {
+            console.log(
+              `[EditingLoop]   Found ${similarImages.length} similar past edits ` +
+                `(top similarity: ${similarImages[0].similarity.toFixed(3)})`,
+            );
+          }
+        }
+      } catch {
+        // Embedding search is non-fatal
+      }
+    }
+
     this.callbacks.onImageClassified?.(imageId, classification, profile);
 
     if (!profile) {
@@ -251,13 +293,41 @@ export class EditingLoop {
         `(${profile.sampleCount} samples, ${Object.keys(profile.adjustments).length} controls)`,
     );
 
+    // Step 3.5: IQA — compute quantitative image quality scores (Phase 4)
+    let iqaResult: IqaResult | null = null;
+    if (this.iqaConfig.enabled) {
+      try {
+        iqaResult = await scoreImage(imagePath, this.iqaConfig);
+        if (iqaResult.technicalQuality !== null) {
+          console.log(
+            `[EditingLoop]   IQA: tech=${iqaResult.technicalQuality.toFixed(3)}, ` +
+              `aesthetic=${iqaResult.aestheticScore?.toFixed(1) ?? "?"}, ` +
+              `sharpness=${iqaResult.clipIqa.sharpness?.toFixed(3) ?? "?"}`,
+          );
+        }
+      } catch {
+        // IQA is non-fatal
+      }
+    }
+
     // Step 4: REASON — vision model refines the profile for THIS specific image
     //   Soul context gives the VLM qualitative understanding of the photographer's style
+    //   IQA scores give structured quantitative context (Phase 4)
     const profileAdjustments = this.profileToAdjustments(profile);
-    const analysis = await this.vision.analyzeScreenshot(
-      screenshotPath,
-      this.buildProfileTargetPath(profile),
-      this.soulContext ?? undefined,
+
+    // Build IQA context string for the VLM
+    const iqaContext = iqaResult ? this.formatIqaContext(iqaResult) : undefined;
+    const combinedSoulContext = [this.soulContext, iqaContext].filter(Boolean).join("\n\n");
+
+    // Use retry + circuit breaker for vision tool calls (Phase 8)
+    const analysis = await this.retryWithBackoff(
+      () =>
+        this.vision.analyzeScreenshot(
+          screenshotPath,
+          this.buildProfileTargetPath(profile),
+          combinedSoulContext || undefined,
+        ),
+      "analyzeScreenshot",
     );
 
     // Merge: use the profile as the baseline, vision model as refinement
@@ -460,6 +530,87 @@ export class EditingLoop {
    */
   private async extractExifFromPath(imagePath: string): Promise<CatalogExifData> {
     return extractFullExif(imagePath);
+  }
+
+  /**
+   * Format IQA scores as structured context for the VLM.
+   */
+  private formatIqaContext(iqa: IqaResult): string {
+    const lines = ["## Image Quality Assessment (IQA Scores)"];
+
+    if (iqa.technicalQuality !== null) {
+      lines.push(`- Technical Quality: ${iqa.technicalQuality.toFixed(3)} (0-1 scale)`);
+    }
+    if (iqa.aestheticScore !== null) {
+      lines.push(`- Aesthetic Score: ${iqa.aestheticScore.toFixed(1)} (1-10 scale)`);
+    }
+
+    const clip = iqa.clipIqa;
+    if (clip.brightness !== null) {
+      lines.push(`- Brightness: ${clip.brightness.toFixed(3)}`);
+    }
+    if (clip.contrast !== null) {
+      lines.push(`- Contrast: ${clip.contrast.toFixed(3)}`);
+    }
+    if (clip.colorfulness !== null) {
+      lines.push(`- Colorfulness: ${clip.colorfulness.toFixed(3)}`);
+    }
+    if (clip.sharpness !== null) {
+      lines.push(`- Sharpness: ${clip.sharpness.toFixed(3)}`);
+    }
+    if (clip.noisiness !== null) {
+      lines.push(`- Noisiness: ${clip.noisiness.toFixed(3)}`);
+    }
+
+    return lines.join("\n");
+  }
+
+  /**
+   * Retry a function with exponential backoff.
+   * Part of the production hardening circuit breaker pattern (Phase 8).
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    label: string,
+    maxRetries = 2,
+  ): Promise<T> {
+    // Circuit breaker: if too many failures, degrade gracefully
+    if (this.visionCircuitOpen) {
+      throw new Error(`[EditingLoop] Vision circuit breaker open — ${label} skipped`);
+    }
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await fn();
+        // Reset failure count on success
+        this.visionFailureCount = 0;
+        return result;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn(
+          `[EditingLoop] ${label} attempt ${attempt + 1}/${maxRetries + 1} failed: ${lastError.message}`,
+        );
+
+        if (attempt < maxRetries) {
+          const delayMs = 1000 * 2 ** attempt; // 1s, 2s
+          await this.sleep(delayMs);
+        }
+      }
+    }
+
+    // Track failures for circuit breaker
+    this.visionFailureCount++;
+    if (this.visionFailureCount >= this.visionFailureThreshold) {
+      this.visionCircuitOpen = true;
+      console.error(
+        `[EditingLoop] Vision circuit breaker OPEN after ${this.visionFailureCount} failures — ` +
+          "falling back to profile-only mode",
+      );
+    }
+
+    throw lastError ?? new Error(`${label} failed after retries`);
   }
 
   abort(): void {

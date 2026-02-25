@@ -34,6 +34,24 @@ export interface TheLabConfig {
     observerPollMs: number;
     minSamplesForProfile: number;
   };
+  iqa?: {
+    enabled: boolean;
+    timeoutMs: number;
+  };
+  embeddings?: {
+    enabled: boolean;
+    timeoutMs: number;
+    dbPath: string;
+  };
+  teach?: {
+    targetImages: number;
+    autoGenerateSoul: boolean;
+  };
+  lightroomTcp?: {
+    enabled: boolean;
+    port: number;
+    host: string;
+  };
 }
 
 export function resolveConfigPaths(config: TheLabConfig, baseDir: string): TheLabConfig {
@@ -62,5 +80,14 @@ export function resolveConfigPaths(config: TheLabConfig, baseDir: string): TheLa
       styleDbPath: resolve(config.learning.styleDbPath),
       catalogPath: resolve(config.learning.catalogPath),
     },
+    iqa: config.iqa,
+    embeddings: config.embeddings
+      ? {
+          ...config.embeddings,
+          dbPath: resolve(config.embeddings.dbPath),
+        }
+      : undefined,
+    teach: config.teach,
+    lightroomTcp: config.lightroomTcp,
   };
 }

@@ -24,20 +24,8 @@
   // Tool policy: only what The Lab needs
   tools: {
     profile: "coding",
-    allow: [
-      "group:fs",
-      "group:runtime",
-      "group:sessions",
-      "message",
-    ],
-    deny: [
-      "browser",
-      "canvas",
-      "cron",
-      "gateway",
-      "web_search",
-      "web_fetch",
-    ],
+    allow: ["group:fs", "group:runtime", "group:sessions", "message"],
+    deny: ["browser", "canvas", "cron", "gateway", "web_search", "web_fetch"],
   },
 
   // iMessage only — for progress notifications to the photographer
