@@ -18,7 +18,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import type { OpenClawPluginApi, AnyAgentTool } from "openclaw/plugin-sdk";
 import { getTypeDBClient } from "../knowledge/typedb-client.js";
 import { MemoryQueries } from "../knowledge/typedb-queries.js";
-import { textResult, resolveWorkspaceDir } from "./common.js";
+import { textResult, resolveWorkspaceDir, generatePrefixedId } from "./common.js";
 import { materializeMemoryItems } from "./memory-materializer.js";
 
 async function readJson(p: string) {
@@ -267,7 +267,7 @@ function summarizeMemoryGroup(group: MemoryItem[]): MemoryItem {
   );
 
   return {
-    id: `M-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: generatePrefixedId("M"),
     content: mergedContent,
     type: primaryItem.type,
     importance: maxImportance,
@@ -447,7 +447,7 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
         const targetStore = params.store || "short_term";
 
         const item: MemoryItem = {
-          id: `M-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          id: generatePrefixedId("M"),
           content: params.content,
           type: params.type,
           importance: params.importance,
@@ -480,8 +480,13 @@ export function createMemoryTools(api: OpenClawPluginApi): AnyAgentTool[] {
 
         await saveMemory(api, params.agent_id, mem);
 
-        // Also append to Memory.md for human readability
-        const mdPath = join(resolveWorkspaceDir(api), "agents", params.agent_id, "Memory.md");
+        // Also append to memory-journal.md for human readability
+        const mdPath = join(
+          resolveWorkspaceDir(api),
+          "agents",
+          params.agent_id,
+          "memory-journal.md",
+        );
         let md = await readMd(mdPath);
         md += `\n- [${now.split("T")[0]}] [${params.type}] ${params.content}`;
         await writeMd(mdPath, md);

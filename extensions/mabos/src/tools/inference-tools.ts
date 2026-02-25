@@ -10,7 +10,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import type { OpenClawPluginApi, AnyAgentTool } from "openclaw/plugin-sdk";
 import { getTypeDBClient } from "../knowledge/typedb-client.js";
 import { InferenceQueries } from "../knowledge/typedb-queries.js";
-import { textResult, resolveWorkspaceDir } from "./common.js";
+import { textResult, resolveWorkspaceDir, generatePrefixedId } from "./common.js";
 
 async function readJson(p: string) {
   try {
@@ -99,7 +99,7 @@ function forwardChain(
           const derivedConfidence = minConfidence * rule.confidence_factor;
 
           const newFact: Fact = {
-            id: `F-inf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            id: generatePrefixedId("INF"),
             subject: conclusion.subject!,
             predicate: conclusion.predicate,
             object: conclusion.object!,

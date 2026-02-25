@@ -2,6 +2,7 @@
  * Shared helpers for all MABOS tool modules.
  */
 
+import { randomUUID } from "node:crypto";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 /**
@@ -14,6 +15,13 @@ export interface MabosPluginConfig {
   cbrMaxCases?: number;
   stakeholderApprovalThresholdUsd?: number;
   bdiCycleIntervalMinutes?: number;
+}
+
+/**
+ * Generate a prefixed unique ID using crypto.randomUUID().
+ */
+export function generatePrefixedId(prefix: string): string {
+  return `${prefix}-${randomUUID()}`;
 }
 
 /** Status codes that are retryable. */

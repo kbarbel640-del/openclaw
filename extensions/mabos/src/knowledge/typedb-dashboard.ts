@@ -499,7 +499,7 @@ export async function writeBdiCycleResultToTypeDB(
     // Insert new intentions
     if (result.newIntentions && result.newIntentions.length > 0) {
       for (const intentionName of result.newIntentions) {
-        const uid = `INT-${agentId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const uid = `INT-${agentId}-${crypto.randomUUID()}`;
         const now = new Date().toISOString();
         try {
           await client.insertData(
@@ -516,7 +516,7 @@ insert $int isa intention, has uid "${uid}", has name ${JSON.stringify(intention
     // Insert new beliefs
     if (result.newBeliefs && result.newBeliefs.length > 0) {
       for (const beliefContent of result.newBeliefs) {
-        const uid = `BEL-${agentId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const uid = `BEL-${agentId}-${crypto.randomUUID()}`;
         const now = new Date().toISOString();
         try {
           await client.insertData(

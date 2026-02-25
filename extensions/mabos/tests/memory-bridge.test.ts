@@ -112,8 +112,8 @@ describe("Memory Bridge: Native Format", () => {
 
   it("memory_store_item preserves backward compat (Memory.md + memory-store.json)", async () => {
     // The store call above should have written both legacy files too
-    const memoryMdPath = join(tmpWorkspace, "agents", AGENT_ID, "Memory.md");
-    assert.ok(existsSync(memoryMdPath), "Memory.md (title case) should still exist");
+    const memoryMdPath = join(tmpWorkspace, "agents", AGENT_ID, "memory-journal.md");
+    assert.ok(existsSync(memoryMdPath), "memory-journal.md should still exist");
 
     const memoryMd = await readFile(memoryMdPath, "utf-8");
     assert.ok(memoryMd.includes("observation"), "Memory.md should contain the memory type");

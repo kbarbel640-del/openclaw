@@ -9,7 +9,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import type { OpenClawPluginApi, AnyAgentTool } from "openclaw/plugin-sdk";
 import { BpmnStoreQueries } from "../knowledge/bpmn-queries.js";
 import { getTypeDBClient } from "../knowledge/typedb-client.js";
-import { textResult } from "./common.js";
+import { textResult, generatePrefixedId } from "./common.js";
 
 const DB = "mabos";
 
@@ -110,7 +110,7 @@ export function createWorkflowTools(_api: OpenClawPluginApi): AnyAgentTool[] {
         const client = getTypeDBClient();
         if (!client.isAvailable()) return textResult("TypeDB unavailable");
 
-        const id = `bpmn-wf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const id = generatePrefixedId("bpmn-wf");
         const typeql = BpmnStoreQueries.createWorkflow(params.agent_id, {
           id,
           name: params.name,
@@ -251,7 +251,7 @@ export function createWorkflowTools(_api: OpenClawPluginApi): AnyAgentTool[] {
         const client = getTypeDBClient();
         if (!client.isAvailable()) return textResult("TypeDB unavailable");
 
-        const elementId = `bpmn-el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const elementId = generatePrefixedId("bpmn-el");
         const eventPosition =
           params.type === "startEvent" ? "start" : params.type === "endEvent" ? "end" : undefined;
 
@@ -300,7 +300,7 @@ export function createWorkflowTools(_api: OpenClawPluginApi): AnyAgentTool[] {
         const client = getTypeDBClient();
         if (!client.isAvailable()) return textResult("TypeDB unavailable");
 
-        const flowId = `bpmn-fl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const flowId = generatePrefixedId("bpmn-fl");
         const typeql = BpmnStoreQueries.addFlow(params.agent_id, params.workflow_id, {
           id: flowId,
           flow_type: params.flow_type || "sequence",
@@ -324,7 +324,7 @@ export function createWorkflowTools(_api: OpenClawPluginApi): AnyAgentTool[] {
         // Create pool if needed
         let poolId = params.pool_id;
         if (!poolId) {
-          poolId = `bpmn-pool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          poolId = generatePrefixedId("bpmn-pool");
           const poolTypeql = BpmnStoreQueries.addPool(params.agent_id, params.workflow_id, {
             id: poolId,
             name: "Default Pool",
@@ -332,7 +332,7 @@ export function createWorkflowTools(_api: OpenClawPluginApi): AnyAgentTool[] {
           await client.insertData(poolTypeql, DB);
         }
 
-        const laneId = `bpmn-lane-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const laneId = generatePrefixedId("bpmn-lane");
         const typeql = BpmnStoreQueries.addLane(params.agent_id, poolId, {
           id: laneId,
           name: params.name,

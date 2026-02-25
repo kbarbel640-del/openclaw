@@ -134,12 +134,14 @@ describe("buildWorkspaceSkillsPrompt", () => {
 
     withEnv({ GEMINI_API_KEY: undefined }, () => {
       const missingPrompt = buildWorkspaceSkillsPrompt(workspaceDir, {
+        bundledSkillsDir: path.join(workspaceDir, ".bundled"),
         managedSkillsDir: path.join(workspaceDir, ".managed"),
         config: { skills: { entries: { "nano-banana-pro": { apiKey: "" } } } },
       });
       expect(missingPrompt).not.toContain("nano-banana-pro");
 
       const enabledPrompt = buildWorkspaceSkillsPrompt(workspaceDir, {
+        bundledSkillsDir: path.join(workspaceDir, ".bundled"),
         managedSkillsDir: path.join(workspaceDir, ".managed"),
         config: {
           skills: { entries: { "nano-banana-pro": { apiKey: "test-key" } } },
