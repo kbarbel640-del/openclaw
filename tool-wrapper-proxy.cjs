@@ -3890,6 +3890,10 @@ const EXEC_PATTERNS = [
 
   // Catch-all for explicit exec
   { pattern: /^(?:exec|執行)\s+(.+)$/i, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
+
+  // Capability queries — intercept before Haiku says "I can't"
+  { pattern: /^(?:你)?(?:可以|能|能不能|可不可以)(?:檢視|查看|管理|操作|存取|訪問|連接|控制).*(?:mac\s*mini|專案|系統|伺服器|服務器)/is, parse: () => ({ action: '_capability', args: [] }) },
+  { pattern: /^(?:can you|are you able to).*(?:access|view|manage|control|connect|ssh).*(?:mac\s*mini|server|project|system)/is, parse: () => ({ action: '_capability', args: [] }) },
 ];
 
 function detectExecAction(text) {
@@ -3901,6 +3905,25 @@ function detectExecAction(text) {
 }
 
 function localExec(action, args) {
+  // Capability query — return static help text, no shell exec
+  if (action === '_capability') {
+    return Promise.resolve([
+      '可以。我可以直接操作 Mac mini，不需要你手動執行。',
+      '',
+      '直接發送命令即可，例如:',
+      '  docker ps — 查看容器狀態',
+      '  重啟 backend — 重啟容器',
+      '  健康檢查 — 系統整體狀態',
+      '  git status — 查看 Git 狀態',
+      '  部署 openclaw — 拉最新代碼並部署',
+      '  docker logs backend — 查看日誌',
+      '',
+      '複雜開發任務用 @agent 前綴:',
+      '  @agent 修復 Telegram provider',
+      '  @agent 加一個 /version endpoint',
+    ].join('\n'));
+  }
+
   return new Promise((resolve, reject) => {
     const { execFile } = require('node:child_process');
     const execPath = '/Users/rexmacmini/openclaw/openclaw-exec.sh';
