@@ -2350,6 +2350,12 @@ function callAgentd(endpoint, params, timeout, method) {
 const SESSION_BRIDGE_PORT = 7788;
 const SESSION_BRIDGE_TIMEOUT = 180000; // 3 min max
 
+// ─── Session Gate — prevent spawn storm (max 1 concurrent session) ────
+let _activeSessions = 0;
+const MAX_CONCURRENT_SESSIONS = 1;
+const _sessionQueue = [];
+
+
 function callSessionBridgeAPI(method, path, body) {
   return new Promise((resolve, reject) => {
     const postBody = body ? JSON.stringify(body) : "";
@@ -3204,7 +3210,13 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
 - docker_ps / docker_restart / docker_logs: Docker 操作
 - run_tests / system_info: 測試和系統資訊
 
-重要：你不在 Docker 容器內。這些工具會直接在 Mac mini 主機上執行。遇到 git push 請求時，直接呼叫 git_push 工具，不要告訴用戶手動執行。`,
+重要：你不在 Docker 容器內。這些工具會直接在 Mac mini 主機上執行。遇到 git push 請求時，直接呼叫 git_push 工具，不要告訴用戶手動執行。
+
+路徑映射（容器路徑 → 主機路徑）：
+- /home/node/.openclaw/ → /Users/rexmacmini/.openclaw/
+- /home/node/.openclaw/workspace/ → /Users/rexmacmini/openclaw/workspace/
+- 腳本位置: /Users/rexmacmini/openclaw/workspace/ (不是容器內路徑)
+- 專案根目錄: /Users/rexmacmini/openclaw/`,
   };
 
   let allMessages = [devToolGuide, ...conversationMessages];
@@ -3461,7 +3473,115 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   }
 
 
-  // Priority 0.7: Agent Orchestrator — @agent or task: prefix
+  // Priority 0.65: Control Plane — complexity-based routing (v2)
+  // Simple/medium ops → dev mode tool loop (fast path, 5-30s)
+  // Complex tasks → Session Bridge → Claude Code (slow path, 30-120s)
+  // Agent-internal requests → never escalate (prevent control plane hijack)
+  {
+    // --- Agent internal bypass: agents manage themselves ---
+    const isAgentInternal = req.headers["x-openclaw-agent"] === "true"
+      || req.headers["x-openclaw-internal"] === "true";
+
+    const CP_ACTION_SIGNALS = [
+      // Code/Dev tasks
+      "加一個", "新增", "建立", "實作", "實現", "寫一個", "修復", "重構",
+      "implement", "create", "build", "add", "write", "fix", "refactor",
+      // System ops
+      "重啟", "restart", "停止", "stop", "啟動", "start",
+      "清理", "cleanup", "刪除", "delete", "移除", "remove",
+      // Docker
+      "container", "容器", "docker", "image", "volume",
+      // Deploy
+      "部署", "deploy", "push", "上線", "release",
+      // File ops
+      "檔案", "file", "目錄", "directory", "備份", "backup",
+      // Config
+      "設定", "config", "configure", "修改設定", "更新設定",
+      // Install/Update
+      "安裝", "install", "更新", "update", "upgrade",
+    ];
+    const CP_EXCLUDE = [
+      // Pure questions — don't route to session bridge
+      "什麼是", "what is", "what's", "how does", "為什麼", "why",
+      "explain", "解釋", "tell me about", "介紹",
+      // Greetings
+      "你好", "hello", "hi", "嗨", "hey",
+    ];
+    const lowerCP = userText.toLowerCase();
+    const hasAction = CP_ACTION_SIGNALS.some(s => lowerCP.includes(s));
+    const isQuestion = CP_EXCLUDE.some(s => lowerCP.includes(s));
+
+    if (hasAction && !isQuestion && userText.length > 5 && !isAgentInternal) {
+      // --- Intent Density scoring (not length-based) ---
+      const CP_COMPLEX_VERBS = [
+        "實作", "implement", "重構", "refactor", "設計", "design",
+        "遷移", "migrate", "整合", "integrate", "新增功能", "add feature",
+        "建立模組", "create module", "architecture", "架構",
+      ];
+      const CP_COMPLEX_PATTERNS = [
+        // endpoint/api/module/component + action verb
+        /(?:endpoint|api|module|component|service|feature).*(?:加|建|寫|implement|create|build|design)/is,
+        /(?:加|建|寫|implement|create|build|design).*(?:endpoint|api|module|component|service|feature)/is,
+      ];
+      const CP_TECHNICAL_NOUNS = [
+        "endpoint", "api", "database", "schema", "middleware", "router",
+        "controller", "service", "model", "migration", "pipeline",
+        "資料庫", "路由", "中間件", "控制器", "模型",
+      ];
+
+      // Score: complex verbs=2, pattern matches=3, technical nouns=1
+      let complexityScore = 0;
+      const verbMatches = CP_COMPLEX_VERBS.filter(v => lowerCP.includes(v)).length;
+      const patternMatches = CP_COMPLEX_PATTERNS.filter(p => p.test(userText)).length;
+      const nounMatches = CP_TECHNICAL_NOUNS.filter(n => lowerCP.includes(n)).length;
+      complexityScore = verbMatches * 2 + patternMatches * 3 + nounMatches;
+
+      // Explicit escalation: @agent or task: prefix always complex
+      const explicitEscalation = /^(?:@agent\s|task:\s*)/i.test(userText);
+
+      const isComplex = complexityScore >= 3 || explicitEscalation;
+
+      // Detect project from PROJECT_ROUTES
+      let cpProject = null;
+      for (const route of PROJECT_ROUTES) {
+        if (route.keywords.some(kw => lowerCP.includes(kw))) {
+          cpProject = route.dir.split("/").pop();
+          break;
+        }
+      }
+
+      // --- Observability ---
+      console.log(`[wrapper] #${reqId} CONTROL_PLANE: score=${complexityScore} (verbs=${verbMatches} patterns=${patternMatches} nouns=${nounMatches}) explicit=${explicitEscalation} complex=${isComplex} project=${cpProject || "none"}`);
+
+      if (isComplex) {
+        // --- Session Gate: prevent spawn storm ---
+        if (_activeSessions >= MAX_CONCURRENT_SESSIONS) {
+          console.log(`[wrapper] #${reqId} CONTROL_PLANE_QUEUED: ${_activeSessions} active sessions, falling through to dev mode`);
+          // Fall through to dev mode instead of queuing (simpler, still works)
+        } else {
+          // → Slow Path: Session Bridge (Claude Code) for deliberative tasks
+          console.log(`[wrapper] #${reqId} CONTROL_PLANE_COMPLEX: routing to session-bridge`);
+          _activeSessions++;
+          try {
+            const result = await callSessionBridge(userText, cpProject);
+            const output = result.output || result.lastMessage || "(session completed, no output captured)";
+            const truncated = output.length > 3000 ? output.slice(0, 3000) + "\n...(truncated)" : output;
+            return sendDirectResponse(reqId, truncated, wantsStream, res);
+          } catch (e) {
+            console.error(`[wrapper] #${reqId} control_plane error: ${e.message}`);
+            console.log(`[wrapper] #${reqId} control_plane: session-bridge failed, falling through to dev mode`);
+          } finally {
+            _activeSessions--;
+          }
+        }
+      } else {
+        // → Fast Path: fall through to dev mode tool loop
+        console.log(`[wrapper] #${reqId} CONTROL_PLANE_SIMPLE: falling through to dev mode (score=${complexityScore})`);
+      }
+    }
+  }
+
+    // Priority 0.7: Agent Orchestrator — @agent or task: prefix
   {
     const agentMatch = userText.match(/^(?:@agent\s+|task:\s*|agent:\s*)(.+)$/is);
     if (agentMatch) {
