@@ -933,9 +933,7 @@ export async function maybeApplyTtsToPayload(params: {
 
   const errorMessage = `🔇 TTS failed: ${result.error ?? "unknown error"}`;
   const existingText = nextPayload.text ?? "";
-  const newText = existingText
-    ? `${existingText}\n\n${errorMessage}`
-    : errorMessage;
+  const newText = existingText ? `${existingText}\n\n${errorMessage}` : errorMessage;
 
   return {
     ...nextPayload,

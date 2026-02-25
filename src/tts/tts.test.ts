@@ -539,13 +539,13 @@ describe("tts", () => {
       globalThis.fetch = fetchMock as unknown as typeof fetch;
       const alwaysCfg: OpenClawConfig = {
         ...baseCfg,
-        messages: { 
-          tts: { 
-            ...baseCfg.messages!.tts, 
+        messages: {
+          tts: {
+            ...baseCfg.messages!.tts,
             auto: "always",
             edge: { enabled: false },
             openai: { apiKey: "fake-key" },
-          } 
+          },
         },
       };
       try {
@@ -576,13 +576,13 @@ describe("tts", () => {
       globalThis.fetch = fetchMock as unknown as typeof fetch;
       const alwaysCfg: OpenClawConfig = {
         ...baseCfg,
-        messages: { 
-          tts: { 
-            ...baseCfg.messages!.tts, 
+        messages: {
+          tts: {
+            ...baseCfg.messages!.tts,
             auto: "always",
             edge: { enabled: false },
             openai: { apiKey: "fake-key" },
-          } 
+          },
         },
       };
       try {
@@ -611,13 +611,13 @@ describe("tts", () => {
       globalThis.fetch = fetchMock as unknown as typeof fetch;
       const alwaysCfg: OpenClawConfig = {
         ...baseCfg,
-        messages: { 
-          tts: { 
-            ...baseCfg.messages!.tts, 
+        messages: {
+          tts: {
+            ...baseCfg.messages!.tts,
             auto: "always",
             edge: { enabled: false },
             openai: { apiKey: "fake-key" },
-          } 
+          },
         },
       };
       try {
