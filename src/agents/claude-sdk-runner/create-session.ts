@@ -223,6 +223,7 @@ export async function createClaudeSdkSession(
     streamingPartialMessage: null,
     streamingInProgress: false,
     sessionManager: params.sessionManager,
+    enableClaudeWebSearch: false,
   };
 
   // Build in-process MCP tool server from OpenClaw tools (already wrapped with
@@ -304,21 +305,9 @@ export async function createClaudeSdkSession(
       }
 
       try {
-        // Persist the user message to JSONL before starting the query loop.
-        // Only persist on first iteration — steer-resumed loops should not double-persist.
+        // Persist the user message to JSONL on first iteration only.
+        // Steer-resumed iterations should not double-persist.
         let userMessagePersisted = false;
-        if (!userMessagePersisted && state.sessionManager?.appendMessage) {
-          try {
-            state.sessionManager.appendMessage({
-              role: "user",
-              content: effectivePrompt,
-              timestamp: Date.now(),
-            });
-          } catch {
-            // Non-fatal — user message persistence failed
-          }
-          userMessagePersisted = true;
-        }
 
         // Outer loop: supports interrupt-and-resume for mid-loop steer injection.
         // When steer() is called while query() is running, we interrupt the current
@@ -326,6 +315,19 @@ export async function createClaudeSdkSession(
         // user turn. This gives near-parity with Pi's mid-loop steer behavior.
         // eslint-disable-next-line no-constant-condition
         while (true) {
+          if (!userMessagePersisted && state.sessionManager?.appendMessage) {
+            try {
+              state.sessionManager.appendMessage({
+                role: "user",
+                content: effectivePrompt,
+                timestamp: Date.now(),
+              });
+            } catch {
+              // Non-fatal — user message persistence failed
+            }
+            userMessagePersisted = true;
+          }
+
           const queryOptions = buildQueryOptions(params, state, toolServer);
           const queryInstance = query({ prompt: effectivePrompt, options: queryOptions as never });
 
@@ -375,6 +377,7 @@ export async function createClaudeSdkSession(
           // naturally with the injected user message.
           const pendingSteer = state.pendingSteer.splice(0).join("\n");
           effectivePrompt = pendingSteer;
+          userMessagePersisted = false; // allow steer prompt to be persisted
         }
 
         // After the query loop: throw if the SDK returned an error result message.
@@ -442,7 +445,15 @@ export async function createClaudeSdkSession(
     // dispose — persists the Claude SDK session_id via SessionManager
     // -------------------------------------------------------------------------
     dispose() {
-      if (state.claudeSdkSessionId && params.sessionManager?.appendCustomEntry) {
+      if (!state.claudeSdkSessionId) {
+        if (state.messages.length > 0) {
+          log.warn(
+            "claude-sdk dispose(): no session_id captured — server-side session may be orphaned",
+          );
+        }
+        return;
+      }
+      if (params.sessionManager?.appendCustomEntry) {
         try {
           params.sessionManager.appendCustomEntry(
             "openclaw:claude-sdk-session-id",
@@ -487,6 +498,9 @@ export async function createClaudeSdkSession(
     runtimeHints: {
       allowSyntheticToolResults: false,
       enforceFinalTag: false,
+      managesOwnHistory: true,
+      supportsStreamFnWrapping: false,
+      sessionFile: undefined,
     } satisfies AgentRuntimeHints,
   };
 
