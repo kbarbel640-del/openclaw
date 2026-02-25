@@ -185,7 +185,10 @@ export function resolveImageModelConfigForTool(params: {
     };
   }
 
-  return null;
+  return  {
+    primary: `${primary.provider}/${primary.model}`,
+
+  };
 }
 
 function pickMaxBytes(cfg?: OpenClawConfig, maxBytesMb?: number): number | undefined {
