@@ -31,10 +31,13 @@ export function checkBrowserOrigin(params: {
     return { ok: false, reason: "origin missing or invalid" };
   }
 
-  const allowlist = (params.allowedOrigins ?? [])
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  if (allowlist.includes(parsedOrigin.origin)) {
+  const allowlist = new Set(
+    (params.allowedOrigins ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean),
+  );
+  if (allowlist.has("*")) {
+    return { ok: true };
+  }
+  if (allowlist.has(parsedOrigin.origin)) {
     return { ok: true };
   }
 

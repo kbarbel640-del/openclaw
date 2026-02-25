@@ -27,6 +27,24 @@ describe("checkBrowserOrigin", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("accepts any origin when wildcard '*' is in allowedOrigins", () => {
+    const result = checkBrowserOrigin({
+      requestHost: "gateway.example.com:18789",
+      origin: "http://192.168.50.50:18888",
+      allowedOrigins: ["*"],
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects missing origin even when wildcard '*' is in allowedOrigins", () => {
+    const result = checkBrowserOrigin({
+      requestHost: "gateway.example.com:18789",
+      origin: "",
+      allowedOrigins: ["*"],
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("rejects missing origin", () => {
     const result = checkBrowserOrigin({
       requestHost: "gateway.example.com:18789",
