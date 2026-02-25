@@ -6,7 +6,7 @@ import type {
   GatewayRequestHandler,
   GatewayRequestHandlers,
 } from "../gateway/server-methods/types.js";
-import { registerInternalHook } from "../hooks/internal-hooks.js";
+import { registerPluginHook } from "../hooks/internal-hooks.js";
 import type { HookEntry } from "../hooks/types.js";
 import { resolveUserPath } from "../utils.js";
 import { registerPluginCommand } from "./commands.js";
@@ -262,7 +262,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     }
 
     for (const event of normalizedEvents) {
-      registerInternalHook(event, handler);
+      registerPluginHook(event, handler);
     }
   };
 
