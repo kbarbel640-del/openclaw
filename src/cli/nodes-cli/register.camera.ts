@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import type { NodeListNode, NodesRpcOpts } from "./types.js";
 import { defaultRuntime } from "../../runtime.js";
 import { renderTable } from "../../terminal/table.js";
 import { shortenHomePath } from "../../utils.js";
@@ -21,6 +20,7 @@ import {
   resolveNode,
   resolveNodeId,
 } from "./rpc.js";
+import type { NodeListNode, NodesRpcOpts } from "./types.js";
 
 function requireNodeRemoteIp(node: NodeListNode, action: string): string {
   const remoteIp = typeof node.remoteIp === "string" ? node.remoteIp.trim() : "";
