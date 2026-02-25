@@ -128,6 +128,8 @@ export const pt_BR: TranslationMap = {
     actions: {
       noChanges: "Sem alterações",
       unsavedChanges: "Alterações não salvas",
+      unsavedChangeCount: "{count} alteração não salva",
+      unsavedChangesCount: "{count} alterações não salvas",
       reload: "Recarregar",
       loading: "Carregando…",
       save: "Salvar",

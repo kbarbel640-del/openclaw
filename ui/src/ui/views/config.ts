@@ -635,7 +635,13 @@ export function renderConfig(props: ConfigProps) {
                     >${
                       props.formMode === "raw"
                         ? t("configView.actions.unsavedChanges")
-                        : `${diff.length} ${t("configView.actions.unsavedChanges").toLowerCase()}`
+                        : diff.length === 1
+                          ? t("configView.actions.unsavedChangeCount", {
+                              count: String(diff.length),
+                            })
+                          : t("configView.actions.unsavedChangesCount", {
+                              count: String(diff.length),
+                            })
                     }</span
                   >
                 `

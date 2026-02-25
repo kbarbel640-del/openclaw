@@ -125,6 +125,8 @@ export const zh_CN: TranslationMap = {
     actions: {
       noChanges: "无更改",
       unsavedChanges: "未保存的更改",
+      unsavedChangeCount: "{count} 项未保存的更改",
+      unsavedChangesCount: "{count} 项未保存的更改",
       reload: "重新加载",
       loading: "加载中…",
       save: "保存",

@@ -126,6 +126,8 @@ export const en: TranslationMap = {
     actions: {
       noChanges: "No changes",
       unsavedChanges: "Unsaved changes",
+      unsavedChangeCount: "{count} unsaved change",
+      unsavedChangesCount: "{count} unsaved changes",
       reload: "Reload",
       loading: "Loading…",
       save: "Save",
