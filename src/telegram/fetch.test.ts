@@ -168,21 +168,17 @@ describe("resolveTelegramFetch", () => {
     expect(setGlobalDispatcher).toHaveBeenCalledTimes(1);
   });
 
-  it("updates global dispatcher when autoSelectFamily decision changes", async () => {
+  it("does not replace global dispatcher when autoSelectFamily is false", async () => {
     globalThis.fetch = vi.fn(async () => ({})) as unknown as typeof fetch;
     resolveTelegramFetch(undefined, { network: { autoSelectFamily: true } });
     resolveTelegramFetch(undefined, { network: { autoSelectFamily: false } });
 
-    expect(setGlobalDispatcher).toHaveBeenCalledTimes(2);
+    // Only the first call (true) should replace the dispatcher;
+    // switching to false should leave the default dispatcher untouched.
+    expect(setGlobalDispatcher).toHaveBeenCalledTimes(1);
     expect(AgentCtor).toHaveBeenNthCalledWith(1, {
       connect: {
         autoSelectFamily: true,
-        autoSelectFamilyAttemptTimeout: 300,
-      },
-    });
-    expect(AgentCtor).toHaveBeenNthCalledWith(2, {
-      connect: {
-        autoSelectFamily: false,
         autoSelectFamilyAttemptTimeout: 300,
       },
     });
