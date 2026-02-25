@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -132,6 +133,20 @@ func main() {
 	}
 	elapsed := time.Since(start).Round(time.Millisecond)
 	log.Printf("docs-i18n: completed processed=%d skipped=%d elapsed=%s", processed, skipped, elapsed)
+
+	// Post-processing: rewrite internal links in translated docs to include locale prefix.
+	if processed > 0 {
+		fixLinksScript := filepath.Join(resolvedDocsRoot, "..", "scripts", "docs-i18n-fix-links.mjs")
+		if _, err := os.Stat(fixLinksScript); err == nil {
+			log.Printf("docs-i18n: running link rewrite post-processing for %s", *targetLang)
+			cmd := exec.Command("node", fixLinksScript, "--lang", *targetLang)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				log.Printf("docs-i18n: warning: link fix script failed: %v", err)
+			}
+		}
+	}
 }
 
 func runDocSequential(ctx context.Context, ordered []string, translator *PiTranslator, docsRoot, srcLang, tgtLang string, overwrite bool) (int, int, error) {
