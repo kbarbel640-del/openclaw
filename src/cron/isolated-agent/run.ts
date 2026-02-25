@@ -841,5 +841,13 @@ export async function runCronIsolatedAgentTurn(params: {
     }
   }
 
-  return withRunSession({ status: "ok", summary, outputText, delivered, ...telemetry });
+  const hasPayloadError = payloads.some((p) => p.isError === true);
+  return withRunSession({
+    status: hasPayloadError ? "error" : "ok",
+    error: hasPayloadError ? (summary || "agent returned error") : undefined,
+    summary,
+    outputText,
+    delivered,
+    ...telemetry,
+  });
 }
