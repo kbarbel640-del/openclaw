@@ -19,6 +19,7 @@ Pull=never
 Exec=node dist/index.js gateway --bind lan --port 18789
 
 [Service]
+User=%U:%G
 TimeoutStartSec=300
 Restart=on-failure
 
