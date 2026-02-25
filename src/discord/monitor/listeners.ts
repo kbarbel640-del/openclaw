@@ -5,8 +5,12 @@ import {
   MessageReactionAddListener,
   MessageReactionRemoveListener,
   PresenceUpdateListener,
+  ThreadUpdateListener,
   type User,
 } from "@buape/carbon";
+import type { OpenClawConfig } from "../../config/config.js";
+import { isThreadArchived } from "./thread-bindings.discord-api.js";
+import { closeDiscordThreadSessions } from "./thread-session-close.js";
 import { danger } from "../../globals.js";
 import { formatDurationSeconds } from "../../infra/format-time/format-duration.ts";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
@@ -215,9 +219,9 @@ async function handleDiscordReactionEvent(params: {
     const isGuildMessage = Boolean(data.guild_id);
     const guildInfo = isGuildMessage
       ? resolveDiscordGuildEntry({
-          guild: data.guild ?? undefined,
-          guildEntries,
-        })
+        guild: data.guild ?? undefined,
+        guildEntries,
+      })
       : null;
     if (isGuildMessage && guildEntries && Object.keys(guildEntries).length > 0 && !guildInfo) {
       return;
@@ -459,5 +463,51 @@ export class DiscordPresenceListener extends PresenceUpdateListener {
       const logger = this.logger ?? discordEventQueueLog;
       logger.error(danger(`discord presence handler failed: ${String(err)}`));
     }
+  }
+}
+
+type ThreadUpdateEvent = Parameters<ThreadUpdateListener["handle"]>[0];
+
+export class DiscordThreadUpdateListener extends ThreadUpdateListener {
+  constructor(
+    private cfg: OpenClawConfig,
+    private accountId: string,
+    private logger?: Logger,
+  ) {
+    super();
+  }
+
+  async handle(data: ThreadUpdateEvent) {
+    await runDiscordListenerWithSlowLog({
+      logger: this.logger,
+      listener: this.constructor.name,
+      event: this.type,
+      run: async () => {
+        if (!isThreadArchived(data)) {
+          return;
+        }
+        const threadId =
+          "id" in data && typeof data.id === "string" ? data.id : undefined;
+        if (!threadId) {
+          return;
+        }
+        const logger = this.logger ?? discordEventQueueLog;
+        logger.info("Resetting session for archived Discord thread", { threadId });
+        const count = await closeDiscordThreadSessions({
+          cfg: this.cfg,
+          accountId: this.accountId,
+          threadId,
+        });
+        if (count > 0) {
+          logger.info("Discord thread sessions reset", { threadId, count });
+        }
+      },
+      onError: (err) => {
+        const logger = this.logger ?? discordEventQueueLog;
+        logger.error(
+          danger(`discord thread-update handler failed: ${String(err)}`),
+        );
+      },
+    });
   }
 }
