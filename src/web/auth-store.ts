@@ -1,175 +1,168 @@
-import fsSync from "node:fs"
-import fs from "node:fs/promises"
-import path from "node:path"
-import { formatCliCommand } from "../cli/command-format.js"
-import { resolveOAuthDir } from "../config/paths.js"
-import { info, success } from "../globals.js"
-import { getChildLogger } from "../logging.js"
-import { DEFAULT_ACCOUNT_ID } from "../routing/session-key.js"
-import { defaultRuntime, type RuntimeEnv } from "../runtime.js"
-import type { WebChannel } from "../utils.js"
-import { jidToE164, resolveUserPath } from "../utils.js"
+import fsSync from "node:fs";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { formatCliCommand } from "../cli/command-format.js";
+import { resolveOAuthDir } from "../config/paths.js";
+import { info, success } from "../globals.js";
+import { getChildLogger } from "../logging.js";
+import { DEFAULT_ACCOUNT_ID } from "../routing/session-key.js";
+import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
+import type { WebChannel } from "../utils.js";
+import { jidToE164, resolveUserPath } from "../utils.js";
 
 export function resolveDefaultWebAuthDir(): string {
-  return path.join(resolveOAuthDir(), "whatsapp", DEFAULT_ACCOUNT_ID)
+  return path.join(resolveOAuthDir(), "whatsapp", DEFAULT_ACCOUNT_ID);
 }
 
-export const WA_WEB_AUTH_DIR = resolveDefaultWebAuthDir()
+export const WA_WEB_AUTH_DIR = resolveDefaultWebAuthDir();
 
 export function resolveWebCredsPath(authDir: string): string {
-  return path.join(authDir, "creds.json")
+  return path.join(authDir, "creds.json");
 }
 
 export function resolveWebCredsBackupPath(authDir: string): string {
-  return path.join(authDir, "creds.json.bak")
+  return path.join(authDir, "creds.json.bak");
 }
 
 export function hasWebCredsSync(authDir: string): boolean {
   try {
-    const stats = fsSync.statSync(resolveWebCredsPath(authDir))
-    return stats.isFile() && stats.size > 1
+    const stats = fsSync.statSync(resolveWebCredsPath(authDir));
+    return stats.isFile() && stats.size > 1;
   } catch {
-    return false
+    return false;
   }
 }
 
 export function readCredsJsonRaw(filePath: string): string | null {
   try {
     if (!fsSync.existsSync(filePath)) {
-      return null
+      return null;
     }
-    const stats = fsSync.statSync(filePath)
+    const stats = fsSync.statSync(filePath);
     if (!stats.isFile() || stats.size <= 1) {
-      return null
+      return null;
     }
-    return fsSync.readFileSync(filePath, "utf-8")
+    return fsSync.readFileSync(filePath, "utf-8");
   } catch {
-    return null
+    return null;
   }
 }
 
 export function maybeRestoreCredsFromBackup(authDir: string): void {
-  const logger = getChildLogger({ module: "web-session" })
+  const logger = getChildLogger({ module: "web-session" });
   try {
-    const credsPath = resolveWebCredsPath(authDir)
-    const backupPath = resolveWebCredsBackupPath(authDir)
-    const raw = readCredsJsonRaw(credsPath)
+    const credsPath = resolveWebCredsPath(authDir);
+    const backupPath = resolveWebCredsBackupPath(authDir);
+    const raw = readCredsJsonRaw(credsPath);
     if (raw) {
       // Validate that creds.json is parseable.
-      JSON.parse(raw)
-      return
+      JSON.parse(raw);
+      return;
     }
 
-    const backupRaw = readCredsJsonRaw(backupPath)
+    const backupRaw = readCredsJsonRaw(backupPath);
     if (!backupRaw) {
-      return
+      return;
     }
 
     // Ensure backup is parseable before restoring.
-    JSON.parse(backupRaw)
-    fsSync.copyFileSync(backupPath, credsPath)
+    JSON.parse(backupRaw);
+    fsSync.copyFileSync(backupPath, credsPath);
     try {
-      fsSync.chmodSync(credsPath, 0o600)
+      fsSync.chmodSync(credsPath, 0o600);
     } catch {
       // best-effort on platforms that support it
     }
-    logger.warn(
-      { credsPath },
-      "restored corrupted WhatsApp creds.json from backup",
-    )
+    logger.warn({ credsPath }, "restored corrupted WhatsApp creds.json from backup");
   } catch {
     // ignore
   }
 }
 
-export async function webAuthExists(
-  authDir: string = resolveDefaultWebAuthDir(),
-) {
-  const resolvedAuthDir = resolveUserPath(authDir)
-  maybeRestoreCredsFromBackup(resolvedAuthDir)
-  const credsPath = resolveWebCredsPath(resolvedAuthDir)
+export async function webAuthExists(authDir: string = resolveDefaultWebAuthDir()) {
+  const resolvedAuthDir = resolveUserPath(authDir);
+  maybeRestoreCredsFromBackup(resolvedAuthDir);
+  const credsPath = resolveWebCredsPath(resolvedAuthDir);
   try {
-    await fs.access(resolvedAuthDir)
+    await fs.access(resolvedAuthDir);
   } catch {
-    return false
+    return false;
   }
   try {
-    const stats = await fs.stat(credsPath)
+    const stats = await fs.stat(credsPath);
     if (!stats.isFile() || stats.size <= 1) {
-      return false
+      return false;
     }
-    const raw = await fs.readFile(credsPath, "utf-8")
-    JSON.parse(raw)
-    return true
+    const raw = await fs.readFile(credsPath, "utf-8");
+    JSON.parse(raw);
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 
 async function clearLegacyBaileysAuthState(authDir: string) {
-  const entries = await fs.readdir(authDir, { withFileTypes: true })
+  const entries = await fs.readdir(authDir, { withFileTypes: true });
   const shouldDelete = (name: string) => {
     if (name === "oauth.json") {
-      return false
+      return false;
     }
     if (name === "creds.json" || name === "creds.json.bak") {
-      return true
+      return true;
     }
     if (!name.endsWith(".json")) {
-      return false
+      return false;
     }
-    return /^(app-state-sync|session|sender-key|pre-key)-/.test(name)
-  }
+    return /^(app-state-sync|session|sender-key|pre-key)-/.test(name);
+  };
   await Promise.all(
     entries.map(async (entry) => {
       if (!entry.isFile()) {
-        return
+        return;
       }
       if (!shouldDelete(entry.name)) {
-        return
+        return;
       }
-      await fs.rm(path.join(authDir, entry.name), { force: true })
+      await fs.rm(path.join(authDir, entry.name), { force: true });
     }),
-  )
+  );
 }
 
 export async function logoutWeb(params: {
-  authDir?: string
-  isLegacyAuthDir?: boolean
-  runtime?: RuntimeEnv
+  authDir?: string;
+  isLegacyAuthDir?: boolean;
+  runtime?: RuntimeEnv;
 }) {
-  const runtime = params.runtime ?? defaultRuntime
-  const resolvedAuthDir = resolveUserPath(
-    params.authDir ?? resolveDefaultWebAuthDir(),
-  )
-  const exists = await webAuthExists(resolvedAuthDir)
+  const runtime = params.runtime ?? defaultRuntime;
+  const resolvedAuthDir = resolveUserPath(params.authDir ?? resolveDefaultWebAuthDir());
+  const exists = await webAuthExists(resolvedAuthDir);
   if (!exists) {
-    runtime.log(info("No WhatsApp Web session found; nothing to delete."))
-    return false
+    runtime.log(info("No WhatsApp Web session found; nothing to delete."));
+    return false;
   }
   if (params.isLegacyAuthDir) {
-    await clearLegacyBaileysAuthState(resolvedAuthDir)
+    await clearLegacyBaileysAuthState(resolvedAuthDir);
   } else {
-    await fs.rm(resolvedAuthDir, { recursive: true, force: true })
+    await fs.rm(resolvedAuthDir, { recursive: true, force: true });
   }
-  runtime.log(success("Cleared WhatsApp Web credentials."))
-  return true
+  runtime.log(success("Cleared WhatsApp Web credentials."));
+  return true;
 }
 
 export function readWebSelfId(authDir: string = resolveDefaultWebAuthDir()) {
   // Read the cached WhatsApp Web identity (jid + E.164) from disk if present.
   try {
-    const credsPath = resolveWebCredsPath(resolveUserPath(authDir))
+    const credsPath = resolveWebCredsPath(resolveUserPath(authDir));
     if (!fsSync.existsSync(credsPath)) {
-      return { e164: null, jid: null } as const
+      return { e164: null, jid: null } as const;
     }
-    const raw = fsSync.readFileSync(credsPath, "utf-8")
-    const parsed = JSON.parse(raw) as { me?: { id?: string } } | undefined
-    const jid = parsed?.me?.id ?? null
-    const e164 = jid ? jidToE164(jid, { authDir }) : null
-    return { e164, jid } as const
+    const raw = fsSync.readFileSync(credsPath, "utf-8");
+    const parsed = JSON.parse(raw) as { me?: { id?: string } } | undefined;
+    const jid = parsed?.me?.id ?? null;
+    const e164 = jid ? jidToE164(jid, { authDir }) : null;
+    return { e164, jid } as const;
   } catch {
-    return { e164: null, jid: null } as const
+    return { e164: null, jid: null } as const;
   }
 }
 
@@ -177,14 +170,12 @@ export function readWebSelfId(authDir: string = resolveDefaultWebAuthDir()) {
  * Return the age (in milliseconds) of the cached WhatsApp web auth state, or null when missing.
  * Helpful for heartbeats/observability to spot stale credentials.
  */
-export function getWebAuthAgeMs(
-  authDir: string = resolveDefaultWebAuthDir(),
-): number | null {
+export function getWebAuthAgeMs(authDir: string = resolveDefaultWebAuthDir()): number | null {
   try {
-    const stats = fsSync.statSync(resolveWebCredsPath(resolveUserPath(authDir)))
-    return Date.now() - stats.mtimeMs
+    const stats = fsSync.statSync(resolveWebCredsPath(resolveUserPath(authDir)));
+    return Date.now() - stats.mtimeMs;
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -193,13 +184,13 @@ export function getWebAuthAgeMs(
  * Baileys generates pre-key files on each reconnect; unbounded growth leads to
  * session corruption after 2-3 weeks (~7000+ files). See issue #19618.
  */
-const CREDENTIAL_FILE_THRESHOLD = 500
+const CREDENTIAL_FILE_THRESHOLD = 500;
 
 /**
  * Number of recent pre-key files to retain after pruning.
  * Keeping some history allows for brief reconnect races.
  */
-const PREKEY_FILES_TO_KEEP = 100
+const PREKEY_FILES_TO_KEEP = 100;
 
 /**
  * Prune stale pre-key and session files from the WhatsApp credential store.
@@ -213,94 +204,96 @@ const PREKEY_FILES_TO_KEEP = 100
  */
 export async function pruneStaleCredentials(
   authDir: string = resolveDefaultWebAuthDir(),
-): Promise<{ pruned: number remaining: number } | null> {
-  const logger = getChildLogger({ module: "web-auth-prune" })
-  const resolvedAuthDir = resolveUserPath(authDir)
+): Promise<{ pruned: number; remaining: number } | null> {
+  const logger = getChildLogger({ module: "web-auth-prune" });
+  const resolvedAuthDir = resolveUserPath(authDir);
 
   try {
-    await fs.access(resolvedAuthDir)
+    await fs.access(resolvedAuthDir);
   } catch {
-    return null // Directory doesn't exist
+    return null; // Directory doesn't exist
   }
 
   const isPrunableFile = (name: string): boolean => {
     // Only prune pre-key, sender-key, and session files (not creds.json or app-state)
-    if (!name.endsWith(".json")) return false
-    return /^(pre-key|sender-key|session)-/.test(name)
-  }
+    if (!name.endsWith(".json")) {
+      return false;
+    }
+    return /^(pre-key|sender-key|session)-/.test(name);
+  };
 
   try {
-    const entries = await fs.readdir(resolvedAuthDir, { withFileTypes: true })
-    const allFiles = entries.filter((e) => e.isFile())
-    const prunableFiles: { name: string mtimeMs: number }[] = []
+    const entries = await fs.readdir(resolvedAuthDir, { withFileTypes: true });
+    const allFiles = entries.filter((e) => e.isFile());
+    const prunableFiles: { name: string; mtimeMs: number }[] = [];
 
     // Gather prunable files with their modification times
     for (const entry of allFiles) {
-      if (!isPrunableFile(entry.name)) continue
+      if (!isPrunableFile(entry.name)) {
+        continue;
+      }
       try {
-        const stats = await fs.stat(path.join(resolvedAuthDir, entry.name))
-        prunableFiles.push({ name: entry.name, mtimeMs: stats.mtimeMs })
+        const stats = await fs.stat(path.join(resolvedAuthDir, entry.name));
+        prunableFiles.push({ name: entry.name, mtimeMs: stats.mtimeMs });
       } catch {
         // Skip files we can't stat
       }
     }
 
-    const totalFiles = allFiles.length
+    const totalFiles = allFiles.length;
 
     // Only prune if prunable files exceed the threshold
     if (prunableFiles.length <= CREDENTIAL_FILE_THRESHOLD) {
-      return null
+      return null;
     }
 
     // Sort by modification time, oldest first
-    prunableFiles.sort((a, b) => a.mtimeMs - b.mtimeMs)
+    prunableFiles.sort((a, b) => a.mtimeMs - b.mtimeMs);
 
     // Calculate how many to delete (keep the most recent PREKEY_FILES_TO_KEEP)
     const toDelete = prunableFiles.slice(
       0,
       Math.max(0, prunableFiles.length - PREKEY_FILES_TO_KEEP),
-    )
+    );
 
     if (toDelete.length === 0) {
-      return null
+      return null;
     }
 
     // Delete old files
-    let deletedCount = 0
+    let deletedCount = 0;
     for (const file of toDelete) {
       try {
-        await fs.rm(path.join(resolvedAuthDir, file.name), { force: true })
-        deletedCount++
+        await fs.rm(path.join(resolvedAuthDir, file.name), { force: true });
+        deletedCount++;
       } catch {
         // Continue on individual file errors
       }
     }
 
-    const remaining = totalFiles - deletedCount
+    const remaining = totalFiles - deletedCount;
     logger.info(
       { pruned: deletedCount, remaining, threshold: CREDENTIAL_FILE_THRESHOLD },
       "pruned stale WhatsApp credential files",
-    )
+    );
 
-    return { pruned: deletedCount, remaining }
+    return { pruned: deletedCount, remaining };
   } catch (err) {
-    logger.warn({ err }, "failed to prune WhatsApp credentials")
-    return null
+    logger.warn({ err }, "failed to prune WhatsApp credentials");
+    return null;
   }
 }
 
 /**
  * Get the current credential file count for diagnostics.
  */
-export function getCredentialFileCount(
-  authDir: string = resolveDefaultWebAuthDir(),
-): number {
+export function getCredentialFileCount(authDir: string = resolveDefaultWebAuthDir()): number {
   try {
-    const resolvedAuthDir = resolveUserPath(authDir)
-    const entries = fsSync.readdirSync(resolvedAuthDir, { withFileTypes: true })
-    return entries.filter((e) => e.isFile()).length
+    const resolvedAuthDir = resolveUserPath(authDir);
+    const entries = fsSync.readdirSync(resolvedAuthDir, { withFileTypes: true });
+    return entries.filter((e) => e.isFile()).length;
   } catch {
-    return 0
+    return 0;
   }
 }
 
@@ -310,25 +303,22 @@ export function logWebSelfId(
   includeChannelPrefix = false,
 ) {
   // Human-friendly log of the currently linked personal web session.
-  const { e164, jid } = readWebSelfId(authDir)
-  const details =
-    e164 || jid
-      ? `${e164 ?? "unknown"}${jid ? ` (jid ${jid})` : ""}`
-      : "unknown"
-  const prefix = includeChannelPrefix ? "Web Channel: " : ""
-  runtime.log(info(`${prefix}${details}`))
+  const { e164, jid } = readWebSelfId(authDir);
+  const details = e164 || jid ? `${e164 ?? "unknown"}${jid ? ` (jid ${jid})` : ""}` : "unknown";
+  const prefix = includeChannelPrefix ? "Web Channel: " : "";
+  runtime.log(info(`${prefix}${details}`));
 }
 
 export async function pickWebChannel(
   pref: WebChannel | "auto",
   authDir: string = resolveDefaultWebAuthDir(),
 ): Promise<WebChannel> {
-  const choice: WebChannel = pref === "auto" ? "web" : pref
-  const hasWeb = await webAuthExists(authDir)
+  const choice: WebChannel = pref === "auto" ? "web" : pref;
+  const hasWeb = await webAuthExists(authDir);
   if (!hasWeb) {
     throw new Error(
       `No WhatsApp Web session found. Run \`${formatCliCommand("openclaw channels login --channel whatsapp --verbose")}\` to link.`,
-    )
+    );
   }
-  return choice
+  return choice;
 }
