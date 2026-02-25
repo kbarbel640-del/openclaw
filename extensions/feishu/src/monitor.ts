@@ -39,6 +39,8 @@ type SharedWebhookServer = {
   appIdHandlers: Map<string, (req: http.IncomingMessage, res: http.ServerResponse) => void>;
   /** Account IDs registered on this shared server */
   accountIds: Set<string>;
+  /** Reverse map: accountId → routing keys registered for cleanup */
+  accountKeys: Map<string, { token?: string; appId?: string }>;
   /** Runtime for logging */
   runtime?: RuntimeEnv;
   /** Abort handling */
@@ -424,6 +426,10 @@ async function monitorWebhook({
       existingShared.appIdHandlers.set(account.appId.trim(), webhookHandler);
     }
     existingShared.accountIds.add(accountId);
+    existingShared.accountKeys.set(accountId, {
+      token: account.verificationToken?.trim(),
+      appId: account.appId?.trim(),
+    });
     httpServers.set(accountId, existingShared.server);
 
     log(
@@ -465,6 +471,9 @@ async function monitorWebhook({
     tokenHandlers: new Map(),
     appIdHandlers: new Map(),
     accountIds: new Set([accountId]),
+    accountKeys: new Map([
+      [accountId, { token: account.verificationToken?.trim(), appId: account.appId?.trim() }],
+    ]),
     runtime,
     abortCleanups: [],
   };
@@ -574,6 +583,11 @@ export function stopFeishuMonitor(accountId?: string): void {
     // Remove from shared servers if applicable
     for (const [serverKey, shared] of sharedWebhookServers) {
       if (shared.accountIds.has(accountId)) {
+        // Clean up handler maps using stored routing keys
+        const keys = shared.accountKeys.get(accountId);
+        if (keys?.token) shared.tokenHandlers.delete(keys.token);
+        if (keys?.appId) shared.appIdHandlers.delete(keys.appId);
+        shared.accountKeys.delete(accountId);
         shared.accountIds.delete(accountId);
         if (shared.accountIds.size === 0) {
           shared.server.close();
