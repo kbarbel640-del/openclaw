@@ -878,6 +878,14 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     }
 
     if (repairActions.length === 0) {
+      if (handledIssues.size > 0) {
+        // All issues were for bundled plugins whose directories exist —
+        // this is a transient discovery failure, not a real config error.
+        // Validate with the base schema only (skip plugin checks) and
+        // return the config as-is so the gateway can start normally.
+        const baseValidated = validateConfigObject(patched);
+        return baseValidated.ok ? baseValidated.config : null;
+      }
       return null;
     }
 
