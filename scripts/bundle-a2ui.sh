@@ -24,6 +24,21 @@ if [[ ! -d "$A2UI_RENDERER_DIR" || ! -d "$A2UI_APP_DIR" ]]; then
   exit 1
 fi
 
+# WSL detection: when pnpm runs "bash" on Windows it resolves to WSL
+# (C:\Windows\System32\bash.exe), where native Node.js is typically absent.
+# The pnpm wrappers for tsc/rolldown require node and therefore fail in WSL.
+# Use the prebuilt bundle if available; otherwise guide the user to build
+# outside WSL (Git Bash or cmd) where Windows node is accessible.
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  if [[ -f "$OUTPUT_FILE" ]]; then
+    echo "A2UI bundle up to date; skipping (WSL detected, using prebuilt bundle)."
+    exit 0
+  fi
+  echo "WSL environment detected but no prebuilt bundle found at: $OUTPUT_FILE" >&2
+  echo "Run outside WSL to build it: open Git Bash and run: pnpm canvas:a2ui:bundle" >&2
+  exit 1
+fi
+
 INPUT_PATHS=(
   "$ROOT_DIR/package.json"
   "$ROOT_DIR/pnpm-lock.yaml"
@@ -31,49 +46,34 @@ INPUT_PATHS=(
   "$A2UI_APP_DIR"
 )
 
+# Portable SHA-256: sha256sum on Linux/WSL, shasum on macOS.
+_sha256() {
+  if command -v sha256sum &>/dev/null; then
+    sha256sum "$@"
+  else
+    shasum -a 256 "$@"
+  fi
+}
+
 compute_hash() {
-  ROOT_DIR="$ROOT_DIR" node --input-type=module - "${INPUT_PATHS[@]}" <<'NODE'
-import { createHash } from "node:crypto";
-import { promises as fs } from "node:fs";
-import path from "node:path";
-
-const rootDir = process.env.ROOT_DIR ?? process.cwd();
-const inputs = process.argv.slice(2);
-const files = [];
-
-async function walk(entryPath) {
-  const st = await fs.stat(entryPath);
-  if (st.isDirectory()) {
-    const entries = await fs.readdir(entryPath);
-    for (const entry of entries) {
-      await walk(path.join(entryPath, entry));
-    }
-    return;
-  }
-  files.push(entryPath);
-}
-
-for (const input of inputs) {
-  await walk(input);
-}
-
-function normalize(p) {
-  return p.split(path.sep).join("/");
-}
-
-files.sort((a, b) => normalize(a).localeCompare(normalize(b)));
-
-const hash = createHash("sha256");
-for (const filePath of files) {
-  const rel = normalize(path.relative(rootDir, filePath));
-  hash.update(rel);
-  hash.update("\0");
-  hash.update(await fs.readFile(filePath));
-  hash.update("\0");
-}
-
-process.stdout.write(hash.digest("hex"));
-NODE
+  # Pure-bash hash using _sha256 — avoids Node.js, which is absent in WSL
+  # when bash is invoked from Windows (pnpm uses WSL bash via System32/bash.exe).
+  # Hashes sorted relative paths + file contents for stable cache detection.
+  (
+    for input_path in "${INPUT_PATHS[@]}"; do
+      if [[ -d "$input_path" ]]; then
+        while IFS= read -r -d '' f; do
+          printf '%s\0' "${f#"$ROOT_DIR/"}"
+          _sha256 < "$f" | cut -d' ' -f1
+          printf '\0'
+        done < <(find "$input_path" -type f -print0 2>/dev/null | sort -z)
+      elif [[ -f "$input_path" ]]; then
+        printf '%s\0' "${input_path#"$ROOT_DIR/"}"
+        _sha256 < "$input_path" | cut -d' ' -f1
+        printf '\0'
+      fi
+    done
+  ) | _sha256 | cut -d' ' -f1
 }
 
 current_hash="$(compute_hash)"
