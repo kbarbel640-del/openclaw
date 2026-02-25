@@ -5,18 +5,26 @@ import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,8 +33,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -148,42 +158,76 @@ private fun ChatThreadSelector(
   onSelectSession: (String) -> Unit,
 ) {
   val sessionOptions = resolveSessionChoices(sessionKey, sessions, mainSessionKey = mainSessionKey)
+  val currentSession = sessionOptions.firstOrNull { it.key == sessionKey }
+  var expanded by remember { mutableStateOf(false) }
 
-  Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 12.dp, vertical = 8.dp),
-    verticalArrangement = Arrangement.spacedBy(6.dp),
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .horizontalScroll(rememberScrollState()),
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
+  Box(modifier = Modifier.fillMaxWidth()) {
+    FilterChip(
+      selected = true,
+      onClick = { expanded = true },
+      label = {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+          Text(
+            text = friendlySessionName(currentSession?.displayName ?: currentSession?.key ?: "Select session"),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.labelMedium,
+          )
+        }
+      },
+      trailingIcon = {
+        Icon(
+          imageVector = if (expanded) androidx.compose.material.icons.Icons.Default.ExpandLess else androidx.compose.material.icons.Icons.Default.ExpandMore,
+          contentDescription = "Expand",
+          modifier = Modifier.size(18.dp),
+        )
+      },
+      colors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+      ),
+      border = FilterChipDefaults.filterChipBorder(
+        borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+        selectedBorderColor = MaterialTheme.colorScheme.primary,
+        enabled = true,
+        selected = true,
+      ),
+      modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+    )
+
+    DropdownMenu(
+      expanded = expanded,
+      onDismissRequest = { expanded = false },
+      modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
-      for (entry in sessionOptions) {
+      sessionOptions.forEach { entry ->
         val active = entry.key == sessionKey
-        FilterChip(
-          selected = active,
-          onClick = { onSelectSession(entry.key) },
-          label = {
+        DropdownMenuItem(
+          text = {
             Text(
               text = friendlySessionName(entry.displayName ?: entry.key),
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-              style = MaterialTheme.typography.labelSmall,
+              style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal
+              ),
+              color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
           },
-          colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-          ),
-          border = FilterChipDefaults.filterChipBorder(
-            borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
-            enabled = true,
-            selected = active,
-          ),
+          onClick = {
+            onSelectSession(entry.key)
+            expanded = false
+          },
+          leadingIcon = if (active) {
+            {
+              Icon(
+                imageVector = androidx.compose.material.icons.Icons.Default.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+              )
+            }
+          } else null,
         )
       }
     }
