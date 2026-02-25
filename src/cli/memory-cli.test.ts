@@ -403,4 +403,59 @@ describe("memory cli", () => {
     expect(payload.results as unknown[]).toHaveLength(1);
     expect(close).toHaveBeenCalled();
   });
+
+  it("accepts positional query for memory search", async () => {
+    const close = vi.fn(async () => {});
+    const search = vi.fn(async () => []);
+    mockManager({ search, close });
+
+    await runMemoryCli(["search", "deployment notes"]);
+
+    expect(search).toHaveBeenCalledWith("deployment notes", {
+      maxResults: undefined,
+      minScore: undefined,
+    });
+    expect(close).toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("accepts --query for memory search", async () => {
+    const close = vi.fn(async () => {});
+    const search = vi.fn(async () => []);
+    mockManager({ search, close });
+
+    await runMemoryCli(["search", "--query", "deployment notes"]);
+
+    expect(search).toHaveBeenCalledWith("deployment notes", {
+      maxResults: undefined,
+      minScore: undefined,
+    });
+    expect(close).toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("includes --query in memory search help output", async () => {
+    const writes: string[] = [];
+    const program = new Command();
+    program.name("test");
+    program.exitOverride();
+    program.configureOutput({
+      writeOut: (str: string) => {
+        writes.push(str);
+      },
+      writeErr: (str: string) => {
+        writes.push(str);
+      },
+    });
+    registerMemoryCli(program);
+
+    await expect(
+      program.parseAsync(["memory", "search", "--help"], {
+        from: "user",
+      }),
+    ).rejects.toMatchObject({ exitCode: 0 });
+
+    const helpText = writes.join("");
+    expect(helpText).toContain("--query <text>");
+  });
 });
