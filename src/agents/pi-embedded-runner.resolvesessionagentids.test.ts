@@ -66,7 +66,7 @@ describe("resolveSessionAgentIds", () => {
     expect(sessionAgentId).toBe("main");
   });
 
-  it("keeps implicit main as default when agents.list has no explicit default and no main entry", () => {
+  it("falls back to first configured agent when no explicit default and no main entry", () => {
     const config = {
       agents: {
         list: [{ id: "triage" }, { id: "mail" }],
@@ -74,8 +74,8 @@ describe("resolveSessionAgentIds", () => {
     } as OpenClawConfig;
 
     const { defaultAgentId, sessionAgentId } = resolveSessionAgentIds({ config });
-    expect(defaultAgentId).toBe("main");
-    expect(sessionAgentId).toBe("main");
+    expect(defaultAgentId).toBe("triage");
+    expect(sessionAgentId).toBe("triage");
   });
 
   it("still honors an explicit non-main default agent", () => {

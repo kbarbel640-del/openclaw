@@ -41,7 +41,6 @@ type ResolvedAgentConfig = {
 };
 
 let defaultAgentWarned = false;
-let implicitMainDefaultWarned = false;
 
 export function listAgentEntries(cfg: OpenClawConfig): AgentEntry[] {
   const list = cfg.agents?.list;
@@ -85,16 +84,14 @@ export function resolveDefaultAgentId(cfg: OpenClawConfig): string {
   }
 
   const hasMain = agents.some((agent) => normalizeAgentId(agent?.id) === DEFAULT_AGENT_ID);
-  if (!hasMain && !implicitMainDefaultWarned) {
-    implicitMainDefaultWarned = true;
-    log.warn(
-      'agents.list has no id="main" and no default=true; using implicit main as default. Set default=true to choose a different default agent.',
-    );
+  if (hasMain) {
+    // Preserve historical behavior: when `main` exists and no explicit default
+    // is set, treat `main` as default.
+    return DEFAULT_AGENT_ID;
   }
 
-  // Backward-compatible safeguard: keep routing stable on `main` unless the
-  // user explicitly picks a different default via `default: true`.
-  return DEFAULT_AGENT_ID;
+  // Otherwise keep fallback deterministic by using the first configured agent.
+  return normalizeAgentId(agents[0]?.id?.trim() || DEFAULT_AGENT_ID);
 }
 
 export function resolveSessionAgentIds(params: {
