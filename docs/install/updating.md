@@ -43,6 +43,12 @@ Notes:
   - Credentials: `~/.openclaw/credentials/`
   - Workspace: `~/.openclaw/workspace`
 
+### Version-specific checklist
+
+For upgrades from `v2026.2.23` to `v2026.2.24`, run this targeted preflight:
+
+- [Upgrade checklist: v2026.2.24](/install/upgrade-checklist-v2026.2.24)
+
 ## Update (global install)
 
 Global install (pick one):
