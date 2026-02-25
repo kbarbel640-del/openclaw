@@ -29,7 +29,7 @@ Obsidian vault = a normal folder on disk.
 Vault structure (typical)
 
 - Notes: `*.md` (plain text Markdown; edit with any editor)
-- Config: `.obsidian/` (workspace + plugin settings; usually don't touch from scripts)
+- Config: `.obsidian/` (workspace + plugin settings; usually do not touch from scripts)
 - Canvases: `*.canvas` (JSON)
 - Attachments: whatever folder you chose in Obsidian settings (images/PDFs/etc.)
 
@@ -48,7 +48,7 @@ Fast "what vault is active / where are the notes?"
 
 Notes
 
-- Multiple vaults common (iCloud vs `~/Documents`, work/personal, etc.). Don't guess; read config.
+- Multiple vaults common (iCloud vs `~/Documents`, work/personal, etc.). Do not guess; read config.
 - Avoid writing hardcoded vault paths into scripts; use `obs --vault /path` or configure a default.
 
 ## obs quick start
