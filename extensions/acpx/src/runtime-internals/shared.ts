@@ -5,6 +5,7 @@ export type AcpxHandleState = {
   agent: string;
   cwd: string;
   mode: "persistent" | "oneshot";
+  acpxRecordId?: string;
   backendSessionId?: string;
   agentSessionId?: string;
 };

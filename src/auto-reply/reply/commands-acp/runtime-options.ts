@@ -7,6 +7,7 @@ import {
   validateRuntimeModelInput,
   validateRuntimePermissionProfileInput,
 } from "../../../acp/control-plane/runtime-options.js";
+import { resolveAcpSessionIdentifierLinesFromIdentity } from "../../../acp/runtime/session-identifiers.js";
 import type { CommandHandlerResult, HandleCommandsParams } from "../commands-types.js";
 import {
   ACP_CWD_USAGE,
@@ -47,16 +48,17 @@ export async function handleAcpStatusAction(
       cfg: params.cfg,
       sessionKey: target.sessionKey,
     });
+    const sessionIdentifierLines = resolveAcpSessionIdentifierLinesFromIdentity({
+      backend: status.backend,
+      identity: status.identity,
+    });
     const lines = [
       "ACP status:",
       "-----",
       `session: ${status.sessionKey}`,
       `backend: ${status.backend}`,
       `agent: ${status.agent}`,
-      ...(status.agentSessionId ? [`agent session id: ${status.agentSessionId}`] : []),
-      ...(status.backendSessionId
-        ? [`${status.backend} session id: ${status.backendSessionId}`]
-        : []),
+      ...sessionIdentifierLines,
       `sessionMode: ${status.mode}`,
       `state: ${status.state}`,
       `runtimeOptions: ${formatRuntimeOptionsText(status.runtimeOptions)}`,

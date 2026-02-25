@@ -22,15 +22,36 @@ export type SessionOrigin = {
   threadId?: string | number;
 };
 
+export type SessionAcpIdentitySource = "ensure" | "status" | "event";
+
+export type SessionAcpIdentityState = "pending" | "resolved";
+
+export type SessionAcpIdentity = {
+  state: SessionAcpIdentityState;
+  acpxRecordId?: string;
+  acpxSessionId?: string;
+  agentSessionId?: string;
+  source: SessionAcpIdentitySource;
+  lastUpdatedAt: number;
+};
+
 export type SessionAcpMeta = {
   backend: string;
   agent: string;
   runtimeSessionName: string;
+  identity?: SessionAcpIdentity;
+  /**
+   * @deprecated Compatibility projection. Use identity.acpxSessionId.
+   */
   /** Backend-level ACP session identifier, if exposed by the runtime adapter. */
   backendSessionId?: string;
+  /**
+   * @deprecated Compatibility projection. Use identity.agentSessionId.
+   */
   /** Upstream harness session identifier (for example Codex/Claude session id), if exposed. */
   agentSessionId?: string;
   /**
+   * @deprecated Compatibility projection. Use identity.state.
    * True while identifiers are still provisional (for example right after spawn, before first turn).
    * When false/undefined, identifiers are treated as stable enough for user-facing surfaces.
    */

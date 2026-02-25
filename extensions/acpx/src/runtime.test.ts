@@ -107,6 +107,7 @@ if (command === "set") {
 if (command === "status") {
   writeLog({ kind: "status", agent, args, sessionName: sessionFromOption });
   process.stdout.write(JSON.stringify({
+    acpxRecordId: sessionFromOption ? "rec-" + sessionFromOption : null,
     acpxSessionId: sessionFromOption ? "sid-" + sessionFromOption : null,
     agentSessionId: sessionFromOption ? "inner-" + sessionFromOption : null,
     status: sessionFromOption ? "alive" : "no-session",
@@ -332,9 +333,11 @@ describe("AcpxRuntime", () => {
       mode: "persistent",
     });
     expect(handle.backend).toBe("acpx");
+    expect(handle.acpxRecordId).toBe("rec-agent:codex:acp:123");
     expect(handle.agentSessionId).toBe("inner-agent:codex:acp:123");
     expect(handle.backendSessionId).toBe("sid-agent:codex:acp:123");
     const decoded = decodeAcpxRuntimeHandleState(handle.runtimeSessionName);
+    expect(decoded?.acpxRecordId).toBe("rec-agent:codex:acp:123");
     expect(decoded?.agentSessionId).toBe("inner-agent:codex:acp:123");
     expect(decoded?.backendSessionId).toBe("sid-agent:codex:acp:123");
 
@@ -504,8 +507,10 @@ describe("AcpxRuntime", () => {
     const ensuredSessionName = "agent:codex:acp:controls";
 
     expect(status.summary).toContain("status=alive");
+    expect(status.acpxRecordId).toBe("rec-" + ensuredSessionName);
     expect(status.backendSessionId).toBe("sid-" + ensuredSessionName);
     expect(status.agentSessionId).toBe("inner-" + ensuredSessionName);
+    expect(status.details?.acpxRecordId).toBe("rec-" + ensuredSessionName);
     expect(status.details?.status).toBe("alive");
     expect(status.details?.pid).toBe(4242);
 
@@ -568,6 +573,7 @@ describe("AcpxRuntime", () => {
         cwd: process.cwd(),
         permissionMode: "approve-reads",
         nonInteractivePermissions: "fail",
+        queueOwnerTtlSeconds: 0.1,
       },
       { logger: NOOP_LOGGER },
     );
@@ -590,6 +596,7 @@ describe("AcpxRuntime", () => {
         cwd: process.cwd(),
         permissionMode: "approve-reads",
         nonInteractivePermissions: "fail",
+        queueOwnerTtlSeconds: 0.1,
       },
       { logger: NOOP_LOGGER },
     );

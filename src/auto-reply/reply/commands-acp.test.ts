@@ -7,6 +7,7 @@ const hoisted = vi.hoisted(() => {
   const callGatewayMock = vi.fn();
   const requireAcpRuntimeBackendMock = vi.fn();
   const getAcpRuntimeBackendMock = vi.fn();
+  const listAcpSessionEntriesMock = vi.fn();
   const readAcpSessionEntryMock = vi.fn();
   const upsertAcpSessionMetaMock = vi.fn();
   const resolveSessionStorePathForAcpMock = vi.fn();
@@ -29,6 +30,7 @@ const hoisted = vi.hoisted(() => {
     callGatewayMock,
     requireAcpRuntimeBackendMock,
     getAcpRuntimeBackendMock,
+    listAcpSessionEntriesMock,
     readAcpSessionEntryMock,
     upsertAcpSessionMetaMock,
     resolveSessionStorePathForAcpMock,
@@ -60,6 +62,7 @@ vi.mock("../../acp/runtime/registry.js", () => ({
 }));
 
 vi.mock("../../acp/runtime/session-meta.js", () => ({
+  listAcpSessionEntries: (args: unknown) => hoisted.listAcpSessionEntriesMock(args),
   readAcpSessionEntry: (args: unknown) => hoisted.readAcpSessionEntryMock(args),
   upsertAcpSessionMeta: (args: unknown) => hoisted.upsertAcpSessionMetaMock(args),
   resolveSessionStorePathForAcp: (args: unknown) => hoisted.resolveSessionStorePathForAcpMock(args),
@@ -172,6 +175,7 @@ function createDiscordParams(commandBody: string, cfg: OpenClawConfig = baseCfg)
 describe("/acp command", () => {
   beforeEach(() => {
     acpManagerTesting.resetAcpSessionManagerForTests();
+    hoisted.listAcpSessionEntriesMock.mockReset().mockResolvedValue([]);
     hoisted.callGatewayMock.mockReset().mockResolvedValue({ ok: true });
     hoisted.readAcpSessionEntryMock.mockReset().mockReturnValue(null);
     hoisted.upsertAcpSessionMetaMock.mockReset().mockResolvedValue({

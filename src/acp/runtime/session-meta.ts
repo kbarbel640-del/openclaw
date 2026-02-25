@@ -1,5 +1,8 @@
+import path from "node:path";
+import { resolveAgentSessionDirs } from "../../agents/session-dirs.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
+import { resolveStateDir } from "../../config/paths.js";
 import { loadSessionStore, resolveStorePath, updateSessionStore } from "../../config/sessions.js";
 import {
   mergeSessionEntry,
@@ -81,6 +84,40 @@ export function readAcpSessionEntry(params: {
     acp: entry?.acp,
     storeReadFailed,
   };
+}
+
+export async function listAcpSessionEntries(params: {
+  cfg?: OpenClawConfig;
+}): Promise<AcpSessionStoreEntry[]> {
+  const cfg = params.cfg ?? loadConfig();
+  const stateDir = resolveStateDir(process.env);
+  const sessionDirs = await resolveAgentSessionDirs(stateDir);
+  const entries: AcpSessionStoreEntry[] = [];
+
+  for (const sessionsDir of sessionDirs) {
+    const storePath = path.join(sessionsDir, "sessions.json");
+    let store: Record<string, SessionEntry>;
+    try {
+      store = loadSessionStore(storePath);
+    } catch {
+      continue;
+    }
+    for (const [sessionKey, entry] of Object.entries(store)) {
+      if (!entry?.acp) {
+        continue;
+      }
+      entries.push({
+        cfg,
+        storePath,
+        sessionKey,
+        storeSessionKey: sessionKey,
+        entry,
+        acp: entry.acp,
+      });
+    }
+  }
+
+  return entries;
 }
 
 export async function upsertAcpSessionMeta(params: {

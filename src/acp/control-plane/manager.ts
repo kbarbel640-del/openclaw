@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import type {
+  SessionAcpIdentity,
   AcpSessionRuntimeOptions,
   SessionAcpMeta,
   SessionEntry,
@@ -9,7 +10,21 @@ import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-ke
 import { isAcpSessionKey } from "../../sessions/session-key-utils.js";
 import { ACP_ERROR_CODES, AcpRuntimeError, toAcpRuntimeError } from "../runtime/errors.js";
 import { requireAcpRuntimeBackend } from "../runtime/registry.js";
-import { readAcpSessionEntry, upsertAcpSessionMeta } from "../runtime/session-meta.js";
+import {
+  createIdentityFromEnsure,
+  createIdentityFromStatus,
+  identityEquals,
+  identityToLegacyProjection,
+  isSessionIdentityPending,
+  mergeSessionIdentity,
+  resolveRuntimeHandleIdentifiersFromIdentity,
+  resolveSessionIdentityFromMeta,
+} from "../runtime/session-identity.js";
+import {
+  listAcpSessionEntries,
+  readAcpSessionEntry,
+  upsertAcpSessionMeta,
+} from "../runtime/session-meta.js";
 import type {
   AcpRuntime,
   AcpRuntimeCapabilities,
@@ -89,6 +104,7 @@ export type AcpSessionStatus = {
   sessionKey: string;
   backend: string;
   agent: string;
+  identity?: SessionAcpIdentity;
   backendSessionId?: string;
   agentSessionId?: string;
   state: SessionAcpMeta["state"];
@@ -118,6 +134,12 @@ export type AcpManagerObservabilitySnapshot = {
   errorsByCode: Record<string, number>;
 };
 
+export type AcpStartupIdentityReconcileResult = {
+  checked: number;
+  resolved: number;
+  failed: number;
+};
+
 type ActiveTurnState = {
   runtime: AcpRuntime;
   handle: AcpRuntimeHandle;
@@ -133,12 +155,14 @@ type TurnLatencyStats = {
 };
 
 type AcpSessionManagerDeps = {
+  listAcpSessions: typeof listAcpSessionEntries;
   readSessionEntry: typeof readAcpSessionEntry;
   upsertSessionMeta: typeof upsertAcpSessionMeta;
   requireRuntimeBackend: typeof requireAcpRuntimeBackend;
 };
 
 const DEFAULT_DEPS: AcpSessionManagerDeps = {
+  listAcpSessions: listAcpSessionEntries,
   readSessionEntry: readAcpSessionEntry,
   upsertSessionMeta: upsertAcpSessionMeta,
   requireRuntimeBackend: requireAcpRuntimeBackend,
@@ -193,33 +217,6 @@ function resolveRuntimeIdleTtlMs(cfg: OpenClawConfig): number {
     return 0;
   }
   return Math.round(ttlMinutes * 60 * 1000);
-}
-
-function normalizeStatusField(
-  details: Record<string, unknown> | undefined,
-  key: string,
-): string | undefined {
-  return normalizeText(details?.[key]);
-}
-
-function extractStatusSessionIdentifiers(status: AcpRuntimeStatus | undefined): {
-  backendSessionId?: string;
-  agentSessionId?: string;
-} {
-  if (!status) {
-    return {};
-  }
-  const details = status.details;
-  const backendSessionId =
-    normalizeText(status.backendSessionId) ??
-    normalizeStatusField(details, "backendSessionId") ??
-    normalizeStatusField(details, "acpxSessionId");
-  const agentSessionId =
-    normalizeText(status.agentSessionId) ?? normalizeStatusField(details, "agentSessionId");
-  return {
-    ...(backendSessionId ? { backendSessionId } : {}),
-    ...(agentSessionId ? { agentSessionId } : {}),
-  };
 }
 
 export class AcpSessionManager {
@@ -296,6 +293,71 @@ export class AcpSessionManager {
     };
   }
 
+  async reconcilePendingSessionIdentities(params: {
+    cfg: OpenClawConfig;
+  }): Promise<AcpStartupIdentityReconcileResult> {
+    let checked = 0;
+    let resolved = 0;
+    let failed = 0;
+
+    let acpSessions: Awaited<ReturnType<AcpSessionManagerDeps["listAcpSessions"]>>;
+    try {
+      acpSessions = await this.deps.listAcpSessions({
+        cfg: params.cfg,
+      });
+    } catch (error) {
+      logVerbose(`acp-manager: startup identity scan failed: ${String(error)}`);
+      return { checked, resolved, failed: failed + 1 };
+    }
+
+    for (const session of acpSessions) {
+      if (!session.acp || !session.sessionKey) {
+        continue;
+      }
+      const currentIdentity = resolveSessionIdentityFromMeta(session.acp);
+      if (!isSessionIdentityPending(currentIdentity)) {
+        continue;
+      }
+
+      checked += 1;
+      try {
+        const becameResolved = await this.withSessionActor(session.sessionKey, async () => {
+          const resolution = this.resolveSession({
+            cfg: params.cfg,
+            sessionKey: session.sessionKey,
+          });
+          if (resolution.kind !== "ready") {
+            return false;
+          }
+          const { runtime, handle, meta } = await this.ensureRuntimeHandle({
+            cfg: params.cfg,
+            sessionKey: session.sessionKey,
+            meta: resolution.meta,
+          });
+          const reconciled = await this.reconcileRuntimeSessionIdentifiers({
+            cfg: params.cfg,
+            sessionKey: session.sessionKey,
+            runtime,
+            handle,
+            meta,
+            failOnStatusError: false,
+          });
+          return !isSessionIdentityPending(resolveSessionIdentityFromMeta(reconciled.meta));
+        });
+        if (becameResolved) {
+          resolved += 1;
+        }
+      } catch (error) {
+        failed += 1;
+        logVerbose(
+          `acp-manager: startup identity reconcile failed for ${session.sessionKey}: ${String(error)}`,
+        );
+      }
+    }
+
+    return { checked, resolved, failed };
+  }
+
   async initializeSession(input: AcpInitializeSessionInput): Promise<{
     runtime: AcpRuntime;
     handle: AcpRuntimeHandle;
@@ -328,13 +390,27 @@ export class AcpSessionManager {
         });
       }
 
+      const identityNow = Date.now();
+      const initializedIdentity =
+        mergeSessionIdentity({
+          current: undefined,
+          incoming: createIdentityFromEnsure({
+            handle,
+            now: identityNow,
+          }),
+          now: identityNow,
+        }) ??
+        ({
+          state: "pending",
+          source: "ensure",
+          lastUpdatedAt: identityNow,
+        } satisfies SessionAcpIdentity);
       const meta: SessionAcpMeta = {
         backend: handle.backend || backend.id,
         agent,
         runtimeSessionName: handle.runtimeSessionName,
-        ...(handle.backendSessionId ? { backendSessionId: handle.backendSessionId } : {}),
-        ...(handle.agentSessionId ? { agentSessionId: handle.agentSessionId } : {}),
-        sessionIdsProvisional: true,
+        identity: initializedIdentity,
+        ...identityToLegacyProjection(initializedIdentity),
         mode: input.mode,
         ...(Object.keys(initialRuntimeOptions).length > 0
           ? { runtimeOptions: initialRuntimeOptions }
@@ -441,15 +517,18 @@ export class AcpSessionManager {
         runtimeStatus,
         failOnStatusError: true,
       }));
+      const identity = resolveSessionIdentityFromMeta(meta);
+      const legacyIdentity = identityToLegacyProjection(identity);
       return {
         sessionKey,
         backend: handle.backend || meta.backend,
         agent: meta.agent,
-        ...(meta.sessionIdsProvisional !== true && meta.backendSessionId
-          ? { backendSessionId: meta.backendSessionId }
+        ...(identity ? { identity } : {}),
+        ...(!isSessionIdentityPending(identity) && legacyIdentity.backendSessionId
+          ? { backendSessionId: legacyIdentity.backendSessionId }
           : {}),
-        ...(meta.sessionIdsProvisional !== true && meta.agentSessionId
-          ? { agentSessionId: meta.agentSessionId }
+        ...(!isSessionIdentityPending(identity) && legacyIdentity.agentSessionId
+          ? { agentSessionId: legacyIdentity.agentSessionId }
           : {}),
         state: meta.state,
         mode: meta.mode,
@@ -1070,27 +1149,44 @@ export class AcpSessionManager {
     }
 
     const previousMeta = params.meta;
-    const backendSessionId = ensured.backendSessionId ?? previousMeta.backendSessionId;
-    const agentSessionId = ensured.agentSessionId ?? previousMeta.agentSessionId;
+    const previousIdentity = resolveSessionIdentityFromMeta(previousMeta);
+    const now = Date.now();
+    const nextIdentity =
+      mergeSessionIdentity({
+        current: previousIdentity,
+        incoming: createIdentityFromEnsure({
+          handle: ensured,
+          now,
+        }),
+        now,
+      }) ?? previousIdentity;
+    const projectedLegacy = identityToLegacyProjection(nextIdentity);
+    const nextHandleIdentifiers = resolveRuntimeHandleIdentifiersFromIdentity(nextIdentity);
+    const nextHandle: AcpRuntimeHandle = {
+      ...ensured,
+      ...(nextHandleIdentifiers.backendSessionId
+        ? { backendSessionId: nextHandleIdentifiers.backendSessionId }
+        : {}),
+      ...(nextHandleIdentifiers.agentSessionId
+        ? { agentSessionId: nextHandleIdentifiers.agentSessionId }
+        : {}),
+    };
     const nextMeta: SessionAcpMeta = {
       ...params.meta,
       backend: ensured.backend || backend.id,
       runtimeSessionName: ensured.runtimeSessionName,
-      ...(backendSessionId ? { backendSessionId } : {}),
-      ...(agentSessionId ? { agentSessionId } : {}),
-      sessionIdsProvisional: previousMeta.sessionIdsProvisional ?? false,
+      ...(nextIdentity ? { identity: nextIdentity } : {}),
+      ...projectedLegacy,
       agent,
       runtimeOptions,
       cwd,
       state: previousMeta.state,
-      lastActivityAt: Date.now(),
+      lastActivityAt: now,
     };
     const shouldPersistMeta =
       previousMeta.backend !== nextMeta.backend ||
       previousMeta.runtimeSessionName !== nextMeta.runtimeSessionName ||
-      previousMeta.backendSessionId !== nextMeta.backendSessionId ||
-      previousMeta.agentSessionId !== nextMeta.agentSessionId ||
-      previousMeta.sessionIdsProvisional !== nextMeta.sessionIdsProvisional ||
+      !identityEquals(previousIdentity, nextIdentity) ||
       previousMeta.agent !== nextMeta.agent ||
       previousMeta.cwd !== nextMeta.cwd ||
       !runtimeOptionsEqual(previousMeta.runtimeOptions, nextMeta.runtimeOptions);
@@ -1108,7 +1204,7 @@ export class AcpSessionManager {
     }
     this.setCachedRuntimeState(params.sessionKey, {
       runtime,
-      handle: ensured,
+      handle: nextHandle,
       backend: ensured.backend || backend.id,
       agent,
       mode,
@@ -1117,7 +1213,7 @@ export class AcpSessionManager {
     });
     return {
       runtime,
-      handle: ensured,
+      handle: nextHandle,
       meta: nextMeta,
     };
   }
@@ -1428,24 +1524,30 @@ export class AcpSessionManager {
         };
       }
     }
-    const identifiers = extractStatusSessionIdentifiers(runtimeStatus);
-    const statusProvidedIdentifiers = Boolean(
-      identifiers.backendSessionId || identifiers.agentSessionId,
-    );
-    const backendSessionId = identifiers.backendSessionId ?? params.meta.backendSessionId;
-    const agentSessionId = identifiers.agentSessionId ?? params.meta.agentSessionId;
-    const sessionIdsProvisional = statusProvidedIdentifiers
-      ? false
-      : params.meta.sessionIdsProvisional;
-
+    const now = Date.now();
+    const currentIdentity = resolveSessionIdentityFromMeta(params.meta);
+    const nextIdentity =
+      mergeSessionIdentity({
+        current: currentIdentity,
+        incoming: createIdentityFromStatus({
+          status: runtimeStatus,
+          now,
+        }),
+        now,
+      }) ?? currentIdentity;
+    const handleIdentifiers = resolveRuntimeHandleIdentifiersFromIdentity(nextIdentity);
     const handleChanged =
-      backendSessionId !== params.handle.backendSessionId ||
-      agentSessionId !== params.handle.agentSessionId;
+      handleIdentifiers.backendSessionId !== params.handle.backendSessionId ||
+      handleIdentifiers.agentSessionId !== params.handle.agentSessionId;
     const nextHandle: AcpRuntimeHandle = handleChanged
       ? {
           ...params.handle,
-          ...(backendSessionId ? { backendSessionId } : {}),
-          ...(agentSessionId ? { agentSessionId } : {}),
+          ...(handleIdentifiers.backendSessionId
+            ? { backendSessionId: handleIdentifiers.backendSessionId }
+            : {}),
+          ...(handleIdentifiers.agentSessionId
+            ? { agentSessionId: handleIdentifiers.agentSessionId }
+            : {}),
         }
       : params.handle;
     if (handleChanged) {
@@ -1455,10 +1557,12 @@ export class AcpSessionManager {
       }
     }
 
+    const projectedLegacy = identityToLegacyProjection(nextIdentity);
     const metaChanged =
-      backendSessionId !== params.meta.backendSessionId ||
-      agentSessionId !== params.meta.agentSessionId ||
-      sessionIdsProvisional !== params.meta.sessionIdsProvisional;
+      !identityEquals(currentIdentity, nextIdentity) ||
+      params.meta.backendSessionId !== projectedLegacy.backendSessionId ||
+      params.meta.agentSessionId !== projectedLegacy.agentSessionId ||
+      params.meta.sessionIdsProvisional !== projectedLegacy.sessionIdsProvisional;
     if (!metaChanged) {
       return {
         handle: nextHandle,
@@ -1468,11 +1572,24 @@ export class AcpSessionManager {
     }
     const nextMeta: SessionAcpMeta = {
       ...params.meta,
-      ...(backendSessionId ? { backendSessionId } : {}),
-      ...(agentSessionId ? { agentSessionId } : {}),
-      ...(sessionIdsProvisional !== undefined ? { sessionIdsProvisional } : {}),
-      lastActivityAt: Date.now(),
+      ...(nextIdentity ? { identity: nextIdentity } : {}),
+      ...projectedLegacy,
+      lastActivityAt: now,
     };
+    if (!identityEquals(currentIdentity, nextIdentity)) {
+      const currentAgentSessionId = currentIdentity?.agentSessionId ?? "<none>";
+      const nextAgentSessionId = nextIdentity?.agentSessionId ?? "<none>";
+      const currentAcpxSessionId = currentIdentity?.acpxSessionId ?? "<none>";
+      const nextAcpxSessionId = nextIdentity?.acpxSessionId ?? "<none>";
+      const currentAcpxRecordId = currentIdentity?.acpxRecordId ?? "<none>";
+      const nextAcpxRecordId = nextIdentity?.acpxRecordId ?? "<none>";
+      logVerbose(
+        `acp-manager: session identity updated for ${params.sessionKey} ` +
+          `(agentSessionId ${currentAgentSessionId} -> ${nextAgentSessionId}, ` +
+          `acpxSessionId ${currentAcpxSessionId} -> ${nextAcpxSessionId}, ` +
+          `acpxRecordId ${currentAcpxRecordId} -> ${nextAcpxRecordId})`,
+      );
+    }
     await this.writeSessionMeta({
       cfg: params.cfg,
       sessionKey: params.sessionKey,
@@ -1486,10 +1603,9 @@ export class AcpSessionManager {
         }
         return {
           ...base,
-          ...(backendSessionId ? { backendSessionId } : {}),
-          ...(agentSessionId ? { agentSessionId } : {}),
-          ...(sessionIdsProvisional !== undefined ? { sessionIdsProvisional } : {}),
-          lastActivityAt: Date.now(),
+          ...(nextIdentity ? { identity: nextIdentity } : {}),
+          ...projectedLegacy,
+          lastActivityAt: now,
         };
       },
     });

@@ -26,6 +26,9 @@ describe("acpx plugin config parsing", () => {
 
   it("rejects commandArgs arrays containing empty strings", () => {
     const schema = createAcpxPluginConfigSchema();
+    if (!schema.safeParse) {
+      throw new Error("acpx config schema missing safeParse");
+    }
     const parsed = schema.safeParse({
       commandArgs: ["--ok", "   "],
     });

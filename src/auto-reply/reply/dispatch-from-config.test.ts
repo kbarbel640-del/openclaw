@@ -32,6 +32,7 @@ const internalHookMocks = vi.hoisted(() => ({
   triggerInternalHook: vi.fn(async () => {}),
 }));
 const acpMocks = vi.hoisted(() => ({
+  listAcpSessionEntries: vi.fn(async () => []),
   readAcpSessionEntry: vi.fn<() => unknown>(() => null),
   upsertAcpSessionMeta: vi.fn(async () => null),
   requireAcpRuntimeBackend: vi.fn<() => unknown>(),
@@ -102,6 +103,7 @@ vi.mock("../../hooks/internal-hooks.js", () => ({
   triggerInternalHook: internalHookMocks.triggerInternalHook,
 }));
 vi.mock("../../acp/runtime/session-meta.js", () => ({
+  listAcpSessionEntries: acpMocks.listAcpSessionEntries,
   readAcpSessionEntry: acpMocks.readAcpSessionEntry,
   upsertAcpSessionMeta: acpMocks.upsertAcpSessionMeta,
 }));
@@ -178,6 +180,7 @@ describe("dispatchReplyFromConfig", () => {
   beforeEach(() => {
     acpManagerTesting.resetAcpSessionManagerForTests();
     resetInboundDedupe();
+    acpMocks.listAcpSessionEntries.mockReset().mockResolvedValue([]);
     diagnosticMocks.logMessageQueued.mockClear();
     diagnosticMocks.logMessageProcessed.mockClear();
     diagnosticMocks.logSessionStateChange.mockClear();
