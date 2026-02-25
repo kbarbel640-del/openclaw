@@ -247,6 +247,12 @@ export const CronAddParamsSchema = Type.Object(
     wakeMode: CronWakeModeSchema,
     payload: CronPayloadSchema,
     delivery: Type.Optional(CronDeliverySchema),
+    tools: Type.Optional(
+      Type.Object({
+        allow: Type.Optional(Type.Array(NonEmptyString)),
+        deny: Type.Optional(Type.Array(NonEmptyString)),
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -261,6 +267,12 @@ export const CronJobPatchSchema = Type.Object(
     payload: Type.Optional(CronPayloadPatchSchema),
     delivery: Type.Optional(CronDeliveryPatchSchema),
     state: Type.Optional(Type.Partial(CronJobStateSchema)),
+    tools: Type.Optional(
+      Type.Object({
+        allow: Type.Optional(Type.Array(NonEmptyString)),
+        deny: Type.Optional(Type.Array(NonEmptyString)),
+      }),
+    ),
   },
   { additionalProperties: false },
 );
