@@ -87,6 +87,8 @@ describe("moveLegacyExecApprovalsFile", () => {
 
     await expect(fs.access(legacyPath)).rejects.toMatchObject({ code: "ENOENT" });
     const movedRaw = await fs.readFile(migration.targetPath, "utf-8");
-    expect(movedRaw).toContain(path.join(home, ".openclaw-work", "exec-approvals.sock"));
+    // Parse JSON to avoid Windows backslash escaping issues with toContain
+    const movedData = JSON.parse(movedRaw) as { socket?: { path?: string } };
+    expect(movedData.socket?.path).toBe(path.join(home, ".openclaw-work", "exec-approvals.sock"));
   });
 });
