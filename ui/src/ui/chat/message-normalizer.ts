@@ -17,7 +17,10 @@ function extractPlainTextContent(content: MessageContentItem[]): string {
     .trim();
 }
 
-function isSystemInjectedMaintenancePrompt(message: Record<string, unknown>, text: string): boolean {
+function isSystemInjectedMaintenancePrompt(
+  message: Record<string, unknown>,
+  text: string,
+): boolean {
   if (!text) {
     return false;
   }

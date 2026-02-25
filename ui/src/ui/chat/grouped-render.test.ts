@@ -14,5 +14,9 @@ describe("grouped-render", () => {
     it("labels system role as System", () => {
       expect(resolveSenderLabel("system", "Assistant")).toBe("System");
     });
+
+    it("labels tool role as Tool", () => {
+      expect(resolveSenderLabel("tool", "Assistant")).toBe("Tool");
+    });
   });
 });

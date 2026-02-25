@@ -212,8 +212,11 @@ function renderAvatar(role: string, assistant?: Pick<AssistantIdentity, "name" |
 }
 
 function isAvatarUrl(value: string): boolean {
+  // Relative paths come from the avatar endpoint.
   return (
-    /^https?:\/\//i.test(value) || /^data:image\//i.test(value) || value.startsWith("/") // Relative paths from avatar endpoint
+    /^https?:\/\//i.test(value) ||
+    /^data:image\//i.test(value) ||
+    value.startsWith("/")
   );
 }
 
