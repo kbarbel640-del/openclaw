@@ -12,6 +12,17 @@ import {
 } from "./schema.types.js";
 import { OpenClawSchema } from "./zod-schema.js";
 
+import type { ConfigUiHint, ConfigUiHints } from "./schema.hints.js";
+import { applySensitiveHints, buildBaseHints, mapSensitivePaths } from "./schema.hints.js";
+import { applyDerivedTags } from "./schema.tags.js";
+import { OpenClawSchema } from "./zod-schema.js";
+
+export type { ConfigUiHint, ConfigUiHints } from "./schema.hints.js";
+
+export type ConfigSchema = ReturnType<typeof OpenClawSchema.toJSONSchema>;
+
+type JsonSchemaNode = Record<string, unknown>;
+
 type JsonSchemaObject = JsonSchemaNode & {
   type?: string | string[];
   properties?: Record<string, JsonSchemaObject>;
@@ -66,6 +77,54 @@ function mergeObjectSchema(base: JsonSchemaObject, extension: JsonSchemaObject):
   }
 
   return merged;
+}
+
+export type ConfigSchemaResponse = {
+  schema: ConfigSchema;
+  uiHints: ConfigUiHints;
+  version: string;
+  generatedAt: string;
+};
+
+export type PluginUiMetadata = {
+  id: string;
+  name?: string;
+  description?: string;
+  configUiHints?: Record<
+    string,
+    Pick<ConfigUiHint, "label" | "help" | "tags" | "advanced" | "sensitive" | "placeholder">
+  >;
+  configSchema?: JsonSchemaNode;
+};
+
+export type ChannelUiMetadata = {
+  id: string;
+  label?: string;
+  description?: string;
+  configSchema?: JsonSchemaNode;
+  configUiHints?: Record<string, ConfigUiHint>;
+};
+
+function collectExtensionHintKeys(
+  hints: ConfigUiHints,
+  plugins: PluginUiMetadata[],
+  channels: ChannelUiMetadata[],
+): Set<string> {
+  const pluginPrefixes = plugins
+    .map((plugin) => plugin.id.trim())
+    .filter(Boolean)
+    .map((id) => `plugins.entries.${id}`);
+  const channelPrefixes = channels
+    .map((channel) => channel.id.trim())
+    .filter(Boolean)
+    .map((id) => `channels.${id}`);
+  const prefixes = [...pluginPrefixes, ...channelPrefixes];
+
+  return new Set(
+    Object.keys(hints).filter((key) =>
+      prefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}.`)),
+    ),
+  );
 }
 
 function applyPluginHints(hints: ConfigUiHints, plugins: PluginUiMetadata[]): ConfigUiHints {
@@ -274,6 +333,16 @@ function stripChannelSchema(schema: ConfigSchema): ConfigSchema {
   const root = asSchemaObject(next);
   const channelsNode = asSchemaObject(root?.properties?.channels);
 
+  if (!root || !root.properties) {
+    return next;
+  }
+  // Allow `$schema` in config files for editor tooling, but hide it from the
+  // Control UI form schema so it does not show up as a configurable section.
+  delete root.properties.$schema;
+  if (Array.isArray(root.required)) {
+    root.required = root.required.filter((key) => key !== "$schema");
+  }
+  const channelsNode = asSchemaObject(root.properties.channels);
   if (channelsNode) {
     channelsNode.properties = {};
     channelsNode.required = [];
@@ -301,6 +370,8 @@ function buildBaseConfigSchema(): ConfigSchemaResponse {
   Object.assign(hints, LIMITS_FIELD_LABELS, LIMITS_FIELD_HELP);
 
   cachedBase = {
+  const hints = applyDerivedTags(mapSensitivePaths(OpenClawSchema, "", buildBaseHints()));
+  const next = {
     schema: stripChannelSchema(schema),
     uiHints: hints,
     version: VERSION,
@@ -322,6 +393,19 @@ export function buildConfigSchema(params?: {
     return base;
   }
 
+  const mergedWithoutSensitiveHints = applyHeartbeatTargetHints(
+    applyChannelHints(applyPluginHints(base.uiHints, plugins), channels),
+    channels,
+  );
+  const extensionHintKeys = collectExtensionHintKeys(
+    mergedWithoutSensitiveHints,
+    plugins,
+    channels,
+  );
+  const mergedHints = applyDerivedTags(
+    applySensitiveHints(mergedWithoutSensitiveHints, extensionHintKeys),
+  );
+  const mergedSchema = applyChannelSchemas(applyPluginSchemas(base.schema, plugins), channels);
   return {
     ...base,
     uiHints: applySensitiveHints(
