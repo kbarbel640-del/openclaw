@@ -7,6 +7,56 @@ import { describe, expect, it, vi } from "vitest";
 import { createHookRunner } from "./hooks.js";
 import { createMockPluginRegistry } from "./hooks.test-helpers.js";
 
+describe("message_received hook runner", () => {
+  it("runMessageReceived returns { handled: true } when a handler signals handled", async () => {
+    const handler = vi.fn().mockReturnValue({ handled: true });
+    const registry = createMockPluginRegistry([{ hookName: "message_received", handler }]);
+    const runner = createHookRunner(registry);
+
+    const result = await runner.runMessageReceived(
+      { from: "user-1", content: "hello" },
+      { channelId: "whatsapp" },
+    );
+
+    expect(handler).toHaveBeenCalledWith(
+      { from: "user-1", content: "hello" },
+      { channelId: "whatsapp" },
+    );
+    expect(result?.handled).toBe(true);
+  });
+
+  it("runMessageReceived returns undefined when handler returns void (backward compat)", async () => {
+    const handler = vi.fn(); // returns undefined
+    const registry = createMockPluginRegistry([{ hookName: "message_received", handler }]);
+    const runner = createHookRunner(registry);
+
+    const result = await runner.runMessageReceived(
+      { from: "user-1", content: "hello" },
+      { channelId: "whatsapp" },
+    );
+
+    expect(handler).toHaveBeenCalled();
+    expect(result).toBeUndefined();
+  });
+
+  it("runMessageReceived merges multiple handlers — last handled wins", async () => {
+    const handler1 = vi.fn().mockReturnValue({ handled: false });
+    const handler2 = vi.fn().mockReturnValue({ handled: true });
+    const registry = createMockPluginRegistry([
+      { hookName: "message_received", handler: handler1 },
+      { hookName: "message_received", handler: handler2 },
+    ]);
+    const runner = createHookRunner(registry);
+
+    const result = await runner.runMessageReceived(
+      { from: "user-1", content: "hello" },
+      { channelId: "whatsapp" },
+    );
+
+    expect(result?.handled).toBe(true);
+  });
+});
+
 describe("message_sending hook runner", () => {
   it("runMessageSending invokes registered hooks and returns modified content", async () => {
     const handler = vi.fn().mockReturnValue({ content: "modified content" });
