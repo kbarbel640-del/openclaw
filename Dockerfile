@@ -51,6 +51,9 @@ RUN pnpm ui:build
 
 ENV NODE_ENV=production
 
+# Ensure the entrypoint script is executable (used by Render/cloud deploys).
+RUN chmod +x scripts/docker-entrypoint.sh
+
 # Security hardening: Run as non-root user
 # The node:22-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
@@ -62,4 +65,5 @@ USER node
 # For container platforms requiring external health checks:
 #   1. Set OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD env var
 #   2. Override CMD: ["node","openclaw.mjs","gateway","--allow-unconfigured","--bind","lan"]
+#   3. Or use scripts/docker-entrypoint.sh which seeds config and binds to LAN
 CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]

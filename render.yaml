@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: starter
     healthCheckPath: /health
-    dockerCommand: sh -c 'mkdir -p "$OPENCLAW_STATE_DIR" && test -f "$OPENCLAW_STATE_DIR/openclaw.json" || echo "{\"gateway\":{\"controlUi\":{\"dangerouslyAllowHostHeaderOriginFallback\":true}}}" > "$OPENCLAW_STATE_DIR/openclaw.json"; exec node openclaw.mjs gateway --allow-unconfigured --bind lan --port 8080'
+    dockerCommand: ./scripts/docker-entrypoint.sh
     envVars:
       - key: PORT
         value: "8080"
