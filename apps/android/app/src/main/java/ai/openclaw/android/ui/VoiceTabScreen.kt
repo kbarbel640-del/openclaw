@@ -47,6 +47,8 @@ import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LargeFloatingActionButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,7 +62,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -132,7 +133,7 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
     modifier =
       Modifier
         .fillMaxSize()
-        .background(mobileBackgroundGradient)
+        .background(MaterialTheme.colorScheme.surface)
         .imePadding()
         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
         .padding(horizontal = 20.dp, vertical = 14.dp),
@@ -146,21 +147,21 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
           "VOICE",
-          style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-          color = mobileAccent,
+          style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.sp),
+          color = MaterialTheme.colorScheme.primary,
         )
-        Text("Voice mode", style = mobileTitle2, color = mobileText)
+        Text("Voice mode", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
       }
       Surface(
         shape = RoundedCornerShape(999.dp),
-        color = if (isConnected) mobileAccentSoft else mobileSurfaceStrong,
-        border = BorderStroke(1.dp, if (isConnected) mobileAccent.copy(alpha = 0.25f) else mobileBorderStrong),
+        color = if (isConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+        border = BorderStroke(1.dp, if (isConnected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outlineVariant),
       ) {
         Text(
           if (isConnected) "Connected" else "Offline",
           modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-          style = mobileCaption1,
-          color = if (isConnected) mobileAccent else mobileTextSecondary,
+          style = MaterialTheme.typography.labelMedium,
+          color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
     }
@@ -179,8 +180,8 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
           ) {
             Text(
               "Tap the mic and speak. Each pause sends a turn automatically.",
-              style = mobileCallout,
-              color = mobileTextSecondary,
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
           }
         }
@@ -200,8 +201,8 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
     Surface(
       modifier = Modifier.fillMaxWidth(),
       shape = RoundedCornerShape(20.dp),
-      color = Color.White,
-      border = BorderStroke(1.dp, mobileBorder),
+      color = MaterialTheme.colorScheme.surfaceContainerLow,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
       Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
@@ -210,8 +211,8 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
       ) {
         Surface(
           shape = RoundedCornerShape(999.dp),
-          color = mobileSurface,
-          border = BorderStroke(1.dp, mobileBorder),
+          color = MaterialTheme.colorScheme.surfaceContainerLow,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
           val queueCount = micQueuedMessages.size
           val stateText =
@@ -224,8 +225,8 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
           Text(
             "$gatewayStatus · $stateText",
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            style = mobileCaption1,
-            color = mobileTextSecondary,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
 
@@ -233,25 +234,25 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
           Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
-            color = mobileAccentSoft,
-            border = BorderStroke(1.dp, mobileAccent.copy(alpha = 0.2f)),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
           ) {
             Text(
               micLiveTranscript!!.trim(),
               modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-              style = mobileCallout,
-              color = mobileText,
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurface,
             )
           }
         }
 
         MicWaveform(level = micInputLevel, active = micEnabled)
 
-        Button(
+        LargeFloatingActionButton(
           onClick = {
             if (micEnabled) {
               viewModel.setMicEnabled(false)
-              return@Button
+              return@LargeFloatingActionButton
             }
             if (hasMicPermission) {
               viewModel.setMicEnabled(true)
@@ -260,26 +261,21 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
               requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
             }
           },
-          shape = CircleShape,
-          contentPadding = PaddingValues(0.dp),
-          modifier = Modifier.size(86.dp),
-          colors =
-            ButtonDefaults.buttonColors(
-              containerColor = if (micEnabled) mobileDanger else mobileAccent,
-              contentColor = Color.White,
-            ),
+          shape = RoundedCornerShape(42.dp),
+          containerColor = if (micEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primaryContainer,
+          contentColor = if (micEnabled) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimaryContainer,
         ) {
           Icon(
             imageVector = if (micEnabled) Icons.Default.MicOff else Icons.Default.Mic,
             contentDescription = if (micEnabled) "Turn microphone off" else "Turn microphone on",
-            modifier = Modifier.size(30.dp),
+            modifier = Modifier.size(36.dp),
           )
         }
 
         Text(
           if (micEnabled) "Tap to stop" else "Tap to speak",
-          style = mobileCallout,
-          color = mobileTextSecondary,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         if (!hasMicPermission) {
@@ -295,23 +291,23 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
             } else {
               "Microphone blocked. Open app settings to enable it."
             },
-            style = mobileCaption1,
-            color = mobileWarning,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.tertiary,
             textAlign = TextAlign.Center,
           )
           Button(
             onClick = { openAppSettings(context) },
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = mobileSurfaceStrong, contentColor = mobileText),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
           ) {
-            Text("Open settings", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold))
+            Text("Open settings", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
           }
         }
 
         Text(
           micStatusText,
-          style = mobileCaption1,
-          color = mobileTextTertiary,
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
         )
       }
     }
@@ -328,8 +324,8 @@ private fun VoiceTurnBubble(entry: VoiceConversationEntry) {
     Surface(
       modifier = Modifier.fillMaxWidth(0.90f),
       shape = RoundedCornerShape(14.dp),
-      color = if (isUser) mobileAccentSoft else mobileSurface,
-      border = BorderStroke(1.dp, if (isUser) mobileAccent.copy(alpha = 0.2f) else mobileBorder),
+      color = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+      border = BorderStroke(1.dp, if (isUser) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.outlineVariant),
     ) {
       Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -337,13 +333,13 @@ private fun VoiceTurnBubble(entry: VoiceConversationEntry) {
       ) {
         Text(
           if (isUser) "You" else "OpenClaw",
-          style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold),
-          color = mobileTextSecondary,
+          style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
           if (entry.isStreaming && entry.text.isBlank()) "Listening response…" else entry.text,
-          style = mobileCallout,
-          color = mobileText,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurface,
         )
       }
     }
@@ -356,23 +352,23 @@ private fun VoiceThinkingBubble() {
     Surface(
       modifier = Modifier.fillMaxWidth(0.68f),
       shape = RoundedCornerShape(14.dp),
-      color = mobileSurface,
-      border = BorderStroke(1.dp, mobileBorder),
+      color = MaterialTheme.colorScheme.surfaceContainerLow,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
       Row(
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        ThinkingDots(color = mobileTextSecondary)
-        Text("OpenClaw is thinking…", style = mobileCallout, color = mobileTextSecondary)
+        ThinkingDots(color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("OpenClaw is thinking…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
   }
 }
 
 @Composable
-private fun ThinkingDots(color: Color) {
+private fun ThinkingDots(color: androidx.compose.ui.graphics.Color) {
   Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
     ThinkingDot(alpha = 0.38f, color = color)
     ThinkingDot(alpha = 0.62f, color = color)
@@ -381,7 +377,7 @@ private fun ThinkingDots(color: Color) {
 }
 
 @Composable
-private fun ThinkingDot(alpha: Float, color: Color) {
+private fun ThinkingDot(alpha: Float, color: androidx.compose.ui.graphics.Color) {
   Surface(
     modifier = Modifier.size(6.dp).alpha(alpha),
     shape = CircleShape,
@@ -421,7 +417,7 @@ private fun MicWaveform(level: Float, active: Boolean) {
           Modifier
             .width(5.dp)
             .height(barHeight)
-            .background(if (active) mobileAccent else mobileBorderStrong, RoundedCornerShape(999.dp)),
+            .background(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(999.dp)),
       )
     }
   }

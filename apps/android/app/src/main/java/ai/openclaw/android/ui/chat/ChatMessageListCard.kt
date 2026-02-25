@@ -2,26 +2,24 @@ package ai.openclaw.android.ui.chat
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ai.openclaw.android.chat.ChatMessage
 import ai.openclaw.android.chat.ChatPendingToolCall
-import ai.openclaw.android.ui.mobileBorder
-import ai.openclaw.android.ui.mobileCallout
-import ai.openclaw.android.ui.mobileHeadline
-import ai.openclaw.android.ui.mobileText
-import ai.openclaw.android.ui.mobileTextSecondary
 
 @Composable
 fun ChatMessageListCard(
@@ -34,7 +32,6 @@ fun ChatMessageListCard(
 ) {
   val listState = rememberLazyListState()
 
-  // With reverseLayout the newest item is at index 0 (bottom of screen).
   LaunchedEffect(messages.size, pendingRunCount, pendingToolCalls.size, streamingAssistantText) {
     listState.animateScrollToItem(index = 0)
   }
@@ -44,12 +41,9 @@ fun ChatMessageListCard(
       modifier = Modifier.fillMaxSize(),
       state = listState,
       reverseLayout = true,
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
       contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 8.dp),
     ) {
-      // With reverseLayout = true, index 0 renders at the BOTTOM.
-      // So we emit newest items first: streaming → tools → typing → messages (newest→oldest).
-
       val stream = streamingAssistantText?.trim()
       if (!stream.isNullOrEmpty()) {
         item(key = "stream") {
@@ -84,15 +78,19 @@ fun ChatMessageListCard(
 private fun EmptyChatHint(modifier: Modifier = Modifier, healthOk: Boolean) {
   Surface(
     modifier = modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(14.dp),
-    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-    border = androidx.compose.foundation.BorderStroke(1.dp, mobileBorder),
+    shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.surfaceContainerLow,
+    tonalElevation = 1.dp,
   ) {
-    androidx.compose.foundation.layout.Column(
-      modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+    Column(
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
       verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-      Text("No messages yet", style = mobileHeadline, color = mobileText)
+      Text(
+        "No messages yet",
+        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+        color = MaterialTheme.colorScheme.onSurface,
+      )
       Text(
         text =
           if (healthOk) {
@@ -100,8 +98,8 @@ private fun EmptyChatHint(modifier: Modifier = Modifier, healthOk: Boolean) {
           } else {
             "Connect gateway first, then return to chat."
           },
-        style = mobileCallout,
-        color = mobileTextSecondary,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
   }

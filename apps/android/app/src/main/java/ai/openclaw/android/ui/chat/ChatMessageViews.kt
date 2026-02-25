@@ -46,8 +46,7 @@ import ai.openclaw.android.ui.mobileCaption2
 import ai.openclaw.android.ui.mobileCodeBg
 import ai.openclaw.android.ui.mobileCodeText
 import ai.openclaw.android.ui.mobileHeadline
-import ai.openclaw.android.ui.mobileText
-import ai.openclaw.android.ui.mobileTextSecondary
+import androidx.compose.material3.MaterialTheme
 import ai.openclaw.android.ui.mobileWarning
 import ai.openclaw.android.ui.mobileWarningSoft
 import java.util.Locale
@@ -78,7 +77,7 @@ fun ChatMessageBubble(message: ChatMessage) {
   if (displayableContent.isEmpty()) return
 
   ChatBubbleContainer(style = style, roleLabel = roleLabel(role)) {
-    ChatMessageBody(content = displayableContent, textColor = mobileText)
+    ChatMessageBody(content = displayableContent, textColor = MaterialTheme.colorScheme.onSurface)
   }
 }
 
@@ -144,8 +143,8 @@ fun ChatTypingIndicatorBubble() {
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-      DotPulse(color = mobileTextSecondary)
-      Text("Thinking...", style = mobileCallout, color = mobileTextSecondary)
+      DotPulse(color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Text("Thinking...", style = mobileCallout, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
   }
 }
@@ -163,20 +162,20 @@ fun ChatPendingToolsBubble(toolCalls: List<ChatPendingToolCall>) {
     roleLabel = "TOOLS",
   ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-      Text("Running tools...", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
+      Text("Running tools...", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
       for (display in displays.take(6)) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
           Text(
             "${display.emoji} ${display.label}",
             style = mobileCallout,
-            color = mobileTextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontFamily = FontFamily.Monospace,
           )
           display.detailLine?.let { detail ->
             Text(
               detail,
               style = mobileCaption1,
-              color = mobileTextSecondary,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
               fontFamily = FontFamily.Monospace,
             )
           }
@@ -186,7 +185,7 @@ fun ChatPendingToolsBubble(toolCalls: List<ChatPendingToolCall>) {
         Text(
           text = "... +${toolCalls.size - 6} more",
           style = mobileCaption1,
-          color = mobileTextSecondary,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
     }
@@ -199,10 +198,11 @@ fun ChatStreamingAssistantBubble(text: String) {
     style = bubbleStyle("assistant").copy(borderColor = mobileAccent),
     roleLabel = "ASSISTANT · LIVE",
   ) {
-    ChatMarkdown(text = text, textColor = mobileText)
+    ChatMarkdown(text = text, textColor = MaterialTheme.colorScheme.onSurface)
   }
 }
 
+@Composable
 private fun bubbleStyle(role: String): ChatBubbleStyle {
   return when (role) {
     "user" ->
@@ -226,7 +226,7 @@ private fun bubbleStyle(role: String): ChatBubbleStyle {
         alignEnd = false,
         containerColor = Color.White,
         borderColor = mobileBorderStrong,
-        roleColor = mobileTextSecondary,
+        roleColor = MaterialTheme.colorScheme.onSurfaceVariant,
       )
   }
 }
@@ -274,7 +274,7 @@ private fun ChatBase64Image(base64: String, mimeType: String?) {
       )
     }
   } else if (failed) {
-    Text("Unsupported attachment", style = mobileCaption1, color = mobileTextSecondary)
+    Text("Unsupported attachment", style = mobileCaption1, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }
 
@@ -309,7 +309,7 @@ fun ChatCodeBlock(code: String, language: String?) {
         Text(
           text = language.uppercase(Locale.US),
           style = mobileCaption2.copy(letterSpacing = 0.4.sp),
-          color = mobileTextSecondary,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
       Text(

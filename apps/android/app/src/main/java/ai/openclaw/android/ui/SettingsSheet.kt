@@ -9,40 +9,34 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -52,12 +46,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -96,14 +86,6 @@ fun SettingsSheet(viewModel: MainViewModel) {
         versionName
       }
     }
-  val listItemColors =
-    ListItemDefaults.colors(
-      containerColor = Color.Transparent,
-      headlineColor = mobileText,
-      supportingColor = mobileTextSecondary,
-      trailingIconColor = mobileTextSecondary,
-      leadingIconColor = mobileTextSecondary,
-    )
 
   val permissionLauncher =
     rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { perms ->
@@ -248,12 +230,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
     }
   }
 
-  Box(
-    modifier =
-      Modifier
-        .fillMaxSize()
-        .background(mobileBackgroundGradient),
-  ) {
+  Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
       state = listState,
       modifier =
@@ -262,63 +239,97 @@ fun SettingsSheet(viewModel: MainViewModel) {
           .fillMaxHeight()
           .imePadding()
           .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
-      contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+      contentPadding = PaddingValues(vertical = 16.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       item {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
           Text(
             "SETTINGS",
-            style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-            color = mobileAccent,
+            style = MaterialTheme.typography.labelSmall.copy(
+              fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+              letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+            ),
+            color = MaterialTheme.colorScheme.primary,
           )
-          Text("Device Configuration", style = mobileTitle2, color = mobileText)
+          Text(
+            "Device Configuration",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+          )
           Text(
             "Manage capabilities, permissions, and diagnostics.",
-            style = mobileCallout,
-            color = mobileTextSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
       }
-      item { HorizontalDivider(color = mobileBorder) }
+      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
 
-    // Order parity: Node → Voice → Camera → Messaging → Location → Screen.
+      // Order parity: Node → Voice → Camera → Messaging → Location → Screen.
       item {
         Text(
           "NODE",
-          style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-          color = mobileAccent,
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+          ),
+          color = MaterialTheme.colorScheme.primary,
         )
       }
-    item {
-      OutlinedTextField(
-        value = displayName,
-        onValueChange = viewModel::setDisplayName,
-        label = { Text("Name", style = mobileCaption1, color = mobileTextSecondary) },
-        modifier = Modifier.fillMaxWidth(),
-        textStyle = mobileBody.copy(color = mobileText),
-        colors = settingsTextFieldColors(),
-      )
-    }
-      item { Text("Instance ID: $instanceId", style = mobileCallout.copy(fontFamily = FontFamily.Monospace), color = mobileTextSecondary) }
-      item { Text("Device: $deviceModel", style = mobileCallout, color = mobileTextSecondary) }
-      item { Text("Version: $appVersion", style = mobileCallout, color = mobileTextSecondary) }
+      item {
+        OutlinedTextField(
+          value = displayName,
+          onValueChange = viewModel::setDisplayName,
+          label = { Text("Name", style = MaterialTheme.typography.bodySmall) },
+          modifier = Modifier.fillMaxWidth(),
+          textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+          shape = RoundedCornerShape(12.dp),
+        )
+      }
+      item {
+        Text(
+          "Instance ID: $instanceId",
+          style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      item {
+        Text(
+          "Device: $deviceModel",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      item {
+        Text(
+          "Version: $appVersion",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
 
-      item { HorizontalDivider(color = mobileBorder) }
+      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
 
       // Voice
       item {
         Text(
           "VOICE",
-          style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-          color = mobileAccent,
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+          ),
+          color = MaterialTheme.colorScheme.primary,
         )
       }
       item {
         ListItem(
-          modifier = settingsRowModifier(),
-          colors = listItemColors,
-          headlineContent = { Text("Microphone permission", style = mobileHeadline) },
+          headlineContent = {
+            Text(
+              "Microphone permission",
+              style = MaterialTheme.typography.bodyLarge,
+            )
+          },
           supportingContent = {
             Text(
               if (micPermissionGranted) {
@@ -326,11 +337,11 @@ fun SettingsSheet(viewModel: MainViewModel) {
               } else {
                 "Required for Voice tab transcription."
               },
-              style = mobileCallout,
+              style = MaterialTheme.typography.bodyMedium,
             )
           },
           trailingContent = {
-            Button(
+            FilledTonalButton(
               onClick = {
                 if (micPermissionGranted) {
                   openAppSettings(context)
@@ -338,12 +349,11 @@ fun SettingsSheet(viewModel: MainViewModel) {
                   audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }
               },
-              colors = settingsPrimaryButtonColors(),
-              shape = RoundedCornerShape(14.dp),
+              shape = RoundedCornerShape(50),
             ) {
               Text(
                 if (micPermissionGranted) "Manage" else "Grant",
-                style = mobileCallout.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.labelLarge,
               )
             }
           },
@@ -352,248 +362,306 @@ fun SettingsSheet(viewModel: MainViewModel) {
       item {
         Text(
           "Voice wake and talk modes were removed. Voice now uses one mic on/off flow in the Voice tab.",
-          style = mobileCallout,
-          color = mobileTextSecondary,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
 
-      item { HorizontalDivider(color = mobileBorder) }
+      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
 
-    // Camera
+      // Camera
       item {
         Text(
           "CAMERA",
-          style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-          color = mobileAccent,
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+          ),
+          color = MaterialTheme.colorScheme.primary,
         )
       }
-    item {
-      ListItem(
-        modifier = settingsRowModifier(),
-        colors = listItemColors,
-        headlineContent = { Text("Allow Camera", style = mobileHeadline) },
-        supportingContent = { Text("Allows the gateway to request photos or short video clips (foreground only).", style = mobileCallout) },
-        trailingContent = { Switch(checked = cameraEnabled, onCheckedChange = ::setCameraEnabledChecked) },
-      )
-    }
-    item {
-      Text(
-        "Tip: grant Microphone permission for video clips with audio.",
-        style = mobileCallout,
-        color = mobileTextSecondary,
-      )
-    }
+      item {
+        ListItem(
+          headlineContent = {
+            Text(
+              "Allow Camera",
+              style = MaterialTheme.typography.bodyLarge,
+            )
+          },
+          supportingContent = {
+            Text(
+              "Allows the gateway to request photos or short video clips (foreground only).",
+              style = MaterialTheme.typography.bodyMedium,
+            )
+          },
+          trailingContent = {
+            Switch(
+              checked = cameraEnabled,
+              onCheckedChange = ::setCameraEnabledChecked,
+              colors = SwitchDefaults.colors(),
+            )
+          },
+        )
+      }
+      item {
+        Text(
+          "Tip: grant Microphone permission for video clips with audio.",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
 
-      item { HorizontalDivider(color = mobileBorder) }
+      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
 
-    // Messaging
+      // Messaging
       item {
         Text(
           "MESSAGING",
-          style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-          color = mobileAccent,
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+          ),
+          color = MaterialTheme.colorScheme.primary,
         )
       }
-    item {
-      val buttonLabel =
-        when {
-          !smsPermissionAvailable -> "Unavailable"
-          smsPermissionGranted -> "Manage"
-          else -> "Grant"
-        }
-      ListItem(
-        modifier = settingsRowModifier(),
-        colors = listItemColors,
-        headlineContent = { Text("SMS Permission", style = mobileHeadline) },
-        supportingContent = {
-          Text(
-            if (smsPermissionAvailable) {
-              "Allow the gateway to send SMS from this device."
-            } else {
-              "SMS requires a device with telephony hardware."
-            },
-            style = mobileCallout,
-          )
-        },
-        trailingContent = {
-          Button(
-            onClick = {
-              if (!smsPermissionAvailable) return@Button
-              if (smsPermissionGranted) {
-                openAppSettings(context)
-              } else {
-                smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-              }
-            },
-            enabled = smsPermissionAvailable,
-            colors = settingsPrimaryButtonColors(),
-            shape = RoundedCornerShape(14.dp),
-          ) {
-            Text(buttonLabel, style = mobileCallout.copy(fontWeight = FontWeight.Bold))
+      item {
+        val buttonLabel =
+          when {
+            !smsPermissionAvailable -> "Unavailable"
+            smsPermissionGranted -> "Manage"
+            else -> "Grant"
           }
-        },
-      )
-    }
+        ListItem(
+          headlineContent = {
+            Text(
+              "SMS Permission",
+              style = MaterialTheme.typography.bodyLarge,
+            )
+          },
+          supportingContent = {
+            Text(
+              if (smsPermissionAvailable) {
+                "Allow the gateway to send SMS from this device."
+              } else {
+                "SMS requires a device with telephony hardware."
+              },
+              style = MaterialTheme.typography.bodyMedium,
+            )
+          },
+          trailingContent = {
+            FilledTonalButton(
+              onClick = {
+                if (!smsPermissionAvailable) return@FilledTonalButton
+                if (smsPermissionGranted) {
+                  openAppSettings(context)
+                } else {
+                  smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                }
+              },
+              enabled = smsPermissionAvailable,
+              shape = RoundedCornerShape(50),
+            ) {
+              Text(buttonLabel, style = MaterialTheme.typography.labelLarge)
+            }
+          },
+        )
+      }
 
-      item { HorizontalDivider(color = mobileBorder) }
+      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
 
-    // Location
+      // Location
       item {
         Text(
           "LOCATION",
-          style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-          color = mobileAccent,
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+          ),
+          color = MaterialTheme.colorScheme.primary,
         )
       }
       item {
-        Column(modifier = settingsRowModifier(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
           ListItem(
             modifier = Modifier.fillMaxWidth(),
-            colors = listItemColors,
-            headlineContent = { Text("Off", style = mobileHeadline) },
-            supportingContent = { Text("Disable location sharing.", style = mobileCallout) },
+            headlineContent = {
+              Text(
+                "Off",
+                style = MaterialTheme.typography.bodyLarge,
+              )
+            },
+            supportingContent = {
+              Text(
+                "Disable location sharing.",
+                style = MaterialTheme.typography.bodyMedium,
+              )
+            },
             trailingContent = {
               RadioButton(
                 selected = locationMode == LocationMode.Off,
                 onClick = { viewModel.setLocationMode(LocationMode.Off) },
+                colors = RadioButtonDefaults.colors(),
               )
             },
           )
-          HorizontalDivider(color = mobileBorder)
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           ListItem(
             modifier = Modifier.fillMaxWidth(),
-            colors = listItemColors,
-            headlineContent = { Text("While Using", style = mobileHeadline) },
-            supportingContent = { Text("Only while OpenClaw is open.", style = mobileCallout) },
+            headlineContent = {
+              Text(
+                "While Using",
+                style = MaterialTheme.typography.bodyLarge,
+              )
+            },
+            supportingContent = {
+              Text(
+                "Only while OpenClaw is open.",
+                style = MaterialTheme.typography.bodyMedium,
+              )
+            },
             trailingContent = {
               RadioButton(
                 selected = locationMode == LocationMode.WhileUsing,
                 onClick = { requestLocationPermissions(LocationMode.WhileUsing) },
+                colors = RadioButtonDefaults.colors(),
               )
             },
           )
-          HorizontalDivider(color = mobileBorder)
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           ListItem(
             modifier = Modifier.fillMaxWidth(),
-            colors = listItemColors,
-            headlineContent = { Text("Always", style = mobileHeadline) },
-            supportingContent = { Text("Allow background location (requires system permission).", style = mobileCallout) },
+            headlineContent = {
+              Text(
+                "Always",
+                style = MaterialTheme.typography.bodyLarge,
+              )
+            },
+            supportingContent = {
+              Text(
+                "Allow background location (requires system permission).",
+                style = MaterialTheme.typography.bodyMedium,
+              )
+            },
             trailingContent = {
               RadioButton(
                 selected = locationMode == LocationMode.Always,
                 onClick = { requestLocationPermissions(LocationMode.Always) },
+                colors = RadioButtonDefaults.colors(),
               )
             },
           )
-          HorizontalDivider(color = mobileBorder)
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           ListItem(
             modifier = Modifier.fillMaxWidth(),
-            colors = listItemColors,
-            headlineContent = { Text("Precise Location", style = mobileHeadline) },
-            supportingContent = { Text("Use precise GPS when available.", style = mobileCallout) },
+            headlineContent = {
+              Text(
+                "Precise Location",
+                style = MaterialTheme.typography.bodyLarge,
+              )
+            },
+            supportingContent = {
+              Text(
+                "Use precise GPS when available.",
+                style = MaterialTheme.typography.bodyMedium,
+              )
+            },
             trailingContent = {
               Switch(
                 checked = locationPreciseEnabled,
                 onCheckedChange = ::setPreciseLocationChecked,
                 enabled = locationMode != LocationMode.Off,
+                colors = SwitchDefaults.colors(),
               )
             },
           )
         }
       }
-    item {
-      Text(
-        "Always may require Android Settings to allow background location.",
-        style = mobileCallout,
-        color = mobileTextSecondary,
-      )
-    }
+      item {
+        Text(
+          "Always may require Android Settings to allow background location.",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
 
-      item { HorizontalDivider(color = mobileBorder) }
+      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
 
-    // Screen
+      // Screen
       item {
         Text(
           "SCREEN",
-          style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-          color = mobileAccent,
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+          ),
+          color = MaterialTheme.colorScheme.primary,
         )
       }
-    item {
-      ListItem(
-        modifier = settingsRowModifier(),
-        colors = listItemColors,
-        headlineContent = { Text("Prevent Sleep", style = mobileHeadline) },
-        supportingContent = { Text("Keeps the screen awake while OpenClaw is open.", style = mobileCallout) },
-        trailingContent = { Switch(checked = preventSleep, onCheckedChange = viewModel::setPreventSleep) },
-      )
-    }
+      item {
+        ListItem(
+          headlineContent = {
+            Text(
+              "Prevent Sleep",
+              style = MaterialTheme.typography.bodyLarge,
+            )
+          },
+          supportingContent = {
+            Text(
+              "Keeps the screen awake while OpenClaw is open.",
+              style = MaterialTheme.typography.bodyMedium,
+            )
+          },
+          trailingContent = {
+            Switch(
+              checked = preventSleep,
+              onCheckedChange = viewModel::setPreventSleep,
+              colors = SwitchDefaults.colors(),
+            )
+          },
+        )
+      }
 
-      item { HorizontalDivider(color = mobileBorder) }
+      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
 
-    // Debug
+      // Debug
       item {
         Text(
           "DEBUG",
-          style = mobileCaption1.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-          color = mobileAccent,
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
+          ),
+          color = MaterialTheme.colorScheme.primary,
         )
       }
-    item {
-      ListItem(
-        modifier = settingsRowModifier(),
-        colors = listItemColors,
-        headlineContent = { Text("Debug Canvas Status", style = mobileHeadline) },
-        supportingContent = { Text("Show status text in the canvas when debug is enabled.", style = mobileCallout) },
-        trailingContent = {
-          Switch(
-            checked = canvasDebugStatusEnabled,
-            onCheckedChange = viewModel::setCanvasDebugStatusEnabled,
-          )
-        },
-      )
-    }
+      item {
+        ListItem(
+          headlineContent = {
+            Text(
+              "Debug Canvas Status",
+              style = MaterialTheme.typography.bodyLarge,
+            )
+          },
+          supportingContent = {
+            Text(
+              "Show status text in the canvas when debug is enabled.",
+              style = MaterialTheme.typography.bodyMedium,
+            )
+          },
+          trailingContent = {
+            Switch(
+              checked = canvasDebugStatusEnabled,
+              onCheckedChange = viewModel::setCanvasDebugStatusEnabled,
+              colors = SwitchDefaults.colors(),
+            )
+          },
+        )
+      }
 
       item { Spacer(modifier = Modifier.height(24.dp)) }
     }
   }
 }
-
-@Composable
-private fun settingsTextFieldColors() =
-  OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = mobileSurface,
-    unfocusedContainerColor = mobileSurface,
-    focusedBorderColor = mobileAccent,
-    unfocusedBorderColor = mobileBorder,
-    focusedTextColor = mobileText,
-    unfocusedTextColor = mobileText,
-    cursorColor = mobileAccent,
-  )
-
-private fun settingsRowModifier() =
-  Modifier
-    .fillMaxWidth()
-    .border(width = 1.dp, color = mobileBorder, shape = RoundedCornerShape(14.dp))
-    .background(Color.White, RoundedCornerShape(14.dp))
-
-@Composable
-private fun settingsPrimaryButtonColors() =
-  ButtonDefaults.buttonColors(
-    containerColor = mobileAccent,
-    contentColor = Color.White,
-    disabledContainerColor = mobileAccent.copy(alpha = 0.45f),
-    disabledContentColor = Color.White.copy(alpha = 0.9f),
-  )
-
-@Composable
-private fun settingsDangerButtonColors() =
-  ButtonDefaults.buttonColors(
-    containerColor = mobileDanger,
-    contentColor = Color.White,
-    disabledContainerColor = mobileDanger.copy(alpha = 0.45f),
-    disabledContentColor = Color.White.copy(alpha = 0.9f),
-  )
 
 private fun openAppSettings(context: Context) {
   val intent =
