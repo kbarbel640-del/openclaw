@@ -55,7 +55,18 @@ function resolvePackageHooks(manifest: HookPackageManifest): string[] {
   return raw.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean);
 }
 
+function hasParentTraversalSegment(entry: string): boolean {
+  return entry.split(/[\\/]+/).some((segment) => segment === "..");
+}
+
 function resolveContainedDir(baseDir: string, targetDir: string): string | null {
+  if (
+    path.posix.isAbsolute(targetDir) ||
+    path.win32.isAbsolute(targetDir) ||
+    hasParentTraversalSegment(targetDir)
+  ) {
+    return null;
+  }
   const base = path.resolve(baseDir);
   const resolved = path.resolve(baseDir, targetDir);
   if (
