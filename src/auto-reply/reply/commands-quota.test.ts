@@ -70,13 +70,13 @@ describe("handleQuotaCommand", () => {
       updatedAt: Date.now(),
       providers: [],
     });
-    mockFormatUsageReportLines.mockReturnValueOnce(["Usage:", "  No providers"])
+    mockFormatUsageReportLines.mockReturnValueOnce(["Usage:", "  No providers"]);
 
     await handleQuotaCommand(params, true);
 
     expect(mockLoadProviderUsageSummary).toHaveBeenCalledOnce();
     const callArg = mockLoadProviderUsageSummary.mock.calls[0]?.[0];
-    
+
     // Verify providers list excludes Gemini
     expect(callArg.providers).toBeDefined();
     expect(callArg.providers).toContain("anthropic");
@@ -97,7 +97,11 @@ describe("handleQuotaCommand", () => {
     mockLoadProviderUsageSummary.mockResolvedValueOnce({
       updatedAt: Date.now(),
       providers: [
-        { provider: "anthropic", displayName: "Claude", windows: [{ label: "5h", usedPercent: 20 }] },
+        {
+          provider: "anthropic",
+          displayName: "Claude",
+          windows: [{ label: "5h", usedPercent: 20 }],
+        },
       ],
     });
     mockFormatUsageReportLines.mockReturnValueOnce(["Usage:", "  Claude", "    5h: 80% left"]);
