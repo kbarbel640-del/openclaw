@@ -321,6 +321,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         channel?: string | null;
         timeoutSeconds?: number | null;
         key?: string | null;
+        metadata?: Record<string, unknown> | null;
       };
       let link: AgentDeepLink | null = null;
       try {
@@ -409,6 +410,13 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         );
       }
 
+      // Build extraSystemPrompt from metadata if present
+      const rawMeta = link?.metadata;
+      let extraSystemPrompt: string | undefined;
+      if (rawMeta && typeof rawMeta === "object" && Object.keys(rawMeta).length > 0) {
+        extraSystemPrompt = `## Node Request Metadata (trusted)\n\`\`\`json\n${JSON.stringify(rawMeta)}\n\`\`\``;
+      }
+
       void agentCommand(
         {
           message,
@@ -422,6 +430,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
           timeout:
             typeof link?.timeoutSeconds === "number" ? link.timeoutSeconds.toString() : undefined,
           messageChannel: "node",
+          extraSystemPrompt,
         },
         defaultRuntime,
         ctx.deps,
