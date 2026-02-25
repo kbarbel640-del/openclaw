@@ -19,6 +19,7 @@ import {
 import { loadInternalHooks } from "../hooks/loader.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import type { loadOpenClawPlugins } from "../plugins/loader.js";
+import { reregisterPluginInternalHooks } from "../plugins/registry.js";
 import { type PluginServicesHandle, startPluginServices } from "../plugins/services.js";
 import { startBrowserControlServerIfEnabled } from "./server-browser.js";
 import {
@@ -108,12 +109,15 @@ export async function startGatewaySidecars(params: {
 
   // Load internal hook handlers from configuration and directory discovery.
   try {
-    // Clear any previously registered hooks to ensure fresh loading
     clearInternalHooks();
     const loadedCount = await loadInternalHooks(params.cfg, params.defaultWorkspaceDir);
-    if (loadedCount > 0) {
+    // Re-register plugin hooks that were wiped by clearInternalHooks() (#25859)
+    const pluginHookCount = reregisterPluginInternalHooks(params.pluginRegistry);
+    const totalCount = loadedCount + pluginHookCount;
+    if (totalCount > 0) {
       params.logHooks.info(
-        `loaded ${loadedCount} internal hook handler${loadedCount > 1 ? "s" : ""}`,
+        `loaded ${totalCount} internal hook handler${totalCount > 1 ? "s" : ""}` +
+          (pluginHookCount > 0 ? ` (${pluginHookCount} from plugins)` : ""),
       );
     }
   } catch (err) {

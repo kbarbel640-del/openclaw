@@ -80,6 +80,7 @@ export type PluginHookRegistration = {
   entry: HookEntry;
   events: string[];
   source: string;
+  handler?: Parameters<typeof registerInternalHook>[1];
 };
 
 export type PluginServiceRegistration = {
@@ -159,6 +160,24 @@ export function createEmptyPluginRegistry(): PluginRegistry {
     commands: [],
     diagnostics: [],
   };
+}
+
+/**
+ * Re-register plugin internal hooks that were cleared by `clearInternalHooks()`.
+ * Called after directory-based hook loading so plugin hooks survive the reload cycle.
+ */
+export function reregisterPluginInternalHooks(registry: PluginRegistry): number {
+  let count = 0;
+  for (const registration of registry.hooks) {
+    if (!registration.handler) {
+      continue;
+    }
+    for (const event of registration.events) {
+      registerInternalHook(event, registration.handler);
+      count += 1;
+    }
+  }
+  return count;
 }
 
 export function createPluginRegistry(registryParams: PluginRegistryParams) {
@@ -249,15 +268,19 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
         };
 
     record.hookNames.push(name);
+
+    const hookSystemEnabled = config?.hooks?.internal?.enabled === true;
+    const shouldRegister = hookSystemEnabled && opts?.register !== false;
+
     registry.hooks.push({
       pluginId: record.id,
       entry: hookEntry,
       events: normalizedEvents,
       source: record.source,
+      handler: shouldRegister ? handler : undefined,
     });
 
-    const hookSystemEnabled = config?.hooks?.internal?.enabled === true;
-    if (!hookSystemEnabled || opts?.register === false) {
+    if (!shouldRegister) {
       return;
     }
 
