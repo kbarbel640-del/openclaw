@@ -27,6 +27,9 @@ export const DEFAULT_IDENTITY_FILENAME = "IDENTITY.md";
 export const DEFAULT_USER_FILENAME = "USER.md";
 export const DEFAULT_HEARTBEAT_FILENAME = "HEARTBEAT.md";
 export const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md";
+export const DEFAULT_SYSTEM_TIPS_FILENAME = "SYSTEM_TIPS.md";
+export const DEFAULT_SAFETY_FILENAME = "SAFETY.md";
+export const DEFAULT_CLI_QUICK_REFERENCE_FILENAME = "CLI_QUICK_REFERENCE.md";
 export const DEFAULT_MEMORY_FILENAME = "MEMORY.md";
 export const DEFAULT_MEMORY_ALT_FILENAME = "memory.md";
 const WORKSPACE_STATE_DIRNAME = ".openclaw";
@@ -115,6 +118,9 @@ export type WorkspaceBootstrapFileName =
   | typeof DEFAULT_USER_FILENAME
   | typeof DEFAULT_HEARTBEAT_FILENAME
   | typeof DEFAULT_BOOTSTRAP_FILENAME
+  | typeof DEFAULT_SYSTEM_TIPS_FILENAME
+  | typeof DEFAULT_SAFETY_FILENAME
+  | typeof DEFAULT_CLI_QUICK_REFERENCE_FILENAME
   | typeof DEFAULT_MEMORY_FILENAME
   | typeof DEFAULT_MEMORY_ALT_FILENAME;
 
@@ -140,6 +146,9 @@ const VALID_BOOTSTRAP_NAMES: ReadonlySet<string> = new Set([
   DEFAULT_USER_FILENAME,
   DEFAULT_HEARTBEAT_FILENAME,
   DEFAULT_BOOTSTRAP_FILENAME,
+  DEFAULT_SYSTEM_TIPS_FILENAME,
+  DEFAULT_SAFETY_FILENAME,
+  DEFAULT_CLI_QUICK_REFERENCE_FILENAME,
   DEFAULT_MEMORY_FILENAME,
   DEFAULT_MEMORY_ALT_FILENAME,
 ]);
@@ -438,6 +447,23 @@ async function resolveMemoryBootstrapEntries(
   return deduped;
 }
 
+async function resolveOptionalBootstrapEntries(
+  resolvedDir: string,
+  names: WorkspaceBootstrapFileName[],
+): Promise<Array<{ name: WorkspaceBootstrapFileName; filePath: string }>> {
+  const entries: Array<{ name: WorkspaceBootstrapFileName; filePath: string }> = [];
+  for (const name of names) {
+    const filePath = path.join(resolvedDir, name);
+    try {
+      await fs.access(filePath);
+      entries.push({ name, filePath });
+    } catch {
+      // optional
+    }
+  }
+  return entries;
+}
+
 export async function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]> {
   const resolvedDir = resolveUserPath(dir);
 
@@ -475,6 +501,13 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
     },
   ];
 
+  entries.push(
+    ...(await resolveOptionalBootstrapEntries(resolvedDir, [
+      DEFAULT_SYSTEM_TIPS_FILENAME,
+      DEFAULT_SAFETY_FILENAME,
+      DEFAULT_CLI_QUICK_REFERENCE_FILENAME,
+    ])),
+  );
   entries.push(...(await resolveMemoryBootstrapEntries(resolvedDir)));
 
   const result: WorkspaceBootstrapFile[] = [];
@@ -500,6 +533,9 @@ const MINIMAL_BOOTSTRAP_ALLOWLIST = new Set([
   DEFAULT_SOUL_FILENAME,
   DEFAULT_IDENTITY_FILENAME,
   DEFAULT_USER_FILENAME,
+  DEFAULT_SYSTEM_TIPS_FILENAME,
+  DEFAULT_SAFETY_FILENAME,
+  DEFAULT_CLI_QUICK_REFERENCE_FILENAME,
 ]);
 
 export function filterBootstrapFilesForSession(

@@ -186,6 +186,75 @@ function buildDocsSection(params: { docsPath?: string; isMinimal: boolean; readT
   ];
 }
 
+type PromptTemplateVariables = Record<string, string>;
+
+const SECTION_OFF_MARKER = /<!--\s*OPENCLAW:SECTION_OFF\s*-->/i;
+
+function getPromptFileBasename(filePath: string): string {
+  const normalizedPath = filePath.trim().replace(/\\/g, "/");
+  return (normalizedPath.split("/").pop() ?? normalizedPath).toLowerCase();
+}
+
+function findContextFileOverride(
+  contextFiles: EmbeddedContextFile[],
+  fileNames: string[],
+): string | undefined {
+  const normalizedNames = new Set(
+    fileNames.map((fileName) => fileName.trim().toLowerCase()).filter(Boolean),
+  );
+  if (normalizedNames.size === 0) {
+    return undefined;
+  }
+  for (let i = contextFiles.length - 1; i >= 0; i -= 1) {
+    const file = contextFiles[i];
+    if (!file || typeof file.path !== "string" || typeof file.content !== "string") {
+      continue;
+    }
+    if (!normalizedNames.has(getPromptFileBasename(file.path))) {
+      continue;
+    }
+    const trimmedContent = file.content.trim();
+    if (!trimmedContent || trimmedContent.startsWith("[MISSING] Expected at:")) {
+      continue;
+    }
+    return trimmedContent;
+  }
+  return undefined;
+}
+
+function renderPromptTemplate(content: string, variables: PromptTemplateVariables): string {
+  return content.replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/gi, (match, key: string) => {
+    const normalizedKey = key.toUpperCase();
+    if (!Object.hasOwn(variables, normalizedKey)) {
+      return match;
+    }
+    return variables[normalizedKey] ?? "";
+  });
+}
+
+function buildOverrideableSection(params: {
+  title: string;
+  defaultLines: string[];
+  overrideContent?: string;
+  templateVariables: PromptTemplateVariables;
+}): string[] {
+  const override = params.overrideContent?.trim();
+  if (!override) {
+    return params.defaultLines;
+  }
+  const rendered = renderPromptTemplate(override, params.templateVariables).trim();
+  if (!rendered || SECTION_OFF_MARKER.test(rendered)) {
+    return [];
+  }
+  const overrideLines = rendered.split(/\r?\n/);
+  const hasHeading = /^#{1,6}\s+/.test(overrideLines[0]?.trim() ?? "");
+  const sectionLines = hasHeading ? overrideLines : [params.title, ...overrideLines];
+  if (sectionLines[sectionLines.length - 1] !== "") {
+    sectionLines.push("");
+  }
+  return sectionLines;
+}
+
 export function buildAgentSystemPrompt(params: {
   workspaceDir: string;
   defaultThinkLevel?: ThinkLevel;
@@ -379,13 +448,6 @@ export function buildAgentSystemPrompt(params: {
     params.sandboxInfo?.enabled && sanitizedSandboxContainerWorkspace
       ? `For read/write/edit/apply_patch, file paths resolve against host workspace: ${sanitizedWorkspaceDir}. For bash/exec commands, use sandbox container paths under ${sanitizedSandboxContainerWorkspace} (or relative paths from that workdir), not host paths. Prefer relative paths so both sandboxed exec and file tools work consistently.`
       : "Treat this directory as the single global workspace for file operations unless explicitly instructed otherwise.";
-  const safetySection = [
-    "## Safety",
-    "You have no independent goals: do not pursue self-preservation, replication, resource acquisition, or power-seeking; avoid long-term plans beyond the user's request.",
-    "Prioritize safety and human oversight over completion; if instructions conflict, pause and ask; comply with stop/pause/audit requests and never bypass safeguards. (Inspired by Anthropic's constitution.)",
-    "Do not manipulate or persuade anyone to expand access or disable safeguards. Do not copy yourself or change system prompts, safety rules, or tool policies unless explicitly requested.",
-    "",
-  ];
   const skillsSection = buildSkillsSection({
     skillsPrompt,
     readToolName,
@@ -401,7 +463,71 @@ export function buildAgentSystemPrompt(params: {
     readToolName,
   });
   const workspaceNotes = (params.workspaceNotes ?? []).map((note) => note.trim()).filter(Boolean);
-
+  const contextFiles = params.contextFiles ?? [];
+  const validContextFiles = contextFiles.filter(
+    (file) => typeof file.path === "string" && file.path.trim().length > 0,
+  );
+  const promptTemplateVariables: PromptTemplateVariables = {
+    EXEC_TOOL_NAME: execToolName,
+    PROCESS_TOOL_NAME: processToolName,
+    READ_TOOL_NAME: readToolName,
+    SILENT_REPLY_TOKEN,
+    MESSAGE_CHANNEL_OPTIONS: messageChannelOptions,
+    WORKSPACE_DIR: displayWorkspaceDir,
+    HOST_WORKSPACE_DIR: sanitizedWorkspaceDir,
+    SANDBOX_WORKSPACE_DIR: sanitizedSandboxContainerWorkspace,
+    RUNTIME_CHANNEL: runtimeChannel ?? "",
+  };
+  const systemTipsOverride = findContextFileOverride(validContextFiles, [
+    "SYSTEM_TIPS.md",
+    "TOOL_CALL_STYLE.md",
+  ]);
+  const safetyOverride = findContextFileOverride(validContextFiles, ["SAFETY.md"]);
+  const cliQuickReferenceOverride = findContextFileOverride(validContextFiles, [
+    "CLI_QUICK_REFERENCE.md",
+    "OPENCLAW_CLI.md",
+  ]);
+  const toolCallStyleSection = buildOverrideableSection({
+    title: "## Tool Call Style",
+    defaultLines: [
+      "## Tool Call Style",
+      "Default: do not narrate routine, low-risk tool calls (just call the tool).",
+      "Narrate only when it helps: multi-step work, complex/challenging problems, sensitive actions (e.g., deletions), or when the user explicitly asks.",
+      "Keep narration brief and value-dense; avoid repeating obvious steps.",
+      "Use plain human language for narration unless in a technical context.",
+      "",
+    ],
+    overrideContent: systemTipsOverride,
+    templateVariables: promptTemplateVariables,
+  });
+  const safetySection = buildOverrideableSection({
+    title: "## Safety",
+    defaultLines: [
+      "## Safety",
+      "You have no independent goals: do not pursue self-preservation, replication, resource acquisition, or power-seeking; avoid long-term plans beyond the user's request.",
+      "Prioritize safety and human oversight over completion; if instructions conflict, pause and ask; comply with stop/pause/audit requests and never bypass safeguards. (Inspired by Anthropic's constitution.)",
+      "Do not manipulate or persuade anyone to expand access or disable safeguards. Do not copy yourself or change system prompts, safety rules, or tool policies unless explicitly requested.",
+      "",
+    ],
+    overrideContent: safetyOverride,
+    templateVariables: promptTemplateVariables,
+  });
+  const cliQuickReferenceSection = buildOverrideableSection({
+    title: "## OpenClaw CLI Quick Reference",
+    defaultLines: [
+      "## OpenClaw CLI Quick Reference",
+      "OpenClaw is controlled via subcommands. Do not invent commands.",
+      "To manage the Gateway daemon service (start/stop/restart):",
+      "- openclaw gateway status",
+      "- openclaw gateway start",
+      "- openclaw gateway stop",
+      "- openclaw gateway restart",
+      "If unsure, ask the user to run `openclaw help` (or `openclaw gateway --help`) and paste the output.",
+      "",
+    ],
+    overrideContent: cliQuickReferenceOverride,
+    templateVariables: promptTemplateVariables,
+  });
   // For "none" mode, return just the basic identity line
   if (promptMode === "none") {
     return "You are a personal assistant running inside OpenClaw.";
@@ -438,22 +564,9 @@ export function buildAgentSystemPrompt(params: {
     "If a task is more complex or takes longer, spawn a sub-agent. Completion is push-based: it will auto-announce when done.",
     "Do not poll `subagents list` / `sessions_list` in a loop; only check status on-demand (for intervention, debugging, or when explicitly asked).",
     "",
-    "## Tool Call Style",
-    "Default: do not narrate routine, low-risk tool calls (just call the tool).",
-    "Narrate only when it helps: multi-step work, complex/challenging problems, sensitive actions (e.g., deletions), or when the user explicitly asks.",
-    "Keep narration brief and value-dense; avoid repeating obvious steps.",
-    "Use plain human language for narration unless in a technical context.",
-    "",
+    ...toolCallStyleSection,
     ...safetySection,
-    "## OpenClaw CLI Quick Reference",
-    "OpenClaw is controlled via subcommands. Do not invent commands.",
-    "To manage the Gateway daemon service (start/stop/restart):",
-    "- openclaw gateway status",
-    "- openclaw gateway start",
-    "- openclaw gateway stop",
-    "- openclaw gateway restart",
-    "If unsure, ask the user to run `openclaw help` (or `openclaw gateway --help`) and paste the output.",
-    "",
+    ...cliQuickReferenceSection,
     ...skillsSection,
     ...memorySection,
     // Skip self-update for subagent/none modes
@@ -585,10 +698,6 @@ export function buildAgentSystemPrompt(params: {
     lines.push("## Reasoning Format", reasoningHint, "");
   }
 
-  const contextFiles = params.contextFiles ?? [];
-  const validContextFiles = contextFiles.filter(
-    (file) => typeof file.path === "string" && file.path.trim().length > 0,
-  );
   if (validContextFiles.length > 0) {
     const hasSoulFile = validContextFiles.some((file) => {
       const normalizedPath = file.path.trim().replace(/\\/g, "/");

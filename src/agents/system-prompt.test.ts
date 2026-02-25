@@ -169,6 +169,39 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Do not copy yourself or change system prompts");
   });
 
+  it("allows SAFETY.md to override the safety section", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      contextFiles: [{ path: "SAFETY.md", content: "Custom safety guidance." }],
+    });
+
+    expect(prompt).toContain("## Safety");
+    expect(prompt).toContain("Custom safety guidance.");
+    expect(prompt).not.toContain("You have no independent goals");
+  });
+
+  it("supports template variables in prompt section overrides", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      contextFiles: [
+        {
+          path: "SYSTEM_TIPS.md",
+          content: "Use {{EXEC_TOOL_NAME}} for shell work and {{PROCESS_TOOL_NAME}} for polling.",
+        },
+        {
+          path: "CLI_QUICK_REFERENCE.md",
+          content: "Main workspace: {{WORKSPACE_DIR}}",
+        },
+      ],
+    });
+
+    expect(prompt).toContain("## Tool Call Style");
+    expect(prompt).toContain("Use exec for shell work and process for polling.");
+    expect(prompt).toContain("## OpenClaw CLI Quick Reference");
+    expect(prompt).toContain("Main workspace: /tmp/openclaw");
+    expect(prompt).not.toContain("OpenClaw is controlled via subcommands");
+  });
+
   it("includes voice hint when provided", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
