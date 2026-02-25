@@ -205,6 +205,24 @@ export type GatewayNodesConfig = {
   denyCommands?: string[];
 };
 
+export type GatewayRateLimitConfig = {
+  /** Max requests per window per IP. Default: 120. */
+  maxRequests?: number;
+  /** Time window in ms. Default: 60000. */
+  windowMs?: number;
+  /** Max tracked IPs (LRU eviction beyond this). Default: 10000. */
+  maxTrackedIps?: number;
+};
+
+export type GatewayCorsConfig = {
+  /** Origins allowed for CORS. Empty/absent = no CORS headers (deny cross-origin). */
+  allowedOrigins?: string[];
+  /** HTTP methods allowed for CORS preflight. Default: GET, POST, OPTIONS. */
+  allowedMethods?: string[];
+  /** Max age in seconds for CORS preflight cache. Default: 86400. */
+  maxAge?: number;
+};
+
 export type GatewayConfig = {
   /** Single multiplexed port for Gateway WS + HTTP (default: 18789). */
   port?: number;
@@ -233,6 +251,10 @@ export type GatewayConfig = {
   tls?: GatewayTlsConfig;
   http?: GatewayHttpConfig;
   nodes?: GatewayNodesConfig;
+  /** Rate limiting for incoming HTTP requests. */
+  rateLimit?: GatewayRateLimitConfig;
+  /** CORS configuration for the gateway HTTP server. */
+  cors?: GatewayCorsConfig;
   /**
    * IPs of trusted reverse proxies (e.g. Traefik, nginx). When a connection
    * arrives from one of these IPs, the Gateway trusts `x-forwarded-for` (or

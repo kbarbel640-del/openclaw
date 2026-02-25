@@ -10,6 +10,7 @@ import {
 import qrcode from "qrcode-terminal";
 import { danger, success } from "../globals.js";
 import { getChildLogger, toPinoLikeLogger } from "../logging.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { ensureDir, resolveUserPath } from "../utils.js";
 import { VERSION } from "../version.js";
 import { formatCliCommand } from "../cli/command-format.js";
@@ -20,6 +21,8 @@ import {
   resolveWebCredsBackupPath,
   resolveWebCredsPath,
 } from "./auth-store.js";
+
+const log = createSubsystemLogger("web/session");
 
 export {
   getWebAuthAgeMs,
@@ -128,14 +131,14 @@ export async function createWaSocket(
         if (qr) {
           opts.onQr?.(qr);
           if (printQr) {
-            console.log("Scan this QR in WhatsApp (Linked Devices):");
+            log.info("Scan this QR in WhatsApp (Linked Devices):");
             qrcode.generate(qr, { small: true });
           }
         }
         if (connection === "close") {
           const status = getStatusCode(lastDisconnect?.error);
           if (status === DisconnectReason.loggedOut) {
-            console.error(
+            log.error(
               danger(
                 `WhatsApp session logged out. Run: ${formatCliCommand("moltbot channels login")}`,
               ),
@@ -143,7 +146,7 @@ export async function createWaSocket(
           }
         }
         if (connection === "open" && verbose) {
-          console.log(success("WhatsApp Web connected."));
+          log.info(success("WhatsApp Web connected."));
         }
       } catch (err) {
         sessionLogger.error({ error: String(err) }, "connection.update handler error");

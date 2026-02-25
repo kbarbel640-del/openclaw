@@ -14,6 +14,9 @@ import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import { handleControlUiAvatarRequest, handleControlUiHttpRequest } from "./control-ui.js";
+import { handleCors, setHstsHeader, setSecurityHeaders } from "./http-common.js";
+import { resolveGatewayClientIp } from "./net.js";
+import { RateLimiter } from "./rate-limit.js";
 import {
   extractHookToken,
   getHookChannelError,
@@ -223,6 +226,8 @@ export function createGatewayHttpServer(opts: {
     handlePluginRequest,
     resolvedAuth,
   } = opts;
+  const isTls = !!opts.tlsOptions;
+  const rateLimiter = new RateLimiter(loadConfig().gateway?.rateLimit);
   const httpServer: HttpServer = opts.tlsOptions
     ? createHttpsServer(opts.tlsOptions, (req, res) => {
         void handleRequest(req, res);
@@ -236,8 +241,28 @@ export function createGatewayHttpServer(opts: {
     if (String(req.headers.upgrade ?? "").toLowerCase() === "websocket") return;
 
     try {
+      // Security headers on every response
+      setSecurityHeaders(res);
+      if (isTls) setHstsHeader(res);
+
       const configSnapshot = loadConfig();
       const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
+
+      // Rate limiting
+      const clientIp = resolveGatewayClientIp({
+        remoteAddr: req.socket.remoteAddress,
+        forwardedFor: req.headers["x-forwarded-for"] as string | undefined,
+        realIp: req.headers["x-real-ip"] as string | undefined,
+        trustedProxies,
+      });
+      if (clientIp && !rateLimiter.check(clientIp)) {
+        rateLimiter.sendRateLimited(res);
+        return;
+      }
+
+      // CORS
+      if (handleCors(req, res, configSnapshot.gateway?.cors) === "preflight") return;
+
       if (await handleHooksRequest(req, res)) return;
       if (
         await handleToolsInvokeHttpRequest(req, res, {

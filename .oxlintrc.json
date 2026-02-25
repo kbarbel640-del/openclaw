@@ -8,5 +8,8 @@
   "categories": {
     "correctness": "error"
   },
+  "rules": {
+    "no-console": "warn"
+  },
   "ignorePatterns": ["src/canvas-host/a2ui/a2ui.bundle.js"]
 }
