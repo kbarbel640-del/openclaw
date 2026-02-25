@@ -28,6 +28,7 @@ import {
 } from "./bot-access.js";
 import type { TelegramMediaRef } from "./bot-message-context.js";
 import { RegisterTelegramHandlerParams } from "./bot-native-commands.js";
+import { isExecApprovalCallbackData, parseExecApprovalCallbackData } from "./exec-approvals.js";
 import { MEDIA_GROUP_TIMEOUT_MS, type MediaGroupEntry } from "./bot-updates.js";
 import { resolveMedia } from "./bot/delivery.js";
 import {
@@ -69,6 +70,7 @@ export const registerTelegramHandlers = ({
   shouldSkipUpdate,
   processMessage,
   logger,
+  execApprovalsHandler,
 }: RegisterTelegramHandlerParams) => {
   const DEFAULT_TEXT_FRAGMENT_MAX_GAP_MS = 1500;
   const TELEGRAM_TEXT_FRAGMENT_START_THRESHOLD_CHARS = 4000;
@@ -609,6 +611,22 @@ export const registerTelegramHandlers = ({
         }
         return await bot.api.sendMessage(callbackMessage.chat.id, text, params);
       };
+
+      // Exec approval callbacks bypass inlineButtonsScope (security-critical, own auth)
+      if (execApprovalsHandler && isExecApprovalCallbackData(data)) {
+        const parsed = parseExecApprovalCallbackData(data);
+        if (parsed) {
+          const result = await execApprovalsHandler.handleCallback({
+            counter: parsed.counter,
+            decision: parsed.decision,
+            senderId: String(callback.from?.id ?? ""),
+          });
+          if (result.error) {
+            await replyToCallbackChat(result.error).catch(() => {});
+          }
+          return;
+        }
+      }
 
       const inlineButtonsScope = resolveTelegramInlineButtonsScope({
         cfg,

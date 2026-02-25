@@ -104,6 +104,48 @@ function shouldSkipDiscordForwarding(target: ExecApprovalForwardTarget): boolean
   return channel === "discord";
 }
 
+// Telegram has inline-keyboard exec approvals when enabled; skip the text fallback.
+function shouldSkipTelegramForwarding(
+  target: ExecApprovalForwardTarget,
+  cfg: OpenClawConfig,
+): boolean {
+  const channel = normalizeMessageChannel(target.channel) ?? target.channel;
+  if (channel !== "telegram") {
+    return false;
+  }
+  // Check if any Telegram account has exec approvals enabled with approvers
+  const telegramCfg = cfg.channels?.telegram;
+  if (!telegramCfg) {
+    return false;
+  }
+  // Check root-level config
+  const rootApprovals = (telegramCfg as Record<string, unknown>).execApprovals as
+    | { enabled?: boolean; approvers?: unknown[] }
+    | undefined;
+  if (rootApprovals?.enabled && rootApprovals.approvers && rootApprovals.approvers.length > 0) {
+    return true;
+  }
+  // Check per-account configs
+  const accounts = (telegramCfg as Record<string, unknown>).accounts as
+    | Record<string, Record<string, unknown>>
+    | undefined;
+  if (accounts) {
+    for (const account of Object.values(accounts)) {
+      const accountApprovals = account?.execApprovals as
+        | { enabled?: boolean; approvers?: unknown[] }
+        | undefined;
+      if (
+        accountApprovals?.enabled &&
+        accountApprovals.approvers &&
+        accountApprovals.approvers.length > 0
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function formatApprovalCommand(command: string): { inline: boolean; text: string } {
   if (!command.includes("\n") && !command.includes("`")) {
     return { inline: true, text: `\`${command}\`` };
@@ -271,7 +313,9 @@ export function createExecApprovalForwarder(
       }
     }
 
-    const filteredTargets = targets.filter((target) => !shouldSkipDiscordForwarding(target));
+    const filteredTargets = targets.filter(
+      (target) => !shouldSkipDiscordForwarding(target) && !shouldSkipTelegramForwarding(target, cfg),
+    );
 
     if (filteredTargets.length === 0) {
       return;

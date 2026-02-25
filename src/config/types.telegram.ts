@@ -150,6 +150,24 @@ export type TelegramAccountConfig = {
    * Telegram expects unicode emoji (e.g., "👀") rather than shortcodes.
    */
   ackReaction?: string;
+  /** Interactive exec approval buttons via Telegram inline keyboard. */
+  execApprovals?: TelegramExecApprovalConfig;
+};
+
+export type TelegramExecApprovalConfig = {
+  /** Enable exec approval forwarding to Telegram inline buttons. Default: false. */
+  enabled?: boolean;
+  /** Telegram user IDs authorized to approve exec requests. Required if enabled. */
+  approvers?: Array<string | number>;
+  /** Only forward approvals for these agent IDs. Omit = all agents. */
+  agentFilter?: string[];
+  /** Only forward approvals matching these session key patterns (substring or regex). */
+  sessionFilter?: string[];
+  /** Delete approval messages after resolution. Default: false (edit to show result). */
+  cleanupAfterResolve?: boolean;
+  /** Where to send approval prompts. "dm" sends to approver DMs (default), "channel" sends to
+   *  the originating Telegram chat, "both" sends to both. */
+  target?: "dm" | "channel" | "both";
 };
 
 export type TelegramTopicConfig = {

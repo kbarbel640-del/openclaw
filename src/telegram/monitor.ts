@@ -10,6 +10,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import { resolveTelegramAccount } from "./accounts.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { createTelegramBot } from "./bot.js";
+import { TelegramExecApprovalHandler } from "./exec-approvals.js";
 import { isRecoverableTelegramNetworkError } from "./network-errors.js";
 import { makeProxyFetch } from "./proxy.js";
 import { readTelegramUpdateOffset, writeTelegramUpdateOffset } from "./update-offset-store.js";
@@ -103,6 +104,8 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
     return false;
   });
 
+  let execApprovalsHandler: TelegramExecApprovalHandler | null = null;
+
   try {
     const cfg = opts.config ?? loadConfig();
     const account = resolveTelegramAccount({
@@ -139,6 +142,22 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
       }
     };
 
+    // Initialize exec approvals handler if enabled
+    const execApprovalsConfig = account.config.execApprovals ?? {};
+    execApprovalsHandler = execApprovalsConfig.enabled
+      ? new TelegramExecApprovalHandler({
+          token,
+          accountId: account.accountId,
+          config: execApprovalsConfig,
+          cfg,
+          runtime: opts.runtime,
+        })
+      : null;
+
+    if (execApprovalsHandler) {
+      await execApprovalsHandler.start();
+    }
+
     const bot = createTelegramBot({
       token,
       runtime: opts.runtime,
@@ -149,6 +168,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         lastUpdateId,
         onUpdateId: persistUpdateId,
       },
+      execApprovalsHandler,
     });
 
     if (opts.useWebhook) {
@@ -212,6 +232,9 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
       }
     }
   } finally {
+    if (execApprovalsHandler) {
+      await execApprovalsHandler.stop();
+    }
     unregisterHandler();
   }
 }

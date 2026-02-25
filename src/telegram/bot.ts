@@ -60,6 +60,7 @@ export type TelegramBotOptions = {
     mediaGroupFlushMs?: number;
     textFragmentGapMs?: number;
   };
+  execApprovalsHandler?: import("./exec-approvals.js").TelegramExecApprovalHandler | null;
 };
 
 export function getTelegramSequentialKey(ctx: {
@@ -364,6 +365,7 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     shouldSkipUpdate,
     processMessage,
     logger,
+    execApprovalsHandler: opts.execApprovalsHandler,
   });
 
   return bot;
