@@ -323,6 +323,31 @@ describe("resolveDiscordMessageText", () => {
 
     expect(text).toBe("<media:sticker> (1 sticker)");
   });
+
+  it("includes embed title when description is absent", () => {
+    const text = resolveDiscordMessageText(
+      asMessage({ content: "", embeds: [{ title: "Alert Title", description: null }] }),
+    );
+    expect(text).toBe("Alert Title");
+  });
+
+  it("includes embed description when title is absent", () => {
+    const text = resolveDiscordMessageText(
+      asMessage({ content: "", embeds: [{ title: null, description: "Alert body" }] }),
+    );
+    expect(text).toBe("Alert body");
+  });
+
+  it("concatenates embed title and description when both are present", () => {
+    // Regression: title was silently dropped when description was also present
+    const text = resolveDiscordMessageText(
+      asMessage({
+        content: "",
+        embeds: [{ title: "Alert Title", description: "Alert body text" }],
+      }),
+    );
+    expect(text).toBe("Alert Title\nAlert body text");
+  });
 });
 
 describe("resolveDiscordChannelInfo", () => {

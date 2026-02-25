@@ -403,6 +403,26 @@ function buildDiscordMediaPlaceholder(params: {
   return attachmentText || stickerText || "";
 }
 
+/**
+ * Combine an embed's title and description into a single string.
+ * When both are present they are separated by a newline so neither is lost.
+ * Using title as a silent fallback for description (or vice-versa) discards
+ * content sent by webhook embeds that include both fields.
+ */
+function buildDiscordEmbedText(
+  embed: { title?: string | null; description?: string | null } | null | undefined,
+): string {
+  if (!embed) {
+    return "";
+  }
+  const title = embed.title?.trim() ?? "";
+  const description = embed.description?.trim() ?? "";
+  if (title && description) {
+    return `${title}\n${description}`;
+  }
+  return title || description;
+}
+
 export function resolveDiscordMessageText(
   message: Message,
   options?: { fallbackText?: string; includeForwarded?: boolean },
@@ -413,7 +433,7 @@ export function resolveDiscordMessageText(
       attachments: message.attachments ?? undefined,
       stickers: resolveDiscordMessageStickers(message),
     }) ||
-    message.embeds?.[0]?.description ||
+    buildDiscordEmbedText(message.embeds?.[0]) ||
     options?.fallbackText?.trim() ||
     "";
   if (!options?.includeForwarded) {
@@ -477,8 +497,7 @@ function resolveDiscordSnapshotMessageText(snapshot: DiscordSnapshotMessage): st
     attachments: snapshot.attachments ?? undefined,
     stickers: resolveDiscordSnapshotStickers(snapshot),
   });
-  const embed = snapshot.embeds?.[0];
-  const embedText = embed?.description?.trim() || embed?.title?.trim() || "";
+  const embedText = buildDiscordEmbedText(snapshot.embeds?.[0]);
   return content || attachmentText || embedText || "";
 }
 
