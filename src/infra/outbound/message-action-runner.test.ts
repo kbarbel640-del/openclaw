@@ -11,9 +11,19 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
 import { createOutboundTestPlugin, createTestRegistry } from "../../test-utils/channel-plugins.js";
 import { createIMessageTestPlugin } from "../../test-utils/imessage-test-plugin.js";
+import { getAgentScopedMediaLocalRoots } from "../../media/local-roots.js";
 import { loadWebMedia } from "../../web/media.js";
 import { resolvePreferredOpenClawTmpDir } from "../tmp-openclaw-dir.js";
 import { runMessageAction } from "./message-action-runner.js";
+
+vi.mock("../../media/local-roots.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../media/local-roots.js")>();
+  return {
+    ...actual,
+    getAgentScopedMediaLocalRoots: vi.fn(actual.getAgentScopedMediaLocalRoots),
+  };
+});
 
 vi.mock("../../web/media.js", async () => {
   const actual = await vi.importActual<typeof import("../../web/media.js")>("../../web/media.js");
@@ -498,16 +508,12 @@ describe("runMessageAction sendAttachment hydration", () => {
   }) {
     await restoreRealMediaLoader();
 
-    // Use a path outside any possible localRoots (not under cwd, os.tmpdir(), or state dir)
-    // so loadWebMedia reliably rejects with path-not-allowed when sandboxRoot is missing.
-    const driveRoot = path.parse(process.cwd()).root;
-    const outsideDir = path.join(
-      driveRoot,
-      `openclaw-reject-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    );
-    await fs.mkdir(outsideDir, { recursive: true });
+    // Empty localRoots so loadWebMedia rejects any local path when sandboxRoot is missing.
+    vi.mocked(getAgentScopedMediaLocalRoots).mockImplementationOnce(() => []);
+
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), params.tempPrefix));
     try {
-      const outsidePath = path.join(outsideDir, "secret.txt");
+      const outsidePath = path.join(tempDir, "secret.txt");
       await fs.writeFile(outsidePath, "secret", "utf8");
 
       const actionParams: Record<string, unknown> = {
@@ -527,7 +533,7 @@ describe("runMessageAction sendAttachment hydration", () => {
         }),
       ).rejects.toThrow(/allowed directory|path-not-allowed/i);
     } finally {
-      await fs.rm(outsideDir, { recursive: true, force: true });
+      await fs.rm(tempDir, { recursive: true, force: true });
     }
   }
 
