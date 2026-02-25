@@ -10,7 +10,9 @@ summary: "Codebase architecture, developer reference, and analysis docs for Open
 
 Comprehensive codebase documentation for [OpenClaw](https://github.com/openclaw/openclaw) — the open-source AI agent platform.
 
-**Current stable: v2026.2.23 (released 2026-02-24, validated against `main` through 2026-02-24)**
+**Current stable: v2026.2.23 (released 2026-02-24, validated against tag `v2026.2.23`)**
+
+**Scope policy:** this documentation section covers published releases only. It does not document unreleased `main` branch changes, betas, or speculative future behavior.
 
 ## What's Here
 

@@ -4,6 +4,8 @@
 
 Consolidated changelog assembled from versioned changelog files in this repository.
 
+Release policy: this file tracks published releases only (stable tags). It does not track unreleased branch snapshots.
+
 ---
 
 ## OpenClaw v2026.2.23 — Current Released Summary

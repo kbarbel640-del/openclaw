@@ -2,7 +2,7 @@
 
 # OpenClaw — Master Architecture Document
 
-> Updated: 2026-02-24 (source package: 2026.2.23) | Comprehensive reference for contributors
+> Updated: 2026-02-24 (source package: 2026.2.23) | Release-only architecture snapshot for contributors
 
 ---
 
