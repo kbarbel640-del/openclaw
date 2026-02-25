@@ -24,6 +24,7 @@ import {
   applyMessageDefaults,
   applyModelDefaults,
   applySessionDefaults,
+  applyTalkConfigNormalization,
   applyTalkApiKey,
 } from "./defaults.js";
 import { restoreEnvVarRefs } from "./env-preserve.js";
@@ -71,6 +72,9 @@ const SHELL_ENV_EXPECTED_KEYS = [
   "OPENCLAW_GATEWAY_TOKEN",
   "OPENCLAW_GATEWAY_PASSWORD",
 ];
+
+const OPEN_DM_POLICY_ALLOW_FROM_RE =
+  /^(?<policyPath>[a-z0-9_.-]+)\s*=\s*"open"\s+requires\s+(?<allowPath>[a-z0-9_.-]+)(?:\s+\(or\s+[a-z0-9_.-]+\))?\s+to include "\*"$/i;
 
 const CONFIG_AUDIT_LOG_FILENAME = "config-audit.jsonl";
 const loggedInvalidConfigs = new Set<string>();
@@ -135,6 +139,27 @@ function hashConfigRaw(raw: string | null): string {
     .createHash("sha256")
     .update(raw ?? "")
     .digest("hex");
+}
+
+function formatConfigValidationFailure(pathLabel: string, issueMessage: string): string {
+  const match = issueMessage.match(OPEN_DM_POLICY_ALLOW_FROM_RE);
+  const policyPath = match?.groups?.policyPath?.trim();
+  const allowPath = match?.groups?.allowPath?.trim();
+  if (!policyPath || !allowPath) {
+    return `Config validation failed: ${pathLabel}: ${issueMessage}`;
+  }
+
+  return [
+    `Config validation failed: ${pathLabel}`,
+    "",
+    `Configuration mismatch: ${policyPath} is "open", but ${allowPath} does not include "*".`,
+    "",
+    "Fix with:",
+    `  openclaw config set ${allowPath} '["*"]'`,
+    "",
+    "Or switch policy:",
+    `  openclaw config set ${policyPath} "pairing"`,
+  ].join("\n");
 }
 
 function isNumericPathSegment(raw: string): boolean {
@@ -696,11 +721,13 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         deps.logger.warn(`Config warnings:\\n${details}`);
       }
       warnIfConfigFromFuture(validated.config, deps.logger);
-      const cfg = applyModelDefaults(
-        applyCompactionDefaults(
-          applyContextPruningDefaults(
-            applyAgentDefaults(
-              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
+      const cfg = applyTalkConfigNormalization(
+        applyModelDefaults(
+          applyCompactionDefaults(
+            applyContextPruningDefaults(
+              applyAgentDefaults(
+                applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
+              ),
             ),
           ),
         ),
@@ -785,10 +812,12 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     if (!exists) {
       const hash = hashConfigRaw(null);
       const config = applyTalkApiKey(
-        applyModelDefaults(
-          applyCompactionDefaults(
-            applyContextPruningDefaults(
-              applyAgentDefaults(applySessionDefaults(applyMessageDefaults({}))),
+        applyTalkConfigNormalization(
+          applyModelDefaults(
+            applyCompactionDefaults(
+              applyContextPruningDefaults(
+                applyAgentDefaults(applySessionDefaults(applyMessageDefaults({}))),
+              ),
             ),
           ),
         ),
@@ -909,9 +938,11 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       warnIfConfigFromFuture(validated.config, deps.logger);
       const snapshotConfig = normalizeConfigPaths(
         applyTalkApiKey(
-          applyModelDefaults(
-            applyAgentDefaults(
-              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
+          applyTalkConfigNormalization(
+            applyModelDefaults(
+              applyAgentDefaults(
+                applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
+              ),
             ),
           ),
         ),
@@ -1019,7 +1050,8 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     if (!validated.ok) {
       const issue = validated.issues[0];
       const pathLabel = issue?.path ? issue.path : "<root>";
-      throw new Error(`Config validation failed: ${pathLabel}: ${issue?.message ?? "invalid"}`);
+      const issueMessage = issue?.message ?? "invalid";
+      throw new Error(formatConfigValidationFailure(pathLabel, issueMessage));
     }
     if (validated.warnings.length > 0) {
       const details = validated.warnings
