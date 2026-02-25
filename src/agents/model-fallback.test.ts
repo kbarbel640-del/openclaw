@@ -147,7 +147,7 @@ describe("runWithModelFallback", () => {
     });
   });
 
-  it("falls back directly to configured primary when an override model fails", async () => {
+  it("keeps configured fallback chain when an override model fails", async () => {
     const cfg = makeCfg({
       agents: {
         defaults: {
@@ -162,8 +162,8 @@ describe("runWithModelFallback", () => {
     const run = createOverrideFailureRun({
       overrideProvider: "anthropic",
       overrideModel: "claude-opus-4-5",
-      fallbackProvider: "openai",
-      fallbackModel: "gpt-4.1-mini",
+      fallbackProvider: "anthropic",
+      fallbackModel: "claude-haiku-3-5",
       firstError: Object.assign(new Error("unauthorized"), { status: 401 }),
     });
 
@@ -175,11 +175,11 @@ describe("runWithModelFallback", () => {
     });
 
     expect(result.result).toBe("ok");
-    expect(result.provider).toBe("openai");
-    expect(result.model).toBe("gpt-4.1-mini");
+    expect(result.provider).toBe("anthropic");
+    expect(result.model).toBe("claude-haiku-3-5");
     expect(run.mock.calls).toEqual([
       ["anthropic", "claude-opus-4-5"],
-      ["openai", "gpt-4.1-mini"],
+      ["anthropic", "claude-haiku-3-5"],
     ]);
   });
 
@@ -242,13 +242,13 @@ describe("runWithModelFallback", () => {
     });
   });
 
-  it("falls back to configured primary for override credential validation errors", async () => {
+  it("uses configured fallback chain for override credential validation errors", async () => {
     const cfg = makeCfg();
     const run = createOverrideFailureRun({
       overrideProvider: "anthropic",
       overrideModel: "claude-opus-4",
-      fallbackProvider: "openai",
-      fallbackModel: "gpt-4.1-mini",
+      fallbackProvider: "anthropic",
+      fallbackModel: "claude-haiku-3-5",
       firstError: new Error('No credentials found for profile "anthropic:default".'),
     });
 
@@ -262,7 +262,7 @@ describe("runWithModelFallback", () => {
     expect(result.result).toBe("ok");
     expect(run.mock.calls).toEqual([
       ["anthropic", "claude-opus-4"],
-      ["openai", "gpt-4.1-mini"],
+      ["anthropic", "claude-haiku-3-5"],
     ]);
   });
 
@@ -280,12 +280,11 @@ describe("runWithModelFallback", () => {
       run,
     });
 
-    // Override model failed with model_not_found → falls back to configured primary.
-    // (Same candidate-resolution path as other override-model failures.)
+    // Override model failed with model_not_found → continues through configured fallbacks.
     expect(result.result).toBe("ok");
     expect(run).toHaveBeenCalledTimes(2);
-    expect(run.mock.calls[1]?.[0]).toBe("openai");
-    expect(run.mock.calls[1]?.[1]).toBe("gpt-4.1-mini");
+    expect(run.mock.calls[1]?.[0]).toBe("anthropic");
+    expect(run.mock.calls[1]?.[1]).toBe("claude-haiku-3-5");
   });
 
   it("falls back on model not found errors", async () => {
@@ -302,11 +301,11 @@ describe("runWithModelFallback", () => {
       run,
     });
 
-    // Override model failed with model_not_found → falls back to configured primary.
+    // Override model failed with model_not_found → continues through configured fallbacks.
     expect(result.result).toBe("ok");
     expect(run).toHaveBeenCalledTimes(2);
-    expect(run.mock.calls[1]?.[0]).toBe("openai");
-    expect(run.mock.calls[1]?.[1]).toBe("gpt-4.1-mini");
+    expect(run.mock.calls[1]?.[0]).toBe("anthropic");
+    expect(run.mock.calls[1]?.[1]).toBe("claude-haiku-3-5");
   });
 
   it("skips providers when all profiles are in cooldown", async () => {
