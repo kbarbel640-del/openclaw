@@ -2,6 +2,23 @@ import type { MatrixClient } from "@vector-im/matrix-bot-sdk";
 import { describe, expect, it, vi } from "vitest";
 import { listMatrixPins, pinMatrixMessage, unpinMatrixMessage } from "./pins.js";
 
+vi.mock("@vector-im/matrix-bot-sdk", () => ({
+  ConsoleLogger: class {
+    trace = vi.fn();
+    debug = vi.fn();
+    info = vi.fn();
+    warn = vi.fn();
+    error = vi.fn();
+  },
+  LogService: {
+    setLogger: vi.fn(),
+  },
+  MatrixClient: vi.fn(),
+  MatrixAuth: vi.fn(),
+  SimpleFsStorageProvider: vi.fn(),
+  RustSdkCryptoStorageProvider: vi.fn(),
+}));
+
 function createPinsClient(seedPinned: string[], knownBodies: Record<string, string> = {}) {
   let pinned = [...seedPinned];
   const getRoomStateEvent = vi.fn(async () => ({ pinned: [...pinned] }));

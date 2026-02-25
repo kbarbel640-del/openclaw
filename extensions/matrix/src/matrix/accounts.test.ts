@@ -2,6 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CoreConfig } from "../types.js";
 import { resolveMatrixAccount } from "./accounts.js";
 
+vi.mock("@vector-im/matrix-bot-sdk", () => ({
+  ConsoleLogger: class {
+    trace = vi.fn();
+    debug = vi.fn();
+    info = vi.fn();
+    warn = vi.fn();
+    error = vi.fn();
+  },
+  LogService: {
+    setLogger: vi.fn(),
+  },
+  MatrixClient: vi.fn(),
+  MatrixAuth: vi.fn(),
+  SimpleFsStorageProvider: vi.fn(),
+  RustSdkCryptoStorageProvider: vi.fn(),
+}));
+
 vi.mock("./credentials.js", () => ({
   loadMatrixCredentials: () => null,
   credentialsMatchConfig: () => false,

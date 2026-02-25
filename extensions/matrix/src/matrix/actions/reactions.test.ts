@@ -2,6 +2,23 @@ import type { MatrixClient } from "@vector-im/matrix-bot-sdk";
 import { describe, expect, it, vi } from "vitest";
 import { listMatrixReactions, removeMatrixReactions } from "./reactions.js";
 
+vi.mock("@vector-im/matrix-bot-sdk", () => ({
+  ConsoleLogger: class {
+    trace = vi.fn();
+    debug = vi.fn();
+    info = vi.fn();
+    warn = vi.fn();
+    error = vi.fn();
+  },
+  LogService: {
+    setLogger: vi.fn(),
+  },
+  MatrixClient: vi.fn(),
+  MatrixAuth: vi.fn(),
+  SimpleFsStorageProvider: vi.fn(),
+  RustSdkCryptoStorageProvider: vi.fn(),
+}));
+
 function createReactionsClient(params: {
   chunk: Array<{
     event_id?: string;
