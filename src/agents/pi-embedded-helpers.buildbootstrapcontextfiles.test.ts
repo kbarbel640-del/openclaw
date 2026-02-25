@@ -8,7 +8,7 @@ import {
   resolveBootstrapTotalMaxChars,
 } from "./pi-embedded-helpers.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
-import { DEFAULT_AGENTS_FILENAME } from "./workspace.js";
+import { DEFAULT_AGENTS_FILENAME, DEFAULT_BOOTSTRAP_FILENAME } from "./workspace.js";
 
 const makeFile = (overrides: Partial<WorkspaceBootstrapFile>): WorkspaceBootstrapFile => ({
   name: DEFAULT_AGENTS_FILENAME,
@@ -33,6 +33,21 @@ describe("buildBootstrapContextFiles", () => {
       },
     ]);
   });
+  it("skips [MISSING] injection for BOOTSTRAP.md — its absence is the normal steady state", () => {
+    // BOOTSTRAP.md is a one-shot onboarding file deleted after the first session.
+    // Injecting "[MISSING]" confuses agents into thinking the workspace needs
+    // bootstrapping even on long-established workspaces.
+    const files = [
+      makeFile({
+        name: DEFAULT_BOOTSTRAP_FILENAME,
+        path: "/workspace/BOOTSTRAP.md",
+        missing: true,
+        content: undefined,
+      }),
+    ];
+    expect(buildBootstrapContextFiles(files)).toEqual([]);
+  });
+
   it("skips empty or whitespace-only content", () => {
     const files = [makeFile({ content: "   \n  " })];
     expect(buildBootstrapContextFiles(files)).toEqual([]);
