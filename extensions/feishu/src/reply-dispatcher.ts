@@ -1,3 +1,4 @@
+import path from "path";
 import {
   createReplyPrefixContext,
   createTypingCallbacks,
@@ -7,7 +8,9 @@ import {
   type RuntimeEnv,
 } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount } from "./accounts.js";
+import { registerStreamAppender, unregisterStreamAppender } from "./active-streams.js";
 import { createFeishuClient } from "./client.js";
+import { sendMediaFeishu, uploadImageFeishu } from "./media.js";
 import type { MentionTarget } from "./mention.js";
 import { buildMentionedCardContent } from "./mention.js";
 import { getFeishuRuntime } from "./runtime.js";
@@ -15,6 +18,8 @@ import { sendMarkdownCardFeishu, sendMessageFeishu } from "./send.js";
 import { FeishuStreamingSession } from "./streaming-card.js";
 import { resolveReceiveIdType } from "./targets.js";
 import { addTypingIndicator, removeTypingIndicator, type TypingIndicatorState } from "./typing.js";
+
+const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".tiff"]);
 
 /** Detect if text contains markdown elements that benefit from card rendering */
 function shouldUseCard(text: string): boolean {
@@ -26,6 +31,8 @@ export type CreateFeishuReplyDispatcherParams = {
   agentId: string;
   runtime: RuntimeEnv;
   chatId: string;
+  /** The normalized outbound target (e.g. `ou_xxx` for P2P). Used as alias key for stream lookup. */
+  outboundTo?: string;
   replyToMessageId?: string;
   mentionTargets?: MentionTarget[];
   accountId?: string;
@@ -33,7 +40,7 @@ export type CreateFeishuReplyDispatcherParams = {
 
 export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherParams) {
   const core = getFeishuRuntime();
-  const { cfg, agentId, chatId, replyToMessageId, mentionTargets, accountId } = params;
+  const { cfg, agentId, chatId, outboundTo, replyToMessageId, mentionTargets, accountId } = params;
   const account = resolveFeishuAccount({ cfg, accountId });
   const prefixContext = createReplyPrefixContext({ cfg, agentId });
 
@@ -79,8 +86,64 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   let streaming: FeishuStreamingSession | null = null;
   let streamText = "";
   let lastPartial = "";
+  // Accumulated text from completed assistant messages (before tool calls / new messages).
+  let committedText = "";
   let partialUpdateQueue: Promise<void> = Promise.resolve();
   let streamingStartPromise: Promise<void> | null = null;
+  // Track already-embedded media URLs to prevent duplicate uploads.
+  const embeddedMediaUrls = new Set<string>();
+  // Mirrors the framework's `didSendViaMessagingTool` suppression for onPartialReply.
+  // When the outbound adapter (message tool) writes to the streaming card, post-tool
+  // AI confirmation text (e.g. "NO") is suppressed — the framework already suppresses
+  // it for onBlockReply but not for onPartialReply.
+  let outboundAppended = false;
+
+  /** Append content (e.g. text or `![image](key)`) to the active streaming card.
+   *  Commits current partial first so the appended content survives onPartialReply rebuilds. */
+  const appendToStream = (content: string) => {
+    if (lastPartial) {
+      committedText += (committedText ? "\n\n" : "") + lastPartial;
+      lastPartial = "";
+    }
+    committedText += content;
+    streamText = committedText;
+    partialUpdateQueue = partialUpdateQueue.then(async () => {
+      if (streamingStartPromise) {
+        await streamingStartPromise;
+      }
+      if (streaming?.isActive()) {
+        await streaming.update(streamText);
+      }
+    });
+  };
+
+  /** Upload media URLs and embed images into the streaming card. */
+  const embedMediaInStream = async (urls: string[]): Promise<void> => {
+    const runtime = getFeishuRuntime();
+    for (const url of urls) {
+      if (embeddedMediaUrls.has(url)) {
+        continue;
+      }
+      embeddedMediaUrls.add(url);
+      try {
+        const loaded = await runtime.media.loadWebMedia(url, {
+          maxBytes: 30 * 1024 * 1024,
+          optimizeImages: false,
+        });
+        const ext = path.extname(loaded.fileName ?? "file").toLowerCase();
+        if (IMAGE_EXTS.has(ext)) {
+          const { imageKey } = await uploadImageFeishu({
+            cfg,
+            image: loaded.buffer,
+            accountId,
+          });
+          appendToStream(`\n![image](${imageKey})\n`);
+        }
+      } catch (err) {
+        params.runtime.error?.(`feishu: embed media failed for ${url}: ${String(err)}`);
+      }
+    }
+  };
 
   const startStreaming = () => {
     if (!streamingEnabled || streamingStartPromise || streaming) {
@@ -100,6 +163,11 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
       );
       try {
         await streaming.start(chatId, resolveReceiveIdType(chatId));
+        const externalAppender = (content: string) => {
+          outboundAppended = true;
+          appendToStream(content);
+        };
+        registerStreamAppender(chatId, externalAppender, outboundTo ? [outboundTo] : undefined);
       } catch (error) {
         params.runtime.error?.(`feishu: streaming start failed: ${String(error)}`);
         streaming = null;
@@ -108,6 +176,7 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   };
 
   const closeStreaming = async () => {
+    unregisterStreamAppender(chatId);
     if (streamingStartPromise) {
       await streamingStartPromise;
     }
@@ -123,6 +192,9 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
     streamingStartPromise = null;
     streamText = "";
     lastPartial = "";
+    committedText = "";
+    embeddedMediaUrls.clear();
+    outboundAppended = false;
   };
 
   const { dispatcher, replyOptions, markDispatchIdle } =
@@ -138,7 +210,12 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
       },
       deliver: async (payload: ReplyPayload, info) => {
         const text = payload.text ?? "";
-        if (!text.trim()) {
+        const allMediaUrls = [
+          ...(payload.mediaUrls ?? []),
+          ...(payload.mediaUrl ? [payload.mediaUrl] : []),
+        ];
+        const mediaUrls = allMediaUrls.length ? allMediaUrls : undefined;
+        if (!text.trim() && !mediaUrls) {
           return;
         }
 
@@ -152,10 +229,36 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
         }
 
         if (streaming?.isActive()) {
+          // Embed media into the streaming card
+          if (mediaUrls) {
+            await embedMediaInStream(mediaUrls);
+          }
           if (info?.kind === "final") {
-            streamText = text;
+            if (outboundAppended && committedText) {
+              streamText = committedText;
+            } else {
+              if (lastPartial && !text.startsWith(lastPartial)) {
+                committedText += (committedText ? "\n\n" : "") + lastPartial;
+              }
+              streamText = committedText ? committedText + "\n\n" + text : text;
+            }
             await closeStreaming();
           }
+          return;
+        }
+
+        // Not streaming: send media as separate messages
+        if (mediaUrls) {
+          for (const url of mediaUrls) {
+            try {
+              await sendMediaFeishu({ cfg, to: chatId, mediaUrl: url, accountId });
+            } catch (err) {
+              params.runtime.error?.(`feishu: send media failed: ${String(err)}`);
+            }
+          }
+        }
+
+        if (!text.trim()) {
           return;
         }
 
@@ -218,11 +321,26 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
       onModelSelected: prefixContext.onModelSelected,
       onPartialReply: streamingEnabled
         ? (payload: ReplyPayload) => {
+            // Handle media URLs from streaming directives
+            if (payload.mediaUrls?.length && streaming?.isActive()) {
+              void embedMediaInStream(payload.mediaUrls);
+            }
             if (!payload.text || payload.text === lastPartial) {
               return;
             }
+            // Suppress post-tool confirmation text (e.g. "NO") when the outbound
+            // adapter (message tool) already wrote to the streaming card. This mirrors
+            // the framework's isMessagingToolDuplicateNormalized suppression for onBlockReply.
+            // appendToStream clears lastPartial, so we can't rely on isNewMessage detection.
+            if (outboundAppended) {
+              return;
+            }
+            const isNewMessage = Boolean(lastPartial && !payload.text.startsWith(lastPartial));
+            if (isNewMessage) {
+              committedText += (committedText ? "\n\n" : "") + lastPartial;
+            }
             lastPartial = payload.text;
-            streamText = payload.text;
+            streamText = committedText ? committedText + "\n\n" + payload.text : payload.text;
             partialUpdateQueue = partialUpdateQueue.then(async () => {
               if (streamingStartPromise) {
                 await streamingStartPromise;
