@@ -189,24 +189,59 @@ export async function monitorWebChannel(
       return !hasControlCommand(msg.body, cfg);
     };
 
-    const listener = await (listenerFactory ?? monitorWebInbox)({
-      verbose,
-      accountId: account.accountId,
-      authDir: account.authDir,
-      mediaMaxMb: account.mediaMaxMb,
-      sendReadReceipts: account.sendReadReceipts,
-      debounceMs: inboundDebounceMs,
-      shouldDebounce,
-      onMessage: async (msg: WebInboundMsg) => {
-        handledMessages += 1;
-        lastMessageAt = Date.now();
-        status.lastMessageAt = lastMessageAt;
-        status.lastEventAt = lastMessageAt;
-        emitStatus();
-        _lastInboundMsg = msg;
-        await onMessage(msg);
-      },
-    });
+    let listener: Awaited<ReturnType<typeof monitorWebInbox>>;
+    try {
+      listener = await (listenerFactory ?? monitorWebInbox)({
+        verbose,
+        accountId: account.accountId,
+        authDir: account.authDir,
+        mediaMaxMb: account.mediaMaxMb,
+        sendReadReceipts: account.sendReadReceipts,
+        debounceMs: inboundDebounceMs,
+        shouldDebounce,
+        onMessage: async (msg: WebInboundMsg) => {
+          handledMessages += 1;
+          lastMessageAt = Date.now();
+          status.lastMessageAt = lastMessageAt;
+          status.lastEventAt = lastMessageAt;
+          emitStatus();
+          _lastInboundMsg = msg;
+          await onMessage(msg);
+        },
+      });
+    } catch (err) {
+      // Connection-phase failure (DNS, timeout, TLS, etc.) — treat as a
+      // retryable disconnect instead of crashing the reconnect loop.
+      const errorStr = formatError(err);
+      reconnectAttempts += 1;
+      status.connected = false;
+      status.lastEventAt = Date.now();
+      status.lastDisconnect = {
+        at: status.lastEventAt,
+        status: undefined,
+        error: errorStr,
+        loggedOut: false,
+      };
+      status.lastError = errorStr;
+      status.reconnectAttempts = reconnectAttempts;
+      emitStatus();
+
+      reconnectLogger.warn(
+        { connectionId, error: errorStr, reconnectAttempts },
+        "web reconnect: initial connection failed; will retry",
+      );
+      runtime.error(
+        `WhatsApp Web connection failed (${errorStr}). Retry ${reconnectAttempts}/${reconnectPolicy.maxAttempts || "∞"} in ${formatDurationPrecise(computeBackoff(reconnectPolicy, reconnectAttempts))}…`,
+      );
+
+      const delay = computeBackoff(reconnectPolicy, reconnectAttempts);
+      try {
+        await sleep(delay, abortSignal);
+      } catch {
+        break;
+      }
+      continue;
+    }
 
     status.connected = true;
     status.lastConnectedAt = Date.now();
@@ -415,10 +450,17 @@ export async function monitorWebChannel(
         "web reconnect: max attempts reached; continuing in degraded mode",
       );
       runtime.error(
-        `WhatsApp Web reconnect: max attempts reached (${reconnectAttempts}/${reconnectPolicy.maxAttempts}). Stopping web monitoring.`,
+        `WhatsApp Web reconnect: max attempts reached (${reconnectAttempts}/${reconnectPolicy.maxAttempts}). Will keep retrying every ${heartbeatSeconds}s.`,
       );
       await closeListener();
-      break;
+      // Instead of giving up permanently, wait one heartbeat interval and
+      // retry — the network may recover after a transient outage.
+      try {
+        await sleep(heartbeatSeconds * 1000, abortSignal);
+      } catch {
+        break;
+      }
+      continue;
     }
 
     const delay = computeBackoff(reconnectPolicy, reconnectAttempts);
