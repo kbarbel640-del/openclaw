@@ -297,7 +297,7 @@ describe("deliverReplies", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("uses reply_to_message_id when quote text is provided", async () => {
+  it("uses reply_parameters instead of reply_to_message_id for replies", async () => {
     const runtime = createRuntime();
     const sendMessage = vi.fn().mockResolvedValue({
       message_id: 10,
@@ -310,21 +310,53 @@ describe("deliverReplies", () => {
       runtime,
       bot,
       replyToMode: "all",
-      replyQuoteText: "quoted text",
     });
 
     expect(sendMessage).toHaveBeenCalledWith(
       "123",
       expect.any(String),
       expect.objectContaining({
-        reply_to_message_id: 500,
+        reply_parameters: { message_id: 500 },
       }),
     );
     expect(sendMessage).toHaveBeenCalledWith(
       "123",
       expect.any(String),
       expect.not.objectContaining({
-        reply_parameters: expect.anything(),
+        reply_to_message_id: expect.anything(),
+      }),
+    );
+  });
+
+  it("uses reply_parameters for media replies", async () => {
+    const runtime = createRuntime();
+    const sendPhoto = vi.fn().mockResolvedValue({
+      message_id: 12,
+      chat: { id: "123" },
+    });
+    const bot = createBot({ sendPhoto });
+
+    mockMediaLoad("photo.jpg", "image/jpeg", "image");
+
+    await deliverWith({
+      replies: [{ mediaUrl: "https://example.com/photo.jpg", text: "caption", replyToId: "600" }],
+      runtime,
+      bot,
+      replyToMode: "all",
+    });
+
+    expect(sendPhoto).toHaveBeenCalledWith(
+      "123",
+      expect.anything(),
+      expect.objectContaining({
+        reply_parameters: { message_id: 600 },
+      }),
+    );
+    expect(sendPhoto).toHaveBeenCalledWith(
+      "123",
+      expect.anything(),
+      expect.not.objectContaining({
+        reply_to_message_id: expect.anything(),
       }),
     );
   });
