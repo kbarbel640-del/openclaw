@@ -36,9 +36,7 @@ export type ProbeFeishuOptions = FeishuClientCredentials & {
  * @param creds - Feishu credentials and optional cache TTL
  * @returns Probe result with bot info or error
  */
-export async function probeFeishu(
-  creds?: ProbeFeishuOptions,
-): Promise<FeishuProbeResult> {
+export async function probeFeishu(creds?: ProbeFeishuOptions): Promise<FeishuProbeResult> {
   if (!creds?.appId || !creds?.appSecret) {
     return {
       ok: false,
