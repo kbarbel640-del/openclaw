@@ -43,7 +43,7 @@ x-i18n:
   <Card title="ウィザードを実行" href="/ja-JP/start/wizard" icon="sparkles">
     `openclaw onboard`とペアリングフローによるガイド付きセットアップ。
   </Card>
-  <Card title="Control UIを開く" href="/ja-JP/web/control-ui" icon="layout-dashboard">
+  <Card title="Control UIを開く" href="/web/control-ui" icon="layout-dashboard">
     チャット、設定、セッション用のブラウザダッシュボードを起動します。
   </Card>
 </Columns>
@@ -108,14 +108,14 @@ Gatewayは、セッション、ルーティング、チャネル接続の信頼�
   </Step>
 </Steps>
 
-完全なインストールと開発セットアップが必要ですか？[クイックスタート](/ja-JP/start/quickstart)をご覧ください。
+完全なインストールと開発セットアップが必要ですか？[クイックスタート](/start/quickstart)をご覧ください。
 
 ## ダッシュボード
 
 Gatewayの起動後、ブラウザでControl UIを開きます。
 
 - ローカルデフォルト: [http://127.0.0.1:18789/](http://127.0.0.1:18789/)
-- リモートアクセス: [Webサーフェス](/ja-JP/web)および[Tailscale](/ja-JP/gateway/tailscale)
+- リモートアクセス: [Webサーフェス](/web)および[Tailscale](/gateway/tailscale)
 
 <p align="center">
   <img src="whatsapp-openclaw.jpg" alt="OpenClaw" width="420" />
@@ -145,22 +145,22 @@ Gatewayの起動後、ブラウザでControl UIを開きます。
 ## ここから始める
 
 <Columns>
-  <Card title="ドキュメントハブ" href="/ja-JP/start/hubs" icon="book-open">
+  <Card title="ドキュメントハブ" href="/start/hubs" icon="book-open">
     ユースケース別に整理されたすべてのドキュメントとガイド。
   </Card>
-  <Card title="設定" href="/ja-JP/gateway/configuration" icon="settings">
+  <Card title="設定" href="/gateway/configuration" icon="settings">
     Gatewayのコア設定、トークン、プロバイダー設定。
   </Card>
-  <Card title="リモートアクセス" href="/ja-JP/gateway/remote" icon="globe">
+  <Card title="リモートアクセス" href="/gateway/remote" icon="globe">
     SSHおよびtailnetアクセスパターン。
   </Card>
-  <Card title="チャネル" href="/ja-JP/channels/telegram" icon="message-square">
+  <Card title="チャネル" href="/channels/telegram" icon="message-square">
     WhatsApp、Telegram、Discordなどのチャネル固有のセットアップ。
   </Card>
-  <Card title="ノード" href="/ja-JP/nodes" icon="smartphone">
+  <Card title="ノード" href="/nodes" icon="smartphone">
     ペアリングとCanvas対応のiOSおよびAndroidノード。
   </Card>
-  <Card title="ヘルプ" href="/ja-JP/help" icon="life-buoy">
+  <Card title="ヘルプ" href="/help" icon="life-buoy">
     一般的な修正とトラブルシューティングのエントリーポイント。
   </Card>
 </Columns>
@@ -168,19 +168,19 @@ Gatewayの起動後、ブラウザでControl UIを開きます。
 ## 詳細
 
 <Columns>
-  <Card title="全機能リスト" href="/ja-JP/concepts/features" icon="list">
+  <Card title="全機能リスト" href="/concepts/features" icon="list">
     チャネル、ルーティング、メディア機能の完全な一覧。
   </Card>
-  <Card title="マルチエージェントルーティング" href="/ja-JP/concepts/multi-agent" icon="route">
+  <Card title="マルチエージェントルーティング" href="/concepts/multi-agent" icon="route">
     ワークスペースの分離とエージェントごとのセッション。
   </Card>
-  <Card title="セキュリティ" href="/ja-JP/gateway/security" icon="shield">
+  <Card title="セキュリティ" href="/gateway/security" icon="shield">
     トークン、許可リスト、安全制御。
   </Card>
-  <Card title="トラブルシューティング" href="/ja-JP/gateway/troubleshooting" icon="wrench">
+  <Card title="トラブルシューティング" href="/gateway/troubleshooting" icon="wrench">
     Gatewayの診断と一般的なエラー。
   </Card>
-  <Card title="概要とクレジット" href="/ja-JP/reference/credits" icon="info">
+  <Card title="概要とクレジット" href="/reference/credits" icon="info">
     プロジェクトの起源、貢献者、ライセンス。
   </Card>
 </Columns>

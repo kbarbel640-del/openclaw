@@ -23,7 +23,7 @@ openclaw onboard
 ```
 
 <Info>
-最速で初回チャットを開始する方法：Control UI を開きます（チャンネル設定は不要）。`openclaw dashboard` を実行してブラウザでチャットできます。ドキュメント：[Dashboard](/ja-JP/web/dashboard)。
+最速で初回チャットを開始する方法：Control UI を開きます（チャンネル設定は不要）。`openclaw dashboard` を実行してブラウザでチャットできます。ドキュメント：[Dashboard](/web/dashboard)。
 </Info>
 
 ## クイックスタート vs 詳細設定
@@ -47,10 +47,10 @@ openclaw onboard
 ## CLIオンボーディングの詳細
 
 <Columns>
-  <Card title="CLIリファレンス" href="/ja-JP/start/wizard-cli-reference">
+  <Card title="CLIリファレンス" href="/start/wizard-cli-reference">
     ローカルおよびリモートフローの完全な説明、認証とモデルマトリックス、設定出力、ウィザードRPC、signal-cliの動作。
   </Card>
-  <Card title="自動化とスクリプト" href="/ja-JP/start/wizard-cli-automation">
+  <Card title="自動化とスクリプト" href="/start/wizard-cli-automation">
     非対話式オンボーディングのレシピと自動化された `agents add` の例。
   </Card>
 </Columns>
@@ -67,11 +67,11 @@ openclaw agents add <name>
 </Note>
 
 <Tip>
-推奨：エージェントが `web_search` を使用できるように、Brave Search APIキーを設定してください（`web_fetch` はキーなしで動作します）。最も簡単な方法：`openclaw configure --section web` を実行すると `tools.web.search.apiKey` が保存されます。ドキュメント：[Webツール](/ja-JP/tools/web)。
+推奨：エージェントが `web_search` を使用できるように、Brave Search APIキーを設定してください（`web_fetch` はキーなしで動作します）。最も簡単な方法：`openclaw configure --section web` を実行すると `tools.web.search.apiKey` が保存されます。ドキュメント：[Webツール](/tools/web)。
 </Tip>
 
 ## 関連ドキュメント
 
-- CLIコマンドリファレンス：[`openclaw onboard`](/ja-JP/cli/onboard)
-- macOSアプリのオンボーディング：[オンボーディング](/ja-JP/start/onboarding)
-- エージェント初回起動の手順：[エージェントブートストラップ](/ja-JP/start/bootstrapping)
+- CLIコマンドリファレンス：[`openclaw onboard`](/cli/onboard)
+- macOSアプリのオンボーディング：[オンボーディング](/start/onboarding)
+- エージェント初回起動の手順：[エージェントブートストラップ](/start/bootstrapping)

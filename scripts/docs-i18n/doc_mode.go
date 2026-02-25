@@ -75,7 +75,7 @@ func processFileDoc(ctx context.Context, translator *PiTranslator, docsRoot, fil
 		return false, err
 	}
 
-	output := updatedFront + rewriteInternalLinks(translatedBody, tgtLang)
+	output := updatedFront + rewriteInternalLinks(translatedBody, tgtLang, "")
 	return false, os.WriteFile(outputPath, []byte(output), 0o644)
 }
 
