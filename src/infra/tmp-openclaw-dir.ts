@@ -93,24 +93,32 @@ export function resolvePreferredOpenClawTmpDir(
       }
       return "invalid";
     }
-    const res = path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
-    return res;
-  } catch (err) {
-    if (!isNodeErrorWithCode(err, "ENOENT")) {
-      return fallback();
-    }
-  }
+  };
 
   try {
-    accessSync("/tmp", fs.constants.W_OK | fs.constants.X_OK);
-    // Create with a safe default; subsequent callers expect it exists.
-    mkdirSync(POSIX_OPENCLAW_TMP_DIR, { recursive: true, mode: 0o700 });
-    if (resolvePreferredState(true) !== "available") {
+    const state = resolvePreferredState(true);
+    if (state === "available") {
+      const res = path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
+      return res;
+    }
+    if (state === "invalid") {
       return fallback();
     }
-    const res = path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
-    return res;
+
+    // state === "missing"
+    try {
+      accessSync("/tmp", fs.constants.W_OK | fs.constants.X_OK);
+      mkdirSync(POSIX_OPENCLAW_TMP_DIR, { recursive: true, mode: 0o700 });
+      if (resolvePreferredState(true) === "available") {
+        const res = path.resolve(POSIX_OPENCLAW_TMP_DIR).replaceAll("\\", "/");
+        return res;
+      }
+    } catch {
+      // ignore creation failures, proceed to fallback
+    }
   } catch {
-    return fallback();
+    // top level catch for any unexpected errors
   }
+
+  return fallback();
 }
