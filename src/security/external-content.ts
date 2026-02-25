@@ -357,7 +357,10 @@ export function stripExternalContentFromOutput(text: string): string {
   );
   // Remove sanitized marker placeholders
   result = result.replace(/\[\[(?:END_)?MARKER_SANITIZED\]\]\n?/g, "");
-  // Remove SECURITY NOTICE blocks (header + continuation lines starting with - or whitespace)
+  // Remove SECURITY NOTICE blocks (header + continuation lines starting with -, space, or tab).
+  // Intentionally biased toward over-stripping: safer to remove extra internal warning text
+  // than to leak security markers to users. The production EXTERNAL_CONTENT_WARNING constant
+  // inserts a blank line after the warning block, which naturally terminates the match.
   result = result.replace(/SECURITY NOTICE:[^\n]*(?:\n[- \t][^\n]*)*/g, "");
   // Clean up excessive blank lines left after stripping
   result = result.replace(/\n{3,}/g, "\n\n");
