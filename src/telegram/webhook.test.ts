@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { startTelegramWebhook } from "./webhook.js";
+import {
+  clearTelegramWebhookRateLimits,
+  getTelegramWebhookRateLimitStateSize,
+  isTelegramWebhookRateLimited,
+  startTelegramWebhook,
+} from "./webhook.js";
 
 const handlerSpy = vi.hoisted(() =>
   vi.fn(
@@ -32,6 +37,51 @@ vi.mock("./bot.js", () => ({
 }));
 
 describe("startTelegramWebhook", () => {
+  it("rate limits webhook burst traffic with 429", async () => {
+    handlerSpy.mockClear();
+    createTelegramBotSpy.mockClear();
+    clearTelegramWebhookRateLimits();
+
+    const abort = new AbortController();
+    const cfg = { bindings: [] };
+    const { server } = await startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      accountId: "opie",
+      config: cfg,
+      port: 0,
+      abortSignal: abort.signal,
+      path: "/hook",
+    });
+    const addr = server.address();
+    if (!addr || typeof addr === "string") {
+      throw new Error("no addr");
+    }
+
+    let saw429 = false;
+    for (let i = 0; i < 130; i += 1) {
+      const res = await fetch(`http://127.0.0.1:${addr.port}/hook`, { method: "POST" });
+      if (res.status === 429) {
+        saw429 = true;
+        expect(await res.text()).toBe("Too Many Requests");
+        break;
+      }
+      expect(res.status).toBe(200);
+    }
+
+    expect(saw429).toBe(true);
+    abort.abort();
+  });
+
+  it("bounds tracked webhook rate-limit keys", () => {
+    clearTelegramWebhookRateLimits();
+    const now = 1_000_000;
+    for (let i = 0; i < 4_500; i += 1) {
+      isTelegramWebhookRateLimited(`/telegram-webhook:key-${i}`, now);
+    }
+    expect(getTelegramWebhookRateLimitStateSize()).toBeLessThanOrEqual(4_096);
+  });
+
   it("starts server, registers webhook, and serves health", async () => {
     createTelegramBotSpy.mockClear();
     webhookCallbackSpy.mockClear();
