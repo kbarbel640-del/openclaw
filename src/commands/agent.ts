@@ -79,9 +79,36 @@ type PersistSessionEntryParams = {
   entry: SessionEntry;
 };
 
+type OverrideFieldClearedByDelete =
+  | "providerOverride"
+  | "modelOverride"
+  | "authProfileOverride"
+  | "authProfileOverrideSource"
+  | "authProfileOverrideCompactionCount"
+  | "fallbackNoticeSelectedModel"
+  | "fallbackNoticeActiveModel"
+  | "fallbackNoticeReason";
+
+const OVERRIDE_FIELDS_CLEARED_BY_DELETE: OverrideFieldClearedByDelete[] = [
+  "providerOverride",
+  "modelOverride",
+  "authProfileOverride",
+  "authProfileOverrideSource",
+  "authProfileOverrideCompactionCount",
+  "fallbackNoticeSelectedModel",
+  "fallbackNoticeActiveModel",
+  "fallbackNoticeReason",
+];
+
 async function persistSessionEntry(params: PersistSessionEntryParams): Promise<void> {
   const persisted = await updateSessionStore(params.storePath, (store) => {
     const merged = mergeSessionEntry(store[params.sessionKey], params.entry);
+    // Preserve explicit `delete` clears done by session override helpers.
+    for (const field of OVERRIDE_FIELDS_CLEARED_BY_DELETE) {
+      if (!Object.hasOwn(params.entry, field)) {
+        Reflect.deleteProperty(merged, field);
+      }
+    }
     store[params.sessionKey] = merged;
     return merged;
   });

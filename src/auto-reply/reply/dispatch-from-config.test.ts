@@ -799,6 +799,57 @@ describe("dispatchReplyFromConfig", () => {
     });
   });
 
+  it("does not bypass ACP slash aliases when text commands are disabled on native surfaces", async () => {
+    setNoAbort();
+    const runtime = createAcpRuntime([{ type: "done" }]);
+    acpMocks.readAcpSessionEntry.mockReturnValue({
+      sessionKey: "agent:codex-acp:session-1",
+      storeSessionKey: "agent:codex-acp:session-1",
+      cfg: {},
+      storePath: "/tmp/mock-sessions.json",
+      entry: {},
+      acp: {
+        backend: "acpx",
+        agent: "codex",
+        runtimeSessionName: "runtime:1",
+        mode: "persistent",
+        state: "idle",
+        lastActivityAt: Date.now(),
+      },
+    });
+    acpMocks.requireAcpRuntimeBackend.mockReturnValue({
+      id: "acpx",
+      runtime,
+    });
+
+    const cfg = {
+      acp: {
+        enabled: true,
+        dispatch: { enabled: true },
+      },
+      commands: {
+        text: false,
+      },
+    } as OpenClawConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "discord",
+      Surface: "discord",
+      SessionKey: "agent:codex-acp:session-1",
+      CommandBody: "/acp cancel",
+      BodyForCommands: "/acp cancel",
+      BodyForAgent: "/acp cancel",
+      CommandSource: "text",
+    });
+    const replyResolver = vi.fn(async () => ({ text: "should not bypass" }) as ReplyPayload);
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+    expect(runtime.runTurn).toHaveBeenCalledTimes(1);
+    expect(replyResolver).not.toHaveBeenCalled();
+    expect(dispatcher.sendFinalReply).not.toHaveBeenCalled();
+  });
+
   it("does not bypass ACP dispatch for unauthorized bang-prefixed messages", async () => {
     setNoAbort();
     const runtime = createAcpRuntime([{ type: "done" }]);

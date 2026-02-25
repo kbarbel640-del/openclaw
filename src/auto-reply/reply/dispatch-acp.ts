@@ -70,8 +70,13 @@ export function shouldBypassAcpDispatchForCommand(
   if (!candidate) {
     return false;
   }
+  const allowTextCommands = shouldHandleTextCommands({
+    cfg,
+    surface: ctx.Surface ?? ctx.Provider ?? "",
+    commandSource: ctx.CommandSource,
+  });
   if (maybeResolveTextAlias(candidate, cfg) != null) {
-    return true;
+    return allowTextCommands;
   }
 
   const normalized = candidate.trim();
@@ -87,11 +92,7 @@ export function shouldBypassAcpDispatchForCommand(
     return false;
   }
 
-  return shouldHandleTextCommands({
-    cfg,
-    surface: ctx.Surface ?? ctx.Provider ?? "",
-    commandSource: ctx.CommandSource,
-  });
+  return allowTextCommands;
 }
 
 function resolveAcpRequestId(ctx: FinalizedMsgContext): string {
