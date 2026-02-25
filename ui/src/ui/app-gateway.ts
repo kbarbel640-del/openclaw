@@ -150,6 +150,7 @@ export function connectGateway(host: GatewayHost) {
     token: host.settings.token.trim() ? host.settings.token : undefined,
     password: host.password.trim() ? host.password : undefined,
     clientName: "openclaw-control-ui",
+    clientVersion: typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev",
     mode: "webchat",
     instanceId: host.clientInstanceId,
     onHello: (hello) => {
