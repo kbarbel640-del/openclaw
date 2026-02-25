@@ -1,4 +1,4 @@
-export const META_MESSAGE_PREFIX = "🤖";
+export const META_MESSAGE_PREFIX = "⚙️";
 
 export function prefixMetaMessage(text: string): string {
   const normalized = text.trim();

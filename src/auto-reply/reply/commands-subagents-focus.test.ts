@@ -286,7 +286,7 @@ describe("/focus, /unfocus, /agents", () => {
         targetSessionKey: "agent:codex-acp:session-1",
         metadata: expect.objectContaining({
           introText:
-            "🤖 codex-acp session active (auto-unfocus in 24h). Messages here go directly to this session.",
+            "⚙️ codex-acp session active (auto-unfocus in 24h). Messages here go directly to this session.",
         }),
       }),
     );

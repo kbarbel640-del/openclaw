@@ -56,8 +56,8 @@ export function resolveThreadBindingIntroText(params: {
   }
   const intro =
     ttlMs > 0
-      ? `🤖 ${normalized} session active (auto-unfocus in ${formatThreadBindingTtlLabel(ttlMs)}). Messages here go directly to this session.`
-      : `🤖 ${normalized} session active. Messages here go directly to this session.`;
+      ? `${normalized} session active (auto-unfocus in ${formatThreadBindingTtlLabel(ttlMs)}). Messages here go directly to this session.`
+      : `${normalized} session active. Messages here go directly to this session.`;
   if (details.length === 0) {
     return prefixMetaMessage(intro);
   }
@@ -84,5 +84,5 @@ export function resolveThreadBindingFarewellText(params: {
 export function summarizeBindingPersona(record: ThreadBindingRecord): string {
   const label = record.label?.trim();
   const base = label || record.agentId;
-  return (`🤖 ${base}`.trim() || "🤖 agent").slice(0, 80);
+  return (`⚙️ ${base}`.trim() || "⚙️ agent").slice(0, 80);
 }
