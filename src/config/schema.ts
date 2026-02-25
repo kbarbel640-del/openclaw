@@ -14,6 +14,13 @@ import {
 import { OpenClawSchema } from "./zod-schema.js";
 
 export type { ConfigUiHint, ConfigUiHints } from "./schema.hints.js";
+export type {
+  ConfigSchema,
+  ConfigSchemaResponse,
+  ChannelUiMetadata,
+  PluginUiMetadata,
+  JsonSchemaNode,
+} from "./schema.types.js";
 
 type JsonSchemaObject = JsonSchemaNode & {
   type?: string | string[];
