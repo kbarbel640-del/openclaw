@@ -14,7 +14,7 @@ This plan defines how OpenClaw should support ACP coding agents in Discord threa
 
 Related document:
 
-- [ACP Discord Streaming Strategy](/experiments/plans/acp-discord-streaming-strategy)
+- [Unified Runtime Streaming Refactor Plan](/experiments/plans/acp-unified-streaming-refactor)
 
 Target user experience:
 
