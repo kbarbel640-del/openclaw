@@ -144,9 +144,13 @@ async function runCustomLocalNonInteractive(
   });
 }
 
-async function readCustomLocalProviderApiKey(configPath: string): Promise<string | undefined> {
-  const cfg = await readJsonFile<ProviderAuthConfigSnapshot>(configPath);
-  return cfg.models?.providers?.[CUSTOM_LOCAL_PROVIDER_ID]?.apiKey;
+async function readCustomLocalProviderApiKey(_configPath: string): Promise<string | undefined> {
+  const store = ensureAuthProfileStore();
+  const profile = store.profiles[`${CUSTOM_LOCAL_PROVIDER_ID}:default`];
+  if (profile?.type === "api_key") {
+    return profile.key;
+  }
+  return undefined;
 }
 
 async function expectApiKeyProfile(params: {
@@ -467,9 +471,14 @@ describe("onboard (non-interactive): provider auth", () => {
       const provider = cfg.models?.providers?.["custom-llm-example-com"];
       expect(provider?.baseUrl).toBe("https://llm.example.com/v1");
       expect(provider?.api).toBe("anthropic-messages");
-      expect(provider?.apiKey).toBe("custom-test-key");
+      expect(provider?.apiKey).toBeUndefined();
       expect(provider?.models?.some((model) => model.id === "foo-large")).toBe(true);
       expect(cfg.agents?.defaults?.model?.primary).toBe("custom-llm-example-com/foo-large");
+      await expectApiKeyProfile({
+        profileId: "custom-llm-example-com:default",
+        provider: "custom-llm-example-com",
+        key: "custom-test-key",
+      });
     });
   });
 

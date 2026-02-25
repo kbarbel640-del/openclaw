@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { upsertAuthProfile } from "../agents/auth-profiles.js";
 import { defaultRuntime } from "../runtime.js";
 import {
   applyCustomApiConfig,
@@ -9,6 +10,12 @@ import {
 // Mock dependencies
 vi.mock("./model-picker.js", () => ({
   applyPrimaryModel: vi.fn((cfg) => cfg),
+}));
+vi.mock("../agents/agent-paths.js", () => ({
+  resolveOpenClawAgentDir: vi.fn(() => "/tmp/test-agent-dir"),
+}));
+vi.mock("../agents/auth-profiles.js", () => ({
+  upsertAuthProfile: vi.fn(),
 }));
 
 function createTestPrompter(params: { text: string[]; select?: string[] }): {
@@ -91,6 +98,48 @@ describe("promptCustomApiConfig", () => {
 
     expectOpenAiCompatResult({ prompter, textCalls: 5, selectCalls: 1, result });
     expect(result.config.agents?.defaults?.models?.["custom/llama3"]?.alias).toBe("local");
+  });
+
+  it("persists api key to auth-profiles when provided", async () => {
+    const prompter = createTestPrompter({
+      text: ["https://api.example.com/v1", "test-secret-key", "my-model", "my-provider", ""],
+      select: ["openai"],
+    });
+    stubFetchSequence([{ ok: true }]);
+    await runPromptCustomApi(prompter);
+
+    expect(upsertAuthProfile).toHaveBeenCalledWith({
+      profileId: "my-provider:default",
+      credential: {
+        type: "api_key",
+        provider: "my-provider",
+        key: "test-secret-key",
+      },
+      agentDir: "/tmp/test-agent-dir",
+    });
+  });
+
+  it("does not persist auth profile when no api key is provided", async () => {
+    const prompter = createTestPrompter({
+      text: ["http://localhost:11434/v1", "", "llama3", "custom", ""],
+      select: ["openai"],
+    });
+    stubFetchSequence([{ ok: true }]);
+    vi.mocked(upsertAuthProfile).mockClear();
+    await runPromptCustomApi(prompter);
+
+    expect(upsertAuthProfile).not.toHaveBeenCalled();
+  });
+
+  it("does not embed api key in provider config", async () => {
+    const prompter = createTestPrompter({
+      text: ["https://api.example.com/v1", "test-secret-key", "my-model", "my-provider", ""],
+      select: ["openai"],
+    });
+    stubFetchSequence([{ ok: true }]);
+    const result = await runPromptCustomApi(prompter);
+
+    expect(result.config.models?.providers?.["my-provider"]?.apiKey).toBeUndefined();
   });
 
   it("retries when verification fails", async () => {
@@ -251,6 +300,31 @@ describe("applyCustomApiConfig", () => {
     },
   ])("rejects $name", ({ params, expectedMessage }) => {
     expect(() => applyCustomApiConfig(params)).toThrow(expectedMessage);
+  });
+
+  it("returns apiKey in result but not in provider config", () => {
+    const result = applyCustomApiConfig({
+      config: {},
+      baseUrl: "https://llm.example.com/v1",
+      modelId: "foo-large",
+      compatibility: "openai",
+      apiKey: "secret-key-123",
+    });
+
+    expect(result.apiKey).toBe("secret-key-123");
+    expect(result.providerId).toBeDefined();
+    expect(result.config.models?.providers?.[result.providerId!]?.apiKey).toBeUndefined();
+  });
+
+  it("returns no apiKey when none provided", () => {
+    const result = applyCustomApiConfig({
+      config: {},
+      baseUrl: "https://llm.example.com/v1",
+      modelId: "foo-large",
+      compatibility: "openai",
+    });
+
+    expect(result.apiKey).toBeUndefined();
   });
 });
 

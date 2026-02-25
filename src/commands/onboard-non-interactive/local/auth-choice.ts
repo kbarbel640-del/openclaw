@@ -1,3 +1,4 @@
+import { resolveOpenClawAgentDir } from "../../../agents/agent-paths.js";
 import { upsertAuthProfile } from "../../../agents/auth-profiles.js";
 import { normalizeProviderId } from "../../../agents/model-selection.js";
 import { parseDurationMs } from "../../../cli/parse-duration.js";
@@ -796,6 +797,19 @@ export async function applyNonInteractiveAuthChoice(params: {
         runtime.log(
           `Custom provider ID "${result.providerIdRenamedFrom}" already exists for a different base URL. Using "${result.providerId}".`,
         );
+      }
+      // Persist API key to auth-profiles so the gateway can read it at runtime
+      // without it being masked in openclaw.json.
+      if (result.apiKey && result.providerId) {
+        upsertAuthProfile({
+          profileId: `${result.providerId}:default`,
+          credential: {
+            type: "api_key",
+            provider: result.providerId,
+            key: result.apiKey,
+          },
+          agentDir: resolveOpenClawAgentDir(),
+        });
       }
       return result.config;
     } catch (err) {

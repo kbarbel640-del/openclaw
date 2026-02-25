@@ -1,3 +1,5 @@
+import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
+import { upsertAuthProfile } from "../agents/auth-profiles.js";
 import { DEFAULT_PROVIDER } from "../agents/defaults.js";
 import { buildModelAliasIndex, modelKey } from "../agents/model-selection.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -55,6 +57,7 @@ export type CustomApiResult = {
   providerId?: string;
   modelId?: string;
   providerIdRenamedFrom?: string;
+  apiKey?: string;
 };
 
 export type ApplyCustomApiConfigParams = {
@@ -543,6 +546,9 @@ export function applyCustomApiConfig(params: ApplyCustomApiConfigParams): Custom
   const normalizedApiKey =
     params.apiKey?.trim() || (existingApiKey ? existingApiKey.trim() : undefined);
 
+  // Do not embed apiKey in the provider config — it gets masked by the gateway
+  // on reload and becomes unusable. Callers must persist the key via
+  // upsertAuthProfile() into auth-profiles.json instead.
   let config: OpenClawConfig = {
     ...params.config,
     models: {
@@ -554,7 +560,6 @@ export function applyCustomApiConfig(params: ApplyCustomApiConfigParams): Custom
           ...existingProviderRest,
           baseUrl: resolvedBaseUrl,
           api: resolveProviderApi(params.compatibility),
-          ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
           models: mergedModels.length > 0 ? mergedModels : [nextModel],
         },
       },
@@ -585,6 +590,7 @@ export function applyCustomApiConfig(params: ApplyCustomApiConfigParams): Custom
     config,
     providerId,
     modelId,
+    ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
     ...(providerIdResult.providerIdRenamedFrom
       ? { providerIdRenamedFrom: providerIdResult.providerIdRenamedFrom }
       : {}),
@@ -722,6 +728,20 @@ export async function promptCustomApiConfig(params: {
       `Endpoint ID "${result.providerIdRenamedFrom}" already exists for a different base URL. Using "${result.providerId}".`,
       "Endpoint ID",
     );
+  }
+
+  // Persist API key to auth-profiles (encrypted storage) so the gateway can
+  // read it at runtime without it being masked in openclaw.json.
+  if (result.apiKey && result.providerId) {
+    upsertAuthProfile({
+      profileId: `${result.providerId}:default`,
+      credential: {
+        type: "api_key",
+        provider: result.providerId,
+        key: result.apiKey,
+      },
+      agentDir: resolveOpenClawAgentDir(),
+    });
   }
 
   runtime.log(`Configured custom provider: ${result.providerId}/${result.modelId}`);
