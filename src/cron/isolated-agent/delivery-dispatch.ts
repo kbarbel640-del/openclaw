@@ -8,8 +8,8 @@ import { resolveAgentMainSessionKey } from "../../config/sessions.js";
 import { deliverOutboundPayloads } from "../../infra/outbound/deliver.js";
 import { resolveAgentOutboundIdentity } from "../../infra/outbound/identity.js";
 import { resolveOutboundSessionRoute } from "../../infra/outbound/outbound-session.js";
-import { logWarn } from "../../logger.js";
-import type { CronJob, CronRunTelemetry } from "../types.js";
+import { logDebug, logWarn } from "../../logger.js";
+import type { CronDeliveryOutcomeReason, CronJob, CronRunTelemetry } from "../types.js";
 import type { DeliveryTargetResolution } from "./delivery-target.js";
 import { pickSummaryFromOutput } from "./helpers.js";
 import type { RunCronAgentTurnResult } from "./run.js";
@@ -117,6 +117,7 @@ type DispatchCronDeliveryParams = {
 export type DispatchCronDeliveryState = {
   result?: RunCronAgentTurnResult;
   delivered: boolean;
+  deliveryOutcomeReason?: CronDeliveryOutcomeReason;
   summary?: string;
   outputText?: string;
   synthesizedText?: string;
@@ -134,15 +135,36 @@ export async function dispatchCronDelivery(
   // `true` means we confirmed at least one outbound send reached the target.
   // Keep this strict so timer fallback can safely decide whether to wake main.
   let delivered = params.skipMessagingToolDelivery;
-  const failDeliveryTarget = (error: string) =>
-    params.withRunSession({
-      status: "error",
-      error,
-      errorKind: "delivery-target",
-      summary,
-      outputText,
-      ...params.telemetry,
-    });
+  let deliveryOutcomeReason: CronDeliveryOutcomeReason | undefined = !params.deliveryRequested
+    ? "not-requested"
+    : params.skipMessagingToolDelivery
+      ? "messaging-tool-delivered"
+      : params.skipHeartbeatDelivery
+        ? "heartbeat-only"
+        : undefined;
+  const withDeliveryOutcome = (
+    result: Omit<RunCronAgentTurnResult, "sessionId" | "sessionKey">,
+    reason: CronDeliveryOutcomeReason,
+  ): RunCronAgentTurnResult => {
+    return params.withRunSession({ ...result, deliveryOutcomeReason: reason });
+  };
+  const markDeliveryOutcome = (reason: CronDeliveryOutcomeReason): void => {
+    deliveryOutcomeReason = reason;
+  };
+  const failDeliveryTarget = (error: string) => {
+    markDeliveryOutcome("target-resolution-failed");
+    return withDeliveryOutcome(
+      {
+        status: "error",
+        error,
+        errorKind: "delivery-target",
+        summary,
+        outputText,
+        ...params.telemetry,
+      },
+      "target-resolution-failed",
+    );
+  };
 
   const deliverViaDirect = async (
     delivery: SuccessfulDeliveryTarget,
@@ -156,14 +178,18 @@ export async function dispatchCronDelivery(
             ? [{ text: synthesizedText }]
             : [];
       if (payloadsForDelivery.length === 0) {
+        markDeliveryOutcome("no-deliverable-payload");
         return null;
       }
       if (params.isAborted()) {
-        return params.withRunSession({
-          status: "error",
-          error: params.abortReason(),
-          ...params.telemetry,
-        });
+        return withDeliveryOutcome(
+          {
+            status: "error",
+            error: params.abortReason(),
+            ...params.telemetry,
+          },
+          "direct-send-failed",
+        );
       }
       const deliveryResults = await deliverOutboundPayloads({
         cfg: params.cfgWithAgentDefaults,
@@ -179,17 +205,22 @@ export async function dispatchCronDelivery(
         abortSignal: params.abortSignal,
       });
       delivered = deliveryResults.length > 0;
+      markDeliveryOutcome(delivered ? "direct-delivered" : "direct-send-failed");
       return null;
     } catch (err) {
       if (!params.deliveryBestEffort) {
-        return params.withRunSession({
-          status: "error",
-          summary,
-          outputText,
-          error: String(err),
-          ...params.telemetry,
-        });
+        return withDeliveryOutcome(
+          {
+            status: "error",
+            summary,
+            outputText,
+            error: String(err),
+            ...params.telemetry,
+          },
+          "direct-send-failed",
+        );
       }
+      markDeliveryOutcome("direct-send-failed");
       return null;
     }
   };
@@ -198,6 +229,7 @@ export async function dispatchCronDelivery(
     delivery: SuccessfulDeliveryTarget,
   ): Promise<RunCronAgentTurnResult | null> => {
     if (!synthesizedText) {
+      markDeliveryOutcome("no-deliverable-payload");
       return null;
     }
     const announceMainSessionKey = resolveAgentMainSessionKey({
@@ -251,7 +283,10 @@ export async function dispatchCronDelivery(
     if (activeSubagentRuns > 0) {
       // Parent orchestration is still in progress; avoid announcing a partial
       // update to the main requester.
-      return params.withRunSession({ status: "ok", summary, outputText, ...params.telemetry });
+      return withDeliveryOutcome(
+        { status: "ok", summary, outputText, ...params.telemetry },
+        "subagent-still-running",
+      );
     }
     if (
       (hadActiveDescendants || expectedSubagentFollowup) &&
@@ -261,24 +296,33 @@ export async function dispatchCronDelivery(
     ) {
       // Descendants existed but no post-orchestration synthesis arrived, so
       // suppress stale parent text like "on it, pulling everything together".
-      return params.withRunSession({ status: "ok", summary, outputText, ...params.telemetry });
+      return withDeliveryOutcome(
+        { status: "ok", summary, outputText, ...params.telemetry },
+        "interim-suppressed",
+      );
     }
     if (synthesizedText.toUpperCase() === SILENT_REPLY_TOKEN.toUpperCase()) {
-      return params.withRunSession({
-        status: "ok",
-        summary,
-        outputText,
-        delivered: true,
-        ...params.telemetry,
-      });
+      return withDeliveryOutcome(
+        {
+          status: "ok",
+          summary,
+          outputText,
+          delivered: true,
+          ...params.telemetry,
+        },
+        "silent-reply",
+      );
     }
     try {
       if (params.isAborted()) {
-        return params.withRunSession({
-          status: "error",
-          error: params.abortReason(),
-          ...params.telemetry,
-        });
+        return withDeliveryOutcome(
+          {
+            status: "error",
+            error: params.abortReason(),
+            ...params.telemetry,
+          },
+          "announce-failed",
+        );
       }
       const didAnnounce = await runSubagentAnnounceFlow({
         childSessionKey: params.agentSessionKey,
@@ -307,29 +351,38 @@ export async function dispatchCronDelivery(
       });
       if (didAnnounce) {
         delivered = true;
+        markDeliveryOutcome("announce-delivered");
       } else {
         const message = "cron announce delivery failed";
         if (!params.deliveryBestEffort) {
-          return params.withRunSession({
-            status: "error",
-            summary,
-            outputText,
-            error: message,
-            ...params.telemetry,
-          });
+          return withDeliveryOutcome(
+            {
+              status: "error",
+              summary,
+              outputText,
+              error: message,
+              ...params.telemetry,
+            },
+            "announce-failed",
+          );
         }
+        markDeliveryOutcome("announce-failed");
         logWarn(`[cron:${params.job.id}] ${message}`);
       }
     } catch (err) {
       if (!params.deliveryBestEffort) {
-        return params.withRunSession({
-          status: "error",
-          summary,
-          outputText,
-          error: String(err),
-          ...params.telemetry,
-        });
+        return withDeliveryOutcome(
+          {
+            status: "error",
+            summary,
+            outputText,
+            error: String(err),
+            ...params.telemetry,
+          },
+          "announce-failed",
+        );
       }
+      markDeliveryOutcome("announce-failed");
       logWarn(`[cron:${params.job.id}] ${String(err)}`);
     }
     return null;
@@ -345,6 +398,7 @@ export async function dispatchCronDelivery(
         return {
           result: failDeliveryTarget(params.resolvedDelivery.error.message),
           delivered,
+          deliveryOutcomeReason,
           summary,
           outputText,
           synthesizedText,
@@ -352,14 +406,19 @@ export async function dispatchCronDelivery(
         };
       }
       logWarn(`[cron:${params.job.id}] ${params.resolvedDelivery.error.message}`);
+      markDeliveryOutcome("target-resolution-failed-best-effort");
       return {
-        result: params.withRunSession({
-          status: "ok",
-          summary,
-          outputText,
-          ...params.telemetry,
-        }),
+        result: withDeliveryOutcome(
+          {
+            status: "ok",
+            summary,
+            outputText,
+            ...params.telemetry,
+          },
+          "target-resolution-failed-best-effort",
+        ),
         delivered,
+        deliveryOutcomeReason,
         summary,
         outputText,
         synthesizedText,
@@ -383,6 +442,7 @@ export async function dispatchCronDelivery(
         return {
           result: directResult,
           delivered,
+          deliveryOutcomeReason: directResult.deliveryOutcomeReason ?? deliveryOutcomeReason,
           summary,
           outputText,
           synthesizedText,
@@ -395,6 +455,7 @@ export async function dispatchCronDelivery(
         return {
           result: announceResult,
           delivered,
+          deliveryOutcomeReason: announceResult.deliveryOutcomeReason ?? deliveryOutcomeReason,
           summary,
           outputText,
           synthesizedText,
@@ -404,8 +465,18 @@ export async function dispatchCronDelivery(
     }
   }
 
+  if (params.deliveryRequested && !deliveryOutcomeReason && !delivered) {
+    markDeliveryOutcome("no-deliverable-payload");
+  }
+  logDebug(
+    `[cron:${params.job.id}] delivery outcome requested=${params.deliveryRequested} ` +
+      `delivered=${delivered} reason=${deliveryOutcomeReason ?? "none"} ` +
+      `heartbeatSkip=${params.skipHeartbeatDelivery} messagingToolSkip=${params.skipMessagingToolDelivery} ` +
+      `bestEffort=${params.deliveryBestEffort}`,
+  );
   return {
     delivered,
+    deliveryOutcomeReason,
     summary,
     outputText,
     synthesizedText,

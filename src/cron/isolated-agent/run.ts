@@ -48,7 +48,12 @@ import {
   isExternalHookSession,
 } from "../../security/external-content.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
-import type { CronJob, CronRunOutcome, CronRunTelemetry } from "../types.js";
+import type {
+  CronDeliveryOutcomeReason,
+  CronJob,
+  CronRunOutcome,
+  CronRunTelemetry,
+} from "../types.js";
 import {
   dispatchCronDelivery,
   matchesMessagingToolDeliveryTarget,
@@ -77,6 +82,8 @@ export type RunCronAgentTurnResult = {
    * messages.  See: https://github.com/openclaw/openclaw/issues/15692
    */
   delivered?: boolean;
+  /** Optional reason code for delivery branch decisions. */
+  deliveryOutcomeReason?: CronDeliveryOutcomeReason;
 } & CronRunOutcome &
   CronRunTelemetry;
 
@@ -557,7 +564,10 @@ export async function runCronIsolatedAgentTurn(params: {
   const embeddedRunError = hasErrorPayload
     ? (lastErrorPayloadText ?? "cron isolated run returned an error payload")
     : undefined;
-  const resolveRunOutcome = (params?: { delivered?: boolean }) =>
+  const resolveRunOutcome = (params?: {
+    delivered?: boolean;
+    deliveryOutcomeReason?: CronDeliveryOutcomeReason;
+  }) =>
     withRunSession({
       status: hasErrorPayload ? "error" : "ok",
       ...(hasErrorPayload
@@ -566,6 +576,7 @@ export async function runCronIsolatedAgentTurn(params: {
       summary,
       outputText,
       delivered: params?.delivered,
+      deliveryOutcomeReason: params?.deliveryOutcomeReason,
       ...telemetry,
     });
 
@@ -614,11 +625,15 @@ export async function runCronIsolatedAgentTurn(params: {
     if (!hasErrorPayload || deliveryResult.result.status !== "ok") {
       return deliveryResult.result;
     }
-    return resolveRunOutcome({ delivered: deliveryResult.result.delivered });
+    return resolveRunOutcome({
+      delivered: deliveryResult.result.delivered,
+      deliveryOutcomeReason: deliveryResult.result.deliveryOutcomeReason,
+    });
   }
   const delivered = deliveryResult.delivered;
+  const deliveryOutcomeReason = deliveryResult.deliveryOutcomeReason;
   summary = deliveryResult.summary;
   outputText = deliveryResult.outputText;
 
-  return resolveRunOutcome({ delivered });
+  return resolveRunOutcome({ delivered, deliveryOutcomeReason });
 }

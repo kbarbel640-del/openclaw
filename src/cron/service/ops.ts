@@ -394,6 +394,7 @@ export async function run(state: CronServiceState, id: string, mode?: "due" | "f
       status: coreResult.status,
       error: coreResult.error,
       delivered: coreResult.delivered,
+      deliveryOutcomeReason: coreResult.deliveryOutcomeReason,
       startedAt,
       endedAt,
     });
@@ -406,6 +407,7 @@ export async function run(state: CronServiceState, id: string, mode?: "due" | "f
       summary: coreResult.summary,
       delivered: coreResult.delivered,
       deliveryStatus: job.state.lastDeliveryStatus,
+      deliveryOutcomeReason: job.state.lastDeliveryOutcomeReason,
       deliveryError: job.state.lastDeliveryError,
       sessionId: coreResult.sessionId,
       sessionKey: coreResult.sessionKey,
