@@ -39,14 +39,18 @@ vi.mock("../../agents/model-catalog.js", () => ({
   loadModelCatalog: vi.fn().mockResolvedValue({ models: [] }),
 }));
 
-vi.mock("../../agents/model-selection.js", () => ({
-  getModelRefStatus: getModelRefStatusMock,
-  isCliProvider: isCliProviderMock,
-  resolveAllowedModelRef: resolveAllowedModelRefMock,
-  resolveConfiguredModelRef: resolveConfiguredModelRefMock,
-  resolveHooksGmailModel: resolveHooksGmailModelMock,
-  resolveThinkingDefault: resolveThinkingDefaultMock,
-}));
+vi.mock("../../agents/model-selection.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../agents/model-selection.js")>();
+  return {
+    ...actual,
+    getModelRefStatus: getModelRefStatusMock,
+    isCliProvider: isCliProviderMock,
+    resolveAllowedModelRef: resolveAllowedModelRefMock,
+    resolveConfiguredModelRef: resolveConfiguredModelRefMock,
+    resolveHooksGmailModel: resolveHooksGmailModelMock,
+    resolveThinkingDefault: resolveThinkingDefaultMock,
+  };
+});
 
 vi.mock("../../agents/model-fallback.js", () => ({
   runWithModelFallback: vi.fn().mockResolvedValue({
@@ -417,6 +421,27 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
       await expectPrimaryOverridePreservesDefaults({ primary: "anthropic/claude-sonnet-4-5" });
     });
 
+    it("applies payload.model override when model is allowed", async () => {
+      resolveAllowedModelRefMock.mockReturnValueOnce({
+        ref: { provider: "anthropic", model: "claude-sonnet-4-6" },
+      });
+
+      const result = await runCronIsolatedAgentTurn(
+        makeParams({
+          job: makeJob({
+            payload: { kind: "agentTurn", message: "test", model: "anthropic/claude-sonnet-4-6" },
+          }),
+        }),
+      );
+
+      expect(result.status).toBe("ok");
+      expect(logWarnMock).not.toHaveBeenCalled();
+      expect(runWithModelFallbackMock).toHaveBeenCalledOnce();
+      const runParams = runWithModelFallbackMock.mock.calls[0][0];
+      expect(runParams.provider).toBe("anthropic");
+      expect(runParams.model).toBe("claude-sonnet-4-6");
+    });
+
     it("falls back to agent defaults when payload.model is not allowed", async () => {
       resolveAllowedModelRefMock.mockReturnValueOnce({
         error: "model not allowed: anthropic/claude-sonnet-4-6",
@@ -448,6 +473,25 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
         | undefined;
       expect(model?.primary).toBe("openai-codex/gpt-5.3-codex");
       expect(model?.fallbacks).toEqual(defaultFallbacks);
+    });
+
+    it("returns an error when payload.model is invalid", async () => {
+      resolveAllowedModelRefMock.mockReturnValueOnce({
+        error: "invalid model: openai/",
+      });
+
+      const result = await runCronIsolatedAgentTurn(
+        makeParams({
+          job: makeJob({
+            payload: { kind: "agentTurn", message: "test", model: "openai/" },
+          }),
+        }),
+      );
+
+      expect(result.status).toBe("error");
+      expect(result.error).toBe("invalid model: openai/");
+      expect(logWarnMock).not.toHaveBeenCalled();
+      expect(runWithModelFallbackMock).not.toHaveBeenCalled();
     });
   });
 });
