@@ -101,6 +101,9 @@ export type TedWorkbenchState = {
   tedIntakeBusy: boolean;
   tedIntakeError: string | null;
   tedIntakeRecommendation: TedIntakeRecommendation | null;
+  tedIntakeSaveBusy: boolean;
+  tedIntakeSaveError: string | null;
+  tedIntakeSaveResult: Record<string, unknown> | null;
   tedThresholdManual: string;
   tedThresholdApprovalAge: string;
   tedThresholdTriageEod: string;
@@ -348,6 +351,19 @@ export type TedWorkbenchState = {
   autonomyStatus: Record<string, unknown> | null;
   autonomyStatusLoading: boolean;
   autonomyStatusError: string | null;
+  // Sprint 2 (SDD 72): Evaluation Pipeline
+  tedEvaluationStatus: Record<string, unknown> | null;
+  tedEvaluationStatusLoading: boolean;
+  tedEvaluationStatusError: string | null;
+  tedEvaluationRunBusy: boolean;
+  tedEvaluationRunError: string | null;
+  tedEvaluationRunResult: Record<string, unknown> | null;
+  tedQaDashboard: Record<string, unknown> | null;
+  tedQaDashboardLoading: boolean;
+  tedQaDashboardError: string | null;
+  tedCanaryRunBusy: boolean;
+  tedCanaryRunError: string | null;
+  tedCanaryRunResult: Record<string, unknown> | null;
 };
 
 export async function loadTedWorkbench(state: TedWorkbenchState) {
@@ -376,6 +392,9 @@ export async function loadTedWorkbench(state: TedWorkbenchState) {
         gates.blocked_actions_missing_explainability_max,
       );
     }
+    // Auto-load deals and commitments in parallel after workbench snapshot
+    void loadTedDealList(state);
+    void loadTedCommitments(state);
   } catch (error) {
     state.tedError = String(error);
   } finally {
@@ -581,6 +600,54 @@ export async function runTedIntakeRecommendation(state: TedWorkbenchState) {
     state.tedIntakeError = String(error);
   } finally {
     state.tedIntakeBusy = false;
+  }
+}
+
+export async function saveTedIntakeJobCard(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedIntakeSaveBusy) {
+    return;
+  }
+  if (!state.tedIntakeRecommendation) {
+    state.tedIntakeSaveError = "Run the intake recommendation first.";
+    return;
+  }
+  state.tedIntakeSaveBusy = true;
+  state.tedIntakeSaveError = null;
+  state.tedIntakeSaveResult = null;
+  try {
+    const result = await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.intake.create",
+      {
+        title: state.tedIntakeTitle,
+        outcome: state.tedIntakeOutcome,
+        job_family: state.tedIntakeJobFamily,
+        risk_level: state.tedIntakeRiskLevel,
+        automation_level: state.tedIntakeAutomationLevel,
+        priority: state.tedIntakeRecommendation.priority,
+        release_target: state.tedIntakeRecommendation.release_target,
+        governance_tier: state.tedIntakeRecommendation.governance_tier,
+        suggested_path: state.tedIntakeRecommendation.suggested_path,
+        recommended_kpis: state.tedIntakeRecommendation.recommended_kpis,
+        hard_bans: state.tedIntakeRecommendation.hard_bans,
+        draft_markdown: state.tedIntakeRecommendation.draft_markdown,
+      },
+    );
+    state.tedIntakeSaveResult = result;
+    // Clear the form after successful save
+    state.tedIntakeTitle = "";
+    state.tedIntakeOutcome = "";
+    state.tedIntakeJobFamily = "MNT";
+    state.tedIntakeRiskLevel = "medium";
+    state.tedIntakeAutomationLevel = "draft-only";
+    state.tedIntakeRecommendation = null;
+    // Reload workbench to reflect the new job card
+    await loadTedWorkbench(state);
+  } catch (error) {
+    state.tedIntakeSaveError =
+      (error instanceof Error ? error.message : String(error)) || "Failed to create job card";
+  } finally {
+    state.tedIntakeSaveBusy = false;
   }
 }
 
@@ -2028,6 +2095,95 @@ export async function fetchAutonomyStatus(state: TedWorkbenchState): Promise<voi
       (err instanceof Error ? err.message : String(err)) || "Failed to fetch autonomy status";
   } finally {
     state.autonomyStatusLoading = false;
+  }
+}
+
+// ─── Evaluation Pipeline Controllers (Sprint 2, SDD 72) ───
+
+export async function loadTedEvaluationStatus(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedEvaluationStatusLoading) {
+    return;
+  }
+  state.tedEvaluationStatusLoading = true;
+  state.tedEvaluationStatusError = null;
+  try {
+    const result = await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.evaluation.status",
+      {},
+    );
+    state.tedEvaluationStatus = result;
+  } catch (err) {
+    state.tedEvaluationStatusError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedEvaluationStatusLoading = false;
+  }
+}
+
+export async function triggerTedEvaluationRun(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedEvaluationRunBusy) {
+    return;
+  }
+  state.tedEvaluationRunBusy = true;
+  state.tedEvaluationRunError = null;
+  state.tedEvaluationRunResult = null;
+  try {
+    const result = await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.evaluation.run",
+      {},
+    );
+    state.tedEvaluationRunResult = result;
+    // Also refresh the status after running
+    state.tedEvaluationStatus = result;
+  } catch (err) {
+    state.tedEvaluationRunError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedEvaluationRunBusy = false;
+  }
+}
+
+// ─── QA Dashboard Controller ───
+
+export async function loadTedQaDashboard(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedQaDashboardLoading) {
+    return;
+  }
+  state.tedQaDashboardLoading = true;
+  state.tedQaDashboardError = null;
+  try {
+    const result = await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.qa.dashboard",
+      {},
+    );
+    state.tedQaDashboard = result;
+  } catch (err) {
+    state.tedQaDashboardError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedQaDashboardLoading = false;
+  }
+}
+
+export async function triggerTedCanaryRun(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedCanaryRunBusy) {
+    return;
+  }
+  state.tedCanaryRunBusy = true;
+  state.tedCanaryRunError = null;
+  try {
+    const result = await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.canary.run",
+      {},
+    );
+    state.tedCanaryRunResult = result;
+    // Refresh dashboard after canary run
+    void loadTedQaDashboard(state);
+  } catch (err) {
+    state.tedCanaryRunError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedCanaryRunBusy = false;
   }
 }
 

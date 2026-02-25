@@ -1,0 +1,6 @@
+Generate a meeting preparation brief for the upcoming meeting.
+
+Meeting details:
+{{meeting_data}}
+
+Include: agenda suggestions, key decisions needed, background context from related deals and commitments, and any open action items relevant to attendees.

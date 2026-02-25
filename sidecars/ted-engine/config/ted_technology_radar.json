@@ -1,0 +1,154 @@
+{
+  "_config_version": 1,
+  "_description": "TED Technology Radar (ThoughtWorks model). Quadrants: techniques, tools, platforms, integrations. Rings: adopt, trial, assess, hold.",
+  "_last_reviewed": "cycle_013",
+  "blips": [
+    {
+      "name": "Event Sourcing (JSONL)",
+      "quadrant": "techniques",
+      "ring": "adopt",
+      "moved": "unchanged",
+      "description": "Core state management pattern. 35+ ledgers, dual-write."
+    },
+    {
+      "name": "Template-as-Contract",
+      "quadrant": "techniques",
+      "ring": "adopt",
+      "moved": "unchanged",
+      "description": "LLM output contracts with golden fixture validation."
+    },
+    {
+      "name": "Progressive Autonomy",
+      "quadrant": "techniques",
+      "ring": "adopt",
+      "moved": "unchanged",
+      "description": "Empirically-driven autonomy ladder with quantitative gates."
+    },
+    {
+      "name": "Human-in-the-Loop (Approval Gates)",
+      "quadrant": "techniques",
+      "ring": "adopt",
+      "moved": "unchanged",
+      "description": "REQUIRES_OPERATOR_CONFIRMATION for write tools."
+    },
+    {
+      "name": "Correction Signal Collection",
+      "quadrant": "techniques",
+      "ring": "adopt",
+      "moved": "unchanged",
+      "description": "Builder Lane foundation. editDistance, hooks on mutations."
+    },
+    {
+      "name": "Schema Versioning (JSONL)",
+      "quadrant": "techniques",
+      "ring": "trial",
+      "moved": "in",
+      "description": "Weak schema + upcasting for non-destructive evolution. New for Cycle 13."
+    },
+    {
+      "name": "Context Engineering",
+      "quadrant": "techniques",
+      "ring": "trial",
+      "moved": "in",
+      "description": "Systematic context budget per LLM call. Harrison Chase priority."
+    },
+    {
+      "name": "Prompt Registry",
+      "quadrant": "techniques",
+      "ring": "trial",
+      "moved": "in",
+      "description": "Externalized versioned prompts with shadow testing."
+    },
+    {
+      "name": "Content Isolation (Lethal Trifecta)",
+      "quadrant": "techniques",
+      "ring": "trial",
+      "moved": "in",
+      "description": "Architectural separation of untrusted content processing."
+    },
+    {
+      "name": "LLM-as-Judge Evaluation",
+      "quadrant": "techniques",
+      "ring": "assess",
+      "moved": "in",
+      "description": "Andrew Ng pattern. Evaluate output quality using LLM scoring."
+    },
+    {
+      "name": "Vector Store / RAG",
+      "quadrant": "techniques",
+      "ring": "assess",
+      "moved": "in",
+      "description": "Semantic retrieval to supplement JSONL ledgers."
+    },
+    {
+      "name": "Multi-Agent Decomposition",
+      "quadrant": "techniques",
+      "ring": "assess",
+      "moved": "in",
+      "description": "CrewAI/LangGraph patterns for complex workflows."
+    },
+    {
+      "name": "Dynamic Reasoning (ReAct/ToT)",
+      "quadrant": "techniques",
+      "ring": "assess",
+      "moved": "in",
+      "description": "Hybrid reasoning for novel operator requests."
+    },
+    {
+      "name": "Microsoft Graph API",
+      "quadrant": "platforms",
+      "ring": "adopt",
+      "moved": "unchanged",
+      "description": "Core integration. Mail, Calendar, Planner, To Do, SharePoint."
+    },
+    {
+      "name": "MCP Protocol",
+      "quadrant": "platforms",
+      "ring": "adopt",
+      "moved": "unchanged",
+      "description": "71 tools. 97M+ monthly SDK downloads industry-wide."
+    },
+    {
+      "name": "OpenAI GPT-4o",
+      "quadrant": "tools",
+      "ring": "adopt",
+      "moved": "unchanged",
+      "description": "Primary LLM provider for production use."
+    },
+    {
+      "name": "Anthropic Claude",
+      "quadrant": "tools",
+      "ring": "trial",
+      "moved": "unchanged",
+      "description": "Available as fallback/alternative LLM provider."
+    },
+    {
+      "name": "SQLite FTS5",
+      "quadrant": "tools",
+      "ring": "assess",
+      "moved": "in",
+      "description": "Local full-text search for ledger queries. Lightweight alternative to vector store."
+    },
+    {
+      "name": "Temporal.io",
+      "quadrant": "platforms",
+      "ring": "assess",
+      "moved": "in",
+      "description": "Durable execution for long-running workflows. Evaluate for complex state machines."
+    },
+    {
+      "name": "Monday.com Integration",
+      "quadrant": "integrations",
+      "ring": "assess",
+      "moved": "unchanged",
+      "description": "Mentioned in architecture but not implemented."
+    },
+    {
+      "name": "DocuSign Integration",
+      "quadrant": "integrations",
+      "ring": "assess",
+      "moved": "unchanged",
+      "description": "Mentioned in architecture but not implemented."
+    }
+  ]
+}

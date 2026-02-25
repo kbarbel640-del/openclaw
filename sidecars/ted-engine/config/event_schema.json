@@ -1,4 +1,5 @@
 {
+  "_config_version": 1,
   "version": "1.0.0",
   "description": "Canonical event schema for Ted event_log. All writes should emit an event via appendEvent().",
   "event_envelope": {
@@ -306,6 +307,21 @@
       "self_healing.draft.zombie_detected": "Draft stuck in approved state for over 1 hour detected by scheduler",
       "self_healing.draft.auto_retried": "Zombie draft retry attempted after draft-existence verification",
       "self_healing.draft.dead_lettered": "Draft moved to dead letter after max retries or non-transient error"
+    },
+    "system": {
+      "system.startup_validation": "Pre-upgrade startup integrity check — validates ledger JSONL and config JSON files on boot",
+      "system.shutdown": "Graceful shutdown initiated — logs signal, in-flight request count, and drain outcome"
+    },
+    "tool": {
+      "tool.usage.recorded": "MCP tool execution latency and invocation count recorded for telemetry"
+    },
+    "evaluation": {
+      "evaluation.pipeline.completed": "Multi-grader evaluation pipeline run completed with pass/fail summary",
+      "evaluation.quality.degraded": "Evaluation pass rate dropped below 80% threshold",
+      "evaluation.correction_fixture.created": "Auto-generated golden fixture from Builder Lane correction signal",
+      "evaluation.canary.completed": "Synthetic canary check completed",
+      "evaluation.canary.failed": "Synthetic canary check failed",
+      "evaluation.drift.detected": "Score drift detected compared to 7-day rolling baseline"
     }
   }
 }

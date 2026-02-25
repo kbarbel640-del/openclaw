@@ -107,6 +107,7 @@ import {
   previewTedJobCardUpdate,
   revokeTedConnectorAuth,
   runTedIntakeRecommendation,
+  saveTedIntakeJobCard,
   runTedProof,
   saveTedPolicyUpdate,
   saveTedJobCardDetail,
@@ -124,6 +125,10 @@ import {
   fetchEngagementInsights,
   fetchNoiseLevel,
   fetchAutonomyStatus,
+  loadTedEvaluationStatus,
+  triggerTedEvaluationRun,
+  loadTedQaDashboard,
+  triggerTedCanaryRun,
   loadTedStaleDeals,
   generateTedDealRetrospective,
   loadTedSharePointSites,
@@ -436,6 +441,9 @@ export class OpenClawApp extends LitElement {
   @state() tedIntakeBusy = false;
   @state() tedIntakeError: string | null = null;
   @state() tedIntakeRecommendation: TedIntakeRecommendation | null = null;
+  @state() tedIntakeSaveBusy = false;
+  @state() tedIntakeSaveError: string | null = null;
+  @state() tedIntakeSaveResult: Record<string, unknown> | null = null;
   @state() tedThresholdManual = "45";
   @state() tedThresholdApprovalAge = "120";
   @state() tedThresholdTriageEod = "12";
@@ -690,6 +698,20 @@ export class OpenClawApp extends LitElement {
   @state() autonomyStatus: Record<string, unknown> | null = null;
   @state() autonomyStatusLoading = false;
   @state() autonomyStatusError: string | null = null;
+  // Sprint 2 (SDD 72): Evaluation Pipeline
+  @state() tedEvaluationStatus: Record<string, unknown> | null = null;
+  @state() tedEvaluationStatusLoading = false;
+  @state() tedEvaluationStatusError: string | null = null;
+  @state() tedEvaluationRunBusy = false;
+  @state() tedEvaluationRunError: string | null = null;
+  @state() tedEvaluationRunResult: Record<string, unknown> | null = null;
+  // QA Dashboard (SDD 75)
+  @state() tedQaDashboard: Record<string, unknown> | null = null;
+  @state() tedQaDashboardLoading = false;
+  @state() tedQaDashboardError: string | null = null;
+  @state() tedCanaryRunBusy = false;
+  @state() tedCanaryRunError: string | null = null;
+  @state() tedCanaryRunResult: Record<string, unknown> | null = null;
 
   @state() logsLoading = false;
   @state() logsError: string | null = null;
@@ -846,6 +868,10 @@ export class OpenClawApp extends LitElement {
 
   async runTedIntakeRecommendation() {
     await runTedIntakeRecommendation(this);
+  }
+
+  async saveTedIntakeJobCard() {
+    await saveTedIntakeJobCard(this);
   }
 
   async applyTedThresholds(reset = false) {
@@ -1072,6 +1098,26 @@ export class OpenClawApp extends LitElement {
 
   async fetchAutonomyStatus() {
     await fetchAutonomyStatus(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  }
+
+  async loadTedEvaluationStatus() {
+    await loadTedEvaluationStatus(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async triggerTedEvaluationRun() {
+    await triggerTedEvaluationRun(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async loadTedQaDashboard() {
+    await loadTedQaDashboard(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  }
+
+  async triggerTedCanaryRun() {
+    await triggerTedCanaryRun(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
   }
 
   async loadTedIngestionStatus() {

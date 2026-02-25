@@ -1,0 +1,126 @@
+{
+  "_config_version": 1,
+  "_description": "Feature Maturity Model (Apache Incubator-inspired). Levels: proposed, incubating, graduated, mature. Features regress if new findings are discovered.",
+  "_last_evaluated": "cycle_013",
+  "features": [
+    {
+      "name": "event_sourcing",
+      "level": "mature",
+      "since_cycle": 9,
+      "last_finding_cycle": null,
+      "notes": "Core architecture. 218 event types, 35 ledgers, dual-write. No findings in 4+ cycles."
+    },
+    {
+      "name": "draft_state_machine",
+      "level": "graduated",
+      "since_cycle": 10,
+      "last_finding_cycle": 11,
+      "notes": "6-state lifecycle. Last finding: req.destroy ordering (Cycle 11, fixed)."
+    },
+    {
+      "name": "governance_choke_point",
+      "level": "mature",
+      "since_cycle": 9,
+      "last_finding_cycle": null,
+      "notes": "Single sidecar. Execution boundary policy. No bypass. No findings in 4+ cycles."
+    },
+    {
+      "name": "builder_lane",
+      "level": "graduated",
+      "since_cycle": 12,
+      "last_finding_cycle": 12,
+      "notes": "Complete implementation. Last finding: rubber-stamping detection (Cycle QA, fixed)."
+    },
+    {
+      "name": "self_healing",
+      "level": "graduated",
+      "since_cycle": 12,
+      "last_finding_cycle": 12,
+      "notes": "Circuit breakers, provider health, noise reduction. Last finding: startup recovery check."
+    },
+    {
+      "name": "m365_integration",
+      "level": "graduated",
+      "since_cycle": 10,
+      "last_finding_cycle": 11,
+      "notes": "Mail, Calendar, Planner, To Do, SharePoint. Last finding: ensureValidToken in reconcile."
+    },
+    {
+      "name": "scheduler",
+      "level": "graduated",
+      "since_cycle": 10,
+      "last_finding_cycle": 10,
+      "notes": "Cron matching, 6 gates, auto-dispatch. Last finding: DOW=7 Sunday (Cycle 11, fixed)."
+    },
+    {
+      "name": "hipaa_compliance",
+      "level": "graduated",
+      "since_cycle": 11,
+      "last_finding_cycle": 11,
+      "notes": "Entity-level overrides, PHI redaction. Last finding: case-sensitivity bypass."
+    },
+    {
+      "name": "ingestion_pipeline",
+      "level": "incubating",
+      "since_cycle": 9,
+      "last_finding_cycle": 10,
+      "notes": "Inbox ingestion, dedup. Needs: more robust error handling, semantic dedup."
+    },
+    {
+      "name": "discovery_pipeline",
+      "level": "incubating",
+      "since_cycle": 9,
+      "last_finding_cycle": 10,
+      "notes": "90d email + 60d calendar scan. Needs: incremental discovery, better deal matching."
+    },
+    {
+      "name": "sharepoint_integration",
+      "level": "incubating",
+      "since_cycle": 12,
+      "last_finding_cycle": 12,
+      "notes": "7 routes. Needs: content extraction, document intelligence."
+    },
+    {
+      "name": "reconciliation_engine",
+      "level": "graduated",
+      "since_cycle": 11,
+      "last_finding_cycle": 11,
+      "notes": "Planner/To Do sync, dedup. Last finding: graphFetchWithRetry upgrade."
+    },
+    {
+      "name": "schema_versioning",
+      "level": "proposed",
+      "since_cycle": 13,
+      "last_finding_cycle": null,
+      "notes": "Identified in research. Not yet implemented."
+    },
+    {
+      "name": "config_migration",
+      "level": "proposed",
+      "since_cycle": 13,
+      "last_finding_cycle": null,
+      "notes": "Identified in research. Not yet implemented."
+    },
+    {
+      "name": "prompt_registry",
+      "level": "proposed",
+      "since_cycle": 13,
+      "last_finding_cycle": null,
+      "notes": "Identified in research. Not yet implemented."
+    },
+    {
+      "name": "content_isolation",
+      "level": "proposed",
+      "since_cycle": 13,
+      "last_finding_cycle": null,
+      "notes": "Lethal trifecta mitigation. Not yet implemented."
+    },
+    {
+      "name": "evaluation_pipeline",
+      "level": "proposed",
+      "since_cycle": 13,
+      "last_finding_cycle": null,
+      "notes": "Expansion from 7 to 20+ fixtures. Not yet implemented."
+    }
+  ]
+}

@@ -95,6 +95,10 @@ export type TedViewProps = {
   intakeBusy: boolean;
   intakeError: string | null;
   intakeRecommendation: TedIntakeRecommendation | null;
+  intakeSaveBusy: boolean;
+  intakeSaveError: string | null;
+  intakeSaveResult: Record<string, unknown> | null;
+  onSaveIntakeJobCard: () => void;
   thresholdManual: string;
   thresholdApprovalAge: string;
   thresholdTriageEod: string;
@@ -456,6 +460,23 @@ export type TedViewProps = {
   onFetchEngagementInsights: () => void;
   onFetchNoiseLevel: () => void;
   onFetchAutonomyStatus: () => void;
+  // Sprint 2 (SDD 72): Evaluation Pipeline
+  tedEvaluationStatus: Record<string, unknown> | null;
+  tedEvaluationStatusLoading: boolean;
+  tedEvaluationStatusError: string | null;
+  tedEvaluationRunBusy: boolean;
+  tedEvaluationRunError: string | null;
+  tedEvaluationRunResult: Record<string, unknown> | null;
+  onLoadEvaluationStatus: () => void;
+  onTriggerEvaluationRun: () => void;
+  tedQaDashboard: Record<string, unknown> | null;
+  tedQaDashboardLoading: boolean;
+  tedQaDashboardError: string | null;
+  tedCanaryRunBusy: boolean;
+  tedCanaryRunError: string | null;
+  tedCanaryRunResult: Record<string, unknown> | null;
+  onLoadQaDashboard: () => void;
+  onTriggerCanaryRun: () => void;
 };
 
 function labelForDealStage(stage: string | null): string {
@@ -699,6 +720,249 @@ function toneForIntegrationStatus(
     return "warn";
   }
   return "danger";
+}
+
+function renderQaDashboard(props: TedViewProps): typeof nothing | ReturnType<typeof html> {
+  const dashboard = props.tedQaDashboard;
+  const loading = props.tedQaDashboardLoading ?? false;
+  const dashError = props.tedQaDashboardError ?? "";
+  const canaryBusy = props.tedCanaryRunBusy ?? false;
+  const canaryError = props.tedCanaryRunError ?? "";
+
+  const health = dashboard ? String((dashboard.health ?? "unknown") as string) : "unknown";
+  const healthColor =
+    health === "healthy"
+      ? "var(--color-success)"
+      : health === "degraded"
+        ? "var(--color-warning)"
+        : health === "unhealthy"
+          ? "var(--color-error)"
+          : "var(--color-text-secondary)";
+
+  const evaluation = (dashboard?.evaluation ?? {}) as Record<string, unknown>;
+  const canaries = (dashboard?.canaries ?? {}) as Record<string, unknown>;
+  const drift = (dashboard?.drift ?? {}) as Record<string, unknown>;
+  const config = (dashboard?.config ?? {}) as Record<string, unknown>;
+
+  const evalPassRate = evaluation.pass_rate != null ? Number(evaluation.pass_rate) : null;
+  const canaryPassed = canaries.passed != null ? Number(canaries.passed) : null;
+  const canaryFailed = canaries.failed != null ? Number(canaries.failed) : null;
+  const canaryTotal = canaries.canaries_run != null ? Number(canaries.canaries_run) : null;
+  const driftCount = drift.drifting != null ? Number(drift.drifting) : null;
+  const driftItems = Array.isArray(drift.drift_items)
+    ? (drift.drift_items as Array<Record<string, unknown>>)
+    : [];
+
+  return html`
+    <section class="card" style="margin-top: var(--space-4);">
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">QA Dashboard</div>
+        <div class="row" style="gap: var(--space-2);">
+          <button class="btn btn--sm" ?disabled=${loading || canaryBusy} @click=${props.onLoadQaDashboard} aria-label="Refresh QA dashboard">Refresh</button>
+          <button class="btn btn--sm btn--primary" ?disabled=${canaryBusy || loading} @click=${props.onTriggerCanaryRun} aria-label="Run canary checks">
+            ${canaryBusy ? "Running..." : "Run Canaries"}
+          </button>
+        </div>
+      </div>
+      ${dashError ? html`<div class="text-error" style="margin-top: var(--space-2);">${dashError}</div>` : nothing}
+      ${canaryError ? html`<div class="text-error" style="margin-top: var(--space-2);">${canaryError}</div>` : nothing}
+      ${
+        loading
+          ? html`
+              <div class="text-caption" style="margin-top: var(--space-2)">Loading...</div>
+            `
+          : nothing
+      }
+      ${
+        !dashboard && !loading
+          ? html`
+              <div class="text-caption" style="margin-top: var(--space-2)">
+                No QA data yet. Click "Refresh" to load the dashboard.
+              </div>
+            `
+          : nothing
+      }
+      ${
+        dashboard
+          ? html`
+        <div style="margin-top: var(--space-3);">
+          <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3);">
+            <span style="font-size: var(--font-size-sm); font-weight: var(--font-weight-medium);">Health:</span>
+            <span style="font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); color: ${healthColor};">${health.toUpperCase()}</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3);">
+            <div style="text-align: center; padding: var(--space-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm);">
+              <div class="text-caption">Evaluation</div>
+              <div style="font-size: var(--font-size-md); font-weight: var(--font-weight-medium); color: ${evalPassRate != null && evalPassRate >= 80 ? "var(--color-success)" : evalPassRate != null ? "var(--color-warning)" : "var(--color-text-secondary)"};">
+                ${evalPassRate != null ? `${evalPassRate}%` : "\u2014"}
+              </div>
+            </div>
+            <div style="text-align: center; padding: var(--space-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm);">
+              <div class="text-caption">Canaries</div>
+              <div style="font-size: var(--font-size-md); font-weight: var(--font-weight-medium); color: ${canaryFailed != null && canaryFailed === 0 ? "var(--color-success)" : canaryFailed != null ? "var(--color-error)" : "var(--color-text-secondary)"};">
+                ${canaryTotal != null ? `${canaryPassed}/${canaryTotal}` : "\u2014"}
+              </div>
+            </div>
+            <div style="text-align: center; padding: var(--space-2); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm);">
+              <div class="text-caption">Drift</div>
+              <div style="font-size: var(--font-size-md); font-weight: var(--font-weight-medium); color: ${driftCount != null && driftCount === 0 ? "var(--color-success)" : driftCount != null ? "var(--color-warning)" : "var(--color-text-secondary)"};">
+                ${driftCount != null ? (driftCount === 0 ? "Stable" : `${driftCount} drifting`) : "\u2014"}
+              </div>
+            </div>
+          </div>
+          ${
+            driftItems.length > 0
+              ? html`
+            <div style="margin-top: var(--space-3);">
+              <div class="text-caption" style="margin-bottom: var(--space-1);">Drifting Intents (${driftItems.length})</div>
+              <div style="max-height: 150px; overflow-y: auto;">
+                ${driftItems.map(
+                  (d) => html`
+                  <div style="padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--color-border-subtle); font-size: var(--font-size-sm);">
+                    <span style="font-weight: var(--font-weight-medium);">${String(d.intent)}</span>
+                    <span style="color: ${String(d.direction) === "degrading" ? "var(--color-error)" : "var(--color-success)"};">${String(d.direction)}</span>
+                    <span class="text-caption">${String(d.baseline_avg)} -> ${String(d.recent_avg)} (delta: ${String(d.delta)})</span>
+                  </div>
+                `,
+                )}
+              </div>
+            </div>
+          `
+              : nothing
+          }
+          ${
+            config
+              ? html`
+            <div class="text-caption" style="margin-top: var(--space-2);">
+              Canary schedule: ${config.canary_schedule_enabled ? "enabled" : "disabled"} (${config.canary_count} canaries, every ${config.canary_interval_minutes}min)
+            </div>
+          `
+              : nothing
+          }
+        </div>
+      `
+          : nothing
+      }
+    </section>
+  `;
+}
+
+function renderEvaluationPipeline(props: TedViewProps): typeof nothing | ReturnType<typeof html> {
+  const status = props.tedEvaluationStatus;
+  const statusLoading = props.tedEvaluationStatusLoading ?? false;
+  const statusError = props.tedEvaluationStatusError ?? "";
+  const runBusy = props.tedEvaluationRunBusy ?? false;
+  const runError = props.tedEvaluationRunError ?? "";
+
+  const passCount = status ? Number(status.pass_count ?? 0) : 0;
+  const failCount = status ? Number(status.fail_count ?? 0) : 0;
+  const total = status ? Number(status.total ?? 0) : 0;
+  const passRate = status ? Number(status.pass_rate ?? 0) : 0;
+  const trend = status ? String((status.trend ?? "unknown") as string) : "unknown";
+  const avg7day = status?.avg_7day_rate != null ? Number(status.avg_7day_rate) : null;
+  const timestamp = status?.timestamp ? String(status.timestamp as string) : null;
+  const results = Array.isArray(status?.results)
+    ? (status.results as Array<Record<string, unknown>>)
+    : [];
+  const failures = results.filter((r) => r.status !== "pass");
+
+  const trendIcon =
+    trend === "improving" ? "^" : trend === "degrading" ? "v" : trend === "stable" ? "=" : "?";
+  const trendColor =
+    trend === "improving"
+      ? "var(--color-success)"
+      : trend === "degrading"
+        ? "var(--color-error)"
+        : "var(--color-text-secondary)";
+  const rateColor =
+    passRate >= 80
+      ? "var(--color-success)"
+      : passRate >= 60
+        ? "var(--color-warning)"
+        : "var(--color-error)";
+
+  return html`
+    <section class="card" style="margin-top: var(--space-4);">
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">Evaluation Pipeline</div>
+        <div class="row" style="gap: var(--space-2);">
+          <button class="btn btn--sm" ?disabled=${statusLoading || runBusy} @click=${props.onLoadEvaluationStatus} aria-label="Refresh evaluation status">Refresh</button>
+          <button class="btn btn--sm btn--primary" ?disabled=${runBusy || statusLoading} @click=${props.onTriggerEvaluationRun} aria-label="Run evaluation pipeline">
+            ${runBusy ? "Running..." : "Run Now"}
+          </button>
+        </div>
+      </div>
+      ${statusError ? html`<div class="text-error" style="margin-top: var(--space-2);">${statusError}</div>` : nothing}
+      ${runError ? html`<div class="text-error" style="margin-top: var(--space-2);">${runError}</div>` : nothing}
+      ${
+        statusLoading
+          ? html`
+              <div class="text-caption" style="margin-top: var(--space-2)">Loading...</div>
+            `
+          : nothing
+      }
+      ${
+        !status && !statusLoading
+          ? html`
+              <div class="text-caption" style="margin-top: var(--space-2)">
+                No evaluation data yet. Click "Run Now" to trigger the first run.
+              </div>
+            `
+          : nothing
+      }
+      ${
+        status
+          ? html`
+        <div style="margin-top: var(--space-3); display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3);">
+          <div style="text-align: center;">
+            <div class="text-caption">Pass Rate</div>
+            <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); color: ${rateColor};">${passRate}%</div>
+          </div>
+          <div style="text-align: center;">
+            <div class="text-caption">Pass / Fail</div>
+            <div style="font-size: var(--font-size-md); font-weight: var(--font-weight-medium);">${passCount} / ${failCount}</div>
+          </div>
+          <div style="text-align: center;">
+            <div class="text-caption">Trend</div>
+            <div style="font-size: var(--font-size-md); font-weight: var(--font-weight-medium); color: ${trendColor};">${trendIcon} ${trend}</div>
+          </div>
+          <div style="text-align: center;">
+            <div class="text-caption">7-Day Avg</div>
+            <div style="font-size: var(--font-size-md); font-weight: var(--font-weight-medium);">${avg7day != null ? `${avg7day}%` : "\u2014"}</div>
+          </div>
+        </div>
+        ${timestamp ? html`<div class="text-caption" style="margin-top: var(--space-2);">Last run: ${new Date(timestamp).toLocaleString()}</div>` : nothing}
+        ${
+          failures.length > 0
+            ? html`
+          <div style="margin-top: var(--space-3);">
+            <div class="text-caption" style="margin-bottom: var(--space-1);">Failing Fixtures (${failures.length})</div>
+            <div style="max-height: 200px; overflow-y: auto;">
+              ${failures.map(
+                (f) => html`
+                <div style="padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--color-border-subtle); font-size: var(--font-size-sm);">
+                  <span style="font-weight: var(--font-weight-medium); color: var(--color-error);">${String(f.fixture)}</span>
+                  ${
+                    Array.isArray(f.missing_sections) && (f.missing_sections as string[]).length > 0
+                      ? html` <span class="text-caption">missing: ${(f.missing_sections as string[]).join(", ")}</span>`
+                      : nothing
+                  }
+                  ${f.error ? html` <span class="text-caption">error: ${String(f.error as string)}</span>` : nothing}
+                </div>
+              `,
+              )}
+            </div>
+          </div>
+        `
+            : html`
+          <div class="text-caption" style="margin-top: var(--space-2); color: var(--color-success);">All ${total} fixtures passing.</div>
+        `
+        }
+      `
+          : nothing
+      }
+    </section>
+  `;
 }
 
 function renderSelfHealingDashboard(props: TedViewProps): typeof nothing | ReturnType<typeof html> {
@@ -1100,7 +1364,7 @@ function renderBuilderLaneDashboard(props: TedViewProps): typeof nothing | Retur
   const calibrationBusy = props.tedBuilderLaneCalibrationBusy ?? false;
 
   const statusRec = status;
-  const phase = (statusRec?.phase as string) ?? "unknown";
+  const phase = (statusRec?.phase as string) ?? "silent";
   const totalCorrections = (statusRec?.total_corrections as number) ?? 0;
   const patternsDetected = (statusRec?.patterns_detected as number) ?? 0;
   const proposalsPending = (statusRec?.proposals_pending as number) ?? 0;
@@ -1111,7 +1375,7 @@ function renderBuilderLaneDashboard(props: TedViewProps): typeof nothing | Retur
     ? (patternsRec.patterns as Record<string, unknown>[])
     : [];
   const metricsRec = metrics;
-  const correctionRate = metricsRec?.correction_rate_trend as number | undefined;
+  const correctionRate = (metricsRec?.correction_rate_current as number) ?? 0;
   const acceptanceRate = metricsRec?.acceptance_rate as number | undefined;
   const monthlyData = Array.isArray(metricsRec?.monthly_summary)
     ? (metricsRec.monthly_summary as Record<string, unknown>[])
@@ -1266,7 +1530,7 @@ function renderBuilderLaneDashboard(props: TedViewProps): typeof nothing | Retur
               <div style="padding: 8px; background: var(--color-bg-secondary, #f9fafb); border-radius: 6px;">
                 <div class="muted" style="font-size: 10px; text-transform: uppercase;">Correction Rate Trend</div>
                 <div style="font-size: 14px; font-weight: 600; color: ${correctionRate < 0 ? "var(--color-success, #34d399)" : "var(--color-warning, #fbbf24)"};">
-                  ${correctionRate > 0 ? "+" : ""}${(correctionRate * 100).toFixed(1)}%
+                  ${correctionRate > 0 ? "+" : ""}${Number.isFinite(correctionRate) ? (correctionRate * 100).toFixed(1) : "0.0"}%
                 </div>
                 <div class="muted" style="font-size: 10px;">${correctionRate < 0 ? "Improving" : "Needs attention"}</div>
               </div>
@@ -1595,10 +1859,10 @@ function renderTrustAutonomyCard(props: TedViewProps): typeof nothing | ReturnTy
       <div class="row" style="justify-content: space-between; align-items: center;">
         <div class="card-title">Trust & Autonomy</div>
         <div style="display: flex; gap: 6px;">
-          <button class="btn btn--sm" aria-label="Evaluate autonomy level" ?disabled=${loading} @click=${() => props.onLoadTrustAutonomy?.()}>
+          <button class="btn btn--sm" aria-label="Evaluate autonomy level" ?disabled=${loading} @click=${() => props.onLoadTrustAutonomy()}>
             ${loading ? "Evaluating..." : "Evaluate Autonomy"}
           </button>
-          <button class="btn btn--sm" aria-label="Analyze failure aggregation" ?disabled=${aggrLoading} @click=${() => props.onLoadFailureAggregation?.()}>
+          <button class="btn btn--sm" aria-label="Analyze failure aggregation" ?disabled=${aggrLoading} @click=${() => props.onLoadFailureAggregation()}>
             ${aggrLoading ? "Analyzing..." : "Analyze Failures"}
           </button>
         </div>
@@ -2935,12 +3199,10 @@ export function renderTed(props: TedViewProps) {
 
               ${
                 showOperate
-                  ? html`<section style="margin-top: var(--space-8);">
+                  ? html`<div class="card" style="margin-top: 16px; margin-bottom: 0;">
                       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4);">
-                        <h3 style="font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); margin: 0;">Deal Pipeline</h3>
-                        <button
-                          style="height: var(--button-height); padding: 0 var(--space-4); border: 1px solid var(--color-border); border-radius: var(--border-radius); background: transparent; color: var(--color-accent); font-size: var(--font-size-sm); cursor: pointer; transition: var(--transition-fast);"
-                          aria-label="Refresh deal pipeline"
+                        <div class="card-title" style="margin: 0;">Deal Pipeline</div>
+                        <button class="btn" aria-label="Refresh deal pipeline"
                           ?disabled=${props.tedDealListLoading}
                           @click=${() => props.onLoadDealList()}
                         >${props.tedDealListLoading ? "Loading..." : "Refresh"}</button>
@@ -2996,17 +3258,16 @@ export function renderTed(props: TedViewProps) {
                             })
                           : nothing
                       }
-                    </section>`
+                    </div>`
                   : nothing
               }
 
               ${
                 showOperate
-                  ? html`<section style="margin-top: var(--space-6);">
+                  ? html`<div class="card" style="margin-top: 16px; margin-bottom: 0;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3);">
-                      <h3 style="font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); margin: 0;">Stale Deal Owners</h3>
-                      <button
-                        style="height: var(--button-height); padding: 0 var(--space-3); border: 1px solid var(--color-border); border-radius: var(--border-radius); background: transparent; color: var(--color-accent); font-size: var(--font-size-xs); cursor: pointer;"
+                      <div class="card-title" style="margin: 0;">Stale Deal Owners</div>
+                      <button class="btn" aria-label="Check stale deal owners"
                         ?disabled=${props.tedStaleDealsLoading}
                         @click=${() => props.onLoadStaleDeals()}
                       >${props.tedStaleDealsLoading ? "Checking..." : "Check Stale Owners"}</button>
@@ -3035,7 +3296,7 @@ export function renderTed(props: TedViewProps) {
                           `
                         : nothing
                     }
-                  </section>`
+                  </div>`
                   : nothing
               }
 
@@ -4933,7 +5194,25 @@ export function renderTed(props: TedViewProps) {
                           </div>
                         </div>
                       </div>
-                      <pre class="mono" style="margin-top: 10px; white-space: pre-wrap;">${props.intakeRecommendation.draft_markdown}</pre>`
+                      <pre class="mono" style="margin-top: 10px; white-space: pre-wrap;">${props.intakeRecommendation.draft_markdown}</pre>
+                      <div class="row" style="justify-content: flex-end; margin-top: 10px; gap: 8px;">
+                        ${props.intakeSaveError ? html`<span class="danger" style="font-size: 12px;">${props.intakeSaveError}</span>` : nothing}
+                        ${
+                          props.intakeSaveResult
+                            ? html`
+                                <span class="muted" style="font-size: 12px">Job card created.</span>
+                              `
+                            : nothing
+                        }
+                        <button
+                          class="btn"
+                          aria-label="Create job card from intake recommendation"
+                          ?disabled=${props.intakeSaveBusy}
+                          @click=${props.onSaveIntakeJobCard}
+                        >
+                          ${props.intakeSaveBusy ? "Creating..." : "Create Job Card"}
+                        </button>
+                      </div>`
                     : nothing
                 }
               </div>`
@@ -5193,7 +5472,12 @@ export function renderTed(props: TedViewProps) {
               ${
                 showEvals
                   ? html`<div class="card" style="margin-top: 16px; margin-bottom: 0;">
-                      <div class="card-title">Proof Check History</div>
+                      <div class="row" style="justify-content: space-between; align-items: center;">
+                        <div class="card-title">Proof Check History</div>
+                        <button class="btn" aria-label="Refresh proof history" ?disabled=${props.loading} @click=${props.onRefresh}>
+                          ${props.loading ? "Refreshing..." : "Refresh"}
+                        </button>
+                      </div>
                       <div class="card-sub">
                         Pass/fail history from executed proof checks.
                       </div>
@@ -5224,10 +5508,12 @@ export function renderTed(props: TedViewProps) {
                   : nothing
               }
 
-              ${showEvals || showGovern ? renderSelfHealingDashboard(props) : nothing}
-              ${showEvals || showGovern ? renderBuilderLaneDashboard(props) : nothing}
-              ${showEvals || showGovern ? renderImprovementProposalsCard(props) : nothing}
-              ${showEvals || showGovern ? renderTrustAutonomyCard(props) : nothing}
+              ${showEvals || showGovern || showBuild ? renderEvaluationPipeline(props) : nothing}
+              ${showEvals || showGovern || showBuild ? renderQaDashboard(props) : nothing}
+              ${showEvals || showGovern || showBuild ? renderSelfHealingDashboard(props) : nothing}
+              ${showEvals || showGovern || showBuild ? renderBuilderLaneDashboard(props) : nothing}
+              ${showEvals || showGovern || showBuild ? renderImprovementProposalsCard(props) : nothing}
+              ${showEvals || showGovern || showBuild ? renderTrustAutonomyCard(props) : nothing}
             `
           : html`
               <div class="muted" style="margin-top: 12px">No workbench data yet. Click refresh.</div>

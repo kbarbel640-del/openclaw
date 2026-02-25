@@ -1,0 +1,169 @@
+{
+  "_config_version": 1,
+  "applied": [
+    {
+      "id": "001_baseline_schema_versions",
+      "applied_at": "2026-02-25T14:26:34.247Z",
+      "affected_configs": [
+        "autonomy_ladder.json",
+        "autonomy_per_task.json",
+        "brief_config.json",
+        "builder_lane_config.json",
+        "capability_maturity.json",
+        "competitive_landscape.json",
+        "config_interactions.json",
+        "decision_index.json",
+        "draft_style.json",
+        "event_schema.json",
+        "feature_maturity.json",
+        "graph.profiles.example.json",
+        "graph.profiles.json",
+        "hard_bans.json",
+        "intake_template.json",
+        "llm_provider.json",
+        "migration_state.json",
+        "notification_budget.json",
+        "onboarding_ramp.json",
+        "operator_profile.json",
+        "output_contracts.json",
+        "para_rules.json",
+        "planning_preferences.json",
+        "prompt_registry.json",
+        "research_debt_scores.json",
+        "scheduler_config.json",
+        "style_guide.json",
+        "ted_agent.json",
+        "ted_constitution.json",
+        "ted_technology_radar.json",
+        "urgency_rules.json"
+      ],
+      "result": [
+        {
+          "file": "autonomy_ladder.json",
+          "action": "no_op"
+        },
+        {
+          "file": "autonomy_per_task.json",
+          "action": "no_op"
+        },
+        {
+          "file": "brief_config.json",
+          "action": "no_op"
+        },
+        {
+          "file": "builder_lane_config.json",
+          "action": "no_op"
+        },
+        {
+          "file": "capability_maturity.json",
+          "action": "no_op"
+        },
+        {
+          "file": "competitive_landscape.json",
+          "action": "no_op"
+        },
+        {
+          "file": "config_interactions.json",
+          "action": "no_op"
+        },
+        {
+          "file": "decision_index.json",
+          "action": "no_op"
+        },
+        {
+          "file": "draft_style.json",
+          "action": "no_op"
+        },
+        {
+          "file": "event_schema.json",
+          "action": "no_op"
+        },
+        {
+          "file": "feature_maturity.json",
+          "action": "no_op"
+        },
+        {
+          "file": "graph.profiles.example.json",
+          "action": "no_op"
+        },
+        {
+          "file": "graph.profiles.json",
+          "action": "no_op"
+        },
+        {
+          "file": "hard_bans.json",
+          "action": "no_op"
+        },
+        {
+          "file": "intake_template.json",
+          "action": "no_op"
+        },
+        {
+          "file": "llm_provider.json",
+          "action": "no_op"
+        },
+        {
+          "file": "migration_state.json",
+          "action": "no_op"
+        },
+        {
+          "file": "notification_budget.json",
+          "action": "no_op"
+        },
+        {
+          "file": "onboarding_ramp.json",
+          "action": "no_op"
+        },
+        {
+          "file": "operator_profile.json",
+          "action": "no_op"
+        },
+        {
+          "file": "output_contracts.json",
+          "action": "no_op"
+        },
+        {
+          "file": "para_rules.json",
+          "action": "no_op"
+        },
+        {
+          "file": "planning_preferences.json",
+          "action": "no_op"
+        },
+        {
+          "file": "prompt_registry.json",
+          "action": "no_op"
+        },
+        {
+          "file": "research_debt_scores.json",
+          "action": "no_op"
+        },
+        {
+          "file": "scheduler_config.json",
+          "action": "no_op"
+        },
+        {
+          "file": "style_guide.json",
+          "action": "no_op"
+        },
+        {
+          "file": "ted_agent.json",
+          "action": "no_op"
+        },
+        {
+          "file": "ted_constitution.json",
+          "action": "no_op"
+        },
+        {
+          "file": "ted_technology_radar.json",
+          "action": "no_op"
+        },
+        {
+          "file": "urgency_rules.json",
+          "action": "no_op"
+        }
+      ]
+    }
+  ],
+  "last_run": "2026-02-25T16:28:19.645Z"
+}

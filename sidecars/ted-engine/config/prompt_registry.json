@@ -1,0 +1,94 @@
+{
+  "_config_version": 1,
+  "morning_brief": {
+    "production": "v1",
+    "versions": {
+      "v1": {
+        "template_file": "prompts/morning_brief_v1.txt",
+        "model": null,
+        "temperature": 0.3,
+        "max_tokens": 2000,
+        "created": "2026-02-25",
+        "notes": "Baseline extraction from server.mjs — structured data to decision-ready narrative"
+      }
+    }
+  },
+  "eod_digest": {
+    "production": "v1",
+    "versions": {
+      "v1": {
+        "template_file": "prompts/eod_digest_v1.txt",
+        "model": null,
+        "temperature": 0.3,
+        "max_tokens": 2000,
+        "created": "2026-02-25",
+        "notes": "Baseline extraction from server.mjs — day summary with next-day priorities"
+      }
+    }
+  },
+  "meeting_prep": {
+    "production": "v1",
+    "versions": {
+      "v1": {
+        "template_file": "prompts/meeting_prep_v1.txt",
+        "model": null,
+        "temperature": 0.3,
+        "max_tokens": 1500,
+        "created": "2026-02-25",
+        "notes": "Meeting prep is currently template-only (no LLM call) — this registers the intent for future use"
+      }
+    }
+  },
+  "draft_email": {
+    "production": "v1",
+    "versions": {
+      "v1": {
+        "template_file": "prompts/draft_email_v1.txt",
+        "model": null,
+        "temperature": 0.4,
+        "max_tokens": 1500,
+        "created": "2026-02-25",
+        "notes": "Baseline extraction from server.mjs — reply draft generation with style constraints"
+      }
+    }
+  },
+  "triage_classify": {
+    "production": "v1",
+    "versions": {
+      "v1": {
+        "template_file": "prompts/triage_classify_v1.txt",
+        "model": null,
+        "temperature": 0.1,
+        "max_tokens": 500,
+        "created": "2026-02-25",
+        "notes": "Baseline extraction from server.mjs — email classification to entity/deal routing"
+      }
+    }
+  },
+  "commitment_extract": {
+    "production": "v1",
+    "versions": {
+      "v1": {
+        "template_file": "prompts/commitment_extract_v1.txt",
+        "model": null,
+        "temperature": 0.2,
+        "max_tokens": 1000,
+        "created": "2026-02-25",
+        "notes": "Baseline extraction from server.mjs — email-to-commitment obligation detection"
+      }
+    }
+  },
+  "improvement_proposal": {
+    "production": "v1",
+    "versions": {
+      "v1": {
+        "template_file": "prompts/improvement_proposal_v1.txt",
+        "model": null,
+        "temperature": 0.3,
+        "max_tokens": 1500,
+        "created": "2026-02-25",
+        "notes": "Baseline extraction from server.mjs — trust failure analysis to improvement proposal"
+      }
+    }
+  }
+}

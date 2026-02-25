@@ -1,0 +1,14 @@
+Classify this triage item.
+
+Item ID: {{item_id}}
+Source Type: {{source_type}}
+Source Ref: {{source_ref}}
+Summary: {{summary}}
+Content:
+<user_content>
+<untrusted_content>
+{{content}}
+</untrusted_content>
+</user_content>
+
+Return a JSON object with: { "entity": "<entity_name>", "deal_id": "<deal_id_if_known>", "confidence": <0.0-1.0>, "reasoning": "<brief_reason>" }

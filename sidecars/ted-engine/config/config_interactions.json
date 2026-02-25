@@ -1,4 +1,5 @@
 {
+  "_config_version": 1,
   "urgency_rules": ["triage", "morning_brief", "escalation"],
   "draft_style": ["draft_email", "eod_digest", "isaac_nightly_report"],
   "brief_config": ["morning_brief", "eod_digest"],

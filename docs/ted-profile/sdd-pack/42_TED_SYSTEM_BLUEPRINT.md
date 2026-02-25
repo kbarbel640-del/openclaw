@@ -1,7 +1,7 @@
 # Ted System Blueprint (5-Plane Architecture Reference)
 
 **Status:** Active
-**Version:** v2
+**Version:** v3
 **Purpose:** Complete architectural reference mapping Ted's 5 boxes + 2 cross-cutting planes, closed loops, ownership, config inventory, and M365 integration. Pairs with `Future-State-Framing.md` (Design Laws) and `Planes-Artifacts-Owners.md` (ledger mapping).
 
 **Canonical source docs:**
@@ -268,6 +268,20 @@ Maintain durable organization and accountability by ensuring everything is captu
 - Proof scripts rewrite + CI gates
 - `/reporting/trust-metrics`, Monitor tab surfaces, `/ops/pause`, `/ops/retry`, `/ops/rate`
 
+#### Dynamic QA System (SDD 75)
+
+Four-layer automated quality assurance:
+
+1. **L1 — Unit + Property Testing:** Pure functions extracted to `server-utils.mjs`, tested via Vitest + fast-check. 75 unit tests, 28 property-based tests, 16 JSONL round-trip tests.
+
+2. **L2 — Contract + Integration:** `route_contracts.json` (164 routes) validated statically + live. Gateway methods cross-referenced with sidecar routes. 33 config files schema-validated. 1,198 tests total at this layer.
+
+3. **L3 — LLM Evaluation:** Multi-grader pipeline (schema → keyword → constraint → pattern) with hard-fail early exit. `evaluation_graders.json` configures 20 intents. Golden fixtures in `output_contracts.json`. Correction-to-regression pipeline auto-generates fixtures from Builder Lane edits.
+
+4. **L4 — Continuous Monitoring:** `synthetic_canaries.json` (10 canaries) run hourly via scheduler. Per-intent drift detection compares recent scores against 7-day rolling baseline. `GET /ops/qa/dashboard` aggregates all layers into unified health status.
+
+Test infrastructure: `vitest.sidecar.config.ts`, 7 test files, 1,434 tests, ~670ms.
+
 ---
 
 ## How it all interrelates
@@ -365,6 +379,8 @@ This prevents drift between email, tasks, and updates.
 - `onboarding_ramp.json`
 - `operator_profile.json`
 - `ted_agent.json`
+- `evaluation_graders.json` (LLM evaluation grader pipeline configuration per intent)
+- `synthetic_canaries.json` (canary definitions for continuous monitoring)
 
 **Contract & Intelligence Fabric:**
 
@@ -388,7 +404,8 @@ This prevents drift between email, tasks, and updates.
 
 ### Routes as "capability surfaces" (90+ handlers)
 
-- **Governance + ops:** `/governance/*`, `/ops/*` are your control-plane APIs (incl. onboarding, setup validation)
+- **Governance + ops:** `/governance/*`, `/ops/*` are your control-plane APIs (incl. onboarding, setup validation, QA dashboard)
+- **QA + monitoring:** `/ops/canary/*` (canary status and trigger), `/ops/drift/*` (drift detection status and trigger), `/ops/qa/dashboard` (unified QA health aggregator)
 - **Ingestion + classification:** `/triage/*`, `/extraction/*` (commitment extraction with LLM)
 - **Systems of record:** `/graph/*` (with token refresh + sync status)
 - **Stateful domains:** `/deals/*`, `/commitments/*`, `/gtd/*`, `/meeting/*`, `/filing/*`

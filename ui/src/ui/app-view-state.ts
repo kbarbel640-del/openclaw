@@ -271,6 +271,10 @@ export type AppViewState = {
   tedIntakeBusy: boolean;
   tedIntakeError: string | null;
   tedIntakeRecommendation: TedIntakeRecommendation | null;
+  tedIntakeSaveBusy: boolean;
+  tedIntakeSaveError: string | null;
+  tedIntakeSaveResult: Record<string, unknown> | null;
+  saveTedIntakeJobCard: () => Promise<void>;
   tedThresholdManual: string;
   tedThresholdApprovalAge: string;
   tedThresholdTriageEod: string;
@@ -478,6 +482,23 @@ export type AppViewState = {
   fetchEngagementInsights: () => Promise<void>;
   fetchNoiseLevel: () => Promise<void>;
   fetchAutonomyStatus: () => Promise<void>;
+  // Sprint 2 (SDD 72): Evaluation Pipeline
+  tedEvaluationStatus: Record<string, unknown> | null;
+  tedEvaluationStatusLoading: boolean;
+  tedEvaluationStatusError: string | null;
+  tedEvaluationRunBusy: boolean;
+  tedEvaluationRunError: string | null;
+  tedEvaluationRunResult: Record<string, unknown> | null;
+  loadTedEvaluationStatus: () => Promise<void>;
+  triggerTedEvaluationRun: () => Promise<void>;
+  tedQaDashboard: Record<string, unknown> | null;
+  tedQaDashboardLoading: boolean;
+  tedQaDashboardError: string | null;
+  tedCanaryRunBusy: boolean;
+  tedCanaryRunError: string | null;
+  tedCanaryRunResult: Record<string, unknown> | null;
+  loadTedQaDashboard: () => Promise<void>;
+  triggerTedCanaryRun: () => Promise<void>;
   // SharePoint state
   tedSharePointSites: Array<{
     id: string;

@@ -1,0 +1,6 @@
+Generate the morning brief narrative for today.
+
+Structured data:
+{{structured_data}}
+
+You MUST include all required sections from the system prompt. Write a concise, decision-ready narrative.

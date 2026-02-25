@@ -13,6 +13,7 @@ const OPERATOR_KEY = process.env.TED_ENGINE_OPERATOR_KEY?.trim() || "ted-local-o
 const AUTH_TTL_MS_RAW = Number.parseInt(process.env.TED_ENGINE_AUTH_TTL_MS || "3600000", 10);
 const AUTH_TTL_MS =
   Number.isFinite(AUTH_TTL_MS_RAW) && AUTH_TTL_MS_RAW > 0 ? AUTH_TTL_MS_RAW : 3600000;
+const TED_API_VERSION = "2026-02";
 
 type TedSidecarPluginConfig = {
   baseUrl?: string;
@@ -1904,6 +1905,7 @@ async function callAuthenticatedTedRoute(
     headers: {
       authorization: `Bearer ${token}`,
       "x-ted-execution-mode": "DETERMINISTIC",
+      "x-ted-api-version": TED_API_VERSION,
       "content-type": "application/json",
       accept: "application/json",
       ...(extraHeaders || {}),
@@ -1911,6 +1913,12 @@ async function callAuthenticatedTedRoute(
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   });
+  const serverVersion = response.headers.get("x-ted-api-version");
+  if (serverVersion && serverVersion !== TED_API_VERSION) {
+    console.warn(
+      `[ted-sidecar] API version mismatch: client=${TED_API_VERSION} server=${serverVersion}`,
+    );
+  }
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
     throw new Error(
@@ -1934,10 +1942,17 @@ async function callAuthenticatedTedGetRoute(baseUrl: URL, timeoutMs: number, rou
     headers: {
       authorization: `Bearer ${token}`,
       "x-ted-execution-mode": "DETERMINISTIC",
+      "x-ted-api-version": TED_API_VERSION,
       accept: "application/json",
     },
     signal: AbortSignal.timeout(timeoutMs),
   });
+  const serverVersion = response.headers.get("x-ted-api-version");
+  if (serverVersion && serverVersion !== TED_API_VERSION) {
+    console.warn(
+      `[ted-sidecar] API version mismatch: client=${TED_API_VERSION} server=${serverVersion}`,
+    );
+  }
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
     throw new Error(
@@ -2996,6 +3011,27 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
           reason_code: "INTAKE_RECOMMENDATION_FAILED",
           next_safe_step: "Provide title/outcome and retry intake recommendation.",
         });
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.intake.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, "/intake/create", body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted intake create failed: ${message}`);
         respond(false, { error: message });
       }
     },
@@ -6277,6 +6313,152 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         api.logger.warn(`ted ops retry evaluate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: tool usage (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.tool_usage",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/tool-usage");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops tool usage failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: evaluation status (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.evaluation.status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/evaluation/status",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops evaluation status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: evaluation run (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.evaluation.run",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/evaluation/run",
+          {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops evaluation run failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- QA Dashboard (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.qa.dashboard",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/qa/dashboard");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops qa dashboard failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Canary status (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.canary.status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/canary/status",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops canary status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Canary run (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.canary.run",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, "/ops/canary/run", {});
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops canary run failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Drift status (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.drift.status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/drift/status");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops drift status failed: ${message}`);
         respond(false, { error: message });
       }
     },
@@ -10119,6 +10301,69 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
           baseUrl,
           timeoutMs,
           "/ops/onboarding/discovery-status",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_tool_usage — GET /ops/tool-usage
+  api.registerTool({
+    name: "ted_tool_usage",
+    label: "Ted Tool Usage",
+    description:
+      "View tool usage statistics including call counts, last-used timestamps, and latency averages for all MCP tools. Use this when the user asks about tool usage, which tools are most active, or system performance metrics.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/tool-usage");
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_evaluation_status — GET /ops/evaluation/status
+  api.registerTool({
+    name: "ted_evaluation_status",
+    label: "Ted Evaluation Pipeline",
+    description:
+      "View evaluation pipeline results including pass/fail counts for golden fixture validation, quality trends, and failing fixture details. Use when the user asks about output quality, contract compliance, or evaluation status.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/evaluation/status",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_evaluation_run — POST /ops/evaluation/run
+  api.registerTool({
+    name: "ted_evaluation_run",
+    label: "Ted Run Evaluation",
+    description:
+      "Trigger a manual run of the evaluation pipeline, validating all golden fixtures against their output contracts. Returns pass/fail results with quality trend analysis.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/evaluation/run",
+          {},
         );
         return tedToolJson(payload);
       } catch (err) {

@@ -1,0 +1,17 @@
+Write a draft reply to the following email.
+
+From: {{from_name}} <{{from_address}}>
+Subject: {{subject}}
+Preview:
+<user_content>
+<untrusted_content>
+{{body_preview}}
+</untrusted_content>
+</user_content>
+
+Requirements:
+- Address the sender by name
+- Reference the subject matter
+- Include the draft disclaimer: "{{draft_disclaimer}}"
+- End with the signature: "{{signature}}"
+- Keep it concise and professional

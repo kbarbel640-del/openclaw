@@ -1,0 +1,112 @@
+{
+  "_config_version": 1,
+  "_description": "Research debt tracking per subsystem area. Higher debt = needs more explanatory documentation or re-evaluation.",
+  "_last_evaluated": "cycle_013",
+  "areas": [
+    {
+      "name": "event_sourcing",
+      "findings_count": 12,
+      "explained": true,
+      "last_reviewed": "cycle_010",
+      "debt_score": "low"
+    },
+    {
+      "name": "draft_lifecycle",
+      "findings_count": 8,
+      "explained": true,
+      "last_reviewed": "cycle_011",
+      "debt_score": "low"
+    },
+    {
+      "name": "governance_policy",
+      "findings_count": 15,
+      "explained": true,
+      "last_reviewed": "cycle_012",
+      "debt_score": "low"
+    },
+    {
+      "name": "builder_lane",
+      "findings_count": 18,
+      "explained": true,
+      "last_reviewed": "cycle_012",
+      "debt_score": "low"
+    },
+    {
+      "name": "self_healing",
+      "findings_count": 26,
+      "explained": true,
+      "last_reviewed": "cycle_012",
+      "debt_score": "low"
+    },
+    {
+      "name": "m365_graph",
+      "findings_count": 20,
+      "explained": true,
+      "last_reviewed": "cycle_011",
+      "debt_score": "medium"
+    },
+    {
+      "name": "scheduler",
+      "findings_count": 8,
+      "explained": true,
+      "last_reviewed": "cycle_011",
+      "debt_score": "low"
+    },
+    {
+      "name": "sharepoint",
+      "findings_count": 2,
+      "explained": false,
+      "last_reviewed": "cycle_012",
+      "debt_score": "medium"
+    },
+    {
+      "name": "hipaa_compliance",
+      "findings_count": 6,
+      "explained": true,
+      "last_reviewed": "cycle_011",
+      "debt_score": "low"
+    },
+    {
+      "name": "ingestion_pipeline",
+      "findings_count": 5,
+      "explained": false,
+      "last_reviewed": "cycle_010",
+      "debt_score": "medium"
+    },
+    {
+      "name": "discovery_pipeline",
+      "findings_count": 3,
+      "explained": false,
+      "last_reviewed": "cycle_010",
+      "debt_score": "medium"
+    },
+    {
+      "name": "ui_surfaces",
+      "findings_count": 10,
+      "explained": false,
+      "last_reviewed": "cycle_011",
+      "debt_score": "high"
+    },
+    {
+      "name": "extension_gateway",
+      "findings_count": 4,
+      "explained": false,
+      "last_reviewed": "cycle_011",
+      "debt_score": "medium"
+    },
+    {
+      "name": "security_posture",
+      "findings_count": 8,
+      "explained": false,
+      "last_reviewed": "cycle_013",
+      "debt_score": "high"
+    },
+    {
+      "name": "evolution_patterns",
+      "findings_count": 0,
+      "explained": false,
+      "last_reviewed": "cycle_013",
+      "debt_score": "high"
+    }
+  ]
+}

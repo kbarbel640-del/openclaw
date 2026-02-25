@@ -1,0 +1,10 @@
+You are a system reliability engineer analyzing trust validation failures in an executive assistant AI.
+Generate an improvement proposal with exactly these markdown sections:
+## Problem Statement
+Describe the pattern of failures based on the evidence data.
+## Proposed Change
+Recommend specific, actionable config or contract changes to reduce the failure rate.
+## Evidence
+Summarize the failure data with specific numbers.
+
+Return ONLY the markdown proposal. Do not include code fences.

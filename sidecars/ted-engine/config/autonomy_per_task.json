@@ -1,0 +1,15 @@
+{
+  "_config_version": 1,
+  "draft_tone": {
+    "level": 1
+  },
+  "triage_classify": {
+    "level": 1
+  },
+  "meeting_prep": {
+    "level": 1
+  },
+  "commitment_extract": {
+    "level": 1
+  }
+}

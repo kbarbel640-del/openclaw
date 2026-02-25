@@ -1,7 +1,7 @@
 # Planes → Artifacts → Owners (one-page Council view)
 
 **Status:** Active
-**Version:** v3
+**Version:** v4
 **Purpose:** Provide a one-glance map of **what lives where**, **who owns it**, and **which event/ledger objects** each surface reads/writes.
 
 ---
@@ -12,7 +12,7 @@
 
 - **Append-only:** `event_log`
 
-### Materialized ledgers / views (25+)
+### Materialized ledgers / views (26+)
 
 - `audit_trail`
 - `commitments_ledger`
@@ -38,6 +38,7 @@
 - `style_deltas_ledger` (Builder Lane — per-dimension voice/style drift + confidence scores)
 - `builder_lane_status_ledger` (Builder Lane — fatigue state, cold-start phase, calibration events)
 - `shadow_eval_ledger` (Builder Lane — shadow mode parallel config evaluation)
+- `evaluation_corrections_ledger` (Dynamic QA — auto-generated golden fixtures from Builder Lane correction signals)
 
 > **Rule of thumb:** any **write** action emits an event to `event_log` and updates one or more ledgers; any **read** action should prefer ledgers first, then query systems of record as needed.
 
@@ -47,12 +48,12 @@
 
 **Owner:** Platform/UX Lead (primary), OpenClaw Platform Engineer
 
-| Artifact                                                          | Reads                                                                    | Writes                                        | Primary Owner              |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------- | -------------------------- |
-| UI Surfaces — 20+ operator cards (Operate/Configure/Plan/Monitor) | all ledgers (esp. `draft_queue_ledger`, `trust_ledger`, `policy_ledger`) | approval actions → `event_log`, `audit_trail` | Platform/UX Lead           |
-| Extension Gateway Methods (89+)                                   | mapped to Sidecar routes + ledgers                                       | mapped writes emit events                     | OpenClaw Platform Engineer |
-| Agent Tools (51)                                                  | mapped to Sidecar routes + ledgers                                       | tool writes emit events                       | OpenClaw Platform Engineer |
-| MCP Tools + Resources (`POST /mcp`, 44 tools)                     | tools read from ledgers/resources                                        | tool writes emit events                       | OpenClaw Platform Engineer |
+| Artifact                                                         | Reads                                                                    | Writes                                        | Primary Owner              |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------- | -------------------------- |
+| UI Surfaces — 28 operator cards (Operate/Configure/Plan/Monitor) | all ledgers (esp. `draft_queue_ledger`, `trust_ledger`, `policy_ledger`) | approval actions → `event_log`, `audit_trail` | Platform/UX Lead           |
+| Extension Gateway Methods (89+)                                  | mapped to Sidecar routes + ledgers                                       | mapped writes emit events                     | OpenClaw Platform Engineer |
+| Agent Tools (51)                                                 | mapped to Sidecar routes + ledgers                                       | tool writes emit events                       | OpenClaw Platform Engineer |
+| MCP Tools + Resources (`POST /mcp`, 44 tools)                    | tools read from ledgers/resources                                        | tool writes emit events                       | OpenClaw Platform Engineer |
 
 ---
 
@@ -60,7 +61,7 @@
 
 **Owner:** Co‑Work Systems Architect (primary), Reliability Engineer, Security Lead
 
-### Config files (17) — “policy + runtime knobs”
+### Config files (34) — “policy + runtime knobs”
 
 | Config                        | Reads                                                                  | Writes                                                                                                                       | Primary Owner                   |
 | ----------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
@@ -81,13 +82,16 @@
 | `urgency_rules.json`          | `event_log` (signals), `trust_ledger`                                  | updates `ops_ledger` (escalations)                                                                                           | Security + EA/CoS Operator      |
 | `builder_lane_config.json`    | —                                                                      | influences Builder Lane thresholds (decay rates, fatigue windows, cold-start archetypes, shadow duration, proposal minimums) | Platform Eng + Council          |
 | `config_interactions.json`    | —                                                                      | static matrix: which config changes affect which downstream routes/behaviors                                                 | Platform Eng + Council          |
+| `evaluation_graders.json`     | —                                                                      | multi-grader evaluation composition per intent (20 intents, 4 grader types)                                                  | AI/LLM Architect + Reliability  |
+| `synthetic_canaries.json`     | —                                                                      | 10 synthetic health check canaries, scheduled hourly                                                                         | Reliability Eng                 |
 
-### Route families (90+ handlers total) — “capability surfaces”
+### Route families (164 handlers total) — “capability surfaces”
 
 | Route Family         | Primary JTBD                                                                                                                 | Reads                                                                                                                                  | Writes                                                                                                                                              | Primary Owner              |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
 | `/auth/*`            | mint sessions/tokens, token refresh with per-profile mutex (`ensureValidToken`)                                              | `policy_ledger`                                                                                                                        | `event_log`, `audit_trail`                                                                                                                          | Platform Eng + Security    |
 | `/ops/*`             | pause/resume/dispatch/rate/retry, onboarding activation, setup validation                                                    | `policy_ledger`, `trust_ledger`                                                                                                        | `event_log`, `policy_ledger`, `audit_trail`                                                                                                         | Reliability Eng            |
+| `/ops/qa/*`          | QA dashboard, canary status/run, drift status/run (5 routes)                                                                 | `evaluation_corrections_ledger`, `synthetic_canaries.json`, drift metrics                                                              | `event_log`, `evaluation_corrections_ledger`                                                                                                        | Reliability Eng            |
 | `/governance/*`      | policy checks, confidence, contradictions, repair, output contract validation                                                | `policy_ledger`, `trust_ledger`, domain ledgers                                                                                        | `event_log`, `trust_ledger`, `audit_trail`                                                                                                          | Security/Compliance Lead   |
 | `/reporting/*`       | briefs/digests/metrics/deep-work-metrics/trust-metrics                                                                       | all ledgers                                                                                                                            | `event_log`, `audit_trail`                                                                                                                          | EA/CoS Operator            |
 | `/meeting/*`         | upcoming/prep/debrief                                                                                                        | Graph calendar, `meetings_prep_ledger`, `mail_actions_ledger`                                                                          | `event_log`, `meetings_prep_ledger`, `draft_queue_ledger`                                                                                           | EA/CoS Operator            |
@@ -143,33 +147,44 @@
 
 **Owner:** PKM/Data Architect (primary), Reliability Engineer
 
-| Object                         | Reads                                                                                                                     | Writes                                                   | Primary Owner                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------ |
-| `event_log`                    | (replay, audit, rebuild views)                                                                                            | append-only events from all planes (dual-write pattern)  | PKM/Data Architect             |
-| `audit_trail`                  | UI + compliance review                                                                                                    | writes from Sidecar + approvals                          | Security/Compliance            |
-| `policy_ledger`                | governance checks, router                                                                                                 | derived from configs + config change events              | Council Policy Owner           |
-| `graph_sync_ledger`            | connector health, sync history                                                                                            | connector writes                                         | M365/Graph Architect           |
-| `mail_actions_ledger`          | triage, drafting, briefs                                                                                                  | ingestion + mail moves/drafts                            | Integration Eng                |
-| `meetings_prep_ledger`         | prep/debrief                                                                                                              | meeting workflows                                        | EA/CoS Operator                |
-| `triage_ledger`                | inbox state                                                                                                               | triage workflows                                         | Co‑Work Systems Architect      |
-| `commitments_ledger`           | briefs, GTD, planning                                                                                                     | extraction (LLM-based) + user actions                    | EA/CoS Operator                |
-| `draft_queue_ledger`           | approvals/execution (6-state machine)                                                                                     | draft generation + submit-review + edits                 | EA/CoS Operator                |
-| `deals_ledger`                 | deal views/status                                                                                                         | deal routes + connectors                                 | Deal Ops Lead                  |
-| `trust_ledger`                 | proof checks + confidence + failure_reasons                                                                               | validators + learning                                    | Reliability + AI/LLM Architect |
-| `gtd_actions_ledger`           | next actions                                                                                                              | GTD action workflows                                     | EA/CoS Operator                |
-| `gtd_waiting_for_ledger`       | waiting-for items                                                                                                         | GTD waiting-for workflows                                | EA/CoS Operator                |
-| `facility_alerts_ledger`       | facility scores/alerts                                                                                                    | facility alert lifecycle                                 | Reliability Eng                |
-| `planner_ledger`               | Planner sync state                                                                                                        | reconciliation engine                                    | EA/CoS Operator                |
-| `todo_ledger`                  | To Do sync state                                                                                                          | reconciliation engine                                    | EA/CoS Operator                |
-| `sync_proposals_ledger`        | Planner/To Do proposals (dedup via existingProposalSet)                                                                   | reconciliation engine                                    | EA/CoS Operator                |
-| `improvement_proposals_ledger` | Codex Builder Lane proposals                                                                                              | improvement proposal workflows                           | Platform Eng + Council         |
-| `correction_signals_ledger`    | Builder Lane correction evidence (edit deltas, accepts, rejects, reclassifications with context bucket + edit distance)   | correction signal capture from all operator interactions | Platform Eng + Council         |
-| `style_deltas_ledger`          | Builder Lane per-dimension voice/style drift + confidence scores (logistic curve)                                         | pattern detection + proposal generation                  | AI/LLM Architect + Council     |
-| `builder_lane_status_ledger`   | Builder Lane state: fatigue (3-state), cold-start phase, calibration events, dashboard metrics, rubber-stamping detection | fatigue monitor + calibration prompts + dashboard        | Reliability Eng + Council      |
-| `shadow_eval_ledger`           | Builder Lane shadow mode: parallel config evaluation over 7-day windows (never contaminates production)                   | shadow mode evaluation runs                              | AI/LLM Architect + Council     |
-| `deep_work_sessions_ledger`    | deep work metrics                                                                                                         | session recording                                        | EA/CoS Operator                |
-| `scheduler_config`             | cron rules + scheduler gates                                                                                              | scheduler configuration                                  | Reliability Eng                |
-| `pending_delivery`             | pending scheduled deliveries                                                                                              | scheduler tick dispatch                                  | Reliability Eng                |
+| Object                          | Reads                                                                                                                     | Writes                                                   | Primary Owner                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------ |
+| `event_log`                     | (replay, audit, rebuild views)                                                                                            | append-only events from all planes (dual-write pattern)  | PKM/Data Architect             |
+| `audit_trail`                   | UI + compliance review                                                                                                    | writes from Sidecar + approvals                          | Security/Compliance            |
+| `policy_ledger`                 | governance checks, router                                                                                                 | derived from configs + config change events              | Council Policy Owner           |
+| `graph_sync_ledger`             | connector health, sync history                                                                                            | connector writes                                         | M365/Graph Architect           |
+| `mail_actions_ledger`           | triage, drafting, briefs                                                                                                  | ingestion + mail moves/drafts                            | Integration Eng                |
+| `meetings_prep_ledger`          | prep/debrief                                                                                                              | meeting workflows                                        | EA/CoS Operator                |
+| `triage_ledger`                 | inbox state                                                                                                               | triage workflows                                         | Co‑Work Systems Architect      |
+| `commitments_ledger`            | briefs, GTD, planning                                                                                                     | extraction (LLM-based) + user actions                    | EA/CoS Operator                |
+| `draft_queue_ledger`            | approvals/execution (6-state machine)                                                                                     | draft generation + submit-review + edits                 | EA/CoS Operator                |
+| `deals_ledger`                  | deal views/status                                                                                                         | deal routes + connectors                                 | Deal Ops Lead                  |
+| `trust_ledger`                  | proof checks + confidence + failure_reasons                                                                               | validators + learning                                    | Reliability + AI/LLM Architect |
+| `gtd_actions_ledger`            | next actions                                                                                                              | GTD action workflows                                     | EA/CoS Operator                |
+| `gtd_waiting_for_ledger`        | waiting-for items                                                                                                         | GTD waiting-for workflows                                | EA/CoS Operator                |
+| `facility_alerts_ledger`        | facility scores/alerts                                                                                                    | facility alert lifecycle                                 | Reliability Eng                |
+| `planner_ledger`                | Planner sync state                                                                                                        | reconciliation engine                                    | EA/CoS Operator                |
+| `todo_ledger`                   | To Do sync state                                                                                                          | reconciliation engine                                    | EA/CoS Operator                |
+| `sync_proposals_ledger`         | Planner/To Do proposals (dedup via existingProposalSet)                                                                   | reconciliation engine                                    | EA/CoS Operator                |
+| `improvement_proposals_ledger`  | Codex Builder Lane proposals                                                                                              | improvement proposal workflows                           | Platform Eng + Council         |
+| `correction_signals_ledger`     | Builder Lane correction evidence (edit deltas, accepts, rejects, reclassifications with context bucket + edit distance)   | correction signal capture from all operator interactions | Platform Eng + Council         |
+| `style_deltas_ledger`           | Builder Lane per-dimension voice/style drift + confidence scores (logistic curve)                                         | pattern detection + proposal generation                  | AI/LLM Architect + Council     |
+| `builder_lane_status_ledger`    | Builder Lane state: fatigue (3-state), cold-start phase, calibration events, dashboard metrics, rubber-stamping detection | fatigue monitor + calibration prompts + dashboard        | Reliability Eng + Council      |
+| `shadow_eval_ledger`            | Builder Lane shadow mode: parallel config evaluation over 7-day windows (never contaminates production)                   | shadow mode evaluation runs                              | AI/LLM Architect + Council     |
+| `evaluation_corrections_ledger` | Dynamic QA: auto-generated golden fixtures from Builder Lane correction signals                                           | QA pipeline fixture generation                           | Reliability Eng + AI/LLM       |
+| `deep_work_sessions_ledger`     | deep work metrics                                                                                                         | session recording                                        | EA/CoS Operator                |
+| `scheduler_config`              | cron rules + scheduler gates                                                                                              | scheduler configuration                                  | Reliability Eng                |
+| `pending_delivery`              | pending scheduled deliveries                                                                                              | scheduler tick dispatch                                  | Reliability Eng                |
+
+### Dynamic QA System (SDD 75)
+
+| Layer                     | Mechanism                               | Coverage                                |
+| ------------------------- | --------------------------------------- | --------------------------------------- |
+| L1 Unit + Property        | Vitest + fast-check                     | 75 unit + 28 property + 16 JSONL        |
+| L2 Contract + Integration | Route contracts + gateway analysis      | 852 contract + 198 gateway + 148 config |
+| L3 LLM Evaluation         | Multi-grader pipeline + golden fixtures | 117 evaluation tests, 20 intents        |
+| L4 Continuous Monitoring  | Canaries + drift detection              | 10 canaries, hourly schedule            |
+| **Total**                 | **7 test files**                        | **1,434 tests**                         |
 
 ---
 

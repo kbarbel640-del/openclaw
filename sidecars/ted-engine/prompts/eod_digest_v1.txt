@@ -1,0 +1,6 @@
+Generate the end-of-day digest narrative for {{date}}.
+
+Structured data:
+{{structured_data}}
+
+You MUST include all required sections from the system prompt. Also provide a "NEXT DAY PRIORITIES" section listing 3-5 items for tomorrow. Write in a matter-of-fact tone.

@@ -1,0 +1,939 @@
+{
+  "_config_version": 1,
+  "description": "Route contract registry — catalogs every major sidecar route with its expected response shape.",
+  "routes": {
+    "GET /status": {
+      "status_codes": [200],
+      "required_fields": [
+        "version",
+        "uptime",
+        "profiles_count",
+        "deals_count",
+        "triage_open_count",
+        "catalog",
+        "operator",
+        "dependencies",
+        "api_version",
+        "min_supported_version",
+        "startup_validation"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /doctor": {
+      "status_codes": [200],
+      "required_fields": [
+        "version",
+        "uptime",
+        "profiles_count",
+        "deals_count",
+        "triage_open_count",
+        "catalog",
+        "operator",
+        "dependencies",
+        "api_version"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /ops/setup/validate": {
+      "status_codes": [200],
+      "required_fields": ["checks", "issues", "blocking_issues", "ready"],
+      "content_type": "application/json"
+    },
+    "GET /ops/scheduler": {
+      "status_codes": [200],
+      "required_fields": [
+        "enabled",
+        "tick_interval_ms",
+        "paused",
+        "jobs",
+        "daily_notification_count",
+        "daily_notification_date"
+      ],
+      "content_type": "application/json"
+    },
+    "POST /ops/scheduler": {
+      "status_codes": [200, 400, 500],
+      "required_fields": ["enabled", "message"],
+      "content_type": "application/json"
+    },
+    "GET /ops/pending-deliveries": {
+      "status_codes": [200],
+      "required_fields": ["deliveries", "total_count"],
+      "content_type": "application/json"
+    },
+    "POST /ops/pending-deliveries/ack": {
+      "status_codes": [200, 400],
+      "required_fields": ["delivery_id", "status"],
+      "content_type": "application/json"
+    },
+    "GET /ops/notification-budget": {
+      "status_codes": [200],
+      "required_fields": ["budget", "onboarding", "today_count", "today_date"],
+      "content_type": "application/json"
+    },
+    "GET /ops/tool-usage": {
+      "status_codes": [200],
+      "required_fields": ["total_calls", "unique_tools_used", "most_used", "least_used", "tools"],
+      "content_type": "application/json"
+    },
+    "GET /ops/llm-provider": {
+      "status_codes": [200, 500],
+      "required_fields": ["default_provider", "providers"],
+      "content_type": "application/json"
+    },
+    "POST /ops/llm-provider": {
+      "status_codes": [200, 400, 500],
+      "required_fields": ["updated", "default_provider"],
+      "content_type": "application/json"
+    },
+    "POST /ops/ingestion/run": {
+      "status_codes": [200, 500],
+      "required_fields": ["profiles_processed"],
+      "content_type": "application/json"
+    },
+    "GET /ops/ingestion/status": {
+      "status_codes": [200],
+      "required_fields": ["total_ingested", "by_profile", "last_cycle"],
+      "content_type": "application/json"
+    },
+    "POST /ops/onboarding/activate": {
+      "status_codes": [200, 400, 500],
+      "required_fields": ["status", "start_date", "phase"],
+      "content_type": "application/json"
+    },
+    "POST /ops/onboarding/discover": {
+      "status_codes": [200, 400, 500],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "GET /ops/onboarding/discovery-status": {
+      "status_codes": [200],
+      "required_fields": ["discoveries"],
+      "content_type": "application/json"
+    },
+    "POST /ops/onboarding/archetype-select": {
+      "status_codes": [200, 400, 500],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/onboarding/voice-extract": {
+      "status_codes": [202, 400, 409],
+      "required_fields": ["ok", "status"],
+      "content_type": "application/json"
+    },
+    "GET /ops/onboarding/voice-extract-status": {
+      "status_codes": [200],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/pause": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /ops/resume": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "GET /ops/resume/last": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /ops/dispatch/check": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /ops/rate/evaluate": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /ops/retry/evaluate": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /ops/trust/reset": {
+      "status_codes": [200, 403],
+      "required_fields": ["ok", "reset_at"],
+      "content_type": "application/json"
+    },
+    "GET /triage/list": {
+      "status_codes": [200],
+      "required_fields": ["items"],
+      "content_type": "application/json"
+    },
+    "POST /triage/ingest": {
+      "status_codes": [200, 201, 400, 409],
+      "required_fields": ["ingested", "item_id", "status", "classification_source"],
+      "content_type": "application/json"
+    },
+    "POST /triage/{item_id}/link": {
+      "status_codes": [200, 400, 404, 409],
+      "required_fields": ["linked", "item_id"],
+      "content_type": "application/json"
+    },
+    "GET /triage/patterns": {
+      "status_codes": [200],
+      "required_fields": ["patterns", "active_count"],
+      "content_type": "application/json"
+    },
+    "POST /triage/patterns/propose": {
+      "status_codes": [201, 400],
+      "required_fields": ["proposed", "pattern_id"],
+      "content_type": "application/json"
+    },
+    "POST /triage/patterns/{pattern_id}/approve": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["approved", "pattern_id"],
+      "content_type": "application/json"
+    },
+    "POST /deals/create": {
+      "status_codes": [200, 400, 409],
+      "required_fields": ["created", "deal_id", "deduped"],
+      "content_type": "application/json"
+    },
+    "GET /deals/list": {
+      "status_codes": [200],
+      "required_fields": ["deals"],
+      "content_type": "application/json"
+    },
+    "GET /deals/{deal_id}": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["deal_id", "deal_name", "stage", "status"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/update": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["updated", "deal_id"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/dates": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["added", "deal_id", "date_entry"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/investors": {
+      "status_codes": [200, 400, 404, 409],
+      "required_fields": ["added", "deal_id", "investor"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/investors/update": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["updated", "deal_id", "investor"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/counsel": {
+      "status_codes": [200, 400, 404, 409],
+      "required_fields": ["added", "deal_id", "counsel"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/counsel/invoice": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["updated", "deal_id"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/tasks": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["added", "deal_id"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/tasks/update": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["updated", "deal_id", "task_entry"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/checklist": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["deal_id"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/notes": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["added", "deal_id", "note"],
+      "content_type": "application/json"
+    },
+    "GET /deals/{deal_id}/timeline": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["deal_id", "timeline"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/retrospective": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["ok", "retrospective"],
+      "content_type": "application/json"
+    },
+    "GET /deals/stale-owners": {
+      "status_codes": [200],
+      "required_fields": ["deals"],
+      "content_type": "application/json"
+    },
+    "POST /deals/{deal_id}/investors/{investor}/oig-update": {
+      "status_codes": [200, 400, 404],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/status": {
+      "status_codes": [200, 400],
+      "required_fields": ["profile_id", "auth_state"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/calendar/list": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id", "events"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/auth/device/start": {
+      "status_codes": [200, 400, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/auth/device/poll": {
+      "status_codes": [200, 400, 500, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/auth/revoke": {
+      "status_codes": [200, 400],
+      "required_fields": ["profile_id", "revoked"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/mail/draft/create": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/mail/list": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/mail/{message_id}/move": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/calendar/event/create": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/drafts/generate": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["candidates"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/mail/{message_id}/extract-commitments": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/planner/plans": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id", "plans"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/planner/plans/{plan_id}/tasks": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id", "tasks"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/todo/lists": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id", "lists"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/todo/lists/{list_id}/tasks": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id", "tasks"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/sync/reconcile": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["profile_id", "proposals"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/sync/proposals": {
+      "status_codes": [200, 400],
+      "required_fields": ["profile_id", "proposals", "total_count"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/sync/proposals/{proposal_id}/approve": {
+      "status_codes": [200, 400, 403, 404, 409, 502],
+      "required_fields": ["approved"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/sync/proposals/{proposal_id}/reject": {
+      "status_codes": [200, 400, 403, 404],
+      "required_fields": ["rejected", "proposal_id"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/sync/status": {
+      "status_codes": [200, 400],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/sharepoint/sites": {
+      "status_codes": [200, 400, 401, 502],
+      "required_fields": ["profile_id", "sites"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/sharepoint/sites/{site_id}/drives": {
+      "status_codes": [200, 400, 401, 502],
+      "required_fields": ["profile_id", "drives"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/sharepoint/drives/{drive_id}/items": {
+      "status_codes": [200, 400, 401, 502],
+      "required_fields": ["profile_id", "items"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/sharepoint/drives/{drive_id}/items/{item_id}": {
+      "status_codes": [200, 400, 401, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "GET /graph/{profile_id}/sharepoint/drives/{drive_id}/search": {
+      "status_codes": [200, 400, 401, 502],
+      "required_fields": ["profile_id", "results"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/sharepoint/drives/{drive_id}/upload": {
+      "status_codes": [200, 400, 401, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "POST /graph/{profile_id}/sharepoint/drives/{drive_id}/folder": {
+      "status_codes": [200, 400, 401, 502],
+      "required_fields": ["profile_id"],
+      "content_type": "application/json"
+    },
+    "POST /graph/diagnostics/classify": {
+      "status_codes": [200, 400],
+      "required_fields": ["category", "severity"],
+      "content_type": "application/json"
+    },
+    "GET /drafts/queue": {
+      "status_codes": [200],
+      "required_fields": ["drafts", "count"],
+      "content_type": "application/json"
+    },
+    "GET /drafts/{draft_id}": {
+      "status_codes": [200, 404],
+      "required_fields": ["draft_id", "state"],
+      "content_type": "application/json"
+    },
+    "POST /drafts/{draft_id}/submit-review": {
+      "status_codes": [200, 404, 409],
+      "required_fields": ["draft_id", "state"],
+      "content_type": "application/json"
+    },
+    "POST /drafts/{draft_id}/edit": {
+      "status_codes": [200, 400, 404, 409],
+      "required_fields": ["draft_id", "state"],
+      "content_type": "application/json"
+    },
+    "POST /drafts/{draft_id}/approve": {
+      "status_codes": [200, 403, 404, 409],
+      "required_fields": ["draft_id", "state"],
+      "content_type": "application/json"
+    },
+    "POST /drafts/{draft_id}/archive": {
+      "status_codes": [200, 404, 409],
+      "required_fields": ["draft_id", "state"],
+      "content_type": "application/json"
+    },
+    "POST /drafts/{draft_id}/execute": {
+      "status_codes": [200, 403, 404, 409, 502],
+      "required_fields": ["draft_id", "state"],
+      "content_type": "application/json"
+    },
+    "POST /commitments/create": {
+      "status_codes": [200, 400],
+      "required_fields": ["commitment_id", "kind", "what", "status", "created_at"],
+      "content_type": "application/json"
+    },
+    "GET /commitments/list": {
+      "status_codes": [200],
+      "required_fields": ["commitments", "total_count"],
+      "content_type": "application/json"
+    },
+    "POST /commitments/{commitment_id}/complete": {
+      "status_codes": [200, 404, 409],
+      "required_fields": ["commitment_id", "status"],
+      "content_type": "application/json"
+    },
+    "POST /commitments/{commitment_id}/escalate": {
+      "status_codes": [200, 400, 404, 409],
+      "required_fields": ["commitment_id"],
+      "content_type": "application/json"
+    },
+    "POST /gtd/actions/create": {
+      "status_codes": [200, 400],
+      "required_fields": ["action_id", "kind", "description", "status", "created_at"],
+      "content_type": "application/json"
+    },
+    "GET /gtd/actions/list": {
+      "status_codes": [200],
+      "required_fields": ["actions", "total_count"],
+      "content_type": "application/json"
+    },
+    "POST /gtd/actions/{action_id}/complete": {
+      "status_codes": [200, 404],
+      "required_fields": ["action_id", "status"],
+      "content_type": "application/json"
+    },
+    "POST /gtd/waiting-for/create": {
+      "status_codes": [200, 400],
+      "required_fields": ["waiting_for_id", "kind", "description", "status", "created_at"],
+      "content_type": "application/json"
+    },
+    "GET /gtd/waiting-for/list": {
+      "status_codes": [200],
+      "required_fields": ["waiting_for", "total_count"],
+      "content_type": "application/json"
+    },
+    "GET /meeting/upcoming": {
+      "status_codes": [200],
+      "required_fields": ["meetings", "generated_at", "hours_window", "calendar_source"],
+      "content_type": "application/json"
+    },
+    "POST /meeting/prep/{event_id}": {
+      "status_codes": [200, 400],
+      "required_fields": ["event_id", "deal_context", "attendee_context"],
+      "content_type": "application/json"
+    },
+    "POST /meeting/debrief": {
+      "status_codes": [200, 400],
+      "required_fields": ["event_id", "commitments_extracted"],
+      "content_type": "application/json"
+    },
+    "POST /filing/suggestions/propose": {
+      "status_codes": [200, 201, 400],
+      "required_fields": ["proposed", "suggestion_id", "status"],
+      "content_type": "application/json"
+    },
+    "GET /filing/suggestions/list": {
+      "status_codes": [200],
+      "required_fields": ["suggestions"],
+      "content_type": "application/json"
+    },
+    "POST /filing/suggestions/{suggestion_id}/approve": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["approved"],
+      "content_type": "application/json"
+    },
+    "POST /filing/para/classify": {
+      "status_codes": [200, 400],
+      "required_fields": [
+        "item",
+        "para_category",
+        "confidence",
+        "entity",
+        "suggested_path",
+        "classification_rules_applied"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /filing/para/structure": {
+      "status_codes": [200],
+      "required_fields": ["structure", "recent_classifications", "generated_at"],
+      "content_type": "application/json"
+    },
+    "POST /planning/timeblock/generate": {
+      "status_codes": [200, 400],
+      "required_fields": [
+        "plan_id",
+        "date",
+        "blocks",
+        "deep_work_hours",
+        "deep_work_target",
+        "actions_scheduled",
+        "commitments_pending",
+        "generated_at"
+      ],
+      "content_type": "application/json"
+    },
+    "POST /facility/alert/create": {
+      "status_codes": [200, 400],
+      "required_fields": ["alert_id", "status"],
+      "content_type": "application/json"
+    },
+    "GET /facility/alerts/list": {
+      "status_codes": [200],
+      "required_fields": ["alerts", "total_count"],
+      "content_type": "application/json"
+    },
+    "POST /facility/alert/{alert_id}/escalate": {
+      "status_codes": [200, 404, 409],
+      "required_fields": ["alert_id"],
+      "content_type": "application/json"
+    },
+    "POST /facility/alert/{alert_id}/resolve": {
+      "status_codes": [200, 404, 409],
+      "required_fields": ["alert_id"],
+      "content_type": "application/json"
+    },
+    "GET /improvement/proposals": {
+      "status_codes": [200],
+      "required_fields": ["ok", "proposals", "total"],
+      "content_type": "application/json"
+    },
+    "POST /improvement/proposals": {
+      "status_codes": [201, 400],
+      "required_fields": ["ok", "proposal"],
+      "content_type": "application/json"
+    },
+    "POST /improvement/proposals/{proposal_id}/review": {
+      "status_codes": [200, 400, 404, 409],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /improvement/proposals/{proposal_id}/apply": {
+      "status_codes": [200, 400, 404, 409],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /improvement/proposals/generate": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "GET /improvement/failure-aggregation": {
+      "status_codes": [200],
+      "required_fields": ["ok", "aggregation", "generated_at"],
+      "content_type": "application/json"
+    },
+    "GET /ops/builder-lane/patterns": {
+      "status_codes": [200],
+      "required_fields": ["ok", "patterns"],
+      "content_type": "application/json"
+    },
+    "POST /ops/builder-lane/generate": {
+      "status_codes": [200, 400, 404, 409],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/builder-lane/revert/{proposal_id}": {
+      "status_codes": [200, 403, 404, 409, 500],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "GET /ops/builder-lane/status": {
+      "status_codes": [200],
+      "required_fields": [
+        "ok",
+        "phase",
+        "patterns",
+        "confidence_scores",
+        "fatigue_state",
+        "active_proposals",
+        "applied_proposals",
+        "reverted_proposals",
+        "total_correction_signals",
+        "total_style_deltas",
+        "status_history_count"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /ops/builder-lane/improvement-metrics": {
+      "status_codes": [200],
+      "required_fields": [
+        "ok",
+        "correction_rate_trend",
+        "correction_rate_current",
+        "accept_rate_trend",
+        "draft_acceptance_rate",
+        "proposals_applied_count",
+        "config_change_markers",
+        "progress_by_dimension",
+        "monthly_summary",
+        "rubber_stamping"
+      ],
+      "content_type": "application/json"
+    },
+    "POST /ops/builder-lane/calibration-response": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "prompt_id", "recorded"],
+      "content_type": "application/json"
+    },
+    "POST /ops/builder-lane/shadow/{proposal_id}": {
+      "status_codes": [200, 404, 409],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "GET /ops/builder-lane/shadow/{proposal_id}": {
+      "status_codes": [200, 404],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/builder-lane/amplify": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/builder-lane/proposals/{proposal_id}/resurrect": {
+      "status_codes": [200, 400, 404],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "GET /ops/self-healing/status": {
+      "status_codes": [200],
+      "required_fields": [
+        "circuit_breakers",
+        "provider_health",
+        "config_drift",
+        "compaction",
+        "proposal_expiry"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /ops/self-healing/circuit-breakers": {
+      "status_codes": [200],
+      "required_fields": ["circuit_breakers"],
+      "content_type": "application/json"
+    },
+    "GET /ops/self-healing/provider-health": {
+      "status_codes": [200],
+      "required_fields": ["providers"],
+      "content_type": "application/json"
+    },
+    "POST /ops/self-healing/config-drift/reconcile": {
+      "status_codes": [200],
+      "required_fields": ["drift_count"],
+      "content_type": "application/json"
+    },
+    "POST /ops/self-healing/compact-ledgers": {
+      "status_codes": [200, 409],
+      "required_fields": ["ok", "compacted"],
+      "content_type": "application/json"
+    },
+    "POST /ops/self-healing/expire-proposals": {
+      "status_codes": [200],
+      "required_fields": ["ok", "expired"],
+      "content_type": "application/json"
+    },
+    "GET /ops/self-healing/correction-taxonomy": {
+      "status_codes": [200],
+      "required_fields": ["taxonomy", "subcategories"],
+      "content_type": "application/json"
+    },
+    "GET /ops/self-healing/engagement-insights": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "GET /ops/self-healing/noise-level": {
+      "status_codes": [200],
+      "required_fields": ["level"],
+      "content_type": "application/json"
+    },
+    "GET /ops/self-healing/autonomy-status": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /ops/engagement/read-receipt": {
+      "status_codes": [200],
+      "required_fields": ["recorded", "engagement_type"],
+      "content_type": "application/json"
+    },
+    "POST /ops/engagement/action-receipt": {
+      "status_codes": [200],
+      "required_fields": ["recorded", "action_latency_ms"],
+      "content_type": "application/json"
+    },
+    "GET /ops/evaluation/status": {
+      "status_codes": [200],
+      "required_fields": ["status"],
+      "content_type": "application/json"
+    },
+    "POST /ops/evaluation/run": {
+      "status_codes": [200],
+      "required_fields": ["pass_count", "total"],
+      "content_type": "application/json"
+    },
+    "GET /ops/canary/status": {
+      "status_codes": [200],
+      "required_fields": ["status"],
+      "content_type": "application/json"
+    },
+    "POST /ops/canary/run": {
+      "status_codes": [200],
+      "required_fields": ["canaries_run", "passed", "failed"],
+      "content_type": "application/json"
+    },
+    "GET /ops/drift/status": {
+      "status_codes": [200],
+      "required_fields": ["status"],
+      "content_type": "application/json"
+    },
+    "POST /ops/drift/run": {
+      "status_codes": [200],
+      "required_fields": ["intents_analyzed", "drifting", "stable"],
+      "content_type": "application/json"
+    },
+    "GET /ops/qa/dashboard": {
+      "status_codes": [200],
+      "required_fields": ["timestamp", "evaluation", "canaries", "drift", "health"],
+      "content_type": "application/json"
+    },
+    "GET /reporting/morning-brief": {
+      "status_codes": [200],
+      "required_fields": [
+        "generated_at",
+        "headline",
+        "summary",
+        "narrative",
+        "detail",
+        "deals_summary",
+        "recent_activity",
+        "recommendations",
+        "source"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /reporting/eod-digest": {
+      "status_codes": [200],
+      "required_fields": [
+        "generated_at",
+        "date",
+        "headline",
+        "summary",
+        "narrative",
+        "detail",
+        "activity_log",
+        "unresolved",
+        "source"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /reporting/deep-work-metrics": {
+      "status_codes": [200],
+      "required_fields": [
+        "period",
+        "lookback_days",
+        "deep_work_hours",
+        "target_hours",
+        "adherence_pct",
+        "plans_generated",
+        "actions_completed",
+        "generated_at"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /reporting/trust-metrics": {
+      "status_codes": [200],
+      "required_fields": [
+        "period",
+        "lookback_days",
+        "approval_rate",
+        "total_decisions",
+        "approvals",
+        "edits",
+        "time_saved_estimate",
+        "actions_completed",
+        "commitments_completed"
+      ],
+      "content_type": "application/json"
+    },
+    "POST /deep-work/session": {
+      "status_codes": [200, 400],
+      "required_fields": ["recorded", "session"],
+      "content_type": "application/json"
+    },
+    "GET /trust/autonomy/evaluate": {
+      "status_codes": [200],
+      "required_fields": ["ok", "evaluation", "generated_at"],
+      "content_type": "application/json"
+    },
+    "POST /extraction/deadlines": {
+      "status_codes": [200, 400],
+      "required_fields": ["candidates"],
+      "content_type": "application/json"
+    },
+    "GET /events/stats": {
+      "status_codes": [200],
+      "required_fields": ["total_events"],
+      "content_type": "application/json"
+    },
+    "GET /events/recent": {
+      "status_codes": [200],
+      "required_fields": ["events", "count"],
+      "content_type": "application/json"
+    },
+    "POST /governance/role-cards/validate": {
+      "status_codes": [200, 400],
+      "required_fields": ["valid", "role_id"],
+      "content_type": "application/json"
+    },
+    "POST /governance/hard-bans/check": {
+      "status_codes": [200, 400, 409],
+      "required_fields": ["allowed"],
+      "content_type": "application/json"
+    },
+    "POST /governance/output/validate": {
+      "status_codes": [200, 400],
+      "required_fields": ["valid"],
+      "content_type": "application/json"
+    },
+    "POST /governance/entity/check": {
+      "status_codes": [200, 400, 409],
+      "required_fields": ["allowed", "target_entity"],
+      "content_type": "application/json"
+    },
+    "POST /governance/confidence/evaluate": {
+      "status_codes": [200, 400, 409],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /governance/contradictions/check": {
+      "status_codes": [200, 400, 409],
+      "required_fields": ["contradictions_found"],
+      "content_type": "application/json"
+    },
+    "POST /governance/escalations/route": {
+      "status_codes": [200, 400, 409],
+      "required_fields": ["allowed"],
+      "content_type": "application/json"
+    },
+    "POST /governance/repair/simulate": {
+      "status_codes": [200, 400],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /learning/modifiers/evaluate": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /learning/affinity/route": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /learning/meetings/capture": {
+      "status_codes": [200],
+      "required_fields": [],
+      "content_type": "application/json"
+    },
+    "POST /intake/create": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "id", "card"],
+      "content_type": "application/json"
+    },
+    "POST /auth/mint": {
+      "status_codes": [200, 400, 401],
+      "required_fields": ["token"],
+      "content_type": "application/json"
+    },
+    "POST /mcp": {
+      "status_codes": [200],
+      "required_fields": ["jsonrpc", "id"],
+      "content_type": "application/json"
+    }
+  }
+}

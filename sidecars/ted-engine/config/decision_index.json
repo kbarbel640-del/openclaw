@@ -1,0 +1,91 @@
+{
+  "_config_version": 1,
+  "_description": "Architecture Decision Record index. Searchable record of key decisions across all SDDs.",
+  "_last_updated": "cycle_013",
+  "decisions": [
+    {
+      "id": "D-001",
+      "sdd": 4,
+      "summary": "Use Node.js HTTP server (no framework) for sidecar",
+      "status": "accepted",
+      "alternatives": ["Express.js", "Fastify", "Hapi"],
+      "rationale": "Minimal dependencies, full control over routing and middleware"
+    },
+    {
+      "id": "D-002",
+      "sdd": 9,
+      "summary": "Use append-only JSONL for all ledgers",
+      "status": "accepted",
+      "alternatives": ["SQLite", "PostgreSQL", "LevelDB"],
+      "rationale": "Crash-safe appends, human-readable, no dependencies, event-sourcing natural fit"
+    },
+    {
+      "id": "D-003",
+      "sdd": 9,
+      "summary": "Dual-write pattern (domain ledger + event log)",
+      "status": "accepted",
+      "alternatives": ["Single event store with projections", "CQRS with separate read model"],
+      "rationale": "Simpler implementation, both views immediately available, audit trail guaranteed"
+    },
+    {
+      "id": "D-004",
+      "sdd": 42,
+      "summary": "Single governance choke-point (sidecar)",
+      "status": "accepted",
+      "alternatives": ["Distributed policy enforcement", "API gateway with plugins"],
+      "rationale": "Design Law #1: all requests converge through same pipeline"
+    },
+    {
+      "id": "D-005",
+      "sdd": 55,
+      "summary": "Builder Lane: gated proposals not auto-apply",
+      "status": "accepted",
+      "alternatives": ["Auto-apply with rollback", "Auto-apply with shadow", "Manual-only changes"],
+      "rationale": "Balance between learning speed and safety. Shadow mode validates before promotion."
+    },
+    {
+      "id": "D-006",
+      "sdd": 59,
+      "summary": "Circuit breakers per workload group (7 groups)",
+      "status": "accepted",
+      "alternatives": ["Per-route breakers", "Global breaker", "No circuit breakers"],
+      "rationale": "Workload groups balance granularity with management overhead"
+    },
+    {
+      "id": "D-007",
+      "sdd": 29,
+      "summary": "Progressive autonomy with quantitative gates",
+      "status": "accepted",
+      "alternatives": ["Binary on/off autonomy", "Manual promotion only", "Time-based promotion"],
+      "rationale": "Empirically-driven: corrections <5% AND engagement >70% for promotion"
+    },
+    {
+      "id": "D-008",
+      "sdd": 69,
+      "summary": "6-layer non-destructive evolution architecture",
+      "status": "accepted",
+      "alternatives": [
+        "Ad-hoc migration",
+        "Database-style migrations only",
+        "Full rewrite approach"
+      ],
+      "rationale": "Comprehensive: data, config, code, interface, LLM, deployment layers"
+    },
+    {
+      "id": "D-009",
+      "sdd": 72,
+      "summary": "Strangler Fig decomposition starting with Tier 1 (SharePoint, scheduler, self-healing)",
+      "status": "proposed",
+      "alternatives": ["Full rewrite", "Keep monolith", "Extract all at once"],
+      "rationale": "Lowest coupling first. Server.mjs kernel retains shared helpers."
+    },
+    {
+      "id": "D-010",
+      "sdd": 72,
+      "summary": "Prompt registry for 7 golden-fixture prompts first",
+      "status": "proposed",
+      "alternatives": ["All prompts immediately", "No prompt registry", "Only new prompts"],
+      "rationale": "Golden fixtures are most critical and most tested. Other prompts follow when correction signals warrant."
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "_config_version": 1,
+  "hierarchy": [
+    {
+      "tier": 1,
+      "name": "Safety",
+      "description": "Protect operator, system integrity, and data confidentiality",
+      "overrides_all_below": true,
+      "enforcement": "hard_block"
+    },
+    {
+      "tier": 2,
+      "name": "Compliance",
+      "description": "HIPAA, legal, regulatory obligations",
+      "source": "hard_bans.json",
+      "enforcement": "hard_block"
+    },
+    {
+      "tier": 3,
+      "name": "Governance",
+      "description": "Operator-configured autonomy limits and approval gates",
+      "source": "autonomy_ladder.json",
+      "enforcement": "soft_block_with_override"
+    },
+    {
+      "tier": 4,
+      "name": "Helpfulness",
+      "description": "Task completion, output quality, and operator satisfaction",
+      "source": "operator_profile.json",
+      "enforcement": "best_effort"
+    }
+  ],
+  "absolute_prohibitions": [
+    "Never send email without operator approval at autonomy level < 4",
+    "Never expose raw PHI in LLM prompts — always redact via redactPhiFromMessages()",
+    "Never execute hard-banned operations regardless of autonomy level",
+    "Never auto-approve own proposals (rubber-stamping detection enforced)",
+    "Never remove words_to_avoid entries from draft_style.json",
+    "Never modify hard_bans.json or autonomy_ladder.json via Builder Lane",
+    "Never mix entity data across entity boundaries (Olumie/Everest isolation)",
+    "Never bypass content isolation tags on untrusted external content"
+  ],
+  "softcoded_defaults": {
+    "autonomy_starting_level": 1,
+    "approval_timeout_hours": 24,
+    "max_daily_outbound_emails": 20,
+    "stale_proposal_days": 14,
+    "max_consecutive_scheduler_failures": 3,
+    "notification_budget_daily_max": 50
+  },
+  "tier_resolution_rules": {
+    "conflict_between_tiers": "Higher tier always wins. Tier 1 overrides Tier 2, Tier 2 overrides Tier 3, etc.",
+    "ambiguous_classification": "When uncertain which tier applies, treat as the higher (more restrictive) tier.",
+    "builder_lane_scope": "Builder Lane may only modify Tier 4 (Helpfulness) configurations. Tier 1-3 changes require operator manual intervention."
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "_config_version": 1,
+  "_description": "Competitive landscape tracking. Updated quarterly. Parity: ahead, parity, behind.",
+  "_last_evaluated": "cycle_013",
+  "systems": [
+    {
+      "name": "Microsoft Copilot M365",
+      "category": "copilot",
+      "parity": {
+        "governance": "ahead",
+        "event_sourcing": "ahead",
+        "self_improvement": "ahead",
+        "progressive_autonomy": "ahead",
+        "m365_integration": "behind",
+        "multi_user": "behind",
+        "ux_polish": "behind",
+        "knowledge_rag": "behind",
+        "integration_breadth": "behind",
+        "compliance": "parity"
+      },
+      "notes": "Copilot has Semantic Index and deep M365 integration. TED leads on governance and event sourcing."
+    },
+    {
+      "name": "Notion AI",
+      "category": "copilot",
+      "parity": {
+        "governance": "ahead",
+        "event_sourcing": "ahead",
+        "self_improvement": "ahead",
+        "progressive_autonomy": "ahead",
+        "m365_integration": "ahead",
+        "multi_user": "behind",
+        "ux_polish": "behind",
+        "knowledge_rag": "behind",
+        "integration_breadth": "parity",
+        "compliance": "ahead"
+      },
+      "notes": "Notion has world-class UX and block model. TED leads on governance and domain-specific workflows."
+    },
+    {
+      "name": "Linear AI",
+      "category": "agent",
+      "parity": {
+        "governance": "ahead",
+        "event_sourcing": "parity",
+        "self_improvement": "ahead",
+        "progressive_autonomy": "ahead",
+        "m365_integration": "ahead",
+        "multi_user": "behind",
+        "ux_polish": "behind",
+        "knowledge_rag": "parity",
+        "integration_breadth": "behind",
+        "compliance": "ahead"
+      },
+      "notes": "Linear has transparent AI reasoning (Linear Asks) and beautiful UX."
+    },
+    {
+      "name": "Dust.tt",
+      "category": "agent",
+      "parity": {
+        "governance": "ahead",
+        "event_sourcing": "ahead",
+        "self_improvement": "ahead",
+        "progressive_autonomy": "ahead",
+        "m365_integration": "ahead",
+        "multi_user": "behind",
+        "ux_polish": "behind",
+        "knowledge_rag": "behind",
+        "integration_breadth": "behind",
+        "compliance": "ahead"
+      },
+      "notes": "Dust has multi-agent teams and knowledge connector ecosystem."
+    },
+    {
+      "name": "LangGraph",
+      "category": "framework",
+      "parity": {
+        "governance": "ahead",
+        "event_sourcing": "parity",
+        "self_improvement": "ahead",
+        "progressive_autonomy": "ahead",
+        "m365_integration": "ahead",
+        "multi_user": "behind",
+        "ux_polish": "n/a",
+        "knowledge_rag": "behind",
+        "integration_breadth": "behind",
+        "compliance": "ahead"
+      },
+      "notes": "LangGraph provides infrastructure TED could adopt. TED's cognitive architecture is more mature."
+    }
+  ]
+}

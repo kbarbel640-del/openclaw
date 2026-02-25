@@ -1,0 +1,140 @@
+{
+  "_config_version": 1,
+  "grader_types": {
+    "schema": {
+      "description": "Validates JSON structure and required fields",
+      "cost": "free",
+      "determinism": "100%"
+    },
+    "keyword": {
+      "description": "Checks for required/forbidden keywords",
+      "cost": "free",
+      "determinism": "100%"
+    },
+    "constraint": {
+      "description": "Token count, banned phrases, format compliance",
+      "cost": "free",
+      "determinism": "100%"
+    },
+    "pattern": { "description": "Regex pattern matching", "cost": "free", "determinism": "100%" },
+    "semantic": {
+      "description": "Embedding similarity comparison",
+      "cost": "low",
+      "determinism": "~95%"
+    },
+    "llm_judge": {
+      "description": "LLM evaluates quality against rubric",
+      "cost": "high",
+      "determinism": "~85%"
+    }
+  },
+  "intents": {
+    "triage_classify": {
+      "graders": ["schema", "keyword", "constraint"],
+      "schema": { "required_fields": ["urgency", "confidence", "entity"] },
+      "keyword": { "must_contain_one_of": ["low", "medium", "high", "critical"] },
+      "constraint": { "max_tokens": 500 }
+    },
+    "morning_brief": {
+      "graders": ["schema", "constraint", "keyword"],
+      "schema": { "required_fields": ["inbox", "priorities", "calendar"] },
+      "keyword": {
+        "must_contain_one_of": ["priorities", "calendar", "inbox", "deadline", "attention"]
+      },
+      "constraint": { "max_tokens": 2000 }
+    },
+    "eod_digest": {
+      "graders": ["schema", "constraint", "keyword"],
+      "schema": { "required_fields": ["completed", "pending", "tomorrow"] },
+      "keyword": {
+        "must_contain_one_of": ["completed", "pending", "tomorrow", "follow-up", "outstanding"]
+      },
+      "constraint": { "max_tokens": 2000 }
+    },
+    "draft_email": {
+      "graders": ["keyword", "constraint"],
+      "keyword": { "must_contain_all": ["Clint"], "must_not_contain": [] },
+      "constraint": { "max_tokens": 1500, "banned_phrases": [] }
+    },
+    "meeting_prep": {
+      "graders": ["schema", "keyword", "constraint"],
+      "schema": { "required_fields": ["attendees", "agenda", "context"] },
+      "keyword": { "must_contain_one_of": ["agenda", "prepare", "discussion", "objective"] },
+      "constraint": { "max_tokens": 1500 }
+    },
+    "commitment_extract": {
+      "graders": ["schema", "constraint"],
+      "schema": { "required_fields": ["who_owes", "what", "due_date"] },
+      "constraint": { "max_tokens": 1000 }
+    },
+    "improvement_proposal": {
+      "graders": ["schema", "constraint", "keyword"],
+      "schema": { "required_fields": ["problem", "proposed", "evidence"] },
+      "keyword": { "must_contain_one_of": ["improvement", "proposal", "change", "recommendation"] },
+      "constraint": { "max_tokens": 2000 }
+    },
+    "deal_snapshot": {
+      "graders": ["schema", "constraint"],
+      "schema": { "required_fields": ["deal_id", "status", "summary"] },
+      "constraint": { "max_tokens": 1000 }
+    },
+    "facility_alert": {
+      "graders": ["schema", "keyword"],
+      "schema": { "required_fields": ["alert_type", "severity", "description"] },
+      "keyword": { "must_contain_one_of": ["alert", "warning", "critical", "notice"] }
+    },
+    "daily_plan": {
+      "graders": ["schema", "constraint"],
+      "schema": { "required_fields": ["blocks", "priorities"] },
+      "constraint": { "max_tokens": 1500 }
+    },
+    "gtd_action": {
+      "graders": ["schema"],
+      "schema": { "required_fields": ["action", "context"] }
+    },
+    "waiting_for": {
+      "graders": ["schema"],
+      "schema": { "required_fields": ["who", "what", "status"] }
+    },
+    "calendar_enrichment": {
+      "graders": ["schema"],
+      "schema": { "required_fields": ["event", "enrichment"] }
+    },
+    "discovery_pipeline": {
+      "graders": ["schema", "constraint"],
+      "schema": { "required_fields": ["discovery", "results"] },
+      "constraint": { "max_tokens": 2000 }
+    },
+    "reconciliation_drift": {
+      "graders": ["schema"],
+      "schema": { "required_fields": ["drift_items", "proposed_writes"] }
+    },
+    "intake_recommendation": {
+      "graders": ["schema", "keyword"],
+      "schema": { "required_fields": ["recommendation", "confidence"] },
+      "keyword": { "must_contain_one_of": ["recommend", "suggest", "advise", "propose"] }
+    },
+    "builder_lane_proposal": {
+      "graders": ["schema", "constraint"],
+      "schema": { "required_fields": ["problem", "proposed", "evidence"] },
+      "constraint": { "max_tokens": 2000 }
+    },
+    "self_healing_assessment": {
+      "graders": ["schema"],
+      "schema": { "required_fields": ["health_status", "recommendations"] }
+    },
+    "engagement_summary": {
+      "graders": ["schema"],
+      "schema": { "required_fields": ["engagement_score", "period"] }
+    },
+    "stale_deal_report": {
+      "graders": ["schema"],
+      "schema": { "required_fields": ["stale_deals", "recommended"] }
+    }
+  },
+  "thresholds": {
+    "default_pass_score": 0.7,
+    "critical_intents": ["draft_email", "morning_brief", "eod_digest"],
+    "critical_pass_score": 0.85
+  }
+}

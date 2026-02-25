@@ -1,4 +1,5 @@
 {
+  "_config_version": 1,
   "_sdd": {
     "source": "docs/ted-profile/sdd-pack/43_LLM_INTEGRATION_IMPLEMENTATION_PLAN.md",
     "section": "Phase G: Agent Tool Registration",
@@ -67,6 +68,9 @@
         "ted_graph_sync_status",
         "ted_ingestion_status",
         "ted_discovery_status",
+        "ted_tool_usage",
+        "ted_evaluation_status",
+        "ted_evaluation_run",
         "ted_builder_lane_status",
         "ted_builder_lane_metrics",
         "ted_builder_lane_revert",

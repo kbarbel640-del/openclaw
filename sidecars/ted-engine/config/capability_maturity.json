@@ -1,0 +1,80 @@
+{
+  "_config_version": 1,
+  "_description": "TED Capability Maturity Model — 5 levels (0=Not Present, 1=Basic, 2=Functional, 3=Governed, 4=Self-Improving). Re-evaluated each council cycle.",
+  "_last_evaluated": "cycle_013",
+  "_date": "2026-02-25",
+  "dimensions": [
+    {
+      "name": "email_handling",
+      "level": 3,
+      "target": 4,
+      "notes": "Governed: ingestion, triage, draft generation, send via Graph. Missing: semantic search across email history."
+    },
+    {
+      "name": "calendar_awareness",
+      "level": 3,
+      "target": 3,
+      "notes": "Governed: read events with attendees/body, meeting prep/debrief, enriched normalization. Target met."
+    },
+    {
+      "name": "task_management",
+      "level": 3,
+      "target": 4,
+      "notes": "Governed: GTD actions, waiting-for, Planner/To Do sync, reconciliation. Missing: auto-prioritization based on context."
+    },
+    {
+      "name": "deal_tracking",
+      "level": 3,
+      "target": 3,
+      "notes": "Governed: deal pipeline, stage management, stale owner tracking, retrospective, auto-brief. Target met."
+    },
+    {
+      "name": "document_management",
+      "level": 2,
+      "target": 3,
+      "notes": "Functional: SharePoint browse/search/upload. Missing: content extraction, document intelligence, data room integration."
+    },
+    {
+      "name": "governance_safety",
+      "level": 4,
+      "target": 4,
+      "notes": "Self-Improving: Builder Lane proposes governance changes, rubber-stamping detection, constitution check. Target met."
+    },
+    {
+      "name": "self_healing",
+      "level": 4,
+      "target": 4,
+      "notes": "Self-Improving: circuit breakers, provider health, config drift, zombie drafts, noise reduction, dynamic autonomy. Target met."
+    },
+    {
+      "name": "personalization",
+      "level": 3,
+      "target": 4,
+      "notes": "Governed: style guide, draft style, correction signals, cold-start archetypes, voice extraction. Missing: per-context style adaptation."
+    },
+    {
+      "name": "knowledge_retrieval",
+      "level": 1,
+      "target": 3,
+      "notes": "Basic: structured ledger queries only. No semantic search, no RAG, no vector store. Significant gap."
+    },
+    {
+      "name": "multi_user",
+      "level": 0,
+      "target": 1,
+      "notes": "Not Present: single operator only. Architectural planning needed but not urgent for current use case."
+    },
+    {
+      "name": "evaluation_pipeline",
+      "level": 2,
+      "target": 4,
+      "notes": "Functional: 7 golden fixtures at startup. Missing: continuous evaluation, LLM-as-Judge, quality trends."
+    },
+    {
+      "name": "non_destructive_evolution",
+      "level": 1,
+      "target": 3,
+      "notes": "Basic: config drift reconciliation exists but no schema versioning, no migration runner, no upcasters."
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "_config_version": 1,
+  "description": "Synthetic canary definitions for continuous LLM quality monitoring. Each canary defines a synthetic prompt+intent pair that runs periodically through the evaluation pipeline to detect regressions.",
+  "schedule": {
+    "enabled": true,
+    "interval_minutes": 60,
+    "max_canaries_per_cycle": 5,
+    "stagger_ms": 2000,
+    "failure_cooldown_minutes": 15
+  },
+  "thresholds": {
+    "alert_on_consecutive_failures": 2,
+    "degradation_score_delta": 0.15,
+    "rolling_window_hours": 168
+  },
+  "canaries": [
+    {
+      "id": "canary-triage-001",
+      "intent": "triage_classify",
+      "description": "Triage classification with urgency and entity extraction",
+      "synthetic_prompt": "Classify this email: Subject: Fund II closing — urgent docs needed by tomorrow. From: counsel@external.com. Body: Please review and return the signed closing documents for Olumie Fund II by end of day tomorrow. The counterparty is waiting.",
+      "expected_intent": "triage_classify",
+      "min_score": 0.7,
+      "priority": "high",
+      "tags": ["core", "triage"]
+    },
+    {
+      "id": "canary-morning-001",
+      "intent": "morning_brief",
+      "description": "Morning briefing with inbox, priorities, and calendar",
+      "synthetic_prompt": "Generate a morning brief for Clint. He has 4 unread emails (1 urgent from counsel), 2 meetings today (10am closing call, 2pm board prep), and 3 open action items from yesterday.",
+      "expected_intent": "morning_brief",
+      "min_score": 0.7,
+      "priority": "high",
+      "tags": ["core", "reporting"]
+    },
+    {
+      "id": "canary-eod-001",
+      "intent": "eod_digest",
+      "description": "End-of-day digest with completed, pending, and tomorrow prep",
+      "synthetic_prompt": "Generate an end-of-day digest. Completed: reviewed Fund II docs, sent compliance response. Pending: investor memo awaiting Isaac's review. Tomorrow: board deck finalization due before 2pm.",
+      "expected_intent": "eod_digest",
+      "min_score": 0.7,
+      "priority": "high",
+      "tags": ["core", "reporting"]
+    },
+    {
+      "id": "canary-draft-001",
+      "intent": "draft_email",
+      "description": "Email draft with signature and professional tone",
+      "synthetic_prompt": "Draft a follow-up email from Clint to Isaac about the Everest compliance filing. Mention that Section 3.2 needs updated Q4 financials and the filing deadline is Friday.",
+      "expected_intent": "draft_email",
+      "min_score": 0.85,
+      "priority": "critical",
+      "tags": ["core", "drafting"]
+    },
+    {
+      "id": "canary-commitment-001",
+      "intent": "commitment_extract",
+      "description": "Commitment extraction from email conversation",
+      "synthetic_prompt": "Extract commitments from: Isaac said 'I will send the updated Q4 numbers by Tuesday.' Clint replied 'I will review the closing docs by tomorrow morning and send comments.'",
+      "expected_intent": "commitment_extract",
+      "min_score": 0.7,
+      "priority": "high",
+      "tags": ["core", "extraction"]
+    },
+    {
+      "id": "canary-deal-001",
+      "intent": "deal_snapshot",
+      "description": "Deal snapshot with status and summary",
+      "synthetic_prompt": "Generate a snapshot for deal fund-ii-2024 (Olumie Fund II). Status: active, closing docs under review, target close next week. Last touch: yesterday.",
+      "expected_intent": "deal_snapshot",
+      "min_score": 0.7,
+      "priority": "medium",
+      "tags": ["deals"]
+    },
+    {
+      "id": "canary-improvement-001",
+      "intent": "improvement_proposal",
+      "description": "Improvement proposal with problem, change, and evidence",
+      "synthetic_prompt": "Propose an improvement: The triage classifier has a 15% misclassification rate on facility alerts vs deal updates. Suggest adding entity-type feature to the classification prompt. Evidence: 8 misclassifications in the last 7 days.",
+      "expected_intent": "improvement_proposal",
+      "min_score": 0.7,
+      "priority": "medium",
+      "tags": ["builder-lane"]
+    },
+    {
+      "id": "canary-gtd-001",
+      "intent": "gtd_action",
+      "description": "GTD next action with context",
+      "synthetic_prompt": "Create a GTD action: Draft response to counsel about Fund II wire instructions. Context: @computer, project: Olumie Fund II Closing, energy: high, estimated 20 minutes.",
+      "expected_intent": "gtd_action",
+      "min_score": 0.7,
+      "priority": "medium",
+      "tags": ["gtd"]
+    },
+    {
+      "id": "canary-facility-001",
+      "intent": "facility_alert",
+      "description": "Facility alert with type, severity, and description",
+      "synthetic_prompt": "Generate a facility alert: Everest Healthcare main facility has an annual compliance filing due in 5 days. The filing template is 70% complete. Severity: high.",
+      "expected_intent": "facility_alert",
+      "min_score": 0.7,
+      "priority": "medium",
+      "tags": ["facility"]
+    },
+    {
+      "id": "canary-waiting-001",
+      "intent": "waiting_for",
+      "description": "Waiting-for item tracking delegation",
+      "synthetic_prompt": "Track a waiting-for item: Waiting on Isaac for updated Q4 financials for the Everest board deck. Requested 2 days ago, expected by tomorrow. Status: pending.",
+      "expected_intent": "waiting_for",
+      "min_score": 0.7,
+      "priority": "medium",
+      "tags": ["gtd"]
+    }
+  ]
+}
