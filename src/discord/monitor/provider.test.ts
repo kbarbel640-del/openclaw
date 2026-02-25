@@ -54,7 +54,7 @@ const {
 });
 
 vi.mock("@buape/carbon", () => {
-  class ReadyListener {}
+  class ReadyListener { }
   class Client {
     listeners: unknown[];
     rest: { put: ReturnType<typeof vi.fn> };
@@ -80,7 +80,7 @@ vi.mock("@buape/carbon/gateway", () => ({
 }));
 
 vi.mock("@buape/carbon/voice", () => ({
-  VoicePlugin: class VoicePlugin {},
+  VoicePlugin: class VoicePlugin { },
 }));
 
 vi.mock("../../auto-reply/chunk.js", () => ({
@@ -145,8 +145,8 @@ vi.mock("../voice/command.js", () => ({
 }));
 
 vi.mock("../voice/manager.js", () => ({
-  DiscordVoiceManager: class DiscordVoiceManager {},
-  DiscordVoiceReadyListener: class DiscordVoiceReadyListener {},
+  DiscordVoiceManager: class DiscordVoiceManager { },
+  DiscordVoiceReadyListener: class DiscordVoiceReadyListener { },
 }));
 
 vi.mock("./agent-components.js", () => ({
@@ -182,10 +182,11 @@ vi.mock("./gateway-plugin.js", () => ({
 }));
 
 vi.mock("./listeners.js", () => ({
-  DiscordMessageListener: class DiscordMessageListener {},
-  DiscordPresenceListener: class DiscordPresenceListener {},
-  DiscordReactionListener: class DiscordReactionListener {},
-  DiscordReactionRemoveListener: class DiscordReactionRemoveListener {},
+  DiscordMessageListener: class DiscordMessageListener { },
+  DiscordPresenceListener: class DiscordPresenceListener { },
+  DiscordReactionListener: class DiscordReactionListener { },
+  DiscordReactionRemoveListener: class DiscordReactionRemoveListener { },
+  DiscordThreadUpdateListener: class DiscordThreadUpdateListener { },
   registerDiscordListener: vi.fn(),
 }));
 
