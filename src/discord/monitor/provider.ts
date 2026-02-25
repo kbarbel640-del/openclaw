@@ -57,6 +57,7 @@ import {
   DiscordPresenceListener,
   DiscordReactionListener,
   DiscordReactionRemoveListener,
+  DiscordThreadCreateListener,
   registerDiscordListener,
 } from "./listeners.js";
 import { createDiscordMessageHandler } from "./message-handler.js";
@@ -575,6 +576,13 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         botUserId,
         allowNameMatching: isDangerousNameMatchingEnabled(discordCfg),
         guildEntries,
+        logger,
+      }),
+    );
+    registerDiscordListener(
+      client.listeners,
+      new DiscordThreadCreateListener({
+        autoJoinBotThreads: discordCfg.autoJoinBotThreads,
         logger,
       }),
     );
