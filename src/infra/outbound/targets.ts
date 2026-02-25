@@ -115,9 +115,10 @@ export function resolveSessionDeliveryTarget(params: {
     }
   }
 
-  const accountId = channel && channel === lastChannel ? lastAccountId : undefined;
-  const threadId = channel && channel === lastChannel ? lastThreadId : undefined;
   const mode = params.mode ?? (explicitTo ? "explicit" : "implicit");
+  const accountId = channel && channel === lastChannel ? lastAccountId : undefined;
+  const threadId =
+    mode !== "heartbeat" && channel && channel === lastChannel ? lastThreadId : undefined;
 
   const resolvedThreadId = explicitThreadId ?? threadId;
   return {
@@ -209,7 +210,7 @@ export function resolveHeartbeatDeliveryTarget(params: {
   const { cfg, entry } = params;
   const heartbeat = params.heartbeat ?? cfg.agents?.defaults?.heartbeat;
   const rawTarget = heartbeat?.target;
-  let target: HeartbeatTarget = "last";
+  let target: HeartbeatTarget = "none";
   if (rawTarget === "none" || rawTarget === "last") {
     target = rawTarget;
   } else if (typeof rawTarget === "string") {
