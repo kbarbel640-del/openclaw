@@ -45,6 +45,11 @@ Use this format when adding entries:
 
 ## Listed plugins
 
+- **memory-lancedb-pro** — Enhanced long-term memory with hybrid retrieval (Vector + BM25), cross-encoder rerank (Jina), multi-scope isolation, adaptive retrieval, and a management CLI. Drop-in upgrade for the built-in `memory-lancedb`.
+  npm: `memory-lancedb-pro`
+  repo: `https://github.com/win4r/memory-lancedb-pro`
+  install: `openclaw plugins install memory-lancedb-pro`
+
 - **WeChat** — Connect OpenClaw to WeChat personal accounts via WeChatPadPro (iPad protocol). Supports text, image, and file exchange with keyword-triggered conversations.
   npm: `@icesword760/openclaw-wechat`
   repo: `https://github.com/icesword0760/openclaw-wechat`
