@@ -52,6 +52,7 @@ import { appendUntrustedContext } from "./untrusted-context.js";
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;
 
+import { BARE_SESSION_RESET_PROMPT } from "@openclaw/shared-constants";
 function buildResetSessionNoticeText(params: {
   provider: string;
   model: string;
