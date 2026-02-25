@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildTelegramWebhookRateLimitKey,
   clearTelegramWebhookRateLimits,
   getTelegramWebhookRateLimitStateSize,
   isTelegramWebhookRateLimited,
@@ -80,6 +81,12 @@ describe("startTelegramWebhook", () => {
       isTelegramWebhookRateLimited(`/telegram-webhook:key-${i}`, now);
     }
     expect(getTelegramWebhookRateLimitStateSize()).toBeLessThanOrEqual(4_096);
+  });
+
+  it("normalizes IPv4-mapped IPv6 webhook source keys", () => {
+    const mapped = buildTelegramWebhookRateLimitKey("/telegram-webhook", "::ffff:127.0.0.1");
+    const ipv4 = buildTelegramWebhookRateLimitKey("/telegram-webhook", "127.0.0.1");
+    expect(mapped).toBe(ipv4);
   });
 
   it("starts server, registers webhook, and serves health", async () => {

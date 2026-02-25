@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { webhookCallback } from "grammy";
 import type { OpenClawConfig } from "../config/config.js";
+import { normalizeRateLimitClientIp } from "../gateway/auth-rate-limit.js";
 import { isDiagnosticsEnabled } from "../infra/diagnostic-events.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import { installRequestBodyLimitGuard } from "../infra/http-body.js";
@@ -79,6 +80,13 @@ export function isTelegramWebhookRateLimited(key: string, nowMs: number): boolea
   return false;
 }
 
+export function buildTelegramWebhookRateLimitKey(
+  path: string,
+  remoteAddress: string | undefined,
+): string {
+  return `${path}:${normalizeRateLimitClientIp(remoteAddress)}`;
+}
+
 export async function startTelegramWebhook(opts: {
   token: string;
   accountId?: string;
@@ -134,7 +142,7 @@ export async function startTelegramWebhook(opts: {
       res.end();
       return;
     }
-    const rateLimitKey = `${path}:${req.socket.remoteAddress ?? "unknown"}`;
+    const rateLimitKey = buildTelegramWebhookRateLimitKey(path, req.socket.remoteAddress);
     if (isTelegramWebhookRateLimited(rateLimitKey, Date.now())) {
       res.writeHead(429);
       res.end("Too Many Requests");
