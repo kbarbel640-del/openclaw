@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { listAgentIds } from "../../agents/agent-scope.js";
 import { BARE_SESSION_RESET_PROMPT } from "../../auto-reply/reply/session-reset-prompt.js";
 import { agentCommand } from "../../commands/agent.js";
+import { resolveSessionKeyForRequest } from "../../commands/agent/session.js";
 import { loadConfig } from "../../config/config.js";
 import {
   resolveAgentIdFromSessionKey,
-  resolveExplicitAgentSessionKey,
   resolveAgentMainSessionKey,
   type SessionEntry,
   updateSessionStore,
@@ -291,27 +291,30 @@ export const agentHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    let requestedSessionKey =
-      requestedSessionKeyRaw ??
-      resolveExplicitAgentSessionKey({
-        cfg,
-        agentId,
-      });
-    if (agentId && requestedSessionKeyRaw) {
-      const sessionAgentId = resolveAgentIdFromSessionKey(requestedSessionKeyRaw);
+    const requestedSessionId = request.sessionId?.trim() || undefined;
+    let requestedSessionKey = resolveSessionKeyForRequest({
+      cfg,
+      to: request.to,
+      sessionId: requestedSessionId,
+      sessionKey: requestedSessionKeyRaw,
+      agentId,
+    }).sessionKey;
+    if (agentId && requestedSessionKey) {
+      const sessionAgentId = resolveAgentIdFromSessionKey(requestedSessionKey);
+      const target = requestedSessionKeyRaw || requestedSessionId ? "session" : "resolved session";
       if (sessionAgentId !== agentId) {
         respond(
           false,
           undefined,
           errorShape(
             ErrorCodes.INVALID_REQUEST,
-            `invalid agent params: agent "${request.agentId}" does not match session key agent "${sessionAgentId}"`,
+            `invalid agent params: agent "${request.agentId}" does not match ${target} agent "${sessionAgentId}"`,
           ),
         );
         return;
       }
     }
-    let resolvedSessionId = request.sessionId?.trim() || undefined;
+    let resolvedSessionId = requestedSessionId;
     let sessionEntry: SessionEntry | undefined;
     let bestEffortDeliver = requestedBestEffortDeliver ?? false;
     let cfgForAgent: ReturnType<typeof loadConfig> | undefined;

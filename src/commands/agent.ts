@@ -277,6 +277,14 @@ export async function agentCommand(
     persistedThinking,
     persistedVerbose,
   } = sessionResolution;
+  if (agentIdOverride && sessionKey) {
+    const resolvedSessionAgentId = resolveAgentIdFromSessionKey(sessionKey);
+    if (resolvedSessionAgentId !== agentIdOverride) {
+      throw new Error(
+        `Agent id "${agentIdOverrideRaw}" does not match resolved session agent "${resolvedSessionAgentId}".`,
+      );
+    }
+  }
   const sessionAgentId =
     agentIdOverride ??
     resolveSessionAgentId({

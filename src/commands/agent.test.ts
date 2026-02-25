@@ -230,6 +230,65 @@ describe("agentCommand", () => {
     });
   });
 
+  it("prefers session-id lookup over --agent main fallback", async () => {
+    await withTempHome(async (home) => {
+      const store = path.join(home, "sessions.json");
+      writeSessionStoreSeed(store, {
+        "agent:main:subagent:resume-thread": {
+          sessionId: "session-resume-thread",
+          updatedAt: Date.now(),
+          systemSent: true,
+        },
+        "agent:main:main": {
+          sessionId: "session-main",
+          updatedAt: Date.now(),
+        },
+      });
+      mockConfig(home, store);
+
+      await agentCommand(
+        {
+          message: "resume me",
+          agentId: "main",
+          sessionId: "session-resume-thread",
+        },
+        runtime,
+      );
+
+      const callArgs = vi.mocked(runEmbeddedPiAgent).mock.calls.at(-1)?.[0];
+      expect(callArgs?.sessionKey).toBe("agent:main:subagent:resume-thread");
+    });
+  });
+
+  it("rejects agent/session mismatch when --session-id resolves to another agent", async () => {
+    await withTempHome(async (home) => {
+      const storePattern = path.join(home, "sessions", "{agentId}", "sessions.json");
+      const opsStore = path.join(home, "sessions", "ops", "sessions.json");
+      writeSessionStoreSeed(opsStore, {
+        "agent:ops:main": {
+          sessionId: "session-ops-main",
+          updatedAt: Date.now(),
+          systemSent: true,
+        },
+      });
+      mockConfig(home, storePattern, undefined, undefined, [
+        { id: "main", default: true },
+        { id: "ops" },
+      ]);
+
+      await expect(
+        agentCommand(
+          {
+            message: "resume me",
+            agentId: "main",
+            sessionId: "session-ops-main",
+          },
+          runtime,
+        ),
+      ).rejects.toThrow('Agent id "main" does not match resolved session agent "ops".');
+    });
+  });
+
   it("resolves resumed session transcript path from custom session store directory", async () => {
     await withTempHome(async (home) => {
       const customStoreDir = path.join(home, "custom-state");

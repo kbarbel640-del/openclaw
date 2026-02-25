@@ -107,6 +107,39 @@ describe("agentCliCommand", () => {
     });
   });
 
+  it("resolves session key from --session-id even when --agent is provided", async () => {
+    await withTempStore(async ({ store }) => {
+      fs.writeFileSync(
+        store,
+        JSON.stringify(
+          {
+            "agent:main:subagent:resume-thread": {
+              sessionId: "session-resume-thread",
+              updatedAt: Date.now(),
+            },
+          },
+          null,
+          2,
+        ),
+      );
+      mockGatewaySuccessReply();
+
+      await agentCliCommand(
+        {
+          message: "resume",
+          agent: "main",
+          sessionId: "session-resume-thread",
+        },
+        runtime,
+      );
+
+      const request = vi.mocked(callGateway).mock.calls.at(-1)?.[0] as
+        | { params?: { sessionKey?: string } }
+        | undefined;
+      expect(request?.params?.sessionKey).toBe("agent:main:subagent:resume-thread");
+    });
+  });
+
   it("falls back to embedded agent when gateway fails", async () => {
     await withTempStore(async () => {
       vi.mocked(callGateway).mockRejectedValue(new Error("gateway not connected"));

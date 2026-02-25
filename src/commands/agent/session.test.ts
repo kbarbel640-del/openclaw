@@ -160,6 +160,43 @@ describe("resolveSessionKeyForRequest", () => {
     expect(result.storePath).toBe(MYBOT_STORE_PATH);
   });
 
+  it("prefers --session-id lookup over --agent main fallback", async () => {
+    setupMainAndMybotStorePaths();
+    mockStoresByPath({
+      [MAIN_STORE_PATH]: {
+        "agent:main:main": { sessionId: "other-session-id", updatedAt: 0 },
+      },
+      [MYBOT_STORE_PATH]: {
+        "agent:mybot:subagent:resume": { sessionId: "target-session-id", updatedAt: 0 },
+      },
+    });
+
+    const result = resolveSessionKeyForRequest({
+      cfg: baseCfg,
+      agentId: "mybot",
+      sessionId: "target-session-id",
+    });
+
+    expect(result.sessionKey).toBe("agent:mybot:subagent:resume");
+    expect(result.storePath).toBe(MYBOT_STORE_PATH);
+  });
+
+  it("falls back to --agent main session when session-id is not found", async () => {
+    setupMainAndMybotStorePaths();
+    mockStoresByPath({
+      [MAIN_STORE_PATH]: {},
+      [MYBOT_STORE_PATH]: {},
+    });
+
+    const result = resolveSessionKeyForRequest({
+      cfg: baseCfg,
+      agentId: "mybot",
+      sessionId: "missing-session-id",
+    });
+
+    expect(result.sessionKey).toBe("agent:mybot:main");
+  });
+
   it("skips already-searched primary store when iterating agents", async () => {
     setupMainAndMybotStorePaths();
     mocks.loadSessionStore.mockReturnValue({});

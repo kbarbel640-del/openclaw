@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BARE_SESSION_RESET_PROMPT } from "../../auto-reply/reply/session-reset-prompt.js";
 import { agentHandlers } from "./agent.js";
 import type { GatewayRequestContext } from "./types.js";
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   agentCommand: vi.fn(),
   registerAgentRunContext: vi.fn(),
   sessionsResetHandler: vi.fn(),
+  resolveSessionKeyForRequest: vi.fn(),
   loadConfigReturn: {} as Record<string, unknown>,
 }));
 
@@ -27,7 +28,17 @@ vi.mock("../../config/sessions.js", async () => {
   return {
     ...actual,
     updateSessionStore: mocks.updateSessionStore,
-    resolveAgentIdFromSessionKey: () => "main",
+    resolveAgentIdFromSessionKey: (sessionKey?: string) => {
+      const key = (sessionKey ?? "").trim().toLowerCase();
+      if (key.startsWith("agent:")) {
+        const parsed = key.split(":");
+        const id = parsed[1]?.trim();
+        if (id) {
+          return id;
+        }
+      }
+      return "main";
+    },
     resolveExplicitAgentSessionKey: () => undefined,
     resolveAgentMainSessionKey: ({
       cfg,
@@ -38,6 +49,10 @@ vi.mock("../../config/sessions.js", async () => {
     }) => `agent:${agentId}:${cfg?.session?.mainKey ?? "main"}`,
   };
 });
+
+vi.mock("../../commands/agent/session.js", () => ({
+  resolveSessionKeyForRequest: mocks.resolveSessionKeyForRequest,
+}));
 
 vi.mock("../../commands/agent.js", () => ({
   agentCommand: mocks.agentCommand,
@@ -83,6 +98,31 @@ const makeContext = (): GatewayRequestContext =>
     addChatRun: vi.fn(),
     logGateway: { info: vi.fn(), error: vi.fn() },
   }) as unknown as GatewayRequestContext;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.loadConfigReturn = {};
+  mocks.resolveSessionKeyForRequest.mockImplementation(
+    (opts?: { sessionKey?: string; agentId?: string }) => {
+      const rawSessionKey =
+        typeof opts?.sessionKey === "string" && opts.sessionKey.trim()
+          ? opts.sessionKey.trim()
+          : undefined;
+      if (rawSessionKey) {
+        return { sessionKey: rawSessionKey, sessionStore: {}, storePath: "/tmp/sessions.json" };
+      }
+      const agentId =
+        typeof opts?.agentId === "string" && opts.agentId.trim()
+          ? opts.agentId.trim().toLowerCase()
+          : undefined;
+      return {
+        sessionKey: agentId ? `agent:${agentId}:main` : undefined,
+        sessionStore: {},
+        storePath: "/tmp/sessions.json",
+      };
+    },
+  );
+});
 
 type AgentHandlerArgs = Parameters<typeof agentHandlers.agent>[0];
 type AgentParams = AgentHandlerArgs["params"];
@@ -423,6 +463,78 @@ describe("gateway agent handler", () => {
 
     mocks.loadConfigReturn = {};
     vi.useRealTimers();
+  });
+
+  it("resolves session key from session-id when agent id is provided", async () => {
+    mocks.resolveSessionKeyForRequest.mockReturnValueOnce({
+      sessionKey: "agent:main:subagent:resume",
+      sessionStore: {},
+      storePath: "/tmp/sessions.json",
+    });
+    mocks.loadSessionEntry.mockReturnValue({
+      cfg: {},
+      storePath: "/tmp/sessions.json",
+      entry: {
+        sessionId: "resume-1",
+        updatedAt: Date.now(),
+      },
+      canonicalKey: "agent:main:subagent:resume",
+    });
+    mocks.updateSessionStore.mockResolvedValue(undefined);
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await invokeAgent(
+      {
+        message: "resume",
+        agentId: "main",
+        sessionId: "resume-1",
+        idempotencyKey: "test-session-id-resolution",
+      },
+      { reqId: "session-id-resolution" },
+    );
+
+    expect(mocks.resolveSessionKeyForRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: "main",
+        sessionId: "resume-1",
+        sessionKey: undefined,
+      }),
+    );
+    await vi.waitFor(() => expect(mocks.agentCommand).toHaveBeenCalled());
+    const callArgs = mocks.agentCommand.mock.calls.at(-1)?.[0] as
+      | { sessionKey?: string }
+      | undefined;
+    expect(callArgs?.sessionKey).toBe("agent:main:subagent:resume");
+  });
+
+  it("rejects agent/session mismatch when session-id resolves to another agent", async () => {
+    mocks.resolveSessionKeyForRequest.mockReturnValueOnce({
+      sessionKey: "agent:ops:main",
+      sessionStore: {},
+      storePath: "/tmp/ops-sessions.json",
+    });
+
+    const respond = await invokeAgent(
+      {
+        message: "resume",
+        agentId: "main",
+        sessionId: "resume-ops",
+        idempotencyKey: "test-session-agent-mismatch",
+      },
+      { reqId: "session-agent-mismatch" },
+    );
+
+    expect(mocks.agentCommand).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: expect.stringContaining('does not match session agent "ops"'),
+      }),
+    );
   });
 
   it("rejects malformed agent session keys early in agent handler", async () => {
