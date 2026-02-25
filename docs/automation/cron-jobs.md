@@ -107,6 +107,8 @@ A cron job is a stored record with:
 
 Jobs are identified by a stable `jobId` (used by CLI/Gateway APIs).
 In agent tool calls, `jobId` is canonical; legacy `id` is accepted for compatibility.
+In the JSON store (`jobs.json`), both `id` and `jobId` are accepted; the Gateway
+normalizes `jobId` to `id` on load.
 One-shot jobs auto-delete after success by default; set `deleteAfterRun: false` to keep them.
 
 ### Schedules

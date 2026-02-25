@@ -242,6 +242,14 @@ export async function ensureLoaded(
   const jobs = (loaded.jobs ?? []) as unknown as Array<Record<string, unknown>>;
   let mutated = false;
   for (const raw of jobs) {
+    // Normalize jobId → id: docs and tool calls use jobId as canonical,
+    // but the internal store key is id.
+    if (!raw.id && typeof raw.jobId === "string" && raw.jobId.trim()) {
+      raw.id = raw.jobId;
+      delete raw.jobId;
+      mutated = true;
+    }
+
     const state = raw.state;
     if (!state || typeof state !== "object" || Array.isArray(state)) {
       raw.state = {};
