@@ -1,12 +1,12 @@
 ---
 name: acp-router
-description: Route plain-language requests for Codex, Claude Code, Gemini CLI, or ACP harness work into either OpenClaw ACP runtime sessions or direct acpx-driven sessions ("telephone game" flow).
+description: Route plain-language requests for Codex, Claude Code, Gemini CLI, OpenCode, Pi, or ACP harness work into either OpenClaw ACP runtime sessions or direct acpx-driven sessions ("telephone game" flow).
 user-invocable: false
 ---
 
 # ACP Harness Router
 
-When user intent is "run this in Codex/Claude Code/Gemini (ACP harness)", do not use subagent runtime or PTY scraping. Route through ACP-aware flows.
+When user intent is "run this in Codex/Claude Code/Gemini/OpenCode/Pi (ACP harness)", do not use subagent runtime or PTY scraping. Route through ACP-aware flows.
 
 ## Intent detection
 
@@ -34,7 +34,7 @@ Do not use:
 
 - `subagents` runtime for harness control
 - `/acp` command delegation as a requirement for the user
-- PTY scraping of codex/claude/gemini CLIs when `acpx` is available
+- PTY scraping of codex/claude/gemini/opencode/pi CLIs when `acpx` is available
 
 ## AgentId mapping
 
@@ -43,6 +43,8 @@ Use these defaults when user names a harness directly:
 - "codex" -> `agentId: "codex"`
 - "claude code" -> `agentId: "claudecode"`
 - "gemini" or "gemini cli" -> `agentId: "gemini"`
+- "opencode" -> `agentId: "opencode"`
+- "pi" -> `agentId: "pi"`
 
 If policy rejects the chosen id, report the policy error clearly and ask for the allowed ACP agent id.
 
@@ -128,6 +130,8 @@ acpx codex sessions close oc-codex-<conversationId>
 - `codex`
 - `claude`
 - `gemini`
+- `opencode`
+- `pi`
 
 ### Failure handling
 
