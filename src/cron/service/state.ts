@@ -2,6 +2,7 @@ import type { CronConfig } from "../../config/types.cron.js";
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
 import type {
   CronDeliveryStatus,
+  CronFailureTaxonomy,
   CronJob,
   CronJobCreate,
   CronJobPatch,
@@ -22,6 +23,7 @@ export type CronEvent = {
   delivered?: boolean;
   deliveryStatus?: CronDeliveryStatus;
   deliveryError?: string;
+  failure?: CronFailureTaxonomy;
   sessionId?: string;
   sessionKey?: string;
   nextRunAtMs?: number;
@@ -39,6 +41,8 @@ export type CronServiceDeps = {
   log: Logger;
   storePath: string;
   cronEnabled: boolean;
+  /** Enables structured failure taxonomy on cron outcomes/logs. */
+  failureTaxonomyEnabled?: boolean;
   /** CronConfig for session retention settings. */
   cronConfig?: CronConfig;
   /** Default agent id for jobs without an agent id. */

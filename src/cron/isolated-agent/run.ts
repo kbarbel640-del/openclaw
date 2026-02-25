@@ -48,6 +48,12 @@ import {
   isExternalHookSession,
 } from "../../security/external-content.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
+import {
+  attachCronFailureClassification,
+  buildCronFailureClassification,
+  inferCronFailureClassificationFromError,
+  isCronFailureTaxonomyEnabled,
+} from "../failure-taxonomy.js";
 import type { CronJob, CronRunOutcome, CronRunTelemetry } from "../types.js";
 import {
   dispatchCronDelivery,
@@ -134,6 +140,7 @@ export async function runCronIsolatedAgentTurn(params: {
     ...params.cfg,
     agents: Object.assign({}, params.cfg.agents, { defaults: agentCfg }),
   };
+  const failureTaxonomyEnabled = isCronFailureTaxonomyEnabled(cfgWithAgentDefaults);
 
   const baseSessionKey = (params.sessionKey?.trim() || `cron:${params.job.id}`).trim();
   const agentSessionKey = buildAgentMainSessionKey({
@@ -198,7 +205,16 @@ export async function runCronIsolatedAgentTurn(params: {
       defaultModel: resolvedDefault.model,
     });
     if ("error" in resolvedOverride) {
-      return { status: "error", error: resolvedOverride.error };
+      return attachCronFailureClassification({
+        enabled: failureTaxonomyEnabled,
+        outcome: { status: "error", error: resolvedOverride.error },
+        classification: buildCronFailureClassification({
+          kind: "runtime-validation",
+          stage: "model_selection",
+          rootCause: "runtime-model-validation-failed",
+          metadata: { modelOverride },
+        }),
+      });
     }
     provider = resolvedOverride.ref.provider;
     model = resolvedOverride.ref.model;
@@ -238,6 +254,17 @@ export async function runCronIsolatedAgentTurn(params: {
     sessionId: runSessionId,
     sessionKey: runSessionKey,
   });
+  const withClassifiedRunSession = (
+    result: Omit<RunCronAgentTurnResult, "sessionId" | "sessionKey">,
+    classification?: ReturnType<typeof inferCronFailureClassificationFromError>,
+  ): RunCronAgentTurnResult =>
+    withRunSession(
+      attachCronFailureClassification({
+        enabled: failureTaxonomyEnabled,
+        outcome: result,
+        classification,
+      }),
+    );
   if (!cronSession.sessionEntry.label?.trim() && baseSessionKey.startsWith("cron:")) {
     const labelSuffix =
       typeof params.job.name === "string" && params.job.name.trim()
@@ -465,11 +492,23 @@ export async function runCronIsolatedAgentTurn(params: {
     fallbackModel = fallbackResult.model;
     runEndedAt = Date.now();
   } catch (err) {
-    return withRunSession({ status: "error", error: String(err) });
+    const errorText = String(err);
+    return withClassifiedRunSession(
+      { status: "error", error: errorText },
+      inferCronFailureClassificationFromError(errorText),
+    );
   }
 
   if (isAborted()) {
-    return withRunSession({ status: "error", error: abortReason() });
+    return withClassifiedRunSession(
+      { status: "error", error: abortReason() },
+      buildCronFailureClassification({
+        kind: "timeout",
+        stage: "execution",
+        rootCause: "job-execution-timeout",
+        metadata: { source: "runCronIsolatedAgentTurn:postRun" },
+      }),
+    );
   }
 
   const payloads = runResult.payloads ?? [];
@@ -531,7 +570,15 @@ export async function runCronIsolatedAgentTurn(params: {
   }
 
   if (isAborted()) {
-    return withRunSession({ status: "error", error: abortReason(), ...telemetry });
+    return withClassifiedRunSession(
+      { status: "error", error: abortReason(), ...telemetry },
+      buildCronFailureClassification({
+        kind: "timeout",
+        stage: "execution",
+        rootCause: "job-execution-timeout",
+        metadata: { source: "runCronIsolatedAgentTurn:postPersist" },
+      }),
+    );
   }
   const firstText = payloads[0]?.text ?? "";
   let summary = pickSummaryFromPayloads(payloads) ?? pickSummaryFromOutput(firstText);
@@ -583,6 +630,24 @@ export async function runCronIsolatedAgentTurn(params: {
       }),
     );
 
+  const classifyDeliveryOutcome = (
+    result: Omit<RunCronAgentTurnResult, "sessionId" | "sessionKey">,
+  ): RunCronAgentTurnResult => {
+    if (!failureTaxonomyEnabled || result.status !== "error") {
+      return withRunSession(result);
+    }
+    const classification =
+      result.errorKind === "delivery-target"
+        ? buildCronFailureClassification({
+            kind: "runtime-validation",
+            stage: "delivery",
+            rootCause: "delivery-target-invalid",
+            metadata: { message: result.error ?? "cron delivery target is missing or invalid" },
+          })
+        : inferCronFailureClassificationFromError(result.error ?? "");
+    return withClassifiedRunSession(result, classification);
+  };
+
   const deliveryResult = await dispatchCronDelivery({
     cfg: params.cfg,
     cfgWithAgentDefaults,
@@ -608,7 +673,7 @@ export async function runCronIsolatedAgentTurn(params: {
     abortSignal,
     isAborted,
     abortReason,
-    withRunSession,
+    withRunSession: classifyDeliveryOutcome,
   });
   if (deliveryResult.result) {
     if (!hasErrorPayload || deliveryResult.result.status !== "ok") {

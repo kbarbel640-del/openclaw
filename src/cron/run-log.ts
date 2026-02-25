@@ -2,7 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseByteSize } from "../cli/parse-bytes.js";
 import type { CronConfig } from "../config/types.cron.js";
-import type { CronDeliveryStatus, CronRunStatus, CronRunTelemetry } from "./types.js";
+import type {
+  CronDeliveryStatus,
+  CronFailureTaxonomy,
+  CronRunStatus,
+  CronRunTelemetry,
+} from "./types.js";
 
 export type CronRunLogEntry = {
   ts: number;
@@ -14,6 +19,7 @@ export type CronRunLogEntry = {
   delivered?: boolean;
   deliveryStatus?: CronDeliveryStatus;
   deliveryError?: string;
+  failure?: CronFailureTaxonomy;
   sessionId?: string;
   sessionKey?: string;
   runAtMs?: number;
@@ -217,6 +223,51 @@ function normalizeDeliveryStatuses(opts?: {
   return null;
 }
 
+function parseFailureTaxonomy(raw: unknown): CronFailureTaxonomy | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  const value = raw as Record<string, unknown>;
+  const type = value.type;
+  const stage = value.stage;
+  const rootCause = value.rootCause;
+  const severity = value.severity;
+  const retriable = value.retriable;
+  if (
+    (type !== "tool_validation" &&
+      type !== "runtime_validation" &&
+      type !== "timeout" &&
+      type !== "delivery" &&
+      type !== "unknown") ||
+    (stage !== "input_validation" &&
+      stage !== "model_selection" &&
+      stage !== "execution" &&
+      stage !== "delivery" &&
+      stage !== "scheduler") ||
+    typeof rootCause !== "string" ||
+    rootCause.trim().length === 0 ||
+    (severity !== "low" &&
+      severity !== "medium" &&
+      severity !== "high" &&
+      severity !== "critical") ||
+    typeof retriable !== "boolean"
+  ) {
+    return undefined;
+  }
+  const metadata =
+    value.metadata && typeof value.metadata === "object"
+      ? (value.metadata as Record<string, unknown>)
+      : undefined;
+  return {
+    type,
+    stage,
+    rootCause,
+    severity,
+    retriable,
+    metadata,
+  };
+}
+
 function parseAllRunLogEntries(raw: string, opts?: { jobId?: string }): CronRunLogEntry[] {
   const jobId = opts?.jobId?.trim() || undefined;
   if (!raw.trim()) {
@@ -290,6 +341,10 @@ function parseAllRunLogEntries(raw: string, opts?: { jobId?: string }): CronRunL
       if (typeof obj.deliveryError === "string") {
         entry.deliveryError = obj.deliveryError;
       }
+      const failure = parseFailureTaxonomy((obj as { failure?: unknown }).failure);
+      if (failure) {
+        entry.failure = failure;
+      }
       if (typeof obj.sessionId === "string" && obj.sessionId.trim().length > 0) {
         entry.sessionId = obj.sessionId;
       }
@@ -345,7 +400,15 @@ export async function readCronRunLogEntriesPage(
     statuses,
     deliveryStatuses,
     query,
-    queryTextForEntry: (entry) => [entry.summary ?? "", entry.error ?? "", entry.jobId].join(" "),
+    queryTextForEntry: (entry) =>
+      [
+        entry.summary ?? "",
+        entry.error ?? "",
+        entry.jobId,
+        entry.failure?.type ?? "",
+        entry.failure?.stage ?? "",
+        entry.failure?.rootCause ?? "",
+      ].join(" "),
   });
   const sorted =
     sortDir === "asc"
@@ -401,7 +464,15 @@ export async function readCronRunLogEntriesPageAll(
     query,
     queryTextForEntry: (entry) => {
       const jobName = opts.jobNameById?.[entry.jobId] ?? "";
-      return [entry.summary ?? "", entry.error ?? "", entry.jobId, jobName].join(" ");
+      return [
+        entry.summary ?? "",
+        entry.error ?? "",
+        entry.jobId,
+        jobName,
+        entry.failure?.type ?? "",
+        entry.failure?.stage ?? "",
+        entry.failure?.rootCause ?? "",
+      ].join(" ");
     },
   });
   const sorted =

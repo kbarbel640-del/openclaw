@@ -7,6 +7,7 @@ import {
   resolveAgentMainSessionKey,
 } from "../config/sessions.js";
 import { resolveStorePath } from "../config/sessions/paths.js";
+import { isCronFailureTaxonomyEnabled } from "../cron/failure-taxonomy.js";
 import { runCronIsolatedAgentTurn } from "../cron/isolated-agent.js";
 import {
   appendCronRunLog,
@@ -159,6 +160,7 @@ export function buildGatewayCronService(params: {
   const cron = new CronService({
     storePath,
     cronEnabled,
+    failureTaxonomyEnabled: isCronFailureTaxonomyEnabled(params.cfg),
     cronConfig: params.cfg.cron,
     defaultAgentId,
     resolveSessionStorePath,
@@ -306,6 +308,7 @@ export function buildGatewayCronService(params: {
             delivered: evt.delivered,
             deliveryStatus: evt.deliveryStatus,
             deliveryError: evt.deliveryError,
+            ...(evt.failure ? { failure: evt.failure } : {}),
             sessionId: evt.sessionId,
             sessionKey: evt.sessionKey,
             runAtMs: evt.runAtMs,
