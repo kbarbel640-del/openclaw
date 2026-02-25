@@ -40,21 +40,27 @@ function applyTelegramNetworkWorkarounds(network?: TelegramNetworkConfig): void 
   // current autoSelectFamily setting so subsequent globalThis.fetch calls
   // inherit the same decision.
   // See: https://github.com/openclaw/openclaw/issues/25676
+  //
+  // IMPORTANT: Only replace the global dispatcher when autoSelectFamily is
+  // explicitly *enabled*. Replacing it unconditionally (even with false)
+  // swaps in a bare Agent that discards any configuration the original
+  // default dispatcher carried, which can break other HTTP clients in the
+  // same process (e.g. LLM provider fetches returning 403).
   if (
-    autoSelectDecision.value !== null &&
+    autoSelectDecision.value === true &&
     autoSelectDecision.value !== appliedGlobalDispatcherAutoSelectFamily
   ) {
     try {
       setGlobalDispatcher(
         new Agent({
           connect: {
-            autoSelectFamily: autoSelectDecision.value,
+            autoSelectFamily: true,
             autoSelectFamilyAttemptTimeout: 300,
           },
         }),
       );
-      appliedGlobalDispatcherAutoSelectFamily = autoSelectDecision.value;
-      log.info(`global undici dispatcher autoSelectFamily=${autoSelectDecision.value}`);
+      appliedGlobalDispatcherAutoSelectFamily = true;
+      log.info(`global undici dispatcher autoSelectFamily=true`);
     } catch {
       // ignore if setGlobalDispatcher is unavailable
     }
