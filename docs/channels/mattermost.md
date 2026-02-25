@@ -101,8 +101,10 @@ Notes:
 ## Channels (groups)
 
 - Default: `channels.mattermost.groupPolicy = "allowlist"` (mention-gated).
-- Allowlist senders with `channels.mattermost.groupAllowFrom` (user IDs or `@username`).
+- Allowlist senders with `channels.mattermost.groupAllowFrom` (user IDs recommended).
+- `@username` matching is mutable and only enabled when `channels.mattermost.dangerouslyAllowNameMatching: true`.
 - Open channels: `channels.mattermost.groupPolicy="open"` (mention-gated).
+- Runtime note: if `channels.mattermost` is completely missing, runtime falls back to `groupPolicy="allowlist"` for group checks (even if `channels.defaults.groupPolicy` is set).
 
 ## Targets for outbound delivery
 
@@ -113,6 +115,26 @@ Use these target formats with `openclaw message send` or cron/webhooks:
 - `@username` for a DM (resolved via the Mattermost API)
 
 Bare IDs are treated as channels.
+
+## Reactions (message tool)
+
+- Use `message action=react` with `channel=mattermost`.
+- `messageId` is the Mattermost post id.
+- `emoji` accepts names like `thumbsup` or `:+1:` (colons are optional).
+- Set `remove=true` (boolean) to remove a reaction.
+- Reaction add/remove events are forwarded as system events to the routed agent session.
+
+Examples:
+
+```
+message action=react channel=mattermost target=channel:<channelId> messageId=<postId> emoji=thumbsup
+message action=react channel=mattermost target=channel:<channelId> messageId=<postId> emoji=thumbsup remove=true
+```
+
+Config:
+
+- `channels.mattermost.actions.reactions`: enable/disable reaction actions (default true).
+- Per-account override: `channels.mattermost.accounts.<id>.actions.reactions`.
 
 ## Multi-account
 
@@ -130,6 +152,43 @@ Mattermost supports multiple accounts under `channels.mattermost.accounts`:
   },
 }
 ```
+
+To route each account to a different agent, add `bindings` — see [Multi-agent routing](#multi-agent-routing) below and the full [Multi-Agent Routing](/concepts/multi-agent#mattermost-bots-per-agent) guide.
+
+## Multi-agent routing
+
+To route different Mattermost accounts to different agents, add `bindings` that
+match on `accountId`. Each bot's WebSocket delivers messages to its bound agent.
+
+```json5
+{
+  bindings: [
+    { agentId: "main", match: { channel: "mattermost", accountId: "default" } },
+    { agentId: "home", match: { channel: "mattermost", accountId: "housie" } },
+  ],
+}
+```
+
+For per-channel routing within the same account, use `peer.kind: "channel"` (not `"group"`):
+
+```json5
+{
+  bindings: [
+    {
+      agentId: "home",
+      match: {
+        channel: "mattermost",
+        peer: { kind: "channel", id: "<mattermost-channel-id>" },
+      },
+    },
+    { agentId: "main", match: { channel: "mattermost" } },
+  ],
+}
+```
+
+**Common pitfall:** `accountId` in `channels.mattermost.groups` controls which bot token
+sends replies — it does **not** determine agent routing. Agent routing is configured
+exclusively via `bindings`. See [Multi-Agent Routing](/concepts/multi-agent) for full examples.
 
 ## Troubleshooting
 
