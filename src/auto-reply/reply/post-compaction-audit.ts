@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
+export type RequiredReadPattern = string | { pattern: RegExp; label: string };
+
 // Default required files — constants, extensible to config later
-const DEFAULT_REQUIRED_READS: Array<string | RegExp> = [
+const DEFAULT_REQUIRED_READS: RequiredReadPattern[] = [
   "WORKFLOW_AUTO.md",
-  /memory\/\d{4}-\d{2}-\d{2}\.md/, // daily memory files
+  { pattern: /memory\/\d{4}-\d{2}-\d{2}\.md/, label: "memory/YYYY-MM-DD.md" }, // daily memory files
 ];
 
 /**
@@ -14,7 +16,7 @@ const DEFAULT_REQUIRED_READS: Array<string | RegExp> = [
 export function auditPostCompactionReads(
   readFilePaths: string[],
   workspaceDir: string,
-  requiredReads: Array<string | RegExp> = DEFAULT_REQUIRED_READS,
+  requiredReads: RequiredReadPattern[] = DEFAULT_REQUIRED_READS,
 ): { passed: boolean; missingPatterns: string[] } {
   const normalizedReads = readFilePaths.map((p) => path.resolve(workspaceDir, p));
   const missingPatterns: string[] = [];
@@ -32,10 +34,10 @@ export function auditPostCompactionReads(
         const rel = path.relative(workspaceDir, path.resolve(workspaceDir, p));
         // Normalize to forward slashes for cross-platform RegExp matching
         const normalizedRel = rel.split(path.sep).join("/");
-        return required.test(normalizedRel);
+        return required.pattern.test(normalizedRel);
       });
       if (!found) {
-        missingPatterns.push(required.source);
+        missingPatterns.push(required.label);
       }
     }
   }
