@@ -2582,6 +2582,52 @@ function getModeAdjustments(mode) {
   }
 }
 
+
+// ─── Control Plane Event Logging — append-only observability ──────────
+const CP_EVENTS_PATH = path.join(
+  process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
+  "routing-events.jsonl"
+);
+const CP_MODE_HISTORY_PATH = path.join(
+  process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
+  "mode-history.jsonl"
+);
+const _predictionTracker = { hits: 0, misses: 0, total: 0, falseWarms: 0 };
+const _routingEvents = []; // in-memory ring buffer (last 200)
+const MAX_EVENTS = 200;
+
+function recordRoutingEvent(event) {
+  event.ts = Date.now();
+  _routingEvents.push(event);
+  if (_routingEvents.length > MAX_EVENTS) _routingEvents.shift();
+  // Append to file (non-blocking)
+  try { fs.appendFileSync(CP_EVENTS_PATH, JSON.stringify(event) + "\n"); } catch {}
+}
+
+function recordModeSnapshot() {
+  const snapshot = {
+    ts: Date.now(),
+    mode: getActiveMode(),
+    scores: { ..._modeScores },
+    lastIntent: _lastIntent,
+  };
+  try { fs.appendFileSync(CP_MODE_HISTORY_PATH, JSON.stringify(snapshot) + "\n"); } catch {}
+  return snapshot;
+}
+
+function trackPrediction(predicted, actual) {
+  if (!predicted) return; // no prediction made
+  _predictionTracker.total++;
+  if (predicted === actual) {
+    _predictionTracker.hits++;
+  } else {
+    _predictionTracker.misses++;
+    if (predicted === "session_bridge" && actual === "dev_loop") {
+      _predictionTracker.falseWarms++;
+    }
+  }
+}
+
 // ─── Predictive Routing — task transition tracking + executor prediction ───
 const TRANSITIONS_PATH = path.join(
   process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
@@ -3463,7 +3509,7 @@ async function executeAgentdToolCall(toolName, toolArgs) {
   }
 }
 
-async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryContext, userText) {
+async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryContext, userText, req) {
   const messages = parsedBody.messages || [];
   const systemPrompt = injectBotSystemPrompt(
     messages.filter((m) => m.role !== "system"),
@@ -3866,6 +3912,26 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       const modeStr = activeMode ? `${activeMode}(${Object.entries(_modeScores).map(([k,v])=>k[0]+"="+v.toFixed(1)).join(",")})` : "none";
       console.log(`[wrapper] #${reqId} CONTROL_PLANE_V3: intent=${cpIntent} score=${complexityScore} rule=${ruleBasedDecision} final=${finalRoute} reason=${routeReason} mode=${modeStr} predicted=${predictedExecutor || "none"} project=${cpProject || "none"}`);
 
+
+      // --- Record routing event for dashboard ---
+      const predictedExec = predictExecutor(cpIntent);
+      recordRoutingEvent({
+        reqId,
+        intent: cpIntent,
+        executor: finalRoute,
+        complexityScore,
+        ruleDecision: ruleBasedDecision,
+        mode: activeMode,
+        modeScores: { ..._modeScores },
+        reason: routeReason,
+        predicted: predictedExec,
+        project: cpProject || null,
+      });
+      // Track prediction accuracy
+      trackPrediction(predictedExec, finalRoute);
+      // Record mode snapshot
+      recordModeSnapshot();
+
       const cpStartTime = Date.now();
 
       if (finalRoute === "session_bridge") {
@@ -4126,7 +4192,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
         }
       }
 
-      return handleDevToolLoop(reqId, parsed, res, wantsStream, memoryContext, userText);
+      return handleDevToolLoop(reqId, parsed, res, wantsStream, memoryContext, userText, req);
     }
   }
 
@@ -4750,6 +4816,65 @@ const server = http.createServer((req, res) => {
   // P2.1: Log structured timing on response finish
   res.on("finish", () => logStructuredTiming(req, res));
 
+  // ─── Control Plane Dashboard ───
+  if (req.url === "/dashboard" && req.method === "GET") {
+    try {
+      const html = fs.readFileSync("/Users/rexmacmini/openclaw/control-plane-dashboard.html", "utf8");
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(html);
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Dashboard file not found: " + e.message);
+    }
+    return;
+  }
+
+  // Routing events (last N)
+  if (req.url.startsWith("/routing-events") && req.method === "GET") {
+    const params = new URL(req.url, "http://localhost").searchParams;
+    const limit = parseInt(params.get("limit")) || 50;
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    // Prefer in-memory, fallback to JSONL file
+    let events = _routingEvents || [];
+    if (events.length === 0) {
+      try {
+        const raw = fs.readFileSync(CP_EVENTS_PATH, "utf8").trim();
+        events = raw.split("\n").slice(-limit).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      } catch {}
+    }
+    res.end(JSON.stringify(events.slice(-limit)));
+    return;
+  }
+
+  // Mode history (last 100 from JSONL file)
+  if (req.url === "/mode-history" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    try {
+      const raw = fs.readFileSync(CP_MODE_HISTORY_PATH, "utf8").trim();
+      const lines = raw.split("\n").slice(-100).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      res.end(JSON.stringify(lines));
+    } catch {
+      res.end("[]");
+    }
+    return;
+  }
+
+  // Prediction accuracy stats
+  if (req.url === "/prediction-stats" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+    const accuracy = _predictionTracker.total > 0
+      ? (_predictionTracker.hits / _predictionTracker.total * 100).toFixed(1)
+      : "0.0";
+    res.end(JSON.stringify({
+      ..._predictionTracker,
+      accuracy: accuracy + "%",
+      falseWarmRate: _predictionTracker.total > 0
+        ? (_predictionTracker.falseWarms / _predictionTracker.total * 100).toFixed(1) + "%"
+        : "0.0%",
+    }));
+    return;
+  }
+
   // Health endpoint
   if (req.url === "/health" && req.method === "GET") {
     return handleHealth(res);
@@ -4769,7 +4894,7 @@ const server = http.createServer((req, res) => {
   
   // Mode status — current momentum state
   if (req.url === "/mode-status" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     res.end(JSON.stringify({
       activeMode: getActiveMode(),
       scores: _modeScores,
@@ -4781,7 +4906,7 @@ const server = http.createServer((req, res) => {
 
   // Task transitions — prediction data
   if (req.url === "/transitions" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     const data = loadTransitions();
     // Add prediction for each intent
     const enriched = {};
@@ -4799,7 +4924,7 @@ const server = http.createServer((req, res) => {
   }
 
 if (req.url === "/routing-stats" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     const stats = loadRoutingStats();
     const enriched = {};
     for (const [intent, executors] of Object.entries(stats)) {
