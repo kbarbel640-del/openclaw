@@ -338,6 +338,18 @@ describe("gateway server cron", () => {
       });
       expect(rejectUpdateRes.ok).toBe(false);
 
+      const rejectTimeoutOnlyRes = await rpcReq(ws, "cron.update", {
+        id: rejectJobId,
+        patch: {
+          payload: { kind: "agentTurn", timeoutSeconds: 30 },
+        },
+      });
+      expect(rejectTimeoutOnlyRes.ok).toBe(false);
+      expect(rejectTimeoutOnlyRes.error?.code).toBe("INVALID_REQUEST");
+      expect(rejectTimeoutOnlyRes.error?.message).toContain(
+        'payload.kind="agentTurn" requires message',
+      );
+
       const jobIdRes = await rpcReq(ws, "cron.add", {
         name: "jobId test",
         enabled: true,
