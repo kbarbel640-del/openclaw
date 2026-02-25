@@ -208,10 +208,10 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       // Use a WeakSet to track which session managers have already logged the warning.
       if (!ctx.model && !runtime?.model && !missedModelWarningSessions.has(ctx.sessionManager)) {
         missedModelWarningSessions.add(ctx.sessionManager);
-        console.warn(
-          "[compaction-safeguard] Both ctx.model and runtime.model are undefined. " +
-            "Compaction summarization will not run. This indicates extensionRunner.initialize() " +
-            "was not called and model was not passed through runtime registry.",
+        log.warn(
+          "Both ctx.model and runtime.model are undefined; compaction summarization will not run. " +
+            "This indicates extensionRunner.initialize() was not called and model was not passed " +
+            "through runtime registry.",
         );
       }
       return { cancel: true };
@@ -219,8 +219,8 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
 
     const apiKey = await ctx.modelRegistry.getApiKey(model);
     if (!apiKey) {
-      console.warn(
-        "Compaction safeguard: no API key available; cancelling compaction to preserve history.",
+      log.warn(
+        `no API key available for model ${model.id}; cancelling compaction to preserve history.`,
       );
       return { cancel: true };
     }
