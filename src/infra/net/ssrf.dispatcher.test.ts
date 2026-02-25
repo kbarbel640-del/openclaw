@@ -28,7 +28,7 @@ describe("createPinnedDispatcher", () => {
       connect: {
         lookup,
         autoSelectFamily: true,
-        autoSelectFamilyAttemptTimeout: 300,
+        autoSelectFamilyAttemptTimeout: 2500,
       },
     });
   });
