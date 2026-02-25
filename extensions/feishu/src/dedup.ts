@@ -2,10 +2,11 @@ import os from "node:os";
 import path from "node:path";
 import { createDedupeCache, createPersistentDedupe } from "openclaw/plugin-sdk";
 
-// Persistent TTL: 24 hours — survives restarts & WebSocket reconnects.
-const DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
-const MEMORY_MAX_SIZE = 1_000;
-const FILE_MAX_ENTRIES = 10_000;
+// Persistent TTL: 72 hours (3 days) — survives restarts & WebSocket reconnects.
+// Extended from 24h to handle delayed message redelivery from Feishu.
+const DEDUP_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+const MEMORY_MAX_SIZE = 5_000;
+const FILE_MAX_ENTRIES = 20_000;
 
 const memoryDedupe = createDedupeCache({ ttlMs: DEDUP_TTL_MS, maxSize: MEMORY_MAX_SIZE });
 
