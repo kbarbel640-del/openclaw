@@ -2,7 +2,7 @@
 summary: "Integrate ACP coding agents via a first-class ACP control plane in core and plugin-backed runtimes (acpx first)"
 owner: "onutc"
 status: "draft"
-last_updated: "2026-02-23"
+last_updated: "2026-02-25"
 title: "ACP Thread Bound Agents"
 ---
 
@@ -10,7 +10,7 @@ title: "ACP Thread Bound Agents"
 
 ## Overview
 
-This plan defines how OpenClaw should support ACP coding agents in Discord threads with production level lifecycle and recovery.
+This plan defines how OpenClaw should support ACP coding agents in thread-capable channels (Discord first) with production-level lifecycle and recovery.
 
 Related document:
 
@@ -18,7 +18,7 @@ Related document:
 
 Target user experience:
 
-- a user spawns or focuses an ACP session into a Discord thread
+- a user spawns or focuses an ACP session into a thread
 - user messages in that thread route to the bound ACP session
 - agent output streams back to the same thread persona
 - session can be persistent or one shot with explicit cleanup controls
@@ -50,7 +50,7 @@ Non-negotiable invariants:
 - every ACP run has explicit run state (`queued`, `running`, `completed`, `failed`, `cancelled`)
 - spawn, bind, and initial enqueue are atomic
 - command retries are idempotent (no duplicate runs or duplicate Discord outputs)
-- Discord output is a projection of ACP run events, never ad-hoc side effects
+- bound-thread channel output is a projection of ACP run events, never ad-hoc side effects
 
 Long-term ownership model:
 
@@ -73,14 +73,14 @@ Long-term persistence model:
   - add idempotency keys and fail-closed routing checks immediately
 - long-term cutover
   - move ACP source-of-truth to control-plane DB + actors
-  - make Discord delivery purely event-projection based
+  - make bound-thread delivery purely event-projection based
   - remove legacy fallback behavior that depends on opportunistic session-entry metadata
 
 ## Why not pure plugin only
 
 Current plugin hooks are not sufficient for end to end ACP session routing without core changes.
 
-- inbound routing from Discord thread binding resolves to a session key in core dispatch first
+- inbound routing from thread binding resolves to a session key in core dispatch first
 - message hooks are fire-and-forget and cannot short-circuit the main reply path
 - plugin commands are good for control operations but not for replacing core per-turn dispatch flow
 
@@ -628,7 +628,7 @@ Add independent ACP dispatch kill switch:
 
 ### New commands
 
-- `/acp spawn agent:<id> mode:<persistent|oneshot> thread:<auto|here>`
+- `/acp spawn <agent-id> [--mode persistent|oneshot] [--thread auto|here|off]`
 - `/acp cancel [session]`
 - `/acp steer <instruction>`
 - `/acp close [session]`
@@ -670,9 +670,9 @@ Add independent ACP dispatch kill switch:
 - normalize acpx ndjson events into ACP runtime events
 - enforce backend timeouts, process supervision, and restart/backoff policy
 
-### Phase 4 Delivery projection and Discord UX
+### Phase 4 Delivery projection and channel UX (Discord first)
 
-- implement event-driven Discord projection with checkpoint resume
+- implement event-driven channel projection with checkpoint resume (Discord first)
 - coalesce streaming chunks with rate-limit aware flush policy
 - guarantee exactly-once final completion message per run
 - ship `/acp spawn`, `/acp cancel`, `/acp steer`, `/acp close`, `/acp sessions`
@@ -698,7 +698,7 @@ Add independent ACP dispatch kill switch:
 - ACP manager API integration across dispatch and commands
 - adapter registration interface in plugin runtime bridge
 - acpx adapter implementation and tests
-- Discord delivery projection logic with checkpoint replay
+- thread-capable channel delivery projection logic with checkpoint replay (Discord first)
 - lifecycle hooks for reset/delete/archive/unfocus
 - stale-binding detector and operator-facing diagnostics
 - config validation and precedence tests for all new ACP keys
@@ -751,7 +751,7 @@ Gateway e2e tests:
 
 ## Acceptance checklist
 
-- ACP session spawn can create or bind a Discord thread
+- ACP session spawn can create or bind a thread in a supported channel adapter (currently Discord)
 - all thread messages route to bound ACP session only
 - ACP outputs appear in the same thread identity with streaming or batches
 - no duplicate output in parent channel for bound turns
@@ -765,30 +765,31 @@ Gateway e2e tests:
 - control-plane metrics and diagnostics are available for operators
 - new unit, integration, and e2e coverage passes
 
-## Addendum: targeted refactors for current implementation
+## Addendum: targeted refactors for current implementation (status)
 
 These are non-blocking follow-ups to keep the ACP path maintainable after the current feature set lands.
 
-### 1) Centralize ACP dispatch policy evaluation
+### 1) Centralize ACP dispatch policy evaluation (completed)
 
-- current checks are duplicated across command and routing paths, which can drift over time
-- extract one shared ACP policy helper that returns a typed allow/deny result plus user-facing reason
-- use the same helper from ACP slash commands and automatic dispatch routing
+- implemented via shared ACP policy helpers in `src/acp/policy.ts`
+- dispatch, ACP command lifecycle handlers, and ACP spawn path now consume shared policy logic
 
-### 2) Split ACP command handler by subcommand domain
+### 2) Split ACP command handler by subcommand domain (completed)
 
-- `src/auto-reply/reply/commands-acp.ts` currently mixes spawn/cancel/steer/close/status/options/doctor/install/sessions in one large module
-- split into focused modules (for example: lifecycle, control, diagnostics, options) plus a thin command router
-- keep response formatting helpers shared so command UX stays consistent
+- `src/auto-reply/reply/commands-acp.ts` is now a thin router
+- subcommand behavior is split into:
+  - `src/auto-reply/reply/commands-acp/lifecycle.ts`
+  - `src/auto-reply/reply/commands-acp/runtime-options.ts`
+  - `src/auto-reply/reply/commands-acp/diagnostics.ts`
+  - shared helpers in `src/auto-reply/reply/commands-acp/shared.ts`
 
-### 3) Split ACP session manager by responsibility
+### 3) Split ACP session manager by responsibility (completed)
 
-- `src/acp/control-plane/manager.ts` currently combines actor queueing, runtime handle lifecycle, control reconciliation, and persistence transitions
-- extract dedicated modules for:
-- actor serialization + queue ownership
-- runtime handle acquisition/supervision
-- control-plane state transitions and persistence
-- this reduces regression risk when adding new ACP backends or lifecycle states
+- manager is split into:
+  - `src/acp/control-plane/manager.ts` (public facade + singleton)
+  - `src/acp/control-plane/manager.core.ts` (manager implementation)
+  - `src/acp/control-plane/manager.types.ts` (manager types/deps)
+  - `src/acp/control-plane/manager.utils.ts` (normalization + helper functions)
 
 ### 4) Optional acpx runtime adapter cleanup
 
