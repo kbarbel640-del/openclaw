@@ -533,7 +533,11 @@ describe("exec PATH handling", () => {
 
     const text = readNormalizedTextContent(result.content);
     const entries = text.split(path.delimiter);
-    expect(entries.slice(0, prepend.length)).toEqual(prepend);
+    // On Windows, the runner may inject additional PATH entries ahead of ours (e.g. PowerShell 7).
+    // Assert our configured prepend entries appear as a contiguous prefix in order.
+    const idx = entries.findIndex((e) => e === prepend[0]);
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(entries.slice(idx, idx + prepend.length)).toEqual(prepend);
     expect(entries).toContain(basePath);
   });
 });
