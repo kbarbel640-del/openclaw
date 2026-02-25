@@ -127,7 +127,8 @@ export async function verifyGoogleChatRequest(params: {
       const ticket = await verifyClient.verifyIdToken({ idToken: bearer, audience });
       const payload = ticket.getPayload();
       const email = payload?.email ?? "";
-      const ok = payload?.email_verified && (email === CHAT_ISSUER || ADDON_ISSUER_PATTERN.test(email));
+      const ok =
+        payload?.email_verified && (email === CHAT_ISSUER || ADDON_ISSUER_PATTERN.test(email));
       if (ok) return { ok: true };
     } catch {
       // Fall through to legacy cert-based verification

@@ -976,9 +976,7 @@ export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): ()
   return unregister;
 }
 
-export async function startGoogleChatMonitor(
-  params: GoogleChatMonitorOptions,
-): Promise<void> {
+export async function startGoogleChatMonitor(params: GoogleChatMonitorOptions): Promise<void> {
   const unregister = monitorGoogleChatProvider(params);
   const abortSignal = params.abortSignal;
   try {
