@@ -170,6 +170,9 @@ export const cronHandlers: GatewayRequestHandlers = {
       const normalized = message.toLowerCase();
       const isClientPatchError =
         normalized.includes("requires message") ||
+        normalized.includes("require payload.kind") ||
+        normalized.includes("only supported") ||
+        normalized.includes("requires delivery.to") ||
         normalized.includes("invalid") ||
         normalized.includes("cannot use") ||
         normalized.includes("must use") ||

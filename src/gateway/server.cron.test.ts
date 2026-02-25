@@ -337,6 +337,7 @@ describe("gateway server cron", () => {
         },
       });
       expect(rejectUpdateRes.ok).toBe(false);
+      expect(rejectUpdateRes.error?.code).toBe("INVALID_REQUEST");
 
       const rejectTimeoutOnlyRes = await rpcReq(ws, "cron.update", {
         id: rejectJobId,
