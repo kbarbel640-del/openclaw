@@ -17,6 +17,7 @@ export function createTypingController(params: {
   onCleanup?: () => void;
   typingIntervalSeconds?: number;
   typingTtlMs?: number;
+  absoluteTtlMs?: number;
   silentToken?: string;
   log?: (message: string) => void;
 }): TypingController {
@@ -25,6 +26,7 @@ export function createTypingController(params: {
     onCleanup,
     typingIntervalSeconds = 6,
     typingTtlMs = 2 * 60_000,
+    absoluteTtlMs = 5 * 60_000,
     silentToken = SILENT_REPLY_TOKEN,
     log,
   } = params;
@@ -37,6 +39,7 @@ export function createTypingController(params: {
   // Once we stop typing, we "seal" the controller so late events can't restart typing forever.
   let sealed = false;
   let typingTtlTimer: NodeJS.Timeout | undefined;
+  let absoluteTtlTimer: NodeJS.Timeout | undefined;
   const typingIntervalMs = typingIntervalSeconds * 1000;
 
   const formatTypingTtl = (ms: number) => {
@@ -61,6 +64,10 @@ export function createTypingController(params: {
       clearTimeout(typingTtlTimer);
       typingTtlTimer = undefined;
     }
+    if (absoluteTtlTimer) {
+      clearTimeout(absoluteTtlTimer);
+      absoluteTtlTimer = undefined;
+    }
     typingLoop.stop();
     // Notify the channel to stop its typing indicator (e.g., on NO_REPLY).
     // This fires only once (sealed prevents re-entry).
@@ -72,7 +79,7 @@ export function createTypingController(params: {
   };
 
   const refreshTypingTtl = () => {
-    if (sealed) {
+    if (sealed || runComplete) {
       return;
     }
     if (!typingIntervalMs || typingIntervalMs <= 0) {
@@ -135,6 +142,16 @@ export function createTypingController(params: {
     }
   };
 
+  const startAbsoluteTtl = () => {
+    if (absoluteTtlTimer || absoluteTtlMs <= 0) {
+      return;
+    }
+    absoluteTtlTimer = setTimeout(() => {
+      log?.(`absolute typing TTL reached (${formatTypingTtl(absoluteTtlMs)}); forcing cleanup`);
+      cleanup();
+    }, absoluteTtlMs);
+  };
+
   const startTypingLoop = async () => {
     if (sealed) {
       return;
@@ -153,6 +170,8 @@ export function createTypingController(params: {
     }
     await ensureStart();
     typingLoop.start();
+    // Start the non-resettable absolute TTL on first loop start.
+    startAbsoluteTtl();
   };
 
   const startTypingOnText = async (text?: string) => {
