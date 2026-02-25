@@ -20,7 +20,7 @@ Visit [skillboss.co/console](https://www.skillboss.co/console) to sign up and ge
 **Interactive setup:**
 
 ```bash
-openclaw onboard --auth-choice skillboss-api-key
+openclaw onboard --auth-choice apiKey --token-provider skillboss
 ```
 
 **Non-interactive setup:**
@@ -123,7 +123,7 @@ Visit [skillboss.co/console](https://www.skillboss.co/console) to add credits.
 
 ### Error: Invalid API Key (401)
 
-Verify your API key:
+Verify your API key (note: SkillBoss API runs on `api.heybossai.com`):
 
 ```bash
 curl https://api.heybossai.com/v1/models \
@@ -144,11 +144,7 @@ Beyond LLM inference, SkillBoss provides:
 - **Document Processing**: PDF parsing, data extraction
 - **Web Scraping**: Firecrawl, Perplexity integration
 
-For full capabilities, install the [SkillBoss skill from ClawHub](https://clawhub.ai/skills/skillboss):
-
-```bash
-npx clawhub install skillboss
-```
+For additional developer tools (website deployment, database management, Stripe integration), visit [skillboss.co/docs](https://www.skillboss.co/docs) for integration guides.
 
 ## Support
 
