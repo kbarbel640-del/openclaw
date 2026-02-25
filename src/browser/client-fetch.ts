@@ -113,6 +113,15 @@ function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number):
       `Can't reach the OpenClaw browser control service (timed out after ${timeoutMs}ms). ${operatorHint} ${modelHint}`,
     );
   }
+  // Tab-level errors mean the gateway is reachable but the requested tab is
+  // gone or was never attached.  Surface an actionable hint instead of the
+  // misleading "restart gateway" message.
+  if (msgLower.includes("tab not found")) {
+    return new Error(
+      `Browser tab not found (stale targetId or no attached tab). ` +
+        `Run the browser tool with action=tabs to list available tabs and use a current targetId. (${msg})`,
+    );
+  }
   return new Error(
     `Can't reach the OpenClaw browser control service. ${operatorHint} ${modelHint} (${msg})`,
   );
@@ -245,4 +254,5 @@ export async function fetchBrowserJson<T>(
 
 export const __test = {
   withLoopbackBrowserAuth: withLoopbackBrowserAuthImpl,
+  enhanceBrowserFetchError,
 };
