@@ -146,17 +146,16 @@ export async function monitorWebChannel(
 
   let reconnectAttempts = 0;
 
+  // Prune stale credential files once at startup to prevent bloat.
+  // Baileys accumulates pre-key files without cleanup; see issue #19618.
+  // Done outside the loop to avoid async timing issues with tests.
+  pruneStaleCredentials(account.authDir).catch(() => {
+    // Non-fatal: continue even if pruning fails.
+  });
+
   while (true) {
     if (stopRequested()) {
       break;
-    }
-
-    // Prune stale credential files on each connection attempt to prevent bloat.
-    // Baileys accumulates pre-key files without cleanup; see issue #19618.
-    try {
-      await pruneStaleCredentials(account.authDir);
-    } catch {
-      // Non-fatal: continue with connection attempt even if pruning fails.
     }
 
     const connectionId = newConnectionId();
