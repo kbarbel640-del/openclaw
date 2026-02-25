@@ -214,6 +214,8 @@ describe("diagnostics-otel service", () => {
     });
     emitDiagnosticEvent({
       type: "message.queued",
+      sessionKey: "s-key-1",
+      sessionId: "s-id-1",
       channel: "telegram",
       source: "telegram",
       queueDepth: 2,
@@ -225,10 +227,24 @@ describe("diagnostics-otel service", () => {
       durationMs: 55,
     });
     emitDiagnosticEvent({
+      type: "queue.lane.enqueue",
+      lane: "main",
+      queueSize: 4,
+    });
+    emitDiagnosticEvent({
       type: "queue.lane.dequeue",
       lane: "main",
       queueSize: 3,
       waitMs: 10,
+    });
+    emitDiagnosticEvent({
+      type: "session.state",
+      sessionKey: "s-key-1",
+      sessionId: "s-id-1",
+      state: "processing",
+      prevState: "waiting",
+      queueDepth: 3,
+      reason: "normal transition",
     });
     emitDiagnosticEvent({
       type: "session.stuck",
@@ -237,8 +253,21 @@ describe("diagnostics-otel service", () => {
     });
     emitDiagnosticEvent({
       type: "run.attempt",
+      sessionKey: "s-key-1",
+      sessionId: "s-id-1",
       runId: "run-1",
       attempt: 2,
+    });
+    emitDiagnosticEvent({
+      type: "tool.loop",
+      sessionKey: "s-key-1",
+      sessionId: "s-id-1",
+      toolName: "wait",
+      level: "warning",
+      action: "warn",
+      detector: "known_poll_no_progress",
+      count: 4,
+      message: "loop detected",
     });
 
     expect(telemetryState.counters.get("openclaw.webhook.received")?.add).toHaveBeenCalled();
@@ -250,7 +279,9 @@ describe("diagnostics-otel service", () => {
     expect(
       telemetryState.histograms.get("openclaw.message.duration_ms")?.record,
     ).toHaveBeenCalled();
+    expect(telemetryState.counters.get("openclaw.queue.lane.enqueue")?.add).toHaveBeenCalled();
     expect(telemetryState.histograms.get("openclaw.queue.wait_ms")?.record).toHaveBeenCalled();
+    expect(telemetryState.counters.get("openclaw.session.state")?.add).toHaveBeenCalled();
     expect(telemetryState.counters.get("openclaw.session.stuck")?.add).toHaveBeenCalled();
     expect(
       telemetryState.histograms.get("openclaw.session.stuck_age_ms")?.record,
@@ -259,8 +290,86 @@ describe("diagnostics-otel service", () => {
 
     const spanNames = telemetryState.tracer.startSpan.mock.calls.map((call) => call[0]);
     expect(spanNames).toContain("openclaw.webhook.processed");
+    expect(spanNames).toContain("openclaw.message.queued");
     expect(spanNames).toContain("openclaw.message.processed");
+    expect(spanNames).toContain("openclaw.queue.lane.enqueue");
+    expect(spanNames).toContain("openclaw.queue.lane.dequeue");
+    expect(spanNames).toContain("openclaw.session.state");
     expect(spanNames).toContain("openclaw.session.stuck");
+    expect(spanNames).toContain("openclaw.run.attempt");
+    expect(spanNames).toContain("openclaw.tool.loop");
+
+    expect(telemetryState.tracer.startSpan).toHaveBeenCalledWith(
+      "openclaw.message.queued",
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          "openclaw.eventType": "message.queued",
+          "openclaw.channel": "telegram",
+          "openclaw.sessionKey": expect.any(String),
+          "openclaw.sessionId": expect.any(String),
+          "openclaw.seq": expect.any(Number),
+          "openclaw.source": "telegram",
+        }),
+      }),
+    );
+    expect(telemetryState.tracer.startSpan).toHaveBeenCalledWith(
+      "openclaw.queue.lane.enqueue",
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          "openclaw.eventType": "queue.lane.enqueue",
+          "openclaw.channel": "unknown",
+          "openclaw.seq": expect.any(Number),
+          "openclaw.lane": "main",
+          "openclaw.queueSize": 4,
+        }),
+      }),
+    );
+    expect(telemetryState.tracer.startSpan).toHaveBeenCalledWith(
+      "openclaw.session.state",
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          "openclaw.eventType": "session.state",
+          "openclaw.channel": "unknown",
+          "openclaw.sessionKey": "s-key-1",
+          "openclaw.sessionId": "s-id-1",
+          "openclaw.seq": expect.any(Number),
+          "openclaw.state": "processing",
+          "openclaw.prevState": "waiting",
+          "openclaw.queueDepth": 3,
+        }),
+      }),
+    );
+    expect(telemetryState.tracer.startSpan).toHaveBeenCalledWith(
+      "openclaw.run.attempt",
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          "openclaw.eventType": "run.attempt",
+          "openclaw.channel": "unknown",
+          "openclaw.sessionKey": "s-key-1",
+          "openclaw.sessionId": "s-id-1",
+          "openclaw.seq": expect.any(Number),
+          "openclaw.runId": "run-1",
+          "openclaw.attempt": 2,
+        }),
+      }),
+    );
+    expect(telemetryState.tracer.startSpan).toHaveBeenCalledWith(
+      "openclaw.tool.loop",
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          "openclaw.eventType": "tool.loop",
+          "openclaw.channel": "unknown",
+          "openclaw.sessionKey": "s-key-1",
+          "openclaw.sessionId": "s-id-1",
+          "openclaw.seq": expect.any(Number),
+          "openclaw.toolName": "wait",
+          "openclaw.level": "warning",
+          "openclaw.action": "warn",
+          "openclaw.detector": "known_poll_no_progress",
+          "openclaw.count": 4,
+        }),
+      }),
+    );
 
     expect(registerLogTransportMock).toHaveBeenCalledTimes(1);
     expect(registeredTransports).toHaveLength(1);

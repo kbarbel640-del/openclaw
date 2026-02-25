@@ -504,6 +504,20 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         if (typeof evt.queueDepth === "number") {
           queueDepthHistogram.record(evt.queueDepth, attrs);
         }
+        if (!tracesEnabled) {
+          return;
+        }
+        const spanAttrs: Record<string, string | number> = {
+          "openclaw.source": evt.source ?? "unknown",
+        };
+        addStandardEventSpanAttrs(spanAttrs, evt);
+        if (typeof evt.queueDepth === "number") {
+          spanAttrs["openclaw.queueDepth"] = evt.queueDepth;
+        }
+        const span = tracer.startSpan("openclaw.message.queued", {
+          attributes: spanAttrs,
+        });
+        span.end();
       };
 
       const addSessionIdentityAttrs = (
@@ -515,6 +529,29 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         }
         if (evt.sessionId) {
           spanAttrs["openclaw.sessionId"] = evt.sessionId;
+        }
+      };
+
+      const addStandardEventSpanAttrs = (
+        spanAttrs: Record<string, string | number>,
+        evt: {
+          type: DiagnosticEventPayload["type"];
+          channel?: string;
+          sessionKey?: string;
+          sessionId?: string;
+          seq?: number;
+        },
+      ) => {
+        spanAttrs["openclaw.eventType"] = evt.type;
+        spanAttrs["openclaw.channel"] = evt.channel ?? "unknown";
+        if (evt.sessionKey) {
+          spanAttrs["openclaw.sessionKey"] = evt.sessionKey;
+        }
+        if (evt.sessionId) {
+          spanAttrs["openclaw.sessionId"] = evt.sessionId;
+        }
+        if (typeof evt.seq === "number") {
+          spanAttrs["openclaw.seq"] = evt.seq;
         }
       };
 
@@ -556,6 +593,18 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         const attrs = { "openclaw.lane": evt.lane };
         laneEnqueueCounter.add(1, attrs);
         queueDepthHistogram.record(evt.queueSize, attrs);
+        if (!tracesEnabled) {
+          return;
+        }
+        const spanAttrs: Record<string, string | number> = {
+          "openclaw.lane": evt.lane,
+          "openclaw.queueSize": evt.queueSize,
+        };
+        addStandardEventSpanAttrs(spanAttrs, evt);
+        const span = tracer.startSpan("openclaw.queue.lane.enqueue", {
+          attributes: spanAttrs,
+        });
+        span.end();
       };
 
       const recordLaneDequeue = (
@@ -567,6 +616,17 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         if (typeof evt.waitMs === "number") {
           queueWaitHistogram.record(evt.waitMs, attrs);
         }
+        if (!tracesEnabled) {
+          return;
+        }
+        const spanAttrs: Record<string, string | number> = {
+          "openclaw.lane": evt.lane,
+          "openclaw.queueSize": evt.queueSize,
+          "openclaw.waitMs": evt.waitMs,
+        };
+        addStandardEventSpanAttrs(spanAttrs, evt);
+        const span = spanWithDuration("openclaw.queue.lane.dequeue", spanAttrs, evt.waitMs);
+        span.end();
       };
 
       const recordSessionState = (
@@ -577,6 +637,26 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
           attrs["openclaw.reason"] = redactSensitiveText(evt.reason);
         }
         sessionStateCounter.add(1, attrs);
+        if (!tracesEnabled) {
+          return;
+        }
+        const spanAttrs: Record<string, string | number> = {
+          "openclaw.state": evt.state,
+        };
+        addStandardEventSpanAttrs(spanAttrs, evt);
+        if (evt.prevState) {
+          spanAttrs["openclaw.prevState"] = evt.prevState;
+        }
+        if (evt.reason) {
+          spanAttrs["openclaw.reason"] = redactSensitiveText(evt.reason);
+        }
+        if (typeof evt.queueDepth === "number") {
+          spanAttrs["openclaw.queueDepth"] = evt.queueDepth;
+        }
+        const span = tracer.startSpan("openclaw.session.state", {
+          attributes: spanAttrs,
+        });
+        span.end();
       };
 
       const recordSessionStuck = (
@@ -601,6 +681,44 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
 
       const recordRunAttempt = (evt: Extract<DiagnosticEventPayload, { type: "run.attempt" }>) => {
         runAttemptCounter.add(1, { "openclaw.attempt": evt.attempt });
+        if (!tracesEnabled) {
+          return;
+        }
+        const spanAttrs: Record<string, string | number> = {
+          "openclaw.runId": evt.runId,
+          "openclaw.attempt": evt.attempt,
+        };
+        addStandardEventSpanAttrs(spanAttrs, evt);
+        const span = tracer.startSpan("openclaw.run.attempt", {
+          attributes: spanAttrs,
+        });
+        span.end();
+      };
+
+      const recordToolLoop = (evt: Extract<DiagnosticEventPayload, { type: "tool.loop" }>) => {
+        if (!tracesEnabled) {
+          return;
+        }
+        const spanAttrs: Record<string, string | number> = {
+          "openclaw.toolName": evt.toolName,
+          "openclaw.level": evt.level,
+          "openclaw.action": evt.action,
+          "openclaw.detector": evt.detector,
+          "openclaw.count": evt.count,
+          "openclaw.message": redactSensitiveText(evt.message),
+        };
+        addStandardEventSpanAttrs(spanAttrs, evt);
+        if (evt.pairedToolName) {
+          spanAttrs["openclaw.pairedToolName"] = evt.pairedToolName;
+        }
+
+        const span = tracer.startSpan("openclaw.tool.loop", {
+          attributes: spanAttrs,
+        });
+        if (evt.level === "critical" || evt.action === "block") {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: redactSensitiveText(evt.message) });
+        }
+        span.end();
       };
 
       const recordHeartbeat = (
@@ -644,6 +762,9 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
               return;
             case "run.attempt":
               recordRunAttempt(evt);
+              return;
+            case "tool.loop":
+              recordToolLoop(evt);
               return;
             case "diagnostic.heartbeat":
               recordHeartbeat(evt);
