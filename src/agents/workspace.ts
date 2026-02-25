@@ -14,6 +14,25 @@ export function resolveDefaultAgentWorkspaceDir(
   const home = resolveRequiredHomeDir(env, homedir);
   const profile = env.OPENCLAW_PROFILE?.trim();
   if (profile && profile.toLowerCase() !== "default") {
+    return path.join(hme, ".openclaw", `workspace-${profile}`);
+  }
+  return path.join(home, ".openclaw", "workspace");
+}import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { resolveRequiredHomeDir } from "../infra/home-dir.js";
+import { runCommandWithTimeout } from "../process/exec.js";
+import { isCronSessionKey, isSubagentSessionKey } from "../routing/session-key.js";
+import { resolveUserPath } from "../utils.js";
+import { resolveWorkspaceTemplateDir } from "./workspace-templates.js";
+
+export function resolveDefaultAgentWorkspaceDir(
+  env: NodeJS.ProcessEnv = process.env,
+  homedir: () => string = os.homedir,
+): string {
+  const home = resolveRequiredHomeDir(env, homedir);
+  const profile = env.OPENCLAW_PROFILE?.trim();
+  if (profile && profile.toLowerCase() !== "default") {
     return path.join(home, ".openclaw", `workspace-${profile}`);
   }
   return path.join(home, ".openclaw", "workspace");
@@ -360,14 +379,19 @@ export async function ensureAgentWorkspace(params?: {
   }
 
   if (!state.bootstrapSeededAt && !state.onboardingCompletedAt && !bootstrapExists) {
-    // Legacy migration path: if USER/IDENTITY diverged from templates, treat onboarding as complete
-    // and avoid recreating BOOTSTRAP for already-onboarded workspaces.
-    const [identityContent, userContent] = await Promise.all([
+    // Legacy migration path: if USER/IDENTITY/SOUL diverged from templates, treat onboarding as
+    // complete and avoid recreating BOOTSTRAP for already-onboarded workspaces.
+    // Including SOUL.md prevents BOOTSTRAP from firing when the agent has a configured persona
+    // but IDENTITY.md was never explicitly populated (#26734).
+    const [identityContent, userContent, soulContent] = await Promise.all([
       fs.readFile(identityPath, "utf-8"),
       fs.readFile(userPath, "utf-8"),
+      fs.readFile(soulPath, "utf-8"),
     ]);
     const legacyOnboardingCompleted =
-      identityContent !== identityTemplate || userContent !== userTemplate;
+      identityContent !== identityTemplate ||
+      userContent !== userTemplate ||
+      soulContent !== soulTemplate;
     if (legacyOnboardingCompleted) {
       markState({ onboardingCompletedAt: nowIso() });
     } else {
@@ -381,6 +405,17 @@ export async function ensureAgentWorkspace(params?: {
       if (bootstrapExists && !state.bootstrapSeededAt) {
         markState({ bootstrapSeededAt: nowIso() });
       }
+    }
+  }
+
+  // Auto-cleanup: remove BOOTSTRAP.md once onboarding is complete to prevent
+  // it from firing on subsequent sessions and wiping agent identity (#26734).
+  if (state.onboardingCompletedAt && bootstrapExists) {
+    try {
+      await fs.unlink(bootstrapPath);
+      bootstrapExists = false;
+    } catch {
+      // ignore â file may already be deleted or locked
     }
   }
 
@@ -537,7 +572,7 @@ export async function loadExtraBootstrapFiles(
           resolvedPaths.add(m);
         }
       } catch {
-        // glob not available or pattern error — fall back to literal
+        // glob not available or pattern error â fall back to literal
         resolvedPaths.add(pattern);
       }
     } else {
@@ -548,7 +583,7 @@ export async function loadExtraBootstrapFiles(
   const result: WorkspaceBootstrapFile[] = [];
   for (const relPath of resolvedPaths) {
     const filePath = path.resolve(resolvedDir, relPath);
-    // Guard against path traversal — resolved path must stay within workspace
+    // Guard against path traversal â resolved path must stay within workspace
     if (!filePath.startsWith(resolvedDir + path.sep) && filePath !== resolvedDir) {
       continue;
     }
