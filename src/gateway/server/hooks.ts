@@ -18,8 +18,10 @@ export function createGatewayHooksRequestHandler(params: {
   bindHost: string;
   port: number;
   logHooks: SubsystemLogger;
+  /** Exempt loopback addresses from hook auth rate-limiting. Default: false (secure for proxied webhooks). */
+  exemptLoopback?: boolean;
 }) {
-  const { deps, getHooksConfig, bindHost, port, logHooks } = params;
+  const { deps, getHooksConfig, bindHost, port, logHooks, exemptLoopback = false } = params;
 
   const dispatchWakeHook = (value: { text: string; mode: "now" | "next-heartbeat" }) => {
     const sessionKey = resolveMainSessionKeyFromConfig();
@@ -102,5 +104,6 @@ export function createGatewayHooksRequestHandler(params: {
     logHooks,
     dispatchAgentHook,
     dispatchWakeHook,
+    exemptLoopback,
   });
 }

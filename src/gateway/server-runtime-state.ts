@@ -109,6 +109,7 @@ export async function createGatewayRuntimeState(params: {
     bindHost: params.bindHost,
     port: params.port,
     logHooks: params.logHooks,
+    exemptLoopback: params.cfg.gateway?.hooks?.exemptLoopback ?? false,
   });
 
   const handlePluginRequest = createGatewayPluginRequestHandler({
