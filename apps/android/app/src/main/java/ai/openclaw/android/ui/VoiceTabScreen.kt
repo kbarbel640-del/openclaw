@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,7 +41,9 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -139,49 +142,16 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
         .imePadding()
         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
         .padding(horizontal = 20.dp, vertical = 14.dp),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
+    verticalArrangement = Arrangement.SpaceBetween,
   ) {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Voice mode", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
-      }
-      Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = if (isConnected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
-        border = BorderStroke(1.dp, if (isConnected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outlineVariant),
-      ) {
-        Text(
-          if (isConnected) "Connected" else "Offline",
-          modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-          style = MaterialTheme.typography.labelMedium,
-          color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-    }
-
     LazyColumn(
       state = listState,
-      modifier = Modifier.fillMaxWidth().weight(1f),
+      modifier = Modifier.fillMaxWidth(),
       contentPadding = PaddingValues(vertical = 4.dp),
       verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
       if (micConversation.isEmpty() && !showThinkingBubble) {
-        item {
-          Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
-            Text(
-              "Tap the mic and speak. Each pause sends a turn automatically.",
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-        }
+        item { }
       }
 
       items(items = micConversation, key = { it.id }) { entry ->
@@ -315,12 +285,6 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
               color = MaterialTheme.colorScheme.onErrorContainer,
             )
           }
-        } else if (micStatusText.isNotBlank()) {
-          Text(
-            micStatusText,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-          )
         }
       }
     }

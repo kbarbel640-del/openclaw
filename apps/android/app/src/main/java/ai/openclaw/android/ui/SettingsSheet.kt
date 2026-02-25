@@ -274,9 +274,6 @@ fun SettingsSheet(viewModel: MainViewModel) {
       contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-      item {
-        SettingsHeader()
-      }
 
       item {
         AppearanceSection(
@@ -357,27 +354,6 @@ private fun openAppSettings(context: Context) {
       Uri.fromParts("package", context.packageName, null),
     )
   context.startActivity(intent)
-}
-
-@Composable
-private fun SettingsHeader() {
-  Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(vertical = 8.dp),
-    verticalArrangement = Arrangement.spacedBy(4.dp),
-  ) {
-    Text(
-      "Settings",
-      style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-      color = MaterialTheme.colorScheme.onSurface,
-    )
-    Text(
-      "Manage capabilities, permissions, and diagnostics",
-      style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-  }
 }
 
 @Composable

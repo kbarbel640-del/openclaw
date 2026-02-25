@@ -106,6 +106,7 @@ fun PostOnboardingTabs(viewModel: MainViewModel, modifier: Modifier = Modifier) 
       M3TopStatusBar(
         statusText = statusText,
         statusVisual = statusVisual,
+        activeTab = activeTab,
       )
     },
     bottomBar = {
@@ -186,6 +187,7 @@ private fun ScreenTabScreen(viewModel: MainViewModel) {
 private fun M3TopStatusBar(
   statusText: String,
   statusVisual: StatusVisual,
+  activeTab: HomeTab,
 ) {
   val safeInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
 
@@ -246,7 +248,13 @@ private fun M3TopStatusBar(
     shadowElevation = 0.dp,
   ) {
     CenterAlignedTopAppBar(
-      title = { },
+      title = {
+        Text(
+          text = activeTab.label,
+          style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+      },
       actions = {
         SuggestionChip(
           onClick = { },
