@@ -12,6 +12,17 @@ export class CommandLaneClearedError extends Error {
   }
 }
 
+/**
+ * Thrown when the gateway is draining/shutting down and no longer accepting
+ * new queued command work.
+ */
+export class CommandQueueClosedError extends Error {
+  constructor() {
+    super("Command queue is not accepting new tasks");
+    this.name = "CommandQueueClosedError";
+  }
+}
+
 // Minimal in-process queue to serialize command executions.
 // Default lane ("main") preserves the existing behavior. Additional lanes allow
 // low-risk parallelism (e.g. cron jobs) without interleaving stdin / logs for
@@ -37,6 +48,7 @@ type LaneState = {
 
 const lanes = new Map<string, LaneState>();
 let nextTaskId = 1;
+let acceptingNewTasks = true;
 
 function getLaneState(lane: string): LaneState {
   const existing = lanes.get(lane);
@@ -134,6 +146,9 @@ export function enqueueCommandInLane<T>(
 ): Promise<T> {
   const cleaned = lane.trim() || CommandLane.Main;
   const warnAfterMs = opts?.warnAfterMs ?? 2_000;
+  if (!acceptingNewTasks) {
+    return Promise.reject(new CommandQueueClosedError());
+  }
   const state = getLaneState(cleaned);
   return new Promise<T>((resolve, reject) => {
     state.queue.push({
@@ -218,6 +233,14 @@ export function resetAllLanes(): void {
   for (const lane of lanesToDrain) {
     drainLane(lane);
   }
+}
+
+export function setCommandQueueAccepting(next: boolean): void {
+  acceptingNewTasks = next;
+}
+
+export function isCommandQueueAccepting(): boolean {
+  return acceptingNewTasks;
 }
 
 /**

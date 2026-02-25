@@ -2,7 +2,7 @@ import path from "node:path";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { getActiveEmbeddedRunCount } from "../agents/pi-embedded-runner/runs.js";
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
-import { initSubagentRegistry } from "../agents/subagent-registry.js";
+import { countTotalActiveSubagentRuns, initSubagentRegistry } from "../agents/subagent-registry.js";
 import { getTotalPendingReplies } from "../auto-reply/reply/dispatcher-registry.js";
 import type { CanvasHostServer } from "../canvas-host/server.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
@@ -259,7 +259,11 @@ export async function startGatewayServer(
   }
   setGatewaySigusr1RestartPolicy({ allowExternal: isRestartEnabled(cfgAtStart) });
   setPreRestartDeferralCheck(
-    () => getTotalQueueSize() + getTotalPendingReplies() + getActiveEmbeddedRunCount(),
+    () =>
+      getTotalQueueSize() +
+      getTotalPendingReplies() +
+      getActiveEmbeddedRunCount() +
+      countTotalActiveSubagentRuns(),
   );
   initSubagentRegistry();
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);

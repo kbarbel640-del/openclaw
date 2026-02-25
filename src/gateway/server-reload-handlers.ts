@@ -1,4 +1,5 @@
 import { getActiveEmbeddedRunCount } from "../agents/pi-embedded-runner/runs.js";
+import { countTotalActiveSubagentRuns } from "../agents/subagent-registry.js";
 import { getTotalPendingReplies } from "../auto-reply/reply/dispatcher-registry.js";
 import type { CliDeps } from "../cli/deps.js";
 import { resolveAgentMaxConcurrent, resolveSubagentMaxConcurrent } from "../config/agent-limits.js";
@@ -153,11 +154,13 @@ export function createGatewayReloadHandlers(params: {
       const queueSize = getTotalQueueSize();
       const pendingReplies = getTotalPendingReplies();
       const embeddedRuns = getActiveEmbeddedRunCount();
+      const activeSubagents = countTotalActiveSubagentRuns();
       return {
         queueSize,
         pendingReplies,
         embeddedRuns,
-        totalActive: queueSize + pendingReplies + embeddedRuns,
+        activeSubagents,
+        totalActive: queueSize + pendingReplies + embeddedRuns + activeSubagents,
       };
     };
     const formatActiveDetails = (counts: ReturnType<typeof getActiveCounts>) => {
@@ -170,6 +173,9 @@ export function createGatewayReloadHandlers(params: {
       }
       if (counts.embeddedRuns > 0) {
         details.push(`${counts.embeddedRuns} embedded run(s)`);
+      }
+      if (counts.activeSubagents > 0) {
+        details.push(`${counts.activeSubagents} subagent run(s)`);
       }
       return details;
     };

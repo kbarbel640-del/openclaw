@@ -21,6 +21,7 @@ import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { defaultRuntime } from "../../runtime.js";
 import { formatCliCommand } from "../command-format.js";
 import { inheritOptionFromParent } from "../command-options.js";
+import { parseDurationMs } from "../parse-duration.js";
 import { forceFreePortAndWait } from "../ports.js";
 import { ensureDevGatewayConfig } from "./dev.js";
 import { runGatewayLoop } from "./run-loop.js";
@@ -48,6 +49,8 @@ type GatewayRunOpts = {
   compact?: boolean;
   rawStream?: boolean;
   rawStreamPath?: unknown;
+  drain?: boolean;
+  drainTimeout?: unknown;
   dev?: boolean;
   reset?: boolean;
 };
@@ -75,6 +78,7 @@ const GATEWAY_RUN_BOOLEAN_KEYS = [
   "claudeCliLogs",
   "compact",
   "rawStream",
+  "drain",
 ] as const;
 
 function resolveGatewayRunOptions(opts: GatewayRunOpts, command?: Command): GatewayRunOpts {
@@ -314,10 +318,24 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
         }
       : undefined;
 
+  let drainTimeoutMs = 30_000;
+  const drainTimeoutRaw = toOptionString(opts.drainTimeout);
+  if (drainTimeoutRaw) {
+    try {
+      drainTimeoutMs = Math.max(1, parseDurationMs(drainTimeoutRaw, { defaultUnit: "ms" }));
+    } catch {
+      defaultRuntime.error('Invalid --drain-timeout (use e.g. "30s", "5m", "120000ms")');
+      defaultRuntime.exit(1);
+      return;
+    }
+  }
+
   try {
     await runGatewayLoop({
       runtime: defaultRuntime,
       lockPort: port,
+      drainOnStop: opts.drain !== false,
+      drainTimeoutMs,
       start: async () =>
         await startGatewayServer(port, {
           bind,
@@ -394,6 +412,12 @@ export function addGatewayRunCommand(cmd: Command): Command {
     .option("--compact", 'Alias for "--ws-log compact"', false)
     .option("--raw-stream", "Log raw model stream events to jsonl", false)
     .option("--raw-stream-path <path>", "Raw stream jsonl path")
+    .option(
+      "--no-drain",
+      "Disable graceful drain before shutdown/restart (drain is enabled by default)",
+      false,
+    )
+    .option("--drain-timeout <duration>", "Drain timeout (e.g. 30s, 5m, 120000ms)", "30s")
     .action(async (opts, command) => {
       await runGatewayCommand(resolveGatewayRunOptions(opts, command));
     });

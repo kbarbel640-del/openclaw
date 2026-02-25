@@ -65,6 +65,8 @@ const MAX_ANNOUNCE_RETRY_COUNT = 3;
  * succeeded. Guards against stale registry entries surviving gateway restarts.
  */
 const ANNOUNCE_EXPIRY_MS = 5 * 60_000; // 5 minutes
+const RESUME_RECOVERY_WAIT_TIMEOUT_MS = 30_000;
+const RESTART_INTERRUPTED_ERROR = "subagent run interrupted by gateway restart (requeue required)";
 type SubagentRunOrphanReason = "missing-session-entry" | "missing-session-id";
 
 function resolveAnnounceRetryDelayMs(retryCount: number) {
@@ -407,7 +409,9 @@ function resumeSubagentRun(runId: string) {
   // Wait for completion again after restart.
   const cfg = loadConfig();
   const waitTimeoutMs = resolveSubagentWaitTimeoutMs(cfg, entry.runTimeoutSeconds);
-  void waitForSubagentCompletion(runId, waitTimeoutMs);
+  void waitForSubagentCompletion(runId, Math.min(waitTimeoutMs, RESUME_RECOVERY_WAIT_TIMEOUT_MS), {
+    recoveryProbe: true,
+  });
   resumedRuns.add(runId);
 }
 
@@ -429,6 +433,20 @@ function restoreSubagentRunsOnce() {
     }
     if (subagentRuns.size === 0) {
       return;
+    }
+    const activeRestoredRuns = Array.from(subagentRuns.values()).filter(
+      (entry) => typeof entry.endedAt !== "number",
+    );
+    if (activeRestoredRuns.length > 0) {
+      const sample = activeRestoredRuns
+        .slice(0, 5)
+        .map((entry) => `${entry.runId}:${entry.childSessionKey}`)
+        .join(", ");
+      const suffix =
+        activeRestoredRuns.length > 5 ? ` (+${activeRestoredRuns.length - 5} more)` : "";
+      defaultRuntime.log(
+        `[warn] Restored ${activeRestoredRuns.length} active subagent run(s) after restart: ${sample}${suffix}`,
+      );
     }
     // Resume pending work.
     ensureListener();
@@ -859,7 +877,11 @@ export function registerSubagentRun(params: {
   void waitForSubagentCompletion(params.runId, waitTimeoutMs);
 }
 
-async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
+async function waitForSubagentCompletion(
+  runId: string,
+  waitTimeoutMs: number,
+  opts?: { recoveryProbe?: boolean },
+) {
   try {
     const timeoutMs = Math.max(1, Math.floor(waitTimeoutMs));
     const wait = await callGateway<{
@@ -880,6 +902,24 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
     }
     const entry = subagentRuns.get(runId);
     if (!entry) {
+      return;
+    }
+    if (opts?.recoveryProbe && wait.status === "timeout") {
+      defaultRuntime.log(
+        `[warn] Subagent run marked interrupted after restart run=${runId} child=${entry.childSessionKey}`,
+      );
+      await completeSubagentRun({
+        runId,
+        endedAt: Date.now(),
+        outcome: {
+          status: "error",
+          error: RESTART_INTERRUPTED_ERROR,
+        },
+        reason: SUBAGENT_ENDED_REASON_ERROR,
+        sendFarewell: true,
+        accountId: entry.requesterOrigin?.accountId,
+        triggerCleanup: true,
+      });
       return;
     }
     let mutated = false;
@@ -1052,6 +1092,16 @@ export function markSubagentRunTerminated(params: {
 
 export function listSubagentRunsForRequester(requesterSessionKey: string): SubagentRunRecord[] {
   return listRunsForRequesterFromRuns(subagentRuns, requesterSessionKey);
+}
+
+export function listActiveSubagentRuns(): SubagentRunRecord[] {
+  return Array.from(getSubagentRunsSnapshotForRead(subagentRuns).values()).filter(
+    (entry) => typeof entry.endedAt !== "number",
+  );
+}
+
+export function countTotalActiveSubagentRuns(): number {
+  return listActiveSubagentRuns().length;
 }
 
 export function countActiveRunsForSession(requesterSessionKey: string): number {

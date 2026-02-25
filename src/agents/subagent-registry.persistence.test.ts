@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "./subagent-registry.mocks.shared.js";
+import { callGateway } from "../gateway/call.js";
 import { captureEnv } from "../test-utils/env.js";
 import {
   addSubagentRunForTests,
@@ -424,5 +425,36 @@ describe("subagent registry persistence", () => {
     const { resolveSubagentRegistryPath } = await import("./subagent-registry.store.js");
     const registryPath = resolveSubagentRegistryPath();
     expect(registryPath).toContain(path.join(os.tmpdir(), "openclaw-test-state"));
+  });
+
+  it("marks restored active runs as interrupted when recovery probe times out", async () => {
+    const now = Date.now();
+    const persisted = {
+      version: 2,
+      runs: {
+        "run-interrupted": {
+          runId: "run-interrupted",
+          childSessionKey: "agent:main:subagent:interrupted",
+          requesterSessionKey: "agent:main:main",
+          requesterDisplayKey: "main",
+          task: "long running task",
+          cleanup: "keep",
+          createdAt: now - 10_000,
+          startedAt: now - 9_000,
+          runTimeoutSeconds: 0,
+        },
+      },
+    };
+    await writePersistedRegistry(persisted);
+    vi.mocked(callGateway).mockResolvedValueOnce({ status: "timeout" });
+
+    await restartRegistryAndFlush();
+
+    const runs = loadSubagentRegistryFromDisk();
+    const interrupted = runs.get("run-interrupted");
+    expect(interrupted?.endedAt).toBeTypeOf("number");
+    expect(interrupted?.outcome?.status).toBe("error");
+    expect(interrupted?.outcome?.error).toContain("interrupted by gateway restart");
+    expect(announceSpy).toHaveBeenCalled();
   });
 });

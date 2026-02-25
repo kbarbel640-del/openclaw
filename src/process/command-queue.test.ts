@@ -19,11 +19,14 @@ vi.mock("../logging/diagnostic.js", () => ({
 import {
   clearCommandLane,
   CommandLaneClearedError,
+  CommandQueueClosedError,
   enqueueCommand,
   enqueueCommandInLane,
   getActiveTaskCount,
+  isCommandQueueAccepting,
   getQueueSize,
   resetAllLanes,
+  setCommandQueueAccepting,
   setCommandLaneConcurrency,
   waitForActiveTasks,
 } from "./command-queue.js";
@@ -52,6 +55,7 @@ function enqueueBlockedMainTask<T = void>(
 
 describe("command queue", () => {
   beforeEach(() => {
+    setCommandQueueAccepting(true);
     diagnosticMocks.logLaneEnqueue.mockClear();
     diagnosticMocks.logLaneDequeue.mockClear();
     diagnosticMocks.diag.debug.mockClear();
@@ -287,5 +291,20 @@ describe("command queue", () => {
     // Let the active task finish normally.
     release();
     await expect(first).resolves.toBe("first");
+  });
+
+  it("rejects new tasks when queue intake is disabled", async () => {
+    expect(isCommandQueueAccepting()).toBe(true);
+    setCommandQueueAccepting(false);
+    expect(isCommandQueueAccepting()).toBe(false);
+
+    await expect(
+      enqueueCommand(async () => {
+        throw new Error("should not run");
+      }),
+    ).rejects.toBeInstanceOf(CommandQueueClosedError);
+
+    setCommandQueueAccepting(true);
+    await expect(enqueueCommand(async () => "ok")).resolves.toBe("ok");
   });
 });
