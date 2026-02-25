@@ -121,6 +121,32 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
     );
   });
 
+  it("forwards canonical cmdText to mac app exec host for positional-argv shell wrappers", async () => {
+    const { runViaMacAppExecHost } = await runSystemInvoke({
+      preferMacAppExecHost: true,
+      command: ["/bin/sh", "-lc", '$0 "$1"', "/usr/bin/touch", "/tmp/marker"],
+      runViaResponse: {
+        ok: true,
+        payload: {
+          success: true,
+          stdout: "app-ok",
+          stderr: "",
+          timedOut: false,
+          exitCode: 0,
+          error: null,
+        },
+      },
+    });
+
+    expect(runViaMacAppExecHost).toHaveBeenCalledWith({
+      approvals: expect.anything(),
+      request: expect.objectContaining({
+        command: ["/bin/sh", "-lc", '$0 "$1"', "/usr/bin/touch", "/tmp/marker"],
+        rawCommand: '/bin/sh -lc "$0 \\"$1\\"" /usr/bin/touch /tmp/marker',
+      }),
+    });
+  });
+
   it("handles transparent env wrappers in allowlist mode", async () => {
     const { runCommand, sendInvokeResult } = await runSystemInvoke({
       preferMacAppExecHost: false,
@@ -318,6 +344,101 @@ describe("handleSystemRunInvoke mac app exec host routing", () => {
         ok: false,
         error: expect.objectContaining({
           message: expect.stringContaining("allowlist miss"),
+        }),
+      }),
+    );
+  });
+
+  it("denies nested env shell payloads when wrapper depth is exceeded", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-env-depth-overflow-"));
+    const previousOpenClawHome = process.env.OPENCLAW_HOME;
+    const marker = path.join(tempHome, "pwned.txt");
+    process.env.OPENCLAW_HOME = tempHome;
+    saveExecApprovals({
+      version: 1,
+      defaults: {
+        security: "allowlist",
+        ask: "on-miss",
+        askFallback: "deny",
+      },
+      agents: {
+        main: {
+          allowlist: [{ pattern: "/usr/bin/env" }],
+        },
+      },
+    });
+    const runCommand = vi.fn(async () => {
+      fs.writeFileSync(marker, "executed");
+      return {
+        success: true,
+        stdout: "local-ok",
+        stderr: "",
+        timedOut: false,
+        truncated: false,
+        exitCode: 0,
+        error: null,
+      };
+    });
+    const sendInvokeResult = vi.fn(async () => {});
+    const sendNodeEvent = vi.fn(async () => {});
+
+    try {
+      await handleSystemRunInvoke({
+        client: {} as never,
+        params: {
+          command: [
+            "/usr/bin/env",
+            "/usr/bin/env",
+            "/usr/bin/env",
+            "/usr/bin/env",
+            "/usr/bin/env",
+            "/bin/sh",
+            "-c",
+            `echo PWNED > ${marker}`,
+          ],
+          sessionKey: "agent:main:main",
+        },
+        skillBins: {
+          current: async () => [],
+        },
+        execHostEnforced: false,
+        execHostFallbackAllowed: true,
+        resolveExecSecurity: () => "allowlist",
+        resolveExecAsk: () => "on-miss",
+        isCmdExeInvocation: () => false,
+        sanitizeEnv: () => undefined,
+        runCommand,
+        runViaMacAppExecHost: vi.fn(async () => null),
+        sendNodeEvent,
+        buildExecEventPayload: (payload) => payload,
+        sendInvokeResult,
+        sendExecFinishedEvent: vi.fn(async () => {}),
+        preferMacAppExecHost: false,
+      });
+    } finally {
+      if (previousOpenClawHome === undefined) {
+        delete process.env.OPENCLAW_HOME;
+      } else {
+        process.env.OPENCLAW_HOME = previousOpenClawHome;
+      }
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
+
+    expect(runCommand).not.toHaveBeenCalled();
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(sendNodeEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      "exec.denied",
+      expect.objectContaining({ reason: "approval-required" }),
+    );
+    expect(sendInvokeResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ok: false,
+        error: expect.objectContaining({
+          message: "SYSTEM_RUN_DENIED: approval required",
         }),
       }),
     );
