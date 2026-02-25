@@ -52,6 +52,12 @@ export function handleAutoCompactionEnd(
     ctx.log.debug(`embedded run compaction retry: runId=${ctx.params.runId}`);
   } else {
     ctx.maybeResolveCompactionWait();
+
+    // Strip stale usage.totalTokens from preserved assistant messages so that
+    // the upstream _checkCompaction() guard in prompt() doesn't read a pre-
+    // compaction token count and immediately trigger a second compaction that
+    // destroys all preserved messages.  See #26458.
+    clearStaleUsageOnPreservedMessages(ctx);
   }
   emitAgentEvent({
     runId: ctx.params.runId,
@@ -78,6 +84,36 @@ export function handleAutoCompactionEnd(
         .catch((err) => {
           ctx.log.warn(`after_compaction hook failed: ${String(err)}`);
         });
+    }
+  }
+}
+
+/**
+ * After compaction, preserved assistant messages still carry their original
+ * `usage.totalTokens` from before compaction.  The upstream
+ * `_findLastAssistantMessage() → _checkCompaction()` reads this value to
+ * decide whether a new compaction is needed.  Stale values cause an immediate
+ * spurious second compaction that destroys all preserved messages.
+ *
+ * Clearing `usage.totalTokens` (setting it to `undefined`) causes the
+ * upstream guard to skip the check, preventing the double-compaction.
+ */
+function clearStaleUsageOnPreservedMessages(ctx: EmbeddedPiSubscribeContext): void {
+  const messages = ctx.params.session.messages;
+  if (!Array.isArray(messages)) {
+    return;
+  }
+  for (const msg of messages) {
+    if (
+      msg &&
+      typeof msg === "object" &&
+      (msg as { role?: string }).role === "assistant" &&
+      (msg as { usage?: unknown }).usage
+    ) {
+      const usage = (msg as { usage: Record<string, unknown> }).usage;
+      if (typeof usage.totalTokens === "number") {
+        delete usage.totalTokens;
+      }
     }
   }
 }

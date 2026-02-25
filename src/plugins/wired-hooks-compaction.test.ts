@@ -122,4 +122,82 @@ describe("compaction hook wiring", () => {
 
     expect(hookMocks.runner.runAfterCompaction).not.toHaveBeenCalled();
   });
+
+  it("clears stale usage.totalTokens from preserved assistant messages after final compaction", () => {
+    const messages = [
+      { role: "system", content: "compaction summary" },
+      { role: "user", content: "hello" },
+      {
+        role: "assistant",
+        content: "hi",
+        usage: { totalTokens: 184_297, inputTokens: 100, outputTokens: 200 },
+      },
+      { role: "user", content: "test" },
+      {
+        role: "assistant",
+        content: "response",
+        usage: { totalTokens: 180_000, inputTokens: 50, outputTokens: 100 },
+      },
+    ];
+
+    const ctx = {
+      params: { runId: "r4", session: { messages } },
+      state: { compactionInFlight: true },
+      log: { debug: vi.fn(), warn: vi.fn() },
+      maybeResolveCompactionWait: vi.fn(),
+      incrementCompactionCount: vi.fn(),
+      getCompactionCount: () => 1,
+    };
+
+    handleAutoCompactionEnd(
+      ctx as never,
+      {
+        type: "auto_compaction_end",
+        willRetry: false,
+      } as never,
+    );
+
+    // totalTokens should be cleared on assistant messages
+    const assistant1 = messages[2] as { usage: Record<string, unknown> };
+    const assistant2 = messages[4] as { usage: Record<string, unknown> };
+    expect(assistant1.usage.totalTokens).toBeUndefined();
+    expect(assistant2.usage.totalTokens).toBeUndefined();
+    // Other usage fields should be preserved
+    expect(assistant1.usage.inputTokens).toBe(100);
+    expect(assistant2.usage.outputTokens).toBe(100);
+
+    // Non-assistant messages should be untouched
+    expect(messages[0]).toEqual({ role: "system", content: "compaction summary" });
+    expect(messages[1]).toEqual({ role: "user", content: "hello" });
+  });
+
+  it("does not clear usage.totalTokens when willRetry is true", () => {
+    const messages = [
+      {
+        role: "assistant",
+        content: "hi",
+        usage: { totalTokens: 184_297 },
+      },
+    ];
+
+    const ctx = {
+      params: { runId: "r5", session: { messages } },
+      state: { compactionInFlight: true },
+      log: { debug: vi.fn(), warn: vi.fn() },
+      noteCompactionRetry: vi.fn(),
+      resetForCompactionRetry: vi.fn(),
+      getCompactionCount: () => 0,
+    };
+
+    handleAutoCompactionEnd(
+      ctx as never,
+      {
+        type: "auto_compaction_end",
+        willRetry: true,
+      } as never,
+    );
+
+    const assistant = messages[0] as { usage: Record<string, unknown> };
+    expect(assistant.usage.totalTokens).toBe(184_297);
+  });
 });
