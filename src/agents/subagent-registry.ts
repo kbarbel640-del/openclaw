@@ -65,6 +65,19 @@ const MAX_ANNOUNCE_RETRY_COUNT = 3;
  * succeeded. Guards against stale registry entries surviving gateway restarts.
  */
 const ANNOUNCE_EXPIRY_MS = 5 * 60_000; // 5 minutes
+/**
+ * Embedded runs can emit transient lifecycle `error` events while a retry is
+ * about to start. Delay treating lifecycle errors as terminal so retry starts
+ * can cancel stale completion announces (#25608).
+ */
+const SUBAGENT_LIFECYCLE_ERROR_RETRY_GRACE_MS = 15_000;
+type PendingLifecycleError = {
+  runId: string;
+  endedAt: number;
+  error?: string;
+  timer: NodeJS.Timeout;
+};
+const pendingLifecycleErrors = new Map<string, PendingLifecycleError>();
 type SubagentRunOrphanReason = "missing-session-entry" | "missing-session-id";
 
 function resolveAnnounceRetryDelayMs(retryCount: number) {
@@ -87,6 +100,46 @@ function logAnnounceGiveUp(entry: SubagentRunRecord, reason: "retry-limit" | "ex
 
 function persistSubagentRuns() {
   persistSubagentRunsToDisk(subagentRuns);
+}
+
+function clearPendingLifecycleError(runId: string) {
+  const pending = pendingLifecycleErrors.get(runId);
+  if (!pending) {
+    return;
+  }
+  clearTimeout(pending.timer);
+  pendingLifecycleErrors.delete(runId);
+}
+
+function schedulePendingLifecycleError(params: { runId: string; endedAt: number; error?: string }) {
+  clearPendingLifecycleError(params.runId);
+  const timer = setTimeout(() => {
+    const pending = pendingLifecycleErrors.get(params.runId);
+    if (!pending) {
+      return;
+    }
+    pendingLifecycleErrors.delete(params.runId);
+    const entry = subagentRuns.get(params.runId);
+    if (!entry) {
+      return;
+    }
+    void completeSubagentRun({
+      runId: params.runId,
+      endedAt: pending.endedAt,
+      outcome: { status: "error", error: pending.error },
+      reason: SUBAGENT_ENDED_REASON_ERROR,
+      sendFarewell: true,
+      accountId: entry.requesterOrigin?.accountId,
+      triggerCleanup: true,
+    });
+  }, SUBAGENT_LIFECYCLE_ERROR_RETRY_GRACE_MS);
+  timer.unref?.();
+  pendingLifecycleErrors.set(params.runId, {
+    runId: params.runId,
+    endedAt: params.endedAt,
+    error: params.error,
+    timer,
+  });
 }
 
 function findSessionEntryByKey(store: Record<string, SessionEntry>, sessionKey: string) {
@@ -166,6 +219,7 @@ function reconcileOrphanedRun(params: {
     params.entry.cleanupCompletedAt = now;
     changed = true;
   }
+  clearPendingLifecycleError(params.runId);
   const removed = subagentRuns.delete(params.runId);
   resumedRuns.delete(params.runId);
   if (!removed && !changed) {
@@ -256,6 +310,7 @@ async function completeSubagentRun(params: {
   accountId?: string;
   triggerCleanup: boolean;
 }) {
+  clearPendingLifecycleError(params.runId);
   const entry = subagentRuns.get(params.runId);
   if (!entry) {
     return;
@@ -484,6 +539,7 @@ async function sweepSubagentRuns() {
     if (!entry.archiveAtMs || entry.archiveAtMs > now) {
       continue;
     }
+    clearPendingLifecycleError(runId);
     subagentRuns.delete(runId);
     mutated = true;
     try {
@@ -524,6 +580,7 @@ function ensureListener() {
       }
       const phase = evt.data?.phase;
       if (phase === "start") {
+        clearPendingLifecycleError(evt.runId);
         const startedAt = typeof evt.data?.startedAt === "number" ? evt.data.startedAt : undefined;
         if (startedAt) {
           entry.startedAt = startedAt;
@@ -536,17 +593,23 @@ function ensureListener() {
       }
       const endedAt = typeof evt.data?.endedAt === "number" ? evt.data.endedAt : Date.now();
       const error = typeof evt.data?.error === "string" ? evt.data.error : undefined;
-      const outcome: SubagentRunOutcome =
-        phase === "error"
-          ? { status: "error", error }
-          : evt.data?.aborted
-            ? { status: "timeout" }
-            : { status: "ok" };
+      if (phase === "error") {
+        schedulePendingLifecycleError({
+          runId: evt.runId,
+          endedAt,
+          error,
+        });
+        return;
+      }
+      clearPendingLifecycleError(evt.runId);
+      const outcome: SubagentRunOutcome = evt.data?.aborted
+        ? { status: "timeout" }
+        : { status: "ok" };
       await completeSubagentRun({
         runId: evt.runId,
         endedAt,
         outcome,
-        reason: phase === "error" ? SUBAGENT_ENDED_REASON_ERROR : SUBAGENT_ENDED_REASON_COMPLETE,
+        reason: SUBAGENT_ENDED_REASON_COMPLETE,
         sendFarewell: true,
         accountId: entry.requesterOrigin?.accountId,
         triggerCleanup: true,
@@ -654,6 +717,7 @@ function completeCleanupBookkeeping(params: {
   completedAt: number;
 }) {
   if (params.cleanup === "delete") {
+    clearPendingLifecycleError(params.runId);
     subagentRuns.delete(params.runId);
     persistSubagentRuns();
     retryDeferredCompletedAnnounces(params.runId);
@@ -767,6 +831,7 @@ export function replaceSubagentRunAfterSteer(params: {
   }
 
   if (previousRunId !== nextRunId) {
+    clearPendingLifecycleError(previousRunId);
     subagentRuns.delete(previousRunId);
     resumedRuns.delete(previousRunId);
   }
@@ -925,6 +990,10 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
 }
 
 export function resetSubagentRegistryForTests(opts?: { persist?: boolean }) {
+  for (const pending of pendingLifecycleErrors.values()) {
+    clearTimeout(pending.timer);
+  }
+  pendingLifecycleErrors.clear();
   subagentRuns.clear();
   resumedRuns.clear();
   endedHookInFlightRunIds.clear();
@@ -946,6 +1015,7 @@ export function addSubagentRunForTests(entry: SubagentRunRecord) {
 }
 
 export function releaseSubagentRun(runId: string) {
+  clearPendingLifecycleError(runId);
   const didDelete = subagentRuns.delete(runId);
   if (didDelete) {
     persistSubagentRuns();
@@ -1026,6 +1096,7 @@ export function markSubagentRunTerminated(params: {
     entry.cleanupHandled = true;
     entry.cleanupCompletedAt = now;
     entry.suppressAnnounceReason = "killed";
+    clearPendingLifecycleError(runId);
     if (!entriesByChildSessionKey.has(entry.childSessionKey)) {
       entriesByChildSessionKey.set(entry.childSessionKey, entry);
     }
