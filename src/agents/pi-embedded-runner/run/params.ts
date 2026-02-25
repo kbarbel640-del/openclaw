@@ -103,4 +103,10 @@ export type RunEmbeddedPiAgentParams = {
   streamParams?: AgentStreamParams;
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
+  /**
+   * When true, per-attempt subscription handlers will NOT emit global lifecycle
+   * terminal events.  The outer run loop emits the definitive lifecycle event
+   * after retries are exhausted.
+   */
+  suppressLifecycleTerminal?: boolean;
 };

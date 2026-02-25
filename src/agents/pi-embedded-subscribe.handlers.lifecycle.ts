@@ -1,7 +1,7 @@
+import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { createInlineCodeState } from "../markdown/code-spans.js";
 import { formatAssistantErrorText } from "./pi-embedded-helpers.js";
-import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
 import { isAssistantMessage } from "./pi-embedded-utils.js";
 
 export {
@@ -29,6 +29,12 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
   const lastAssistant = ctx.state.lastAssistant;
   const isError = isAssistantMessage(lastAssistant) && lastAssistant.stopReason === "error";
 
+  // When suppressLifecycleTerminal is set, the caller (outer run loop) is
+  // responsible for emitting the final global lifecycle event after all retries
+  // are exhausted.  We still invoke the local onAgentEvent callback so the
+  // caller can observe individual attempt outcomes.
+  const suppressGlobal = ctx.params.suppressLifecycleTerminal === true;
+
   if (isError && lastAssistant) {
     const friendlyError = formatAssistantErrorText(lastAssistant, {
       cfg: ctx.params.config,
@@ -40,15 +46,17 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
     ctx.log.warn(
       `embedded run agent end: runId=${ctx.params.runId} isError=true error=${errorText}`,
     );
-    emitAgentEvent({
-      runId: ctx.params.runId,
-      stream: "lifecycle",
-      data: {
-        phase: "error",
-        error: errorText,
-        endedAt: Date.now(),
-      },
-    });
+    if (!suppressGlobal) {
+      emitAgentEvent({
+        runId: ctx.params.runId,
+        stream: "lifecycle",
+        data: {
+          phase: "error",
+          error: errorText,
+          endedAt: Date.now(),
+        },
+      });
+    }
     void ctx.params.onAgentEvent?.({
       stream: "lifecycle",
       data: {
@@ -58,14 +66,16 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
     });
   } else {
     ctx.log.debug(`embedded run agent end: runId=${ctx.params.runId} isError=${isError}`);
-    emitAgentEvent({
-      runId: ctx.params.runId,
-      stream: "lifecycle",
-      data: {
-        phase: "end",
-        endedAt: Date.now(),
-      },
-    });
+    if (!suppressGlobal) {
+      emitAgentEvent({
+        runId: ctx.params.runId,
+        stream: "lifecycle",
+        data: {
+          phase: "end",
+          endedAt: Date.now(),
+        },
+      });
+    }
     void ctx.params.onAgentEvent?.({
       stream: "lifecycle",
       data: { phase: "end" },

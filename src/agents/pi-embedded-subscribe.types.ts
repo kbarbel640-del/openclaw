@@ -31,6 +31,13 @@ export type SubscribeEmbeddedPiSessionParams = {
   enforceFinalTag?: boolean;
   config?: OpenClawConfig;
   sessionKey?: string;
+  /**
+   * When true, handleAgentEnd will NOT emit global lifecycle terminal events
+   * (phase "end"/"error") via emitAgentEvent.  The caller is responsible for
+   * emitting the final lifecycle event after all retries are exhausted.
+   * The local `onAgentEvent` callback is still invoked.
+   */
+  suppressLifecycleTerminal?: boolean;
 };
 
 export type { BlockReplyChunking } from "./pi-embedded-block-chunker.js";

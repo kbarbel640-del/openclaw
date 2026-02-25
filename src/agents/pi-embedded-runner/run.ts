@@ -1,9 +1,12 @@
 import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
+import type { PluginHookBeforeAgentStartResult } from "../../plugins/types.js";
+import type { RunEmbeddedPiAgentParams } from "./run/params.js";
+import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
+import { emitAgentEvent } from "../../infra/agent-events.js";
 import { generateSecureToken } from "../../infra/secure-random.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
-import type { PluginHookBeforeAgentStartResult } from "../../plugins/types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
 import { resolveOpenClawAgentDir } from "../agent-paths.js";
@@ -55,13 +58,11 @@ import { resolveGlobalLane, resolveSessionLane } from "./lanes.js";
 import { log } from "./logger.js";
 import { resolveModel } from "./model.js";
 import { runEmbeddedAttempt } from "./run/attempt.js";
-import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import { buildEmbeddedRunPayloads } from "./run/payloads.js";
 import {
   truncateOversizedToolResultsInSession,
   sessionLikelyHasOversizedToolResults,
 } from "./tool-result-truncation.js";
-import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { describeUnknownError } from "./utils.js";
 
 type ApiKeyInfo = ResolvedProviderAuth;
@@ -534,6 +535,8 @@ export async function runEmbeddedPiAgent(
           agentDir,
         });
       };
+      let runLoopFinalPhase: "end" | "error" = "end";
+      let runLoopFinalError: string | undefined;
       try {
         while (true) {
           if (runLoopIterations >= MAX_RUN_LOOP_ITERATIONS) {
@@ -545,6 +548,8 @@ export async function runEmbeddedPiAgent(
                 `provider=${provider}/${modelId} attempts=${runLoopIterations} ` +
                 `maxAttempts=${MAX_RUN_LOOP_ITERATIONS}`,
             );
+            runLoopFinalPhase = "error";
+            runLoopFinalError = message;
             return {
               payloads: [
                 {
@@ -631,6 +636,7 @@ export async function runEmbeddedPiAgent(
             streamParams: params.streamParams,
             ownerNumbers: params.ownerNumbers,
             enforceFinalTag: params.enforceFinalTag,
+            suppressLifecycleTerminal: true,
           });
 
           const {
@@ -828,6 +834,8 @@ export async function runEmbeddedPiAgent(
               );
             }
             const kind = isCompactionFailure ? "compaction_failure" : "context_overflow";
+            runLoopFinalPhase = "error";
+            runLoopFinalError = errorText;
             return {
               payloads: [
                 {
@@ -854,6 +862,8 @@ export async function runEmbeddedPiAgent(
             const errorText = describeUnknownError(promptError);
             // Handle role ordering errors with a user-friendly message
             if (/incorrect role information|roles must alternate/i.test(errorText)) {
+              runLoopFinalPhase = "error";
+              runLoopFinalError = errorText;
               return {
                 payloads: [
                   {
@@ -882,6 +892,8 @@ export async function runEmbeddedPiAgent(
               const maxMbLabel =
                 typeof maxMb === "number" && Number.isFinite(maxMb) ? `${maxMb}` : null;
               const maxBytesHint = maxMbLabel ? ` (max ${maxMbLabel}MB)` : "";
+              runLoopFinalPhase = "error";
+              runLoopFinalError = errorText;
               return {
                 payloads: [
                   {
@@ -1091,6 +1103,8 @@ export async function runEmbeddedPiAgent(
           // Emit an explicit timeout error instead of silently completing, so
           // callers do not lose the turn as an orphaned user message.
           if (timedOut && !timedOutDuringCompaction && payloads.length === 0) {
+            runLoopFinalPhase = "error";
+            runLoopFinalError = "Request timed out before a response was generated.";
             return {
               payloads: [
                 {
@@ -1156,7 +1170,23 @@ export async function runEmbeddedPiAgent(
             successfulCronAdds: attempt.successfulCronAdds,
           };
         }
+      } catch (err) {
+        runLoopFinalPhase = "error";
+        runLoopFinalError = String(err);
+        throw err;
       } finally {
+        // Emit the definitive lifecycle terminal event now that the run loop
+        // (including all internal retries) has finished.  Per-attempt lifecycle
+        // emissions were suppressed via `suppressLifecycleTerminal`.
+        emitAgentEvent({
+          runId: params.runId,
+          stream: "lifecycle",
+          data: {
+            phase: runLoopFinalPhase,
+            ...(runLoopFinalError ? { error: runLoopFinalError } : {}),
+            endedAt: Date.now(),
+          },
+        });
         process.chdir(prevCwd);
       }
     }),
