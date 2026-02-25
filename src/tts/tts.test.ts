@@ -558,7 +558,6 @@ describe("tts", () => {
 
         expect(result.text).toContain("Hello world");
         expect(result.text).toContain("🔇 TTS failed");
-        expect(result.isError).toBe(true);
       } finally {
         globalThis.fetch = originalFetch;
         process.env.OPENCLAW_TTS_PREFS = prevPrefs;
@@ -628,7 +627,6 @@ describe("tts", () => {
         });
 
         expect(result.text).toContain("🔇 TTS failed");
-        expect(result.isError).toBe(true);
       } finally {
         globalThis.fetch = originalFetch;
         process.env.OPENCLAW_TTS_PREFS = prevPrefs;

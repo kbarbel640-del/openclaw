@@ -938,7 +938,6 @@ export async function maybeApplyTtsToPayload(params: {
   return {
     ...nextPayload,
     text: newText,
-    isError: true,
   };
 }
 
