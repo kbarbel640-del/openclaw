@@ -1,0 +1,48 @@
+{
+  "name": "@sliverp/qqbot",
+  "version": "2.0.0",
+  "homepage": "https://github.com/sliverp/qqbot",
+  "bin": {
+    "qqbot": "./bin/qqbot-cli.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src",
+    "skills",
+    "index.ts",
+    "tsconfig.json",
+    "openclaw.plugin.json"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc || true",
+    "dev": "tsc --watch",
+    "prepack": "npm install --omit=dev"
+  },
+  "dependencies": {
+    "silk-wasm": "^3.7.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "openclaw": "workspace:*",
+    "typescript": "^5.9.3"
+  },
+  "bundledDependencies": [
+    "silk-wasm",
+    "ws"
+  ],
+  "bundleDependencies": [
+    "silk-wasm",
+    "ws"
+  ],
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
