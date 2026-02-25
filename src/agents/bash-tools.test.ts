@@ -533,7 +533,14 @@ describe("exec PATH handling", () => {
 
     const text = readNormalizedTextContent(result.content);
     const entries = text.split(path.delimiter);
-    expect(entries.slice(0, prepend.length)).toEqual(prepend);
+    // Find where our prepended entries start. Windows CI runners may inject
+    // additional paths (e.g. PowerShell 7) before the custom entries, so we
+    // locate the first prepend entry rather than assuming position 0.
+    const prependStart = entries.indexOf(prepend[0]);
+    expect(prependStart).toBeGreaterThanOrEqual(0);
+    expect(entries.slice(prependStart, prependStart + prepend.length)).toEqual(prepend);
+    const baseIdx = entries.indexOf(basePath);
+    expect(baseIdx).toBeGreaterThan(prependStart); // prepend comes before basePath
     expect(entries).toContain(basePath);
   });
 });
