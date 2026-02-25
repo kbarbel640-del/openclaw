@@ -15,6 +15,8 @@ import {
   applyMistralProviderConfig,
   applyMinimaxApiConfig,
   applyMinimaxApiProviderConfig,
+  applyNovitaConfig,
+  applyNovitaProviderConfig,
   applyOpencodeZenConfig,
   applyOpencodeZenProviderConfig,
   applyOpenrouterConfig,
@@ -29,6 +31,7 @@ import {
   applyZaiProviderConfig,
   OPENROUTER_DEFAULT_MODEL_REF,
   MISTRAL_DEFAULT_MODEL_REF,
+  NOVITA_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_ID,
   SYNTHETIC_DEFAULT_MODEL_REF,
   XAI_DEFAULT_MODEL_REF,
@@ -656,6 +659,11 @@ describe("provider alias defaults", () => {
         modelRef: MISTRAL_DEFAULT_MODEL_REF,
         alias: "Mistral",
       },
+      {
+        applyConfig: () => applyNovitaProviderConfig({}),
+        modelRef: NOVITA_DEFAULT_MODEL_REF,
+        alias: "Novita AI",
+      },
     ] as const;
     for (const testCase of aliasCases) {
       const cfg = testCase.applyConfig();
@@ -729,6 +737,10 @@ describe("default-model config helpers", () => {
       {
         applyConfig: applyOpenrouterConfig,
         primaryModel: OPENROUTER_DEFAULT_MODEL_REF,
+      },
+      {
+        applyConfig: applyNovitaConfig,
+        primaryModel: NOVITA_DEFAULT_MODEL_REF,
       },
     ] as const;
     for (const { applyConfig, primaryModel } of configCases) {
