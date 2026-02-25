@@ -246,15 +246,7 @@ private fun M3TopStatusBar(
     shadowElevation = 0.dp,
   ) {
     CenterAlignedTopAppBar(
-      title = {
-        Text(
-          text = "OpenClaw",
-          style = MaterialTheme.typography.titleLarge.copy(
-            fontWeight = FontWeight.SemiBold,
-          ),
-          color = MaterialTheme.colorScheme.onSurface,
-        )
-      },
+      title = { },
       actions = {
         SuggestionChip(
           onClick = { },

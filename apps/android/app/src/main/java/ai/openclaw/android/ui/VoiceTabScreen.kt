@@ -7,12 +7,16 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -76,7 +80,6 @@ import ai.openclaw.android.MainViewModel
 import ai.openclaw.android.voice.VoiceConversationEntry
 import ai.openclaw.android.voice.VoiceConversationRole
 import kotlin.math.PI
-import kotlin.math.max
 import kotlin.math.sin
 
 @Composable
@@ -87,7 +90,6 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
   val listState = rememberLazyListState()
 
   val isConnected by viewModel.isConnected.collectAsState()
-  val gatewayStatus by viewModel.statusText.collectAsState()
   val micEnabled by viewModel.micEnabled.collectAsState()
   val micStatusText by viewModel.micStatusText.collectAsState()
   val micLiveTranscript by viewModel.micLiveTranscript.collectAsState()
@@ -218,7 +220,7 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
               else -> "Mic off"
             }
           Text(
-            "$gatewayStatus · $stateText",
+            stateText,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -245,6 +247,7 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
 
         LargeFloatingActionButton(
           onClick = {
+            performHapticFeedback(context, if (micEnabled) HapticType.Stop else HapticType.Start)
             if (micEnabled) {
               viewModel.setMicEnabled(false)
               return@LargeFloatingActionButton
@@ -382,37 +385,64 @@ private fun ThinkingDot(alpha: Float, color: androidx.compose.ui.graphics.Color)
 
 @Composable
 private fun MicWaveform(level: Float, active: Boolean) {
+  val smoothedLevel by animateFloatAsState(
+    targetValue = if (active) level.coerceIn(0f, 1f) else 0f,
+    animationSpec = tween(durationMillis = 100, easing = LinearEasing),
+    label = "smoothedLevel",
+  )
+  
+  val hasAudio = active && smoothedLevel > 0.02f
+  
   val transition = rememberInfiniteTransition(label = "voiceWave")
-  val phase by
-    transition.animateFloat(
-      initialValue = 0f,
-      targetValue = 1f,
-      animationSpec = infiniteRepeatable(animation = tween(1_000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
-      label = "voiceWavePhase",
-    )
-
-  val effective = if (active) level.coerceIn(0f, 1f) else 0f
-  val base = max(effective, if (active) 0.05f else 0f)
+  val phase by transition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(400, easing = LinearEasing),
+      repeatMode = RepeatMode.Restart
+    ),
+    label = "voiceWavePhase",
+  )
 
   Row(
     modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
-    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+    horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    repeat(16) { index ->
-      val pulse =
-        if (!active) {
-          0f
-        } else {
-          ((sin(((phase * 2f * PI) + (index * 0.55f)).toDouble()) + 1.0) * 0.5).toFloat()
-        }
-      val barHeight = 6.dp + (24.dp * (base * pulse))
+    repeat(24) { index ->
+      val centerIndex = 11.5f
+      val distanceFromCenter = kotlin.math.abs(index - centerIndex) / centerIndex
+      val wavePhase = (phase * 2f * PI + index * 0.5).toFloat()
+      
+      val audioReactive = if (!hasAudio) {
+        0f
+      } else {
+        val baseWave = (sin(wavePhase.toDouble()).toFloat() + 1f) * 0.5f
+        val audioWeight = smoothedLevel * (1f - distanceFromCenter * 0.7f)
+        val randomVariation = (1f + (kotlin.math.sin(index * 2.3f) * 0.15f)).toFloat()
+        (baseWave * 0.25f + audioWeight * 0.75f * randomVariation).coerceIn(0f, 1f)
+      }
+      
+      val barHeight = if (!hasAudio) {
+        6.dp
+      } else {
+        4.dp + (32.dp * audioReactive)
+      }
+      
       Box(
-        modifier =
-          Modifier
-            .width(5.dp)
-            .height(barHeight)
-            .background(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(999.dp)),
+        modifier = Modifier
+          .width(3.dp)
+          .height(barHeight)
+          .background(
+            when {
+              !hasAudio -> MaterialTheme.colorScheme.surfaceContainerHighest
+              smoothedLevel > 0.6f -> MaterialTheme.colorScheme.error
+              smoothedLevel > 0.35f -> MaterialTheme.colorScheme.tertiary
+              smoothedLevel > 0.15f -> MaterialTheme.colorScheme.primary
+              else -> MaterialTheme.colorScheme.secondary
+            },
+            RoundedCornerShape(999.dp)
+          )
       )
     }
   }
@@ -439,4 +469,33 @@ private fun openAppSettings(context: Context) {
       Uri.fromParts("package", context.packageName, null),
     )
   context.startActivity(intent)
+}
+
+private enum class HapticType {
+  Start,
+  Stop,
+}
+
+@Suppress("DEPRECATION")
+private fun performHapticFeedback(context: Context, type: HapticType) {
+  try {
+    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    if (vibrator == null || !vibrator.hasVibrator()) return
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      val duration = when (type) {
+        HapticType.Start -> 30L
+        HapticType.Stop -> 20L
+      }
+      vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE))
+    } else {
+      val duration = when (type) {
+        HapticType.Start -> 30L
+        HapticType.Stop -> 20L
+      }
+      vibrator.vibrate(duration)
+    }
+  } catch (_: Exception) {
+    // Silently ignore vibration errors
+  }
 }
