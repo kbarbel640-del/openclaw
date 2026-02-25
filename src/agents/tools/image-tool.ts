@@ -185,9 +185,8 @@ export function resolveImageModelConfigForTool(params: {
     };
   }
 
-  return  {
+  return {
     primary: `${primary.provider}/${primary.model}`,
-
   };
 }
 
