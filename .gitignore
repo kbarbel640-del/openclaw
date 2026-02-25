@@ -87,7 +87,6 @@ USER.md
 
 # local tooling
 .serena/
-.cursor/
 
 # Agent credentials and memory (NEVER COMMIT)
 /memory/
