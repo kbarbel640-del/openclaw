@@ -5,6 +5,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import JSON5 from "json5";
 import { ensureOwnerDisplaySecret } from "../agents/owner-display.js";
+import { ensurePromptCachePartition } from "../agents/prompt-cache-partition.js";
 import { loadDotEnv } from "../infra/dotenv.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import {
@@ -791,7 +792,42 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         AUTO_OWNER_DISPLAY_SECRET_PERSIST_WARNED.delete(configPath);
       }
 
-      return applyConfigOverrides(cfgWithOwnerDisplaySecret);
+      const pendingPromptCachePartition = AUTO_PROMPT_CACHE_PARTITION_BY_PATH.get(configPath);
+      const promptCachePartitionResolution = ensurePromptCachePartition(
+        cfgWithOwnerDisplaySecret,
+        () => pendingPromptCachePartition ?? crypto.randomBytes(16).toString("hex"),
+      );
+      const cfgWithPromptCachePartition = promptCachePartitionResolution.config;
+      if (promptCachePartitionResolution.generatedKey) {
+        AUTO_PROMPT_CACHE_PARTITION_BY_PATH.set(
+          configPath,
+          promptCachePartitionResolution.generatedKey,
+        );
+        if (!AUTO_PROMPT_CACHE_PARTITION_PERSIST_IN_FLIGHT.has(configPath)) {
+          AUTO_PROMPT_CACHE_PARTITION_PERSIST_IN_FLIGHT.add(configPath);
+          void writeConfigFile(cfgWithPromptCachePartition, { expectedConfigPath: configPath })
+            .then(() => {
+              AUTO_PROMPT_CACHE_PARTITION_BY_PATH.delete(configPath);
+              AUTO_PROMPT_CACHE_PARTITION_PERSIST_WARNED.delete(configPath);
+            })
+            .catch((err) => {
+              if (!AUTO_PROMPT_CACHE_PARTITION_PERSIST_WARNED.has(configPath)) {
+                AUTO_PROMPT_CACHE_PARTITION_PERSIST_WARNED.add(configPath);
+                deps.logger.warn(
+                  `Failed to persist auto-generated agents.defaults.promptCachePartition at ${configPath}: ${String(err)}`,
+                );
+              }
+            })
+            .finally(() => {
+              AUTO_PROMPT_CACHE_PARTITION_PERSIST_IN_FLIGHT.delete(configPath);
+            });
+        }
+      } else {
+        AUTO_PROMPT_CACHE_PARTITION_BY_PATH.delete(configPath);
+        AUTO_PROMPT_CACHE_PARTITION_PERSIST_WARNED.delete(configPath);
+      }
+
+      return applyConfigOverrides(cfgWithPromptCachePartition);
     } catch (err) {
       if (err instanceof DuplicateAgentDirError) {
         deps.logger.error(err.message);
@@ -1275,6 +1311,9 @@ const DEFAULT_CONFIG_CACHE_MS = 200;
 const AUTO_OWNER_DISPLAY_SECRET_BY_PATH = new Map<string, string>();
 const AUTO_OWNER_DISPLAY_SECRET_PERSIST_IN_FLIGHT = new Set<string>();
 const AUTO_OWNER_DISPLAY_SECRET_PERSIST_WARNED = new Set<string>();
+const AUTO_PROMPT_CACHE_PARTITION_BY_PATH = new Map<string, string>();
+const AUTO_PROMPT_CACHE_PARTITION_PERSIST_IN_FLIGHT = new Set<string>();
+const AUTO_PROMPT_CACHE_PARTITION_PERSIST_WARNED = new Set<string>();
 let configCache: {
   configPath: string;
   expiresAt: number;
