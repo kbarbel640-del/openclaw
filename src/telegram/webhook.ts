@@ -48,7 +48,7 @@ export async function startTelegramWebhook(opts: {
   }
   const runtime = opts.runtime ?? defaultRuntime;
   const diagnosticsEnabled = isDiagnosticsEnabled(opts.config);
-  const bot = createTelegramBot({
+  const { bot, execApprovalHandler } = createTelegramBot({
     token: opts.token,
     runtime,
     proxyFetch: opts.fetch,
@@ -139,10 +139,27 @@ export async function startTelegramWebhook(opts: {
       }),
   });
 
+  // Start exec approval handler before server
+  if (execApprovalHandler) {
+    try {
+      await execApprovalHandler.start();
+    } catch (err) {
+      runtime.log?.(`[telegram] exec approvals start failed: ${formatErrorMessage(err)}`);
+    }
+  }
+
   await new Promise<void>((resolve) => server.listen(port, host, resolve));
   runtime.log?.(`webhook listening on ${publicUrl}`);
 
   const shutdown = () => {
+    // Stop handler before server cleanup
+    if (execApprovalHandler) {
+      try {
+        void execApprovalHandler.stop();
+      } catch {
+        // ignore
+      }
+    }
     server.close();
     void bot.stop();
     if (diagnosticsEnabled) {

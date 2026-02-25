@@ -14,8 +14,11 @@ const stopSpy = vi.hoisted(() => vi.fn());
 const webhookCallbackSpy = vi.hoisted(() => vi.fn(() => handlerSpy));
 const createTelegramBotSpy = vi.hoisted(() =>
   vi.fn(() => ({
-    api: { setWebhook: setWebhookSpy },
-    stop: stopSpy,
+    bot: {
+      api: { setWebhook: setWebhookSpy },
+      stop: stopSpy,
+    },
+    execApprovalHandler: null,
   })),
 );
 

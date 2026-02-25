@@ -214,8 +214,9 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
 
     while (!opts.abortSignal?.aborted) {
       let bot;
+      let execApprovalHandler;
       try {
-        bot = createTelegramBot({
+        const result = createTelegramBot({
           token,
           runtime: opts.runtime,
           proxyFetch,
@@ -226,6 +227,8 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
             onUpdateId: persistUpdateId,
           },
         });
+        bot = result.bot;
+        execApprovalHandler = result.execApprovalHandler;
       } catch (err) {
         const shouldRetry = await waitBeforeRetryOnRecoverableSetupError(
           err,
@@ -254,6 +257,15 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
             return;
           }
           continue;
+        }
+      }
+
+      // Start exec approval handler before runner
+      if (execApprovalHandler) {
+        try {
+          await execApprovalHandler.start();
+        } catch (err) {
+          log(`[telegram] exec approvals start failed: ${formatErrorMessage(err)}`);
         }
       }
 
@@ -315,6 +327,14 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         }
       } finally {
         opts.abortSignal?.removeEventListener("abort", stopOnAbort);
+        // Stop handler before runner cleanup
+        if (execApprovalHandler) {
+          try {
+            await execApprovalHandler.stop();
+          } catch {
+            // ignore
+          }
+        }
         await stopRunner();
       }
     }
