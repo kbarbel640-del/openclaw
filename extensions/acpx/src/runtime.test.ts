@@ -58,8 +58,9 @@ if (command === "sessions" && args[commandIndex + 1] === "ensure") {
   writeLog({ kind: "ensure", agent, args, sessionName: ensureName });
   process.stdout.write(JSON.stringify({
     type: "session_ensured",
-    id: "rec-" + ensureName,
-    sessionId: "sid-" + ensureName,
+    acpxRecordId: "rec-" + ensureName,
+    acpxSessionId: "sid-" + ensureName,
+    agentSessionId: "inner-" + ensureName,
     name: ensureName,
     created: true,
   }) + "\n");
@@ -69,7 +70,7 @@ if (command === "sessions" && args[commandIndex + 1] === "ensure") {
 if (command === "cancel") {
   writeLog({ kind: "cancel", agent, args, sessionName: sessionFromOption });
   process.stdout.write(JSON.stringify({
-    sessionId: "sid-" + sessionFromOption,
+    acpxSessionId: "sid-" + sessionFromOption,
     cancelled: true,
   }) + "\n");
   process.exit(0);
@@ -79,7 +80,7 @@ if (command === "set-mode") {
   writeLog({ kind: "set-mode", agent, args, sessionName: sessionFromOption, mode: setModeValue });
   process.stdout.write(JSON.stringify({
     type: "mode_set",
-    sessionId: "sid-" + sessionFromOption,
+    acpxSessionId: "sid-" + sessionFromOption,
     mode: setModeValue,
   }) + "\n");
   process.exit(0);
@@ -96,7 +97,7 @@ if (command === "set") {
   });
   process.stdout.write(JSON.stringify({
     type: "config_set",
-    sessionId: "sid-" + sessionFromOption,
+    acpxSessionId: "sid-" + sessionFromOption,
     key: setKey,
     value: setValue,
   }) + "\n");
@@ -106,7 +107,7 @@ if (command === "set") {
 if (command === "status") {
   writeLog({ kind: "status", agent, args, sessionName: sessionFromOption });
   process.stdout.write(JSON.stringify({
-    sessionId: sessionFromOption ? "sid-" + sessionFromOption : null,
+    acpxSessionId: sessionFromOption ? "sid-" + sessionFromOption : null,
     status: sessionFromOption ? "alive" : "no-session",
     pid: 4242,
     uptime: 120,
@@ -118,8 +119,8 @@ if (command === "sessions" && args[commandIndex + 1] === "close") {
   writeLog({ kind: "close", agent, args, sessionName: closeName });
   process.stdout.write(JSON.stringify({
     type: "session_closed",
-    id: "rec-" + closeName,
-    sessionId: "sid-" + closeName,
+    acpxRecordId: "rec-" + closeName,
+    acpxSessionId: "sid-" + closeName,
     name: closeName,
   }) + "\n");
   process.exit(0);
@@ -128,12 +129,12 @@ if (command === "sessions" && args[commandIndex + 1] === "close") {
 if (command === "prompt") {
   const stdinText = fs.readFileSync(0, "utf8");
   writeLog({ kind: "prompt", agent, args, sessionName: sessionFromOption, stdinText });
-  const sessionId = "sid-" + sessionFromOption;
+  const acpxSessionId = "sid-" + sessionFromOption;
 
   if (stdinText.includes("trigger-error")) {
     process.stdout.write(JSON.stringify({
       eventVersion: 1,
-      sessionId,
+      acpxSessionId,
       requestId: "req-1",
       seq: 0,
       stream: "prompt",
@@ -147,7 +148,7 @@ if (command === "prompt") {
   if (stdinText.includes("split-spacing")) {
     process.stdout.write(JSON.stringify({
       eventVersion: 1,
-      sessionId,
+      acpxSessionId,
       requestId: "req-1",
       seq: 0,
       stream: "prompt",
@@ -156,7 +157,7 @@ if (command === "prompt") {
     }) + "\n");
     process.stdout.write(JSON.stringify({
       eventVersion: 1,
-      sessionId,
+      acpxSessionId,
       requestId: "req-1",
       seq: 1,
       stream: "prompt",
@@ -165,7 +166,7 @@ if (command === "prompt") {
     }) + "\n");
     process.stdout.write(JSON.stringify({
       eventVersion: 1,
-      sessionId,
+      acpxSessionId,
       requestId: "req-1",
       seq: 2,
       stream: "prompt",
@@ -174,7 +175,7 @@ if (command === "prompt") {
     }) + "\n");
     process.stdout.write(JSON.stringify({
       eventVersion: 1,
-      sessionId,
+      acpxSessionId,
       requestId: "req-1",
       seq: 3,
       stream: "prompt",
@@ -186,7 +187,7 @@ if (command === "prompt") {
 
   process.stdout.write(JSON.stringify({
     eventVersion: 1,
-    sessionId,
+    acpxSessionId,
     requestId: "req-1",
     seq: 0,
     stream: "prompt",
@@ -195,7 +196,7 @@ if (command === "prompt") {
   }) + "\n");
   process.stdout.write(JSON.stringify({
     eventVersion: 1,
-    sessionId,
+    acpxSessionId,
     requestId: "req-1",
     seq: 1,
     stream: "prompt",
@@ -205,7 +206,7 @@ if (command === "prompt") {
   }) + "\n");
   process.stdout.write(JSON.stringify({
     eventVersion: 1,
-    sessionId,
+    acpxSessionId,
     requestId: "req-1",
     seq: 2,
     stream: "prompt",
@@ -214,7 +215,7 @@ if (command === "prompt") {
   }) + "\n");
   process.stdout.write(JSON.stringify({
     eventVersion: 1,
-    sessionId,
+    acpxSessionId,
     requestId: "req-1",
     seq: 3,
     stream: "prompt",
@@ -227,7 +228,7 @@ if (command === "prompt") {
 writeLog({ kind: "unknown", args });
 process.stdout.write(JSON.stringify({
   eventVersion: 1,
-  sessionId: "unknown",
+  acpxSessionId: "unknown",
   seq: 0,
   stream: "control",
   type: "error",
@@ -330,11 +331,11 @@ describe("AcpxRuntime", () => {
       mode: "persistent",
     });
     expect(handle.backend).toBe("acpx");
-    expect(handle.runtimeSessionId).toBe("sid-agent:codex:acp:123");
-    expect(handle.backendSessionId).toBe("rec-agent:codex:acp:123");
+    expect(handle.agentSessionId).toBe("inner-agent:codex:acp:123");
+    expect(handle.backendSessionId).toBe("sid-agent:codex:acp:123");
     const decoded = decodeAcpxRuntimeHandleState(handle.runtimeSessionName);
-    expect(decoded?.runtimeSessionId).toBe("sid-agent:codex:acp:123");
-    expect(decoded?.backendSessionId).toBe("rec-agent:codex:acp:123");
+    expect(decoded?.agentSessionId).toBe("inner-agent:codex:acp:123");
+    expect(decoded?.backendSessionId).toBe("sid-agent:codex:acp:123");
 
     const events = [];
     for await (const event of runtime.runTurn({

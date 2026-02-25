@@ -53,7 +53,7 @@ export async function handleAcpStatusAction(
       `session: ${status.sessionKey}`,
       `backend: ${status.backend}`,
       `agent: ${status.agent}`,
-      ...(status.runtimeSessionId ? [`runtimeSessionId: ${status.runtimeSessionId}`] : []),
+      ...(status.agentSessionId ? [`agentSessionId: ${status.agentSessionId}`] : []),
       ...(status.backendSessionId ? [`backendSessionId: ${status.backendSessionId}`] : []),
       `sessionMode: ${status.mode}`,
       `state: ${status.state}`,

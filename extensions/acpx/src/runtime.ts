@@ -64,7 +64,7 @@ export function decodeAcpxRuntimeHandleState(runtimeSessionName: string): AcpxHa
     const cwd = asTrimmedString(parsed.cwd);
     const mode = asTrimmedString(parsed.mode);
     const backendSessionId = asOptionalString(parsed.backendSessionId);
-    const runtimeSessionId = asOptionalString(parsed.runtimeSessionId);
+    const agentSessionId = asOptionalString(parsed.agentSessionId);
     if (!name || !agent || !cwd) {
       return null;
     }
@@ -77,7 +77,7 @@ export function decodeAcpxRuntimeHandleState(runtimeSessionName: string): AcpxHa
       cwd,
       mode,
       ...(backendSessionId ? { backendSessionId } : {}),
-      ...(runtimeSessionId ? { runtimeSessionId } : {}),
+      ...(agentSessionId ? { agentSessionId } : {}),
     };
   } catch {
     return null;
@@ -145,10 +145,15 @@ export class AcpxRuntime implements AcpRuntime {
       fallbackCode: "ACP_SESSION_INIT_FAILED",
     });
     const ensuredEvent = events.find(
-      (event) => asOptionalString(event.sessionId) || asOptionalString(event.id),
+      (event) =>
+        asOptionalString(event.agentSessionId) ||
+        asOptionalString(event.acpxSessionId) ||
+        asOptionalString(event.acpxRecordId),
     );
-    const runtimeSessionId = ensuredEvent ? asOptionalString(ensuredEvent.sessionId) : undefined;
-    const backendSessionId = ensuredEvent ? asOptionalString(ensuredEvent.id) : undefined;
+    const agentSessionId = ensuredEvent ? asOptionalString(ensuredEvent.agentSessionId) : undefined;
+    const backendSessionId = ensuredEvent
+      ? asOptionalString(ensuredEvent.acpxSessionId) || asOptionalString(ensuredEvent.acpxRecordId)
+      : undefined;
 
     return {
       sessionKey: input.sessionKey,
@@ -159,10 +164,10 @@ export class AcpxRuntime implements AcpRuntime {
         cwd,
         mode,
         ...(backendSessionId ? { backendSessionId } : {}),
-        ...(runtimeSessionId ? { runtimeSessionId } : {}),
+        ...(agentSessionId ? { agentSessionId } : {}),
       }),
       ...(backendSessionId ? { backendSessionId } : {}),
-      ...(runtimeSessionId ? { runtimeSessionId } : {}),
+      ...(agentSessionId ? { agentSessionId } : {}),
     };
   }
 
@@ -287,11 +292,11 @@ export class AcpxRuntime implements AcpRuntime {
       };
     }
     const status = asTrimmedString(detail.status) || "unknown";
-    const sessionId = asOptionalString(detail.sessionId);
+    const acpxSessionId = asOptionalString(detail.acpxSessionId);
     const pid = typeof detail.pid === "number" && Number.isFinite(detail.pid) ? detail.pid : null;
     const summary = [
       `status=${status}`,
-      sessionId ? `sessionId=${sessionId}` : null,
+      acpxSessionId ? `acpxSessionId=${acpxSessionId}` : null,
       pid != null ? `pid=${pid}` : null,
     ]
       .filter(Boolean)

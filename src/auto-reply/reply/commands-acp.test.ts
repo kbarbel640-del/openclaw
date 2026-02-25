@@ -288,7 +288,7 @@ describe("/acp command", () => {
       sessionKey: "agent:codex:acp:s1",
       backend: "acpx",
       runtimeSessionName: "agent:codex:acp:s1:runtime",
-      runtimeSessionId: "codex-inner-1",
+      agentSessionId: "codex-inner-1",
       backendSessionId: "acpx-1",
     });
 

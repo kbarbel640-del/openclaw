@@ -90,7 +90,7 @@ export type AcpSessionStatus = {
   backend: string;
   agent: string;
   backendSessionId?: string;
-  runtimeSessionId?: string;
+  agentSessionId?: string;
   state: SessionAcpMeta["state"];
   mode: AcpRuntimeSessionMode;
   runtimeOptions: AcpSessionRuntimeOptions;
@@ -306,7 +306,7 @@ export class AcpSessionManager {
         agent,
         runtimeSessionName: handle.runtimeSessionName,
         ...(handle.backendSessionId ? { backendSessionId: handle.backendSessionId } : {}),
-        ...(handle.runtimeSessionId ? { runtimeSessionId: handle.runtimeSessionId } : {}),
+        ...(handle.agentSessionId ? { agentSessionId: handle.agentSessionId } : {}),
         mode: input.mode,
         ...(Object.keys(initialRuntimeOptions).length > 0
           ? { runtimeOptions: initialRuntimeOptions }
@@ -403,7 +403,7 @@ export class AcpSessionManager {
         backend: handle.backend || meta.backend,
         agent: meta.agent,
         backendSessionId: meta.backendSessionId,
-        runtimeSessionId: meta.runtimeSessionId,
+        agentSessionId: meta.agentSessionId,
         state: meta.state,
         mode: meta.mode,
         runtimeOptions: resolveRuntimeOptionsFromMeta(meta),
@@ -1012,7 +1012,7 @@ export class AcpSessionManager {
       backend: ensured.backend || backend.id,
       runtimeSessionName: ensured.runtimeSessionName,
       backendSessionId: ensured.backendSessionId,
-      runtimeSessionId: ensured.runtimeSessionId,
+      agentSessionId: ensured.agentSessionId,
       agent,
       runtimeOptions,
       cwd,
@@ -1023,7 +1023,7 @@ export class AcpSessionManager {
       previousMeta.backend !== nextMeta.backend ||
       previousMeta.runtimeSessionName !== nextMeta.runtimeSessionName ||
       previousMeta.backendSessionId !== nextMeta.backendSessionId ||
-      previousMeta.runtimeSessionId !== nextMeta.runtimeSessionId ||
+      previousMeta.agentSessionId !== nextMeta.agentSessionId ||
       previousMeta.agent !== nextMeta.agent ||
       previousMeta.cwd !== nextMeta.cwd ||
       !runtimeOptionsEqual(previousMeta.runtimeOptions, nextMeta.runtimeOptions);

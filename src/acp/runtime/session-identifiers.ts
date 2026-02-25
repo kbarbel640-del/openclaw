@@ -13,11 +13,11 @@ export function resolveAcpSessionIdentifierLines(params: {
   meta?: SessionAcpMeta;
 }): string[] {
   const backend = normalizeText(params.meta?.backend) ?? "backend";
-  const runtimeSessionId = normalizeText(params.meta?.runtimeSessionId);
+  const agentSessionId = normalizeText(params.meta?.agentSessionId);
   const backendSessionId = normalizeText(params.meta?.backendSessionId);
   const lines: string[] = [];
-  if (runtimeSessionId) {
-    lines.push(`inner session id: ${runtimeSessionId}`);
+  if (agentSessionId) {
+    lines.push(`inner session id: ${agentSessionId}`);
   }
   if (backendSessionId) {
     lines.push(`${backend} session id: ${backendSessionId}`);

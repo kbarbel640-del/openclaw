@@ -300,7 +300,7 @@ describe("/focus, /unfocus, /agents", () => {
         backend: "acpx",
         agent: "codex",
         runtimeSessionName: "runtime-1",
-        runtimeSessionId: "codex-123",
+        agentSessionId: "codex-123",
         backendSessionId: "acpx-456",
         mode: "persistent",
         state: "idle",
