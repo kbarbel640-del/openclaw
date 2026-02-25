@@ -208,24 +208,24 @@ private fun bubbleStyle(role: String): ChatBubbleStyle {
     "user" ->
       ChatBubbleStyle(
         alignEnd = true,
-        containerColor = mobileAccentSoft,
-        borderColor = mobileAccent,
-        roleColor = mobileAccent,
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+        roleColor = MaterialTheme.colorScheme.onPrimaryContainer,
       )
 
     "system" ->
       ChatBubbleStyle(
         alignEnd = false,
-        containerColor = mobileWarningSoft,
-        borderColor = mobileWarning.copy(alpha = 0.45f),
-        roleColor = mobileWarning,
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.45f),
+        roleColor = MaterialTheme.colorScheme.onErrorContainer,
       )
 
     else ->
       ChatBubbleStyle(
         alignEnd = false,
-        containerColor = Color.White,
-        borderColor = mobileBorderStrong,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        borderColor = MaterialTheme.colorScheme.outlineVariant,
         roleColor = MaterialTheme.colorScheme.onSurfaceVariant,
       )
   }
@@ -262,8 +262,8 @@ private fun ChatBase64Image(base64: String, mimeType: String?) {
   if (image != null) {
     Surface(
       shape = RoundedCornerShape(10.dp),
-      border = BorderStroke(1.dp, mobileBorder),
-      color = Color.White,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+      color = MaterialTheme.colorScheme.surfaceContainerHighest,
       modifier = Modifier.fillMaxWidth(),
     ) {
       Image(
@@ -274,7 +274,7 @@ private fun ChatBase64Image(base64: String, mimeType: String?) {
       )
     }
   } else if (failed) {
-    Text("Unsupported attachment", style = mobileCaption1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text("Unsupported attachment", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }
 

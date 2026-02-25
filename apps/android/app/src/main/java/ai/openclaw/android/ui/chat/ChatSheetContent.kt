@@ -94,7 +94,6 @@ fun ChatSheetContent(viewModel: MainViewModel) {
       sessionKey = sessionKey,
       sessions = sessions,
       mainSessionKey = mainSessionKey,
-      healthOk = healthOk,
       onSelectSession = { key -> viewModel.switchChatSession(key) },
     )
 
@@ -148,7 +147,6 @@ private fun ChatThreadSelector(
   sessionKey: String,
   sessions: List<ChatSessionEntry>,
   mainSessionKey: String,
-  healthOk: Boolean,
   onSelectSession: (String) -> Unit,
 ) {
   val sessionOptions = resolveSessionChoices(sessionKey, sessions, mainSessionKey = mainSessionKey)
@@ -166,16 +164,13 @@ private fun ChatThreadSelector(
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
-      Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-          text = currentSessionLabel,
-          style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-          color = MaterialTheme.colorScheme.onSurface,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-        ChatConnectionPill(healthOk = healthOk)
-      }
+      Text(
+        text = currentSessionLabel,
+        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
     }
 
     Row(
@@ -201,21 +196,6 @@ private fun ChatThreadSelector(
         )
       }
     }
-  }
-}
-
-@Composable
-private fun ChatConnectionPill(healthOk: Boolean) {
-  Surface(
-    shape = RoundedCornerShape(999.dp),
-    color = if (healthOk) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
-  ) {
-    Text(
-      text = if (healthOk) "Connected" else "Offline",
-      style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-      color = if (healthOk) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onTertiaryContainer,
-      modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-    )
   }
 }
 
