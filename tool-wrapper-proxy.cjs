@@ -3891,6 +3891,10 @@ const EXEC_PATTERNS = [
   // Catch-all for explicit exec
   { pattern: /^(?:exec|執行)\s+(.+)$/i, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
 
+  // Mac mini catch-all — any action mentioning Mac mini → session bridge
+  // Users say infinite variations; pattern-matching each is futile.
+  { pattern: /^.*(?:mac\s*mini|macmini).*$/is, parse: (m) => ({ action: '_dev_task', args: [m[0]] }) },
+
   // Dev task routing — "使用 Claude Code ..." → session bridge
   { pattern: /^(?:使用|用)\s*(?:claude\s*(?:code)?|CC)\s+(.+)$/is, parse: (m) => ({ action: '_dev_task', args: [m[1]] }) },
   { pattern: /^(?:幫我|請)\s*(?:開發|實作|修復|重構|寫)\s+(.+)$/is, parse: (m) => ({ action: '_dev_task', args: [m[1]] }) },
