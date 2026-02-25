@@ -141,13 +141,6 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
     streamingStartPromise = null;
     streamText = "";
     lastPartial = "";
-
-    // FR-001: "分发完成 → onCompleted()" — streaming reply fully delivered.
-    // ONLY fire when there was a real active stream that just closed (= content was delivered).
-    // Do NOT fire when closeStreaming is called from onIdle for a queued-but-not-yet-processed message.
-    if (hadActiveStream) {
-      completeReaction();
-    }
   };
 
   const { dispatcher, replyOptions, markDispatchIdle } =
@@ -203,6 +196,8 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
           if (info?.kind === "final") {
             streamText = text;
             await closeStreaming();
+            // FR-001: "分发完成 → onCompleted()" — streaming reply fully delivered
+            completeReaction();
           }
           return;
         }
