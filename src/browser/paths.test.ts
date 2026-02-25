@@ -29,7 +29,7 @@ async function withFixtureRoot<T>(
 
 describe("resolveExistingPathsWithinRoot", () => {
   function expectInvalidResult(
-    result: Awaited<ReturnType<typeof resolveExistingPathsWithinRoot>>,
+    result: { ok: true } | { ok: false; error: string },
     expectedSnippet: string,
   ) {
     expect(result.ok).toBe(false);
