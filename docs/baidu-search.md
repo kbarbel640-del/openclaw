@@ -13,7 +13,7 @@ OpenClaw uses Baidu Search as the `web_search` tool
 ## Get an API key
 
 1.  Visit the [Baidu AI Search Console](https://console.bce.baidu.com/ai-search/qianfan/ais/console/apiKey)
-2.  Generate a new API key or select an existing one(format: `bce-v3/ALTAK-...`)
+2.  Generate a new API key or select an existing one (format: `bce-v3/ALTAK-...`)
 3.  Copy the API key and use it with OpenClaw
 
 ## Config example
