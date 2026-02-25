@@ -8,11 +8,6 @@ import type { FeishuProbeResult } from "./types.js";
 const DEFAULT_PROBE_CACHE_TTL_MS = 1 * 60 * 1000;
 
 /**
- * Error cache TTL: 1 minute (shorter than success to allow quick recovery).
- */
-const ERROR_CACHE_TTL_MS = 1 * 60 * 1000;
-
-/**
  * Cache for probe results to avoid excessive API calls.
  * Keyed by appId to support multi-account scenarios.
  */
@@ -75,8 +70,7 @@ export async function probeFeishu(creds?: ProbeFeishuOptions): Promise<FeishuPro
         appId: creds.appId,
         error: `API error: ${response.msg || `code ${response.code}`}`,
       };
-      // Cache error results for shorter time to allow quick recovery
-      probeCache.set(cacheKey, { result, timestamp: now, ttlMs: ERROR_CACHE_TTL_MS });
+      probeCache.set(cacheKey, { result, timestamp: now, ttlMs });
       return result;
     }
 
@@ -88,7 +82,6 @@ export async function probeFeishu(creds?: ProbeFeishuOptions): Promise<FeishuPro
       botOpenId: bot?.open_id,
     };
 
-    // Cache successful result with configured TTL
     probeCache.set(cacheKey, { result, timestamp: now, ttlMs });
     return result;
   } catch (err) {
@@ -97,8 +90,7 @@ export async function probeFeishu(creds?: ProbeFeishuOptions): Promise<FeishuPro
       appId: creds.appId,
       error: err instanceof Error ? err.message : String(err),
     };
-    // Cache error results for shorter time to allow quick recovery
-    probeCache.set(cacheKey, { result, timestamp: now, ttlMs: ERROR_CACHE_TTL_MS });
+    probeCache.set(cacheKey, { result, timestamp: now, ttlMs });
     return result;
   }
 }
