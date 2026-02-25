@@ -14,7 +14,6 @@ import { useState, useRef } from "react";
 import { AgentDeleteConfirmDialog } from "@/components/agents/AgentDeleteConfirmDialog";
 import { AgentFileEditor } from "@/components/agents/AgentFileEditor";
 import { AgentFormDialog } from "@/components/agents/AgentFormDialog";
-import { BdiSummaryBar } from "@/components/agents/BdiViewer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,7 +36,7 @@ import { useAgents } from "@/hooks/useAgents";
 import { useGoals } from "@/hooks/useGoals";
 import { getAgentAvatar } from "@/lib/agent-avatars";
 import { getAgentIcon, getAgentName } from "@/lib/agent-icons";
-import type { AgentDetail, AgentListResponse, AgentListItem, BusinessGoal } from "@/lib/types";
+import type { AgentListResponse, AgentListItem, BusinessGoal } from "@/lib/types";
 
 const BUSINESS_ID = "vividwalls";
 
@@ -175,22 +174,9 @@ function GoalsSection({ agentId }: { agentId: string }) {
   );
 }
 
-function AgentMindTab({
-  agentId,
-  detail,
-  editable,
-}: {
-  agentId: string;
-  detail: AgentDetail | undefined;
-  editable: boolean;
-}) {
+function AgentMindTab({ agentId, editable }: { agentId: string; editable: boolean }) {
   const [activeFile, setActiveFile] = useState<string>(BDI_FILES[0].filename);
   const [fileGroup, setFileGroup] = useState<"bdi" | "core">("bdi");
-
-  function handleBdiSummaryClick(fileTab: string) {
-    setFileGroup("bdi");
-    setActiveFile(fileTab);
-  }
 
   const currentFiles = fileGroup === "bdi" ? BDI_FILES : CORE_FILES;
   // Ensure activeFile is valid for the current group
@@ -200,9 +186,6 @@ function AgentMindTab({
 
   return (
     <div className="space-y-3">
-      {/* BDI Summary Bar */}
-      {detail && <BdiSummaryBar agent={detail} onClickSection={handleBdiSummaryClick} />}
-
       {/* File Group Selector */}
       <Tabs
         value={fileGroup}
@@ -231,7 +214,7 @@ function AgentMindTab({
 
       {/* File Sub-tabs (line variant) */}
       <Tabs value={validFile} onValueChange={setActiveFile}>
-        <TabsList variant="line" className="flex-wrap gap-0">
+        <TabsList variant="line" className="overflow-x-auto flex-nowrap gap-0 scrollbar-hide">
           {currentFiles.map((f) => (
             <TabsTrigger
               key={f.filename}
@@ -556,14 +539,10 @@ function AgentPanelContent({
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [isEditable, setIsEditable] = useState(false);
 
-  const {
-    data: detailRaw,
-    isLoading: detailLoading,
-    error: detailError,
-  } = useAgentDetail(mode === "view" && agentId ? agentId : "");
+  const { isLoading: detailLoading, error: detailError } = useAgentDetail(
+    mode === "view" && agentId ? agentId : "",
+  );
   const { data: agentsRaw } = useAgents(BUSINESS_ID);
-
-  const detail = detailRaw as AgentDetail | undefined;
   const agentsResponse = agentsRaw as AgentListResponse | undefined;
   const agentListItem =
     agentId && mode === "view" ? agentsResponse?.agents?.find((a) => a.id === agentId) : undefined;
@@ -722,7 +701,7 @@ function AgentPanelContent({
           </TabsList>
 
           <TabsContent value="mind" className="mt-4">
-            {agentId && <AgentMindTab agentId={agentId} detail={detail} editable={isEditable} />}
+            {agentId && <AgentMindTab agentId={agentId} editable={isEditable} />}
           </TabsContent>
 
           <TabsContent value="config" className="mt-4">
