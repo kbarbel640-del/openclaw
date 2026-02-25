@@ -427,7 +427,7 @@ async function isChromeReadyFromProcessOutput(
     const cdpPort = cdp.port || (cdp.protocol === "https:" ? "443" : "80");
     return wsPort === cdpPort;
   } catch {
-    return true;
+    return false;
   }
 }
 
