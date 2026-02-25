@@ -49,7 +49,7 @@ type ProviderAuthConfigSnapshot = {
         baseUrl?: string;
         api?: string;
         apiKey?: string;
-        models?: Array<{ id?: string }>;
+        models?: Array<{ id?: string; contextWindow?: number }>;
       }
     >;
   };
