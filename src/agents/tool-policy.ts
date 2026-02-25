@@ -11,6 +11,7 @@ export {
   normalizeToolList,
   normalizeToolName,
   resolveToolProfilePolicy,
+  sanitizeToolNameForApi,
   TOOL_GROUPS,
 } from "./tool-policy-shared.js";
 export type { ToolProfileId } from "./tool-policy-shared.js";

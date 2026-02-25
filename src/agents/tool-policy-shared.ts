@@ -21,6 +21,17 @@ export function normalizeToolName(name: string) {
   return TOOL_NAME_ALIASES[normalized] ?? normalized;
 }
 
+/**
+ * Sanitize a tool name for use in provider APIs that require the pattern
+ * `^[a-zA-Z0-9_-]+$` (e.g. OpenAI Responses API). Replaces any character
+ * outside that set with an underscore, strips leading/trailing underscores
+ * and hyphens, and falls back to "tool" if the result is empty.
+ */
+export function sanitizeToolNameForApi(name: string): string {
+  const sanitized = name.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/^[_-]+|[_-]+$/g, "");
+  return sanitized || "tool";
+}
+
 export function normalizeToolList(list?: string[]) {
   if (!list) {
     return [];

@@ -14,7 +14,7 @@ import {
   isToolWrappedWithBeforeToolCallHook,
   runBeforeToolCallHook,
 } from "./pi-tools.before-tool-call.js";
-import { normalizeToolName } from "./tool-policy.js";
+import { normalizeToolName, sanitizeToolNameForApi } from "./tool-policy.js";
 import { jsonResult } from "./tools/common.js";
 
 type AnyAgentTool = AgentTool;
@@ -90,9 +90,12 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
   return tools.map((tool) => {
     const name = tool.name || "tool";
     const normalizedName = normalizeToolName(name);
+    // Sanitize the API-facing name to match the pattern ^[a-zA-Z0-9_-]+$ required
+    // by providers such as OpenAI Responses API (avoids HTTP 400 on special chars).
+    const apiName = sanitizeToolNameForApi(normalizedName);
     const beforeHookWrapped = isToolWrappedWithBeforeToolCallHook(tool);
     return {
-      name,
+      name: apiName,
       label: tool.label ?? name,
       description: tool.description ?? "",
       parameters: tool.parameters,
@@ -197,8 +200,10 @@ export function toClientToolDefinitions(
 ): ToolDefinition[] {
   return tools.map((tool) => {
     const func = tool.function;
+    // Sanitize the API-facing name to match ^[a-zA-Z0-9_-]+$ (OpenAI Responses API requirement).
+    const apiName = sanitizeToolNameForApi(func.name || "tool");
     return {
-      name: func.name,
+      name: apiName,
       label: func.name,
       description: func.description ?? "",
       parameters: func.parameters as ToolDefinition["parameters"],
