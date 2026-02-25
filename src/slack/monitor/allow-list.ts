@@ -78,10 +78,14 @@ export function resolveSlackUserAllowed(params: {
   userId?: string;
   userName?: string;
   allowNameMatching?: boolean;
+  denyWhenConfiguredEmpty?: boolean;
 }) {
+  if (!Array.isArray(params.allowList)) {
+    return true;
+  }
   const allowList = normalizeAllowListLower(params.allowList);
   if (allowList.length === 0) {
-    return true;
+    return params.denyWhenConfiguredEmpty !== true;
   }
   return allowListMatches({
     allowList,

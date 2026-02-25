@@ -62,4 +62,15 @@ describe("slack/allow-list", () => {
       false,
     );
   });
+
+  it("fails closed when an explicitly configured allowList is empty", () => {
+    expect(
+      resolveSlackUserAllowed({
+        allowList: [],
+        userId: "u1",
+        userName: "alice",
+        denyWhenConfiguredEmpty: true,
+      }),
+    ).toBe(false);
+  });
 });

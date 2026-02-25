@@ -246,8 +246,10 @@ export async function prepareSlackMessage(params: {
         userId: senderId,
         userName: senderName,
         allowNameMatching: ctx.allowNameMatching,
+        denyWhenConfiguredEmpty: true,
       })
     : true;
+  const channelUsersAllowlistConfigured = isRoom && Array.isArray(channelConfig?.users);
   if (isRoom && !channelUserAuthorized) {
     logVerbose(`Blocked unauthorized slack sender ${senderId} (not in channel users)`);
     return null;
@@ -267,8 +269,6 @@ export async function prepareSlackMessage(params: {
     name: senderName,
     allowNameMatching: ctx.allowNameMatching,
   }).allowed;
-  const channelUsersAllowlistConfigured =
-    isRoom && Array.isArray(channelConfig?.users) && channelConfig.users.length > 0;
   const channelCommandAuthorized =
     isRoom && channelUsersAllowlistConfigured
       ? resolveSlackUserAllowed({
@@ -276,6 +276,7 @@ export async function prepareSlackMessage(params: {
           userId: senderId,
           userName: senderName,
           allowNameMatching: ctx.allowNameMatching,
+          denyWhenConfiguredEmpty: true,
         })
       : false;
   const commandGate = resolveControlCommandGate({

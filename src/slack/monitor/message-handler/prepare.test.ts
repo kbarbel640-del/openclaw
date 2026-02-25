@@ -687,4 +687,29 @@ describe("prepareSlackMessage sender prefix", () => {
     expect(result).not.toBeNull();
     expect(result?.ctxPayload.CommandAuthorized).toBe(true);
   });
+
+  it("blocks channel messages when channel users is explicitly empty", async () => {
+    const ctx = createSenderPrefixCtx({
+      channels: { enabled: true },
+      allowFrom: ["*"],
+      useAccessGroups: true,
+      slashCommand: {
+        enabled: false,
+        name: "openclaw",
+        sessionPrefix: "slack:slash",
+        ephemeral: true,
+      },
+    });
+    ctx.channelsConfig = {
+      C1: {
+        allow: true,
+        requireMention: false,
+        users: [],
+      },
+    };
+
+    const result = await prepareSenderPrefixMessage(ctx, "hello from room", "1700000000.0003");
+
+    expect(result).toBeNull();
+  });
 });

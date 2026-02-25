@@ -440,14 +440,14 @@ export async function registerSlackMonitorSlashCommands(params: {
 
       const sender = await ctx.resolveUserName(command.user_id);
       const senderName = sender?.name ?? command.user_name ?? command.user_id;
-      const channelUsersAllowlistConfigured =
-        isRoom && Array.isArray(channelConfig?.users) && channelConfig.users.length > 0;
+      const channelUsersAllowlistConfigured = isRoom && Array.isArray(channelConfig?.users);
       const channelUserAllowed = channelUsersAllowlistConfigured
         ? resolveSlackUserAllowed({
             allowList: channelConfig?.users,
             userId: command.user_id,
             userName: senderName,
             allowNameMatching: ctx.allowNameMatching,
+            denyWhenConfiguredEmpty: true,
           })
         : false;
       if (channelUsersAllowlistConfigured && !channelUserAllowed) {
