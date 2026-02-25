@@ -78,7 +78,7 @@ function removeGoogleChatWebhookTargetsForAccount(accountId: string) {
     webhookTargets.delete(path);
   }
 }
-
+// updated
 function logVerbose(core: GoogleChatCoreRuntime, runtime: GoogleChatRuntimeEnv, message: string) {
   if (core.logging.shouldLogVerbose()) {
     runtime.log?.(`[googlechat] ${message}`);
