@@ -363,6 +363,64 @@ describe("resolveResponsePrefixTemplate", () => {
     }
   });
 
+  it("resolves {tier} and {tierEmoji} variables", () => {
+    const cases = [
+      {
+        name: "tier raw value",
+        template: "[{tier}]",
+        values: { tier: "fast" },
+        expected: "[fast]",
+      },
+      {
+        name: "tierEmoji fast",
+        template: "{tierEmoji}",
+        values: { tier: "fast" },
+        expected: "\u{1F7E2}",
+      },
+      {
+        name: "tierEmoji standard",
+        template: "{tierEmoji}",
+        values: { tier: "standard" },
+        expected: "\u{1F535}",
+      },
+      {
+        name: "tierEmoji deep",
+        template: "{tierEmoji}",
+        values: { tier: "deep" },
+        expected: "\u{1F7E3}",
+      },
+      {
+        name: "tierEmoji unknown tier falls back to raw tier",
+        template: "{tierEmoji}",
+        values: { tier: "custom" },
+        expected: "custom",
+      },
+      {
+        name: "tierEmoji case-insensitive",
+        template: "{TierEmoji}",
+        values: { tier: "deep" },
+        expected: "\u{1F7E3}",
+      },
+      {
+        name: "tier combined with model",
+        template: "{tierEmoji} [{model}]",
+        values: { tier: "standard", model: "claude-opus-4-6" },
+        expected: "\u{1F535} [claude-opus-4-6]",
+      },
+      {
+        name: "tier unresolved when not provided",
+        template: "{tierEmoji}",
+        values: {},
+        expected: "{tierEmoji}",
+      },
+    ] as const;
+    for (const testCase of cases) {
+      expect(resolveResponsePrefixTemplate(testCase.template, testCase.values), testCase.name).toBe(
+        testCase.expected,
+      );
+    }
+  });
+
   it("preserves unresolved/unknown placeholders and handles static inputs", () => {
     const cases = [
       { name: "undefined template", template: undefined, values: {}, expected: undefined },

@@ -11,6 +11,8 @@ export type ModelSelectedContext = {
   provider: string;
   model: string;
   thinkLevel: string | undefined;
+  /** Routing tier label (e.g., "fast", "standard", "deep"). */
+  tier?: string;
 };
 
 export type GetReplyOptions = {
