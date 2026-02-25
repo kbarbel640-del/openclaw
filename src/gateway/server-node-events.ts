@@ -321,7 +321,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         channel?: string | null;
         timeoutSeconds?: number | null;
         key?: string | null;
-        metadata?: Record<string, unknown> | null;
+        metadata?: Record<string, string> | null;
       };
       let link: AgentDeepLink | null = null;
       try {
