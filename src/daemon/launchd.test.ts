@@ -4,6 +4,7 @@ import {
   installLaunchAgent,
   isLaunchAgentListed,
   parseLaunchctlPrint,
+  readLaunchAgentRuntime,
   repairLaunchAgentBootstrap,
   resolveLaunchAgentPlistPath,
 } from "./launchd.js";
@@ -11,6 +12,9 @@ import {
 const state = vi.hoisted(() => ({
   launchctlCalls: [] as string[][],
   listOutput: "",
+  printCode: 0,
+  printStdout: "",
+  printStderr: "",
   bootstrapError: "",
   dirs: new Set<string>(),
   files: new Map<string, string>(),
@@ -34,6 +38,9 @@ vi.mock("./exec-file.js", () => ({
     state.launchctlCalls.push(call);
     if (call[0] === "list") {
       return { stdout: state.listOutput, stderr: "", code: 0 };
+    }
+    if (call[0] === "print") {
+      return { stdout: state.printStdout, stderr: state.printStderr, code: state.printCode };
     }
     if (call[0] === "bootstrap" && state.bootstrapError) {
       return { stdout: "", stderr: state.bootstrapError, code: 1 };
@@ -71,6 +78,9 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 beforeEach(() => {
   state.launchctlCalls.length = 0;
   state.listOutput = "";
+  state.printCode = 0;
+  state.printStdout = "";
+  state.printStderr = "";
   state.bootstrapError = "";
   state.dirs.clear();
   state.files.clear();
@@ -109,6 +119,39 @@ describe("launchctl list detection", () => {
       env: { HOME: "/Users/test", OPENCLAW_PROFILE: "default" },
     });
     expect(listed).toBe(false);
+  });
+});
+describe("launchd runtime read", () => {
+  function createDefaultLaunchdEnv(): Record<string, string | undefined> {
+    return {
+      HOME: "/Users/test",
+      OPENCLAW_PROFILE: "default",
+    };
+  }
+
+  it("reports stopped (not missing) when print fails but plist exists", async () => {
+    const env = createDefaultLaunchdEnv();
+    const plistPath = resolveLaunchAgentPlistPath(env);
+    state.files.set(plistPath, "<plist/>");
+    state.printCode = 113;
+    state.printStderr = 'Could not find service "ai.openclaw.gateway" in domain';
+
+    const runtime = await readLaunchAgentRuntime(env);
+
+    expect(runtime.status).toBe("stopped");
+    expect(runtime.missingUnit).toBeUndefined();
+    expect(runtime.detail).toContain("Could not find service");
+  });
+
+  it("keeps missingUnit when print fails and plist is missing", async () => {
+    const env = createDefaultLaunchdEnv();
+    state.printCode = 113;
+    state.printStderr = 'Could not find service "ai.openclaw.gateway" in domain';
+
+    const runtime = await readLaunchAgentRuntime(env);
+
+    expect(runtime.status).toBe("unknown");
+    expect(runtime.missingUnit).toBe(true);
   });
 });
 

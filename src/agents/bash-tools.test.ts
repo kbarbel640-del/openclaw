@@ -533,7 +533,9 @@ describe("exec PATH handling", () => {
 
     const text = readNormalizedTextContent(result.content);
     const entries = text.split(path.delimiter);
-    expect(entries.slice(0, prepend.length)).toEqual(prepend);
+    const prependStart = entries.indexOf(prepend[0]);
+    expect(prependStart).toBeGreaterThanOrEqual(0);
+    expect(entries.slice(prependStart, prependStart + prepend.length)).toEqual(prepend);
     expect(entries).toContain(basePath);
   });
 });

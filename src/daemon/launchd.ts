@@ -179,10 +179,18 @@ export async function readLaunchAgentRuntime(
   const label = resolveLaunchAgentLabel({ env });
   const res = await execLaunchctl(["print", `${domain}/${label}`]);
   if (res.code !== 0) {
+    const detail = (res.stderr || res.stdout).trim() || undefined;
+    const plistExists = await launchAgentPlistExists(env);
+    if (!plistExists) {
+      return {
+        status: "unknown",
+        detail,
+        missingUnit: true,
+      };
+    }
     return {
-      status: "unknown",
-      detail: (res.stderr || res.stdout).trim() || undefined,
-      missingUnit: true,
+      status: isLaunchctlNotLoaded(res) ? "stopped" : "unknown",
+      detail,
     };
   }
   const parsed = parseLaunchctlPrint(res.stdout || res.stderr || "");
