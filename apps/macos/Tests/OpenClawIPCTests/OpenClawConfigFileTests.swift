@@ -123,14 +123,44 @@ struct OpenClawConfigFileTests {
 
     @Test
     func extractGatewayTokenParsesDashboardURLOrRawValue() async {
+        let tooLong = String(repeating: "a", count: 513)
         #expect(OpenClawConfigFile.extractGatewayToken("  https://host:18789/?token=abc123  ") == "abc123")
         #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/?ToKeN=abcDEF") == "abcDEF")
         #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/#token=abcFRAG") == "abcFRAG")
         #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/#/pairing?token=abcRoute") == "abcRoute")
+        #expect(OpenClawConfigFile.extractGatewayToken("host:18789/#token=abcNoScheme") == "abcNoScheme")
+        #expect(OpenClawConfigFile.extractGatewayToken("host:18789/?token=abcNoSchemeQuery") == "abcNoSchemeQuery")
         #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/?foo=bar") == nil)
         #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/#/pairing?foo=bar") == nil)
+        #expect(OpenClawConfigFile.extractGatewayToken("github.com/openclaw/openclaw") == nil)
+        #expect(OpenClawConfigFile.extractGatewayToken("host:18789/#/pairing?foo=bar") == nil)
+        #expect(OpenClawConfigFile.extractGatewayToken("foo/bar") == nil)
+        #expect(OpenClawConfigFile.extractGatewayToken("example.com?foo=bar") == nil)
         #expect(OpenClawConfigFile.extractGatewayToken(" raw-token ") == "raw-token")
+        #expect(OpenClawConfigFile.extractGatewayToken("token with spaces") == nil)
+        #expect(OpenClawConfigFile.extractGatewayToken("https://host:18789/#token=\(tooLong)") == nil)
+        #expect(OpenClawConfigFile.extractGatewayToken(tooLong) == nil)
         #expect(OpenClawConfigFile.extractGatewayToken("   ") == nil)
+    }
+
+    @MainActor
+    @Test
+    func setRemoteGatewayTokenRejectsUrlLikeInputAndPreservesExistingValue() async {
+        let override = FileManager().temporaryDirectory
+            .appendingPathComponent("openclaw-config-\(UUID().uuidString)")
+            .appendingPathComponent("openclaw.json")
+            .path
+
+        await TestIsolation.withEnvValues(["OPENCLAW_CONFIG_PATH": override]) {
+            OpenClawConfigFile.setRemoteGatewayToken("known-good-token")
+            #expect(OpenClawConfigFile.remoteGatewayToken() == "known-good-token")
+
+            #expect(OpenClawConfigFile.setRemoteGatewayToken("https://github.com/openclaw/openclaw") == .rejectedInvalid)
+            #expect(OpenClawConfigFile.remoteGatewayToken() == "known-good-token")
+
+            #expect(OpenClawConfigFile.setRemoteGatewayToken("https://host:18789/#token=next-token") == .set)
+            #expect(OpenClawConfigFile.remoteGatewayToken() == "next-token")
+        }
     }
 
     @Test

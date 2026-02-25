@@ -5,6 +5,23 @@ import OpenClawIPC
 import SwiftUI
 
 extension OnboardingView {
+    @MainActor
+    func applyManualRemoteGatewayTokenInput(_ raw: String) {
+        switch OpenClawConfigFile.setRemoteGatewayToken(raw) {
+        case .set, .cleared, .unchanged:
+            if let message = self.remoteTokenImportMessage, message.hasPrefix("Token rejected") {
+                self.remoteTokenImportMessage = nil
+            }
+        case .rejectedInvalid:
+            NSSound.beep()
+            withAnimation(.easeInOut(duration: 0.35)) {
+                self.remoteTokenImportShakeCount += 1
+            }
+            self.remoteTokenImportMessage =
+                "Token rejected. Paste the raw gateway token or a dashboard URL containing #token=..."
+        }
+    }
+
     func selectLocalGateway() {
         self.state.connectionMode = .local
         self.preferredGatewayID = nil
@@ -48,12 +65,41 @@ extension OnboardingView {
     @MainActor
     func importRemoteGatewayTokenFromClipboard() {
         let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
+        let previousToken = OpenClawConfigFile.remoteGatewayToken() ?? ""
         guard let token = OpenClawConfigFile.extractGatewayToken(clipboard) else {
-            self.remoteTokenImportMessage = "Clipboard has no gateway token or dashboard URL token."
+            NSSound.beep()
+            withAnimation(.easeInOut(duration: 0.35)) {
+                self.remoteTokenImportShakeCount += 1
+            }
+            if !previousToken.isEmpty {
+                self.remoteTokenImportMessage =
+                    "Clipboard import rejected (no token found). Kept your existing gateway token. To import a token run `openclaw dashboard --no-open` on the gateway host and copy the URL containing #token=..."
+            } else {
+                self.remoteTokenImportMessage =
+                    "Clipboard has no gateway token. On the gateway host run `openclaw dashboard --no-open`, copy the URL containing #token=..., then import again."
+            }
             return
         }
-        OpenClawConfigFile.setRemoteGatewayToken(token)
-        self.remoteTokenImportMessage = "Saved gateway.remote.token from clipboard."
+        if token == previousToken {
+            self.remoteTokenImportMessage = "Clipboard token already matches your current gateway token. No changes made."
+            return
+        }
+        switch OpenClawConfigFile.setRemoteGatewayToken(token) {
+        case .set:
+            self.remoteTokenImportMessage = "Saved gateway.remote.token from clipboard."
+        case .unchanged:
+            self.remoteTokenImportMessage = "Clipboard token already matches your current gateway token. No changes made."
+        case .rejectedInvalid:
+            NSSound.beep()
+            withAnimation(.easeInOut(duration: 0.35)) {
+                self.remoteTokenImportShakeCount += 1
+            }
+            self.remoteTokenImportMessage =
+                "Token rejected. Paste the raw gateway token or a dashboard URL containing #token=..."
+        case .cleared:
+            self.remoteTokenImportMessage =
+                "Clipboard import rejected. Existing token was kept."
+        }
     }
 
     func openSettings(tab: SettingsTab) {

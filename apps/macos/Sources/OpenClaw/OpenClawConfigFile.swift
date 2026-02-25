@@ -4,6 +4,14 @@ import OpenClawProtocol
 enum OpenClawConfigFile {
     private static let logger = Logger(subsystem: "ai.openclaw", category: "config")
     private static let configAuditFileName = "config-audit.jsonl"
+    private static let importedGatewayTokenMaxLength = 512
+
+    enum RemoteGatewayTokenSetResult: Equatable {
+        case set
+        case cleared
+        case unchanged
+        case rejectedInvalid
+    }
 
     static func url() -> URL {
         OpenClawPaths.configURL
@@ -179,40 +187,53 @@ enum OpenClawConfigFile {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    static func setRemoteGatewayToken(_ value: String) {
+    @discardableResult
+    static func setRemoteGatewayToken(_ value: String) -> RemoteGatewayTokenSetResult {
+        let current = self.remoteGatewayToken() ?? ""
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed.isEmpty {
+            guard !current.isEmpty else { return .unchanged }
+            self.updateGatewayDict { gateway in
+                var remote = gateway["remote"] as? [String: Any] ?? [:]
+                remote.removeValue(forKey: "token")
+                if remote.isEmpty {
+                    gateway.removeValue(forKey: "remote")
+                } else {
+                    gateway["remote"] = remote
+                }
+            }
+            return .cleared
+        }
+
+        guard let normalized = self.extractGatewayToken(trimmed) else {
+            return .rejectedInvalid
+        }
+        guard normalized != current else { return .unchanged }
+
         self.updateGatewayDict { gateway in
             var remote = gateway["remote"] as? [String: Any] ?? [:]
-            if trimmed.isEmpty {
-                remote.removeValue(forKey: "token")
-            } else {
-                remote["token"] = trimmed
-            }
-            if remote.isEmpty {
-                gateway.removeValue(forKey: "remote")
-            } else {
-                gateway["remote"] = remote
-            }
+            remote["token"] = normalized
+            gateway["remote"] = remote
         }
+        return .set
     }
 
     static func extractGatewayToken(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        let looksLikeURL = trimmed.contains("://")
-        if let components = URLComponents(string: trimmed),
-           let value = self.gatewayToken(from: components.queryItems)
-        {
-            return value
+        if let value = self.gatewayToken(fromURLString: trimmed) {
+            return self.validImportedGatewayToken(value)
         }
-        if let components = URLComponents(string: trimmed),
-           let fragment = components.fragment,
-           let value = self.gatewayToken(fromFragment: fragment)
+        if !trimmed.contains("://"),
+           self.looksLikeURL(trimmed),
+           let value = self.gatewayToken(fromURLString: "https://\(trimmed)")
         {
-            return value
+            return self.validImportedGatewayToken(value)
         }
-        if looksLikeURL { return nil }
-        return trimmed
+        if self.looksLikeURL(trimmed) { return nil }
+        if self.containsURLSeparators(trimmed) { return nil }
+        return self.validImportedGatewayToken(trimmed)
     }
 
     static func gatewayPort() -> Int? {
@@ -318,6 +339,19 @@ enum OpenClawConfigFile {
         return value
     }
 
+    private static func gatewayToken(fromURLString raw: String) -> String? {
+        guard let components = URLComponents(string: raw) else { return nil }
+        if let value = self.gatewayToken(from: components.queryItems) {
+            return value
+        }
+        if let fragment = components.fragment,
+           let value = self.gatewayToken(fromFragment: fragment)
+        {
+            return value
+        }
+        return nil
+    }
+
     private static func gatewayToken(fromFragment fragment: String) -> String? {
         let trimmed = fragment.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -338,6 +372,50 @@ enum OpenClawConfigFile {
             return self.gatewayToken(from: components.queryItems)
         }
         return nil
+    }
+
+    private static func validImportedGatewayToken(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed.count <= self.importedGatewayTokenMaxLength else { return nil }
+        let invalidChars = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
+        guard trimmed.rangeOfCharacter(from: invalidChars) == nil else { return nil }
+        return trimmed
+    }
+
+    private static func looksLikeURL(_ raw: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if trimmed.contains("://") || trimmed.hasPrefix("www.") { return true }
+        guard let slashIndex = trimmed.firstIndex(of: "/") else { return false }
+        let hostCandidate = String(trimmed[..<slashIndex]).lowercased()
+        guard !hostCandidate.isEmpty else { return false }
+        if hostCandidate.contains(".") { return true }
+        if let colon = hostCandidate.lastIndex(of: ":"), colon != hostCandidate.startIndex {
+            let hostPart = String(hostCandidate[..<colon])
+            let portPart = String(hostCandidate[hostCandidate.index(after: colon)...])
+            if !hostPart.isEmpty,
+               let port = Int(portPart),
+               port > 0,
+               port <= 65535
+            {
+                let allowedHostChars = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-.[]:"))
+                if hostPart.unicodeScalars.allSatisfy({ allowedHostChars.contains($0) }) {
+                    return true
+                }
+            }
+        }
+        let ipv6OrHostPortChars = CharacterSet(charactersIn: "0123456789abcdef:[]")
+        if hostCandidate.contains(":"),
+           hostCandidate.unicodeScalars.allSatisfy({ ipv6OrHostPortChars.contains($0) })
+        {
+            return true
+        }
+        return false
+    }
+
+    private static func containsURLSeparators(_ raw: String) -> Bool {
+        raw.contains("/") || raw.contains("?") || raw.contains("#") || raw.contains("&") || raw.contains(":")
     }
 
     private static func parseConfigData(_ data: Data) -> [String: Any]? {

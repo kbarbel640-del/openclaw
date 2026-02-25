@@ -240,8 +240,9 @@ extension OnboardingView {
                                 "Paste gateway.auth.token from remote host",
                                 text: Binding(
                                     get: { OpenClawConfigFile.remoteGatewayToken() ?? "" },
-                                    set: { OpenClawConfigFile.setRemoteGatewayToken($0) }
+                                    set: { self.applyManualRemoteGatewayTokenInput($0) }
                                 ))
+                                .horizontalShake(trigger: self.remoteTokenImportShakeCount)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: fieldWidth)
                         }
@@ -258,7 +259,7 @@ extension OnboardingView {
                                     Text(message)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .lineLimit(2)
+                                        .lineLimit(4)
                                 }
                             }
                             .frame(width: fieldWidth, alignment: .leading)
