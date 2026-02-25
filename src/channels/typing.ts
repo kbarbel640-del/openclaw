@@ -17,6 +17,7 @@ export function createTypingCallbacks(params: {
   const stop = params.stop;
   const keepaliveIntervalMs = params.keepaliveIntervalMs ?? 3_000;
   let stopSent = false;
+  let lifecycleGeneration = 0;
 
   const fireStart = async () => {
     try {
@@ -32,13 +33,18 @@ export function createTypingCallbacks(params: {
   });
 
   const onReplyStart = async () => {
+    const generation = ++lifecycleGeneration;
     stopSent = false;
     keepaliveLoop.stop();
     await fireStart();
+    if (generation !== lifecycleGeneration) {
+      return;
+    }
     keepaliveLoop.start();
   };
 
   const fireStop = () => {
+    lifecycleGeneration += 1;
     keepaliveLoop.stop();
     if (!stop || stopSent) {
       return;
