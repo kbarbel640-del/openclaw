@@ -3998,7 +3998,28 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   }
 
 
-  // Priority 0.65: Control Plane — self-learning routing (v3)
+  // Priority 0.6: SSH/privileged command intercept — bypass LLM, route directly
+  // Haiku's model prior believes it's sandboxed and refuses SSH.
+  // Deterministic routing: pattern match → callSessionBridge → return result.
+  {
+    const sshMatch = userText.match(/^(?:ssh\s+macmini\s+|ssh\s+mac-?mini\s+|在\s*mac\s*mini\s*(?:上\s*)?(?:執行|跑|run)\s+)(.+)$/is);
+    const directCmdMatch = !sshMatch && userText.match(/^(?:docker\s+(?:ps|restart|stop|logs|exec|compose)|launchctl\s+|systemctl\s+|pm2\s+)(.*)$/is);
+    if (sshMatch || directCmdMatch) {
+      const cmd = sshMatch ? sshMatch[1].trim() : userText.trim();
+      console.log(`[wrapper] #${reqId} SSH_INTERCEPT: "${cmd}"`);
+      try {
+        const result = await callSessionBridge(cmd, null);
+        const output = result.output || "(completed, no output)";
+        const truncated = output.length > 3000 ? output.slice(0, 3000) + "\n...(truncated)" : output;
+        return sendDirectResponse(reqId, truncated, wantsStream, res);
+      } catch (e) {
+        console.error(`[wrapper] #${reqId} SSH_INTERCEPT error: ${e.message}`);
+        return sendDirectResponse(reqId, `執行失敗: ${e.message}`, wantsStream, res);
+      }
+    }
+  }
+
+    // Priority 0.65: Control Plane — self-learning routing (v3)
   // Uses historical execution stats to route optimally.
   // Fallback: rule-based Intent Density scoring (v2) when insufficient data.
   // Agent-internal requests → never escalate (prevent control plane hijack)
