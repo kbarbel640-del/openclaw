@@ -55,7 +55,7 @@ describe("setup-node-env composite action bun hardening", () => {
     const fallback = findStep(steps, "Setup Bun (fallback via npm)");
     expect(fallback.if).toContain("steps.setup_bun_primary.outcome == 'failure'");
     expect(fallback.if).toContain("steps.setup_bun_retry.outcome == 'failure'");
-    expect(fallback.run).toContain("npm install -g bun@1.3.9");
+    expect(fallback.run).toContain("npm install -g bun@1.3.9+cf6cdbbba");
 
     const verify = findStep(steps, "Verify Bun");
     expect(verify.if).toBe("inputs.install-bun == 'true'");

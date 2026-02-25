@@ -71,7 +71,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        npm install -g bun@1.3.9
+        npm install -g bun@1.3.9+cf6cdbbba
 
     - name: Verify Bun
       if: inputs.install-bun == 'true'
