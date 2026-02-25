@@ -166,6 +166,8 @@ export const zh_CN: TranslationMap = {
       loadMore: "加载更多运行记录",
       loadingMore: "加载中...",
       openChat: "打开运行聊天记录",
+      noSummary: "无摘要。",
+      runAt: "运行于",
     },
     form: {
       newJob: "新建任务",
