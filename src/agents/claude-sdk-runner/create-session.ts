@@ -298,7 +298,7 @@ export async function createClaudeSdkSession(
       // for the current use cases (screenshots, diagrams).
       if (options?.images && options.images.length > 0) {
         const imageMarkdown = options.images
-          .map((img) => `![image](data:${img.media_type};base64,${img.data})`)
+          .map((img) => `![image](data:${img.mimeType};base64,${img.data})`)
           .join("\n");
         effectivePrompt = `${imageMarkdown}\n\n${effectivePrompt}`;
       }
@@ -424,8 +424,9 @@ export async function createClaudeSdkSession(
     // -------------------------------------------------------------------------
     // abort — cancels the current in-flight query
     // -------------------------------------------------------------------------
-    abort() {
+    abort(): Promise<void> {
       state.abortController?.abort();
+      return Promise.resolve();
     },
 
     // -------------------------------------------------------------------------
