@@ -61,41 +61,51 @@ Each Guardian in Full Vote mode reviews from a **different angle** — this isn'
 
 Guardian's Risk Assessor uses **zero-cost keyword rules** — no model calls for scoring. Pattern matching like `rm -rf` → +40 points, `sudo` → +25 points is instant and deterministic. LLM-based Guardian evaluation is optional and only triggered for the ~5% of operations that actually need review.
 
-## Quick Start (One Command)
+## Quick Start
 
-### 1. Clone into your OpenClaw workspace
+Guardian is a **built-in OpenClaw extension** that lives in `extensions/guardian/` inside the OpenClaw source tree. Once the PR is merged, it ships with OpenClaw automatically — no separate installation needed.
 
-```bash
-cd ~/.openclaw/workspace
-git clone https://github.com/fatcatMaoFei/openclaw-guardian.git
-```
+### After PR Merge (Normal Usage)
 
-### 2. Register the plugin
-
-Add to your `openclaw.json`:
+Update OpenClaw to a version that includes Guardian, then enable it in your `openclaw.json`:
 
 ```json
 {
-  "plugins": {
-    "load": {
-      "paths": ["./openclaw-guardian"]
-    },
-    "entries": {
-      "openclaw-guardian": {
-        "enabled": true
-      }
+  "extensions": {
+    "openclaw-guardian": {
+      "enabled": true
     }
   }
 }
 ```
 
-### 3. Restart
+Restart the gateway:
 
 ```bash
 openclaw gateway restart
 ```
 
-That's it. Guardian is now active. Every tool call goes through risk assessment automatically.
+That's it. Every tool call now goes through risk assessment automatically.
+
+### Before PR Merge (Early Access)
+
+If you want to try Guardian before the PR lands in `main`, you have two options:
+
+**Option A — Check out the PR branch:**
+
+```bash
+git clone https://github.com/openclaw/openclaw.git
+cd openclaw
+git fetch origin pull/25480/head:guardian-preview
+git checkout guardian-preview
+pnpm install && pnpm build
+```
+
+**Option B — Copy the extension directory:**
+
+Copy the `extensions/guardian/` folder into your existing OpenClaw source tree's `extensions/` directory, then run `pnpm install && pnpm build` from the OpenClaw root.
+
+> ⚠️ **Do NOT** clone Guardian as a standalone repo into your workspace or configure it under `plugins.load.paths` — that will not work and may crash OpenClaw.
 
 ## Customization
 
