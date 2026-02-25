@@ -1,229 +1,279 @@
 ---
-summary: "Review-first GitHub issue drafts for gateway abuse hardening (A-E) with overlap boundaries"
+summary: "Final review-first GitHub issue bodies for gateway abuse hardening (A-E) with overlap boundaries"
 read_when:
   - Preparing security hardening issues for gateway abuse controls
   - Verifying non-duplication with active PRs before filing
 owner: "openclaw"
-status: "draft"
+status: "review-ready"
 last_updated: "2026-02-25"
 title: "Gateway Security Hardening Issue Pack"
 ---
 
 # Gateway Security Hardening Issue Pack
 
-Review-first draft set. Do not post yet.
+Review-first final draft set. Do not post yet.
 
-## Overlap Boundary Check (Active Work)
+## Active Overlap Baseline (Verified 2026-02-25)
 
-Existing work that this pack must not duplicate:
-
-- [#15035](https://github.com/openclaw/openclaw/pull/15035) merged: auth brute-force and auth rate limiting.
+- [#15035](https://github.com/openclaw/openclaw/pull/15035) merged: gateway auth brute-force + auth rate limiting.
 - [#19515](https://github.com/openclaw/openclaw/pull/19515) open: per-connection WebSocket rate limiting.
-- [#25751](https://github.com/openclaw/openclaw/pull/25751) open: per-sender message rate limiting and cost budget tracking.
+- [#25751](https://github.com/openclaw/openclaw/pull/25751) open: per-sender message rate limiting + cost budget tracking.
 - [#26050](https://github.com/openclaw/openclaw/pull/26050) open: Feishu webhook state bounding.
 - [#26067](https://github.com/openclaw/openclaw/pull/26067) open: Feishu off-path webhook budget isolation.
 
-Shared explicit non-goals for every ticket in this pack:
+Cross-ticket implementation conventions (explicit):
+
+- Use a typed, schema-backed config namespace under `gateway.abuse.*` (with updates in `types.gateway.ts`, `zod-schema.ts`, `schema.help.ts`, and `schema.labels.ts`).
+- Keep throttle contracts consistent:
+  - RPC: `UNAVAILABLE` + `retryable=true` + `retryAfterMs`.
+  - HTTP: `429` + `Retry-After`.
+- Name exact gateway surfaces in scope: `chat.send`, `send`, `node.invoke`, and mapped HTTP endpoints (`/v1/chat/completions`, `/v1/responses`) when a ticket claims parity.
+- Store incident/correlation/audit evidence durably (not only ephemeral in-memory event queues).
+- Use stable check IDs (for example `gateway.abuse.*` for runtime checks/events; `security.exposure.*` for posture findings when applicable).
+
+Shared explicit non-goals for every ticket:
 
 - Not replacing existing auth/websocket/webhook/per-sender throttles.
-- Not re-implementing #25751, #19515, #15035, #26067, or #26050.
+- Not re-implementing open PRs #25751, #19515, #15035, #26067, #26050.
 
-## Ticket A Draft
+## Ticket A (Final)
 
 ### Title
 
-`Gateway: Add semantic capability-extraction anomaly detection across chat/send/tool-event traffic`
+`security(gateway): semantic capability-extraction anomaly detection across chat.send/send/node.invoke and tool events`
 
-### Source trigger
+### GitHub-ready issue body
 
-- [Anthropic report: Detecting and preventing distillation attacks](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks)
-- internal digest: `research/digests/2026-02-24.md`
+## Summary
+Add semantic anomaly detection for capability-extraction abuse patterns across `chat.send`, `send`, `node.invoke`, and tool-event streams, with staged enforcement and operator-visible evidence.
 
-### Problem statement
+## Problem
+Current controls are primarily volumetric and ingress-specific. Authenticated, slow-drip extraction campaigns can evade per-connection/per-sender thresholds while repeating semantically similar prompt and tool-use patterns.
 
-OpenClaw has auth and volumetric throttles, but no semantic detector for repeated capability-extraction behavior spanning `chat.send`, `send`, and tool-event streams. Authenticated slow-drip extraction can evade simple per-endpoint rate limits.
+## Proposal
+1. Add a normalized feature pipeline for prompts/tool sequences (template similarity, sequence reuse, extraction signatures).
+2. Score traffic by actor/device/IP/session tuple (plus account/channel when available).
+3. Apply staged actions (`observe -> throttle -> temporary block`) with safe defaults.
+4. Emit structured abuse events with stable check IDs and reason codes.
+5. Keep config under `gateway.abuse.anomaly.*` with schema/help/labels coverage.
 
-### Proposed scope
+## Scope
+- Semantic detection and scoring for `chat.send`, `send`, `node.invoke`, and tool-event-linked chat runs.
+- Staged policy hooks and security event emission.
+- Operator queryability for actor tuple + method + fingerprint reasons.
 
-1. Add gateway anomaly detector with normalized prompt and tool-sequence fingerprints.
-2. Correlate by actor/device/IP/session tuple for post-auth traffic.
-3. Apply staged actions: `observe -> throttle -> temporary block`.
-4. Emit structured security audit signals with method, fingerprint, actor tuple, threshold, and action.
-5. Add config flags and thresholds for environment tuning.
+## Acceptance Criteria
+1. Detector evaluates the in-scope methods and tool-event-linked runs.
+2. Throttle responses follow gateway contracts (`UNAVAILABLE` + `retryAfterMs` for RPC; `429` + `Retry-After` for mapped HTTP).
+3. Events include actor/device/IP/session, method, fingerprint/reason, threshold, and action.
+4. Tests cover benign traffic, repeated-template extraction, and false-positive guardrails.
+5. Rollout supports observe-only mode by default.
 
-### Acceptance criteria
-
-1. Detector evaluates `chat.send`, `send`, and tool-event-enabled chat flows.
-2. Threshold actions return retryable errors with `retryAfterMs` for RPC surfaces.
-3. Security events are queryable with actor/device/IP/session dimensions.
-4. Tests cover normal traffic, repeated-template abuse, and false-positive guardrails.
-5. Docs include tuning guidance and response playbook entry points.
-
-### Non-goals
-
+## Non-goals
 - Not replacing existing auth/websocket/webhook/per-sender throttles.
-- Not re-implementing #25751, #19515, #15035, #26067, or #26050.
+- Not re-implementing open PRs #25751, #19515, #15035, #26067, #26050.
+
+## Overlap boundaries (active work)
+- Complements #25751 (per-sender rate/cost) with semantic pattern detection; does not replace sender quotas.
+- Complements #19515 (per-connection WS limits); does not alter WS message flood controls.
+- Independent of #26050/#26067 (Feishu webhook ingress hardening).
+- Leaves #15035 auth brute-force/rate-limit behavior intact.
 
 ### Why this is net-new
+No active control performs semantic, cross-method capability-extraction detection with staged response and structured reason codes.
 
-Existing PRs are volumetric and ingress-specific. This ticket adds semantic pattern detection and staged response across methods and tool streams, which current controls do not provide.
-
-## Ticket B Draft
+## Ticket B (Final)
 
 ### Title
 
-`Gateway: Add unified post-auth abuse quotas across chat + send + node.invoke with consistent retry semantics`
+`security(gateway): unified post-auth abuse quotas across chat.send/send/node.invoke with consistent RPC+HTTP retry semantics`
 
-### Source trigger
+### GitHub-ready issue body
 
-- [Anthropic report: Detecting and preventing distillation attacks](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks)
-- internal digest: `research/digests/2026-02-24.md`
+## Summary
+Add one post-auth quota engine for `chat.send`, `send`, and `node.invoke`, with consistent enforcement semantics across RPC and mapped HTTP endpoints.
 
-### Problem statement
+## Problem
+Quota behavior is fragmented by surface. Without a unified post-auth budget model, actors can shift between methods/endpoints and get inconsistent throttling and visibility.
 
-`send`, `chat.send`, and `node.invoke` do not share a unified post-auth budget model. Current protections are fragmented by surface, causing inconsistent behavior and weak operator visibility.
+## Proposal
+1. Introduce `gateway.abuse.quota.*` with burst + sustained budgets and per-method defaults.
+2. Key budgets by actor/device/IP/session (+channel/account when present).
+3. Enforce centrally for gateway RPC methods and mapped HTTP entry points (`/v1/chat/completions`, `/v1/responses`) to avoid bypass.
+4. Standardize throttle outputs (RPC `UNAVAILABLE` + `retryable=true` + `retryAfterMs`; HTTP `429` + `Retry-After`).
+5. Emit quota audit signals for triage and incident correlation.
 
-### Proposed scope
+## Scope
+- Shared quota definitions and enforcement path for `chat.send`, `send`, `node.invoke`.
+- HTTP parity for mapped endpoints that route to those execution paths.
+- Operator-visible quota events and diagnostics fields.
 
-1. Introduce shared burst + sustained budgets across `chat.send`, `send`, and `node.invoke`.
-2. Key budgets by actor+device+IP (+channel/account when present).
-3. Provide per-method defaults with config overrides.
-4. Normalize throttle responses and retry metadata semantics.
-5. Emit operator-visible quota audit signals for triage and incident correlation.
+## Acceptance Criteria
+1. Limits apply consistently across all in-scope methods/endpoints.
+2. Retry semantics match existing gateway conventions on RPC and HTTP.
+3. Logs/events include quota key dimensions and triggered threshold.
+4. Tests cover partitioning (actor/device/IP/session), reset behavior, and endpoint parity.
+5. Observe-only and enforce modes are configurable.
 
-### Acceptance criteria
-
-1. Limits apply consistently to `chat.send`, `send`, and `node.invoke`.
-2. RPC throttles return `UNAVAILABLE` with `retryable=true` and `retryAfterMs`.
-3. HTTP surfaces return `429` with `Retry-After` when mapped endpoints are throttled.
-4. Logs include quota key dimensions, method, and actor tuple.
-5. Tests cover per-method limits, partitioning, and deterministic reset behavior.
-
-### Non-goals
-
+## Non-goals
 - Not replacing existing auth/websocket/webhook/per-sender throttles.
-- Not re-implementing #25751, #19515, #15035, #26067, or #26050.
+- Not re-implementing open PRs #25751, #19515, #15035, #26067, #26050.
+
+## Overlap boundaries (active work)
+- Does not replace #25751 per-sender rate/cost controls; this ticket targets cross-method post-auth quota unification and contract consistency.
+- Does not touch #19515 WS per-connection limits.
+- Does not touch Feishu webhook controls in #26050/#26067.
+- Does not modify #15035 auth-layer throttles.
 
 ### Why this is net-new
+No current implementation provides one quota contract spanning `chat.send`, `send`, and `node.invoke` with explicit RPC/HTTP parity and unified operator telemetry.
 
-Current and pending work is per-sender, per-connection, or webhook-path specific. This ticket standardizes one post-auth quota contract across core egress-heavy methods with consistent retry semantics and operator audit visibility.
-
-## Ticket C Draft
+## Ticket C (Final)
 
 ### Title
 
-`Gateway: Add cross-account and proxy-fanout campaign correlation for abuse clustering`
+`security(gateway): cross-account and proxy-fanout campaign correlation for coordinated abuse clustering`
 
-### Source trigger
+### GitHub-ready issue body
 
-- [Anthropic report: Detecting and preventing distillation attacks](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks)
-- internal digest: `research/digests/2026-02-24.md`
+## Summary
+Add a cross-account correlation layer that detects coordinated abuse campaigns spanning many accounts/devices/IPs/proxies, especially where single-identity controls are intentionally evaded.
 
-### Problem statement
+## Problem
+Per-actor controls do not catch coordinated campaigns that rotate accounts/devices/proxy egress while preserving the same extraction behavior.
 
-Current controls focus on single keys (connection, sender, webhook path). They do not cluster related activity across accounts/sessions/proxies, leaving campaign-level abuse under-detected.
+## Proposal
+1. Ingest normalized events from `chat.send`, `send`, `node.invoke`, tool events, and quota/anomaly outcomes.
+2. Build rolling correlation clusters keyed by shared infra and behavior signals.
+3. Emit deterministic cluster IDs, risk scores, and reason codes (fan-out, synchronized templates, timing coordination).
+4. Persist correlation state/evidence durably for cross-session investigations.
+5. Add query surfaces for cluster timeline and blast-radius views.
+6. Configure via `gateway.abuse.correlation.*` with explicit window and decay settings.
 
-### Proposed scope
+## Scope
+- Cross-account/proxy clustering and scoring.
+- Durable correlation evidence store.
+- Operator queryability by actor, IP, account, or cluster ID.
 
-1. Add correlation service that links events across actor/device/IP/session/account dimensions.
-2. Detect proxy-fanout and cross-account reuse patterns from shared infrastructure signals.
-3. Compute campaign-level risk scores from repeated weak signals.
-4. Emit cluster IDs and confidence metadata into security audit stream.
-5. Add operator query filters for cluster timeline and blast radius views.
+## Acceptance Criteria
+1. Correlation ingests all in-scope abuse signals and emits stable cluster IDs.
+2. Findings include score/confidence, reason codes, and linked identities.
+3. Tests cover account rotation, proxy fan-out, and synchronized template reuse.
+4. Cluster records survive process restarts and are queryable.
+5. Default rollout is observe-only with bounded retention.
 
-### Acceptance criteria
-
-1. Correlation links are generated from gateway abuse and anomaly events.
-2. Clustered activity is labeled with stable cluster IDs and score/confidence fields.
-3. Operators can retrieve correlated events by actor, account, IP, or cluster ID.
-4. Tests validate fanout clustering, false-link controls, and decay/expiry behavior.
-5. Docs define tuning knobs and escalation thresholds.
-
-### Non-goals
-
+## Non-goals
 - Not replacing existing auth/websocket/webhook/per-sender throttles.
-- Not re-implementing #25751, #19515, #15035, #26067, or #26050.
+- Not re-implementing open PRs #25751, #19515, #15035, #26067, #26050.
+
+## Overlap boundaries (active work)
+- Uses outputs from A/B and existing controls; does not duplicate their enforcement logic.
+- Complements #25751 by catching distributed evasion across many identities.
+- Separate from #19515 connection-local WS flooding controls.
+- Separate from Feishu webhook ingress hardening (#26050/#26067).
 
 ### Why this is net-new
+No active work provides durable, campaign-level cross-account/proxy clustering with risk scoring across gateway method traffic.
 
-No current PR provides campaign-level cross-account/cross-proxy clustering. Existing controls stop local bursts but do not explain coordinated abuse across identities.
-
-## Ticket D Draft
+## Ticket D (Final)
 
 ### Title
 
-`Gateway: Harden account verification and anti-fraud onboarding gates for high-risk abuse patterns`
+`security(gateway): incident-response lifecycle with auto-containment and operator playbook for abuse events`
 
-### Source trigger
+### GitHub-ready issue body
 
-- [Anthropic report: Detecting and preventing distillation attacks](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks)
-- internal digest: `research/digests/2026-02-24.md`
+## Summary
+Create a formal abuse incident workflow that turns detections into consistent containment actions, operator triage, and documented recovery steps.
 
-### Problem statement
+## Problem
+Detection alone leaves high-severity response manual and inconsistent. The system lacks a unified incident state model, automatic containment hooks, and an operator-ready playbook.
 
-Post-auth abuse controls are necessary but insufficient when account onboarding and trust elevation are weak. Attackers can create low-friction accounts and spread traffic before enforcement signals mature.
+## Proposal
+1. Add incident lifecycle states (`open -> investigating -> contained -> resolved`).
+2. Trigger incident records from high-severity abuse events.
+3. Add configurable auto-containment actions (temporary actor/device/session/cluster quarantine, method cooldown).
+4. Provide operator actions (`acknowledge`, `escalate`, `release`, `annotate`) with full audit trail.
+5. Persist incident timelines/evidence durably and expose summary + deep diagnostics.
+6. Define `gateway.abuse.incident.*` config and publish an on-call playbook.
 
-### Proposed scope
+## Scope
+- Incident state machine + persistence.
+- Auto-containment policy hooks.
+- Operator controls and documented recovery workflow.
 
-1. Define risk-based onboarding gates for elevated gateway capabilities.
-2. Add verification checkpoints for high-risk account/device patterns.
-3. Introduce trust-tier flags used by quota and anomaly policies.
-4. Log verification and trust-tier transitions as audit events.
-5. Document operator workflows for approving, downgrading, and quarantining accounts.
+## Acceptance Criteria
+1. Incident records are created automatically from qualifying events.
+2. Auto-containment is time-bounded, reversible, and policy-configurable.
+3. Operator transitions are audited with actor/time/rationale.
+4. Incident timelines link event IDs, cluster IDs, thresholds, and containment actions.
+5. Docs include triage, rollback, and false-positive handling procedures.
 
-### Acceptance criteria
-
-1. High-risk traffic patterns can trigger verification or trust-tier downgrade.
-2. Trust tier is available as a policy input for quota and anomaly enforcement.
-3. Operator-visible audit log includes trust transitions with actor/device/IP context.
-4. Tests cover trusted, untrusted, and escalating-risk onboarding paths.
-5. Docs provide default policy recommendations and rollback steps.
-
-### Non-goals
-
+## Non-goals
 - Not replacing existing auth/websocket/webhook/per-sender throttles.
-- Not re-implementing #25751, #19515, #15035, #26067, or #26050.
+- Not re-implementing open PRs #25751, #19515, #15035, #26067, #26050.
+
+## Overlap boundaries (active work)
+- Consumes detector outputs from A/B/C and existing controls; does not redefine their quota/detection math.
+- Does not alter #25751 sender throttles/cost budgets.
+- Does not alter #19515 WS per-connection limits.
+- Does not alter #15035 auth brute-force controls.
+- Does not alter Feishu webhook protections in #26050/#26067.
 
 ### Why this is net-new
+There is no unified, durable incident lifecycle with built-in containment and operator workflow tied to gateway abuse events.
 
-Existing PRs throttle traffic after behavior appears. This ticket adds pre- and early-post-auth trust controls that reduce attack surface before sustained abuse emerges.
-
-## Ticket E Draft
+## Ticket E (Final)
 
 ### Title
 
-`Gateway: Add incident-response automation and tool-use exfiltration audit trail across channels`
+`security(audit): unified tool-use exfiltration audit ledger across core and extension channels`
 
-### Source trigger
+### GitHub-ready issue body
 
-- [Anthropic report: Detecting and preventing distillation attacks](https://www.anthropic.com/news/detecting-and-preventing-distillation-attacks)
-- internal digest: `research/digests/2026-02-24.md`
+## Summary
+Add a unified, queryable audit ledger for tool-use and potential exfiltration signals across built-in and extension delivery channels.
 
-### Problem statement
+## Problem
+Tool-use evidence is fragmented across streams and logs. Investigations lack one durable, canonical cross-channel trail for tool actions and suspicious data egress patterns.
 
-Incident handling is mostly manual and tool-event telemetry is not structured as a durable cross-channel exfiltration audit trail. This slows containment and weakens post-incident forensics.
+## Proposal
+1. Define a canonical tool-use audit schema (actor/device/IP/session/channel/tool, allow/deny, payload/result metadata, byte counts, redaction class).
+2. Capture events at shared fan-in seams (agent tool stream + outbound delivery/plugin adapters) to avoid per-channel drift.
+3. Add exfiltration signals (abnormal volume, repetitive extraction templates, risky tool chains).
+4. Persist ledger records durably with retention/rotation controls.
+5. Expose operator query/report filters and incident linkage.
+6. Configure under `gateway.abuse.auditLedger.*` and document schema/redaction rules.
 
-### Proposed scope
+## Scope
+- Canonical schema + durable event pipeline.
+- Core + extension channel coverage.
+- Query/report surfaces for investigations and incident evidence.
 
-1. Add automatic containment actions tied to severity thresholds.
-2. Define operator runbook and response states (`triage`, `contained`, `recovered`).
-3. Capture durable tool-use exfiltration audit events across gateway and channel fanout paths.
-4. Add incident timeline view keyed by actor/session/cluster.
-5. Provide exportable evidence bundles for postmortems.
+## Acceptance Criteria
+1. Tool-use audit records are emitted for targeted core and extension paths.
+2. Records include correlation keys required for investigations.
+3. Exfiltration rules emit explicit, test-covered findings.
+4. Operators can filter/report by actor, channel, tool, session, and incident link.
+5. Docs define retention defaults, redaction behavior, and export semantics.
 
-### Acceptance criteria
-
-1. High-severity abuse signals can trigger configurable auto-containment.
-2. Tool-use exfiltration audit events are durable and queryable across channels.
-3. Operator workflow records incident state transitions and rationale.
-4. Tests validate containment trigger safety and audit event completeness.
-5. Docs include on-call playbook, containment rollback, and evidence handling.
-
-### Non-goals
-
+## Non-goals
 - Not replacing existing auth/websocket/webhook/per-sender throttles.
-- Not re-implementing #25751, #19515, #15035, #26067, or #26050.
+- Not re-implementing open PRs #25751, #19515, #15035, #26067, #26050.
+
+## Overlap boundaries (active work)
+- Complements A/C/D by providing durable evidence; does not change their enforcement logic.
+- Does not replace #25751 sender-rate/cost decisions.
+- Does not modify #19515 WS connection throttles.
+- Does not modify Feishu webhook protections in #26050/#26067.
+- Does not modify #15035 auth hardening paths.
 
 ### Why this is net-new
+No active implementation provides a durable, channel-spanning tool-use exfiltration ledger with one schema and incident-linkable query semantics.
 
-Existing controls focus on request acceptance/rejection. This ticket adds containment orchestration and durable exfiltration-grade evidence trails needed for fast response and accountable investigations.
+## Final Pre-Posting Checklist
+
+- [ ] Confirm owners/reviewers for each ticket (gateway, security, integrations).
+- [ ] Confirm rollout order (recommended: B -> A -> C -> D -> E).
+- [ ] Confirm each ticket links this pack and explicitly references overlap boundaries above.
+- [ ] Confirm no ticket language claims replacement of existing throttles or open PR work.
