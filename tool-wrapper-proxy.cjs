@@ -2355,6 +2355,147 @@ let _activeSessions = 0;
 const MAX_CONCURRENT_SESSIONS = 1;
 const _sessionQueue = [];
 
+// ─── Anti-Thrashing Controls ────────────────────────────────────────
+let _lastSessionSpawn = 0;
+const SESSION_COOLDOWN_MS = 20000; // 20s between session spawns
+const SWITCH_THRESHOLD = 1.35;    // hysteresis: 35% cost difference needed to switch
+const FAILURE_PENALTY = 1.8;      // multiply cost by this on recent failure
+const _lastRouteByIntent = {};    // track last route per intent for hysteresis
+
+
+// ─── Self-Learning Router — adaptive routing based on execution history ────
+const ROUTING_STATS_PATH = path.join(
+  process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
+  "routing-stats.json"
+);
+const MIN_SAMPLES_FOR_LEARNING = 5; // fallback to rule-based below this
+
+function loadRoutingStats() {
+  try {
+    if (fs.existsSync(ROUTING_STATS_PATH)) {
+      return JSON.parse(fs.readFileSync(ROUTING_STATS_PATH, "utf8"));
+    }
+  } catch (e) {
+    console.error("[wrapper] Failed to load routing stats:", e.message);
+  }
+  return {};
+}
+
+function saveRoutingStats(stats) {
+  try {
+    fs.writeFileSync(ROUTING_STATS_PATH, JSON.stringify(stats, null, 2), "utf8");
+  } catch (e) {
+    console.error("[wrapper] Failed to save routing stats:", e.message);
+  }
+}
+
+// Intent fingerprint — stable, explainable, near-zero cost
+function extractIntent(text) {
+  const lower = text.toLowerCase();
+  if (/docker|container|image|volume/.test(lower)) return "docker";
+  if (/git|commit|diff|branch|push|pull|merge/.test(lower)) return "git";
+  if (/endpoint|api|feature|module|component/.test(lower)) return "implementation";
+  if (/memory|disk|process|cpu|系統|system_info/.test(lower)) return "system";
+  if (/deploy|部署|上線|release/.test(lower)) return "deploy";
+  if (/cleanup|清理|刪除|remove|prune/.test(lower)) return "cleanup";
+  if (/config|設定|configure/.test(lower)) return "config";
+  if (/test|測試|spec/.test(lower)) return "test";
+  if (/file|檔案|read|write|list|目錄|directory|backup|備份/.test(lower)) return "file_ops";
+  if (/install|安裝|update|更新|upgrade/.test(lower)) return "install";
+  if (/restart|重啟|start|stop|啟動|停止/.test(lower)) return "service_ops";
+  if (/refactor|重構|migrate|遷移|整合|integrate/.test(lower)) return "refactor";
+  if (/design|設計|architecture|架構/.test(lower)) return "design";
+  return "general";
+}
+
+// Expected cost = latency / success_rate (lower is better)
+function expectedCost(stats) {
+  if (!stats || (stats.success + stats.fail) === 0) return Infinity;
+  const successRate = stats.success / Math.max(1, stats.success + stats.fail);
+  return stats.avg_latency / Math.max(successRate, 0.2);
+}
+
+// Decide routing based on historical performance
+// Includes: hysteresis (anti-thrashing), failure penalty, cooldown enforcement
+// Returns: { route: "dev_loop"|"session_bridge", reason: string }
+function learningRoute(intent, ruleBasedDecision) {
+  const allStats = loadRoutingStats();
+  const intentStats = allStats[intent];
+
+  // Safety guard: not enough data → fallback to rule-based
+  if (!intentStats) {
+    return { route: ruleBasedDecision, reason: "no_history" };
+  }
+  const devSamples = intentStats.dev_loop ? (intentStats.dev_loop.success + intentStats.dev_loop.fail) : 0;
+  const sesSamples = intentStats.session_bridge ? (intentStats.session_bridge.success + intentStats.session_bridge.fail) : 0;
+
+  if (devSamples < MIN_SAMPLES_FOR_LEARNING && sesSamples < MIN_SAMPLES_FOR_LEARNING) {
+    return { route: ruleBasedDecision, reason: `low_samples(dev=${devSamples},ses=${sesSamples})` };
+  }
+
+  // Compute costs with failure penalty
+  let devCost = expectedCost(intentStats.dev_loop);
+  let sesCost = expectedCost(intentStats.session_bridge);
+
+  // Apply failure penalty: if recent failure rate > 30%, increase cost
+  if (intentStats.dev_loop && intentStats.dev_loop.fail > 0) {
+    const devFailRate = intentStats.dev_loop.fail / (intentStats.dev_loop.success + intentStats.dev_loop.fail);
+    if (devFailRate > 0.3) devCost *= FAILURE_PENALTY;
+  }
+  if (intentStats.session_bridge && intentStats.session_bridge.fail > 0) {
+    const sesFailRate = intentStats.session_bridge.fail / (intentStats.session_bridge.success + intentStats.session_bridge.fail);
+    if (sesFailRate > 0.3) sesCost *= FAILURE_PENALTY;
+  }
+
+  // Cooldown enforcement: if session was spawned recently, bias toward dev_loop
+  const timeSinceLastSession = Date.now() - _lastSessionSpawn;
+  if (timeSinceLastSession < SESSION_COOLDOWN_MS) {
+    return { route: "dev_loop", reason: `cooldown(${Math.round((SESSION_COOLDOWN_MS - timeSinceLastSession) / 1000)}s remaining)` };
+  }
+
+  // Hysteresis: require SWITCH_THRESHOLD cost ratio to change from last route
+  const lastRoute = _lastRouteByIntent[intent];
+  let route;
+  if (lastRoute === "dev_loop" && sesCost < devCost / SWITCH_THRESHOLD) {
+    route = "session_bridge";
+  } else if (lastRoute === "session_bridge" && devCost < sesCost / SWITCH_THRESHOLD) {
+    route = "dev_loop";
+  } else if (lastRoute) {
+    // Not enough difference — stay on current route (stability)
+    route = lastRoute;
+  } else {
+    // No history — use cost comparison
+    route = devCost <= sesCost ? "dev_loop" : "session_bridge";
+  }
+
+  _lastRouteByIntent[intent] = route;
+  const switched = route !== ruleBasedDecision;
+  return {
+    route,
+    reason: `${switched ? "learned" : "confirmed"}(dev=${devCost.toFixed(1)},ses=${sesCost.toFixed(1)},hysteresis=${SWITCH_THRESHOLD},last=${lastRoute || "none"})`
+  };
+}
+
+// Record execution outcome — called after task completes
+function recordRoutingOutcome(intent, executor, success, latencyMs) {
+  const allStats = loadRoutingStats();
+  if (!allStats[intent]) allStats[intent] = {};
+  if (!allStats[intent][executor]) {
+    allStats[intent][executor] = { success: 0, fail: 0, avg_latency: 0, samples: 0 };
+  }
+  const s = allStats[intent][executor];
+  s.samples = (s.samples || 0) + 1;
+  if (success) s.success++; else s.fail++;
+  // Exponential moving average for latency (alpha=0.3 for responsiveness)
+  const alpha = 0.3;
+  s.avg_latency = s.avg_latency === 0
+    ? latencyMs
+    : s.avg_latency * (1 - alpha) + latencyMs * alpha;
+  saveRoutingStats(allStats);
+  console.log(`[wrapper] ROUTING_FEEDBACK: intent=${intent} executor=${executor} success=${success} latency=${latencyMs}ms avg=${s.avg_latency.toFixed(0)}ms samples=${s.samples}`);
+}
+
+
 
 function callSessionBridgeAPI(method, path, body) {
   return new Promise((resolve, reject) => {
@@ -3305,6 +3446,10 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
         const elapsed = (Date.now() - startTime) / 1000;
         console.log(`[wrapper] #${reqId} dev-tool-loop done in ${elapsed.toFixed(1)}s`);
 
+        // --- Learning Router feedback ---
+        if (req._cpIntent) {
+          recordRoutingOutcome(req._cpIntent, "dev_loop", true, Date.now() - (req._cpStartTime || Date.now()));
+        }
         return sendDirectResponse(reqId, finalContent, wantsStream, res);
       }
 
@@ -3318,7 +3463,11 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
   } catch (e) {
     console.error(`[wrapper] #${reqId} dev-tool-loop error: ${e.message}`);
     metrics.errors++;
-    return sendDirectResponse(reqId, `[開發模式錯誤] ${e.message}`, wantsStream, res);
+    // --- Learning Router failure feedback ---
+        if (req._cpIntent) {
+          recordRoutingOutcome(req._cpIntent, "dev_loop", false, Date.now() - (req._cpStartTime || Date.now()));
+        }
+        return sendDirectResponse(reqId, `[開發模式錯誤] ${e.message}`, wantsStream, res);
   }
 }
 
@@ -3473,9 +3622,9 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   }
 
 
-  // Priority 0.65: Control Plane — complexity-based routing (v2)
-  // Simple/medium ops → dev mode tool loop (fast path, 5-30s)
-  // Complex tasks → Session Bridge → Claude Code (slow path, 30-120s)
+  // Priority 0.65: Control Plane — self-learning routing (v3)
+  // Uses historical execution stats to route optimally.
+  // Fallback: rule-based Intent Density scoring (v2) when insufficient data.
   // Agent-internal requests → never escalate (prevent control plane hijack)
   {
     // --- Agent internal bypass: agents manage themselves ---
@@ -3512,14 +3661,13 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     const isQuestion = CP_EXCLUDE.some(s => lowerCP.includes(s));
 
     if (hasAction && !isQuestion && userText.length > 5 && !isAgentInternal) {
-      // --- Intent Density scoring (not length-based) ---
+      // --- Step 1: Rule-based Intent Density scoring (baseline) ---
       const CP_COMPLEX_VERBS = [
         "實作", "implement", "重構", "refactor", "設計", "design",
         "遷移", "migrate", "整合", "integrate", "新增功能", "add feature",
         "建立模組", "create module", "architecture", "架構",
       ];
       const CP_COMPLEX_PATTERNS = [
-        // endpoint/api/module/component + action verb
         /(?:endpoint|api|module|component|service|feature).*(?:加|建|寫|implement|create|build|design)/is,
         /(?:加|建|寫|implement|create|build|design).*(?:endpoint|api|module|component|service|feature)/is,
       ];
@@ -3529,17 +3677,19 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
         "資料庫", "路由", "中間件", "控制器", "模型",
       ];
 
-      // Score: complex verbs=2, pattern matches=3, technical nouns=1
       let complexityScore = 0;
       const verbMatches = CP_COMPLEX_VERBS.filter(v => lowerCP.includes(v)).length;
       const patternMatches = CP_COMPLEX_PATTERNS.filter(p => p.test(userText)).length;
       const nounMatches = CP_TECHNICAL_NOUNS.filter(n => lowerCP.includes(n)).length;
       complexityScore = verbMatches * 2 + patternMatches * 3 + nounMatches;
 
-      // Explicit escalation: @agent or task: prefix always complex
       const explicitEscalation = /^(?:@agent\s|task:\s*)/i.test(userText);
+      const ruleBasedComplex = complexityScore >= 3 || explicitEscalation;
+      const ruleBasedDecision = ruleBasedComplex ? "session_bridge" : "dev_loop";
 
-      const isComplex = complexityScore >= 3 || explicitEscalation;
+      // --- Step 2: Intent fingerprint + learning router ---
+      const cpIntent = extractIntent(userText);
+      const { route: finalRoute, reason: routeReason } = learningRoute(cpIntent, ruleBasedDecision);
 
       // Detect project from PROJECT_ROUTES
       let cpProject = null;
@@ -3551,24 +3701,29 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       }
 
       // --- Observability ---
-      console.log(`[wrapper] #${reqId} CONTROL_PLANE: score=${complexityScore} (verbs=${verbMatches} patterns=${patternMatches} nouns=${nounMatches}) explicit=${explicitEscalation} complex=${isComplex} project=${cpProject || "none"}`);
+      console.log(`[wrapper] #${reqId} CONTROL_PLANE_V3: intent=${cpIntent} score=${complexityScore} rule=${ruleBasedDecision} final=${finalRoute} reason=${routeReason} project=${cpProject || "none"}`);
 
-      if (isComplex) {
+      const cpStartTime = Date.now();
+
+      if (finalRoute === "session_bridge") {
         // --- Session Gate: prevent spawn storm ---
         if (_activeSessions >= MAX_CONCURRENT_SESSIONS) {
           console.log(`[wrapper] #${reqId} CONTROL_PLANE_QUEUED: ${_activeSessions} active sessions, falling through to dev mode`);
-          // Fall through to dev mode instead of queuing (simpler, still works)
+          recordRoutingOutcome(cpIntent, "dev_loop", true, Date.now() - cpStartTime);
         } else {
           // → Slow Path: Session Bridge (Claude Code) for deliberative tasks
-          console.log(`[wrapper] #${reqId} CONTROL_PLANE_COMPLEX: routing to session-bridge`);
+          console.log(`[wrapper] #${reqId} CONTROL_PLANE_SESSION: routing to session-bridge`);
+          _lastSessionSpawn = Date.now();
           _activeSessions++;
           try {
             const result = await callSessionBridge(userText, cpProject);
             const output = result.output || result.lastMessage || "(session completed, no output captured)";
             const truncated = output.length > 3000 ? output.slice(0, 3000) + "\n...(truncated)" : output;
+            recordRoutingOutcome(cpIntent, "session_bridge", true, Date.now() - cpStartTime);
             return sendDirectResponse(reqId, truncated, wantsStream, res);
           } catch (e) {
             console.error(`[wrapper] #${reqId} control_plane error: ${e.message}`);
+            recordRoutingOutcome(cpIntent, "session_bridge", false, Date.now() - cpStartTime);
             console.log(`[wrapper] #${reqId} control_plane: session-bridge failed, falling through to dev mode`);
           } finally {
             _activeSessions--;
@@ -3576,7 +3731,11 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
         }
       } else {
         // → Fast Path: fall through to dev mode tool loop
-        console.log(`[wrapper] #${reqId} CONTROL_PLANE_SIMPLE: falling through to dev mode (score=${complexityScore})`);
+        // Note: dev mode feedback is recorded after tool loop completes (see dev mode section)
+        console.log(`[wrapper] #${reqId} CONTROL_PLANE_FAST: falling through to dev mode (intent=${cpIntent})`);
+        // Stash intent for dev mode feedback
+        req._cpIntent = cpIntent;
+        req._cpStartTime = cpStartTime;
       }
     }
   }
@@ -4439,6 +4598,22 @@ const server = http.createServer((req, res) => {
   if (req.url === "/metrics" && req.method === "GET") {
     return handleMetrics(res);
   }
+
+  // Routing stats — self-learning router visibility
+  if (req.url === "/routing-stats" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    const stats = loadRoutingStats();
+    const enriched = {};
+    for (const [intent, executors] of Object.entries(stats)) {
+      enriched[intent] = {};
+      for (const [exec, s] of Object.entries(executors)) {
+        enriched[intent][exec] = { ...s, expected_cost: expectedCost(s).toFixed(1) };
+      }
+    }
+    res.end(JSON.stringify(enriched, null, 2));
+    return;
+  }
+
 
   // System metrics proxy
   if (req.url === "/metrics/system" && req.method === "GET") {
