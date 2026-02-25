@@ -360,10 +360,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   const voiceManagerRef: { current: DiscordVoiceManager | null } = { current: null };
   const threadBindings = threadBindingsEnabled
     ? createThreadBindingManager({
-      accountId: account.accountId,
-      token,
-      sessionTtlMs: threadBindingSessionTtlMs,
-    })
+        accountId: account.accountId,
+        token,
+        sessionTtlMs: threadBindingSessionTtlMs,
+      })
     : createNoopThreadBindingManager(account.accountId);
   let lifecycleStarted = false;
   try {
@@ -396,12 +396,12 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     const execApprovalsConfig = discordCfg.execApprovals ?? {};
     const execApprovalsHandler = execApprovalsConfig.enabled
       ? new DiscordExecApprovalHandler({
-        token,
-        accountId: account.accountId,
-        config: execApprovalsConfig,
-        cfg,
-        runtime,
-      })
+          token,
+          accountId: account.accountId,
+          config: execApprovalsConfig,
+          cfg,
+          runtime,
+        })
       : null;
 
     const agentComponentsConfig = discordCfg.agentComponents ?? {};

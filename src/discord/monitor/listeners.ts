@@ -9,8 +9,6 @@ import {
   type User,
 } from "@buape/carbon";
 import type { OpenClawConfig } from "../../config/config.js";
-import { isThreadArchived } from "./thread-bindings.discord-api.js";
-import { closeDiscordThreadSessions } from "./thread-session-close.js";
 import { danger } from "../../globals.js";
 import { formatDurationSeconds } from "../../infra/format-time/format-duration.ts";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
@@ -25,6 +23,8 @@ import {
 import { formatDiscordReactionEmoji, formatDiscordUserTag } from "./format.js";
 import { resolveDiscordChannelInfo } from "./message-utils.js";
 import { setPresence } from "./presence-cache.js";
+import { isThreadArchived } from "./thread-bindings.discord-api.js";
+import { closeDiscordThreadSessions } from "./thread-session-close.js";
 
 type LoadedConfig = ReturnType<typeof import("../../config/config.js").loadConfig>;
 type RuntimeEnv = import("../../runtime.js").RuntimeEnv;
@@ -219,9 +219,9 @@ async function handleDiscordReactionEvent(params: {
     const isGuildMessage = Boolean(data.guild_id);
     const guildInfo = isGuildMessage
       ? resolveDiscordGuildEntry({
-        guild: data.guild ?? undefined,
-        guildEntries,
-      })
+          guild: data.guild ?? undefined,
+          guildEntries,
+        })
       : null;
     if (isGuildMessage && guildEntries && Object.keys(guildEntries).length > 0 && !guildInfo) {
       return;
@@ -483,30 +483,34 @@ export class DiscordThreadUpdateListener extends ThreadUpdateListener {
       listener: this.constructor.name,
       event: this.type,
       run: async () => {
+        // Discord only fires THREAD_UPDATE when a field actually changes, so
+        // `thread_metadata.archived === true` in this payload means the thread
+        // *just* transitioned to the archived state. We use isThreadArchived()
+        // as the canonical helper (it handles both snake_case and camelCase
+        // variants of the metadata field), but the intent is explicitly to
+        // detect the archival event — not a re-delivery of an already-archived
+        // thread. No "before" state is provided by the gateway.
         if (!isThreadArchived(data)) {
           return;
         }
-        const threadId =
-          "id" in data && typeof data.id === "string" ? data.id : undefined;
+        const threadId = "id" in data && typeof data.id === "string" ? data.id : undefined;
         if (!threadId) {
           return;
         }
         const logger = this.logger ?? discordEventQueueLog;
-        logger.info("Resetting session for archived Discord thread", { threadId });
+        logger.info("Discord thread archived — resetting session", { threadId });
         const count = await closeDiscordThreadSessions({
           cfg: this.cfg,
           accountId: this.accountId,
           threadId,
         });
         if (count > 0) {
-          logger.info("Discord thread sessions reset", { threadId, count });
+          logger.info("Discord thread sessions reset after archival", { threadId, count });
         }
       },
       onError: (err) => {
         const logger = this.logger ?? discordEventQueueLog;
-        logger.error(
-          danger(`discord thread-update handler failed: ${String(err)}`),
-        );
+        logger.error(danger(`discord thread-update handler failed: ${String(err)}`));
       },
     });
   }
