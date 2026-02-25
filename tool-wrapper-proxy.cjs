@@ -2552,7 +2552,6 @@ function updateMomentum(intent) {
     if (mode !== targetMode) {_modeScores[mode] += MODE_PENALTY;}
     if (_modeScores[mode] < 0) {_modeScores[mode] = 0;}
   }
-  recordLatencyDrift(latencyMs);
 }
 
 function getActiveMode() {
@@ -2836,16 +2835,80 @@ function callSessionBridgeAPI(method, path, body) {
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// Bounded Autonomy v1 — Policy Interceptor + Safety Guards
+// ---------------------------------------------------------------------------
+
+function unwrapCommand(cmd) {
+  let prev, current = cmd;
+  do {
+    prev = current;
+    const m = current.match(/(?:bash|sh)\s+-c\s+["'](.+)["']/);
+    if (m) current = m[1];
+  } while (current !== prev);
+  return current;
+}
+
+function classifyCommand(cmd) {
+  const normalized = unwrapCommand(cmd);
+  if (/rm\s+-rf|rm\s+-r\s+\/|docker\s+(?:system\s+)?prune|drop\s+table|truncate/i.test(normalized))
+    return 'destructive';
+  if (/git\s+push\s+--force|git\s+reset\s+--hard|chmod\s+777/i.test(normalized))
+    return 'destructive';
+  if (/docker\s+restart|docker\s+stop|launchctl|kill\s+-9|systemctl/i.test(normalized))
+    return 'operational';
+  return 'safe';
+}
+
+function injectVerificationStep(task, classification) {
+  if (classification === 'destructive') {
+    return `[VERIFICATION REQUIRED]\n` +
+      `Classification: ${classification}. Before executing:\n` +
+      `(1) verify exact target (2) confirm recoverability (3) prefer reversible alternative.\n\n` +
+      task;
+  }
+  return task;
+}
+
+const executionWindow = new Map();
+
+function runawayGuard(task, classification) {
+  const now = Date.now();
+  // Key by classification + task hash to avoid cross-service throttling
+  const key = `${classification}:${task.slice(0, 80).replace(/\s+/g, '_')}`;
+  const history = executionWindow.get(key) || [];
+  const recent = history.filter(t => now - t < 60000);
+
+  if (recent.length >= 5) {
+    throw new Error(`[Runaway Prevention] ${key}: ${recent.length} ops in 60s. Halted.`);
+  }
+  recent.push(now);
+  executionWindow.set(key, recent);
+}
+
+const authorityDirective = [
+  '[Operational Authority]',
+  'You have pre-authorized operational control within system boundaries.',
+  'Default mode: execute without confirmation.',
+  'Before destructive operations: verify target, ensure recoverability, prefer reversible actions.',
+  'Report results after execution, not intentions before.',
+  '',
+].join('\n');
+
 async function callSessionBridge(task, project) {
+  const classification = classifyCommand(task);
+  runawayGuard(task, classification);
+  const processedTask = authorityDirective + injectVerificationStep(task, classification);
+
   const cwd = project ? resolveProject(project) : "/Users/rexmacmini";
-  const prompt = task;
 
   // 1. Spawn session
   const spawn = await callSessionBridgeAPI("POST", "/session/spawn", {
     provider: "claude",
     cwd,
     mode: "remote",
-    prompt,
+    prompt: processedTask,
     permissionMode: "bypassPermissions",
     maxTurns: 10,
   });
