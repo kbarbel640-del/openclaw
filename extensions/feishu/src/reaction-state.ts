@@ -79,6 +79,82 @@ export class ReactionStateManager {
   }
 
   /**
+   * Sync the state of a single message to the SQLite persistent database.
+   * COMPLETED and ERROR states result in row deletion.
+   */
+  private async updateDbState(state: MessageReactionState) {
+    try {
+      const { getDb } = await import("./history.js");
+      const db = getDb();
+      if (!db) return;
+
+      if (state.status === "COMPLETED" || state.status === "ERROR") {
+        const stmt = db.prepare(`DELETE FROM feishu_reaction_state WHERE message_id = ?`);
+        stmt.run(state.messageId);
+      } else {
+        const stmt = db.prepare(`
+          INSERT INTO feishu_reaction_state (message_id, chat_id, status, current_emoji, current_reaction_id, created_at, account_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(message_id) DO UPDATE SET
+            status=excluded.status,
+            current_emoji=excluded.current_emoji,
+            current_reaction_id=excluded.current_reaction_id
+        `);
+        stmt.run(
+          state.messageId,
+          state.chatId,
+          state.status,
+          state.currentEmoji || null,
+          state.currentReactionId || null,
+          state.createdAt,
+          state.accountId || null,
+        );
+      }
+    } catch (e) {
+      // Ignore sync errors gracefully
+    }
+  }
+
+  /**
+   * Sweeps SQLite for incomplete reaction states that survived a crash,
+   * sends Feishu removal API calls for them, and cleans the DB.
+   */
+  async cleanupOrphanedReactions(): Promise<void> {
+    const log = this.config.log ?? console.log;
+    try {
+      const { getDb } = await import("./history.js");
+      const db = getDb();
+      if (!db) return;
+
+      const stmt = db.prepare(`SELECT * FROM feishu_reaction_state`);
+      const rows = stmt.all() as any[];
+      if (rows.length === 0) return;
+
+      log(`[reaction-state] Reboot detected! Sweeping ${rows.length} orphaned db reactions...`);
+
+      for (const row of rows) {
+        if (row.current_reaction_id) {
+          try {
+            await removeReactionFeishu({
+              cfg: this.config.cfg,
+              messageId: row.message_id,
+              reactionId: row.current_reaction_id,
+              accountId: row.account_id,
+            });
+            log(`[reaction-state] Orphan swept: messageId=${row.message_id}`);
+          } catch (err: any) {
+            // Probably removed already by user or another process
+          }
+        }
+        const delStmt = db.prepare(`DELETE FROM feishu_reaction_state WHERE message_id = ?`);
+        delStmt.run(row.message_id);
+      }
+    } catch (e) {
+      this.config.error?.(`[reaction-state] Orphan sweep failed: ${e}`);
+    }
+  }
+
+  /**
    * Called when a message is received and enters the queue.
    * Adds a QUEUED emoji (☝️) to indicate "wait a moment".
    */
@@ -125,6 +201,7 @@ export class ReactionStateManager {
       // Non-critical, log and continue
       log(`[reaction-state] Failed to add QUEUED emoji for ${messageId}: ${err}`);
     }
+    await this.updateDbState(state);
   }
 
   /**
@@ -201,6 +278,7 @@ export class ReactionStateManager {
           s.currentEmoji = null;
           s.currentReactionId = null;
         }
+        await this.updateDbState(s);
       }),
     );
   }
@@ -242,10 +320,13 @@ export class ReactionStateManager {
     state.currentEmoji = null;
     state.currentReactionId = null;
 
-    // Schedule delayed cleanup to prevent duplicate processing
+    // Clear out of persistence instantly
+    await this.updateDbState(state);
+
+    // Schedule memory cleanup
     setTimeout(() => {
       this.states.delete(messageId);
-      log(`[reaction-state] State cleaned up: messageId=${messageId}`);
+      log(`[reaction-state] State fully dropped: messageId=${messageId}`);
     }, 60000); // 1 minute delay
   }
 
@@ -425,5 +506,7 @@ export function initReactionStateManager(config: ReactionStateManagerConfig): Re
     return globalManager;
   }
   globalManager = new ReactionStateManager(config);
+  // Trigger cleanup for orphans on instance creation
+  globalManager.cleanupOrphanedReactions().catch(() => {});
   return globalManager;
 }

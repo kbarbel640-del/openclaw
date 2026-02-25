@@ -12,6 +12,16 @@ import { createFeishuClient } from "./client.js";
  */
 function initFeishuHistoryDb(db: DatabaseSync) {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS feishu_reaction_state (
+      message_id TEXT PRIMARY KEY,
+      chat_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      current_emoji TEXT,
+      current_reaction_id TEXT,
+      created_at INTEGER NOT NULL,
+      account_id TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS feishu_gateway_timestamp (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       last_startup_ts INTEGER,
@@ -87,7 +97,7 @@ function openPersistentDb(): DatabaseSync | undefined {
 
 let sharedDb: DatabaseSync | null = null;
 
-function getDb(): DatabaseSync | undefined {
+export function getDb(): DatabaseSync | undefined {
   if (sharedDb) return sharedDb;
   const db = openPersistentDb();
   if (db) {
