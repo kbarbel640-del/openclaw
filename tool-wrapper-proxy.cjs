@@ -2845,7 +2845,7 @@ function unwrapCommand(cmd) {
   do {
     prev = current;
     const m = current.match(/(?:bash|sh)\s+-c\s+["'](.+)["']/);
-    if (m) current = m[1];
+    if (m) {current = m[1];}
   } while (current !== prev);
   return current;
 }
@@ -2853,11 +2853,11 @@ function unwrapCommand(cmd) {
 function classifyCommand(cmd) {
   const normalized = unwrapCommand(cmd);
   if (/rm\s+-rf|rm\s+-r\s+\/|docker\s+(?:system\s+)?prune|drop\s+table|truncate/i.test(normalized))
-    return 'destructive';
+    {return 'destructive';}
   if (/git\s+push\s+--force|git\s+reset\s+--hard|chmod\s+777/i.test(normalized))
-    return 'destructive';
+    {return 'destructive';}
   if (/docker\s+restart|docker\s+stop|launchctl|kill\s+-9|systemctl/i.test(normalized))
-    return 'operational';
+    {return 'operational';}
   return 'safe';
 }
 
@@ -3715,6 +3715,16 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
 - run_tests / system_info: 測試和系統資訊
 
 重要：你不在 Docker 容器內。這些工具會直接在 Mac mini 主機上執行。遇到 git push 請求時，直接呼叫 git_push 工具，不要告訴用戶手動執行。
+
+## 操作授權（Operational Authority）
+你擁有預授權的操作控制權，在系統邊界內直接執行，無需確認。
+- 讀取/檢查/狀態查詢: 直接執行
+- 部署/重啟/更新: 直接執行
+- Docker 操作: 直接執行
+- SSH 命令: 透過 privileged_task 直接執行，不要說「無法執行」或「需要權限」
+- 檔案刪除/系統設定變更: 驗證目標後執行
+
+禁止說「我無法執行」「需要授權」「system-level permission gating」。你有完整權限，直接用工具執行。
 
 路徑映射（容器路徑 → 主機路徑）：
 - /home/node/.openclaw/ → /Users/rexmacmini/.openclaw/
