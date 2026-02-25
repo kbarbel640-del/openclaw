@@ -82,6 +82,51 @@ describe("resolveTelegramAccount", () => {
     });
   });
 
+  it("includes default account when sub-accounts exist and top-level botToken is set", () => {
+    withEnv({ TELEGRAM_BOT_TOKEN: "" }, () => {
+      const cfg: OpenClawConfig = {
+        channels: {
+          telegram: {
+            botToken: "tok-default",
+            accounts: { work: { botToken: "tok-work" } },
+          },
+        },
+      };
+
+      const ids = listTelegramAccountIds(cfg);
+      expect(ids).toContain("default");
+      expect(ids).toContain("work");
+    });
+  });
+
+  it("includes default account when sub-accounts exist and TELEGRAM_BOT_TOKEN env is set", () => {
+    withEnv({ TELEGRAM_BOT_TOKEN: "tok-env" }, () => {
+      const cfg: OpenClawConfig = {
+        channels: {
+          telegram: { accounts: { work: { botToken: "tok-work" } } },
+        },
+      };
+
+      const ids = listTelegramAccountIds(cfg);
+      expect(ids).toContain("default");
+      expect(ids).toContain("work");
+    });
+  });
+
+  it("does not include default account when no default token is resolvable", () => {
+    withEnv({ TELEGRAM_BOT_TOKEN: "" }, () => {
+      const cfg: OpenClawConfig = {
+        channels: {
+          telegram: { accounts: { work: { botToken: "tok-work" } } },
+        },
+      };
+
+      const ids = listTelegramAccountIds(cfg);
+      expect(ids).not.toContain("default");
+      expect(ids).toEqual(["work"]);
+    });
+  });
+
   it("formats debug logs with inspect-style output when debug env is enabled", () => {
     withEnv({ TELEGRAM_BOT_TOKEN: "", OPENCLAW_DEBUG_TELEGRAM_ACCOUNTS: "1" }, () => {
       const cfg: OpenClawConfig = {
