@@ -2,6 +2,11 @@
 
 Bundled OpenClaw memory plugin that stores long-term memory in Supabase (`pgvector`).
 
+Docs:
+
+- https://docs.openclaw.ai/plugins/memory-supabase
+- https://docs.openclaw.ai/tools/plugin
+
 ## Setup
 
 1. In Supabase SQL editor, run [`schema.sql`](./schema.sql).
@@ -39,3 +44,6 @@ plugins: {
 - SQL schema defaults to `vector(1536)` (`text-embedding-3-small`).
 - If you switch to `text-embedding-3-large`, update table/function vector dimensions to `3072`.
 - This plugin provides `memory_search`, `memory_get`, `memory_store`, and `memory_forget`.
+- Use only `service_role` for server-side RPC access.
+- Never use publishable/anon keys for memory writes.
+- Keep keys in env/secret manager and rotate them periodically.
