@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../../config/config.js";
+import type { SessionAcpMeta } from "../../config/sessions/types.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-key.js";
 import { ACP_ERROR_CODES, AcpRuntimeError } from "../runtime/errors.js";
 
@@ -51,4 +52,13 @@ export function resolveRuntimeIdleTtlMs(cfg: OpenClawConfig): number {
     return 0;
   }
   return Math.round(ttlMinutes * 60 * 1000);
+}
+
+export function hasLegacyAcpIdentityProjection(meta: SessionAcpMeta): boolean {
+  const raw = meta as Record<string, unknown>;
+  return (
+    Object.hasOwn(raw, "backendSessionId") ||
+    Object.hasOwn(raw, "agentSessionId") ||
+    Object.hasOwn(raw, "sessionIdsProvisional")
+  );
 }

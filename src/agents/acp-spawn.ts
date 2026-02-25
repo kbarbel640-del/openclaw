@@ -19,6 +19,7 @@ import {
   resolveThreadBindingThreadName,
 } from "../discord/monitor/thread-bindings.js";
 import { callGateway } from "../gateway/call.js";
+import { resolveConversationIdFromTargets } from "../infra/outbound/conversation-id.js";
 import {
   getSessionBindingService,
   isSessionBindingError,
@@ -124,27 +125,10 @@ function resolveConversationIdForDiscordThreadBinding(params: {
   to?: string;
   threadId?: string | number;
 }): string | undefined {
-  const threadId = params.threadId != null ? String(params.threadId).trim() : "";
-  if (threadId) {
-    return threadId;
-  }
-  const to = params.to?.trim();
-  if (!to) {
-    return undefined;
-  }
-  if (to.startsWith("channel:")) {
-    const channelId = to.slice("channel:".length).trim();
-    return channelId || undefined;
-  }
-  const mentionMatch = to.match(/^<#(\d+)>$/);
-  if (mentionMatch?.[1]) {
-    return mentionMatch[1];
-  }
-  // Fallback for already-normalized raw channel ids.
-  if (/^\d{6,}$/.test(to)) {
-    return to;
-  }
-  return undefined;
+  return resolveConversationIdFromTargets({
+    threadId: params.threadId,
+    targets: [params.to],
+  });
 }
 
 function prepareAcpThreadBinding(params: {

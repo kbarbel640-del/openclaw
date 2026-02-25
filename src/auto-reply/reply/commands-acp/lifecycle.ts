@@ -26,6 +26,7 @@ import {
   resolveThreadBindingThreadName,
 } from "../../../discord/monitor/thread-bindings.js";
 import { callGateway } from "../../../gateway/call.js";
+import { resolveConversationIdFromTargets } from "../../../infra/outbound/conversation-id.js";
 import {
   getSessionBindingService,
   type SessionBindingRecord,
@@ -78,31 +79,13 @@ function resolveConversationIdForChildBinding(params: {
     return resolveDiscordChannelIdForFocus(params.commandParams);
   }
 
-  const candidates = [
-    typeof params.commandParams.ctx.OriginatingTo === "string"
-      ? params.commandParams.ctx.OriginatingTo.trim()
-      : "",
-    typeof params.commandParams.command.to === "string"
-      ? params.commandParams.command.to.trim()
-      : "",
-    typeof params.commandParams.ctx.To === "string" ? params.commandParams.ctx.To.trim() : "",
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    if (candidate.startsWith("channel:")) {
-      const channelId = candidate.slice("channel:".length).trim();
-      if (channelId) {
-        return channelId;
-      }
-    }
-    const mentionMatch = candidate.match(/^<#(\d+)>$/);
-    if (mentionMatch?.[1]) {
-      return mentionMatch[1];
-    }
-    if (/^\d{6,}$/.test(candidate)) {
-      return candidate;
-    }
-  }
-  return undefined;
+  return resolveConversationIdFromTargets({
+    targets: [
+      params.commandParams.ctx.OriginatingTo,
+      params.commandParams.command.to,
+      params.commandParams.ctx.To,
+    ],
+  });
 }
 
 async function bindSpawnedAcpSessionToThread(params: {

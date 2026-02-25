@@ -77,8 +77,6 @@ export type AcpSessionStatus = {
   backend: string;
   agent: string;
   identity?: SessionAcpIdentity;
-  backendSessionId?: string;
-  agentSessionId?: string;
   state: SessionAcpMeta["state"];
   mode: AcpRuntimeSessionMode;
   runtimeOptions: AcpSessionRuntimeOptions;

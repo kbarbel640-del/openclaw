@@ -829,8 +829,13 @@ describe("AcpSessionManager", () => {
 
     let currentMeta: SessionAcpMeta = {
       ...readySessionMeta(),
-      backendSessionId: "acpx-stale",
-      agentSessionId: "agent-stale",
+      identity: {
+        state: "resolved",
+        source: "status",
+        acpxSessionId: "acpx-stale",
+        agentSessionId: "agent-stale",
+        lastUpdatedAt: Date.now(),
+      },
     };
     hoisted.readAcpSessionEntryMock.mockImplementation((paramsUnknown: unknown) => {
       const sessionKey =
@@ -869,8 +874,8 @@ describe("AcpSessionManager", () => {
     });
 
     expect(runtimeState.getStatus).toHaveBeenCalledTimes(1);
-    expect(currentMeta.backendSessionId).toBe("acpx-fresh");
-    expect(currentMeta.agentSessionId).toBe("agent-fresh");
+    expect(currentMeta.identity?.acpxSessionId).toBe("acpx-fresh");
+    expect(currentMeta.identity?.agentSessionId).toBe("agent-fresh");
   });
 
   it("reconciles pending ACP identities during startup scan", async () => {
@@ -895,8 +900,6 @@ describe("AcpSessionManager", () => {
         acpxSessionId: "acpx-stale",
         lastUpdatedAt: Date.now(),
       },
-      backendSessionId: "acpx-stale",
-      sessionIdsProvisional: true,
     };
     const sessionKey = "agent:codex:acp:session-1";
     hoisted.listAcpSessionEntriesMock.mockResolvedValue([
@@ -947,9 +950,6 @@ describe("AcpSessionManager", () => {
     expect(currentMeta.identity?.acpxRecordId).toBe("acpx-record-1");
     expect(currentMeta.identity?.acpxSessionId).toBe("acpx-session-1");
     expect(currentMeta.identity?.agentSessionId).toBe("agent-session-1");
-    expect(currentMeta.sessionIdsProvisional).toBe(false);
-    expect(currentMeta.backendSessionId).toBe("acpx-session-1");
-    expect(currentMeta.agentSessionId).toBe("agent-session-1");
   });
 
   it("skips startup identity reconciliation for already resolved sessions", async () => {
@@ -968,9 +968,6 @@ describe("AcpSessionManager", () => {
         agentSessionId: "agent-sid-1",
         lastUpdatedAt: Date.now(),
       },
-      backendSessionId: "acpx-sid-1",
-      agentSessionId: "agent-sid-1",
-      sessionIdsProvisional: false,
     };
     hoisted.listAcpSessionEntriesMock.mockResolvedValue([
       {
@@ -1015,8 +1012,13 @@ describe("AcpSessionManager", () => {
       storeSessionKey: "agent:codex:acp:session-1",
       acp: {
         ...readySessionMeta(),
-        backendSessionId: "acpx-stable",
-        agentSessionId: "agent-stable",
+        identity: {
+          state: "resolved",
+          source: "status",
+          acpxSessionId: "acpx-stable",
+          agentSessionId: "agent-stable",
+          lastUpdatedAt: Date.now(),
+        },
       },
     });
 
@@ -1026,8 +1028,8 @@ describe("AcpSessionManager", () => {
       sessionKey: "agent:codex:acp:session-1",
     });
 
-    expect(status.backendSessionId).toBe("acpx-stable");
-    expect(status.agentSessionId).toBe("agent-stable");
+    expect(status.identity?.acpxSessionId).toBe("acpx-stable");
+    expect(status.identity?.agentSessionId).toBe("agent-stable");
   });
 
   it("applies persisted runtime options before running turns", async () => {

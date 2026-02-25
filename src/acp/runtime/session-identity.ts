@@ -5,12 +5,6 @@ import type {
 } from "../../config/sessions/types.js";
 import type { AcpRuntimeHandle, AcpRuntimeStatus } from "./types.js";
 
-type LegacyAcpMetaIdentifiers = {
-  backendSessionId?: string;
-  agentSessionId?: string;
-  sessionIdsProvisional?: boolean;
-};
-
 function normalizeText(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -64,30 +58,13 @@ function normalizeIdentity(
   };
 }
 
-function normalizeIdentityFromLegacy(meta: SessionAcpMeta): SessionAcpIdentity | undefined {
-  const legacy = meta as LegacyAcpMetaIdentifiers;
-  const acpxSessionId = normalizeText(legacy.backendSessionId);
-  const agentSessionId = normalizeText(legacy.agentSessionId);
-  if (!acpxSessionId && !agentSessionId) {
-    return undefined;
-  }
-  const provisional = legacy.sessionIdsProvisional === true;
-  return {
-    state: provisional ? "pending" : "resolved",
-    ...(acpxSessionId ? { acpxSessionId } : {}),
-    ...(agentSessionId ? { agentSessionId } : {}),
-    source: "status",
-    lastUpdatedAt: meta.lastActivityAt,
-  };
-}
-
 export function resolveSessionIdentityFromMeta(
   meta: SessionAcpMeta | undefined,
 ): SessionAcpIdentity | undefined {
   if (!meta) {
     return undefined;
   }
-  return normalizeIdentity(meta.identity) ?? normalizeIdentityFromLegacy(meta);
+  return normalizeIdentity(meta.identity);
 }
 
 export function identityHasStableSessionId(identity: SessionAcpIdentity | undefined): boolean {
@@ -99,21 +76,6 @@ export function isSessionIdentityPending(identity: SessionAcpIdentity | undefine
     return true;
   }
   return identity.state === "pending";
-}
-
-export function identityToLegacyProjection(identity: SessionAcpIdentity | undefined): {
-  backendSessionId?: string;
-  agentSessionId?: string;
-  sessionIdsProvisional?: boolean;
-} {
-  if (!identity) {
-    return {};
-  }
-  return {
-    ...(identity.acpxSessionId ? { backendSessionId: identity.acpxSessionId } : {}),
-    ...(identity.agentSessionId ? { agentSessionId: identity.agentSessionId } : {}),
-    sessionIdsProvisional: identity.state === "pending",
-  };
 }
 
 export function identityEquals(
