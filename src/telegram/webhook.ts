@@ -148,6 +148,47 @@ function closeServerSafe(server: ReturnType<typeof createServer>): void {
   }
 }
 
+function resolveTelegramWebhookPublicUrl(params: {
+  publicUrl?: string;
+  host: string;
+  resolvedPort: number;
+  resolvedPath: string;
+  accountId: string;
+  pathWasExplicit: boolean;
+}): string {
+  const rawPublicUrl = params.publicUrl?.trim();
+  if (!rawPublicUrl) {
+    return `http://${params.host === "0.0.0.0" ? "localhost" : params.host}:${params.resolvedPort}${params.resolvedPath}`;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawPublicUrl);
+  } catch {
+    throw new Error(`Invalid Telegram webhook URL: ${rawPublicUrl}`);
+  }
+
+  const configuredPath = normalizeWebhookPath(parsed.pathname || "/");
+  if (params.pathWasExplicit && configuredPath !== params.resolvedPath) {
+    throw new Error(
+      [
+        `Telegram webhook URL path mismatch for account "${params.accountId}".`,
+        `Configured URL path is "${configuredPath}" but webhookPath resolves to "${params.resolvedPath}".`,
+        "Make webhookUrl and webhookPath match, or omit webhookPath to auto-derive account-specific paths.",
+      ].join(" "),
+    );
+  }
+
+  // In multi-account mode, account configs often inherit a base webhookUrl.
+  // When webhookPath is implicit, derive account-specific public URLs by
+  // replacing the URL path with the resolved local route path.
+  if (!params.pathWasExplicit) {
+    parsed.pathname = params.resolvedPath;
+  }
+
+  return parsed.toString();
+}
+
 export async function startTelegramWebhook(opts: {
   token: string;
   accountId?: string;
@@ -163,6 +204,7 @@ export async function startTelegramWebhook(opts: {
   publicUrl?: string;
 }) {
   const accountId = opts.accountId?.trim() || DEFAULT_TELEGRAM_ACCOUNT_ID;
+  const pathWasExplicit = typeof opts.path === "string" && opts.path.trim().length > 0;
   const path = resolveWebhookPath(opts.path, accountId);
   const healthPath = normalizeWebhookPath(opts.healthPath ?? "/healthz");
   const port = opts.port ?? 8787;
@@ -308,8 +350,14 @@ export async function startTelegramWebhook(opts: {
       key: serverKey,
     });
     const resolvedPort = resolveListeningPort(shared.server, port);
-    const publicUrl =
-      opts.publicUrl ?? `http://${host === "0.0.0.0" ? "localhost" : host}:${resolvedPort}${path}`;
+    const publicUrl = resolveTelegramWebhookPublicUrl({
+      publicUrl: opts.publicUrl,
+      host,
+      resolvedPort,
+      resolvedPath: path,
+      accountId,
+      pathWasExplicit,
+    });
 
     await withTelegramApiErrorLogging({
       operation: "setWebhook",

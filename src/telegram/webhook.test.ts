@@ -125,6 +125,50 @@ describe("startTelegramWebhook", () => {
     abort.abort();
   });
 
+  it("derives account-specific webhook URL paths from an inherited base webhookUrl", async () => {
+    setWebhookSpy.mockClear();
+    const abortDefault = new AbortController();
+    const abortWork = new AbortController();
+
+    await startTelegramWebhook({
+      token: "tok-default",
+      secret: "secret-default",
+      accountId: "default",
+      publicUrl: "https://example.test/telegram-webhook",
+      port: 0,
+      abortSignal: abortDefault.signal,
+    });
+
+    await startTelegramWebhook({
+      token: "tok-work",
+      secret: "secret-work",
+      accountId: "work",
+      publicUrl: "https://example.test/telegram-webhook",
+      port: 0,
+      abortSignal: abortWork.signal,
+    });
+
+    const [defaultUrl, workUrl] = setWebhookSpy.mock.calls.map((call) => String(call[0] ?? ""));
+    expect(defaultUrl).toBe("https://example.test/telegram-webhook");
+    expect(workUrl).toBe("https://example.test/telegram-webhook/work");
+
+    abortWork.abort();
+    abortDefault.abort();
+  });
+
+  it("fails fast when explicit webhookPath conflicts with webhookUrl path", async () => {
+    await expect(
+      startTelegramWebhook({
+        token: "tok",
+        secret: "secret",
+        accountId: "work",
+        path: "/custom-work-path",
+        publicUrl: "https://example.test/telegram-webhook/work",
+        port: 0,
+      }),
+    ).rejects.toThrow(/path mismatch/i);
+  });
+
   it("shares one listener for multiple accounts with distinct paths", async () => {
     handlerSpy.mockClear();
     setWebhookSpy.mockClear();
