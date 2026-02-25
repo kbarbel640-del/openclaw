@@ -18,6 +18,9 @@ const {
   resolveKimiModel,
   resolveKimiBaseUrl,
   extractKimiCitations,
+  resolveXSearchApiKey,
+  resolveXSearchModel,
+  resolveXSearchInlineCitations,
 } = __testing;
 
 describe("web_search perplexity baseUrl defaults", () => {
