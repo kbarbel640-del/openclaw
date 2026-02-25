@@ -18,7 +18,14 @@ import { getSlashCommands } from "./commands.js";
 import { ChatLog } from "./components/chat-log.js";
 import { CustomEditor } from "./components/custom-editor.js";
 import { GatewayChatClient } from "./gateway-chat.js";
-import { editorTheme, theme } from "./theme/theme.js";
+import {
+  applyInitialTerminalColors,
+  editorTheme,
+  fg,
+  palette,
+  resetTerminalColors,
+  theme,
+} from "./theme/theme.js";
 import { createCommandHandlers } from "./tui-command-handlers.js";
 import { createEventHandlers } from "./tui-event-handlers.js";
 import { formatTokens } from "./tui-formatters.js";
@@ -379,6 +386,11 @@ export async function runTui(opts: TuiOptions) {
   const footer = new Text("", 1, 0);
   const chatLog = new ChatLog();
   const editor = new CustomEditor(tui, editorTheme);
+  // Wrap editor render to apply palette text color — ensures input text is readable on light themes
+  const origEditorRender = editor.render.bind(editor);
+  editor.render = (width: number) => {
+    return origEditorRender(width).map((line) => fg(palette.text)(line));
+  };
   const root = new Container();
   root.addChild(header);
   root.addChild(chatLog);
@@ -730,6 +742,7 @@ export async function runTui(opts: TuiOptions) {
     if (now - lastCtrlCAt < 1000) {
       client.stop();
       tui.stop();
+      resetTerminalColors();
       process.exit(0);
     }
     lastCtrlCAt = now;
@@ -739,6 +752,7 @@ export async function runTui(opts: TuiOptions) {
   editor.onCtrlD = () => {
     client.stop();
     tui.stop();
+    resetTerminalColors();
     process.exit(0);
   };
   editor.onCtrlO = () => {
@@ -810,6 +824,7 @@ export async function runTui(opts: TuiOptions) {
   setConnectionStatus("connecting");
   updateFooter();
   tui.start();
+  applyInitialTerminalColors();
   client.start();
   await new Promise<void>((resolve) => {
     const finish = () => resolve();
