@@ -44,6 +44,8 @@ export type ResolvedBrowserProfile = {
   cdpIsLoopback: boolean;
   color: string;
   driver: "openclaw" | "extension";
+  /** Per-profile executable path override. undefined = use global executablePath setting. */
+  executablePath: string | undefined;
 };
 
 function normalizeHexColor(raw: string | undefined) {
@@ -302,6 +304,7 @@ export function resolveProfile(
     cdpIsLoopback: isLoopbackHost(cdpHost),
     color: profile.color,
     driver,
+    executablePath: profile.executablePath?.trim() || undefined,
   };
 }
 
