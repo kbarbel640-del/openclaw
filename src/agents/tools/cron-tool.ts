@@ -309,6 +309,7 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
               "enabled",
               "description",
               "deleteAfterRun",
+              "freshSession",
               "agentId",
               "sessionKey",
               "message",

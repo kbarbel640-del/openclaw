@@ -34,6 +34,8 @@ export function registerCronEditCommand(cron: Command) {
       .option("--disable", "Disable job", false)
       .option("--delete-after-run", "Delete one-shot job after it succeeds", false)
       .option("--keep-after-run", "Keep one-shot job after it succeeds", false)
+      .option("--fresh-session", "Start each run with a clean session (no history carry-over)")
+      .option("--no-fresh-session", "Reuse session state across runs")
       .option("--session <target>", "Session target (main|isolated)")
       .option("--agent <id>", "Set agent id")
       .option("--clear-agent", "Unset agent and use default", false)
@@ -59,7 +61,7 @@ export function registerCronEditCommand(cron: Command) {
       )
       .option("--best-effort-deliver", "Do not fail job if delivery fails")
       .option("--no-best-effort-deliver", "Fail job when delivery fails")
-      .action(async (id, opts) => {
+      .action(async (id, opts, cmd) => {
         try {
           if (opts.session === "main" && opts.message) {
             throw new Error(
@@ -117,6 +119,13 @@ export function registerCronEditCommand(cron: Command) {
           }
           if (opts.keepAfterRun) {
             patch.deleteAfterRun = false;
+          }
+          const freshSessionSource =
+            typeof cmd?.getOptionValueSource === "function"
+              ? cmd.getOptionValueSource("freshSession")
+              : undefined;
+          if (freshSessionSource === "cli") {
+            patch.freshSession = Boolean(opts.freshSession);
           }
           if (typeof opts.session === "string") {
             patch.sessionTarget = opts.session;
