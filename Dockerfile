@@ -4,7 +4,7 @@ FROM node:22-bookworm@sha256:cd7bcd2e7a1e6f72052feb023c7f6b722205d3fcab7bbcbd2d1
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
 
 WORKDIR /app
 RUN chown node:node /app
