@@ -178,6 +178,7 @@ export async function resolveDeliveryTarget(
     to: toCandidate,
     cfg,
     accountId,
+    agentId,
     mode,
     allowFrom: allowFromOverride,
   });
