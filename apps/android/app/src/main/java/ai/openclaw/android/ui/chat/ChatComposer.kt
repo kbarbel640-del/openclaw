@@ -159,7 +159,7 @@ fun ChatComposer(
             )
           }
 
-          // Right side buttons: Stop / Refresh / Mic / Send
+          // Right side buttons: Stop / Mic + Refresh / Send
           if (pendingRunCount > 0) {
             // Show stop button when processing
             IconButton(
@@ -173,31 +173,31 @@ fun ChatComposer(
                 modifier = Modifier.size(22.dp),
               )
             }
-          } else if (input.isEmpty() && attachments.isEmpty()) {
-            // Show refresh when empty and not processing
-            IconButton(
-              onClick = onRefresh,
-              modifier = Modifier.size(36.dp),
-            ) {
-              Icon(
-                Icons.Default.Refresh,
-                contentDescription = "Refresh",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
-              )
-            }
           } else if (input.isEmpty()) {
-            // Show mic only when there's attachment but no text
-            IconButton(
-              onClick = { },
-              modifier = Modifier.size(36.dp),
-            ) {
-              Icon(
-                Icons.Default.Mic,
-                contentDescription = "Voice",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
-              )
+            // Show mic and refresh when text is blank
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+              IconButton(
+                onClick = { },
+                modifier = Modifier.size(36.dp),
+              ) {
+                Icon(
+                  Icons.Default.Refresh,
+                  contentDescription = "Refresh",
+                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.size(20.dp),
+                )
+              }
+              IconButton(
+                onClick = { },
+                modifier = Modifier.size(36.dp),
+              ) {
+                Icon(
+                  Icons.Default.Mic,
+                  contentDescription = "Voice",
+                  tint = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(22.dp),
+                )
+              }
             }
           } else {
             // Show send button when there's text

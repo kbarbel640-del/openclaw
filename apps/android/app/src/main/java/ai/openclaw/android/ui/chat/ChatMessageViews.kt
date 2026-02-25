@@ -21,6 +21,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -326,21 +332,55 @@ private fun ChatBase64Image(base64: String, mimeType: String?) {
 
 @Composable
 private fun DotPulse(color: Color) {
-  Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-    PulseDot(alpha = 0.4f, color = color)
-    PulseDot(alpha = 0.6f, color = color)
-    PulseDot(alpha = 0.8f, color = color)
+  Row(
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
+  ) {
+    // Material 3 Animated typing indicator
+    AnimatedDots(color = color)
   }
 }
 
 @Composable
-private fun PulseDot(alpha: Float, color: Color) {
-  Box(
-    modifier = Modifier
-      .size(8.dp)
-      .alpha(alpha)
-      .background(color, CircleShape),
+private fun AnimatedDots(color: Color) {
+  val infiniteTransition = rememberInfiniteTransition(label = "typing")
+  
+  val alpha1 by infiniteTransition.animateFloat(
+    initialValue = 0.3f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(600, easing = LinearEasing),
+      repeatMode = RepeatMode.Reverse
+    ),
+    label = "dot1"
   )
+  
+  val alpha2 by infiniteTransition.animateFloat(
+    initialValue = 0.3f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(600, easing = LinearEasing, delayMillis = 200),
+      repeatMode = RepeatMode.Reverse
+    ),
+    label = "dot2"
+  )
+  
+  val alpha3 by infiniteTransition.animateFloat(
+    initialValue = 0.3f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(600, easing = LinearEasing, delayMillis = 400),
+      repeatMode = RepeatMode.Reverse
+    ),
+    label = "dot3"
+  )
+  
+  Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Box(modifier = Modifier.size(8.dp).alpha(alpha1).background(color, CircleShape))
+    Box(modifier = Modifier.size(8.dp).alpha(alpha2).background(color, CircleShape))
+    Box(modifier = Modifier.size(8.dp).alpha(alpha3).background(color, CircleShape))
+  }
 }
 
 @Composable
