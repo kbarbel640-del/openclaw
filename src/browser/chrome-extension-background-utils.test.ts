@@ -2,7 +2,11 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 type BackgroundUtilsModule = {
-  buildRelayWsUrl: (port: number, gatewayToken: string) => Promise<string>;
+  buildRelayWsUrl: (
+    port: number,
+    gatewayToken: string,
+    tokenPreDerived?: boolean,
+  ) => Promise<string>;
   deriveRelayToken: (gatewayToken: string, port: number) => Promise<string>;
   isRetryableReconnectError: (err: unknown) => boolean;
   reconnectDelayMs: (
@@ -47,6 +51,21 @@ describe("chrome extension background utils", () => {
   it("throws when gateway token is missing", async () => {
     await expect(buildRelayWsUrl(18792, "")).rejects.toThrow(/Missing gatewayToken/);
     await expect(buildRelayWsUrl(18792, "   ")).rejects.toThrow(/Missing gatewayToken/);
+  });
+
+  it("skips derivation when tokenPreDerived is true", async () => {
+    const preDerivedToken = "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234";
+    const url = await buildRelayWsUrl(18792, preDerivedToken, true);
+    expect(url).toBe(`ws://127.0.0.1:18792/extension?token=${preDerivedToken}`);
+  });
+
+  it("still derives when tokenPreDerived is false or omitted", async () => {
+    const rawToken = "my-raw-gateway-token";
+    const derived = await deriveRelayToken(rawToken, 18792);
+    const url1 = await buildRelayWsUrl(18792, rawToken, false);
+    expect(url1).toBe(`ws://127.0.0.1:18792/extension?token=${derived}`);
+    const url2 = await buildRelayWsUrl(18792, rawToken);
+    expect(url2).toBe(`ws://127.0.0.1:18792/extension?token=${derived}`);
   });
 
   it("uses exponential backoff from attempt index", () => {

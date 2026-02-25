@@ -39,6 +39,27 @@ async function checkRelayReachable(port, token) {
       url,
       token: relayToken,
     })
+
+    if (res && res.status === 401) {
+      // The derived token was rejected — the user may have entered an
+      // already-derived relay token instead of the raw gateway token.
+      // Try the input verbatim before reporting failure.
+      const retryRes = await chrome.runtime.sendMessage({
+        type: 'relayCheck',
+        url,
+        token: trimmedToken,
+      })
+      if (retryRes && retryRes.status !== 401) {
+        await chrome.storage.local.set({ tokenPreDerived: true })
+        const retryResult = classifyRelayCheckResponse(retryRes, port)
+        if (retryResult.action === 'throw') throw new Error(retryResult.error)
+        setStatus(retryResult.kind, retryResult.message)
+        return
+      }
+    }
+
+    // Raw gateway token path — derivation worked (or both forms failed).
+    await chrome.storage.local.set({ tokenPreDerived: false })
     const result = classifyRelayCheckResponse(res, port)
     if (result.action === 'throw') throw new Error(result.error)
     setStatus(result.kind, result.message)

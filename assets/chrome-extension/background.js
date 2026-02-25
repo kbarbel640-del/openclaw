@@ -55,9 +55,9 @@ async function getRelayPort() {
 }
 
 async function getGatewayToken() {
-  const stored = await chrome.storage.local.get(['gatewayToken'])
+  const stored = await chrome.storage.local.get(['gatewayToken', 'tokenPreDerived'])
   const token = String(stored.gatewayToken || '').trim()
-  return token || ''
+  return { token: token || '', preDerived: stored.tokenPreDerived === true }
 }
 
 function setBadge(tabId, kind) {
@@ -130,9 +130,9 @@ async function ensureRelayConnection() {
 
   relayConnectPromise = (async () => {
     const port = await getRelayPort()
-    const gatewayToken = await getGatewayToken()
+    const { token: gatewayToken, preDerived } = await getGatewayToken()
     const httpBase = `http://127.0.0.1:${port}`
-    const wsUrl = await buildRelayWsUrl(port, gatewayToken)
+    const wsUrl = await buildRelayWsUrl(port, gatewayToken, preDerived)
 
     // Fast preflight: is the relay server up?
     try {
