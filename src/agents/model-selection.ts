@@ -514,7 +514,6 @@ export function resolveAllowedModelRef(params: {
   raw: string;
   defaultProvider: string;
   defaultModel?: string;
-  requireProviderOrAlias?: boolean;
 }):
   | { ref: ModelRef; key: string }
   | {
@@ -536,9 +535,6 @@ export function resolveAllowedModelRef(params: {
   });
   if (!resolved) {
     return { error: `invalid model: ${trimmed}` };
-  }
-  if (params.requireProviderOrAlias === true && !resolved.alias && !trimmed.includes("/")) {
-    return { error: `invalid model: ${trimmed} (use provider/model or alias)` };
   }
 
   const status = getModelRefStatus({

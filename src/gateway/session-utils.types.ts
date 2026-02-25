@@ -37,8 +37,6 @@ export type GatewaySessionRow = {
   responseUsage?: "on" | "off" | "tokens" | "full";
   modelProvider?: string;
   model?: string;
-  providerOverride?: string;
-  modelOverride?: string;
   contextTokens?: number;
   deliveryContext?: DeliveryContext;
   lastChannel?: SessionEntry["lastChannel"];
@@ -90,9 +88,5 @@ export type SessionsPatchResult = {
   resolved?: {
     modelProvider?: string;
     model?: string;
-    selectedModelProvider?: string;
-    selectedModel?: string;
-    activeModelProvider?: string;
-    activeModel?: string;
   };
 };

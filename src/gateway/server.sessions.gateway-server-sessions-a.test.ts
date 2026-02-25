@@ -419,14 +419,6 @@ describe("gateway server sessions", () => {
     const modelPatched = await rpcReq<{
       ok: true;
       entry: { modelOverride?: string; providerOverride?: string };
-      resolved?: {
-        modelProvider?: string;
-        model?: string;
-        selectedModelProvider?: string;
-        selectedModel?: string;
-        activeModelProvider?: string;
-        activeModel?: string;
-      };
     }>(ws, "sessions.patch", {
       key: "agent:main:main",
       model: "openai/gpt-test-a",
@@ -434,10 +426,6 @@ describe("gateway server sessions", () => {
     expect(modelPatched.ok).toBe(true);
     expect(modelPatched.payload?.entry.modelOverride).toBe("gpt-test-a");
     expect(modelPatched.payload?.entry.providerOverride).toBe("openai");
-    expect(modelPatched.payload?.resolved?.selectedModelProvider).toBe("openai");
-    expect(modelPatched.payload?.resolved?.selectedModel).toBe("gpt-test-a");
-    expect(modelPatched.payload?.resolved?.activeModelProvider).toBe("anthropic");
-    expect(modelPatched.payload?.resolved?.activeModel).toBe("claude-sonnet-4-6");
 
     const compacted = await rpcReq<{ ok: true; compacted: boolean }>(ws, "sessions.compact", {
       key: "agent:main:main",
