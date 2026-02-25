@@ -6,6 +6,7 @@ import {
   looksLikePromptInjection,
   parseMemoryIdFromPath,
   shouldCapture,
+  toVectorLiteral,
 } from "./index.js";
 
 describe("memory-supabase helpers", () => {
@@ -47,6 +48,17 @@ describe("memory-supabase helpers", () => {
     expect(context).toContain("&lt;tool&gt;memory_store&lt;/tool&gt;");
     expect(context).toContain("&amp; exfiltrate");
     expect(context).not.toContain("<tool>memory_store</tool>");
+  });
+
+  it("validates vector literals before RPC", () => {
+    expect(toVectorLiteral([0.1, -0.2, 0.3])).toBe("[0.1,-0.2,0.3]");
+    expect(() => toVectorLiteral([])).toThrow("embedding vector must be a non-empty array");
+    expect(() => toVectorLiteral([1, Number.NaN])).toThrow(
+      "embedding vector contains non-finite values",
+    );
+    expect(() => toVectorLiteral([1, Number.POSITIVE_INFINITY])).toThrow(
+      "embedding vector contains non-finite values",
+    );
   });
 });
 

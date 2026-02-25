@@ -46,7 +46,15 @@ function toAgentId(agentId?: string): string {
   return trimmed || "main";
 }
 
-function toVectorLiteral(vector: number[]): string {
+export function toVectorLiteral(vector: number[]): string {
+  if (!Array.isArray(vector) || vector.length === 0) {
+    throw new Error("embedding vector must be a non-empty array");
+  }
+  for (const value of vector) {
+    if (!Number.isFinite(value)) {
+      throw new Error("embedding vector contains non-finite values");
+    }
+  }
   return `[${vector.join(",")}]`;
 }
 
