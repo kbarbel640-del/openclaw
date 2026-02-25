@@ -83,7 +83,7 @@ It supports:
 
 ### Performance and scale
 
-- Keep the `ivfflat` index from `schema.sql`.
+- Keep the `hnsw` vector index from `schema.sql`.
 - Run `ANALYZE` after large backfills so query planning stays accurate.
 - Use bounded recall in config (`maxRecallResults`, `minScore`) to control cost
   and latency.
