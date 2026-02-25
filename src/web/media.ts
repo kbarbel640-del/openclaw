@@ -25,6 +25,7 @@ export type WebMediaResult = {
 
 type WebMediaOptions = {
   maxBytes?: number;
+  maxDimensionPx?: number;
   optimizeImages?: boolean;
   ssrfPolicy?: SsrFPolicy;
   /** Allowed root directories for local path reads. "any" is deprecated; prefer sandboxValidated + readFile. */
@@ -208,9 +209,10 @@ function logOptimizedImage(params: { originalSize: number; optimized: OptimizedI
 async function optimizeImageWithFallback(params: {
   buffer: Buffer;
   cap: number;
+  maxDimensionPx?: number;
   meta?: { contentType?: string; fileName?: string };
 }): Promise<OptimizedImage> {
-  const { buffer, cap, meta } = params;
+  const { buffer, cap, maxDimensionPx, meta } = params;
   const isPng = meta?.contentType === "image/png" || meta?.fileName?.toLowerCase().endsWith(".png");
   const hasAlpha = isPng && (await hasAlphaChannel(buffer));
 
@@ -226,7 +228,7 @@ async function optimizeImageWithFallback(params: {
     }
   }
 
-  const optimized = await optimizeImageToJpeg(buffer, cap, meta);
+  const optimized = await optimizeImageToJpeg(buffer, cap, { ...meta, maxDimensionPx });
   return { ...optimized, format: "jpeg" };
 }
 
@@ -260,7 +262,12 @@ async function loadWebMediaInternal(
     meta?: { contentType?: string; fileName?: string },
   ) => {
     const originalSize = buffer.length;
-    const optimized = await optimizeImageWithFallback({ buffer, cap, meta });
+    const optimized = await optimizeImageWithFallback({
+      buffer,
+      cap,
+      maxDimensionPx: options.maxDimensionPx,
+      meta,
+    });
     logOptimizedImage({ originalSize, optimized });
 
     if (optimized.buffer.length > cap) {
@@ -426,7 +433,7 @@ export async function loadWebMediaRaw(
 export async function optimizeImageToJpeg(
   buffer: Buffer,
   maxBytes: number,
-  opts: { contentType?: string; fileName?: string } = {},
+  opts: { contentType?: string; fileName?: string; maxDimensionPx?: number } = {},
 ): Promise<{
   buffer: Buffer;
   optimizedSize: number;
@@ -442,7 +449,14 @@ export async function optimizeImageToJpeg(
       throw new Error(`HEIC image conversion failed: ${String(err)}`, { cause: err });
     }
   }
-  const sides = [2048, 1536, 1280, 1024, 800];
+  const defaultSides = [2048, 1536, 1280, 1024, 800];
+  const configuredSide =
+    typeof opts.maxDimensionPx === "number" && Number.isFinite(opts.maxDimensionPx)
+      ? Math.max(1, Math.floor(opts.maxDimensionPx))
+      : undefined;
+  const sides = configuredSide
+    ? [configuredSide, ...defaultSides.filter((side) => side <= configuredSide)]
+    : defaultSides;
   const qualities = [80, 70, 60, 50, 40];
   let smallest: {
     buffer: Buffer;

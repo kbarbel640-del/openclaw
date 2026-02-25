@@ -148,6 +148,48 @@ describe("web media loading", () => {
     expect(result.buffer.length).toBeLessThan(buffer.length);
   });
 
+  it("respects maxDimensionPx during image optimization in media loading", async () => {
+    const oversized = await sharp({
+      create: {
+        width: 2400,
+        height: 1600,
+        channels: 3,
+        background: "#336699",
+      },
+    })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+    const file = await writeTempFile(oversized, ".jpg");
+
+    const result = await loadWebMedia(file, {
+      maxBytes: Math.max(oversized.length, 1024 * 1024),
+      maxDimensionPx: 900,
+    });
+
+    const metadata = await sharp(result.buffer).metadata();
+    const maxSide = Math.max(metadata.width ?? 0, metadata.height ?? 0);
+    expect(maxSide).toBeLessThanOrEqual(900);
+  });
+
+  it("allows optimizeImageToJpeg to use configured sides above the default grid", async () => {
+    const oversized = await sharp({
+      create: {
+        width: 2600,
+        height: 1800,
+        channels: 3,
+        background: "#663399",
+      },
+    })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    const optimized = await optimizeImageToJpeg(oversized, oversized.length * 2, {
+      maxDimensionPx: 2200,
+    });
+
+    expect(optimized.resizeSide).toBe(2200);
+  });
+
   it("optimizes images when options object omits optimizeImages", async () => {
     const { buffer, file } = await createLargeTestJpeg();
     const cap = Math.max(1, Math.floor(buffer.length * 0.8));

@@ -181,6 +181,7 @@ export async function loadImageFromRef(
   workspaceDir: string,
   options?: {
     maxBytes?: number;
+    maxDimensionPx?: number;
     sandbox?: { root: string; bridge: SandboxFsBridge };
   },
 ): Promise<ImageContent | null> {
@@ -217,11 +218,15 @@ export async function loadImageFromRef(
     const media = options?.sandbox
       ? await loadWebMedia(targetPath, {
           maxBytes: options.maxBytes,
+          maxDimensionPx: options.maxDimensionPx,
           sandboxValidated: true,
           readFile: (filePath) =>
             options.sandbox!.bridge.readFile({ filePath, cwd: options.sandbox!.root }),
         })
-      : await loadWebMedia(targetPath, options?.maxBytes);
+      : await loadWebMedia(targetPath, {
+          maxBytes: options?.maxBytes,
+          maxDimensionPx: options?.maxDimensionPx,
+        });
 
     if (media.kind !== "image") {
       log.debug(`Native image: not an image file: ${targetPath} (got ${media.kind})`);
@@ -422,6 +427,7 @@ export async function detectAndLoadPromptImages(params: {
   for (const ref of allRefs) {
     const image = await loadImageFromRef(ref, params.workspaceDir, {
       maxBytes: params.maxBytes,
+      maxDimensionPx: params.maxDimensionPx,
       sandbox: params.sandbox,
     });
     if (image) {
