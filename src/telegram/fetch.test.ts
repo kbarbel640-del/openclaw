@@ -10,6 +10,11 @@ const AgentCtor = vi.hoisted(() =>
     this.options = options;
   }),
 );
+const EnvHttpProxyAgentCtor = vi.hoisted(() =>
+  vi.fn(function MockEnvHttpProxyAgent(this: { options: unknown }, options: unknown) {
+    this.options = options;
+  }),
+);
 
 vi.mock("node:net", async () => {
   const actual = await vi.importActual<typeof import("node:net")>("node:net");
@@ -29,6 +34,7 @@ vi.mock("node:dns", async () => {
 
 vi.mock("undici", () => ({
   Agent: AgentCtor,
+  EnvHttpProxyAgent: EnvHttpProxyAgentCtor,
   setGlobalDispatcher,
 }));
 
@@ -40,6 +46,7 @@ afterEach(() => {
   setDefaultResultOrder.mockReset();
   setGlobalDispatcher.mockReset();
   AgentCtor.mockClear();
+  EnvHttpProxyAgentCtor.mockClear();
   vi.unstubAllEnvs();
   vi.clearAllMocks();
   if (originalFetch) {
@@ -147,12 +154,12 @@ describe("resolveTelegramFetch", () => {
     expect(setDefaultResultOrder).toHaveBeenCalledTimes(2);
   });
 
-  it("replaces global undici dispatcher with autoSelectFamily-enabled agent", async () => {
+  it("replaces global undici dispatcher with proxy-aware autoSelectFamily-enabled agent", async () => {
     globalThis.fetch = vi.fn(async () => ({})) as unknown as typeof fetch;
     resolveTelegramFetch(undefined, { network: { autoSelectFamily: true } });
 
     expect(setGlobalDispatcher).toHaveBeenCalledTimes(1);
-    expect(AgentCtor).toHaveBeenCalledWith({
+    expect(EnvHttpProxyAgentCtor).toHaveBeenCalledWith({
       connect: {
         autoSelectFamily: true,
         autoSelectFamilyAttemptTimeout: 300,
@@ -174,13 +181,13 @@ describe("resolveTelegramFetch", () => {
     resolveTelegramFetch(undefined, { network: { autoSelectFamily: false } });
 
     expect(setGlobalDispatcher).toHaveBeenCalledTimes(2);
-    expect(AgentCtor).toHaveBeenNthCalledWith(1, {
+    expect(EnvHttpProxyAgentCtor).toHaveBeenNthCalledWith(1, {
       connect: {
         autoSelectFamily: true,
         autoSelectFamilyAttemptTimeout: 300,
       },
     });
-    expect(AgentCtor).toHaveBeenNthCalledWith(2, {
+    expect(EnvHttpProxyAgentCtor).toHaveBeenNthCalledWith(2, {
       connect: {
         autoSelectFamily: false,
         autoSelectFamilyAttemptTimeout: 300,
