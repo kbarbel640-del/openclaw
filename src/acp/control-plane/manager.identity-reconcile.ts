@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import { logVerbose } from "../../globals.js";
-import { toAcpRuntimeError } from "../runtime/errors.js";
+import { withAcpRuntimeErrorBoundary } from "../runtime/errors.js";
 import {
   createIdentityFromStatus,
   identityEquals,
@@ -38,16 +38,17 @@ export async function reconcileManagerRuntimeSessionIdentifiers(params: {
   let runtimeStatus = params.runtimeStatus;
   if (!runtimeStatus && params.runtime.getStatus) {
     try {
-      runtimeStatus = await params.runtime.getStatus({
-        handle: params.handle,
+      runtimeStatus = await withAcpRuntimeErrorBoundary({
+        run: async () =>
+          await params.runtime.getStatus!({
+            handle: params.handle,
+          }),
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not read ACP runtime status.",
       });
     } catch (error) {
       if (params.failOnStatusError) {
-        throw toAcpRuntimeError({
-          error,
-          fallbackCode: "ACP_TURN_FAILED",
-          fallbackMessage: "Could not read ACP runtime status.",
-        });
+        throw error;
       }
       logVerbose(
         `acp-manager: failed to refresh ACP runtime status for ${params.sessionKey}: ${String(error)}`,

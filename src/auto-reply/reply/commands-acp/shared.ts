@@ -478,3 +478,23 @@ export function collectAcpErrorText(params: {
     fallbackMessage: params.fallbackMessage,
   });
 }
+
+export async function withAcpCommandErrorBoundary<T>(params: {
+  run: () => Promise<T>;
+  fallbackCode: AcpRuntimeError["code"];
+  fallbackMessage: string;
+  onSuccess: (value: T) => CommandHandlerResult;
+}): Promise<CommandHandlerResult> {
+  try {
+    const result = await params.run();
+    return params.onSuccess(result);
+  } catch (error) {
+    return stopWithText(
+      collectAcpErrorText({
+        error,
+        fallbackCode: params.fallbackCode,
+        fallbackMessage: params.fallbackMessage,
+      }),
+    );
+  }
+}

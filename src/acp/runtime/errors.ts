@@ -43,3 +43,19 @@ export function toAcpRuntimeError(params: {
     cause: params.error,
   });
 }
+
+export async function withAcpRuntimeErrorBoundary<T>(params: {
+  run: () => Promise<T>;
+  fallbackCode: AcpRuntimeErrorCode;
+  fallbackMessage: string;
+}): Promise<T> {
+  try {
+    return await params.run();
+  } catch (error) {
+    throw toAcpRuntimeError({
+      error,
+      fallbackCode: params.fallbackCode,
+      fallbackMessage: params.fallbackMessage,
+    });
+  }
+}

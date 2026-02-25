@@ -2,7 +2,11 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { logVerbose } from "../../globals.js";
 import { normalizeAgentId } from "../../routing/session-key.js";
 import { isAcpSessionKey } from "../../sessions/session-key-utils.js";
-import { AcpRuntimeError, toAcpRuntimeError } from "../runtime/errors.js";
+import {
+  AcpRuntimeError,
+  toAcpRuntimeError,
+  withAcpRuntimeErrorBoundary,
+} from "../runtime/errors.js";
 import {
   createIdentityFromEnsure,
   identityEquals,
@@ -218,21 +222,17 @@ export class AcpSessionManager {
       const runtime = backend.runtime;
       const initialRuntimeOptions = validateRuntimeOptionPatch({ cwd: input.cwd });
       const requestedCwd = initialRuntimeOptions.cwd;
-      let handle: AcpRuntimeHandle;
-      try {
-        handle = await runtime.ensureSession({
-          sessionKey,
-          agent,
-          mode: input.mode,
-          cwd: requestedCwd,
-        });
-      } catch (error) {
-        throw toAcpRuntimeError({
-          error,
-          fallbackCode: "ACP_SESSION_INIT_FAILED",
-          fallbackMessage: "Could not initialize ACP session runtime.",
-        });
-      }
+      const handle = await withAcpRuntimeErrorBoundary({
+        run: async () =>
+          await runtime.ensureSession({
+            sessionKey,
+            agent,
+            mode: input.mode,
+            cwd: requestedCwd,
+          }),
+        fallbackCode: "ACP_SESSION_INIT_FAILED",
+        fallbackMessage: "Could not initialize ACP session runtime.",
+      });
       const effectiveCwd = normalizeText(handle.cwd) ?? requestedCwd;
       const effectiveRuntimeOptions = normalizeRuntimeOptions({
         ...initialRuntimeOptions,
@@ -346,15 +346,11 @@ export class AcpSessionManager {
       const capabilities = await this.resolveRuntimeCapabilities({ runtime, handle });
       let runtimeStatus: AcpRuntimeStatus | undefined;
       if (runtime.getStatus) {
-        try {
-          runtimeStatus = await runtime.getStatus({ handle });
-        } catch (error) {
-          throw toAcpRuntimeError({
-            error,
-            fallbackCode: "ACP_TURN_FAILED",
-            fallbackMessage: "Could not read ACP runtime status.",
-          });
-        }
+        runtimeStatus = await withAcpRuntimeErrorBoundary({
+          run: async () => await runtime.getStatus!({ handle }),
+          fallbackCode: "ACP_TURN_FAILED",
+          fallbackMessage: "Could not read ACP runtime status.",
+        });
       }
       ({ handle, meta, runtimeStatus } = await this.reconcileRuntimeSessionIdentifiers({
         cfg: params.cfg,
@@ -421,18 +417,15 @@ export class AcpSessionManager {
         });
       }
 
-      try {
-        await runtime.setMode({
-          handle,
-          mode: runtimeMode,
-        });
-      } catch (error) {
-        throw toAcpRuntimeError({
-          error,
-          fallbackCode: "ACP_TURN_FAILED",
-          fallbackMessage: "Could not update ACP runtime mode.",
-        });
-      }
+      await withAcpRuntimeErrorBoundary({
+        run: async () =>
+          await runtime.setMode!({
+            handle,
+            mode: runtimeMode,
+          }),
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not update ACP runtime mode.",
+      });
 
       const nextOptions = mergeRuntimeOptions({
         current: resolveRuntimeOptionsFromMeta(meta),
@@ -505,19 +498,16 @@ export class AcpSessionManager {
         );
       }
 
-      try {
-        await runtime.setConfigOption({
-          handle,
-          key,
-          value,
-        });
-      } catch (error) {
-        throw toAcpRuntimeError({
-          error,
-          fallbackCode: "ACP_TURN_FAILED",
-          fallbackMessage: "Could not update ACP runtime config option.",
-        });
-      }
+      await withAcpRuntimeErrorBoundary({
+        run: async () =>
+          await runtime.setConfigOption!({
+            handle,
+            key,
+            value,
+          }),
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not update ACP runtime config option.",
+      });
 
       const nextOptions = mergeRuntimeOptions({
         current: resolveRuntimeOptionsFromMeta(meta),
@@ -599,18 +589,15 @@ export class AcpSessionManager {
         sessionKey,
         meta: resolution.meta,
       });
-      try {
-        await runtime.close({
-          handle,
-          reason: "reset-runtime-options",
-        });
-      } catch (error) {
-        throw toAcpRuntimeError({
-          error,
-          fallbackCode: "ACP_TURN_FAILED",
-          fallbackMessage: "Could not reset ACP runtime options.",
-        });
-      }
+      await withAcpRuntimeErrorBoundary({
+        run: async () =>
+          await runtime.close({
+            handle,
+            reason: "reset-runtime-options",
+          }),
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "Could not reset ACP runtime options.",
+      });
       this.clearCachedRuntimeState(sessionKey);
       await this.persistRuntimeOptions({
         cfg: params.cfg,
@@ -791,15 +778,11 @@ export class AcpSessionManager {
           reason: params.reason,
         });
       }
-      try {
-        await activeTurn.cancelPromise;
-      } catch (error) {
-        throw toAcpRuntimeError({
-          error,
-          fallbackCode: "ACP_TURN_FAILED",
-          fallbackMessage: "ACP cancel failed before completion.",
-        });
-      }
+      await withAcpRuntimeErrorBoundary({
+        run: async () => await activeTurn.cancelPromise!,
+        fallbackCode: "ACP_TURN_FAILED",
+        fallbackMessage: "ACP cancel failed before completion.",
+      });
       return;
     }
 
@@ -823,9 +806,14 @@ export class AcpSessionManager {
         meta: resolution.meta,
       });
       try {
-        await runtime.cancel({
-          handle,
-          reason: params.reason,
+        await withAcpRuntimeErrorBoundary({
+          run: async () =>
+            await runtime.cancel({
+              handle,
+              reason: params.reason,
+            }),
+          fallbackCode: "ACP_TURN_FAILED",
+          fallbackMessage: "ACP cancel failed before completion.",
         });
         await this.setSessionState({
           cfg: params.cfg,
@@ -891,9 +879,14 @@ export class AcpSessionManager {
           sessionKey,
           meta: resolution.meta,
         });
-        await runtime.close({
-          handle,
-          reason: input.reason,
+        await withAcpRuntimeErrorBoundary({
+          run: async () =>
+            await runtime.close({
+              handle,
+              reason: input.reason,
+            }),
+          fallbackCode: "ACP_TURN_FAILED",
+          fallbackMessage: "ACP close failed before completion.",
         });
         runtimeClosed = true;
         this.clearCachedRuntimeState(sessionKey);
@@ -973,21 +966,17 @@ export class AcpSessionManager {
 
     const backend = this.deps.requireRuntimeBackend(configuredBackend || undefined);
     const runtime = backend.runtime;
-    let ensured: AcpRuntimeHandle;
-    try {
-      ensured = await runtime.ensureSession({
-        sessionKey: params.sessionKey,
-        agent,
-        mode,
-        cwd,
-      });
-    } catch (error) {
-      throw toAcpRuntimeError({
-        error,
-        fallbackCode: "ACP_SESSION_INIT_FAILED",
-        fallbackMessage: "Could not initialize ACP session runtime.",
-      });
-    }
+    const ensured = await withAcpRuntimeErrorBoundary({
+      run: async () =>
+        await runtime.ensureSession({
+          sessionKey: params.sessionKey,
+          agent,
+          mode,
+          cwd,
+        }),
+      fallbackCode: "ACP_SESSION_INIT_FAILED",
+      fallbackMessage: "Could not initialize ACP session runtime.",
+    });
 
     const previousMeta = params.meta;
     const previousIdentity = resolveSessionIdentityFromMeta(previousMeta);

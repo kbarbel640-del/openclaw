@@ -2,6 +2,7 @@ import type { SessionAcpIdentity, SessionAcpMeta } from "../../config/sessions/t
 import { isSessionIdentityPending, resolveSessionIdentityFromMeta } from "./session-identity.js";
 
 export const ACP_SESSION_IDENTITY_RENDERER_VERSION = "v1";
+export type AcpSessionIdentifierRenderMode = "status" | "thread";
 
 type SessionResumeHintResolver = (params: { agentSessionId: string }) => string;
 
@@ -61,20 +62,27 @@ export function resolveAcpSessionIdentifierLines(params: {
   return resolveAcpSessionIdentifierLinesFromIdentity({
     backend,
     identity,
+    mode: "status",
   });
 }
 
 export function resolveAcpSessionIdentifierLinesFromIdentity(params: {
   backend: string;
   identity?: SessionAcpIdentity;
+  mode?: AcpSessionIdentifierRenderMode;
 }): string[] {
   const backend = normalizeText(params.backend) ?? "backend";
+  const mode = params.mode ?? "status";
   const identity = params.identity;
   const agentSessionId = normalizeText(identity?.agentSessionId);
   const acpxSessionId = normalizeText(identity?.acpxSessionId);
   const acpxRecordId = normalizeText(identity?.acpxRecordId);
-  if (isSessionIdentityPending(identity) && (agentSessionId || acpxSessionId || acpxRecordId)) {
-    return ["session ids: pending (available after the first reply)"];
+  const hasIdentifier = Boolean(agentSessionId || acpxSessionId || acpxRecordId);
+  if (isSessionIdentityPending(identity) && hasIdentifier) {
+    if (mode === "status") {
+      return ["session ids: pending (available after the first reply)"];
+    }
+    return [];
   }
   const lines: string[] = [];
   if (agentSessionId) {
@@ -103,13 +111,11 @@ export function resolveAcpThreadSessionDetailLines(params: {
 }): string[] {
   const meta = params.meta;
   const identity = resolveSessionIdentityFromMeta(meta);
-  if (isSessionIdentityPending(identity)) {
-    return [];
-  }
   const backend = normalizeText(meta?.backend) ?? "backend";
   const lines = resolveAcpSessionIdentifierLinesFromIdentity({
     backend,
     identity,
+    mode: "thread",
   });
   if (lines.length === 0) {
     return lines;

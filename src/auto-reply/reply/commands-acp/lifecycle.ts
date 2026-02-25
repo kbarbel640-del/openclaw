@@ -10,7 +10,6 @@ import {
   resolveAcpDispatchPolicyError,
   resolveAcpDispatchPolicyMessage,
 } from "../../../acp/policy.js";
-import { toAcpRuntimeErrorText } from "../../../acp/runtime/error-text.js";
 import { AcpRuntimeError } from "../../../acp/runtime/errors.js";
 import {
   resolveAcpSessionCwd,
@@ -47,6 +46,7 @@ import {
   resolveCommandRequestId,
   stopWithText,
   type AcpSpawnThreadMode,
+  withAcpCommandErrorBoundary,
 } from "./shared.js";
 import { resolveAcpTargetSessionKey } from "./targets.js";
 
@@ -397,22 +397,17 @@ export async function handleAcpCancelAction(
     );
   }
 
-  try {
-    await acpManager.cancelSession({
-      cfg: params.cfg,
-      sessionKey: target.sessionKey,
-      reason: "manual-cancel",
-    });
-    return stopWithText(`✅ Cancel requested for ACP session ${target.sessionKey}.`);
-  } catch (err) {
-    return stopWithText(
-      collectAcpErrorText({
-        error: err,
-        fallbackCode: "ACP_TURN_FAILED",
-        fallbackMessage: "ACP cancel failed before completion.",
+  return await withAcpCommandErrorBoundary({
+    run: async () =>
+      await acpManager.cancelSession({
+        cfg: params.cfg,
+        sessionKey: target.sessionKey,
+        reason: "manual-cancel",
       }),
-    );
-  }
+    fallbackCode: "ACP_TURN_FAILED",
+    fallbackMessage: "ACP cancel failed before completion.",
+    onSuccess: () => stopWithText(`✅ Cancel requested for ACP session ${target.sessionKey}.`),
+  });
 }
 
 async function runAcpSteer(params: {
@@ -503,27 +498,23 @@ export async function handleAcpSteerAction(
     );
   }
 
-  try {
-    const steerOutput = await runAcpSteer({
-      cfg: params.cfg,
-      sessionKey: target.sessionKey,
-      instruction: parsed.value.instruction,
-      requestId: `${resolveCommandRequestId(params)}:steer`,
-    });
-
-    if (!steerOutput) {
-      return stopWithText(`✅ ACP steer sent to ${target.sessionKey}.`);
-    }
-    return stopWithText(`✅ ACP steer sent to ${target.sessionKey}.\n${steerOutput}`);
-  } catch (err) {
-    return stopWithText(
-      collectAcpErrorText({
-        error: err,
-        fallbackCode: "ACP_TURN_FAILED",
-        fallbackMessage: "ACP steer failed before completion.",
+  return await withAcpCommandErrorBoundary({
+    run: async () =>
+      await runAcpSteer({
+        cfg: params.cfg,
+        sessionKey: target.sessionKey,
+        instruction: parsed.value.instruction,
+        requestId: `${resolveCommandRequestId(params)}:steer`,
       }),
-    );
-  }
+    fallbackCode: "ACP_TURN_FAILED",
+    fallbackMessage: "ACP steer failed before completion.",
+    onSuccess: (steerOutput) => {
+      if (!steerOutput) {
+        return stopWithText(`✅ ACP steer sent to ${target.sessionKey}.`);
+      }
+      return stopWithText(`✅ ACP steer sent to ${target.sessionKey}.\n${steerOutput}`);
+    },
+  });
 }
 
 export async function handleAcpCloseAction(
@@ -576,10 +567,10 @@ export async function handleAcpCloseAction(
       clearMeta: true,
     });
     runtimeNotice = closed.runtimeNotice ? ` (${closed.runtimeNotice})` : "";
-  } catch (err) {
+  } catch (error) {
     return stopWithText(
-      toAcpRuntimeErrorText({
-        error: err,
+      collectAcpErrorText({
+        error,
         fallbackCode: "ACP_TURN_FAILED",
         fallbackMessage: "ACP close failed before completion.",
       }),

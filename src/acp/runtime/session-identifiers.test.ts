@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveAcpSessionCwd, resolveAcpThreadSessionDetailLines } from "./session-identifiers.js";
+import {
+  resolveAcpSessionCwd,
+  resolveAcpSessionIdentifierLinesFromIdentity,
+  resolveAcpThreadSessionDetailLines,
+} from "./session-identifiers.js";
 
 describe("session identifier helpers", () => {
   it("hides unresolved identifiers from thread intro details while pending", () => {
@@ -50,6 +54,21 @@ describe("session identifier helpers", () => {
     expect(lines).toContain(
       "resume in Codex CLI: `codex resume inner-123` (continues this conversation).",
     );
+  });
+
+  it("shows pending identity text for status rendering", () => {
+    const lines = resolveAcpSessionIdentifierLinesFromIdentity({
+      backend: "acpx",
+      mode: "status",
+      identity: {
+        state: "pending",
+        source: "status",
+        lastUpdatedAt: Date.now(),
+        agentSessionId: "inner-123",
+      },
+    });
+
+    expect(lines).toEqual(["session ids: pending (available after the first reply)"]);
   });
 
   it("prefers runtimeOptions.cwd over legacy meta.cwd", () => {

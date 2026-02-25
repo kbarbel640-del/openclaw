@@ -1,4 +1,4 @@
-import { AcpRuntimeError, toAcpRuntimeError } from "../runtime/errors.js";
+import { AcpRuntimeError, withAcpRuntimeErrorBoundary } from "../runtime/errors.js";
 import type { AcpRuntime, AcpRuntimeCapabilities, AcpRuntimeHandle } from "../runtime/types.js";
 import type { SessionAcpMeta } from "./manager.types.js";
 import { createUnsupportedControlError } from "./manager.utils.js";
@@ -16,15 +16,11 @@ export async function resolveManagerRuntimeCapabilities(params: {
 }): Promise<AcpRuntimeCapabilities> {
   let reported: AcpRuntimeCapabilities | undefined;
   if (params.runtime.getCapabilities) {
-    try {
-      reported = await params.runtime.getCapabilities({ handle: params.handle });
-    } catch (error) {
-      throw toAcpRuntimeError({
-        error,
-        fallbackCode: "ACP_TURN_FAILED",
-        fallbackMessage: "Could not read ACP runtime capabilities.",
-      });
-    }
+    reported = await withAcpRuntimeErrorBoundary({
+      run: async () => await params.runtime.getCapabilities!({ handle: params.handle }),
+      fallbackCode: "ACP_TURN_FAILED",
+      fallbackMessage: "Could not read ACP runtime capabilities.",
+    });
   }
   const controls = new Set<AcpRuntimeCapabilities["controls"][number]>(reported?.controls ?? []);
   if (params.runtime.setMode) {
@@ -72,54 +68,49 @@ export async function applyManagerRuntimeControls(params: {
       .filter(Boolean) as string[],
   );
 
-  try {
-    if (runtimeMode) {
-      if (!capabilities.controls.includes("session/set_mode") || !params.runtime.setMode) {
-        throw createUnsupportedControlError({
-          backend,
-          control: "session/set_mode",
-        });
-      }
-      await params.runtime.setMode({
-        handle: params.handle,
-        mode: runtimeMode,
-      });
-    }
-
-    if (configOptions.length > 0) {
-      if (
-        !capabilities.controls.includes("session/set_config_option") ||
-        !params.runtime.setConfigOption
-      ) {
-        throw createUnsupportedControlError({
-          backend,
-          control: "session/set_config_option",
-        });
-      }
-      for (const [key, value] of configOptions) {
-        if (advertisedKeys.size > 0 && !advertisedKeys.has(key)) {
-          throw new AcpRuntimeError(
-            "ACP_BACKEND_UNSUPPORTED_CONTROL",
-            `ACP backend "${backend}" does not accept config key "${key}".`,
-          );
+  await withAcpRuntimeErrorBoundary({
+    run: async () => {
+      if (runtimeMode) {
+        if (!capabilities.controls.includes("session/set_mode") || !params.runtime.setMode) {
+          throw createUnsupportedControlError({
+            backend,
+            control: "session/set_mode",
+          });
         }
-        await params.runtime.setConfigOption({
+        await params.runtime.setMode({
           handle: params.handle,
-          key,
-          value,
+          mode: runtimeMode,
         });
       }
-    }
-  } catch (error) {
-    if (error instanceof AcpRuntimeError) {
-      throw error;
-    }
-    throw toAcpRuntimeError({
-      error,
-      fallbackCode: "ACP_TURN_FAILED",
-      fallbackMessage: "Could not apply ACP runtime options before turn execution.",
-    });
-  }
+
+      if (configOptions.length > 0) {
+        if (
+          !capabilities.controls.includes("session/set_config_option") ||
+          !params.runtime.setConfigOption
+        ) {
+          throw createUnsupportedControlError({
+            backend,
+            control: "session/set_config_option",
+          });
+        }
+        for (const [key, value] of configOptions) {
+          if (advertisedKeys.size > 0 && !advertisedKeys.has(key)) {
+            throw new AcpRuntimeError(
+              "ACP_BACKEND_UNSUPPORTED_CONTROL",
+              `ACP backend "${backend}" does not accept config key "${key}".`,
+            );
+          }
+          await params.runtime.setConfigOption({
+            handle: params.handle,
+            key,
+            value,
+          });
+        }
+      }
+    },
+    fallbackCode: "ACP_TURN_FAILED",
+    fallbackMessage: "Could not apply ACP runtime options before turn execution.",
+  });
 
   if (cached) {
     cached.appliedControlSignature = signature;
