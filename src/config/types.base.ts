@@ -180,6 +180,8 @@ export type DiagnosticsOtelConfig = {
   sampleRate?: number;
   /** Metric export interval (ms). */
   flushIntervalMs?: number;
+  /** Additional OTEL resource attributes merged into the resource (e.g. service.namespace). */
+  resourceAttributes?: Record<string, string>;
 };
 
 export type DiagnosticsCacheTraceConfig = {
