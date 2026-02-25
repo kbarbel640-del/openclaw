@@ -4,7 +4,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { SlackAccountConfig } from "../config/types.js";
 import { resolveAccountEntry } from "../routing/account-lookup.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
-import { resolveSlackAppToken, resolveSlackBotToken } from "./token.js";
+import { normalizeSlackToken, resolveSlackAppToken, resolveSlackBotToken } from "./token.js";
 
 export type SlackTokenSource = "env" | "config" | "none";
 
@@ -61,12 +61,16 @@ export function resolveSlackAccount(params: {
   const allowEnv = accountId === DEFAULT_ACCOUNT_ID;
   const envBot = allowEnv ? resolveSlackBotToken(process.env.SLACK_BOT_TOKEN) : undefined;
   const envApp = allowEnv ? resolveSlackAppToken(process.env.SLACK_APP_TOKEN) : undefined;
+  const envUser = allowEnv ? normalizeSlackToken(process.env.SLACK_USER_TOKEN) : undefined;
   const configBot = resolveSlackBotToken(merged.botToken);
   const configApp = resolveSlackAppToken(merged.appToken);
+  const configUser = normalizeSlackToken(merged.userToken);
   const botToken = configBot ?? envBot;
   const appToken = configApp ?? envApp;
   const botTokenSource: SlackTokenSource = configBot ? "config" : envBot ? "env" : "none";
   const appTokenSource: SlackTokenSource = configApp ? "config" : envApp ? "env" : "none";
+  const config: SlackAccountConfig =
+    !configUser && envUser ? { ...merged, userToken: envUser } : merged;
 
   return {
     accountId,
@@ -76,18 +80,18 @@ export function resolveSlackAccount(params: {
     appToken,
     botTokenSource,
     appTokenSource,
-    config: merged,
-    groupPolicy: merged.groupPolicy,
-    textChunkLimit: merged.textChunkLimit,
-    mediaMaxMb: merged.mediaMaxMb,
-    reactionNotifications: merged.reactionNotifications,
-    reactionAllowlist: merged.reactionAllowlist,
-    replyToMode: merged.replyToMode,
-    replyToModeByChatType: merged.replyToModeByChatType,
-    actions: merged.actions,
-    slashCommand: merged.slashCommand,
-    dm: merged.dm,
-    channels: merged.channels,
+    config,
+    groupPolicy: config.groupPolicy,
+    textChunkLimit: config.textChunkLimit,
+    mediaMaxMb: config.mediaMaxMb,
+    reactionNotifications: config.reactionNotifications,
+    reactionAllowlist: config.reactionAllowlist,
+    replyToMode: config.replyToMode,
+    replyToModeByChatType: config.replyToModeByChatType,
+    actions: config.actions,
+    slashCommand: config.slashCommand,
+    dm: config.dm,
+    channels: config.channels,
   };
 }
 
