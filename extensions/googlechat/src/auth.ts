@@ -122,6 +122,17 @@ export async function verifyGoogleChatRequest(params: {
   }
 
   if (audienceType === "project-number") {
+    // Try verifyIdToken first (works for Workspace Add-ons)
+    try {
+      const ticket = await verifyClient.verifyIdToken({ idToken: bearer, audience });
+      const payload = ticket.getPayload();
+      const email = payload?.email ?? "";
+      const ok = payload?.email_verified && (email === CHAT_ISSUER || ADDON_ISSUER_PATTERN.test(email));
+      if (ok) return { ok: true };
+    } catch {
+      // Fall through to legacy cert-based verification
+    }
+    // Fallback: legacy Chat-specific cert verification
     try {
       const certs = await fetchChatCerts();
       await verifyClient.verifySignedJwtWithCertsAsync(bearer, certs, audience, [CHAT_ISSUER]);
