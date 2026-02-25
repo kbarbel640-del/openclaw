@@ -34,7 +34,7 @@ export const ACPX_BACKEND_ID = "acpx";
 
 const ACPX_RUNTIME_HANDLE_PREFIX = "acpx:v1:";
 const DEFAULT_AGENT_FALLBACK = "codex";
-const ACPX_INSTALL_COMMAND_HINT = "npm install -g acpx";
+const ACPX_INSTALL_COMMAND_HINT = "npm install -g acpx@0.1.11";
 const ACPX_CAPABILITIES: AcpRuntimeCapabilities = {
   controls: ["session/set_mode", "session/set_config_option", "session/status"],
 };

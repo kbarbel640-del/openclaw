@@ -254,8 +254,8 @@ importers:
   extensions/acpx:
     dependencies:
       acpx:
-        specifier: 0.1.9
-        version: 0.1.9(zod@4.3.6)
+        specifier: 0.1.11
+        version: 0.1.11(zod@4.3.6)
     devDependencies:
       openclaw:
         specifier: workspace:*
@@ -3084,8 +3084,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  acpx@0.1.9:
-    resolution: {integrity: sha512-XSMmZnK2oWwpt43SdelfZwOKvINhnUVAstjCuCE9jMkgpYVbYT10OkrrKj/izxQzzIHhei8JFMm9tg9UXYGc2Q==}
+  acpx@0.1.11:
+    resolution: {integrity: sha512-RMZAcy3BKhMvA6HVZyCy6MjkEq5Rn2OfPwscLWU5FVY9wwF84kbs/K2ErtQ5q/KA0Eat4XexJgB/a3IChudGtg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -8791,7 +8791,7 @@ snapshots:
 
   acorn@8.16.0: {}
 
-  acpx@0.1.9(zod@4.3.6):
+  acpx@0.1.11(zod@4.3.6):
     dependencies:
       '@agentclientprotocol/sdk': 0.14.1(zod@4.3.6)
       commander: 13.1.0
