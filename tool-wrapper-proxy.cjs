@@ -3891,6 +3891,10 @@ const EXEC_PATTERNS = [
   // Catch-all for explicit exec
   { pattern: /^(?:exec|執行)\s+(.+)$/i, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
 
+  // Dev task routing — "使用 Claude Code ..." → session bridge
+  { pattern: /^(?:使用|用)\s*(?:claude\s*(?:code)?|CC)\s+(.+)$/is, parse: (m) => ({ action: '_dev_task', args: [m[1]] }) },
+  { pattern: /^(?:幫我|請)\s*(?:開發|實作|修復|重構|寫)\s+(.+)$/is, parse: (m) => ({ action: '_dev_task', args: [m[1]] }) },
+
   // Capability queries — intercept before Haiku says "I can't"
   { pattern: /^(?:你)?(?:可以|能|能不能|可不可以)(?:檢視|查看|管理|操作|存取|訪問|連接|控制).*(?:mac\s*mini|專案|系統|伺服器|服務器)/is, parse: () => ({ action: '_capability', args: [] }) },
   { pattern: /^(?:can you|are you able to).*(?:access|view|manage|control|connect|ssh).*(?:mac\s*mini|server|project|system)/is, parse: () => ({ action: '_capability', args: [] }) },
@@ -3906,6 +3910,25 @@ function detectExecAction(text) {
 
 function localExec(action, args) {
   // Capability query — return static help text, no shell exec
+  // Dev task — route to Claude agent via session bridge
+  if (action === '_dev_task') {
+    const task = args.join(' ');
+    console.log('[wrapper] _dev_task → callSessionBridge:', task);
+    // Detect project from task text
+    let project = null;
+    const projectMap = [
+      { keywords: ['taiwan-stock', '台股', '台灣股票', '股票專案'], name: 'taiwan-stock-mvp' },
+      { keywords: ['openclaw', 'bot', 'telegram'], name: 'openclaw' },
+      { keywords: ['personal-ai', 'ai assistant'], name: 'personal-ai-assistant' },
+      { keywords: ['rex-ai', 'dashboard'], name: 'rex-ai' },
+    ];
+    const lower = task.toLowerCase();
+    for (const p of projectMap) {
+      if (p.keywords.some(k => lower.includes(k))) { project = p.name; break; }
+    }
+    return callSessionBridge(task, project).then(r => r.output || '(session completed, no output)');
+  }
+
   if (action === '_capability') {
     return Promise.resolve([
       '可以。我可以直接操作 Mac mini，不需要你手動執行。',
@@ -4128,6 +4151,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     const CP_ACTION_SIGNALS = [
       // Code/Dev tasks
       "加一個", "新增", "建立", "實作", "實現", "寫一個", "修復", "重構",
+      "開發", "develop", "使用 claude", "用 claude",
       "implement", "create", "build", "add", "write", "fix", "refactor",
       // System ops
       "重啟", "restart", "停止", "stop", "啟動", "start",
