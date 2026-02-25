@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 extension OnboardingView {
@@ -31,6 +32,7 @@ extension OnboardingView {
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
             self.currentPage = 0
+            self.anthropicAuthIsAppActive = NSApp.isActive
             self.updateMonitoring(for: 0)
         }
         .onChange(of: self.currentPage) { _, newValue in
@@ -49,6 +51,12 @@ extension OnboardingView {
         .onChange(of: self.onboardingWizard.isComplete) { _, newValue in
             guard newValue, self.activePageIndex == self.wizardPageIndex else { return }
             self.handleNext()
+        }
+        .onReceive(Self.appDidBecomeActive) { _ in
+            self.handleOnboardingAppDidBecomeActive()
+        }
+        .onReceive(Self.appDidResignActive) { _ in
+            self.handleOnboardingAppDidResignActive()
         }
         .onDisappear {
             self.stopPermissionMonitoring()

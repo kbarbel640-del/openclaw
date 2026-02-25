@@ -83,6 +83,7 @@ struct OnboardingView: View {
     @State var anthropicAuthAutoDetectClipboard = true
     @State var anthropicAuthAutoConnectClipboard = true
     @State var anthropicAuthLastPasteboardChangeCount = NSPasteboard.general.changeCount
+    @State var anthropicAuthIsAppActive = true
     @State var monitoringAuth = false
     @State var authMonitorTask: Task<Void, Never>?
     @State var needsBootstrap = false
@@ -112,10 +113,16 @@ struct OnboardingView: View {
         if ProcessInfo.processInfo.isRunningTests {
             return Empty(completeImmediately: false).eraseToAnyPublisher()
         }
-        return Timer.publish(every: 0.4, on: .main, in: .common)
+        return Timer.publish(every: 1.5, on: .main, in: .common)
             .autoconnect()
             .eraseToAnyPublisher()
     }()
+    static let appDidBecomeActive: AnyPublisher<Notification, Never> = NotificationCenter.default
+        .publisher(for: NSApplication.didBecomeActiveNotification)
+        .eraseToAnyPublisher()
+    static let appDidResignActive: AnyPublisher<Notification, Never> = NotificationCenter.default
+        .publisher(for: NSApplication.didResignActiveNotification)
+        .eraseToAnyPublisher()
 
     let permissionsPageIndex = 5
     static func pageOrder(

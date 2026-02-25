@@ -50,6 +50,8 @@ actor TalkModeRuntime {
     private var noiseFloorRMS: Double = 1e-4
     private var lastTranscript: String = ""
     private var lastSpeechEnergyAt: Date?
+    private var lastPublishedLevel: Double = 0
+    private var lastLevelUpdateAtUptimeNs: UInt64 = 0
 
     private var defaultVoiceId: String?
     private var currentVoiceId: String?
@@ -69,6 +71,10 @@ actor TalkModeRuntime {
     private let silenceWindow: TimeInterval = 0.7
     private let minSpeechRMS: Double = 1e-3
     private let speechBoostFactor: Double = 6.0
+    private let activeRMSTickNs: UInt64 = 50_000_000
+    private let idleRMSTickNs: UInt64 = 180_000_000
+    private let levelUpdateMinDelta: Double = 0.04
+    private let levelUpdateMaxIntervalNs: UInt64 = 180_000_000
 
     // MARK: - Lifecycle
 
@@ -86,6 +92,8 @@ actor TalkModeRuntime {
     func setPaused(_ paused: Bool) async {
         guard paused != self.isPaused else { return }
         self.isPaused = paused
+        self.lastPublishedLevel = 0
+        self.lastLevelUpdateAtUptimeNs = DispatchTime.now().uptimeNanoseconds
         await MainActor.run { TalkModeController.shared.updateLevel(0) }
 
         guard self.isEnabled else { return }
@@ -121,6 +129,8 @@ actor TalkModeRuntime {
         guard self.isCurrent(gen) else { return }
         if self.isPaused {
             self.phase = .idle
+            self.lastPublishedLevel = 0
+            self.lastLevelUpdateAtUptimeNs = DispatchTime.now().uptimeNanoseconds
             await MainActor.run {
                 TalkModeController.shared.updateLevel(0)
                 TalkModeController.shared.updatePhase(.idle)
@@ -147,6 +157,8 @@ actor TalkModeRuntime {
         self.lastHeard = nil
         self.lastSpeechEnergyAt = nil
         self.phase = .idle
+        self.lastPublishedLevel = 0
+        self.lastLevelUpdateAtUptimeNs = DispatchTime.now().uptimeNanoseconds
         await self.stopRecognition()
         await MainActor.run {
             TalkModeController.shared.updateLevel(0)
@@ -244,11 +256,21 @@ actor TalkModeRuntime {
         self.rmsTask?.cancel()
         self.rmsTask = Task { [weak self, meter] in
             while let self {
-                try? await Task.sleep(nanoseconds: 50_000_000)
+                let sleepNs = await self.rmsTickIntervalNanoseconds()
+                try? await Task.sleep(nanoseconds: sleepNs)
                 if Task.isCancelled { return }
                 await self.noteAudioLevel(rms: meter.get())
             }
         }
+    }
+
+    private func rmsTickIntervalNanoseconds() -> UInt64 {
+        if self.isPaused {
+            return self.idleRMSTickNs
+        }
+        return self.phase == .listening || self.phase == .speaking
+            ? self.activeRMSTickNs
+            : self.idleRMSTickNs
     }
 
     private func handleRecognition(_ update: RecognitionUpdate) async {
@@ -313,6 +335,8 @@ actor TalkModeRuntime {
         self.phase = .listening
         self.lastTranscript = ""
         self.lastHeard = nil
+        self.lastPublishedLevel = 0
+        self.lastLevelUpdateAtUptimeNs = DispatchTime.now().uptimeNanoseconds
         await MainActor.run {
             TalkModeController.shared.updatePhase(.listening)
             TalkModeController.shared.updateLevel(0)
@@ -389,6 +413,8 @@ actor TalkModeRuntime {
             self.lastTranscript = ""
             self.lastHeard = nil
             self.lastSpeechEnergyAt = nil
+            self.lastPublishedLevel = 0
+            self.lastLevelUpdateAtUptimeNs = DispatchTime.now().uptimeNanoseconds
             await MainActor.run {
                 TalkModeController.shared.updateLevel(0)
             }
@@ -966,6 +992,20 @@ extension TalkModeRuntime {
 
         if self.phase == .listening {
             let clamped = min(1.0, max(0.0, rms / max(self.minSpeechRMS, threshold)))
+            let nowUptime = DispatchTime.now().uptimeNanoseconds
+            let delta = abs(clamped - self.lastPublishedLevel)
+            let elapsed =
+                nowUptime >= self.lastLevelUpdateAtUptimeNs
+                ? nowUptime - self.lastLevelUpdateAtUptimeNs
+                : self.levelUpdateMaxIntervalNs
+            guard
+                delta >= self.levelUpdateMinDelta ||
+                elapsed >= self.levelUpdateMaxIntervalNs ||
+                clamped == 0 ||
+                self.lastPublishedLevel == 0
+            else { return }
+            self.lastPublishedLevel = clamped
+            self.lastLevelUpdateAtUptimeNs = nowUptime
             await MainActor.run { TalkModeController.shared.updateLevel(clamped) }
         }
     }

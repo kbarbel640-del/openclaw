@@ -61,11 +61,12 @@ export function startChannelHealthMonitor(deps: ChannelHealthMonitorDeps): Chann
   } = deps;
 
   const cooldownMs = cooldownCycles * checkIntervalMs;
+  const healthyBackoffIntervalMs = Math.min(checkIntervalMs * 2, checkIntervalMs + 60_000);
   const restartRecords = new Map<string, RestartRecord>();
   const startedAt = Date.now();
   let stopped = false;
   let checkInFlight = false;
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
   const rKey = (channelId: string, accountId: string) => `${channelId}:${accountId}`;
 
@@ -75,14 +76,17 @@ export function startChannelHealthMonitor(deps: ChannelHealthMonitorDeps): Chann
 
   async function runCheck() {
     if (stopped || checkInFlight) {
-      return;
+      return { managedCount: 0, unhealthyCount: 0, restartedCount: 0 };
     }
     checkInFlight = true;
+    let managedCount = 0;
+    let unhealthyCount = 0;
+    let restartedCount = 0;
 
     try {
       const now = Date.now();
       if (now - startedAt < startupGraceMs) {
-        return;
+        return { managedCount, unhealthyCount, restartedCount };
       }
 
       const snapshot = channelManager.getRuntimeSnapshot();
@@ -98,12 +102,14 @@ export function startChannelHealthMonitor(deps: ChannelHealthMonitorDeps): Chann
           if (!isManagedAccount(status)) {
             continue;
           }
+          managedCount += 1;
           if (channelManager.isManuallyStopped(channelId as ChannelId, accountId)) {
             continue;
           }
           if (isChannelHealthy(status)) {
             continue;
           }
+          unhealthyCount += 1;
 
           const key = rKey(channelId, accountId);
           const record = restartRecords.get(key) ?? {
@@ -140,6 +146,7 @@ export function startChannelHealthMonitor(deps: ChannelHealthMonitorDeps): Chann
             record.lastRestartAt = now;
             record.restartsThisHour.push({ at: now });
             restartRecords.set(key, record);
+            restartedCount += 1;
           } catch (err) {
             log.error?.(
               `[${channelId}:${accountId}] health-monitor: restart failed: ${String(err)}`,
@@ -147,15 +154,42 @@ export function startChannelHealthMonitor(deps: ChannelHealthMonitorDeps): Chann
           }
         }
       }
+      return { managedCount, unhealthyCount, restartedCount };
     } finally {
       checkInFlight = false;
     }
   }
 
+  const scheduleNextCheck = (delayMs: number) => {
+    if (stopped) {
+      return;
+    }
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    timer = setTimeout(() => {
+      void tick();
+    }, Math.max(100, delayMs));
+    if (typeof timer === "object" && "unref" in timer) {
+      timer.unref();
+    }
+  };
+
+  const tick = async () => {
+    const summary = await runCheck();
+    if (stopped) {
+      return;
+    }
+    const shouldBackoff =
+      summary.managedCount > 0 && summary.unhealthyCount === 0 && summary.restartedCount === 0;
+    scheduleNextCheck(shouldBackoff ? healthyBackoffIntervalMs : checkIntervalMs);
+  };
+
   function stop() {
     stopped = true;
     if (timer) {
-      clearInterval(timer);
+      clearTimeout(timer);
       timer = null;
     }
   }
@@ -164,10 +198,7 @@ export function startChannelHealthMonitor(deps: ChannelHealthMonitorDeps): Chann
     stopped = true;
   } else {
     abortSignal?.addEventListener("abort", stop, { once: true });
-    timer = setInterval(() => void runCheck(), checkIntervalMs);
-    if (typeof timer === "object" && "unref" in timer) {
-      timer.unref();
-    }
+    scheduleNextCheck(checkIntervalMs);
     log.info?.(
       `started (interval: ${Math.round(checkIntervalMs / 1000)}s, grace: ${Math.round(startupGraceMs / 1000)}s)`,
     );

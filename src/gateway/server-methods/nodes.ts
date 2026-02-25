@@ -43,6 +43,7 @@ import type { GatewayRequestHandlers } from "./types.js";
 const NODE_WAKE_RECONNECT_WAIT_MS = 3_000;
 const NODE_WAKE_RECONNECT_RETRY_WAIT_MS = 12_000;
 const NODE_WAKE_RECONNECT_POLL_MS = 150;
+const NODE_WAKE_RECONNECT_MAX_POLL_MS = 600;
 const NODE_WAKE_THROTTLE_MS = 15_000;
 const NODE_WAKE_NUDGE_THROTTLE_MS = 10 * 60_000;
 
@@ -245,16 +246,20 @@ async function waitForNodeReconnect(params: {
   context: { nodeRegistry: { get: (nodeId: string) => unknown } };
   timeoutMs?: number;
   pollMs?: number;
+  maxPollMs?: number;
 }): Promise<boolean> {
   const timeoutMs = Math.max(250, params.timeoutMs ?? NODE_WAKE_RECONNECT_WAIT_MS);
   const pollMs = Math.max(50, params.pollMs ?? NODE_WAKE_RECONNECT_POLL_MS);
+  const maxPollMs = Math.max(pollMs, params.maxPollMs ?? NODE_WAKE_RECONNECT_MAX_POLL_MS);
   const deadline = Date.now() + timeoutMs;
+  let nextPollMs = pollMs;
 
   while (Date.now() < deadline) {
     if (params.context.nodeRegistry.get(params.nodeId)) {
       return true;
     }
-    await delayMs(pollMs);
+    await delayMs(nextPollMs);
+    nextPollMs = Math.min(maxPollMs, Math.floor(nextPollMs * 2));
   }
   return Boolean(params.context.nodeRegistry.get(params.nodeId));
 }

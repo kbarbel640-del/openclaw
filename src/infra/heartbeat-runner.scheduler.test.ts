@@ -165,6 +165,25 @@ describe("startHeartbeatRunner", () => {
     runner.stop();
   });
 
+  it("does not spin in a tight loop when interval runs are skipped as disabled", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(0));
+
+    const runSpy = vi.fn().mockResolvedValue({ status: "skipped", reason: "disabled" });
+    const runner = startDefaultRunner(runSpy);
+
+    await vi.advanceTimersByTimeAsync(30 * 60_000 + 1_000);
+    expect(runSpy).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(runSpy).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(30 * 60_000 + 1_000);
+    expect(runSpy).toHaveBeenCalledTimes(2);
+
+    runner.stop();
+  });
+
   it("routes targeted wake requests to the requested agent/session", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(0));
