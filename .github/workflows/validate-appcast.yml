@@ -1,0 +1,31 @@
+name: Validate Sparkle Appcast
+
+on:
+  pull_request:
+    paths:
+      - "appcast.xml"
+      - "scripts/validate_appcast.py"
+      - ".github/workflows/validate-appcast.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "appcast.xml"
+      - "scripts/validate_appcast.py"
+      - ".github/workflows/validate-appcast.yml"
+
+jobs:
+  validate-appcast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Validate appcast against enclosure metadata
+        run: python3 scripts/validate_appcast.py appcast.xml

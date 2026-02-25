@@ -68,6 +68,9 @@ Use the release note generator so Sparkle renders formatted HTML notes:
 
 ```bash
 SPARKLE_PRIVATE_KEY_FILE=/path/to/ed25519-private-key scripts/make_appcast.sh dist/OpenClaw-2026.2.25.zip https://raw.githubusercontent.com/openclaw/openclaw/main/appcast.xml
+
+# Verify appcast metadata matches the published zip's Info.plist values.
+python3 scripts/validate_appcast.py appcast.xml
 ```
 
 Generates HTML release notes from `CHANGELOG.md` (via [`scripts/changelog-to-html.sh`](https://github.com/openclaw/openclaw/blob/main/scripts/changelog-to-html.sh)) and embeds them in the appcast entry.
