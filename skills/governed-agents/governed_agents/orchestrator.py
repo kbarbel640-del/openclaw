@@ -9,6 +9,9 @@ import shlex
 import time
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from governed_agents.council import CouncilResult
 from .contract import TaskContract, TaskResult, TaskStatus
 from .verification import run_full_verification
 from .reputation import (
@@ -130,7 +133,7 @@ def execute_governed(contract: TaskContract, agent_id: str,
         result.elapsed_seconds = elapsed
         
         if not result.parse_success:
-            print(f"  ❌ Schema invalid — agent didn't produce required JSON")
+            print("  ❌ Schema invalid — agent didn't produce required JSON")
             best_result = result
             continue
         
@@ -143,7 +146,7 @@ def execute_governed(contract: TaskContract, agent_id: str,
         
         # 6. If agent claims success, VERIFY
         if result.status == TaskStatus.SUCCESS:
-            print(f"  ✅ Agent claims SUCCESS — verifying...")
+            print("  ✅ Agent claims SUCCESS — verifying...")
             verification = run_full_verification(contract, work_dir)
             result.verification_passed = verification.passed
             
@@ -390,7 +393,7 @@ Dieser Command schreibt das Ergebnis in die Reputation-Datenbank.
         Parse reviewer outputs, aggregate via majority vote, write to reputation DB.
         Call this after collecting all reviewer responses from sessions_spawn.
         """
-        from governed_agents.council import CouncilVerdict, aggregate_votes, CouncilResult
+        from governed_agents.council import CouncilVerdict, aggregate_votes
 
         verdicts = [
             CouncilVerdict.from_output(raw, reviewer_id=f"reviewer_{i}")

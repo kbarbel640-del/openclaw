@@ -2,7 +2,6 @@
 Task-Type Profiles — predefined Structural + Grounding gate configs per task category.
 Based on @almai85's 3-layer verification architecture.
 """
-from typing import Optional
 
 
 # Profile schema:

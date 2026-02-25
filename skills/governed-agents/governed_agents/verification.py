@@ -2,7 +2,6 @@
 Verification Gates — deterministic checks on agent output.
 No LLM needed. Pure code.
 """
-import os
 import subprocess
 import ast
 import re

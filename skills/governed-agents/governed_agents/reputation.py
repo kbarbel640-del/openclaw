@@ -4,7 +4,6 @@ SQLite-backed, survives restarts.
 """
 import sqlite3
 import time
-import json
 from pathlib import Path
 
 

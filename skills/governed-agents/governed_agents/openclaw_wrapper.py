@@ -16,9 +16,7 @@ from pathlib import Path
 from typing import Optional, Any
 
 from .contract import TaskContract, TaskResult, TaskStatus
-from .orchestrator import score_result
-from .verification import run_full_verification
-from .reputation import init_db, get_reputation, update_reputation, get_supervision_level
+from .reputation import init_db, update_reputation
 
 DEFAULT_DB_PATH = os.environ.get(
     "GOVERNED_DB_PATH",

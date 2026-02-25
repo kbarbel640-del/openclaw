@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from governed_agents.verifier import Verifier, VerificationResult
+from governed_agents.verifier import Verifier
 from governed_agents.orchestrator import GovernedOrchestrator
 from governed_agents.reputation import init_db, get_task_history
 
@@ -85,7 +85,7 @@ def test_score_override_on_hallucinated_success():
     t = next((x for x in tasks if "Hallucinated" in (x.get("objective") or "")), None)
     assert t is not None, "Task not found in DB"
     assert t["score"] == -1.0, f"Expected -1.0, got {t['score']}"
-    assert t["verification_passed"] == False
+    assert not t["verification_passed"]
     assert t["gate_failed"] == "files"
     print("✅ test_score_override_on_hallucinated_success")
 

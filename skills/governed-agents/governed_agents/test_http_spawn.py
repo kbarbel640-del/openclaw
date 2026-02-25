@@ -18,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 def test_import():
     from governed_agents.openclaw_wrapper import spawn_governed_http
-    from governed_agents.contract import TaskContract
     assert callable(spawn_governed_http)
     print("✅ Import OK")
 
