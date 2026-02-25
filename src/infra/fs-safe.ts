@@ -147,6 +147,10 @@ export async function openFileWithinRoot(params: {
     await opened.handle.close().catch(() => {});
     throw new SafeOpenError("invalid-path", "path escapes root");
   }
+  if (opened.stat.nlink > 1) {
+    await opened.handle.close().catch(() => {});
+    throw new SafeOpenError("invalid-path", "hardlinked files are not allowed under root");
+  }
 
   return opened;
 }

@@ -142,6 +142,25 @@ describe("resolveExistingPathsWithinRoot", () => {
   );
 
   it.runIf(process.platform !== "win32")(
+    "rejects hardlink escapes outside upload root",
+    async () => {
+      await withFixtureRoot(async ({ baseDir, uploadsDir }) => {
+        const outsidePath = path.join(baseDir, "secret.txt");
+        await fs.writeFile(outsidePath, "secret", "utf8");
+        const hardlinkPath = path.join(uploadsDir, "leak.txt");
+        await fs.link(outsidePath, hardlinkPath);
+
+        const result = await resolveWithinUploads({
+          uploadsDir,
+          requestedPaths: ["leak.txt"],
+        });
+
+        expectInvalidResult(result, "regular non-symlink file");
+      });
+    },
+  );
+
+  it.runIf(process.platform !== "win32")(
     "accepts canonical absolute paths when upload root is a symlink alias",
     async () => {
       await withFixtureRoot(async ({ baseDir }) => {
