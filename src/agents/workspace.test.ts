@@ -107,7 +107,11 @@ describe("ensureAgentWorkspace", () => {
   it("treats workspace as onboarded when SOUL.md diverges from template, even if IDENTITY.md is still default (#26734)", async () => {
     const tempDir = await makeTempWorkspace("openclaw-workspace-");
     // Only customize SOUL.md â leave IDENTITY.md and USER.md as default templates
-    await writeWorkspaceFile({ dir: tempDir, name: DEFAULT_SOUL_FILENAME, content: "custom persona" });
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_SOUL_FILENAME,
+      content: "custom persona",
+    });
 
     await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
 
