@@ -200,6 +200,37 @@ function resolveZaiGlm5ForwardCompatModel(
   } as Model<Api>);
 }
 
+// Google/Gemini models not yet in the catalog can be cloned from the closest
+// known template.  This covers new releases (e.g. gemini-2.5-flash-lite) and
+// LiteLLM proxy users who specify `gemini/` model IDs (#26212).
+const GOOGLE_TEMPLATE_MODEL_IDS = [
+  "gemini-2.5-flash",
+  "gemini-3-flash",
+  "gemini-2.5-pro",
+  "gemini-3-pro",
+] as const;
+
+function resolveGoogleGeminiForwardCompatModel(
+  provider: string,
+  modelId: string,
+  modelRegistry: ModelRegistry,
+): Model<Api> | undefined {
+  if (normalizeProviderId(provider) !== "google") {
+    return undefined;
+  }
+  const trimmed = modelId.trim();
+  if (!trimmed.startsWith("gemini-")) {
+    return undefined;
+  }
+
+  return cloneFirstTemplateModel({
+    normalizedProvider: "google",
+    trimmedModelId: trimmed,
+    templateIds: [...GOOGLE_TEMPLATE_MODEL_IDS],
+    modelRegistry,
+  });
+}
+
 export function resolveForwardCompatModel(
   provider: string,
   modelId: string,
@@ -209,6 +240,7 @@ export function resolveForwardCompatModel(
     resolveOpenAICodexGpt53FallbackModel(provider, modelId, modelRegistry) ??
     resolveAnthropicOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAnthropicSonnet46ForwardCompatModel(provider, modelId, modelRegistry) ??
-    resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry)
+    resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry) ??
+    resolveGoogleGeminiForwardCompatModel(provider, modelId, modelRegistry)
   );
 }

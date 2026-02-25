@@ -57,6 +57,10 @@ export function normalizeProviderId(provider: string): string {
   if (normalized === "bytedance" || normalized === "doubao") {
     return "volcengine";
   }
+  // LiteLLM and other proxies use "gemini/" prefix; map to the built-in Google provider.
+  if (normalized === "gemini") {
+    return "google";
+  }
   return normalized;
 }
 

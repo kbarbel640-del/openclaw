@@ -143,6 +143,10 @@ const LOCAL_PROVIDER_HINTS: Record<string, string> = {
     "vLLM requires authentication to be registered as a provider. " +
     'Set VLLM_API_KEY (any value works) or run "openclaw configure". ' +
     "See: https://docs.openclaw.ai/providers/vllm",
+  gemini:
+    'The "gemini" prefix is mapped to the "google" provider. ' +
+    "Set GEMINI_API_KEY or GOOGLE_API_KEY. " +
+    "If using LiteLLM, configure models.providers.gemini.baseUrl to point to your proxy.",
 };
 
 function buildUnknownModelError(provider: string, modelId: string): string {
