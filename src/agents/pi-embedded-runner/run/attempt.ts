@@ -1223,7 +1223,13 @@ export async function runEmbeddedAttempt(
         // prepareCompaction() guard that checks the last entry type, leading to
         // double-compaction. See: https://github.com/openclaw/openclaw/issues/9282
         // Skip when timed out during compaction — session state may be inconsistent.
-        if (!timedOutDuringCompaction) {
+        // Also skip when compaction occurred during this attempt — the cache-ttl custom
+        // entry would be the only non-compaction entry in the session, bypassing
+        // prepareCompaction()'s double-compaction guard and enabling a spurious
+        // re-compaction on the next prompt() call (which uses stale usage.totalTokens
+        // from kept assistant messages). See: https://github.com/openclaw/openclaw/issues/26458
+        const compactionOccurredThisAttempt = getCompactionCount() > 0;
+        if (!timedOutDuringCompaction && !compactionOccurredThisAttempt) {
           const shouldTrackCacheTtl =
             params.config?.agents?.defaults?.contextPruning?.mode === "cache-ttl" &&
             isCacheTtlEligibleProvider(params.provider, params.modelId);

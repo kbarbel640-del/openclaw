@@ -427,4 +427,106 @@ describe("compaction-safeguard extension model fallback", () => {
     // Verify early return: getApiKey should NOT have been called when both models are missing
     expect(getApiKeyMock).not.toHaveBeenCalled();
   });
+
+  it("cancels compaction when messagesToSummarize has no real conversation messages (double compaction guard)", async () => {
+    const compactionHandler = createCompactionHandler();
+
+    // Simulate a double compaction scenario: after compaction #1, the session
+    // only has a compaction summary entry and a cache-ttl custom entry.
+    // messagesToSummarize would be empty or contain only non-conversation entries.
+    const mockEvent = {
+      preparation: {
+        messagesToSummarize: [] as AgentMessage[],
+        turnPrefixMessages: [] as AgentMessage[],
+        firstKeptEntryId: "entry-1",
+        tokensBefore: 1347, // tiny — already compacted
+        fileOps: { read: [], edited: [], written: [] },
+      },
+      customInstructions: "",
+      signal: new AbortController().signal,
+    };
+
+    const sessionManager = stubSessionManager();
+    const getApiKeyMock = vi.fn().mockResolvedValue("sk-test-key");
+    const mockContext = createCompactionContext({
+      sessionManager,
+      getApiKeyMock,
+    });
+
+    const result = (await compactionHandler(mockEvent, mockContext)) as {
+      cancel?: boolean;
+    };
+
+    expect(result).toEqual({ cancel: true });
+    // Should cancel before even checking model/API key
+    expect(getApiKeyMock).not.toHaveBeenCalled();
+  });
+
+  it("cancels compaction when messagesToSummarize has only custom entries (no user/assistant/toolResult)", async () => {
+    const compactionHandler = createCompactionHandler();
+
+    // Simulate: messagesToSummarize contains only custom entries (e.g., cache-ttl)
+    const mockEvent = {
+      preparation: {
+        messagesToSummarize: [
+          {
+            role: "custom" as const,
+            customType: "openclaw.cache-ttl",
+            content: [],
+            timestamp: Date.now(),
+          },
+        ] as AgentMessage[],
+        turnPrefixMessages: [] as AgentMessage[],
+        firstKeptEntryId: "entry-1",
+        tokensBefore: 2000,
+        fileOps: { read: [], edited: [], written: [] },
+      },
+      customInstructions: "",
+      signal: new AbortController().signal,
+    };
+
+    const sessionManager = stubSessionManager();
+    const getApiKeyMock = vi.fn().mockResolvedValue("sk-test-key");
+    const mockContext = createCompactionContext({
+      sessionManager,
+      getApiKeyMock,
+    });
+
+    const result = (await compactionHandler(mockEvent, mockContext)) as {
+      cancel?: boolean;
+    };
+
+    expect(result).toEqual({ cancel: true });
+    expect(getApiKeyMock).not.toHaveBeenCalled();
+  });
+
+  it("proceeds with compaction when messagesToSummarize has real conversation messages", async () => {
+    const sessionManager = stubSessionManager();
+    const model = createAnthropicModelFixture();
+    setCompactionSafeguardRuntime(sessionManager, { model, contextWindowTokens: 200000 });
+
+    const compactionHandler = createCompactionHandler();
+    const mockEvent = createCompactionEvent({
+      messageText: "real user message",
+      tokensBefore: 180000,
+    });
+
+    const getApiKeyMock = vi.fn().mockResolvedValue("sk-test-key");
+    const mockContext = createCompactionContext({
+      sessionManager,
+      getApiKeyMock,
+    });
+
+    // This will proceed past the guard and attempt summarization.
+    // It may throw due to missing API setup, but the point is it doesn't
+    // return { cancel: true } from the double-compaction guard.
+    try {
+      await compactionHandler(mockEvent, mockContext);
+    } catch {
+      // Expected — summarization API not mocked
+    }
+
+    // getApiKey should have been called (we got past the guard)
+    expect(getApiKeyMock).toHaveBeenCalled();
+  });
 });
