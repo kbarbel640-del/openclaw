@@ -182,6 +182,12 @@ export const MessagesSchema = z
       .strict()
       .optional(),
     suppressToolErrors: z.boolean().optional(),
+    abort: z
+      .object({
+        extraTriggers: z.array(z.string().min(1)).optional(),
+      })
+      .strict()
+      .optional(),
     tts: TtsConfigSchema,
   })
   .strict()

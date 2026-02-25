@@ -82,6 +82,11 @@ export type StatusReactionsConfig = {
   timing?: StatusReactionsTimingConfig;
 };
 
+export type AbortConfig = {
+  /** Additional user-defined abort trigger phrases (merged with built-in triggers). */
+  extraTriggers?: string[];
+};
+
 export type MessagesConfig = {
   /** @deprecated Use `whatsapp.messagePrefix` (WhatsApp-only inbound prefix). */
   messagePrefix?: string;
@@ -119,6 +124,8 @@ export type MessagesConfig = {
   statusReactions?: StatusReactionsConfig;
   /** When true, suppress ⚠️ tool-error warnings from being shown to the user. Default: false. */
   suppressToolErrors?: boolean;
+  /** Abort trigger configuration. */
+  abort?: AbortConfig;
   /** Text-to-speech settings for outbound replies. */
   tts?: TtsConfig;
 };

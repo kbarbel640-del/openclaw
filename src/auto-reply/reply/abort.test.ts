@@ -122,6 +122,22 @@ describe("abort detection", () => {
     expect(result.triggerBodyNormalized).toBe("/stop");
   });
 
+  it("isAbortTrigger matches user-defined extra triggers", () => {
+    const extra = ["그만", "멈춰", "custom-stop"];
+    expect(isAbortTrigger("그만", extra)).toBe(true);
+    expect(isAbortTrigger("멈춰", extra)).toBe(true);
+    expect(isAbortTrigger("Custom-Stop!!!", extra)).toBe(true);
+    expect(isAbortTrigger("unknown-phrase", extra)).toBe(false);
+    // Built-in triggers still work with extra triggers provided.
+    expect(isAbortTrigger("stop", extra)).toBe(true);
+  });
+
+  it("isAbortRequestText respects extra triggers", () => {
+    const extra = ["그만"];
+    expect(isAbortRequestText("그만", undefined, extra)).toBe(true);
+    expect(isAbortRequestText("hello", undefined, extra)).toBe(false);
+  });
+
   it("isAbortTrigger matches standalone abort trigger phrases", () => {
     const positives = [
       "stop",
