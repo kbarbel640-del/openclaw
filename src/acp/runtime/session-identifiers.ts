@@ -3,12 +3,53 @@ import { isSessionIdentityPending, resolveSessionIdentityFromMeta } from "./sess
 
 export const ACP_SESSION_IDENTITY_RENDERER_VERSION = "v1";
 
+type SessionResumeHintResolver = (params: { agentSessionId: string }) => string;
+
+const ACP_AGENT_RESUME_HINT_BY_KEY = new Map<string, SessionResumeHintResolver>([
+  [
+    "codex",
+    ({ agentSessionId }) =>
+      `resume in Codex CLI: \`codex resume ${agentSessionId}\` (continues this conversation).`,
+  ],
+  [
+    "openai-codex",
+    ({ agentSessionId }) =>
+      `resume in Codex CLI: \`codex resume ${agentSessionId}\` (continues this conversation).`,
+  ],
+  [
+    "codex-cli",
+    ({ agentSessionId }) =>
+      `resume in Codex CLI: \`codex resume ${agentSessionId}\` (continues this conversation).`,
+  ],
+]);
+
 function normalizeText(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
   const trimmed = value.trim();
   return trimmed || undefined;
+}
+
+function normalizeAgentHintKey(value: unknown): string | undefined {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return undefined;
+  }
+  return normalized.toLowerCase().replace(/[\s_]+/g, "-");
+}
+
+function resolveAcpAgentResumeHintLine(params: {
+  agentId?: string;
+  agentSessionId?: string;
+}): string | undefined {
+  const agentSessionId = normalizeText(params.agentSessionId);
+  const agentKey = normalizeAgentHintKey(params.agentId);
+  if (!agentSessionId || !agentKey) {
+    return undefined;
+  }
+  const resolver = ACP_AGENT_RESUME_HINT_BY_KEY.get(agentKey);
+  return resolver ? resolver({ agentSessionId }) : undefined;
 }
 
 export function resolveAcpSessionIdentifierLines(params: {
@@ -44,6 +85,41 @@ export function resolveAcpSessionIdentifierLinesFromIdentity(params: {
   }
   if (acpxRecordId) {
     lines.push(`${backend} record id: ${acpxRecordId}`);
+  }
+  return lines;
+}
+
+export function resolveAcpSessionCwd(meta?: SessionAcpMeta): string | undefined {
+  const runtimeCwd = normalizeText(meta?.runtimeOptions?.cwd);
+  if (runtimeCwd) {
+    return runtimeCwd;
+  }
+  return normalizeText(meta?.cwd);
+}
+
+export function resolveAcpThreadSessionDetailLines(params: {
+  sessionKey: string;
+  meta?: SessionAcpMeta;
+}): string[] {
+  const meta = params.meta;
+  const identity = resolveSessionIdentityFromMeta(meta);
+  if (isSessionIdentityPending(identity)) {
+    return [];
+  }
+  const backend = normalizeText(meta?.backend) ?? "backend";
+  const lines = resolveAcpSessionIdentifierLinesFromIdentity({
+    backend,
+    identity,
+  });
+  if (lines.length === 0) {
+    return lines;
+  }
+  const hint = resolveAcpAgentResumeHintLine({
+    agentId: meta?.agent,
+    agentSessionId: identity?.agentSessionId,
+  });
+  if (hint) {
+    lines.push(hint);
   }
   return lines;
 }

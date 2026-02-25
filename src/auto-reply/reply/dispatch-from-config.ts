@@ -2,6 +2,12 @@ import { getAcpSessionManager } from "../../acp/control-plane/manager.js";
 import { resolveAcpAgentPolicyError, resolveAcpDispatchPolicyError } from "../../acp/policy.js";
 import { formatAcpRuntimeErrorText } from "../../acp/runtime/error-text.js";
 import { toAcpRuntimeError } from "../../acp/runtime/errors.js";
+import { resolveAcpThreadSessionDetailLines } from "../../acp/runtime/session-identifiers.js";
+import {
+  isSessionIdentityPending,
+  resolveSessionIdentityFromMeta,
+} from "../../acp/runtime/session-identity.js";
+import { readAcpSessionEntry } from "../../acp/runtime/session-meta.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadSessionStore, resolveStorePath, type SessionEntry } from "../../config/sessions.js";
@@ -506,6 +512,14 @@ export async function dispatchReplyFromConfig(params: {
         markIdle("message_completed");
         return { queuedFinal: false, counts };
       }
+      const identityPendingBeforeTurn = isSessionIdentityPending(
+        resolveSessionIdentityFromMeta(
+          acpResolution.kind === "ready" ? acpResolution.meta : undefined,
+        ),
+      );
+      const shouldEmitResolvedIdentityNotice =
+        identityPendingBeforeTurn &&
+        Boolean(ctx.MessageThreadId != null && String(ctx.MessageThreadId).trim());
 
       const resolvedAcpAgent =
         acpResolution.kind === "ready"
@@ -569,6 +583,25 @@ export async function dispatchReplyFromConfig(params: {
             logVerbose(
               `dispatch-from-config: accumulated ACP block TTS failed: ${err instanceof Error ? err.message : String(err)}`,
             );
+          }
+        }
+        if (shouldEmitResolvedIdentityNotice) {
+          const currentMeta = readAcpSessionEntry({
+            cfg,
+            sessionKey,
+          })?.acp;
+          const identityAfterTurn = resolveSessionIdentityFromMeta(currentMeta);
+          if (!isSessionIdentityPending(identityAfterTurn)) {
+            const resolvedDetails = resolveAcpThreadSessionDetailLines({
+              sessionKey,
+              meta: currentMeta,
+            });
+            if (resolvedDetails.length > 0) {
+              const delivered = await deliverAcpPayload("final", {
+                text: ["✅ Session ids resolved.", ...resolvedDetails].join("\n"),
+              });
+              queuedFinal = queuedFinal || delivered;
+            }
           }
         }
 

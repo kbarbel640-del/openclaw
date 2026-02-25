@@ -39,15 +39,20 @@ export function resolveThreadBindingIntroText(params: {
   agentId?: string;
   label?: string;
   sessionTtlMs?: number;
+  sessionCwd?: string;
   sessionDetails?: string[];
 }): string {
   const label = params.label?.trim();
   const base = label || params.agentId?.trim() || "agent";
   const normalized = base.replace(/\s+/g, " ").trim().slice(0, 100) || "agent";
   const ttlMs = normalizeThreadBindingMessageTtlMs(params.sessionTtlMs);
+  const cwd = params.sessionCwd?.trim();
   const details = (params.sessionDetails ?? [])
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
+  if (cwd) {
+    details.unshift(`cwd: ${cwd}`);
+  }
   const intro =
     ttlMs > 0
       ? `🤖 ${normalized} session active (auto-unfocus in ${formatThreadBindingTtlLabel(ttlMs)}). Messages here go directly to this session.`

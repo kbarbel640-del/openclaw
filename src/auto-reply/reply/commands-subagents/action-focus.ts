@@ -1,4 +1,7 @@
-import { resolveAcpSessionIdentifierLines } from "../../../acp/runtime/session-identifiers.js";
+import {
+  resolveAcpSessionCwd,
+  resolveAcpThreadSessionDetailLines,
+} from "../../../acp/runtime/session-identifiers.js";
 import { readAcpSessionEntry } from "../../../acp/runtime/session-meta.js";
 import {
   resolveDiscordThreadBindingSessionTtlMs,
@@ -110,9 +113,10 @@ export async function handleSubagentsFocusAction(
             cfg: params.cfg,
             accountId,
           }),
+          sessionCwd: focusTarget.targetKind === "acp" ? resolveAcpSessionCwd(acpMeta) : undefined,
           sessionDetails:
             focusTarget.targetKind === "acp"
-              ? resolveAcpSessionIdentifierLines({
+              ? resolveAcpThreadSessionDetailLines({
                   sessionKey: focusTarget.targetSessionKey,
                   meta: acpMeta,
                 })

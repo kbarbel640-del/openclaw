@@ -324,6 +324,13 @@ describe("/focus, /unfocus, /agents", () => {
         }),
       }),
     );
+    expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          introText: expect.stringContaining("codex resume codex-123"),
+        }),
+      }),
+    );
   });
 
   it("/unfocus removes an active thread binding for the binding owner", async () => {

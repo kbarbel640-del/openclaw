@@ -13,7 +13,10 @@ import {
 } from "../../../acp/policy.js";
 import { toAcpRuntimeErrorText } from "../../../acp/runtime/error-text.js";
 import { AcpRuntimeError } from "../../../acp/runtime/errors.js";
-import { resolveAcpSessionIdentifierLines } from "../../../acp/runtime/session-identifiers.js";
+import {
+  resolveAcpSessionCwd,
+  resolveAcpThreadSessionDetailLines,
+} from "../../../acp/runtime/session-identifiers.js";
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { SessionAcpMeta } from "../../../config/sessions/types.js";
 import {
@@ -260,7 +263,8 @@ async function bindSpawnedAcpSessionToThread(params: {
                   channelTtlHoursRaw: undefined,
                   sessionTtlHoursRaw: commandParams.cfg.session?.threadBindings?.ttlHours,
                 }),
-          sessionDetails: resolveAcpSessionIdentifierLines({
+          sessionCwd: resolveAcpSessionCwd(params.sessionMeta),
+          sessionDetails: resolveAcpThreadSessionDetailLines({
             sessionKey: params.sessionKey,
             meta: params.sessionMeta,
           }),

@@ -514,6 +514,74 @@ describe("dispatchReplyFromConfig", () => {
     expect(dispatcher.sendFinalReply).not.toHaveBeenCalled();
   });
 
+  it("posts a one-time resolved-session-id notice in thread after the first ACP turn", async () => {
+    setNoAbort();
+    const runtime = createAcpRuntime([{ type: "text_delta", text: "hello" }, { type: "done" }]);
+    const pendingAcp = {
+      backend: "acpx",
+      agent: "codex",
+      runtimeSessionName: "runtime:1",
+      identity: {
+        state: "pending" as const,
+        source: "ensure" as const,
+        lastUpdatedAt: Date.now(),
+        acpxSessionId: "acpx-123",
+        agentSessionId: "inner-123",
+      },
+      mode: "persistent" as const,
+      state: "idle" as const,
+      lastActivityAt: Date.now(),
+    };
+    const resolvedAcp = {
+      ...pendingAcp,
+      identity: {
+        ...pendingAcp.identity,
+        state: "resolved" as const,
+        source: "status" as const,
+      },
+    };
+    acpMocks.readAcpSessionEntry.mockImplementation(() => {
+      const runTurnStarted = runtime.runTurn.mock.calls.length > 0;
+      return {
+        sessionKey: "agent:codex-acp:session-1",
+        storeSessionKey: "agent:codex-acp:session-1",
+        cfg: {},
+        storePath: "/tmp/mock-sessions.json",
+        entry: {},
+        acp: runTurnStarted ? resolvedAcp : pendingAcp,
+      };
+    });
+    acpMocks.requireAcpRuntimeBackend.mockReturnValue({
+      id: "acpx",
+      runtime,
+    });
+
+    const cfg = {
+      acp: {
+        enabled: true,
+        dispatch: { enabled: true },
+      },
+    } as OpenClawConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "discord",
+      Surface: "discord",
+      SessionKey: "agent:codex-acp:session-1",
+      MessageThreadId: "thread-1",
+      BodyForAgent: "show ids",
+    });
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver: vi.fn() });
+
+    const finalCalls = (dispatcher.sendFinalReply as ReturnType<typeof vi.fn>).mock.calls;
+    expect(finalCalls.length).toBe(1);
+    const finalPayload = finalCalls[0]?.[0] as ReplyPayload | undefined;
+    expect(finalPayload?.text).toContain("Session ids resolved");
+    expect(finalPayload?.text).toContain("agent session id: inner-123");
+    expect(finalPayload?.text).toContain("acpx session id: acpx-123");
+    expect(finalPayload?.text).toContain("codex resume inner-123");
+  });
+
   it("honors send-policy deny before ACP runtime dispatch", async () => {
     setNoAbort();
     const runtime = createAcpRuntime([

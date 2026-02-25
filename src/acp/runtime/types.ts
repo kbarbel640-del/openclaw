@@ -8,6 +8,8 @@ export type AcpRuntimeHandle = {
   sessionKey: string;
   backend: string;
   runtimeSessionName: string;
+  /** Effective runtime working directory for this ACP session, if exposed by adapter/runtime. */
+  cwd?: string;
   /** Backend-local record identifier, if exposed by adapter/runtime (for example acpx record id). */
   acpxRecordId?: string;
   /** Backend-level ACP session identifier, if exposed by adapter/runtime. */

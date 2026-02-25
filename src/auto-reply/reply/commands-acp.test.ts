@@ -296,7 +296,7 @@ describe("/acp command", () => {
       backendSessionId: "acpx-1",
     });
 
-    const params = createDiscordParams("/acp spawn codex");
+    const params = createDiscordParams("/acp spawn codex --cwd /home/bob/clawd");
     const result = await handleAcpCommand(params, true);
 
     expect(result?.reply?.text).toContain("Spawned ACP session agent:codex:acp:");
@@ -306,6 +306,7 @@ describe("/acp command", () => {
       expect.objectContaining({
         agent: "codex",
         mode: "persistent",
+        cwd: "/home/bob/clawd",
       }),
     );
     expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
@@ -313,7 +314,14 @@ describe("/acp command", () => {
         targetKind: "session",
         placement: "child",
         metadata: expect.objectContaining({
-          introText: expect.stringContaining(
+          introText: expect.stringContaining("cwd: /home/bob/clawd"),
+        }),
+      }),
+    );
+    expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          introText: expect.not.stringContaining(
             "session ids: pending (available after the first reply)",
           ),
         }),

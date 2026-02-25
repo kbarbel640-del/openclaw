@@ -106,6 +106,16 @@ describe("thread binding ttl", () => {
     expect(intro).toContain("auto-unfocus in 24h");
   });
 
+  it("includes cwd near the top of intro text", () => {
+    const intro = resolveThreadBindingIntroText({
+      agentId: "codex",
+      sessionTtlMs: 24 * 60 * 60 * 1000,
+      sessionCwd: "/home/bob/clawd",
+      sessionDetails: ["session ids: pending (available after the first reply)"],
+    });
+    expect(intro).toContain("\ncwd: /home/bob/clawd\nsession ids: pending");
+  });
+
   it("auto-unfocuses expired bindings and sends a ttl-expired message", async () => {
     vi.useFakeTimers();
     try {

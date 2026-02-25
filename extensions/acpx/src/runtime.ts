@@ -170,6 +170,7 @@ export class AcpxRuntime implements AcpRuntime {
         ...(backendSessionId ? { backendSessionId } : {}),
         ...(agentSessionId ? { agentSessionId } : {}),
       }),
+      cwd,
       ...(acpxRecordId ? { acpxRecordId } : {}),
       ...(backendSessionId ? { backendSessionId } : {}),
       ...(agentSessionId ? { agentSessionId } : {}),

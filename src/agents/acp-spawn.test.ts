@@ -151,8 +151,10 @@ describe("spawnAcpDirect", () => {
         sessionKey: string;
         agent: string;
         mode: "persistent" | "oneshot";
+        cwd?: string;
       };
       const runtimeSessionName = `${args.sessionKey}:runtime`;
+      const cwd = typeof args.cwd === "string" ? args.cwd : undefined;
       return {
         runtime: {
           close: vi.fn().mockResolvedValue(undefined),
@@ -161,6 +163,7 @@ describe("spawnAcpDirect", () => {
           sessionKey: args.sessionKey,
           backend: "acpx",
           runtimeSessionName,
+          ...(cwd ? { cwd } : {}),
           agentSessionId: "codex-inner-1",
           backendSessionId: "acpx-1",
         },
@@ -168,6 +171,7 @@ describe("spawnAcpDirect", () => {
           backend: "acpx",
           agent: args.agent,
           runtimeSessionName,
+          ...(cwd ? { runtimeOptions: { cwd }, cwd } : {}),
           agentSessionId: "codex-inner-1",
           backendSessionId: "acpx-1",
           sessionIdsProvisional: true,
@@ -243,7 +247,7 @@ describe("spawnAcpDirect", () => {
     expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({
-          introText: expect.stringContaining(
+          introText: expect.not.stringContaining(
             "session ids: pending (available after the first reply)",
           ),
         }),
@@ -262,6 +266,33 @@ describe("spawnAcpDirect", () => {
         sessionKey: expect.stringMatching(/^agent:codex:acp:/),
         agent: "codex",
         mode: "persistent",
+      }),
+    );
+  });
+
+  it("includes cwd in ACP thread intro banner when provided at spawn time", async () => {
+    const result = await spawnAcpDirect(
+      {
+        task: "Check workspace",
+        agentId: "codex",
+        cwd: "/home/bob/clawd",
+        mode: "session",
+        thread: true,
+      },
+      {
+        agentSessionKey: "agent:main:main",
+        agentChannel: "discord",
+        agentAccountId: "default",
+        agentTo: "channel:parent-channel",
+      },
+    );
+
+    expect(result.status).toBe("accepted");
+    expect(hoisted.sessionBindingBindMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          introText: expect.stringContaining("cwd: /home/bob/clawd"),
+        }),
       }),
     );
   });

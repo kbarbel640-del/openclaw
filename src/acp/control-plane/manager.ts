@@ -373,14 +373,14 @@ export class AcpSessionManager {
       const backend = this.deps.requireRuntimeBackend(input.backendId || input.cfg.acp?.backend);
       const runtime = backend.runtime;
       const initialRuntimeOptions = validateRuntimeOptionPatch({ cwd: input.cwd });
-      const initialCwd = initialRuntimeOptions.cwd;
+      const requestedCwd = initialRuntimeOptions.cwd;
       let handle: AcpRuntimeHandle;
       try {
         handle = await runtime.ensureSession({
           sessionKey,
           agent,
           mode: input.mode,
-          cwd: initialCwd,
+          cwd: requestedCwd,
         });
       } catch (error) {
         throw toAcpRuntimeError({
@@ -389,6 +389,11 @@ export class AcpSessionManager {
           fallbackMessage: "Could not initialize ACP session runtime.",
         });
       }
+      const effectiveCwd = normalizeText(handle.cwd) ?? requestedCwd;
+      const effectiveRuntimeOptions = normalizeRuntimeOptions({
+        ...initialRuntimeOptions,
+        ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+      });
 
       const identityNow = Date.now();
       const initializedIdentity =
@@ -412,10 +417,10 @@ export class AcpSessionManager {
         identity: initializedIdentity,
         ...identityToLegacyProjection(initializedIdentity),
         mode: input.mode,
-        ...(Object.keys(initialRuntimeOptions).length > 0
-          ? { runtimeOptions: initialRuntimeOptions }
+        ...(Object.keys(effectiveRuntimeOptions).length > 0
+          ? { runtimeOptions: effectiveRuntimeOptions }
           : {}),
-        cwd: initialCwd,
+        cwd: effectiveCwd,
         state: "idle",
         lastActivityAt: Date.now(),
       };
@@ -451,7 +456,7 @@ export class AcpSessionManager {
         backend: handle.backend || backend.id,
         agent,
         mode: input.mode,
-        cwd: initialCwd,
+        cwd: effectiveCwd,
       });
       return {
         runtime,
@@ -1107,7 +1112,7 @@ export class AcpSessionManager {
       params.meta.agent?.trim() || resolveAcpAgentFromSessionKey(params.sessionKey, "main");
     const mode = params.meta.mode;
     const runtimeOptions = resolveRuntimeOptionsFromMeta(params.meta);
-    const cwd = runtimeOptions.cwd;
+    const cwd = runtimeOptions.cwd ?? normalizeText(params.meta.cwd);
     const configuredBackend = (params.meta.backend || params.cfg.acp?.backend || "").trim();
     const cached = this.getCachedRuntimeState(params.sessionKey);
     if (cached) {
@@ -1151,6 +1156,11 @@ export class AcpSessionManager {
     const previousMeta = params.meta;
     const previousIdentity = resolveSessionIdentityFromMeta(previousMeta);
     const now = Date.now();
+    const effectiveCwd = normalizeText(ensured.cwd) ?? cwd;
+    const nextRuntimeOptions = normalizeRuntimeOptions({
+      ...runtimeOptions,
+      ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+    });
     const nextIdentity =
       mergeSessionIdentity({
         current: previousIdentity,
@@ -1178,8 +1188,8 @@ export class AcpSessionManager {
       ...(nextIdentity ? { identity: nextIdentity } : {}),
       ...projectedLegacy,
       agent,
-      runtimeOptions,
-      cwd,
+      runtimeOptions: nextRuntimeOptions,
+      cwd: effectiveCwd,
       state: previousMeta.state,
       lastActivityAt: now,
     };
@@ -1208,7 +1218,7 @@ export class AcpSessionManager {
       backend: ensured.backend || backend.id,
       agent,
       mode,
-      cwd,
+      cwd: effectiveCwd,
       appliedControlSignature: undefined,
     });
     return {

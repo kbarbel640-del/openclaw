@@ -6,7 +6,10 @@ import {
   type AcpSpawnRuntimeCloseHandle,
 } from "../acp/control-plane/spawn.js";
 import { isAcpEnabledByPolicy, resolveAcpAgentPolicyError } from "../acp/policy.js";
-import { resolveAcpSessionIdentifierLines } from "../acp/runtime/session-identifiers.js";
+import {
+  resolveAcpSessionCwd,
+  resolveAcpThreadSessionDetailLines,
+} from "../acp/runtime/session-identifiers.js";
 import type { AcpRuntimeSessionMode } from "../acp/runtime/types.js";
 import { loadConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
@@ -329,7 +332,8 @@ export async function spawnAcpDirect(
               cfg,
               accountId: preparedBinding.accountId,
             }),
-            sessionDetails: resolveAcpSessionIdentifierLines({
+            sessionCwd: resolveAcpSessionCwd(initialized.meta),
+            sessionDetails: resolveAcpThreadSessionDetailLines({
               sessionKey,
               meta: initialized.meta,
             }),
