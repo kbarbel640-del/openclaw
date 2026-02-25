@@ -169,14 +169,16 @@ export class VoiceCallWebhookServer {
           (this.provider as TwilioProvider).registerCallStream(callId, streamSid);
         }
 
-        // Speak initial message if one was provided when call was initiated.
-        // In conversation mode this will use the Pi agent speak path (if configured);
-        // callers can skip this by not setting an initial message.
-        setTimeout(() => {
-          this.manager.speakInitialMessage(callId).catch((err) => {
-            console.warn(`[voice-call] Failed to speak initial message:`, err);
-          });
-        }, 500);
+        // STT mode only: speak initial message via telephony TTS.
+        // Conversation mode uses onConversationConnected to trigger the AI greeting
+        // via response.create, avoiding the TwiML <Say> fallback that breaks the stream.
+        if (!isConversationMode) {
+          setTimeout(() => {
+            this.manager.speakInitialMessage(callId).catch((err) => {
+              console.warn(`[voice-call] Failed to speak initial message:`, err);
+            });
+          }, 500);
+        }
       },
       onDisconnect: (callId: string) => {
         console.log(`[voice-call] Media stream disconnected: ${callId}`);
@@ -207,7 +209,19 @@ export class VoiceCallWebhookServer {
         silenceDurationMs: this.config.streaming?.silenceDurationMs,
         vadThreshold: this.config.streaming?.vadThreshold,
       });
-      streamConfig = { conversationProvider, ...sharedCallbacks };
+      streamConfig = {
+        conversationProvider,
+        ...sharedCallbacks,
+        onConversationConnected: (callId: string, _streamSid: string, session) => {
+          // Get the initial message (if any) from call metadata and trigger AI greeting.
+          const call = this.manager.getCallByProviderCallId(callId);
+          const initialMessage = call?.metadata?.initialMessage as string | undefined;
+          if (call?.metadata?.initialMessage) {
+            delete call.metadata.initialMessage;
+          }
+          session.triggerGreeting(initialMessage);
+        },
+      };
     } else {
       const sttProvider = new OpenAIRealtimeSTTProvider({
         apiKey,

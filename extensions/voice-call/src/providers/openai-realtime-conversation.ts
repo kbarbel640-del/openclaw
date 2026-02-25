@@ -51,6 +51,12 @@ export interface RealtimeConversationSession {
   close(): void;
   /** Check if session is currently connected */
   isConnected(): boolean;
+  /**
+   * Trigger the AI to speak first (e.g., for greeting the caller at call start).
+   * If message is provided, instructs the AI to use that exact text.
+   * Falls back to a natural greeting based on the session's system prompt.
+   */
+  triggerGreeting(message?: string): void;
 }
 
 /**
@@ -364,5 +370,18 @@ class OpenAIRealtimeConversationSession implements RealtimeConversationSession {
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  triggerGreeting(message?: string): void {
+    if (!this.connected) return;
+    if (message) {
+      // Use the message text as instructions for just this response so the AI says exactly that.
+      this.sendEvent({
+        type: "response.create",
+        response: { instructions: `Begin the call by saying exactly: "${message}"` },
+      });
+    } else {
+      this.sendEvent({ type: "response.create" });
+    }
   }
 }

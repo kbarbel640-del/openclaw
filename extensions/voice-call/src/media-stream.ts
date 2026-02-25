@@ -50,6 +50,15 @@ export interface MediaStreamConfig {
   onSpeechStart?: (callId: string) => void;
   /** Callback when stream disconnects */
   onDisconnect?: (callId: string) => void;
+  /**
+   * Callback fired after the conversation session has connected to OpenAI Realtime.
+   * Use this to trigger an initial greeting via session.triggerGreeting().
+   */
+  onConversationConnected?: (
+    callId: string,
+    streamSid: string,
+    session: RealtimeConversationSession,
+  ) => void;
 }
 
 /**
@@ -265,9 +274,14 @@ export class MediaStreamHandler {
       this.sessions.set(streamSid, session);
       this.config.onConnect?.(callSid, streamSid);
 
-      convSession.connect().catch((err) => {
-        console.warn(`[MediaStream] Conversation connection failed:`, err.message);
-      });
+      convSession
+        .connect()
+        .then(() => {
+          this.config.onConversationConnected?.(callSid, streamSid, convSession);
+        })
+        .catch((err) => {
+          console.warn(`[MediaStream] Conversation connection failed:`, err.message);
+        });
     } else if (this.config.sttProvider) {
       // STT-only mode: transcription → Pi agent → TTS pipeline
       const sttSession = this.config.sttProvider.createSession();
