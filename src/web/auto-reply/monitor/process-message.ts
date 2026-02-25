@@ -1,5 +1,6 @@
 import { resolveIdentityNamePrefix } from "../../../agents/identity.js";
 import { resolveChunkMode, resolveTextChunkLimit } from "../../../auto-reply/chunk.js";
+import { resolveCommandsAllowFromList } from "../../../auto-reply/command-auth.js";
 import { shouldComputeCommandAuthorized } from "../../../auto-reply/command-detection.js";
 import {
   formatInboundEnvelope,
@@ -69,15 +70,11 @@ async function resolveWhatsAppCommandAuthorized(params: {
   // Prefer commands.allowFrom when configured. This lets users keep WhatsApp groups "open"
   // (e.g. groupAllowFrom: ["*"] to allow logging/context) while still restricting who can
   // run slash/inline commands like /cb, /new, /status, etc.
-  const commandsAllowFromRaw = params.cfg.commands?.allowFrom;
-  const commandsAllowFromList =
-    commandsAllowFromRaw && typeof commandsAllowFromRaw === "object"
-      ? Array.isArray(commandsAllowFromRaw.whatsapp)
-        ? commandsAllowFromRaw.whatsapp
-        : Array.isArray(commandsAllowFromRaw["*"])
-          ? commandsAllowFromRaw["*"]
-          : null
-      : null;
+  const commandsAllowFromList = resolveCommandsAllowFromList({
+    cfg: params.cfg,
+    accountId: params.msg.accountId,
+    providerId: "whatsapp",
+  });
 
   const isGroup = params.msg.chatType === "group";
   const senderE164 = normalizeE164(
