@@ -262,21 +262,27 @@ export function createSessionsSpawnTool(opts?: {
         threadId: opts?.agentThreadId,
       });
       const hookRunner = getGlobalHookRunner();
-      // Default to 0 (no timeout) when omitted. Sub-agent runs are long-lived
-      // by default and should not inherit the main agent 600s timeout.
+      const cfg = loadConfig();
+      const cfgSubagentTimeout =
+        typeof cfg?.agents?.defaults?.subagents?.runTimeoutSeconds === "number" &&
+        Number.isFinite(cfg.agents.defaults.subagents.runTimeoutSeconds)
+          ? Math.max(0, Math.floor(cfg.agents.defaults.subagents.runTimeoutSeconds))
+          : 0;
+
+      // Default to config subagent timeout or 0 (no timeout) when omitted.
+      // Sub-agent runs are long-lived by default and should not inherit the main agent 600s timeout.
       const timeoutSecondsCandidate =
         typeof params.runTimeoutSeconds === "number"
           ? params.runTimeoutSeconds
           : typeof params.timeoutSeconds === "number"
             ? params.timeoutSeconds
-            : undefined;
+            : cfgSubagentTimeout;
       const runTimeoutSeconds =
         typeof timeoutSecondsCandidate === "number" && Number.isFinite(timeoutSecondsCandidate)
           ? Math.max(0, Math.floor(timeoutSecondsCandidate))
           : 0;
       let modelApplied = false;
 
-      const cfg = loadConfig();
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
 
       const attachmentsCfg = (

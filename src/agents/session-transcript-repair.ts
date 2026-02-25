@@ -122,6 +122,7 @@ function sanitizeToolCallBlock(block: RawToolCallBlock): ToolCallBlock {
     return normalized;
   }
   // Redact large/sensitive inline attachment content from persisted transcripts.
+  // Apply redaction to both `.arguments` and `.input` properties since block structures can vary
   const nextArgs = redactSessionsSpawnAttachmentsArgs(block.arguments);
   const nextInput = redactSessionsSpawnAttachmentsArgs(block.input);
   if (nextArgs === block.arguments && nextInput === block.input) {
@@ -133,6 +134,19 @@ function sanitizeToolCallBlock(block: RawToolCallBlock): ToolCallBlock {
       : nextInput && typeof nextInput === "object"
         ? (nextInput as Record<string, unknown>)
         : normalized.arguments;
+
+  // If original block had an input property, make sure we return it sanitized
+  // This is required for Google Cloud Vertex AI which validates the exact original shape
+  if ("input" in block && typeof block.input === "object" && block.input !== null) {
+    const inputObj =
+      nextInput && typeof nextInput === "object"
+        ? nextInput
+        : nextArgs && typeof nextArgs === "object"
+          ? nextArgs
+          : {};
+    return { ...normalized, arguments: merged, input: inputObj } as unknown as ToolCallBlock;
+  }
+
   return { ...normalized, arguments: merged };
 }
 
@@ -225,7 +239,10 @@ export function repairToolCallInputs(
         continue;
       }
       if (isToolCallBlock(block)) {
-        if ((block as { type?: unknown }).type === "toolCall") {
+        if (
+          (block as { type?: unknown }).type === "toolCall" ||
+          (block as { type?: unknown }).type === "toolUse"
+        ) {
           const sanitized = sanitizeToolCallBlock(block);
           if (sanitized !== block) {
             changed = true;
