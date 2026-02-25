@@ -474,7 +474,9 @@ describe("onboard (non-interactive): provider auth", () => {
       expect(provider?.baseUrl).toBe("https://llm.example.com/v1");
       expect(provider?.api).toBe("anthropic-messages");
       expect(provider?.apiKey).toBe("custom-test-key");
-      expect(provider?.models?.some((model) => model.id === "foo-large")).toBe(true);
+      const model = provider?.models?.find((entry) => entry.id === "foo-large");
+      expect(model).toBeDefined();
+      expect(model?.contextWindow).toBe(16000);
       expect(cfg.agents?.defaults?.model?.primary).toBe("custom-llm-example-com/foo-large");
     });
   }, 60_000);
