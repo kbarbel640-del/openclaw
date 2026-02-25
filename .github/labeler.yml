@@ -93,6 +93,11 @@
   - changed-files:
       - any-glob-to-any-file:
           - "extensions/voice-call/**"
+"channel: whatsapp-call":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/whatsapp-call/**"
+          - "docs/channels/whatsapp-call.md"
 "channel: whatsapp-web":
   - changed-files:
       - any-glob-to-any-file:

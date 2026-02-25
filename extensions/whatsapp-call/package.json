@@ -1,0 +1,40 @@
+{
+  "name": "@openclaw/whatsapp-call",
+  "version": "2026.2.18",
+  "private": true,
+  "description": "OpenClaw WhatsApp Call channel plugin — outbound voice calls via WATI or Meta Graph API",
+  "type": "module",
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48",
+    "node-datachannel": "^0.32.1",
+    "werift": "^0.22.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "whatsappcall",
+      "label": "WhatsApp Call",
+      "selectionLabel": "WhatsApp Call (Voice)",
+      "docsPath": "/channels/whatsapp-call",
+      "docsLabel": "whatsapp-call",
+      "blurb": "outbound AI voice calls via WhatsApp (WATI or Meta Graph API).",
+      "aliases": [
+        "whatsapp-call",
+        "wa-call",
+        "wacall"
+      ],
+      "order": 65
+    },
+    "install": {
+      "npmSpec": "@openclaw/whatsapp-call",
+      "localPath": "extensions/whatsapp-call",
+      "defaultChoice": "npm"
+    }
+  }
+}

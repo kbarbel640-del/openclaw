@@ -909,7 +909,8 @@
                   "channels/tlon",
                   "channels/twitch",
                   "channels/zalo",
-                  "channels/zalouser"
+                  "channels/zalouser",
+                  "channels/whatsapp-call"
                 ]
               },
               {
