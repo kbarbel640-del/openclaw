@@ -57,6 +57,15 @@ function truncateSummary(text: string, max = 50): string {
   return clean.length <= max ? clean : clean.slice(0, max - 3) + "...";
 }
 
+/**
+ * Escape special characters for Feishu Card Kit markdown.
+ * - < → < , > → > to prevent tag interpretation
+ * - Backticks need escaping to prevent code block parsing issues
+ */
+function escapeMarkdownForCard(text: string): string {
+  return text.replace(/</g, "<").replace(/>/g, ">").replace(/`/g, "\\`");
+}
+
 /** Streaming card session manager */
 export class FeishuStreamingSession {
   private client: Client;
@@ -138,6 +147,7 @@ export class FeishuStreamingSession {
     }
     const apiBase = resolveApiBase(this.creds.domain);
     this.state.sequence += 1;
+    const escapedText = escapeMarkdownForCard(text);
     await fetch(`${apiBase}/cardkit/v1/cards/${this.state.cardId}/elements/content/content`, {
       method: "PUT",
       headers: {
@@ -145,7 +155,7 @@ export class FeishuStreamingSession {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        content: text,
+        content: escapedText,
         sequence: this.state.sequence,
         uuid: `s_${this.state.cardId}_${this.state.sequence}`,
       }),
