@@ -13,6 +13,11 @@ export type AuthChoice =
   | "openai-codex"
   | "openai-api-key"
   | "openrouter-api-key"
+  // 新增：OpenAI兼容供应商（硅基流动、阿里云百炼、DeepSeek）的API Key选择
+  | "siliconflow-api-key"
+  | "dashscope-api-key"
+  | "deepseek-api-key"
+  | "volcengine-api-key"
   | "kilocode-api-key"
   | "litellm-api-key"
   | "ai-gateway-api-key"
@@ -136,6 +141,10 @@ export type OnboardOptions = {
   customModelId?: string;
   customProviderId?: string;
   customCompatibility?: "openai" | "anthropic";
+  // 新增：OpenAI兼容供应商API Key（非交互模式使用）
+  siliconflowApiKey?: string;
+  dashscopeApiKey?: string;
+  deepseekApiKey?: string;
   gatewayPort?: number;
   gatewayBind?: GatewayBind;
   gatewayAuth?: GatewayAuthChoice;

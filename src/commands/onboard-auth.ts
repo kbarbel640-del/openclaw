@@ -121,3 +121,15 @@ export {
   ZAI_CN_BASE_URL,
   ZAI_GLOBAL_BASE_URL,
 } from "./onboard-auth.models.js";
+
+export {
+  SILICONFLOW_BASE_URL,
+  SILICONFLOW_DEFAULT_MODEL_REF,
+  DASHSCOPE_BASE_URL,
+  DASHSCOPE_DEFAULT_MODEL_REF,
+  DEEPSEEK_BASE_URL,
+  DEEPSEEK_DEFAULT_MODEL_REF,
+  buildSiliconflowModelDefinition,
+  buildDashscopeModelDefinition,
+  buildDeepseekModelDefinition,
+} from "./onboard-auth.models.js";

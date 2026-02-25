@@ -151,6 +151,52 @@ const OLLAMA_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+// 新增：OpenAI兼容供应商（硅基流动、阿里云百炼、DeepSeek）默认配置
+const SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1";
+// 采用在中文环境中更常见且可用的Qwen 2.5指令模型作为默认
+const SILICONFLOW_DEFAULT_MODEL_ID = "Qwen/Qwen2.5-32B-Instruct";
+const SILICONFLOW_DEFAULT_CONTEXT_WINDOW = 128000;
+const SILICONFLOW_DEFAULT_MAX_TOKENS = 8192;
+const SILICONFLOW_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+const DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const DASHSCOPE_DEFAULT_MODEL_ID = "qwen-plus";
+const DASHSCOPE_DEFAULT_CONTEXT_WINDOW = 128000;
+const DASHSCOPE_DEFAULT_MAX_TOKENS = 8192;
+const DASHSCOPE_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
+const DEEPSEEK_DEFAULT_MODEL_ID = "deepseek-chat";
+const DEEPSEEK_DEFAULT_CONTEXT_WINDOW = 128000;
+const DEEPSEEK_DEFAULT_MAX_TOKENS = 8192;
+const DEEPSEEK_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+const ZAI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
+const ZAI_DEFAULT_MODEL_ID = "glm-5";
+const ZAI_DEFAULT_CONTEXT_WINDOW = 200000;
+const ZAI_DEFAULT_MAX_TOKENS = 128000;
+const ZAI_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OPENROUTER_DEFAULT_MODEL_ID = "auto";
 const OPENROUTER_DEFAULT_CONTEXT_WINDOW = 200000;
@@ -632,6 +678,105 @@ export function buildXiaomiProvider(): ProviderConfig {
   };
 }
 
+function buildSiliconflowProvider(): ProviderConfig {
+  return {
+    baseUrl: SILICONFLOW_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: SILICONFLOW_DEFAULT_MODEL_ID,
+        name: "SiliconFlow Auto",
+        reasoning: false,
+        input: ["text"],
+        cost: SILICONFLOW_DEFAULT_COST,
+        contextWindow: SILICONFLOW_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: SILICONFLOW_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
+function buildDashscopeProvider(): ProviderConfig {
+  return {
+    baseUrl: DASHSCOPE_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: DASHSCOPE_DEFAULT_MODEL_ID,
+        name: "Qwen Plus",
+        reasoning: false,
+        input: ["text"],
+        cost: DASHSCOPE_DEFAULT_COST,
+        contextWindow: DASHSCOPE_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: DASHSCOPE_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
+function buildDeepseekProvider(): ProviderConfig {
+  return {
+    baseUrl: DEEPSEEK_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: DEEPSEEK_DEFAULT_MODEL_ID,
+        name: "DeepSeek Chat",
+        reasoning: false,
+        input: ["text"],
+        cost: DEEPSEEK_DEFAULT_COST,
+        contextWindow: DEEPSEEK_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: DEEPSEEK_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
+function buildZaiProvider(): ProviderConfig {
+  return {
+    baseUrl: ZAI_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: "glm-4.5",
+        name: "GLM-4.5",
+        reasoning: false,
+        input: ["text"],
+        cost: ZAI_DEFAULT_COST,
+        contextWindow: 128000,
+        maxTokens: 128000,
+      },
+      {
+        id: "glm-4.6",
+        name: "GLM-4.6",
+        reasoning: false,
+        input: ["text"],
+        cost: ZAI_DEFAULT_COST,
+        contextWindow: 198000,
+        maxTokens: 128000,
+      },
+      {
+        id: "glm-4.7",
+        name: "GLM-4.7",
+        reasoning: false,
+        input: ["text"],
+        cost: ZAI_DEFAULT_COST,
+        contextWindow: 198000,
+        maxTokens: 128000,
+      },
+      {
+        id: ZAI_DEFAULT_MODEL_ID,
+        name: "GLM-5",
+        reasoning: true,
+        input: ["text"],
+        cost: ZAI_DEFAULT_COST,
+        contextWindow: ZAI_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: ZAI_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 async function buildVeniceProvider(): Promise<ProviderConfig> {
   const models = await discoverVeniceModels();
   return {
@@ -853,6 +998,27 @@ export async function resolveImplicitProviders(params: {
     };
   }
 
+  const siliconKey =
+      resolveEnvApiKeyVarName("siliconflow") ??
+      resolveApiKeyFromProfiles({ provider: "siliconflow", store: authStore });
+  if (siliconKey) {
+    providers.siliconflow = { ...buildSiliconflowProvider(), apiKey: siliconKey };
+  }
+
+  const dashscopeKey =
+      resolveEnvApiKeyVarName("dashscope") ??
+      resolveApiKeyFromProfiles({ provider: "dashscope", store: authStore });
+  if (dashscopeKey) {
+    providers.dashscope = { ...buildDashscopeProvider(), apiKey: dashscopeKey };
+  }
+
+  const deepseekKey =
+      resolveEnvApiKeyVarName("deepseek") ??
+      resolveApiKeyFromProfiles({ provider: "deepseek", store: authStore });
+  if (deepseekKey) {
+    providers.deepseek = { ...buildDeepseekProvider(), apiKey: deepseekKey };
+  }
+
   const volcengineKey =
     resolveEnvApiKeyVarName("volcengine") ??
     resolveApiKeyFromProfiles({ provider: "volcengine", store: authStore });
@@ -881,6 +1047,14 @@ export async function resolveImplicitProviders(params: {
   if (xiaomiKey) {
     providers.xiaomi = { ...buildXiaomiProvider(), apiKey: xiaomiKey };
   }
+
+  const zaiKey =
+      resolveEnvApiKeyVarName("zai") ??
+      resolveApiKeyFromProfiles({ provider: "zai", store: authStore });
+  if (zaiKey) {
+    providers.zai = { ...buildZaiProvider(), apiKey: zaiKey };
+  }
+
 
   const cloudflareProfiles = listProfilesForProvider(authStore, "cloudflare-ai-gateway");
   for (const profileId of cloudflareProfiles) {
