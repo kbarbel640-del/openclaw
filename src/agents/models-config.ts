@@ -52,11 +52,12 @@ function mergeProviderModels(implicit: ProviderConfig, explicit: ProviderConfig)
     // to the built-in catalog default so new reasoning models work out of the
     // box without requiring every user to configure it.
     return {
+      ...implicitModel,
       ...explicitModel,
       input: implicitModel.input,
       reasoning: "reasoning" in explicitModel ? explicitModel.reasoning : implicitModel.reasoning,
-      contextWindow: implicitModel.contextWindow,
-      maxTokens: implicitModel.maxTokens,
+      contextWindow: explicitModel.contextWindow ?? implicitModel.contextWindow,
+      maxTokens: explicitModel.maxTokens ?? implicitModel.maxTokens,
     };
   });
 
