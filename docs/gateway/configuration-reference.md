@@ -1239,7 +1239,7 @@ See [Multi-Agent Sandbox & Tools](/tools/multi-agent-sandbox-tools) for preceden
       alice: ["telegram:123456789", "discord:987654321012345678"],
     },
     reset: {
-      mode: "daily", // daily | idle
+      mode: "daily", // daily | idle | off
       atHour: 4,
       idleMinutes: 60,
     },
