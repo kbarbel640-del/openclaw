@@ -693,6 +693,49 @@ function buildChatCommands(): ChatCommandDefinition[] {
         },
       ],
     }),
+    defineChatCommand({
+      key: "shared",
+      nativeName: "shared",
+      description: "List shared resources across agents (skills, tools, files).",
+      textAlias: "/shared",
+      category: "status",
+      args: [
+        {
+          name: "view",
+          description: "What to show",
+          type: "string",
+          choices: ["overview", "skills", "agents", "files"],
+        },
+      ],
+    }),
+    defineChatCommand({
+      key: "agents",
+      nativeName: "agents",
+      description: "List configured agents and their status.",
+      textAlias: "/agents",
+      category: "status",
+      args: [
+        {
+          name: "agent",
+          description: "Specific agent to show details for",
+          type: "string",
+        },
+      ],
+    }),
+    defineChatCommand({
+      key: "skills",
+      nativeName: "skills",
+      description: "List available skills in the workspace.",
+      textAlias: "/skills",
+      category: "status",
+      args: [
+        {
+          name: "skill",
+          description: "Specific skill to show details for",
+          type: "string",
+        },
+      ],
+    }),
     ...listChannelDocks()
       .filter((dock) => dock.capabilities.nativeCommands)
       .map((dock) => defineDockCommand(dock)),
