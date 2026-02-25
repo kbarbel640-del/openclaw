@@ -185,23 +185,25 @@ export class AcpxRuntime implements AcpRuntime {
       cwd: state.cwd,
     });
 
-    const onAbort = () => {
-      void this.cancel({
+    const cancelOnAbort = async () => {
+      await this.cancel({
         handle: input.handle,
         reason: "abort-signal",
       }).catch((err) => {
         this.logger?.warn?.(`acpx runtime abort-cancel failed: ${String(err)}`);
       });
     };
+    const onAbort = () => {
+      void cancelOnAbort();
+    };
 
     if (input.signal?.aborted) {
-      onAbort();
+      await cancelOnAbort();
       return;
     }
     if (input.signal) {
       input.signal.addEventListener("abort", onAbort, { once: true });
     }
-
     const child = spawn(this.config.command, args, {
       cwd: state.cwd,
       env: process.env,

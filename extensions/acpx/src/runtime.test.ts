@@ -541,7 +541,6 @@ describe("AcpxRuntime", () => {
       events.push(event);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 25));
     const logs = await readLogEntries(logPath);
     expect(events).toEqual([]);
     expect(logs.some((entry) => entry.kind === "prompt")).toBe(false);
