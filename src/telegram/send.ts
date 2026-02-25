@@ -957,6 +957,29 @@ type TelegramStickerOpts = {
   messageThreadId?: number;
 };
 
+type TelegramDiceOpts = {
+  token?: string;
+  accountId?: string;
+  verbose?: boolean;
+  api?: TelegramApiOverride;
+  retry?: RetryConfig;
+  /** Message ID to reply to (for threading) */
+  replyToMessageId?: number;
+  /** Forum topic thread ID (for forum supergroups) */
+  messageThreadId?: number;
+  /** Send message silently (no notification). Defaults to false. */
+  silent?: boolean;
+};
+
+export type TelegramDiceEmoji = "🎲" | "🎯" | "🏀" | "⚽" | "🎳" | "🎰";
+
+export type TelegramDiceResult = {
+  messageId: string;
+  chatId: string;
+  emoji: string;
+  value: number;
+};
+
 /**
  * Send a sticker to a Telegram chat by file_id.
  * @param to - Chat ID or username (e.g., "123456789" or "@username")
@@ -1025,6 +1048,79 @@ export async function sendStickerTelegram(
   });
 
   return { messageId, chatId: resolvedChatId };
+}
+
+export async function sendDiceTelegram(
+  to: string,
+  opts: TelegramDiceOpts & { emoji?: TelegramDiceEmoji } = {},
+): Promise<TelegramDiceResult> {
+  const { cfg, account, api } = resolveTelegramApiContext(opts);
+  const target = parseTelegramTarget(to);
+  const chatId = await resolveAndPersistChatId({
+    cfg,
+    api,
+    lookupTarget: target.chatId,
+    persistTarget: to,
+    verbose: opts.verbose,
+  });
+
+  const threadParams = buildTelegramThreadReplyParams({
+    targetMessageThreadId: target.messageThreadId,
+    messageThreadId: opts.messageThreadId,
+    chatType: target.chatType,
+    replyToMessageId: opts.replyToMessageId,
+  });
+
+  const requestWithDiag = createTelegramRequestWithDiag({
+    cfg,
+    account,
+    retry: opts.retry,
+    verbose: opts.verbose,
+    useApiErrorLogging: false,
+    shouldRetry: (err) => isRecoverableTelegramNetworkError(err, { context: "send" }),
+  });
+  const requestWithChatNotFound = createRequestWithChatNotFound({
+    requestWithDiag,
+    chatId,
+    input: to,
+  });
+
+  const diceParams: Record<string, unknown> = {
+    ...(Object.keys(threadParams).length > 0 ? threadParams : {}),
+    ...(opts.silent === true ? { disable_notification: true } : {}),
+  };
+
+  const result = await withTelegramThreadFallback(
+    diceParams,
+    "dice",
+    opts.verbose,
+    async (effectiveParams, label) => {
+      const sendDiceCall = () => {
+        const params = effectiveParams as Parameters<typeof api.sendDice>[2];
+        if (opts.emoji) {
+          return api.sendDice(chatId, opts.emoji, params);
+        }
+        return api.sendDice(chatId, "🎲", params);
+      };
+      return requestWithChatNotFound(sendDiceCall, label);
+    },
+  );
+
+  const messageId = String(result?.message_id ?? "unknown");
+  const resolvedChatId = String(result?.chat?.id ?? chatId);
+  const diceEmoji = result?.dice?.emoji ?? "🎲";
+  const diceValue = result?.dice?.value ?? 0;
+
+  if (result?.message_id) {
+    recordSentMessage(chatId, result.message_id);
+  }
+  recordChannelActivity({
+    channel: "telegram",
+    accountId: account.accountId,
+    direction: "outbound",
+  });
+
+  return { messageId, chatId: resolvedChatId, emoji: diceEmoji, value: diceValue };
 }
 
 type TelegramPollOpts = {

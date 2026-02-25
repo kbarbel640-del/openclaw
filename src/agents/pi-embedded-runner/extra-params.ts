@@ -11,10 +11,90 @@ const OPENROUTER_APP_HEADERS: Record<string, string> = {
 };
 const ANTHROPIC_CONTEXT_1M_BETA = "context-1m-2025-08-07";
 const ANTHROPIC_1M_MODEL_PREFIXES = ["claude-opus-4", "claude-sonnet-4"] as const;
-// NOTE: We only force `store=true` for *direct* OpenAI Responses.
-// Codex responses (chatgpt.com/backend-api/codex/responses) require `store=false`.
 const OPENAI_RESPONSES_APIS = new Set(["openai-responses"]);
 const OPENAI_RESPONSES_PROVIDERS = new Set(["openai"]);
+
+type ProviderHandlerContext = {
+  provider: string;
+  modelId: string;
+  extraParams: Record<string, unknown> | undefined;
+  thinkingLevel?: ThinkLevel;
+};
+
+type ProviderHandler = {
+  createWrapper?: (
+    baseStreamFn: StreamFn | undefined,
+    context: ProviderHandlerContext,
+  ) => StreamFn | undefined;
+  enabledWhen?: (context: ProviderHandlerContext) => boolean;
+};
+
+function createProviderHandlerRegistry(): Map<string, ProviderHandler[]> {
+  const registry = new Map<string, ProviderHandler[]>();
+
+  registry.set("anthropic", [
+    {
+      createWrapper: (baseStreamFn, context) => {
+        const betas = resolveAnthropicBetas(context.extraParams, context.provider, context.modelId);
+        if (!betas?.length) {
+          return undefined;
+        }
+        return createAnthropicBetaHeadersWrapper(baseStreamFn, betas);
+      },
+    },
+  ]);
+
+  registry.set("openrouter", [
+    {
+      createWrapper: (baseStreamFn, context) => {
+        const thinkingLevel = context.modelId === "auto" ? undefined : context.thinkingLevel;
+        const wrapper = createOpenRouterWrapper(baseStreamFn, thinkingLevel);
+        return createOpenRouterSystemCacheWrapper(wrapper);
+      },
+    },
+  ]);
+
+  registry.set("amazon-bedrock", [
+    {
+      enabledWhen: (context) => !isAnthropicBedrockModel(context.modelId),
+      createWrapper: (baseStreamFn) => createBedrockNoCacheWrapper(baseStreamFn),
+    },
+  ]);
+
+  registry.set("zai", [
+    {
+      createWrapper: (baseStreamFn, context) => {
+        const toolStreamEnabled = context.extraParams?.tool_stream !== false;
+        if (!toolStreamEnabled) {
+          return undefined;
+        }
+        return createZaiToolStreamWrapper(baseStreamFn, true);
+      },
+    },
+  ]);
+
+  registry.set("z-ai", [
+    {
+      createWrapper: (baseStreamFn, context) => {
+        const toolStreamEnabled = context.extraParams?.tool_stream !== false;
+        if (!toolStreamEnabled) {
+          return undefined;
+        }
+        return createZaiToolStreamWrapper(baseStreamFn, true);
+      },
+    },
+  ]);
+
+  registry.set("*", [
+    {
+      createWrapper: (baseStreamFn) => createOpenAIResponsesStoreWrapper(baseStreamFn),
+    },
+  ]);
+
+  return registry;
+}
+
+const providerHandlers = createProviderHandlerRegistry();
 
 /**
  * Resolve provider-specific extra params from model config.
@@ -536,44 +616,28 @@ export function applyExtraParamsToAgent(
     agent.streamFn = wrappedStreamFn;
   }
 
-  const anthropicBetas = resolveAnthropicBetas(merged, provider, modelId);
-  if (anthropicBetas?.length) {
-    log.debug(
-      `applying Anthropic beta header for ${provider}/${modelId}: ${anthropicBetas.join(",")}`,
-    );
-    agent.streamFn = createAnthropicBetaHeadersWrapper(agent.streamFn, anthropicBetas);
-  }
+  const context: ProviderHandlerContext = {
+    provider,
+    modelId,
+    extraParams: merged,
+    thinkingLevel,
+  };
 
-  if (provider === "openrouter") {
-    log.debug(`applying OpenRouter app attribution headers for ${provider}/${modelId}`);
-    // "auto" is a dynamic routing model — we don't know which underlying model
-    // OpenRouter will select, and it may be a reasoning-required endpoint.
-    // Omit the thinkingLevel so we never inject `reasoning.effort: "none"`,
-    // which would cause a 400 on models where reasoning is mandatory.
-    // Users who need reasoning control should target a specific model ID.
-    // See: openclaw/openclaw#24851
-    const openRouterThinkingLevel = modelId === "auto" ? undefined : thinkingLevel;
-    agent.streamFn = createOpenRouterWrapper(agent.streamFn, openRouterThinkingLevel);
-    agent.streamFn = createOpenRouterSystemCacheWrapper(agent.streamFn);
-  }
-
-  if (provider === "amazon-bedrock" && !isAnthropicBedrockModel(modelId)) {
-    log.debug(`disabling prompt caching for non-Anthropic Bedrock model ${provider}/${modelId}`);
-    agent.streamFn = createBedrockNoCacheWrapper(agent.streamFn);
-  }
-
-  // Enable Z.AI tool_stream for real-time tool call streaming.
-  // Enabled by default for Z.AI provider, can be disabled via params.tool_stream: false
-  if (provider === "zai" || provider === "z-ai") {
-    const toolStreamEnabled = merged?.tool_stream !== false;
-    if (toolStreamEnabled) {
-      log.debug(`enabling Z.AI tool_stream for ${provider}/${modelId}`);
-      agent.streamFn = createZaiToolStreamWrapper(agent.streamFn, true);
+  for (const [handlerProvider, handlers] of providerHandlers) {
+    if (handlerProvider !== provider && handlerProvider !== "*") {
+      continue;
+    }
+    for (const handler of handlers) {
+      if (handler.enabledWhen && !handler.enabledWhen(context)) {
+        continue;
+      }
+      if (handler.createWrapper) {
+        const wrapper = handler.createWrapper(agent.streamFn, context);
+        if (wrapper) {
+          agent.streamFn = wrapper;
+          log.debug(`applied ${handlerProvider} handler for ${provider}/${modelId}`);
+        }
+      }
     }
   }
-
-  // Work around upstream pi-ai hardcoding `store: false` for Responses API.
-  // Force `store=true` for direct OpenAI/OpenAI Codex providers so multi-turn
-  // server-side conversation state is preserved.
-  agent.streamFn = createOpenAIResponsesStoreWrapper(agent.streamFn);
 }

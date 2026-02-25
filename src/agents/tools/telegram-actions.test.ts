@@ -12,6 +12,12 @@ const sendStickerTelegram = vi.fn(async () => ({
   messageId: "456",
   chatId: "123",
 }));
+const sendDiceTelegram = vi.fn(async () => ({
+  messageId: "789",
+  chatId: "123",
+  emoji: "🎲",
+  value: 4,
+}));
 const deleteMessageTelegram = vi.fn(async () => ({ ok: true }));
 let envSnapshot: ReturnType<typeof captureEnv>;
 
@@ -22,6 +28,7 @@ vi.mock("../../telegram/send.js", () => ({
     sendMessageTelegram(...args),
   sendStickerTelegram: (...args: Parameters<typeof sendStickerTelegram>) =>
     sendStickerTelegram(...args),
+  sendDiceTelegram: (...args: Parameters<typeof sendDiceTelegram>) => sendDiceTelegram(...args),
   deleteMessageTelegram: (...args: Parameters<typeof deleteMessageTelegram>) =>
     deleteMessageTelegram(...args),
 }));
@@ -66,6 +73,7 @@ describe("handleTelegramAction", () => {
     reactMessageTelegram.mockClear();
     sendMessageTelegram.mockClear();
     sendStickerTelegram.mockClear();
+    sendDiceTelegram.mockClear();
     deleteMessageTelegram.mockClear();
     process.env.TELEGRAM_BOT_TOKEN = "tok";
   });
@@ -415,6 +423,59 @@ describe("handleTelegramAction", () => {
         cfg,
       ),
     ).rejects.toThrow(/Telegram deleteMessage is disabled/);
+  });
+
+  it("sends a dice", async () => {
+    const cfg = {
+      channels: { telegram: { botToken: "tok" } },
+    } as OpenClawConfig;
+    const result = await handleTelegramAction(
+      {
+        action: "sendDice",
+        to: "123",
+      },
+      cfg,
+    );
+    expect(sendDiceTelegram).toHaveBeenCalledWith("123", expect.objectContaining({ token: "tok" }));
+    expect(result.details).toMatchObject({
+      ok: true,
+      value: 4,
+    });
+  });
+
+  it("sends a dice with emoji", async () => {
+    const cfg = {
+      channels: { telegram: { botToken: "tok" } },
+    } as OpenClawConfig;
+    await handleTelegramAction(
+      {
+        action: "sendDice",
+        to: "123",
+        emoji: "🎯",
+      },
+      cfg,
+    );
+    expect(sendDiceTelegram).toHaveBeenCalledWith(
+      "123",
+      expect.objectContaining({ token: "tok", emoji: "🎯" }),
+    );
+  });
+
+  it("respects sendDice gating", async () => {
+    const cfg = {
+      channels: {
+        telegram: { botToken: "tok", actions: { sendDice: false } },
+      },
+    } as OpenClawConfig;
+    await expect(
+      handleTelegramAction(
+        {
+          action: "sendDice",
+          to: "123",
+        },
+        cfg,
+      ),
+    ).rejects.toThrow(/Telegram sendDice is disabled/);
   });
 
   it("throws on missing bot token for sendMessage", async () => {

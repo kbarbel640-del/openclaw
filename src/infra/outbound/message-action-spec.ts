@@ -31,6 +31,7 @@ export const MESSAGE_ACTION_TARGET_MODE: Record<ChannelMessageActionName, Messag
     search: "none",
     sticker: "to",
     "sticker-search": "none",
+    dice: "to",
     "member-info": "none",
     "role-info": "none",
     "emoji-list": "none",
