@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ssrf from "../infra/net/ssrf.js";
-import { onSpy, sendChatActionSpy } from "./bot.media.e2e-harness.js";
+import { onSpy, sendChatActionSpy, setNextSavedMediaPath } from "./bot.media.e2e-harness.js";
 
 const cacheStickerSpy = vi.fn();
 const getCachedStickerSpy = vi.fn();
