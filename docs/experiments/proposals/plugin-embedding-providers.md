@@ -26,7 +26,7 @@ Today, memory backends duplicate embedding concerns (provider auth/model default
 - Add a shared embedding adapter abstraction in `openclaw/plugin-sdk`.
 - Add plugin registry/service hooks to register and resolve plugin embedding providers.
 - Keep existing memory slot semantics unchanged (`plugins.slots.memory` remains exclusive and compatible).
-- Provide in-repo integration points aligned to current memory backend work (`memory-lancedb` now; `memory-supabase` id path prepared).
+- Provide in-repo integration points for both `memory-lancedb` and `memory-supabase`.
 
 ## Non-Goals
 
@@ -69,15 +69,32 @@ This exposes resolved embedding providers to plugin services at runtime startup.
 - At service start, `startPluginServices(...)` injects a resolver backed by registry providers.
 - Memory slot gating remains unchanged and still applies only to `kind: "memory"` plugin selection.
 
+## Implementation Status
+
+The following is already implemented in PR #26205:
+
+1. Shared embedding adapter abstraction in `openclaw/plugin-sdk` (`createPluginMemoryEmbeddingAdapter` and related defaults/helpers).
+2. Plugin registry/runtime hooks for embedding provider registration and lookup (`registerEmbeddingProvider`, `resolveEmbeddingProvider`, service-context resolver).
+3. Memory backend integrations for both `memory-lancedb` and `memory-supabase` via the shared adapter.
+4. Unit and plugin tests covering adapter behavior, resolver registration, and service resolution.
+5. Compatibility preservation:
+   - No changes to `plugins.slots.memory` semantics.
+   - Existing plugin loading/enablement behavior remains unchanged.
+   - Plugin API additions are optional and non-breaking.
+
 ## Compatibility and Migration Plan
 
-1. Add shared SDK helper and registry/service resolver hooks (non-breaking; API additions are optional).
-2. Move `memory-lancedb` embedding client wiring to shared SDK adapter.
-3. Keep existing behavior compatible:
-   - No changes to `plugins.slots.memory` semantics.
-   - Existing plugin loading/enablement behavior unchanged.
-4. Align with `memory-supabase` integration path by standardizing provider ids (for example `memory-supabase/default`) and resolver test coverage.
-5. Follow-up: migrate `memory-supabase` to register/consume plugin-level embedding providers directly once that backend track lands in-tree.
+### Current-compatible behavior
+
+1. Memory backends continue to own their plugin configs and can instantiate embeddings through the shared SDK adapter.
+2. Plugin-level embedding provider registration/resolution exists, but use is additive and not required by existing memory plugins.
+
+### Productionization follow-ups
+
+1. Standardize provider id conventions for cross-plugin consumption (for example `memory-supabase/default`) and document ownership rules.
+2. Decide and document cross-plugin dependency ordering guarantees (or explicit `dependsOn`) for provider consumers.
+3. Decide strict-vs-fallback policy when `resolveEmbeddingProvider(id)` misses.
+4. Add migration examples for third-party memory plugins that want to expose or consume plugin-level embedding providers.
 
 ## Open Questions
 
