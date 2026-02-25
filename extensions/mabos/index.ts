@@ -21,12 +21,14 @@ import { createBdiTools } from "./src/tools/bdi-tools.js";
 import { createBpmnMigrateTools } from "./src/tools/bpmn-migrate.js";
 import { createBusinessTools } from "./src/tools/business-tools.js";
 import { createCbrTools } from "./src/tools/cbr-tools.js";
+import { createCloudflareTools } from "./src/tools/cloudflare-tools.js";
 import { resolveWorkspaceDir, getPluginConfig } from "./src/tools/common.js";
 import { createCommunicationTools } from "./src/tools/communication-tools.js";
 import { createCrmTools } from "./src/tools/crm-tools.js";
 import { createDesireTools } from "./src/tools/desire-tools.js";
 import { createEmailTools } from "./src/tools/email-tools.js";
 import { createFactStoreTools } from "./src/tools/fact-store.js";
+import { createGoDaddyTools } from "./src/tools/godaddy-tools.js";
 import { createInferenceTools } from "./src/tools/inference-tools.js";
 import { createIntegrationTools } from "./src/tools/integration-tools.js";
 import { createKnowledgeTools } from "./src/tools/knowledge-tools.js";
@@ -40,9 +42,11 @@ import { createPlanningTools } from "./src/tools/planning-tools.js";
 import { createReasoningTools } from "./src/tools/reasoning-tools.js";
 import { createReportingTools } from "./src/tools/reporting-tools.js";
 import { createRuleEngineTools } from "./src/tools/rule-engine.js";
+import { createSendGridTools } from "./src/tools/sendgrid-tools.js";
 import { createSeoAnalyticsTools } from "./src/tools/seo-analytics-tools.js";
 import { createSetupWizardTools } from "./src/tools/setup-wizard-tools.js";
 import { createStakeholderTools } from "./src/tools/stakeholder-tools.js";
+import { createTwilioTools } from "./src/tools/twilio-tools.js";
 import { createTypeDBTools } from "./src/tools/typedb-tools.js";
 import { createWorkflowTools } from "./src/tools/workflow-tools.js";
 import { createWorkforceTools } from "./src/tools/workforce-tools.js";
@@ -84,6 +88,10 @@ export default function register(api: OpenClawPluginApi) {
     createTypeDBTools,
     createWorkflowTools,
     createBpmnMigrateTools,
+    createSendGridTools,
+    createTwilioTools,
+    createCloudflareTools,
+    createGoDaddyTools,
   ];
 
   for (const factory of factories) {
