@@ -1,10 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Stub localStorage before module-level i18n initialization (reached via transitive imports).
+vi.hoisted(() => {
+  if (typeof globalThis.localStorage === "undefined") {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => store.set(k, v),
+        removeItem: (k: string) => store.delete(k),
+        clear: () => store.clear(),
+        get length() {
+          return store.size;
+        },
+        key: () => null,
+      },
+      writable: true,
+      configurable: true,
+    });
+  }
+});
+
 import { GATEWAY_EVENT_UPDATE_AVAILABLE } from "../../../src/gateway/events.js";
 import { connectGateway } from "./app-gateway.ts";
 
 type GatewayClientMock = {
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
+  constructorOpts: Record<string, unknown>;
   emitClose: (info: {
     code: number;
     reason?: string;
@@ -34,6 +57,7 @@ vi.mock("./gateway.ts", () => {
 
     constructor(
       private opts: {
+        mode?: string;
         onClose?: (info: {
           code: number;
           reason: string;
@@ -46,6 +70,7 @@ vi.mock("./gateway.ts", () => {
       gatewayClientInstances.push({
         start: this.start,
         stop: this.stop,
+        constructorOpts: opts as unknown as Record<string, unknown>,
         emitClose: (info) => {
           this.opts.onClose?.({
             code: info.code,
@@ -225,5 +250,18 @@ describe("connectGateway", () => {
 
     expect(host.lastError).toContain("gateway token mismatch");
     expect(host.lastErrorCode).toBe("AUTH_TOKEN_MISMATCH");
+  });
+
+  it("connects with mode 'ui' so gateway does not treat control UI as webchat", () => {
+    const host = createHost();
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    // The control UI dashboard must use mode "ui", not "webchat".
+    // Using "webchat" causes rejectWebchatSessionMutation() to block
+    // session rename and delete operations (#26541).
+    expect(client.constructorOpts.mode).toBe("ui");
   });
 });
