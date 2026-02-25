@@ -144,10 +144,18 @@ async function expectSkippedUnavailableProvider(params: {
 }) {
   const provider = `${params.providerPrefix}-${crypto.randomUUID()}`;
   const cfg = makeProviderFallbackCfg(provider);
-  const store = makeSingleProviderStore({
-    provider,
-    usageStat: params.usageStat,
-  });
+  // Include fallback provider profile so the fallback is attempted (not skipped as no-profile).
+  const store: AuthProfileStore = {
+    ...makeSingleProviderStore({ provider, usageStat: params.usageStat }),
+    profiles: {
+      ...makeSingleProviderStore({ provider, usageStat: params.usageStat }).profiles,
+      "fallback:default": {
+        type: "api_key",
+        provider: "fallback",
+        key: "test-key",
+      },
+    },
+  };
   const run = createFallbackOnlyRun();
 
   const result = await runWithStoredAuth({

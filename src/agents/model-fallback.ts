@@ -229,29 +229,21 @@ function resolveFallbackCandidates(params: {
     const configuredFallbacks = resolveAgentModelFallbackValues(
       params.cfg?.agents?.defaults?.model,
     );
-    // Skip configured fallback chain when the user runs a different provider override.
-    // This allows model version differences within the same provider (e.g. opus-4-6 vs sonnet)
-    // but prevents fallbacks when switching providers entirely (e.g. claude -> gpt).
+    // When user runs a different provider than config, only use configured fallbacks
+    // if the current model is already in that chain (e.g. session on first fallback).
     if (normalizedPrimary.provider !== configuredPrimary.provider) {
-      // For cross-provider requests, skip configured fallbacks but still ensure the
-      // configured primary gets added as a final fallback candidate later.
-      return [];
-    }
-    if (sameModelCandidate(normalizedPrimary, configuredPrimary)) {
-      return configuredFallbacks;
-    }
-    // Preserve resilience after failover: when current model is one of the
-    // configured fallback refs, keep traversing the configured fallback chain.
-    const isConfiguredFallback = configuredFallbacks.some((raw) => {
-      const resolved = resolveModelRefFromString({
-        raw: String(raw ?? ""),
-        defaultProvider,
-        aliasIndex,
+      const isConfiguredFallback = configuredFallbacks.some((raw) => {
+        const resolved = resolveModelRefFromString({
+          raw: String(raw ?? ""),
+          defaultProvider,
+          aliasIndex,
+        });
+        return resolved ? sameModelCandidate(resolved.ref, normalizedPrimary) : false;
       });
-      return resolved ? sameModelCandidate(resolved.ref, normalizedPrimary) : false;
-    });
-    // Keep legacy override behavior for ad-hoc models outside configured chain.
-    return isConfiguredFallback ? configuredFallbacks : [];
+      return isConfiguredFallback ? configuredFallbacks : [];
+    }
+    // Same provider: always use full fallback chain (model version differences within provider).
+    return configuredFallbacks;
   })();
 
   for (const raw of modelFallbacks) {
@@ -354,12 +346,11 @@ export async function runWithModelFallback<T>(params: {
       const isAnyProfileAvailable = profileIds.some((id) => !isProfileInCooldown(authStore, id));
 
       if (profileIds.length === 0) {
-        // Check if there are any auth/billing issues in the auth store
-        // Only block "no profile" providers when there are persistent auth issues
-        const hasAuthIssues = Object.values(authStore.usageStats || {}).some(
+        // Skip no-profile providers when there are persistent auth or billing issues elsewhere.
+        const hasAuthOrBillingIssues = Object.values(authStore.usageStats || {}).some(
           (stats) => stats?.disabledReason === "auth" || stats?.disabledReason === "billing",
         );
-        if (hasAuthIssues) {
+        if (hasAuthOrBillingIssues) {
           attempts.push({
             provider: candidate.provider,
             model: candidate.model,
@@ -398,8 +389,10 @@ export async function runWithModelFallback<T>(params: {
           continue;
         }
 
-        // Always try fallback models even during cooldown, since rate limits are often model-specific.
-        const shouldAttemptDespiteCooldown = !isPrimary || !requestedModel || shouldProbe;
+        // For primary: try when requested model or when probe allows. For fallbacks: attempt only when explicitly rate_limit (model-specific), skip otherwise.
+        const shouldAttemptDespiteCooldown =
+          (isPrimary && (!requestedModel || shouldProbe)) ||
+          (!isPrimary && disabledReason === "rate_limit");
         if (!shouldAttemptDespiteCooldown) {
           const inferredReason =
             resolveProfilesUnavailableReason({
