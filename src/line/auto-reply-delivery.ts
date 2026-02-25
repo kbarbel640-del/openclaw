@@ -1,5 +1,6 @@
 import type { messagingApi } from "@line/bot-sdk";
 import type { ReplyPayload } from "../auto-reply/types.js";
+import { runOutboundMessageHook } from "../plugins/outbound-hook.js";
 import type { FlexContainer } from "./flex-templates.js";
 import type { ProcessedLineMessage } from "./markdown-to-line.js";
 import type { SendLineReplyChunksParams } from "./reply-chunks.js";
@@ -49,6 +50,20 @@ export async function deliverLineAutoReply(params: {
   deps: LineAutoReplyDeps;
 }): Promise<{ replyTokenUsed: boolean }> {
   const { payload, lineData, replyToken, accountId, to, textLimit, deps } = params;
+  // Run message_sending plugin hook (may modify content or cancel).
+  if (payload.text) {
+    const hookResult = await runOutboundMessageHook({
+      to,
+      content: payload.text,
+      channel: "line",
+      accountId,
+    });
+    if (hookResult === null) {
+      return { replyTokenUsed };
+    }
+    payload.text = hookResult.content;
+  }
+
   let replyTokenUsed = params.replyTokenUsed;
 
   const pushLineMessages = async (messages: messagingApi.Message[]): Promise<void> => {
