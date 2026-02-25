@@ -31,9 +31,6 @@ function isNodeErrorWithCode(err: unknown, code: string): err is MaybeNodeError 
 export function resolvePreferredOpenClawTmpDir(
   options: ResolvePreferredOpenClawTmpDirOptions = {},
 ): string {
-  const accessSync = options.accessSync ?? fs.accessSync;
-  const lstatSync = options.lstatSync ?? fs.lstatSync;
-  const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
   const getuid =
     options.getuid ??
     (() => {
@@ -45,6 +42,23 @@ export function resolvePreferredOpenClawTmpDir(
     });
   const tmpdir = options.tmpdir ?? os.tmpdir;
   const uid = getuid();
+
+  const fallback = (): string => {
+    const base = tmpdir();
+    const suffix = uid === undefined ? "openclaw" : `openclaw-${uid}`;
+    return path.join(base, suffix);
+  };
+
+  // On Windows the POSIX preferred path `/tmp/openclaw` resolves inconsistently
+  // (e.g. `\tmp\openclaw` vs `C:\tmp\openclaw`) depending on how it is reached.
+  // Skip straight to the platform-native fallback to avoid path mismatches.
+  if (process.platform === "win32") {
+    return fallback();
+  }
+
+  const accessSync = options.accessSync ?? fs.accessSync;
+  const lstatSync = options.lstatSync ?? fs.lstatSync;
+  const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
 
   const isSecureDirForUser = (st: { mode?: number; uid?: number }): boolean => {
     if (uid === undefined) {
@@ -58,12 +72,6 @@ export function resolvePreferredOpenClawTmpDir(
       return false;
     }
     return true;
-  };
-
-  const fallback = (): string => {
-    const base = tmpdir();
-    const suffix = uid === undefined ? "openclaw" : `openclaw-${uid}`;
-    return path.join(base, suffix);
   };
 
   const isTrustedPreferredDir = (st: {
