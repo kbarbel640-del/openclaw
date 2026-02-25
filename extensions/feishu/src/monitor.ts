@@ -1,4 +1,5 @@
 import * as http from "http";
+import { Readable } from "stream";
 import * as Lark from "@larksuiteoapi/node-sdk";
 import {
   type ClawdbotConfig,
@@ -23,6 +24,27 @@ export type MonitorFeishuOpts = {
 const wsClients = new Map<string, Lark.WSClient>();
 const httpServers = new Map<string, http.Server>();
 const botOpenIds = new Map<string, string>();
+
+/**
+ * Shared webhook servers keyed by "host:port".
+ * When multiple accounts are configured on the same host:port, they share a
+ * single HTTP server and incoming requests are routed by verification token
+ * (header.token) or app_id (header.app_id) extracted from the JSON body.
+ */
+type SharedWebhookServer = {
+  server: http.Server;
+  /** Map from verificationToken → per-account webhook handler */
+  tokenHandlers: Map<string, (req: http.IncomingMessage, res: http.ServerResponse) => void>;
+  /** Map from appId → per-account webhook handler */
+  appIdHandlers: Map<string, (req: http.IncomingMessage, res: http.ServerResponse) => void>;
+  /** Account IDs registered on this shared server */
+  accountIds: Set<string>;
+  /** Runtime for logging */
+  runtime?: RuntimeEnv;
+  /** Abort handling */
+  abortCleanups: Array<() => void>;
+};
+const sharedWebhookServers = new Map<string, SharedWebhookServer>();
 const FEISHU_WEBHOOK_MAX_BODY_BYTES = 1024 * 1024;
 const FEISHU_WEBHOOK_BODY_TIMEOUT_MS = 30_000;
 const FEISHU_WEBHOOK_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -238,29 +260,37 @@ async function monitorWebSocket({
   });
 }
 
-async function monitorWebhook({
-  params,
-  accountId,
-  eventDispatcher,
-}: ConnectionParams): Promise<void> {
-  const { account, runtime, abortSignal } = params;
-  const log = runtime?.log ?? console.log;
-  const error = runtime?.error ?? console.error;
+/**
+ * Parse the Feishu webhook request body to extract routing identifiers.
+ * Returns { token, appId } from the JSON body's header field.
+ */
+function parseWebhookRoutingInfo(
+  rawBody: Buffer,
+): { token?: string; appId?: string; type?: string } {
+  try {
+    const body = JSON.parse(rawBody.toString("utf-8"));
+    // Schema 2.0: { header: { token, app_id }, event: ... }
+    if (body.header) {
+      return { token: body.header.token, appId: body.header.app_id, type: body.type };
+    }
+    // Schema 1.0 / URL verification: { token, type, ... }
+    return { token: body.token, appId: body.event?.app_id, type: body.type };
+  } catch {
+    return {};
+  }
+}
 
-  const port = account.config.webhookPort ?? 3000;
-  const path = account.config.webhookPath ?? "/feishu/events";
-  const host = account.config.webhookHost ?? "127.0.0.1";
+/**
+ * Create the shared request handler for a multi-account webhook server.
+ * Routes requests by verification token or app_id to the correct account handler.
+ */
+function createSharedWebhookRequestHandler(shared: SharedWebhookServer) {
+  return (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const log = shared.runtime?.log ?? console.log;
+    const error = shared.runtime?.error ?? console.error;
 
-  log(`feishu[${accountId}]: starting Webhook server on ${host}:${port}, path ${path}...`);
-
-  const server = http.createServer();
-  const webhookHandler = Lark.adaptDefault(path, eventDispatcher, { autoChallenge: true });
-  server.on("request", (req, res) => {
-    res.on("finish", () => {
-      recordWebhookStatus(runtime, accountId, path, res.statusCode);
-    });
-
-    const rateLimitKey = `${accountId}:${path}:${req.socket.remoteAddress ?? "unknown"}`;
+    // Rate limit by remote address (shared across all accounts)
+    const rateLimitKey = `shared:${req.socket.remoteAddress ?? "unknown"}`;
     if (isWebhookRateLimited(rateLimitKey, Date.now())) {
       res.statusCode = 429;
       res.end("Too Many Requests");
@@ -273,35 +303,193 @@ async function monitorWebhook({
       return;
     }
 
-    const guard = installRequestBodyLimitGuard(req, res, {
-      maxBytes: FEISHU_WEBHOOK_MAX_BODY_BYTES,
-      timeoutMs: FEISHU_WEBHOOK_BODY_TIMEOUT_MS,
-      responseFormat: "text",
+    // Read the full body to extract routing info, then delegate to the correct handler
+    const chunks: Buffer[] = [];
+    let bodySize = 0;
+    let timedOut = false;
+
+    const bodyTimeout = setTimeout(() => {
+      timedOut = true;
+      res.statusCode = 408;
+      res.end("Request Timeout");
+      req.destroy();
+    }, FEISHU_WEBHOOK_BODY_TIMEOUT_MS);
+
+    req.on("data", (chunk: Buffer) => {
+      bodySize += chunk.length;
+      if (bodySize > FEISHU_WEBHOOK_MAX_BODY_BYTES) {
+        clearTimeout(bodyTimeout);
+        res.statusCode = 413;
+        res.end("Payload Too Large");
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
     });
-    if (guard.isTripped()) {
-      return;
-    }
-    void Promise.resolve(webhookHandler(req, res))
-      .catch((err) => {
-        if (!guard.isTripped()) {
-          error(`feishu[${accountId}]: webhook handler error: ${String(err)}`);
+
+    req.on("end", () => {
+      clearTimeout(bodyTimeout);
+      if (timedOut) return;
+
+      const rawBody = Buffer.concat(chunks);
+      const { token, appId, type } = parseWebhookRoutingInfo(rawBody);
+
+      // Route by verification token first (most reliable)
+      let handler = token ? shared.tokenHandlers.get(token) : undefined;
+      // Fallback: route by app_id
+      if (!handler && appId) {
+        handler = shared.appIdHandlers.get(appId);
+      }
+
+      if (!handler) {
+        // URL verification challenge: forward to first handler (all accounts
+        // should respond identically for url_verification)
+        if (type === "url_verification") {
+          const firstHandler = shared.tokenHandlers.values().next().value;
+          if (firstHandler) {
+            handler = firstHandler;
+          }
         }
-      })
-      .finally(() => {
-        guard.dispose();
+      }
+
+      if (!handler) {
+        log(
+          `feishu[shared]: no handler for token=${token ? token.slice(0, 8) + "..." : "none"} ` +
+            `appId=${appId ?? "none"}, registered tokens=${shared.tokenHandlers.size}, ` +
+            `appIds=${shared.appIdHandlers.size}`,
+        );
+        res.statusCode = 404;
+        res.end("Not Found");
+        return;
+      }
+
+      // Re-create a readable stream from the already-consumed body so the Lark SDK
+      // handler can consume it normally via req.on("data")/req.on("end").
+      const bodyStream = new Readable({ read() {} });
+      bodyStream.push(rawBody);
+      bodyStream.push(null);
+
+      // Proxy: copy original request properties onto the new stream
+      Object.assign(bodyStream, {
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        httpVersion: req.httpVersion,
+        socket: req.socket,
+        connection: req.connection,
       });
-  });
-  httpServers.set(accountId, server);
+
+      handler(bodyStream as unknown as http.IncomingMessage, res);
+    });
+
+    req.on("error", (err) => {
+      clearTimeout(bodyTimeout);
+      if (!timedOut) {
+        error(`feishu[shared]: request body read error: ${String(err)}`);
+        if (!res.headersSent) {
+          res.statusCode = 400;
+          res.end("Bad Request");
+        }
+      }
+    });
+  };
+}
+
+async function monitorWebhook({
+  params,
+  accountId,
+  eventDispatcher,
+}: ConnectionParams): Promise<void> {
+  const { account, runtime, abortSignal } = params;
+  const log = runtime?.log ?? console.log;
+  const error = runtime?.error ?? console.error;
+
+  const port = account.config.webhookPort ?? 3000;
+  const path = account.config.webhookPath ?? "/feishu/events";
+  const host = account.config.webhookHost ?? "127.0.0.1";
+  const serverKey = `${host}:${port}`;
+
+  const webhookHandler = Lark.adaptDefault(path, eventDispatcher, { autoChallenge: true });
+
+  // Check if a shared server already exists on this host:port
+  const existingShared = sharedWebhookServers.get(serverKey);
+  if (existingShared) {
+    // Register this account's handler on the existing shared server
+    if (account.verificationToken?.trim()) {
+      existingShared.tokenHandlers.set(account.verificationToken.trim(), webhookHandler);
+    }
+    if (account.appId?.trim()) {
+      existingShared.appIdHandlers.set(account.appId.trim(), webhookHandler);
+    }
+    existingShared.accountIds.add(accountId);
+    httpServers.set(accountId, existingShared.server);
+
+    log(
+      `feishu[${accountId}]: joined shared Webhook server on ${serverKey} ` +
+        `(${existingShared.accountIds.size} accounts)`,
+    );
+
+    return new Promise<void>((resolve) => {
+      const handleAbort = () => {
+        log(`feishu[${accountId}]: abort signal received, leaving shared server`);
+        existingShared.tokenHandlers.delete(account.verificationToken?.trim() ?? "");
+        existingShared.appIdHandlers.delete(account.appId?.trim() ?? "");
+        existingShared.accountIds.delete(accountId);
+        httpServers.delete(accountId);
+        botOpenIds.delete(accountId);
+        // If no more accounts, close the shared server
+        if (existingShared.accountIds.size === 0) {
+          existingShared.server.close();
+          sharedWebhookServers.delete(serverKey);
+        }
+        resolve();
+      };
+
+      if (abortSignal?.aborted) {
+        handleAbort();
+        return;
+      }
+
+      abortSignal?.addEventListener("abort", handleAbort, { once: true });
+      existingShared.abortCleanups.push(handleAbort);
+    });
+  }
+
+  // First account on this host:port — create the shared server
+  log(`feishu[${accountId}]: creating Webhook server on ${serverKey}, path ${path}...`);
+
+  const shared: SharedWebhookServer = {
+    server: http.createServer(),
+    tokenHandlers: new Map(),
+    appIdHandlers: new Map(),
+    accountIds: new Set([accountId]),
+    runtime,
+    abortCleanups: [],
+  };
+
+  if (account.verificationToken?.trim()) {
+    shared.tokenHandlers.set(account.verificationToken.trim(), webhookHandler);
+  }
+  if (account.appId?.trim()) {
+    shared.appIdHandlers.set(account.appId.trim(), webhookHandler);
+  }
+
+  shared.server.on("request", createSharedWebhookRequestHandler(shared));
+  sharedWebhookServers.set(serverKey, shared);
+  httpServers.set(accountId, shared.server);
 
   return new Promise((resolve, reject) => {
     const cleanup = () => {
-      server.close();
-      httpServers.delete(accountId);
-      botOpenIds.delete(accountId);
+      shared.server.close();
+      sharedWebhookServers.delete(serverKey);
+      for (const aid of shared.accountIds) {
+        httpServers.delete(aid);
+        botOpenIds.delete(aid);
+      }
     };
 
     const handleAbort = () => {
-      log(`feishu[${accountId}]: abort signal received, stopping Webhook server`);
+      log(`feishu[${accountId}]: abort signal received, stopping shared Webhook server`);
       cleanup();
       resolve();
     };
@@ -313,12 +501,13 @@ async function monitorWebhook({
     }
 
     abortSignal?.addEventListener("abort", handleAbort, { once: true });
+    shared.abortCleanups.push(handleAbort);
 
-    server.listen(port, host, () => {
+    shared.server.listen(port, host, () => {
       log(`feishu[${accountId}]: Webhook server listening on ${host}:${port}`);
     });
 
-    server.on("error", (err) => {
+    shared.server.on("error", (err) => {
       error(`feishu[${accountId}]: Webhook server error: ${err}`);
       abortSignal?.removeEventListener("abort", handleAbort);
       reject(err);
@@ -380,18 +569,41 @@ export async function monitorFeishuProvider(opts: MonitorFeishuOpts = {}): Promi
 export function stopFeishuMonitor(accountId?: string): void {
   if (accountId) {
     wsClients.delete(accountId);
-    const server = httpServers.get(accountId);
-    if (server) {
-      server.close();
-      httpServers.delete(accountId);
+    // Remove from shared servers if applicable
+    for (const [serverKey, shared] of sharedWebhookServers) {
+      if (shared.accountIds.has(accountId)) {
+        shared.accountIds.delete(accountId);
+        if (shared.accountIds.size === 0) {
+          shared.server.close();
+          sharedWebhookServers.delete(serverKey);
+        }
+      }
     }
+    const server = httpServers.get(accountId);
+    if (server && !isSharedServer(server)) {
+      server.close();
+    }
+    httpServers.delete(accountId);
     botOpenIds.delete(accountId);
   } else {
     wsClients.clear();
+    // Close shared servers
+    for (const shared of sharedWebhookServers.values()) {
+      shared.server.close();
+    }
+    sharedWebhookServers.clear();
+    // Close any remaining non-shared servers
     for (const server of httpServers.values()) {
       server.close();
     }
     httpServers.clear();
     botOpenIds.clear();
   }
+}
+
+function isSharedServer(server: http.Server): boolean {
+  for (const shared of sharedWebhookServers.values()) {
+    if (shared.server === server) return true;
+  }
+  return false;
 }
