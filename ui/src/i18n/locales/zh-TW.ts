@@ -116,6 +116,18 @@ export const zh_TW: TranslationMap = {
     focusToggle: "切換專注模式 (隱藏側邊欄 + 頁面頁眉)",
     onboardingDisabled: "引導期間禁用",
   },
+  instances: {
+    title: "已連接實例",
+    subtitle: "來自閘道和客戶端的在線信號。",
+    refresh: "刷新",
+    loading: "加載中…",
+    noInstances: "尚未報告任何實例。",
+    unknownHost: "未知主機",
+    scopes: "作用域",
+    scopesCount: "{count} 個作用域",
+    lastInput: "最後輸入",
+    reason: "原因",
+  },
   config: {
     title: "設置",
     searchPlaceholder: "搜索設置...",

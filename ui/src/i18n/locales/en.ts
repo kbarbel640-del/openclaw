@@ -117,6 +117,18 @@ export const en: TranslationMap = {
     focusToggle: "Toggle focus mode (hide sidebar + page header)",
     onboardingDisabled: "Disabled during onboarding",
   },
+  instances: {
+    title: "Connected Instances",
+    subtitle: "Presence beacons from the gateway and clients.",
+    refresh: "Refresh",
+    loading: "Loading…",
+    noInstances: "No instances reported yet.",
+    unknownHost: "unknown host",
+    scopes: "scopes",
+    scopesCount: "{count} scopes",
+    lastInput: "Last input",
+    reason: "Reason",
+  },
   config: {
     title: "Settings",
     searchPlaceholder: "Search settings...",
