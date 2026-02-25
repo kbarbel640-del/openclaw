@@ -30,8 +30,9 @@ export const feishuOutbound: ChannelOutboundAdapter = {
         
         if (isLocalFile) {
           // Read local file as buffer
-          const buffer = await fs.promises.readFile(mediaUrl);
-          const fileName = path.basename(mediaUrl);
+          const resolvedPath = path.resolve(mediaUrl);
+          const buffer = await fs.promises.readFile(resolvedPath);
+          const fileName = path.basename(resolvedPath);
           const result = await sendMediaFeishu({
             cfg,
             to,
