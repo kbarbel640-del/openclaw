@@ -19,7 +19,7 @@ x-i18n:
 
 <Info>
 最速のチャット方法：Control UIを開く（チャンネル設定は不要）。`openclaw dashboard`を実行してブラウザでチャットするか、<Tooltip headline="Gatewayホスト" tip="OpenClaw Gatewayサービスを実行しているマシン。">Gatewayホスト</Tooltip>で`http://127.0.0.1:18789/`を開きます。
-ドキュメント：[Dashboard](/web/dashboard)と[Control UI](/web/control-ui)。
+ドキュメント：[Dashboard](/ja-JP/web/dashboard)と[Control UI](/ja-JP/web/control-ui)。
 </Info>
 
 ## 前提条件
@@ -48,7 +48,7 @@ x-i18n:
     </Tabs>
 
     <Note>
-    その他のインストール方法と要件：[インストール](/install)。
+    その他のインストール方法と要件：[インストール](/ja-JP/install)。
     </Note>
 
   </Step>
@@ -58,7 +58,7 @@ x-i18n:
     ```
 
     ウィザードは認証、Gateway設定、およびオプションのチャンネルを構成します。
-    詳細は[オンボーディングウィザード](/start/wizard)を参照してください。
+    詳細は[オンボーディングウィザード](/ja-JP/start/wizard)を参照してください。
 
   </Step>
   <Step title="Gatewayを確認">
@@ -104,10 +104,10 @@ Control UIが読み込まれれば、Gatewayは使用可能な状態です。
 ## さらに詳しく
 
 <Columns>
-  <Card title="オンボーディングウィザード（詳細）" href="/start/wizard">
+  <Card title="オンボーディングウィザード（詳細）" href="/ja-JP/start/wizard">
     完全なCLIウィザードリファレンスと高度なオプション。
   </Card>
-  <Card title="macOSアプリのオンボーディング" href="/start/onboarding">
+  <Card title="macOSアプリのオンボーディング" href="/ja-JP/start/onboarding">
     macOSアプリの初回実行フロー。
   </Card>
 </Columns>
@@ -120,6 +120,6 @@ Control UIが読み込まれれば、Gatewayは使用可能な状態です。
 
 ## 次のステップ
 
-- DMの安全性と承認：[ペアリング](/channels/pairing)
-- さらにチャンネルを接続：[チャンネル](/channels)
-- 高度なワークフローとソースからのビルド：[セットアップ](/start/setup)
+- DMの安全性と承認：[ペアリング](/ja-JP/channels/pairing)
+- さらにチャンネルを接続：[チャンネル](/ja-JP/channels)
+- 高度なワークフローとソースからのビルド：[セットアップ](/ja-JP/start/setup)
