@@ -481,7 +481,7 @@ export function setLastTtsAttempt(entry: TtsStatusEntry | undefined): void {
 }
 
 function resolveOutputFormat(channelId?: string | null) {
-  if (channelId === "telegram") {
+  if (channelId === "telegram" || channelId === "whatsapp") {
     return TELEGRAM_OUTPUT;
   }
   return DEFAULT_OUTPUT;
