@@ -209,6 +209,17 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
           accountId: deps.accountId,
         });
       },
+      stop: async () => {
+        if (!ctxPayload.To) {
+          return;
+        }
+        await sendTypingSignal(ctxPayload.To, {
+          baseUrl: deps.baseUrl,
+          account: deps.account,
+          accountId: deps.accountId,
+          stop: true,
+        });
+      },
       onStartError: (err) => {
         logTypingFailure({
           log: logVerbose,
