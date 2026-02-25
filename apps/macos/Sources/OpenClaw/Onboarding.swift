@@ -90,6 +90,7 @@ struct OnboardingView: View {
     @State var showAdvancedConnection = false
     @State var remoteTokenImportMessage: String?
     @State var remoteTokenImportShakeCount = 0
+    @State var remoteTokenImportInProgress = false
     @State var preferredGatewayID: String?
     @State var gatewayDiscovery: GatewayDiscoveryModel
     @State var onboardingChatModel: OpenClawChatViewModel

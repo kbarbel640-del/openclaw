@@ -63,7 +63,11 @@ extension OnboardingView {
     }
 
     @MainActor
-    func importRemoteGatewayTokenFromClipboard() {
+    func importRemoteGatewayTokenFromClipboard() async {
+        guard !self.remoteTokenImportInProgress else { return }
+        self.remoteTokenImportInProgress = true
+        defer { self.remoteTokenImportInProgress = false }
+
         let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
         let previousToken = OpenClawConfigFile.remoteGatewayToken() ?? ""
         guard let token = OpenClawConfigFile.extractGatewayToken(clipboard) else {
@@ -84,9 +88,20 @@ extension OnboardingView {
             self.remoteTokenImportMessage = "Clipboard token already matches your current gateway token. No changes made."
             return
         }
+        self.remoteTokenImportMessage = "Verifying token with gateway…"
+        do {
+            try await RemoteGatewayTokenVerifier.verify(token: token)
+        } catch {
+            NSSound.beep()
+            withAnimation(.easeInOut(duration: 0.35)) {
+                self.remoteTokenImportShakeCount += 1
+            }
+            self.remoteTokenImportMessage = RemoteGatewayTokenVerifier.failureMessage(for: error)
+            return
+        }
         switch OpenClawConfigFile.setRemoteGatewayToken(token) {
         case .set:
-            self.remoteTokenImportMessage = "Saved gateway.remote.token from clipboard."
+            self.remoteTokenImportMessage = "Token verified and saved to gateway.remote.token."
         case .unchanged:
             self.remoteTokenImportMessage = "Clipboard token already matches your current gateway token. No changes made."
         case .rejectedInvalid:

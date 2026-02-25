@@ -252,9 +252,10 @@ extension OnboardingView {
                                 .frame(width: labelWidth, alignment: .leading)
                             VStack(alignment: .leading, spacing: 4) {
                                 Button("Import from clipboard") {
-                                    self.importRemoteGatewayTokenFromClipboard()
+                                    Task { await self.importRemoteGatewayTokenFromClipboard() }
                                 }
                                 .buttonStyle(.bordered)
+                                .disabled(self.remoteTokenImportInProgress)
                                 if let message = self.remoteTokenImportMessage {
                                     Text(message)
                                         .font(.caption)
