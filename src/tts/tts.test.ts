@@ -154,10 +154,19 @@ describe("tts", () => {
   });
 
   describe("resolveOutputFormat", () => {
-    it("selects opus for Telegram and mp3 for other channels", () => {
+    it("selects opus for Telegram and WhatsApp, mp3 for other channels", () => {
       const cases = [
         {
           channel: "telegram",
+          expected: {
+            openai: "opus",
+            elevenlabs: "opus_48000_64",
+            extension: ".opus",
+            voiceCompatible: true,
+          },
+        },
+        {
+          channel: "whatsapp",
           expected: {
             openai: "opus",
             elevenlabs: "opus_48000_64",
