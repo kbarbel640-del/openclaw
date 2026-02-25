@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { ProxyAgent, undiciFetch, proxyAgentSpy, getLastAgent } = vi.hoisted(() => {
+const {
+  ProxyAgent,
+  undiciFetch,
+  proxyAgentSpy,
+  setGlobalDispatcher,
+  getLastAgent,
+} = vi.hoisted(() => {
   const undiciFetch = vi.fn();
   const proxyAgentSpy = vi.fn();
+  const setGlobalDispatcher = vi.fn();
   class ProxyAgent {
     static lastCreated: ProxyAgent | undefined;
     proxyUrl: string;
@@ -17,6 +24,7 @@ const { ProxyAgent, undiciFetch, proxyAgentSpy, getLastAgent } = vi.hoisted(() =
     ProxyAgent,
     undiciFetch,
     proxyAgentSpy,
+    setGlobalDispatcher,
     getLastAgent: () => ProxyAgent.lastCreated,
   };
 });
@@ -24,6 +32,7 @@ const { ProxyAgent, undiciFetch, proxyAgentSpy, getLastAgent } = vi.hoisted(() =
 vi.mock("undici", () => ({
   ProxyAgent,
   fetch: undiciFetch,
+  setGlobalDispatcher,
 }));
 
 import { makeProxyFetch } from "./proxy.js";
@@ -41,5 +50,6 @@ describe("makeProxyFetch", () => {
       "https://api.telegram.org/bot123/getMe",
       expect.objectContaining({ dispatcher: getLastAgent() }),
     );
+    expect(setGlobalDispatcher).not.toHaveBeenCalled();
   });
 });
