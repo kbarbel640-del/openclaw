@@ -17,6 +17,12 @@ import {
   resolveMergedSafeBinProfileFixtures,
 } from "../infra/exec-safe-bin-runtime-policy.js";
 import { normalizeTrustedSafeBinDirs } from "../infra/exec-safe-bin-trust.js";
+import { loadOpenClawPlugins } from "../plugins/loader.js";
+import {
+  getActivePluginRegistry,
+  getActivePluginRegistryKey,
+  setActivePluginRegistry,
+} from "../plugins/runtime.js";
 import { collectChannelSecurityFindings } from "./audit-channel.js";
 import {
   collectAttackSurfaceSummaryFindings,
@@ -884,6 +890,78 @@ function collectExecRuntimeFindings(cfg: OpenClawConfig): SecurityAuditFinding[]
   return findings;
 }
 
+function collectPluginCapabilityFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+  const capCfg = cfg.security?.pluginCapabilities;
+  const enforcementMode = capCfg?.enforcement ?? "warn";
+
+  if (enforcementMode === "off") {
+    findings.push({
+      checkId: "plugins.enforcement_off",
+      severity: "warn",
+      title: "Plugin capability enforcement disabled",
+      detail:
+        'security.pluginCapabilities.enforcement is "off". Plugin capability manifests are not enforced.',
+      remediation:
+        'Set security.pluginCapabilities.enforcement to "warn" or "enforce" to enable capability checks.',
+    });
+  }
+
+  // Save the current plugin registry before loading a validate-only copy.
+  // loadOpenClawPlugins replaces the global active registry via setActivePluginRegistry,
+  // which would corrupt channel-ID resolution for downstream audit checks.
+  const prevRegistry = getActivePluginRegistry();
+  const prevKey = getActivePluginRegistryKey();
+
+  let registry: ReturnType<typeof loadOpenClawPlugins> | null = null;
+  try {
+    registry = loadOpenClawPlugins({ config: cfg, mode: "validate", cache: true });
+  } catch {
+    if (prevRegistry) {
+      setActivePluginRegistry(prevRegistry, prevKey ?? undefined);
+    }
+    return findings;
+  }
+
+  for (const plugin of registry.plugins) {
+    if (plugin.status !== "loaded" && plugin.status !== "disabled") {
+      continue;
+    }
+    if (plugin.status === "disabled") {
+      continue;
+    }
+
+    if (!plugin.capabilityEnforcer) {
+      findings.push({
+        checkId: "plugins.no_manifest",
+        severity: "warn",
+        title: `Plugin "${plugin.id}" has no capability manifest`,
+        detail: `Plugin ${plugin.id} (${plugin.source}) loaded without a capability manifest. Its capabilities are unchecked.`,
+        remediation: `Add an openclaw-manifest.json to the plugin directory declaring its capabilities.`,
+      });
+    }
+
+    if (plugin.capabilityEnforcer) {
+      const violations = plugin.capabilityEnforcer.getViolations();
+      if (violations.length > 0) {
+        findings.push({
+          checkId: "plugins.capability_violations",
+          severity: "critical",
+          title: `Plugin "${plugin.id}" has capability violations`,
+          detail: `${violations.length} capability violation(s) recorded for plugin ${plugin.id}: ${violations.map((v) => v.message).join("; ")}`,
+        });
+      }
+    }
+  }
+
+  // Restore the previous registry so channel-ID resolution stays intact for downstream checks
+  if (prevRegistry) {
+    setActivePluginRegistry(prevRegistry, prevKey ?? undefined);
+  }
+
+  return findings;
+}
+
 async function maybeProbeGateway(params: {
   cfg: OpenClawConfig;
   env: NodeJS.ProcessEnv;
@@ -954,6 +1032,7 @@ export async function runSecurityAudit(opts: SecurityAuditOptions): Promise<Secu
   findings.push(...collectSmallModelRiskFindings({ cfg, env }));
   findings.push(...collectExposureMatrixFindings(cfg));
   findings.push(...collectLikelyMultiUserSetupFindings(cfg));
+  findings.push(...collectPluginCapabilityFindings(cfg));
 
   const configSnapshot =
     opts.includeFilesystem !== false

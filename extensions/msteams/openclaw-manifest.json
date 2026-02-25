@@ -1,0 +1,48 @@
+{
+  "manifestVersion": 1,
+  "pluginId": "msteams",
+  "capabilities": {
+    "gatewayMethods": [
+      { "method": "msteams.*", "description": "Microsoft Teams channel operations" }
+    ],
+    "httpRoutes": [
+      {
+        "path": "/api/channels/msteams/*",
+        "methods": ["GET", "POST"],
+        "auth": "gateway",
+        "description": "Teams webhook and API endpoints"
+      }
+    ],
+    "config": {
+      "reads": ["channels.msteams"],
+      "writes": []
+    },
+    "filesystem": {
+      "stateDir": true,
+      "credentialsDir": true
+    },
+    "network": {
+      "outbound": true,
+      "webhookInbound": true
+    },
+    "runtime": {
+      "runCommands": false,
+      "spawnProcesses": false,
+      "timers": true
+    },
+    "channels": {
+      "channelIds": ["msteams"],
+      "inbound": true,
+      "outbound": true
+    }
+  },
+  "permissions": {
+    "summary": "Microsoft Teams channel integration (inbound + outbound messaging)",
+    "details": [
+      "Register gateway methods for Teams operations",
+      "Receive webhook callbacks from Microsoft Teams",
+      "Read Teams channel configuration",
+      "Store Teams credentials and state"
+    ]
+  }
+}

@@ -315,6 +315,26 @@ export type GatewayToolsConfig = {
   allow?: string[];
 };
 
+export type PluginCapabilityConfig = {
+  /**
+   * Enforcement mode for plugin capability manifests.
+   * - "off": no capability checking (current behavior)
+   * - "warn": log violations but don't block (default for v1)
+   * - "enforce": block violations, return error to caller
+   * @default "warn"
+   */
+  enforcement?: "enforce" | "warn" | "off";
+  /** Require plugins to ship a capability manifest to load. @default false */
+  requireManifest?: boolean;
+  /** Plugin IDs allowed to run without a manifest even when requireManifest is true. */
+  allowUnmanifested?: string[];
+};
+
+export type SecurityConfig = {
+  /** Plugin capability manifest enforcement. */
+  pluginCapabilities?: PluginCapabilityConfig;
+};
+
 export type GatewayConfig = {
   /** Single multiplexed port for Gateway WS + HTTP (default: 18789). */
   port?: number;

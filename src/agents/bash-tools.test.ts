@@ -533,7 +533,19 @@ describe("exec PATH handling", () => {
 
     const text = readNormalizedTextContent(result.content);
     const entries = text.split(path.delimiter);
-    expect(entries.slice(0, prepend.length)).toEqual(prepend);
-    expect(entries).toContain(basePath);
+    // Shells (PowerShell 7 on Windows) may inject their own directory at the
+    // front of PATH. Verify prepend entries are present, ordered, and before basePath.
+    const prependIndices = prepend.map((p) => entries.indexOf(p));
+    for (const idx of prependIndices) {
+      expect(idx, "prepend entry missing from PATH").toBeGreaterThanOrEqual(0);
+    }
+    for (let i = 1; i < prependIndices.length; i++) {
+      expect(prependIndices[i], "prepend entries out of order").toBeGreaterThan(
+        prependIndices[i - 1],
+      );
+    }
+    const baseIdx = entries.indexOf(basePath);
+    expect(baseIdx, "basePath missing from PATH").toBeGreaterThanOrEqual(0);
+    expect(prependIndices.at(-1), "prepend entries should precede basePath").toBeLessThan(baseIdx);
   });
 });
