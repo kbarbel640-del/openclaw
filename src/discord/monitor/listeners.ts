@@ -5,6 +5,7 @@ import {
   MessageReactionAddListener,
   MessageReactionRemoveListener,
   PresenceUpdateListener,
+  ThreadUpdateListener,
   type User,
 } from "@buape/carbon";
 import { danger } from "../../globals.js";
@@ -455,5 +456,40 @@ export class DiscordPresenceListener extends PresenceUpdateListener {
       const logger = this.logger ?? discordEventQueueLog;
       logger.error(danger(`discord presence handler failed: ${String(err)}`));
     }
+  }
+}
+
+type ThreadUpdateEvent = Parameters<ThreadUpdateListener["handle"]>[0];
+
+export class DiscordThreadUpdateListener extends ThreadUpdateListener {
+  constructor(
+    private params: {
+      accountId: string;
+      logger: Logger;
+      onThreadArchived?: (threadId: string, guildId?: string) => void;
+    },
+  ) {
+    super();
+  }
+
+  async handle(data: ThreadUpdateEvent, _client: Client) {
+    await runDiscordListenerWithSlowLog({
+      logger: this.params.logger,
+      listener: this.constructor.name,
+      event: this.type,
+      run: async () => {
+        try {
+          const thread = data.thread;
+          const threadId = thread?.id;
+          const archived = thread?.archived;
+
+          if (threadId && archived === true && this.params.onThreadArchived) {
+            this.params.onThreadArchived(threadId, thread.guildId ?? undefined);
+          }
+        } catch (err) {
+          this.params.logger?.error(danger(`discord thread update handler failed: ${String(err)}`));
+        }
+      },
+    });
   }
 }

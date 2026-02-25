@@ -10,6 +10,7 @@ import {
 import { GatewayCloseCodes, type GatewayPlugin } from "@buape/carbon/gateway";
 import { VoicePlugin } from "@buape/carbon/voice";
 import { Routes } from "discord-api-types/v10";
+import { listAgentIds } from "../../agents/agent-scope.js";
 import { resolveTextChunkLimit } from "../../auto-reply/chunk.js";
 import { listNativeCommandSpecsForConfig } from "../../auto-reply/commands-registry.js";
 import type { HistoryEntry } from "../../auto-reply/reply/history.js";
@@ -27,6 +28,7 @@ import {
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
 } from "../../config/runtime-group-policy.js";
+import { resolveSessionTranscriptsDirForAgent } from "../../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose, warn } from "../../globals.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { createDiscordRetryRunner } from "../../infra/retry-policy.js";
@@ -56,6 +58,7 @@ import {
   DiscordPresenceListener,
   DiscordReactionListener,
   DiscordReactionRemoveListener,
+  DiscordThreadUpdateListener,
   registerDiscordListener,
 } from "./listeners.js";
 import { createDiscordMessageHandler } from "./message-handler.js";
@@ -71,6 +74,7 @@ import { runDiscordGatewayLifecycle } from "./provider.lifecycle.js";
 import { resolveDiscordRestFetch } from "./rest-fetch.js";
 import { createNoopThreadBindingManager, createThreadBindingManager } from "./thread-bindings.js";
 import { formatThreadBindingTtlLabel } from "./thread-bindings.messages.js";
+import { handleThreadArchivedSessionReset } from "./thread-session-reset.js";
 
 export type MonitorDiscordOpts = {
   token?: string;
@@ -581,6 +585,30 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         new DiscordPresenceListener({ logger, accountId: account.accountId }),
       );
       runtime.log?.("discord: GuildPresences intent enabled — presence listener registered");
+    }
+
+    // Register thread update listener for session reset on archive
+    {
+      const agentIds = listAgentIds(cfg);
+      const agentDirs = agentIds.map((agentId) => ({
+        agentId,
+        sessionsDir: resolveSessionTranscriptsDirForAgent(agentId),
+      }));
+      registerDiscordListener(
+        client.listeners,
+        new DiscordThreadUpdateListener({
+          accountId: account.accountId,
+          logger,
+          onThreadArchived: (threadId, guildId) => {
+            handleThreadArchivedSessionReset({
+              threadId,
+              guildId,
+              accountId: account.accountId,
+              agentDirs,
+            });
+          },
+        }),
+      );
     }
 
     runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
