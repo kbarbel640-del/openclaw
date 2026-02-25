@@ -57,6 +57,7 @@ import {
   DiscordPresenceListener,
   DiscordReactionListener,
   DiscordReactionRemoveListener,
+  DiscordThreadUpdateListener,
   registerDiscordListener,
 } from "./listeners.js";
 import { createDiscordMessageHandler } from "./message-handler.js";
@@ -577,6 +578,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         guildEntries,
         logger,
       }),
+    );
+    registerDiscordListener(
+      client.listeners,
+      new DiscordThreadUpdateListener(cfg, account.accountId, logger),
     );
 
     if (discordCfg.intents?.presence) {
