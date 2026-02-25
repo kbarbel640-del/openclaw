@@ -41,7 +41,7 @@ It supports:
             serviceKey: "${SUPABASE_SERVICE_ROLE_KEY}",
           },
           embedding: {
-            apiKey: "${OPENAI_API_KEY}",
+            apiKey: "${OPENCLAW_MEMORY_SUPABASE_EMBEDDING_API_KEY}",
             model: "text-embedding-3-small",
           },
           autoRecall: true,
@@ -54,6 +54,17 @@ It supports:
 ```
 
 3. Restart OpenClaw Gateway.
+
+## Embedding dependency (not a Supabase dependency)
+
+- Supabase/Postgres handles durable storage, indexing, and similarity search.
+- This plugin currently generates embeddings with OpenAI, so `embedding.apiKey`
+  must resolve to an OpenAI server key.
+- `embedding.apiKey` can reference any env var name using `${VAR_NAME}`.
+- Recommended: `${OPENCLAW_MEMORY_SUPABASE_EMBEDDING_API_KEY}`.
+- Also valid: `${OPENAI_API_KEY}`.
+- Env precedence follows OpenClaw defaults: [Environment Variables](/help/environment)
+  and [FAQ: env vars and .env loading](/help/faq#env-vars-and-env-loading).
 
 ## Supabase best practices
 
@@ -107,7 +118,8 @@ It supports:
 ## Security checklist
 
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only.
-- `OPENAI_API_KEY` is server-only.
+- `OPENCLAW_MEMORY_SUPABASE_EMBEDDING_API_KEY` is server-only.
+- `OPENAI_API_KEY` is server-only if used instead.
 - No hardcoded secrets in `openclaw.json`, docs, or repository files.
 - RPC privileges scoped to `service_role`.
 - Backups enabled and restore path tested.

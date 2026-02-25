@@ -26,7 +26,7 @@ plugins: {
           serviceKey: "${SUPABASE_SERVICE_ROLE_KEY}"
         },
         embedding: {
-          apiKey: "${OPENAI_API_KEY}",
+          apiKey: "${OPENCLAW_MEMORY_SUPABASE_EMBEDDING_API_KEY}",
           model: "text-embedding-3-small"
         },
         autoRecall: true,
@@ -44,6 +44,8 @@ plugins: {
 - SQL schema defaults to `vector(1536)` (`text-embedding-3-small`).
 - If you switch to `text-embedding-3-large`, update table/function vector dimensions to `3072`.
 - This plugin provides `memory_search`, `memory_get`, `memory_store`, and `memory_forget`.
+- `embedding.apiKey` is for OpenAI embeddings (not Supabase/Postgres itself).
+- You can use `${OPENCLAW_MEMORY_SUPABASE_EMBEDDING_API_KEY}` or `${OPENAI_API_KEY}`.
 - Use only `service_role` for server-side RPC access.
 - Never use publishable/anon keys for memory writes.
 - Keep keys in env/secret manager and rotate them periodically.

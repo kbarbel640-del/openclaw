@@ -242,7 +242,7 @@ export const memorySupabaseConfigSchema = {
       label: "OpenAI API Key",
       sensitive: true,
       placeholder: "sk-proj-...",
-      help: "Embedding API key (or use ${OPENAI_API_KEY})",
+      help: "Embedding API key (for OpenAI; use ${OPENCLAW_MEMORY_SUPABASE_EMBEDDING_API_KEY} or ${OPENAI_API_KEY})",
     },
     "embedding.model": {
       label: "Embedding Model",
