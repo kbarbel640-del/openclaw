@@ -292,7 +292,7 @@ describe("gateway server agent", () => {
       idempotencyKey: "idem-agent-mismatch",
     });
     expect(res.ok).toBe(false);
-    expect(res.error?.message).toContain("does not match session key agent");
+    expect(res.error?.message).toContain("does not match session agent");
 
     const spy = vi.mocked(agentCommand);
     expect(spy).not.toHaveBeenCalled();
