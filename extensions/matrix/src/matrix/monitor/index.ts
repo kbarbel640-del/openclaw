@@ -16,6 +16,7 @@ import { createDirectRoomTracker } from "./direct.js";
 import { registerMatrixMonitorEvents } from "./events.js";
 import { createMatrixRoomMessageHandler } from "./handler.js";
 import { createMatrixRoomInfoResolver } from "./room-info.js";
+import { requestOwnMatrixDeviceVerification } from "./verification.js";
 
 export type MonitorMatrixOpts = {
   runtime?: RuntimeEnv;
@@ -305,19 +306,10 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
 
   // If E2EE is enabled, trigger device verification
   if (auth.encryption && client.crypto) {
-    try {
-      // Request verification from other sessions
-      const verificationRequest = await (
-        client.crypto as { requestOwnUserVerification?: () => Promise<unknown> }
-      ).requestOwnUserVerification?.();
-      if (verificationRequest) {
-        logger.info("matrix: device verification requested - please verify in another client");
-      }
-    } catch (err) {
-      logger.debug?.("Device verification request failed (may already be verified)", {
-        error: String(err),
-      });
-    }
+    await requestOwnMatrixDeviceVerification({
+      crypto: client.crypto as { requestOwnUserVerification?: unknown },
+      logger,
+    });
   }
 
   await new Promise<void>((resolve) => {
