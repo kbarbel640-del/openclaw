@@ -98,21 +98,3 @@ export function createEventDispatcher(account: ResolvedFeishuAccount): Lark.Even
     verificationToken: account.verificationToken,
   });
 }
-
-/**
- * Get a cached client for an account (if exists).
- */
-export function getFeishuClient(accountId: string): Lark.Client | null {
-  return clientCache.get(accountId)?.client ?? null;
-}
-
-/**
- * Clear client cache for a specific account or all accounts.
- */
-export function clearClientCache(accountId?: string): void {
-  if (accountId) {
-    clientCache.delete(accountId);
-  } else {
-    clientCache.clear();
-  }
-}

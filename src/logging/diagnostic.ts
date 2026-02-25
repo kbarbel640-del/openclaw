@@ -240,22 +240,6 @@ export function logLaneDequeue(lane: string, waitMs: number, queueSize: number) 
   markActivity();
 }
 
-export function logRunAttempt(params: SessionRef & { runId: string; attempt: number }) {
-  diag.debug(
-    `run attempt: sessionId=${params.sessionId ?? "unknown"} sessionKey=${
-      params.sessionKey ?? "unknown"
-    } runId=${params.runId} attempt=${params.attempt}`,
-  );
-  emitDiagnosticEvent({
-    type: "run.attempt",
-    sessionId: params.sessionId,
-    sessionKey: params.sessionKey,
-    runId: params.runId,
-    attempt: params.attempt,
-  });
-  markActivity();
-}
-
 export function logToolLoopAction(
   params: SessionRef & {
     toolName: string;
@@ -289,17 +273,6 @@ export function logToolLoopAction(
     message: params.message,
     pairedToolName: params.pairedToolName,
   });
-  markActivity();
-}
-
-export function logActiveRuns() {
-  const activeSessions = Array.from(diagnosticSessionStates.entries())
-    .filter(([, s]) => s.state === "processing")
-    .map(
-      ([id, s]) =>
-        `${id}(q=${s.queueDepth},age=${Math.round((Date.now() - s.lastActivity) / 1000)}s)`,
-    );
-  diag.debug(`active runs: count=${activeSessions.length} sessions=[${activeSessions.join(", ")}]`);
   markActivity();
 }
 
