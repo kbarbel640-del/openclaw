@@ -251,17 +251,6 @@ export async function recoverPendingDeliveries(opts: {
 
   for (const entry of pending) {
     const now = Date.now();
-    const gc = shouldGcEntry(entry, now);
-    if (gc.gc) {
-      opts.log.warn(`Delivery ${entry.id} marked for GC (${gc.reason}) — moving to failed/`);
-      try {
-        await moveToFailed(entry.id, opts.stateDir);
-      } catch (err) {
-        opts.log.error(`Failed to move entry ${entry.id} to failed/: ${String(err)}`);
-      }
-      skipped += 1;
-      continue;
-    }
 
     if (now >= deadline) {
       const deferred = pending.length - recovered - failed - skipped;
@@ -272,6 +261,18 @@ export async function recoverPendingDeliveries(opts: {
       opts.log.warn(
         `Delivery ${entry.id} exceeded max retries (${entry.retryCount}/${MAX_RETRIES}) — moving to failed/`,
       );
+      try {
+        await moveToFailed(entry.id, opts.stateDir);
+      } catch (err) {
+        opts.log.error(`Failed to move entry ${entry.id} to failed/: ${String(err)}`);
+      }
+      skipped += 1;
+      continue;
+    }
+
+    const gc = shouldGcEntry(entry, now);
+    if (gc.gc) {
+      opts.log.warn(`Delivery ${entry.id} marked for GC (${gc.reason}) — moving to failed/`);
       try {
         await moveToFailed(entry.id, opts.stateDir);
       } catch (err) {
