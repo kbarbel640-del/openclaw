@@ -49,7 +49,7 @@ import {
 import { buildDirectLabel, buildGuildLabel, resolveReplyContext } from "./reply-context.js";
 import { deliverDiscordReply } from "./reply-delivery.js";
 import { resolveDiscordAutoThreadReplyPlan, resolveDiscordThreadStarter } from "./threading.js";
-import { sendTyping } from "./typing.js";
+import { sendTyping, stopTyping } from "./typing.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -413,6 +413,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
 
   const typingCallbacks = createTypingCallbacks({
     start: () => sendTyping({ client, channelId: typingChannelId }),
+    stop: () => stopTyping({ client, channelId: typingChannelId }),
     onStartError: (err) => {
       logTypingFailure({
         log: logVerbose,
