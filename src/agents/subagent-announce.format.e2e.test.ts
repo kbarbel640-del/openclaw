@@ -88,6 +88,7 @@ describe("subagent announce formatting", () => {
       task: "do thing",
       timeoutMs: 1000,
       cleanup: "keep",
+      allowRestart: true,
       waitForCompletion: true,
       startedAt: 10,
       endedAt: 20,
@@ -118,6 +119,7 @@ describe("subagent announce formatting", () => {
       task: "do thing",
       timeoutMs: 1000,
       cleanup: "keep",
+      allowRestart: true,
       waitForCompletion: false,
       startedAt: 10,
       endedAt: 20,
@@ -143,7 +145,7 @@ describe("subagent announce formatting", () => {
       },
     };
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-789",
       requesterSessionKey: "main",
@@ -157,7 +159,8 @@ describe("subagent announce formatting", () => {
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(true);
+    expect(result.announced).toBe(true);
+    expect(result.steer).toEqual({ mode: "message", reason: "steered_into_active_run" });
     expect(embeddedRunMock.queueEmbeddedPiMessage).toHaveBeenCalledWith(
       "session-123",
       expect.stringContaining("subagent task"),
@@ -180,7 +183,7 @@ describe("subagent announce formatting", () => {
       },
     };
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-999",
       requesterSessionKey: "main",
@@ -194,7 +197,7 @@ describe("subagent announce formatting", () => {
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(true);
+    expect(result.announced).toBe(true);
     await expect.poll(() => agentSpy.mock.calls.length).toBe(1);
 
     const call = agentSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
@@ -218,7 +221,7 @@ describe("subagent announce formatting", () => {
       },
     };
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-thread",
       requesterSessionKey: "main",
@@ -232,7 +235,7 @@ describe("subagent announce formatting", () => {
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(true);
+    expect(result.announced).toBe(true);
     await expect.poll(() => agentSpy.mock.calls.length).toBe(1);
 
     const call = agentSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
@@ -256,7 +259,7 @@ describe("subagent announce formatting", () => {
       },
     };
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-thread-override",
       requesterSessionKey: "main",
@@ -275,7 +278,7 @@ describe("subagent announce formatting", () => {
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(true);
+    expect(result.announced).toBe(true);
     await expect.poll(() => agentSpy.mock.calls.length).toBe(1);
 
     const call = agentSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
@@ -340,7 +343,7 @@ describe("subagent announce formatting", () => {
     embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(false);
     embeddedRunMock.isEmbeddedPiRunStreaming.mockReturnValue(false);
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-direct",
       requesterSessionKey: "agent:main:main",
@@ -349,13 +352,14 @@ describe("subagent announce formatting", () => {
       task: "do thing",
       timeoutMs: 1000,
       cleanup: "keep",
+      allowRestart: true,
       waitForCompletion: false,
       startedAt: 10,
       endedAt: 20,
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(true);
+    expect(result.announced).toBe(true);
     const call = agentSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
     expect(call?.params?.channel).toBe("whatsapp");
     expect(call?.params?.accountId).toBe("acct-123");
@@ -382,6 +386,7 @@ describe("subagent announce formatting", () => {
       task: "context-stress-test",
       timeoutMs: 1000,
       cleanup: "keep",
+      allowRestart: true,
       waitForCompletion: false,
       startedAt: 10,
       endedAt: 20,
@@ -404,7 +409,7 @@ describe("subagent announce formatting", () => {
       },
     };
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-child-active",
       requesterSessionKey: "agent:main:main",
@@ -418,7 +423,7 @@ describe("subagent announce formatting", () => {
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(false);
+    expect(result.announced).toBe(false);
     expect(agentSpy).not.toHaveBeenCalled();
   });
 
@@ -432,7 +437,7 @@ describe("subagent announce formatting", () => {
       },
     };
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-child-active-delete",
       requesterSessionKey: "agent:main:main",
@@ -446,7 +451,7 @@ describe("subagent announce formatting", () => {
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(false);
+    expect(result.announced).toBe(false);
     expect(sessionsDeleteSpy).not.toHaveBeenCalled();
   });
 
@@ -455,7 +460,7 @@ describe("subagent announce formatting", () => {
     embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(false);
     embeddedRunMock.isEmbeddedPiRunStreaming.mockReturnValue(false);
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-direct-origin",
       requesterSessionKey: "agent:main:main",
@@ -464,13 +469,14 @@ describe("subagent announce formatting", () => {
       task: "do thing",
       timeoutMs: 1000,
       cleanup: "keep",
+      allowRestart: true,
       waitForCompletion: false,
       startedAt: 10,
       endedAt: 20,
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(true);
+    expect(result.announced).toBe(true);
     const call = agentSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
     expect(call?.params?.channel).toBe("whatsapp");
     expect(call?.params?.accountId).toBe("acct-987");
@@ -490,7 +496,7 @@ describe("subagent announce formatting", () => {
       },
     };
 
-    const didAnnounce = await runSubagentAnnounceFlow({
+    const result = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
       childRunId: "run-stale-channel",
       requesterSessionKey: "main",
@@ -505,12 +511,105 @@ describe("subagent announce formatting", () => {
       outcome: { status: "ok" },
     });
 
-    expect(didAnnounce).toBe(true);
+    expect(result.announced).toBe(true);
     await expect.poll(() => agentSpy.mock.calls.length).toBe(1);
 
     const call = agentSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
     // The channel should match requesterOrigin, NOT the stale session entry.
     expect(call?.params?.channel).toBe("bluebubbles");
     expect(call?.params?.to).toBe("bluebubbles:chat_guid:123");
+  });
+
+  it("blocks restart by default when no active steer path is available", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(false);
+    sessionStore = {
+      "agent:main:main": {
+        sessionId: "session-inactive",
+        queueMode: "steer",
+      },
+    };
+
+    const result = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-blocked-default",
+      requesterSessionKey: "main",
+      requesterDisplayKey: "main",
+      task: "do thing",
+      timeoutMs: 1000,
+      cleanup: "keep",
+      waitForCompletion: false,
+      startedAt: 10,
+      endedAt: 20,
+      outcome: { status: "ok" },
+    });
+
+    expect(result).toEqual({
+      announced: false,
+      steer: { mode: "blocked", reason: "run_not_active" },
+    });
+    expect(agentSpy).not.toHaveBeenCalled();
+  });
+
+  it("allows explicit restart fallback when allowRestart is true", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(false);
+    sessionStore = {
+      "agent:main:main": {
+        sessionId: "session-inactive",
+        queueMode: "steer",
+      },
+    };
+
+    const result = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-restart-explicit",
+      requesterSessionKey: "main",
+      requesterDisplayKey: "main",
+      task: "do thing",
+      timeoutMs: 1000,
+      cleanup: "keep",
+      waitForCompletion: false,
+      allowRestart: true,
+      startedAt: 10,
+      endedAt: 20,
+      outcome: { status: "ok" },
+    });
+
+    expect(result).toEqual({
+      announced: true,
+      steer: { mode: "restart", reason: "run_not_active" },
+    });
+    expect(agentSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns blocked when no requester session id exists and restart is not allowed", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    sessionStore = {
+      "agent:main:main": {
+        queueMode: "steer",
+      },
+    };
+
+    const result = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-no-session-id",
+      requesterSessionKey: "main",
+      requesterDisplayKey: "main",
+      task: "do thing",
+      timeoutMs: 1000,
+      cleanup: "keep",
+      waitForCompletion: false,
+      allowRestart: false,
+      startedAt: 10,
+      endedAt: 20,
+      outcome: { status: "ok" },
+    });
+
+    expect(result).toEqual({
+      announced: false,
+      steer: { mode: "blocked", reason: "no_session_id" },
+    });
+    expect(agentSpy).not.toHaveBeenCalled();
   });
 });

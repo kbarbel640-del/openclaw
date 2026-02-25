@@ -77,8 +77,8 @@ function resumeSubagentRun(runId: string) {
       endedAt: entry.endedAt,
       label: entry.label,
       outcome: entry.outcome,
-    }).then((didAnnounce) => {
-      finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
+    }).then((result) => {
+      finalizeSubagentCleanup(runId, entry.cleanup, result.announced);
     });
     resumedRuns.add(runId);
     return;
@@ -240,8 +240,8 @@ function ensureListener() {
       endedAt: entry.endedAt,
       label: entry.label,
       outcome: entry.outcome,
-    }).then((didAnnounce) => {
-      finalizeSubagentCleanup(evt.runId, entry.cleanup, didAnnounce);
+    }).then((result) => {
+      finalizeSubagentCleanup(evt.runId, entry.cleanup, result.announced);
     });
   });
 }
@@ -388,8 +388,8 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
       endedAt: entry.endedAt,
       label: entry.label,
       outcome: entry.outcome,
-    }).then((didAnnounce) => {
-      finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
+    }).then((result) => {
+      finalizeSubagentCleanup(runId, entry.cleanup, result.announced);
     });
   } catch {
     // ignore

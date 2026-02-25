@@ -295,6 +295,8 @@ When a sub-agent finishes, it goes through an **announce** step:
 2. A summary message is sent to the main agent's session with the result, status, and stats
 3. The main agent posts a natural-language summary to your chat
 
+By default, announce steering is **state-preserving**: OpenClaw first tries to inject guidance into the active main-agent run (or queue it for that run). It does **not** implicitly start a new run unless restart fallback is explicitly allowed by the caller.
+
 Announce replies preserve thread/topic routing when available (Slack threads, Telegram topics, Matrix threads).
 
 ### Announce Stats

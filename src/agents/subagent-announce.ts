@@ -166,17 +166,34 @@ function loadRequesterSessionEntry(requesterSessionKey: string) {
   return { cfg, entry, canonicalKey };
 }
 
+/**
+ * Result of a subagent steer attempt, providing explicit visibility into
+ * which delivery path was used and why.
+ */
+export type SteerResult = {
+  /** Which path the guidance took. */
+  mode: "message" | "queued" | "restart" | "blocked";
+  /** Human-readable reason for the chosen path. */
+  reason: string;
+};
+
 async function maybeQueueSubagentAnnounce(params: {
   requesterSessionKey: string;
   triggerMessage: string;
   summaryLine?: string;
   requesterOrigin?: DeliveryContext;
-}): Promise<"steered" | "queued" | "none"> {
+  /** When true, allow falling through to a full restart if in-session delivery is not possible. */
+  allowRestart?: boolean;
+}): Promise<SteerResult> {
   const { cfg, entry } = loadRequesterSessionEntry(params.requesterSessionKey);
   const canonicalKey = resolveRequesterStoreKey(cfg, params.requesterSessionKey);
   const sessionId = entry?.sessionId;
   if (!sessionId) {
-    return "none";
+    // Default (undefined) allows restart for backward compat; only block on explicit false.
+    const restartAllowed = params.allowRestart !== false;
+    return restartAllowed
+      ? { mode: "restart", reason: "no_session_id" }
+      : { mode: "blocked", reason: "no_session_id" };
   }
 
   const queueSettings = resolveQueueSettings({
@@ -190,7 +207,7 @@ async function maybeQueueSubagentAnnounce(params: {
   if (shouldSteer) {
     const steered = queueEmbeddedPiMessage(sessionId, params.triggerMessage);
     if (steered) {
-      return "steered";
+      return { mode: "message", reason: "steered_into_active_run" };
     }
   }
 
@@ -213,10 +230,20 @@ async function maybeQueueSubagentAnnounce(params: {
       settings: queueSettings,
       send: sendAnnounce,
     });
-    return "queued";
+    return { mode: "queued", reason: "enqueued_for_active_run" };
   }
 
-  return "none";
+  // Run is not active. Restart is only allowed when explicitly requested.
+  if (params.allowRestart === true) {
+    return {
+      mode: "restart",
+      reason: isActive ? "run_active_but_cannot_accept_input" : "run_not_active",
+    };
+  }
+  return {
+    mode: "blocked",
+    reason: isActive ? "run_active_but_cannot_accept_input" : "run_not_active",
+  };
 }
 
 async function buildSubagentStatsLine(params: {
@@ -376,6 +403,11 @@ export type SubagentRunOutcome = {
 
 export type SubagentAnnounceType = "subagent task" | "cron job";
 
+export type SubagentAnnounceResult = {
+  announced: boolean;
+  steer?: SteerResult;
+};
+
 export async function runSubagentAnnounceFlow(params: {
   childSessionKey: string;
   childRunId: string;
@@ -392,7 +424,13 @@ export async function runSubagentAnnounceFlow(params: {
   label?: string;
   outcome?: SubagentRunOutcome;
   announceType?: SubagentAnnounceType;
-}): Promise<boolean> {
+  /**
+   * When false (default), a steer that would require a full session restart
+   * is blocked and returns `{ mode: "blocked", reason }` instead.
+   * Set to true to allow restart when in-session delivery is impossible.
+   */
+  allowRestart?: boolean;
+}): Promise<SubagentAnnounceResult> {
   let didAnnounce = false;
   let shouldDeleteChildSession = params.cleanup === "delete";
   try {
@@ -415,7 +453,7 @@ export async function runSubagentAnnounceFlow(params: {
         // Defer announcement so we don't report stale/partial output.
         // Keep the child session so output is not lost while the run is still active.
         shouldDeleteChildSession = false;
-        return false;
+        return { announced: false, steer: { mode: "blocked", reason: "child_run_still_active" } };
       }
     }
 
@@ -471,7 +509,7 @@ export async function runSubagentAnnounceFlow(params: {
     if (!reply?.trim() && childSessionId && isEmbeddedPiRunActive(childSessionId)) {
       // Avoid announcing "(no output)" while the child run is still producing output.
       shouldDeleteChildSession = false;
-      return false;
+      return { announced: false, steer: { mode: "blocked", reason: "child_run_still_active" } };
     }
 
     if (!outcome) {
@@ -511,22 +549,22 @@ export async function runSubagentAnnounceFlow(params: {
       "You can respond with NO_REPLY if no announcement is needed (e.g., internal task with no user-facing result).",
     ].join("\n");
 
-    const queued = await maybeQueueSubagentAnnounce({
+    const steerResult = await maybeQueueSubagentAnnounce({
       requesterSessionKey: params.requesterSessionKey,
       triggerMessage,
       summaryLine: taskLabel,
       requesterOrigin,
+      allowRestart: params.allowRestart,
     });
-    if (queued === "steered") {
+    if (steerResult.mode === "message" || steerResult.mode === "queued") {
       didAnnounce = true;
-      return true;
+      return { announced: true, steer: steerResult };
     }
-    if (queued === "queued") {
-      didAnnounce = true;
-      return true;
+    if (steerResult.mode === "blocked") {
+      return { announced: false, steer: steerResult };
     }
 
-    // Send to main agent - it will respond in its own voice
+    // mode === "restart": Send to main agent via new run — it will respond in its own voice
     let directOrigin = requesterOrigin;
     if (!directOrigin) {
       const { entry } = loadRequesterSessionEntry(params.requesterSessionKey);
@@ -552,9 +590,11 @@ export async function runSubagentAnnounceFlow(params: {
     });
 
     didAnnounce = true;
+    return { announced: true, steer: steerResult };
   } catch (err) {
     defaultRuntime.error?.(`Subagent announce failed: ${String(err)}`);
     // Best-effort follow-ups; ignore failures to avoid breaking the caller response.
+    return { announced: false, steer: { mode: "blocked", reason: `error: ${String(err)}` } };
   } finally {
     // Patch label after all writes complete
     if (params.label) {
@@ -580,5 +620,6 @@ export async function runSubagentAnnounceFlow(params: {
       }
     }
   }
-  return didAnnounce;
+  // Unreachable in practice — the try block always returns. Keep for safety.
+  return { announced: didAnnounce };
 }
