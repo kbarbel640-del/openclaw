@@ -14,6 +14,8 @@ import { loadSessionStore, resolveStorePath, type SessionEntry } from "../../con
 import { logVerbose } from "../../globals.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
+import { prefixMetaMessage } from "../../infra/meta-message.js";
+import { getSessionBindingService } from "../../infra/outbound/session-binding-service.js";
 import {
   logMessageProcessed,
   logMessageQueued,
@@ -167,6 +169,39 @@ const resolveAcpRequestId = (ctx: FinalizedMsgContext): string => {
   }
   return `${Date.now()}:${Math.random().toString(16).slice(2)}`;
 };
+
+function hasBoundConversationForSession(params: {
+  sessionKey: string;
+  channelRaw: string | undefined;
+  accountIdRaw: string | undefined;
+}): boolean {
+  const channel = String(params.channelRaw ?? "")
+    .trim()
+    .toLowerCase();
+  if (!channel) {
+    return false;
+  }
+  const accountId = String(params.accountIdRaw ?? "")
+    .trim()
+    .toLowerCase();
+  const normalizedAccountId = accountId || "default";
+  const bindingService = getSessionBindingService();
+  const bindings = bindingService.listBySession(params.sessionKey);
+  return bindings.some((binding) => {
+    const bindingChannel = String(binding.conversation.channel ?? "")
+      .trim()
+      .toLowerCase();
+    const bindingAccountId = String(binding.conversation.accountId ?? "")
+      .trim()
+      .toLowerCase();
+    const conversationId = String(binding.conversation.conversationId ?? "").trim();
+    return (
+      bindingChannel === channel &&
+      (bindingAccountId || "default") === normalizedAccountId &&
+      conversationId.length > 0
+    );
+  });
+}
 
 export type DispatchFromConfigResult = {
   queuedFinal: boolean;
@@ -519,7 +554,12 @@ export async function dispatchReplyFromConfig(params: {
       );
       const shouldEmitResolvedIdentityNotice =
         identityPendingBeforeTurn &&
-        Boolean(ctx.MessageThreadId != null && String(ctx.MessageThreadId).trim());
+        (Boolean(ctx.MessageThreadId != null && String(ctx.MessageThreadId).trim()) ||
+          hasBoundConversationForSession({
+            sessionKey,
+            channelRaw: ctx.OriginatingChannel ?? ctx.Surface ?? ctx.Provider,
+            accountIdRaw: ctx.AccountId,
+          }));
 
       const resolvedAcpAgent =
         acpResolution.kind === "ready"
@@ -598,7 +638,7 @@ export async function dispatchReplyFromConfig(params: {
             });
             if (resolvedDetails.length > 0) {
               const delivered = await deliverAcpPayload("final", {
-                text: ["✅ Session ids resolved.", ...resolvedDetails].join("\n"),
+                text: prefixMetaMessage(["Session ids resolved.", ...resolvedDetails].join("\n")),
               });
               queuedFinal = queuedFinal || delivered;
             }

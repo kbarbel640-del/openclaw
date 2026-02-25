@@ -37,6 +37,9 @@ const acpMocks = vi.hoisted(() => ({
   upsertAcpSessionMeta: vi.fn(async () => null),
   requireAcpRuntimeBackend: vi.fn<() => unknown>(),
 }));
+const sessionBindingMocks = vi.hoisted(() => ({
+  listBySession: vi.fn(() => []),
+}));
 const ttsMocks = vi.hoisted(() => {
   const state = {
     synthesizeFinalAudio: false,
@@ -110,6 +113,29 @@ vi.mock("../../acp/runtime/session-meta.js", () => ({
 vi.mock("../../acp/runtime/registry.js", () => ({
   requireAcpRuntimeBackend: acpMocks.requireAcpRuntimeBackend,
 }));
+vi.mock("../../infra/outbound/session-binding-service.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../infra/outbound/session-binding-service.js")>();
+  return {
+    ...actual,
+    getSessionBindingService: () => ({
+      bind: vi.fn(async () => {
+        throw new Error("bind not mocked");
+      }),
+      getCapabilities: vi.fn(() => ({
+        adapterAvailable: true,
+        bindSupported: true,
+        unbindSupported: true,
+        placements: ["current", "child"] as const,
+      })),
+      listBySession: (targetSessionKey: string) =>
+        sessionBindingMocks.listBySession(targetSessionKey),
+      resolveByConversation: vi.fn(() => null),
+      touch: vi.fn(),
+      unbind: vi.fn(async () => []),
+    }),
+  };
+});
 vi.mock("../../tts/tts.js", () => ({
   maybeApplyTtsToPayload: (params: unknown) => ttsMocks.maybeApplyTtsToPayload(params),
   normalizeTtsAutoMode: (value: unknown) => ttsMocks.normalizeTtsAutoMode(value),
@@ -195,6 +221,8 @@ describe("dispatchReplyFromConfig", () => {
     acpMocks.upsertAcpSessionMeta.mockReset();
     acpMocks.upsertAcpSessionMeta.mockResolvedValue(null);
     acpMocks.requireAcpRuntimeBackend.mockReset();
+    sessionBindingMocks.listBySession.mockReset();
+    sessionBindingMocks.listBySession.mockReturnValue([]);
     ttsMocks.state.synthesizeFinalAudio = false;
     ttsMocks.maybeApplyTtsToPayload.mockClear();
     ttsMocks.normalizeTtsAutoMode.mockClear();
@@ -580,6 +608,88 @@ describe("dispatchReplyFromConfig", () => {
     expect(finalPayload?.text).toContain("agent session id: inner-123");
     expect(finalPayload?.text).toContain("acpx session id: acpx-123");
     expect(finalPayload?.text).toContain("codex resume inner-123");
+  });
+
+  it("posts resolved-session-id notice when ACP session is bound even without MessageThreadId", async () => {
+    setNoAbort();
+    const runtime = createAcpRuntime([{ type: "text_delta", text: "hello" }, { type: "done" }]);
+    const pendingAcp = {
+      backend: "acpx",
+      agent: "codex",
+      runtimeSessionName: "runtime:1",
+      identity: {
+        state: "pending" as const,
+        source: "ensure" as const,
+        lastUpdatedAt: Date.now(),
+        acpxSessionId: "acpx-123",
+        agentSessionId: "inner-123",
+      },
+      mode: "persistent" as const,
+      state: "idle" as const,
+      lastActivityAt: Date.now(),
+    };
+    const resolvedAcp = {
+      ...pendingAcp,
+      identity: {
+        ...pendingAcp.identity,
+        state: "resolved" as const,
+        source: "status" as const,
+      },
+    };
+    acpMocks.readAcpSessionEntry.mockImplementation(() => {
+      const runTurnStarted = runtime.runTurn.mock.calls.length > 0;
+      return {
+        sessionKey: "agent:codex-acp:session-1",
+        storeSessionKey: "agent:codex-acp:session-1",
+        cfg: {},
+        storePath: "/tmp/mock-sessions.json",
+        entry: {},
+        acp: runTurnStarted ? resolvedAcp : pendingAcp,
+      };
+    });
+    acpMocks.requireAcpRuntimeBackend.mockReturnValue({
+      id: "acpx",
+      runtime,
+    });
+    sessionBindingMocks.listBySession.mockReturnValue([
+      {
+        bindingId: "default:thread-1",
+        targetSessionKey: "agent:codex-acp:session-1",
+        targetKind: "session",
+        conversation: {
+          channel: "discord",
+          accountId: "default",
+          conversationId: "thread-1",
+        },
+        status: "active",
+        boundAt: Date.now(),
+      },
+    ]);
+
+    const cfg = {
+      acp: {
+        enabled: true,
+        dispatch: { enabled: true },
+      },
+    } as OpenClawConfig;
+    const dispatcher = createDispatcher();
+    const ctx = buildTestCtx({
+      Provider: "discord",
+      Surface: "discord",
+      AccountId: "default",
+      SessionKey: "agent:codex-acp:session-1",
+      MessageThreadId: undefined,
+      BodyForAgent: "show ids",
+    });
+
+    await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver: vi.fn() });
+
+    const finalCalls = (dispatcher.sendFinalReply as ReturnType<typeof vi.fn>).mock.calls;
+    expect(finalCalls.length).toBe(1);
+    const finalPayload = finalCalls[0]?.[0] as ReplyPayload | undefined;
+    expect(finalPayload?.text).toContain("Session ids resolved");
+    expect(finalPayload?.text).toContain("agent session id: inner-123");
+    expect(finalPayload?.text).toContain("acpx session id: acpx-123");
   });
 
   it("honors send-policy deny before ACP runtime dispatch", async () => {

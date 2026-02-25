@@ -1,3 +1,4 @@
+import { prefixMetaMessage } from "../../infra/meta-message.js";
 import { DEFAULT_FAREWELL_TEXT, type ThreadBindingRecord } from "./thread-bindings.types.js";
 
 function normalizeThreadBindingMessageTtlMs(raw: unknown): number {
@@ -58,9 +59,9 @@ export function resolveThreadBindingIntroText(params: {
       ? `🤖 ${normalized} session active (auto-unfocus in ${formatThreadBindingTtlLabel(ttlMs)}). Messages here go directly to this session.`
       : `🤖 ${normalized} session active. Messages here go directly to this session.`;
   if (details.length === 0) {
-    return intro;
+    return prefixMetaMessage(intro);
   }
-  return `${intro}\n${details.join("\n")}`;
+  return prefixMetaMessage(`${intro}\n${details.join("\n")}`);
 }
 
 export function resolveThreadBindingFarewellText(params: {
@@ -70,12 +71,14 @@ export function resolveThreadBindingFarewellText(params: {
 }): string {
   const custom = params.farewellText?.trim();
   if (custom) {
-    return custom;
+    return prefixMetaMessage(custom);
   }
   if (params.reason === "ttl-expired") {
-    return `Session ended automatically after ${formatThreadBindingTtlLabel(params.sessionTtlMs)}. Messages here will no longer be routed.`;
+    return prefixMetaMessage(
+      `Session ended automatically after ${formatThreadBindingTtlLabel(params.sessionTtlMs)}. Messages here will no longer be routed.`,
+    );
   }
-  return DEFAULT_FAREWELL_TEXT;
+  return prefixMetaMessage(DEFAULT_FAREWELL_TEXT);
 }
 
 export function summarizeBindingPersona(record: ThreadBindingRecord): string {
