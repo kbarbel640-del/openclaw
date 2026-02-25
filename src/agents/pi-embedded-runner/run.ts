@@ -728,6 +728,14 @@ export async function runEmbeddedPiAgent(
               log.warn(
                 `context overflow detected (attempt ${overflowCompactionAttempts}/${MAX_OVERFLOW_COMPACTION_ATTEMPTS}); attempting auto-compaction for ${provider}/${modelId}`,
               );
+              // Notify user that compaction is starting
+              if (params.onPartialReply) {
+                void params.onPartialReply({
+                  text: `⏳ Compressing session history (attempt ${overflowCompactionAttempts}/${MAX_OVERFLOW_COMPACTION_ATTEMPTS})...`,
+                }).catch(() => {
+                  /* ignore notification errors */
+                });
+              }
               const compactResult = await compactEmbeddedPiSessionDirect({
                 sessionId: params.sessionId,
                 sessionKey: params.sessionKey,
@@ -757,6 +765,21 @@ export async function runEmbeddedPiAgent(
               if (compactResult.compacted) {
                 autoCompactionCount += 1;
                 log.info(`auto-compaction succeeded for ${provider}/${modelId}; retrying prompt`);
+                // Notify user that compaction succeeded
+                if (params.onPartialReply) {
+                  const tokensReduced = compactResult.result?.tokensBefore
+                    ? compactResult.result.tokensBefore - (compactResult.result.tokensAfter ?? 0)
+                    : 0;
+                  const reductionMsg =
+                    tokensReduced > 0
+                      ? ` (reduced by ${tokensReduced.toLocaleString()} tokens)`
+                      : "";
+                  void params.onPartialReply({
+                    text: `✅ Compression complete${reductionMsg}. Retrying...`,
+                  }).catch(() => {
+                    /* ignore notification errors */
+                  });
+                }
                 continue;
               }
               log.warn(
