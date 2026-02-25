@@ -1,6 +1,7 @@
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { nostrPlugin, resolveNostrTimestampMs } from "./channel.js";
+import type { NostrInboundMessage, NostrOutboundMessageOptions } from "./nostr-bus.js";
 import { startNostrBus } from "./nostr-bus.js";
 import { setNostrRuntime } from "./runtime.js";
 
@@ -31,7 +32,10 @@ describe("nostrPlugin gateway.startAccount", () => {
     const mockReplyDispatcher = vi.fn(async () => undefined);
 
     let capturedOnMessage:
-      | ((payload: unknown, reply: () => Promise<void>) => Promise<void>)
+      | ((
+          message: NostrInboundMessage,
+          reply: (text: string, options?: NostrOutboundMessageOptions) => Promise<void>,
+        ) => Promise<void>)
       | null = null;
 
     vi.mocked(startNostrBus).mockImplementation(async ({ onMessage }) => {
@@ -77,7 +81,12 @@ describe("nostrPlugin gateway.startAccount", () => {
 
     setNostrRuntime(runtime);
 
-    await nostrPlugin.gateway.startAccount({
+    const gateway = nostrPlugin.gateway!;
+    if (!gateway) {
+      throw new Error("nostrPlugin.gateway is undefined");
+    }
+
+    await nostrPlugin.gateway!.startAccount!({
       account: {
         accountId: "default",
         configured: true,
@@ -101,7 +110,7 @@ describe("nostrPlugin gateway.startAccount", () => {
       throw new Error("inbound handler was not registered");
     }
 
-    await capturedOnMessage(
+    await (capturedOnMessage as any)(
       {
         senderPubkey: "sender".repeat(8).slice(0, 64),
         text: "hello world",
@@ -109,7 +118,7 @@ describe("nostrPlugin gateway.startAccount", () => {
         eventId: "event-id",
         kind: 25802,
       },
-      async () => undefined,
+      async (_text: string, _options?: NostrOutboundMessageOptions) => undefined,
     );
 
     const expectedTimestampMs = resolveNostrTimestampMs(1_700_000_000);

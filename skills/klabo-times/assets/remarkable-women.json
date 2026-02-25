@@ -1,0 +1,74 @@
+{
+  "women": [
+    {
+      "day": 0,
+      "name": "Marie Curie",
+      "years": "1867-1934",
+      "title": "Physicist & Chemist",
+      "fact": "First person to win Nobel Prizes in two different sciences."
+    },
+    {
+      "day": 1,
+      "name": "Amelia Earhart",
+      "years": "1897-1937",
+      "title": "Aviator",
+      "fact": "First woman to fly solo across the Atlantic Ocean."
+    },
+    {
+      "day": 2,
+      "name": "Rosa Parks",
+      "years": "1913-2005",
+      "title": "Civil Rights Activist",
+      "fact": "Her courage on a bus helped spark the civil rights movement."
+    },
+    {
+      "day": 3,
+      "name": "Ada Lovelace",
+      "years": "1815-1852",
+      "title": "Mathematician & Programmer",
+      "fact": "Wrote the first computer program in history."
+    },
+    {
+      "day": 4,
+      "name": "Frida Kahlo",
+      "years": "1907-1954",
+      "title": "Artist",
+      "fact": "Created 55 self-portraits showing her unique artistic vision."
+    },
+    {
+      "day": 5,
+      "name": "Jane Goodall",
+      "years": "1934-present",
+      "title": "Primatologist",
+      "fact": "Spent 60+ years studying and protecting wild chimpanzees."
+    },
+    {
+      "day": 6,
+      "name": "Malala Yousafzai",
+      "years": "1997-present",
+      "title": "Education Activist",
+      "fact": "Youngest person ever to win the Nobel Peace Prize at age 17."
+    },
+    {
+      "day": 7,
+      "name": "Katherine Johnson",
+      "years": "1918-2020",
+      "title": "NASA Mathematician",
+      "fact": "Her math helped send astronauts to the Moon and back safely."
+    },
+    {
+      "day": 8,
+      "name": "Harriet Tubman",
+      "years": "1822-1913",
+      "title": "Abolitionist & Freedom Fighter",
+      "fact": "Led 70+ enslaved people to freedom on the Underground Railroad."
+    },
+    {
+      "day": 9,
+      "name": "Maya Angelou",
+      "years": "1928-2014",
+      "title": "Poet & Author",
+      "fact": "Her words inspired millions to find strength in their stories."
+    }
+  ]
+}

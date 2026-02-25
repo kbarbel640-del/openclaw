@@ -1,0 +1,39 @@
+{
+  "masthead": {
+    "edition_max": 4,
+    "date_max": 20
+  },
+  "hero": {
+    "headline_max": 60,
+    "body_max": 200
+  },
+  "poppy": {
+    "title_max": 30,
+    "body_max": 80,
+    "has_draw_box": true
+  },
+  "beau": {
+    "number_max": 3,
+    "fact_max": 100
+  },
+  "calendar": {
+    "items_max": 4,
+    "item_len_max": 50
+  },
+  "bitcoin": {
+    "price_max": 15,
+    "fact_max": 80
+  },
+  "recipe": {
+    "name_max": 30,
+    "ingredients_max": 5,
+    "steps_max": 4
+  },
+  "puzzle": {
+    "words_max": 5,
+    "word_len_max": 10
+  },
+  "math": {
+    "problems_max": 4
+  }
+}

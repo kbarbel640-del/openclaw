@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nostrPlugin } from "../../extensions/nostr/src/channel.js";
 import type { OpenClawConfig } from "../config/config.js";
+import { createEmptyPluginRegistry } from "../plugins/registry.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { createTestRegistry } from "../test-utils/channel-plugins.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
@@ -282,8 +283,8 @@ describe("setupChannels", () => {
     });
 
     const prompter = createPrompter({
-      select,
-      multiselect,
+      select: select as unknown as WizardPrompter["select"],
+      multiselect: multiselect as unknown as WizardPrompter["multiselect"],
       text: text as unknown as WizardPrompter["text"],
     });
 

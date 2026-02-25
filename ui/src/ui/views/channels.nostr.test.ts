@@ -154,11 +154,11 @@ describe("Nostr channel UI", () => {
       },
     });
 
-    const keyInput = container.querySelector('input[type="password"]');
+    const keyInput = container.querySelector('input[type="password"]') as HTMLInputElement;
     expect(container.textContent).toContain("Nostr onboarding");
     expect(keyInput).not.toBeNull();
-    expect(keyInput?.value).toBe("");
-    expect(keyInput?.placeholder).toContain("nsec1...");
+    expect(keyInput.value).toBe("");
+    expect(keyInput.placeholder).toContain("nsec1...");
   });
 
   it("patches relays and private key as typed into setup inputs", () => {
@@ -176,7 +176,7 @@ describe("Nostr channel UI", () => {
       },
     });
 
-    const privateKeyInput = container.querySelector('input[type="password"]');
+    const privateKeyInput = container.querySelector('input[type="password"]') as HTMLInputElement;
     expect(privateKeyInput).not.toBeNull();
     if (privateKeyInput) {
       privateKeyInput.value = "nsec-new-key";
@@ -185,7 +185,7 @@ describe("Nostr channel UI", () => {
 
     expect(onConfigPatch).toHaveBeenCalledWith(["channels", "nostr", "privateKey"], "nsec-new-key");
 
-    const relayTextarea = container.querySelector("textarea");
+    const relayTextarea = container.querySelector("textarea") as HTMLTextAreaElement;
     expect(relayTextarea).not.toBeNull();
     if (relayTextarea) {
       relayTextarea.value = "wss://a\nwss://b,   wss://c";

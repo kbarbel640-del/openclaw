@@ -249,6 +249,8 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
           );
 
           const route = runtime.channel.routing.resolveAgentRoute({
+            cfg: config,
+            channel: "nostr",
             peer: {
               kind: "direct",
               id: senderPubkey,

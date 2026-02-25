@@ -22,16 +22,14 @@ describe("nostr onboarding", () => {
   });
 
   it("collects private key and relays and patches config", async () => {
+    const select: WizardPrompter["select"] = vi.fn(async () => "" as unknown as never);
+    const multiselect: WizardPrompter["multiselect"] = vi.fn(async () => [] as unknown as never);
     const prompter: WizardPrompter = {
       intro: vi.fn(async () => {}),
       outro: vi.fn(async () => {}),
       note: vi.fn(async () => {}),
-      select: vi.fn(async function <T>(_params: { message: string; options: T[] }) {
-        return "" as T;
-      }),
-      multiselect: vi.fn(async function <T>(_params: { message: string; options: T[] }) {
-        return [] as T[];
-      }),
+      select,
+      multiselect,
       text: vi.fn(async (params: { message: string }) => {
         if (params.message.includes("Nostr private key")) {
           return TEST_PRIVATE_KEY;

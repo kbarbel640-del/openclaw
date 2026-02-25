@@ -1,0 +1,64 @@
+{
+  "facts": [
+    {
+      "day": 0,
+      "title": "Olympus Mons",
+      "big_number": "3x",
+      "fact": "This Mars volcano is 3 times taller than Mount Everest!"
+    },
+    {
+      "day": 1,
+      "title": "Jupiter's Great Red Spot",
+      "big_number": "2x",
+      "fact": "This giant storm is 2 times wider than Earth and 400 years old."
+    },
+    {
+      "day": 2,
+      "title": "Saturn's Rings",
+      "big_number": "99%",
+      "fact": "Saturn's beautiful rings are 99% pure water ice."
+    },
+    {
+      "day": 3,
+      "title": "Neutron Stars",
+      "big_number": "1B",
+      "fact": "A teaspoon of neutron star weighs 1 billion tons!"
+    },
+    {
+      "day": 4,
+      "title": "Black Holes",
+      "big_number": "0",
+      "fact": "Nothing escapes a black hole, not even light traveling at 670M mph."
+    },
+    {
+      "day": 5,
+      "title": "The Moon",
+      "big_number": "12",
+      "fact": "Only 12 humans have ever walked on the Moon's dusty surface."
+    },
+    {
+      "day": 6,
+      "title": "The Sun",
+      "big_number": "1M",
+      "fact": "The Sun is so big that 1 million Earths could fit inside it."
+    },
+    {
+      "day": 7,
+      "title": "Voyager Probes",
+      "big_number": "47",
+      "fact": "Voyager 1 has been traveling through space for 47 years!"
+    },
+    {
+      "day": 8,
+      "title": "International Space Station",
+      "big_number": "16",
+      "fact": "The ISS orbits Earth 16 times every single day at 17,500 mph."
+    },
+    {
+      "day": 9,
+      "title": "Milky Way Galaxy",
+      "big_number": "400B",
+      "fact": "Our galaxy contains about 400 billion stars just like our Sun."
+    }
+  ]
+}
