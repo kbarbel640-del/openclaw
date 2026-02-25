@@ -8,254 +8,157 @@ OpenClaw is powerful — it gives AI agents direct access to shell commands, fil
 
 The community has been vocal: _"security nightmare"_, _"what if the AI deletes my files?"_, _"I don't trust it with my credentials"_. OpenClaw's existing safety (sandbox + allowlist + manual confirmation) only covers `exec`, and it's all-or-nothing — either you trust the agent completely, or you block everything.
 
-**openclaw-guardian** fills that gap. It sits between the AI's decision and the actual execution, automatically assessing risk and routing dangerous operations through independent Guardian Agents for voting-based approval. Think of it as a board of directors that reviews high-stakes decisions before they happen — except it takes 2 seconds, not 2 weeks.
+**openclaw-guardian** fills that gap. It sits between the AI's decision and the actual execution, using a two-tier blacklist to catch dangerous operations and LLM-based intent verification to confirm the user actually asked for them. Think of it as a bouncer that checks IDs — fast for regulars, thorough for strangers.
 
-The key insight: **95% of what an AI agent does is harmless** (reading files, fetching URLs, writing notes). Only ~5% is potentially dangerous (deleting files, running destructive commands, accessing secrets). Guardian only intervenes on that 5%, so you get safety without sacrificing speed.
+The key insight: **99% of what an AI agent does is harmless** (reading files, fetching URLs, writing notes). Only ~1% hits the blacklist (deleting files, running destructive commands, touching system paths). Guardian only intervenes on that 1%, so you get safety without sacrificing speed.
 
 ## How It Works
 
 ```
-AI Agent wants to run a tool (e.g., exec "rm -rf /tmp/data")
+AI Agent wants to run a tool (e.g., exec "rm -rf ~/")
                     ↓
         ┌───────────────────────┐
-        │   Risk Assessor       │  ← Keyword rules, 0ms, no model call
-        │   Scores 0-100        │
+        │   Blacklist Matcher   │  ← Regex rules, 0ms, no model call
+        │   critical / warning  │
         └───────────┬───────────┘
                     ↓
     ┌───────────────┼───────────────┐
     ↓               ↓               ↓
-  0-30            31-70           71-100
- Fast Lane     Light Review     Full Vote
- (just go)    (1 Guardian)    (3 Guardians)
+ No match       Warning          Critical
+  (pass)       (1 LLM vote)   (3 LLM votes)
     ↓               ↓               ↓
- Execute      Single review    Parallel vote
-              all angles       different angles
+ Execute     "Did the user     3 parallel calls,
+             ask for this?"    ALL must confirm
                     ↓               ↓
-              approve/reject   majority rules
-                                    ↓
-                            approve → execute
-                            reject → block + tell user why
+             yes → execute    3/3 yes → execute
+             no  → block      otherwise → block
 ```
 
-### The Three Lanes
+### Two Blacklist Levels
 
-| Lane  | Risk Score | Guardians         | Latency | When                                            |
-| ----- | ---------- | ----------------- | ------- | ----------------------------------------------- |
-| Fast  | 0-30       | 0                 | ~0ms    | Reading files, fetching URLs, normal operations |
-| Light | 31-70      | 1 (comprehensive) | ~1-2s   | Writing config files, sending messages          |
-| Full  | 71-100     | 3 (specialized)   | ~2-4s   | `rm -rf`, `sudo`, accessing `.ssh`, `.env`      |
+| Level    | LLM Votes Required | Latency | Examples                                              |
+| -------- | ------------------ | ------- | ----------------------------------------------------- |
+| No match | 0                  | ~0ms    | Reading files, git commands, normal operations        |
+| Warning  | 1 (single vote)    | ~1-2s   | `rm -rf /tmp/cache`, `chmod 777`, `sudo apt`          |
+| Critical | 3 (unanimous)      | ~2-4s   | `rm -rf ~/`, `mkfs`, `dd if=... of=/dev/`, `shutdown` |
 
-### Guardian Perspectives
+### What Gets Checked
 
-Each Guardian in Full Vote mode reviews from a **different angle** — this isn't redundant voting, it's multi-perspective analysis:
+Guardian only inspects three tool types:
 
-| Guardian          | What It Checks                                                         |
-| ----------------- | ---------------------------------------------------------------------- |
-| **Safety**        | Will this break something? Is it destructive? Can the system recover?  |
-| **Privacy**       | Does this touch credentials, API keys, personal data, or secrets?      |
-| **Permission**    | Is this within the scope of what the user authorized?                  |
-| **Reversibility** | Can this be undone? What's the blast radius if it goes wrong?          |
-| **Comprehensive** | All of the above (used in Light Review when only 1 Guardian is needed) |
+- **`exec`** — the command string is matched against exec blacklist rules
+- **`write`** / **`edit`** — the file path is matched against path blacklist rules
 
-### Why Not Just Use LLMs for Everything?
+Everything else (read, fetch, browser, etc.) passes through instantly.
 
-Guardian's Risk Assessor uses **zero-cost keyword rules** — no model calls for scoring. Pattern matching like `rm -rf` → +40 points, `sudo` → +25 points is instant and deterministic. LLM-based Guardian evaluation is optional and only triggered for the ~5% of operations that actually need review.
+### LLM Intent Verification
+
+When a blacklist rule matches, Guardian doesn't just block — it asks a lightweight LLM: _"Did the user explicitly request this operation?"_
+
+The LLM reads recent conversation context and determines whether the flagged action was actually what the user wanted. This prevents false positives from blocking legitimate work.
+
+- **Warning level**: 1 LLM call. If the LLM says the user asked for it, the operation proceeds.
+- **Critical level**: 3 parallel LLM calls with the same prompt. All 3 must independently confirm user intent. If any vote says no, the operation is blocked.
+
+Guardian auto-discovers a cheap/fast model from your existing OpenClaw provider config (prefers Haiku, falls back to whatever's available). No separate API key needed.
+
+### LLM Fallback Behavior
+
+If the LLM is unavailable:
+
+- **Critical** operations are blocked (fail-safe)
+- **Warning** operations prompt the user for manual confirmation
 
 ## Quick Start
 
-Guardian is a **built-in OpenClaw extension** that lives in `extensions/guardian/` inside the OpenClaw source tree. Once the PR is merged, it ships with OpenClaw automatically — no separate installation needed.
-
-### After PR Merge (Normal Usage)
-
-Update OpenClaw to a version that includes Guardian, then enable it in your `openclaw.json`:
-
-```json
-{
-  "extensions": {
-    "openclaw-guardian": {
-      "enabled": true
-    }
-  }
-}
-```
-
-Restart the gateway:
-
 ```bash
-openclaw gateway restart
+openclaw plugins install openclaw-guardian
 ```
 
-That's it. Every tool call now goes through risk assessment automatically.
+That's it. Guardian activates automatically and starts protecting your agent.
 
-### Before PR Merge (Early Access)
+### Configuration
 
-If you want to try Guardian before the PR lands in `main`, you have two options:
-
-**Option A — Check out the PR branch:**
-
-```bash
-git clone https://github.com/openclaw/openclaw.git
-cd openclaw
-git fetch origin pull/25480/head:guardian-preview
-git checkout guardian-preview
-pnpm install && pnpm build
-```
-
-**Option B — Copy the extension directory:**
-
-Copy the `extensions/guardian/` folder into your existing OpenClaw source tree's `extensions/` directory, then run `pnpm install && pnpm build` from the OpenClaw root.
-
-> ⚠️ **Do NOT** clone Guardian as a standalone repo into your workspace or configure it under `plugins.load.paths` — that will not work and may crash OpenClaw.
-
-## Customization
-
-### Adjust Risk Policies
-
-Edit `default-policies.json` to match your comfort level:
+Guardian is enabled by default. To disable it, update your plugin config:
 
 ```json
 {
-  "thresholds": {
-    "low": 30,
-    "high": 70
-  },
-  "policies": [
-    {
-      "tool": "exec",
-      "baseScore": 50,
-      "keywords": {
-        "rm -rf": 40,
-        "sudo ": 25,
-        "kill ": 20,
-        "reboot": 30,
-        "shutdown": 30,
-        "mkfs": 50,
-        "dd if=": 40,
-        "> /dev/": 50
-      }
-    },
-    {
-      "tool": "write",
-      "baseScore": 15,
-      "keywords": {
-        ".env": 45,
-        "passwd": 50,
-        ".ssh": 50,
-        "config.json": 30,
-        "openclaw.json": 40
-      }
-    },
-    {
-      "tool": "file_delete",
-      "baseScore": 40
-    },
-    {
-      "tool": "message_send",
-      "baseScore": 20
-    },
-    {
-      "tool": "read",
-      "baseScore": 5,
-      "keywords": {
-        ".env": 55,
-        ".ssh/id_": 75,
-        "passwd": 50
-      }
-    },
-    {
-      "tool": "web_fetch",
-      "baseScore": 5
-    }
-  ]
-}
-```
-
-**Want stricter security?** Lower the thresholds:
-
-```json
-{ "thresholds": { "low": 15, "high": 50 } }
-```
-
-**Want less friction?** Raise them:
-
-```json
-{ "thresholds": { "low": 50, "high": 85 } }
-```
-
-**Want to add your own dangerous keywords?** Just add them to the tool's `keywords` object with a score boost.
-
-### Adjust Voting Rules
-
-```json
-{
-  "voting": {
-    "lightReview": { "guardians": 1, "threshold": 1 },
-    "fullVote": { "guardians": 3, "threshold": 2 }
+  "openclaw-guardian": {
+    "enabled": false
   }
 }
 ```
 
-Want 5 Guardians with 4/5 majority? Change it:
+## Blacklist Rules
 
-```json
-{ "fullVote": { "guardians": 5, "threshold": 4 } }
-```
+Guardian uses pure regex pattern matching — no model calls, deterministic, instant.
 
-### Trust Budget
+### Critical Rules (exec)
 
-After N consecutive approvals, Guardian auto-downgrades the review tier:
+These catch irreversible, system-level destruction:
+
+- `rm -rf` on system paths (excludes `/tmp/` and `/home/clawdbot/`)
+- `mkfs`, `dd` to block devices, redirects to `/dev/sd*`
+- Writes to `/etc/passwd`, `/etc/shadow`, `/etc/sudoers`
+- `shutdown`, `reboot`, `init 0/6`
+- Disabling SSH (`systemctl stop sshd`)
+- Bypass attempts: `eval`, absolute-path `rm`, interpreter-based destruction
+- Pipe attacks: `curl | sh`, `wget | bash`
+- Chain attacks: download + `chmod +x`, download + shell execute
+
+### Warning Rules (exec)
+
+These catch operations that are risky but not catastrophic:
+
+- `rm -rf` on safe paths (like `/tmp/`)
+- `sudo` commands
+- `chmod 777`, `chown root`
+- Package install/remove (`apt install`, `pip install`)
+- Service management (`systemctl start/stop/restart`)
+- Crontab modifications
+- SSH/SCP to remote hosts
+- Docker/container operations
+- `kill`/`killall` commands
+
+### Path Rules (write/edit)
+
+- **Critical**: `/etc/passwd`, `/etc/shadow`, `/etc/sudoers`, SSH keys, systemd units
+- **Warning**: dotfiles (`.bashrc`, `.zshrc`, `.profile`), `/etc/` configs, crontabs, `.env` files, `authorized_keys`
+
+## Audit Log
+
+Every blacklist-matched operation is logged to `~/.openclaw/guardian-audit.jsonl` with a SHA-256 hash chain:
 
 ```json
 {
-  "trustBudget": {
-    "enabled": true,
-    "autoDowngradeAfter": 10
-  }
-}
-```
-
-Any rejection resets the counter. Disable with `"enabled": false`.
-
-## Audit Trail
-
-Every decision is logged to `~/.openclaw/guardian-audit.jsonl` with SHA-256 hash chaining:
-
-```json
-{
-  "timestamp": "2026-02-24T09:30:00.000Z",
+  "timestamp": "2025-02-25T01:00:00.000Z",
   "toolName": "exec",
-  "riskScore": 90,
-  "tier": "full",
-  "votes": [
-    { "guardian": "safety", "approve": false, "reason": "rm -rf on system path" },
-    { "guardian": "privacy", "approve": true },
-    { "guardian": "permission", "approve": false, "reason": "not explicitly authorized" }
-  ],
-  "approved": false,
+  "blacklistLevel": "critical",
+  "blacklistReason": "rm -rf on home directory",
+  "pattern": "rm\\s+(-[a-zA-Z]*r[a-zA-Z]*\\s+|--recursive\\s+)~/",
+  "userConfirmed": false,
+  "finalReason": "Only 1/3 confirmed (need 3)",
   "hash": "a1b2c3...",
   "prevHash": "d4e5f6..."
 }
 ```
 
-Tamper-evident: each entry's hash includes the previous entry's hash. Break one link and the whole chain fails verification.
+Each entry's `hash` covers the full entry + `prevHash`, creating a tamper-evident chain. If someone edits the log, the chain breaks.
 
-## Architecture
+## Project Structure
 
 ```
-openclaw-guardian/
+extensions/guardian/
+├── README.md
 ├── openclaw.plugin.json    # Plugin manifest
-├── index.ts                # Entry — registers before_tool_call / after_tool_call hooks
+├── default-policies.json   # Default config (enabled: true)
+├── index.ts                # Entry — registers before_tool_call hook
 ├── src/
-│   ├── risk-assessor.ts    # Keyword rule engine (0ms, no model calls)
-│   ├── guardian-voter.ts   # Tiered voting with parallel execution + early termination
+│   ├── blacklist.ts        # Two-tier regex rules (critical/warning)
+│   ├── llm-voter.ts        # LLM intent verification (singleVote/multiVote)
 │   └── audit-log.ts        # SHA-256 hash-chain audit logger
-├── guardians/              # Guardian system prompts (each a different review angle)
-│   ├── safety.md
-│   ├── privacy.md
-│   ├── permission.md
-│   ├── reversibility.md
-│   └── comprehensive.md
-└── default-policies.json   # Default risk policies (user-customizable)
+└── test/
+    └── blacklist.test.ts   # Comprehensive blacklist rule tests
 ```
 
 ### How It Hooks Into OpenClaw
@@ -268,13 +171,13 @@ This is the same hook interface OpenClaw uses internally for loop detection — 
 
 ## Token Cost
 
-| Tier         | % of Operations | Extra Cost              |
-| ------------ | --------------- | ----------------------- |
-| Fast Lane    | 85-95%          | 0 (rule-based only)     |
-| Light Review | 5-10%           | ~500 tokens per review  |
-| Full Vote    | 1-3%            | ~1500 tokens per review |
+| Scenario       | % of Operations | Extra Cost             |
+| -------------- | --------------- | ---------------------- |
+| No match       | ~99%            | 0 (no model call)      |
+| Warning match  | ~0.5-1%         | ~500 tokens (1 call)   |
+| Critical match | <0.5%           | ~1500 tokens (3 calls) |
 
-**Average overhead: ~15-35% of total token usage.** Most operations cost nothing extra.
+Most operations cost nothing extra. Guardian prefers cheap models (Haiku, GPT-4o-mini, Gemini Flash) to minimize overhead.
 
 ## Status
 
