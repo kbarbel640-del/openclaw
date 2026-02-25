@@ -293,20 +293,35 @@ fun VoiceTabScreen(viewModel: MainViewModel) {
             color = MaterialTheme.colorScheme.tertiary,
             textAlign = TextAlign.Center,
           )
-          Button(
-            onClick = { openAppSettings(context) },
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
-          ) {
-            Text("Open settings", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
-          }
         }
 
-        Text(
-          micStatusText,
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        val isErrorStatus = micStatusText.isNotBlank() && (
+          micStatusText.contains("failed", ignoreCase = true) || 
+          micStatusText.contains("error", ignoreCase = true) || 
+          micStatusText.contains("unavailable", ignoreCase = true) || 
+          micStatusText.contains("permission", ignoreCase = true)
         )
+        
+        if (isErrorStatus) {
+          Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.errorContainer,
+          ) {
+            Text(
+              micStatusText,
+              modifier = Modifier.padding(12.dp),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+          }
+        } else if (micStatusText.isNotBlank()) {
+          Text(
+            micStatusText,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+          )
+        }
       }
     }
   }

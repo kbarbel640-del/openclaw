@@ -9,10 +9,12 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -22,19 +24,43 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.ScreenLockPortrait
+import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -45,9 +71,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -241,504 +271,81 @@ fun SettingsSheet(viewModel: MainViewModel) {
           .fillMaxHeight()
           .imePadding()
           .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
-      contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp),
+      contentPadding = PaddingValues(16.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       item {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-          Text(
-            "Settings",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-          )
-          Text(
-            "Manage capabilities, permissions, and diagnostics.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-      }
-      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-
-      // Appearance
-      item {
-        Text(
-          "APPEARANCE",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-          ),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-      item {
-        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-          ListItem(
-            modifier = Modifier.fillMaxWidth(),
-            headlineContent = {
-              Text(
-                "System",
-                style = MaterialTheme.typography.bodyLarge,
-              )
-            },
-            supportingContent = {
-              Text(
-                "Follow system theme setting.",
-                style = MaterialTheme.typography.bodyMedium,
-              )
-            },
-            trailingContent = {
-              RadioButton(
-                selected = themeMode == SecurePrefsThemeMode.System,
-                onClick = { viewModel.setThemeMode(SecurePrefsThemeMode.System) },
-                colors = RadioButtonDefaults.colors(),
-              )
-            },
-          )
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          ListItem(
-            modifier = Modifier.fillMaxWidth(),
-            headlineContent = {
-              Text(
-                "Light",
-                style = MaterialTheme.typography.bodyLarge,
-              )
-            },
-            supportingContent = {
-              Text(
-                "Always use light theme.",
-                style = MaterialTheme.typography.bodyMedium,
-              )
-            },
-            trailingContent = {
-              RadioButton(
-                selected = themeMode == SecurePrefsThemeMode.Light,
-                onClick = { viewModel.setThemeMode(SecurePrefsThemeMode.Light) },
-                colors = RadioButtonDefaults.colors(),
-              )
-            },
-          )
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          ListItem(
-            modifier = Modifier.fillMaxWidth(),
-            headlineContent = {
-              Text(
-                "Dark",
-                style = MaterialTheme.typography.bodyLarge,
-              )
-            },
-            supportingContent = {
-              Text(
-                "Always use dark theme.",
-                style = MaterialTheme.typography.bodyMedium,
-              )
-            },
-            trailingContent = {
-              RadioButton(
-                selected = themeMode == SecurePrefsThemeMode.Dark,
-                onClick = { viewModel.setThemeMode(SecurePrefsThemeMode.Dark) },
-                colors = RadioButtonDefaults.colors(),
-              )
-            },
-          )
-        }
+        SettingsHeader()
       }
 
-      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-
-      // Order parity: Node → Voice → Camera → Messaging → Location → Screen.
       item {
-        Text(
-          "NODE",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-          ),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-      item {
-        OutlinedTextField(
-          value = displayName,
-          onValueChange = viewModel::setDisplayName,
-          label = { Text("Name", style = MaterialTheme.typography.bodySmall) },
-          modifier = Modifier.fillMaxWidth(),
-          textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-          shape = RoundedCornerShape(12.dp),
-        )
-      }
-      item {
-        Text(
-          "Instance ID: $instanceId",
-          style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-      item {
-        Text(
-          "Device: $deviceModel",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-      item {
-        Text(
-          "Version: $appVersion",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        AppearanceSection(
+          themeMode = themeMode,
+          onThemeChange = viewModel::setThemeMode
         )
       }
 
-      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-
-      // Voice
       item {
-        Text(
-          "VOICE",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-          ),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-      item {
-        ListItem(
-          headlineContent = {
-            Text(
-              "Microphone permission",
-              style = MaterialTheme.typography.bodyLarge,
-            )
-          },
-          supportingContent = {
-            Text(
-              if (micPermissionGranted) {
-                "Granted. Use the Voice tab mic button to capture transcript."
-              } else {
-                "Required for Voice tab transcription."
-              },
-              style = MaterialTheme.typography.bodyMedium,
-            )
-          },
-          trailingContent = {
-            FilledTonalButton(
-              onClick = {
-                if (micPermissionGranted) {
-                  openAppSettings(context)
-                } else {
-                  audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                }
-              },
-              shape = RoundedCornerShape(50),
-            ) {
-              Text(
-                if (micPermissionGranted) "Manage" else "Grant",
-                style = MaterialTheme.typography.labelLarge,
-              )
-            }
-          },
-        )
-      }
-      item {
-        Text(
-          "Voice wake and talk modes were removed. Voice now uses one mic on/off flow in the Voice tab.",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        NodeSection(
+          displayName = displayName,
+          instanceId = instanceId,
+          deviceModel = deviceModel,
+          appVersion = appVersion,
+          onDisplayNameChange = viewModel::setDisplayName
         )
       }
 
-      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-
-      // Camera
       item {
-        Text(
-          "CAMERA",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-          ),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-      item {
-        ListItem(
-          headlineContent = {
-            Text(
-              "Allow Camera",
-              style = MaterialTheme.typography.bodyLarge,
-            )
-          },
-          supportingContent = {
-            Text(
-              "Allows the gateway to request photos or short video clips (foreground only).",
-              style = MaterialTheme.typography.bodyMedium,
-            )
-          },
-          trailingContent = {
-            Switch(
-              checked = cameraEnabled,
-              onCheckedChange = ::setCameraEnabledChecked,
-              colors = SwitchDefaults.colors(),
-            )
-          },
-        )
-      }
-      item {
-        Text(
-          "Tip: grant Microphone permission for video clips with audio.",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        VoiceSection(
+          micPermissionGranted = micPermissionGranted,
+          onGrantMic = { audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+          onManageMic = { openAppSettings(context) }
         )
       }
 
-      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-
-      // Messaging
       item {
-        Text(
-          "MESSAGING",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-          ),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-      item {
-        val buttonLabel =
-          when {
-            !smsPermissionAvailable -> "Unavailable"
-            smsPermissionGranted -> "Manage"
-            else -> "Grant"
-          }
-        ListItem(
-          headlineContent = {
-            Text(
-              "SMS Permission",
-              style = MaterialTheme.typography.bodyLarge,
-            )
-          },
-          supportingContent = {
-            Text(
-              if (smsPermissionAvailable) {
-                "Allow the gateway to send SMS from this device."
-              } else {
-                "SMS requires a device with telephony hardware."
-              },
-              style = MaterialTheme.typography.bodyMedium,
-            )
-          },
-          trailingContent = {
-            FilledTonalButton(
-              onClick = {
-                if (!smsPermissionAvailable) return@FilledTonalButton
-                if (smsPermissionGranted) {
-                  openAppSettings(context)
-                } else {
-                  smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-                }
-              },
-              enabled = smsPermissionAvailable,
-              shape = RoundedCornerShape(50),
-            ) {
-              Text(buttonLabel, style = MaterialTheme.typography.labelLarge)
-            }
-          },
+        CameraSection(
+          cameraEnabled = cameraEnabled,
+          onCameraEnabledChange = ::setCameraEnabledChecked
         )
       }
 
-      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-
-      // Location
       item {
-        Text(
-          "LOCATION",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-          ),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-      item {
-        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-          ListItem(
-            modifier = Modifier.fillMaxWidth(),
-            headlineContent = {
-              Text(
-                "Off",
-                style = MaterialTheme.typography.bodyLarge,
-              )
-            },
-            supportingContent = {
-              Text(
-                "Disable location sharing.",
-                style = MaterialTheme.typography.bodyMedium,
-              )
-            },
-            trailingContent = {
-              RadioButton(
-                selected = locationMode == LocationMode.Off,
-                onClick = { viewModel.setLocationMode(LocationMode.Off) },
-                colors = RadioButtonDefaults.colors(),
-              )
-            },
-          )
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          ListItem(
-            modifier = Modifier.fillMaxWidth(),
-            headlineContent = {
-              Text(
-                "While Using",
-                style = MaterialTheme.typography.bodyLarge,
-              )
-            },
-            supportingContent = {
-              Text(
-                "Only while OpenClaw is open.",
-                style = MaterialTheme.typography.bodyMedium,
-              )
-            },
-            trailingContent = {
-              RadioButton(
-                selected = locationMode == LocationMode.WhileUsing,
-                onClick = { requestLocationPermissions(LocationMode.WhileUsing) },
-                colors = RadioButtonDefaults.colors(),
-              )
-            },
-          )
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          ListItem(
-            modifier = Modifier.fillMaxWidth(),
-            headlineContent = {
-              Text(
-                "Always",
-                style = MaterialTheme.typography.bodyLarge,
-              )
-            },
-            supportingContent = {
-              Text(
-                "Allow background location (requires system permission).",
-                style = MaterialTheme.typography.bodyMedium,
-              )
-            },
-            trailingContent = {
-              RadioButton(
-                selected = locationMode == LocationMode.Always,
-                onClick = { requestLocationPermissions(LocationMode.Always) },
-                colors = RadioButtonDefaults.colors(),
-              )
-            },
-          )
-          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-          ListItem(
-            modifier = Modifier.fillMaxWidth(),
-            headlineContent = {
-              Text(
-                "Precise Location",
-                style = MaterialTheme.typography.bodyLarge,
-              )
-            },
-            supportingContent = {
-              Text(
-                "Use precise GPS when available.",
-                style = MaterialTheme.typography.bodyMedium,
-              )
-            },
-            trailingContent = {
-              Switch(
-                checked = locationPreciseEnabled,
-                onCheckedChange = ::setPreciseLocationChecked,
-                enabled = locationMode != LocationMode.Off,
-                colors = SwitchDefaults.colors(),
-              )
-            },
-          )
-        }
-      }
-      item {
-        Text(
-          "Always may require Android Settings to allow background location.",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        MessagingSection(
+          smsPermissionAvailable = smsPermissionAvailable,
+          smsPermissionGranted = smsPermissionGranted,
+          onGrantSms = { smsPermissionLauncher.launch(Manifest.permission.SEND_SMS) },
+          onManageSms = { openAppSettings(context) }
         )
       }
 
-      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-
-      // Screen
       item {
-        Text(
-          "SCREEN",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-          ),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-      item {
-        ListItem(
-          headlineContent = {
-            Text(
-              "Prevent Sleep",
-              style = MaterialTheme.typography.bodyLarge,
-            )
-          },
-          supportingContent = {
-            Text(
-              "Keeps the screen awake while OpenClaw is open.",
-              style = MaterialTheme.typography.bodyMedium,
-            )
-          },
-          trailingContent = {
-            Switch(
-              checked = preventSleep,
-              onCheckedChange = viewModel::setPreventSleep,
-              colors = SwitchDefaults.colors(),
-            )
-          },
+        LocationSection(
+          locationMode = locationMode,
+          locationPreciseEnabled = locationPreciseEnabled,
+          onLocationModeChange = { viewModel.setLocationMode(it) },
+          onPreciseChange = ::setPreciseLocationChecked,
+          onRequestPermissions = { requestLocationPermissions(it) }
         )
       }
 
-      item { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) }
-
-      // Debug
       item {
-        Text(
-          "DEBUG",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = MaterialTheme.typography.labelSmall.fontWeight,
-            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing,
-          ),
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-      item {
-        ListItem(
-          headlineContent = {
-            Text(
-              "Debug Canvas Status",
-              style = MaterialTheme.typography.bodyLarge,
-            )
-          },
-          supportingContent = {
-            Text(
-              "Show status text in the canvas when debug is enabled.",
-              style = MaterialTheme.typography.bodyMedium,
-            )
-          },
-          trailingContent = {
-            Switch(
-              checked = canvasDebugStatusEnabled,
-              onCheckedChange = viewModel::setCanvasDebugStatusEnabled,
-              colors = SwitchDefaults.colors(),
-            )
-          },
+        ScreenSection(
+          preventSleep = preventSleep,
+          onPreventSleepChange = viewModel::setPreventSleep
         )
       }
 
-      item { Spacer(modifier = Modifier.height(24.dp)) }
+      item {
+        DebugSection(
+          canvasDebugStatusEnabled = canvasDebugStatusEnabled,
+          onDebugStatusChange = viewModel::setCanvasDebugStatusEnabled
+        )
+      }
+
+      item {
+        Spacer(modifier = Modifier.height(16.dp))
+      }
     }
   }
 }
@@ -750,4 +357,446 @@ private fun openAppSettings(context: Context) {
       Uri.fromParts("package", context.packageName, null),
     )
   context.startActivity(intent)
+}
+
+@Composable
+private fun SettingsHeader() {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(vertical = 8.dp),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    Text(
+      "Settings",
+      style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+    Text(
+      "Manage capabilities, permissions, and diagnostics",
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+@Composable
+private fun AppearanceSection(
+  themeMode: SecurePrefsThemeMode,
+  onThemeChange: (SecurePrefsThemeMode) -> Unit,
+) {
+  SectionCard(title = "Appearance", icon = Icons.Default.BrightnessMedium) {
+    ThemeOption(
+      title = "System",
+      subtitle = "Follow system theme",
+      icon = Icons.Default.BrightnessMedium,
+      selected = themeMode == SecurePrefsThemeMode.System,
+      onClick = { onThemeChange(SecurePrefsThemeMode.System) }
+    )
+    ThemeOption(
+      title = "Light",
+      subtitle = "Always use light theme",
+      icon = Icons.Default.LightMode,
+      selected = themeMode == SecurePrefsThemeMode.Light,
+      onClick = { onThemeChange(SecurePrefsThemeMode.Light) }
+    )
+    ThemeOption(
+      title = "Dark",
+      subtitle = "Always use dark theme",
+      icon = Icons.Default.DarkMode,
+      selected = themeMode == SecurePrefsThemeMode.Dark,
+      onClick = { onThemeChange(SecurePrefsThemeMode.Dark) }
+    )
+  }
+}
+
+@Composable
+private fun ThemeOption(
+  title: String,
+  subtitle: String,
+  icon: ImageVector,
+  selected: Boolean,
+  onClick: () -> Unit,
+) {
+  Surface(
+    onClick = onClick,
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(12.dp),
+    color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface,
+  ) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Box(
+        modifier = Modifier
+          .size(40.dp)
+          .clip(CircleShape)
+          .background(
+            if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.surfaceContainerHighest
+          ),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          imageVector = icon,
+          contentDescription = null,
+          tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.size(20.dp),
+        )
+      }
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+          title,
+          style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+          subtitle,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      RadioButton(
+        selected = selected,
+        onClick = onClick,
+        colors = RadioButtonDefaults.colors(
+          selectedColor = MaterialTheme.colorScheme.primary,
+        ),
+      )
+    }
+  }
+}
+
+@Composable
+private fun NodeSection(
+  displayName: String,
+  instanceId: String,
+  deviceModel: String,
+  appVersion: String,
+  onDisplayNameChange: (String) -> Unit,
+) {
+  SectionCard(title = "Device", icon = Icons.Default.PhoneAndroid) {
+    OutlinedTextField(
+      value = displayName,
+      onValueChange = onDisplayNameChange,
+      label = { Text("Display Name") },
+      modifier = Modifier.fillMaxWidth(),
+      textStyle = MaterialTheme.typography.bodyLarge,
+      shape = RoundedCornerShape(12.dp),
+      singleLine = true,
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    InfoRow(label = "Instance ID", value = instanceId)
+    InfoRow(label = "Device", value = deviceModel)
+    InfoRow(label = "Version", value = appVersion)
+  }
+}
+
+@Composable
+private fun VoiceSection(
+  micPermissionGranted: Boolean,
+  onGrantMic: () -> Unit,
+  onManageMic: () -> Unit,
+) {
+  SectionCard(title = "Voice", icon = Icons.Default.Mic) {
+    PermissionCard(
+      title = "Microphone",
+      subtitle = if (micPermissionGranted) "Permission granted" else "Required for voice transcription",
+      granted = micPermissionGranted,
+      onGrant = onGrantMic,
+      onManage = onManageMic,
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+      "Voice uses a simple on/off mic flow in the Voice tab",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+@Composable
+private fun CameraSection(
+  cameraEnabled: Boolean,
+  onCameraEnabledChange: (Boolean) -> Unit,
+) {
+  SectionCard(title = "Camera", icon = Icons.Default.CameraAlt) {
+    ToggleRow(
+      title = "Allow Camera",
+      subtitle = "Gateway can request photos and video clips",
+      checked = cameraEnabled,
+      onCheckedChange = onCameraEnabledChange,
+    )
+  }
+}
+
+@Composable
+private fun MessagingSection(
+  smsPermissionAvailable: Boolean,
+  smsPermissionGranted: Boolean,
+  onGrantSms: () -> Unit,
+  onManageSms: () -> Unit,
+) {
+  SectionCard(title = "Messaging", icon = Icons.Default.Sms) {
+    if (!smsPermissionAvailable) {
+      Text(
+        "SMS requires a device with telephony hardware",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    } else {
+      PermissionCard(
+        title = "SMS Permission",
+        subtitle = "Allow gateway to send SMS",
+        granted = smsPermissionGranted,
+        onGrant = onGrantSms,
+        onManage = onManageSms,
+      )
+    }
+  }
+}
+
+@Composable
+private fun LocationSection(
+  locationMode: LocationMode,
+  locationPreciseEnabled: Boolean,
+  onLocationModeChange: (LocationMode) -> Unit,
+  onPreciseChange: (Boolean) -> Unit,
+  onRequestPermissions: (LocationMode) -> Unit,
+) {
+  SectionCard(title = "Location", icon = Icons.Default.LocationOn) {
+    LocationOption(
+      title = "Off",
+      subtitle = "Disable location sharing",
+      selected = locationMode == LocationMode.Off,
+      onClick = { onLocationModeChange(LocationMode.Off) }
+    )
+    LocationOption(
+      title = "While Using",
+      subtitle = "Only while app is open",
+      selected = locationMode == LocationMode.WhileUsing,
+      onClick = { onRequestPermissions(LocationMode.WhileUsing) }
+    )
+    LocationOption(
+      title = "Always",
+      subtitle = "Allow background location",
+      selected = locationMode == LocationMode.Always,
+      onClick = { onRequestPermissions(LocationMode.Always) }
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    ToggleRow(
+      title = "Precise Location",
+      subtitle = "Use GPS when available",
+      checked = locationPreciseEnabled,
+      onCheckedChange = onPreciseChange,
+      enabled = locationMode != LocationMode.Off,
+    )
+  }
+}
+
+@Composable
+private fun LocationOption(
+  title: String,
+  subtitle: String,
+  selected: Boolean,
+  onClick: () -> Unit,
+) {
+  Surface(
+    onClick = onClick,
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(12.dp),
+    color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface,
+  ) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+          title,
+          style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+          subtitle,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      RadioButton(
+        selected = selected,
+        onClick = onClick,
+        colors = RadioButtonDefaults.colors(
+          selectedColor = MaterialTheme.colorScheme.primary,
+        ),
+      )
+    }
+  }
+}
+
+@Composable
+private fun ScreenSection(
+  preventSleep: Boolean,
+  onPreventSleepChange: (Boolean) -> Unit,
+) {
+  SectionCard(title = "Screen", icon = Icons.Default.ScreenLockPortrait) {
+    ToggleRow(
+      title = "Prevent Sleep",
+      subtitle = "Keep screen awake while app is open",
+      checked = preventSleep,
+      onCheckedChange = onPreventSleepChange,
+    )
+  }
+}
+
+@Composable
+private fun DebugSection(
+  canvasDebugStatusEnabled: Boolean,
+  onDebugStatusChange: (Boolean) -> Unit,
+) {
+  SectionCard(title = "Debug", icon = Icons.Outlined.BugReport) {
+    ToggleRow(
+      title = "Canvas Status",
+      subtitle = "Show status text on canvas",
+      checked = canvasDebugStatusEnabled,
+      onCheckedChange = onDebugStatusChange,
+    )
+  }
+}
+
+@Composable
+private fun SectionCard(
+  title: String,
+  icon: ImageVector,
+  content: @Composable () -> Unit,
+) {
+  ElevatedCard(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(16.dp),
+    colors = CardDefaults.elevatedCardColors(
+      containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ),
+  ) {
+    Column(
+      modifier = Modifier.padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        Icon(
+          imageVector = icon,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(20.dp),
+        )
+        Text(
+          title,
+          style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+      }
+      content()
+    }
+  }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(vertical = 2.dp),
+    horizontalArrangement = Arrangement.SpaceBetween,
+  ) {
+    Text(
+      label,
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+      value,
+      style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+  }
+}
+
+@Composable
+private fun PermissionCard(
+  title: String,
+  subtitle: String,
+  granted: Boolean,
+  onGrant: () -> Unit,
+  onManage: () -> Unit,
+) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.SpaceBetween,
+  ) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(
+        title,
+        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Text(
+        subtitle,
+        style = MaterialTheme.typography.bodySmall,
+        color = if (granted) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    FilledTonalButton(
+      onClick = if (granted) onManage else onGrant,
+      shape = RoundedCornerShape(20.dp),
+    ) {
+      Text(if (granted) "Manage" else "Grant")
+    }
+  }
+}
+
+@Composable
+private fun ToggleRow(
+  title: String,
+  subtitle: String,
+  checked: Boolean,
+  onCheckedChange: (Boolean) -> Unit,
+  enabled: Boolean = true,
+) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.SpaceBetween,
+  ) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(
+        title,
+        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Text(
+        subtitle,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    Switch(
+      checked = checked,
+      onCheckedChange = onCheckedChange,
+      enabled = enabled,
+      colors = SwitchDefaults.colors(
+        checkedThumbColor = MaterialTheme.colorScheme.primary,
+        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+      ),
+    )
+  }
 }
