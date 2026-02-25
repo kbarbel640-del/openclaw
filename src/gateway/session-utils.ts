@@ -4,6 +4,7 @@ import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent
 import { lookupContextTokens } from "../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
 import {
+  inferUniqueProviderFromConfiguredModels,
   parseModelRef,
   resolveConfiguredModelRef,
   resolveDefaultModelForAgent,
@@ -634,42 +635,6 @@ export function getSessionDefaults(cfg: OpenClawConfig): GatewaySessionsDefaults
   };
 }
 
-function inferProviderFromConfiguredModels(
-  cfg: OpenClawConfig,
-  runtimeModel: string,
-): string | undefined {
-  const model = runtimeModel.trim();
-  if (!model || model.includes("/")) {
-    return undefined;
-  }
-  const configuredModels = cfg.agents?.defaults?.models;
-  if (!configuredModels) {
-    return undefined;
-  }
-  const normalized = model.toLowerCase();
-  const providers = new Set<string>();
-  for (const key of Object.keys(configuredModels)) {
-    const ref = key.trim();
-    if (!ref || !ref.includes("/")) {
-      continue;
-    }
-    const parsed = parseModelRef(ref, DEFAULT_PROVIDER);
-    if (!parsed) {
-      continue;
-    }
-    if (parsed.model === model || parsed.model.toLowerCase() === normalized) {
-      providers.add(parsed.provider);
-      if (providers.size > 1) {
-        return undefined;
-      }
-    }
-  }
-  if (providers.size !== 1) {
-    return undefined;
-  }
-  return providers.values().next().value;
-}
-
 export function resolveSessionModelRef(
   cfg: OpenClawConfig,
   entry?:
@@ -748,7 +713,10 @@ export function resolveSessionModelIdentityRef(
       }
       return { model: runtimeModel };
     }
-    const inferredProvider = inferProviderFromConfiguredModels(cfg, runtimeModel);
+    const inferredProvider = inferUniqueProviderFromConfiguredModels({
+      cfg,
+      model: runtimeModel,
+    });
     return inferredProvider
       ? { provider: inferredProvider, model: runtimeModel }
       : { model: runtimeModel };
