@@ -1,6 +1,6 @@
 import * as dns from "node:dns";
 import * as net from "node:net";
-import { Agent, setGlobalDispatcher } from "undici";
+import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
 import type { TelegramNetworkConfig } from "../config/types.telegram.js";
 import { resolveFetch } from "../infra/fetch.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -45,8 +45,12 @@ function applyTelegramNetworkWorkarounds(network?: TelegramNetworkConfig): void 
     autoSelectDecision.value !== appliedGlobalDispatcherAutoSelectFamily
   ) {
     try {
+      // Use EnvHttpProxyAgent instead of bare Agent so that
+      // HTTP_PROXY / HTTPS_PROXY env vars are respected.
+      // A bare Agent ignores proxy configuration and breaks all
+      // outbound requests for users behind proxies (see #26207).
       setGlobalDispatcher(
-        new Agent({
+        new EnvHttpProxyAgent({
           connect: {
             autoSelectFamily: autoSelectDecision.value,
             autoSelectFamilyAttemptTimeout: 300,
