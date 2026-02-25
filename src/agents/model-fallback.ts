@@ -109,11 +109,6 @@ type ModelFallbackRunResult<T> = {
   attempts: FallbackAttempt[];
 };
 
-/**
- * @deprecated This function is no longer used internally but preserved for backwards compatibility.
- * Will be removed in a future major version.
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function sameModelCandidate(a: ModelCandidate, b: ModelCandidate): boolean {
   return a.provider === b.provider && a.model === b.model;
 }
@@ -347,6 +342,8 @@ export async function runWithModelFallback<T>(params: {
 
       if (profileIds.length === 0) {
         // Skip no-profile providers when there are persistent auth or billing issues elsewhere.
+        // This prevents wasting time on unconfigured providers when auth problems exist.
+        // Note: If Provider A has auth/billing issues, Provider B with no profiles will also be skipped.
         const hasAuthOrBillingIssues = Object.values(authStore.usageStats || {}).some(
           (stats) => stats?.disabledReason === "auth" || stats?.disabledReason === "billing",
         );
