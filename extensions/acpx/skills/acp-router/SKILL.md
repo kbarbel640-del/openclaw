@@ -78,13 +78,33 @@ Call:
 }
 ```
 
+## ACPX install and version policy (direct acpx path)
+
+For this repo, direct `acpx` calls must follow the same pinned policy as the `@openclaw/acpx` extension.
+
+1. Prefer plugin-local binary, not global PATH:
+   - `./extensions/acpx/node_modules/.bin/acpx`
+2. Resolve pinned version from extension dependency:
+   - `node -e "console.log(require('./extensions/acpx/package.json').dependencies.acpx)"`
+3. If binary is missing or version mismatched, install plugin-local pinned version:
+   - `cd extensions/acpx && npm install --omit=dev --no-save acpx@<pinnedVersion>`
+4. Verify before use:
+   - `./extensions/acpx/node_modules/.bin/acpx --version`
+5. Do not run `npm install -g acpx` unless the user explicitly asks for global install.
+
+Set and reuse:
+
+```bash
+ACPX_CMD="./extensions/acpx/node_modules/.bin/acpx"
+```
+
 ## Direct acpx path ("telephone game")
 
 Use this path to drive harness sessions without `/acp` or subagent runtime.
 
 ### Rules
 
-1. Use `exec` commands that call `acpx` directly.
+1. Use `exec` commands that call `${ACPX_CMD}`.
 2. Reuse a stable session name per conversation so follow-up prompts stay in the same harness context.
 3. Prefer `--format quiet` for clean assistant text to relay back to user.
 4. Use `exec` (one-shot) only when the user wants one-shot behavior.
@@ -103,28 +123,28 @@ Where `conversationId` is thread id when available, otherwise channel/conversati
 Persistent session (create if missing, then prompt):
 
 ```bash
-acpx codex sessions show oc-codex-<conversationId> \
-  || acpx codex sessions new --name oc-codex-<conversationId>
+${ACPX_CMD} codex sessions show oc-codex-<conversationId> \
+  || ${ACPX_CMD} codex sessions new --name oc-codex-<conversationId>
 
-acpx codex -s oc-codex-<conversationId> --cwd <workspacePath> --format quiet "<prompt>"
+${ACPX_CMD} codex -s oc-codex-<conversationId> --cwd <workspacePath> --format quiet "<prompt>"
 ```
 
 One-shot:
 
 ```bash
-acpx codex exec --cwd <workspacePath> --format quiet "<prompt>"
+${ACPX_CMD} codex exec --cwd <workspacePath> --format quiet "<prompt>"
 ```
 
 Cancel in-flight turn:
 
 ```bash
-acpx codex cancel -s oc-codex-<conversationId>
+${ACPX_CMD} codex cancel -s oc-codex-<conversationId>
 ```
 
 Close session:
 
 ```bash
-acpx codex sessions close oc-codex-<conversationId>
+${ACPX_CMD} codex sessions close oc-codex-<conversationId>
 ```
 
 ### Harness aliases in acpx
@@ -135,10 +155,28 @@ acpx codex sessions close oc-codex-<conversationId>
 - `opencode`
 - `gemini`
 
+### Built-in adapter commands in acpx
+
+Defaults are:
+
+- `pi -> npx pi-acp`
+- `claude -> npx -y @zed-industries/claude-agent-acp`
+- `codex -> npx @zed-industries/codex-acp`
+- `opencode -> npx -y opencode-ai acp`
+- `gemini -> gemini`
+
+If `~/.acpx/config.json` overrides `agents`, those overrides replace defaults.
+
 ### Failure handling
 
-- `acpx: command not found`: report that acpx is missing and provide install action.
-- `NO_SESSION`: run `acpx <agent> sessions new --name <sessionName>` then retry prompt.
+- `acpx: command not found`:
+  - install pinned plugin-local acpx in `extensions/acpx` and retry
+  - do not install global `acpx` unless explicitly requested
+- adapter command missing (for example `claude-agent-acp` not found):
+  - first check whether `~/.acpx/config.json` has custom `agents` overrides
+  - prefer removing broken override(s) to restore built-in defaults
+  - if user wants binary-based overrides, install exactly the configured adapter binary
+- `NO_SESSION`: run `${ACPX_CMD} <agent> sessions new --name <sessionName>` then retry prompt.
 - queue busy: either wait for completion (default) or use `--no-wait` when async behavior is explicitly desired.
 
 ### Output relay
