@@ -1,0 +1,231 @@
+/* THE LAB / DEPARTMENT OF VIBE — Design System Tokens */
+/* AMERICAN INDUSTRIAL UTILITY / Reverse-Engineered from Brass Hands */
+
+:root {
+  /* Background */
+  --bg-primary: #0d0d0d;
+  --bg-surface: #161616;
+  --bg-elevated: #1c1c1c;
+
+  /* Text */
+  --text-primary: #f2ede6;
+  --text-secondary: #8a8078;
+  --text-muted: #4a453f;
+
+  /* Accent — Industrial Orange-Red */
+  --accent: #d94f1e;
+  --accent-hover: #e8602f;
+  --accent-dim: rgba(217, 79, 30, 0.15);
+
+  /* Borders */
+  --border: #2a2a2a;
+  --border-strong: #f2ede6;
+
+  /* Status */
+  --success: #3d8b4f;
+  --warning: #d94f1e;
+  --status-active: #d94f1e;
+
+  /* Utility */
+  --utility-yellow: #e8c832;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  /* Typography */
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --font-sans: "Space Grotesk", "Inter", -apple-system, sans-serif;
+
+  /* Dimensions */
+  --nav-width: 180px;
+  --header-height: 56px;
+  --status-height: 32px;
+  --titlebar-inset: 38px;
+}
+
+/* === RESET === */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+/* Scrollbar — minimal, industrial */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* === UTILITY CLASSES === */
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.sans {
+  font-family: var(--font-sans);
+}
+
+.uppercase {
+  text-transform: uppercase;
+}
+
+.tracking-wide {
+  letter-spacing: 3px;
+}
+
+.tracking-tight {
+  letter-spacing: -0.5px;
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-accent {
+  color: var(--accent);
+}
+
+.text-success {
+  color: var(--success);
+}
+
+/* No border radius — anywhere. Everything is square. */
+/* This is deliberate. Do not add border-radius. */
+
+button {
+  font-family: var(--font-mono);
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 11px;
+  padding: var(--space-2) var(--space-4);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button:active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0d0d0d;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0d0d0d;
+  font-weight: 500;
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #0d0d0d;
+}
+
+/* Rule lines */
+
+.rule {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+
+.rule-strong {
+  border: none;
+  border-top: 1px solid var(--border-strong);
+  margin: 0;
+}
+
+.rule-accent {
+  border: none;
+  border-top: 2px solid var(--accent);
+  margin: 0;
+}
+
+/* === DRAG REGION (macOS titlebar) === */
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Selection */
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+/* Input reset */
+
+input,
+textarea {
+  font-family: var(--font-mono);
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  outline: none;
+  font-size: 13px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 11px;
+}

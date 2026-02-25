@@ -1,0 +1,29 @@
+{
+  "name": "thelab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "THE LAB — AI Photo Editor / Department of Vibe",
+  "type": "module",
+  "main": "out/main/index.cjs",
+  "scripts": {
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=out/main/index.cjs --external:electron --format=cjs --sourcemap",
+    "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --outfile=out/preload/index.cjs --external:electron --format=cjs --sourcemap",
+    "build:renderer": "vite build",
+    "dev": "node scripts/dev.mjs",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "electron": "^34.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0",
+    "vite": "^6.2.0"
+  }
+}
