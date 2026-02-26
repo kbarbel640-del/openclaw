@@ -143,6 +143,15 @@ describe("nodes camera helpers", () => {
     });
   });
 
+  it("allows http url payload for RFC1918 expected host", async () => {
+    stubGuardedFetchResponse(new Response("url-content", { status: 200 }));
+    await withCameraTempDir(async (dir) => {
+      const out = path.join(dir, "x-http-private.bin");
+      await writeUrlToFile(out, "http://10.0.0.5/clip.mp4", "10.0.0.5");
+      await expect(fs.readFile(out, "utf8")).resolves.toBe("url-content");
+    });
+  });
+
   it("rejects invalid url payload responses", async () => {
     const cases: Array<{
       name: string;
@@ -153,6 +162,11 @@ describe("nodes camera helpers", () => {
       {
         name: "non-https url",
         url: "http://example.com/x.bin",
+        expectedMessage: /only https/i,
+      },
+      {
+        name: "non-https url with public ip",
+        url: "http://8.8.8.8/x.bin",
         expectedMessage: /only https/i,
       },
       {
@@ -182,8 +196,9 @@ describe("nodes camera helpers", () => {
       if (testCase.response) {
         stubGuardedFetchResponse(testCase.response);
       }
+      const expectedHost = testCase.url.includes("8.8.8.8") ? "8.8.8.8" : "example.com";
       await expect(
-        writeUrlToFile("/tmp/ignored", testCase.url, "example.com"),
+        writeUrlToFile("/tmp/ignored", testCase.url, expectedHost),
         testCase.name,
       ).rejects.toThrow(testCase.expectedMessage);
     }

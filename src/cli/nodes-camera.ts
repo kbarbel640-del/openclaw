@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
 import { normalizeHostname } from "../infra/net/hostname.js";
+import { isRfc1918Ipv4Address } from "../shared/net/ip.js";
 import { resolveCliName } from "./cli-name.js";
 import {
   asBoolean,
@@ -81,8 +82,14 @@ export async function writeUrlToFile(filePath: string, url: string, expectedHost
   }
 
   const parsed = new URL(url);
-  if (parsed.protocol !== "https:") {
-    throw new Error(`writeUrlToFile: only https URLs are allowed, got ${parsed.protocol}`);
+  const expectedHostIsPrivateRfc1918Ipv4 = isRfc1918Ipv4Address(normalizedExpectedHost);
+  const isAllowedProtocol =
+    parsed.protocol === "https:" ||
+    (expectedHostIsPrivateRfc1918Ipv4 && parsed.protocol === "http:");
+  if (!isAllowedProtocol) {
+    throw new Error(
+      `writeUrlToFile: only https URLs are allowed for public hosts, got ${parsed.protocol}`,
+    );
   }
   if (normalizeHostname(parsed.hostname) !== normalizedExpectedHost) {
     throw new Error(
