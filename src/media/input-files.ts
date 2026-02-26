@@ -143,7 +143,8 @@ export function normalizeMimeType(value: string | undefined): string | undefined
   if (!value) {
     return undefined;
   }
-  const [raw] = value.split(";");
+  const normalizedValue = value.normalize("NFKC");
+  const [raw] = normalizedValue.split(";");
   const normalized = raw?.trim().toLowerCase();
   return normalized || undefined;
 }
@@ -155,7 +156,8 @@ export function parseContentType(value: string | undefined): {
   if (!value) {
     return {};
   }
-  const parts = value.split(";").map((part) => part.trim());
+  const normalizedValue = value.normalize("NFKC");
+  const parts = normalizedValue.split(";").map((part) => part.trim());
   const mimeType = normalizeMimeType(parts[0]);
   const charset = parts
     .map((part) => part.match(/^charset=(.+)$/i)?.[1]?.trim())
