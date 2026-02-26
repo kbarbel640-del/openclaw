@@ -70,6 +70,7 @@ describe("slack prepareSlackMessage inbound contract", () => {
       reactionMode: "off",
       reactionAllowlist: [],
       replyToMode: params.replyToMode ?? "off",
+      resolveReplyToMode: () => params.replyToMode ?? "off",
       threadHistoryScope: "thread",
       threadInheritParent: false,
       slashCommand: {
@@ -321,6 +322,7 @@ describe("slack prepareSlackMessage inbound contract", () => {
       reactionMode: "off",
       reactionAllowlist: [],
       replyToMode: "off",
+      resolveReplyToMode: () => "off",
       threadHistoryScope: "thread",
       threadInheritParent: false,
       slashCommand: {
@@ -404,6 +406,7 @@ describe("slack prepareSlackMessage inbound contract", () => {
       reactionMode: "off",
       reactionAllowlist: [],
       replyToMode: "off",
+      resolveReplyToMode: () => "off",
       threadHistoryScope: "thread",
       threadInheritParent: false,
       slashCommand: {
@@ -471,6 +474,44 @@ describe("slack prepareSlackMessage inbound contract", () => {
 
     expect(prepared).toBeTruthy();
     expect(prepared!.ctxPayload.MessageThreadId).toBe("1.000");
+  });
+
+  it("resolves replyToMode per chat type via resolveReplyToMode", async () => {
+    const slackCtx = createInboundSlackCtx({
+      cfg: {
+        channels: { slack: { enabled: true } },
+      } as OpenClawConfig,
+      replyToMode: "off",
+      defaultRequireMention: false,
+    });
+    // Override resolveReplyToMode to simulate replyToModeByChatType: { direct: "all" }
+    slackCtx.resolveReplyToMode = (chatType) => (chatType === "direct" ? "all" : "off");
+    // oxlint-disable-next-line typescript/no-explicit-any
+    slackCtx.resolveUserName = async () => ({ name: "Alice" }) as any;
+
+    // DM message should get replyToMode "all" via resolveReplyToMode
+    const dmPrepared = await prepareMessageWith(
+      slackCtx,
+      createSlackAccount({}),
+      createSlackMessage({ channel: "D123", channel_type: "im" }),
+    );
+    expect(dmPrepared).toBeTruthy();
+    expect(dmPrepared!.replyToMode).toBe("all");
+    // MessageThreadId is set when replyToMode is "all" for top-level messages
+    expect(dmPrepared!.ctxPayload.MessageThreadId).toBe("1.000");
+
+    // Channel message should get replyToMode "off" via resolveReplyToMode
+    slackCtx.resolveChannelName = async () => ({ name: "general", type: "channel" });
+    slackCtx.isChannelAllowed = () => true;
+    const channelPrepared = await prepareMessageWith(
+      slackCtx,
+      createSlackAccount({}),
+      createSlackMessage({ channel: "C123", channel_type: "channel", ts: "2.000" }),
+    );
+    expect(channelPrepared).toBeTruthy();
+    expect(channelPrepared!.replyToMode).toBe("off");
+    // MessageThreadId is NOT set when replyToMode is "off"
+    expect(channelPrepared!.ctxPayload.MessageThreadId).toBeUndefined();
   });
 
   it("marks first thread turn and injects thread history for a new thread session", async () => {
@@ -650,6 +691,7 @@ describe("prepareSlackMessage sender prefix", () => {
       reactionMode: "off",
       reactionAllowlist: [],
       replyToMode: "off",
+      resolveReplyToMode: () => "off" as const,
       threadHistoryScope: "channel",
       threadInheritParent: false,
       slashCommand: params.slashCommand,
