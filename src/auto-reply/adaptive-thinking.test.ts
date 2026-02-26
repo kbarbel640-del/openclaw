@@ -8,7 +8,7 @@ import { normalizeThinkLevel } from "./thinking.js";
  *
  * These tests exercise the real OpenClaw functions that determine what
  * thinking level reaches the provider layer (where pi-ai applies adaptive
- * thinking for Opus 4.6+).
+ * thinking for Opus 4.6+ / Sonnet 4.6+).
  */
 describe("mapThinkingLevel", () => {
   it("passes through each canonical level unchanged", () => {
@@ -26,13 +26,13 @@ describe("mapThinkingLevel", () => {
 });
 
 describe("thinking level normalization for adaptive thinking", () => {
-  it("maps max/highest aliases to high (effort: high on Opus 4.6)", () => {
+  it("maps max/highest aliases to high (effort: high on Opus 4.6 / Sonnet 4.6)", () => {
     expect(mapThinkingLevel(normalizeThinkLevel("max"))).toBe("high");
     expect(mapThinkingLevel(normalizeThinkLevel("highest"))).toBe("high");
     expect(mapThinkingLevel(normalizeThinkLevel("ultra"))).toBe("high");
   });
 
-  it("preserves xhigh through the pipeline (effort: max on Opus 4.6)", () => {
+  it("preserves xhigh through the pipeline (effort: max on Opus 4.6 / Sonnet 4.6)", () => {
     expect(mapThinkingLevel(normalizeThinkLevel("xhigh"))).toBe("xhigh");
     expect(mapThinkingLevel(normalizeThinkLevel("x-high"))).toBe("xhigh");
     expect(mapThinkingLevel(normalizeThinkLevel("extra-high"))).toBe("xhigh");

@@ -21,13 +21,13 @@ title: "Thinking Levels"
 - Provider notes:
   - Z.AI (`zai/*`) only supports binary thinking (`on`/`off`). Any non-`off` level is treated as `on` (mapped to `low`).
 
-## Anthropic Adaptive Thinking (Opus 4.6+)
+## Anthropic Adaptive Thinking (Opus 4.6+ / Sonnet 4.6+)
 
-Claude Opus 4.6 introduces **adaptive thinking** where Claude dynamically decides when and how much to think based on the problem complexity. OpenClaw automatically uses this mode for Opus 4.6+ models.
+Claude's 4.6 model family (Opus 4.6 and Sonnet 4.6) introduces **adaptive thinking** where Claude dynamically decides when and how much to think based on the problem complexity. OpenClaw automatically uses this mode for supported 4.6+ models.
 
 ### How it works
 
-- For Opus 4.6+: Uses `thinking: { type: "adaptive" }` with the `effort` parameter
+- For Opus 4.6+ / Sonnet 4.6+: Uses `thinking: { type: "adaptive" }` with the `effort` parameter
 - For older models: Falls back to budget-based thinking (`thinking: { type: "enabled", budget_tokens: N }`)
 
 ### Thinking level to effort mapping
@@ -51,7 +51,7 @@ OpenClaw's thinking levels map to Anthropic's effort parameter:
 ### Example
 
 ```bash
-# Set thinking to high (maps to effort: high on Opus 4.6)
+# Set thinking to high (maps to effort: high on Opus 4.6 / Sonnet 4.6)
 openclaw agent --thinking high --message "Solve this complex math problem"
 
 # Or use inline directive
