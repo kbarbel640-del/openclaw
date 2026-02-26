@@ -152,10 +152,12 @@ describe("chrome extension relay server", () => {
       "OPENCLAW_GATEWAY_TOKEN",
       "OPENCLAW_EXTENSION_RELAY_RECONNECT_GRACE_MS",
       "OPENCLAW_EXTENSION_RELAY_COMMAND_RECONNECT_WAIT_MS",
+      "OPENCLAW_EXTENSION_RELAY_BIND_HOST",
     ]);
     process.env.OPENCLAW_GATEWAY_TOKEN = TEST_GATEWAY_TOKEN;
     delete process.env.OPENCLAW_EXTENSION_RELAY_RECONNECT_GRACE_MS;
     delete process.env.OPENCLAW_EXTENSION_RELAY_COMMAND_RECONNECT_WAIT_MS;
+    delete process.env.OPENCLAW_EXTENSION_RELAY_BIND_HOST;
   });
 
   afterEach(async () => {
@@ -176,6 +178,18 @@ describe("chrome extension relay server", () => {
     await waitForOpen(ext);
     return { port, ext };
   }
+
+  it("uses configured bind host when OPENCLAW_EXTENSION_RELAY_BIND_HOST is set", async () => {
+    const port = await getFreePort();
+    cdpUrl = `http://127.0.0.1:${port}`;
+    process.env.OPENCLAW_EXTENSION_RELAY_BIND_HOST = "0.0.0.0";
+
+    const relay = await ensureChromeExtensionRelayServer({ cdpUrl });
+    expect(relay.host).toBe("0.0.0.0");
+
+    const status = await fetch(`${cdpUrl}/extension/status`);
+    expect(status.status).toBe(200);
+  });
 
   it("advertises CDP WS only when extension is connected", async () => {
     const port = await getFreePort();
