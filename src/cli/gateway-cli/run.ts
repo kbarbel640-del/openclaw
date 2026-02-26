@@ -186,9 +186,14 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
   }
   const authModeRaw = toOptionString(opts.auth);
   const authMode: GatewayAuthMode | null =
-    authModeRaw === "token" || authModeRaw === "password" ? authModeRaw : null;
+    authModeRaw === "none" ||
+    authModeRaw === "token" ||
+    authModeRaw === "password" ||
+    authModeRaw === "trusted-proxy"
+      ? authModeRaw
+      : null;
   if (authModeRaw && !authMode) {
-    defaultRuntime.error('Invalid --auth (use "token" or "password")');
+    defaultRuntime.error('Invalid --auth (use "none", "token", "password", or "trusted-proxy")');
     defaultRuntime.exit(1);
     return;
   }
@@ -364,7 +369,7 @@ export function addGatewayRunCommand(cmd: Command): Command {
       "--token <token>",
       "Shared token required in connect.params.auth.token (default: OPENCLAW_GATEWAY_TOKEN env if set)",
     )
-    .option("--auth <mode>", 'Gateway auth mode ("token"|"password")')
+    .option("--auth <mode>", 'Gateway auth mode ("none"|"token"|"password"|"trusted-proxy")')
     .option("--password <password>", "Password for auth mode=password")
     .option("--tailscale <mode>", 'Tailscale exposure mode ("off"|"serve"|"funnel")')
     .option(
