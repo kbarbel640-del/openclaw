@@ -1,6 +1,4 @@
 import { Type } from "@sinclair/typebox";
-import type { OpenClawConfig } from "../../config/config.js";
-import type { AnyAgentTool } from "./common.js";
 import { BLUEBUBBLES_GROUP_ACTIONS } from "../../channels/plugins/bluebubbles-actions.js";
 import {
   listChannelMessageActions,
@@ -13,6 +11,7 @@ import {
   CHANNEL_MESSAGE_ACTION_NAMES,
   type ChannelMessageActionName,
 } from "../../channels/plugins/types.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { GATEWAY_CLIENT_IDS, GATEWAY_CLIENT_MODES } from "../../gateway/protocol/client-info.js";
 import { getToolResult, runMessageAction } from "../../infra/outbound/message-action-runner.js";
@@ -23,6 +22,7 @@ import { normalizeMessageChannel } from "../../utils/message-channel.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { listChannelSupportedActions } from "../channel-tools.js";
 import { channelTargetSchema, channelTargetsSchema, stringEnum } from "../schema/typebox.js";
+import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 import { resolveGatewayOptions } from "./gateway.js";
 
@@ -69,6 +69,13 @@ const discordComponentButtonSchema = Type.Object({
   url: Type.Optional(Type.String()),
   emoji: Type.Optional(discordComponentEmojiSchema),
   disabled: Type.Optional(Type.Boolean()),
+  allowedUsers: Type.Optional(
+    Type.Array(
+      Type.String({
+        description: "Discord user ids or names allowed to interact with this button.",
+      }),
+    ),
+  ),
 });
 
 const discordComponentSelectSchema = Type.Object({
@@ -129,17 +136,28 @@ const discordComponentModalSchema = Type.Object({
   fields: Type.Array(discordComponentModalFieldSchema),
 });
 
-const discordComponentMessageSchema = Type.Object({
-  text: Type.Optional(Type.String()),
-  container: Type.Optional(
-    Type.Object({
-      accentColor: Type.Optional(Type.String()),
-      spoiler: Type.Optional(Type.Boolean()),
-    }),
-  ),
-  blocks: Type.Optional(Type.Array(discordComponentBlockSchema)),
-  modal: Type.Optional(discordComponentModalSchema),
-});
+const discordComponentMessageSchema = Type.Object(
+  {
+    text: Type.Optional(Type.String()),
+    reusable: Type.Optional(
+      Type.Boolean({
+        description: "Allow components to be used multiple times until they expire.",
+      }),
+    ),
+    container: Type.Optional(
+      Type.Object({
+        accentColor: Type.Optional(Type.String()),
+        spoiler: Type.Optional(Type.Boolean()),
+      }),
+    ),
+    blocks: Type.Optional(Type.Array(discordComponentBlockSchema)),
+    modal: Type.Optional(discordComponentModalSchema),
+  },
+  {
+    description:
+      "Discord components v2 payload. Set reusable=true to keep buttons, selects, and forms active until expiry.",
+  },
+);
 
 function buildSendSchema(options: {
   includeButtons: boolean;
@@ -220,7 +238,19 @@ function buildSendSchema(options: {
 
 function buildReactionSchema() {
   return {
-    messageId: Type.Optional(Type.String()),
+    messageId: Type.Optional(
+      Type.String({
+        description:
+          "Target message id for reaction. For Telegram, if omitted, defaults to the current inbound message id when available.",
+      }),
+    ),
+    message_id: Type.Optional(
+      Type.String({
+        // Intentional duplicate alias for tool-schema discoverability in LLMs.
+        description:
+          "snake_case alias of messageId. For Telegram, if omitted, defaults to the current inbound message id when available.",
+      }),
+    ),
     emoji: Type.Optional(Type.String()),
     remove: Type.Optional(Type.Boolean()),
     targetAuthor: Type.Optional(Type.String()),
@@ -407,10 +437,12 @@ type MessageToolOptions = {
   currentChannelId?: string;
   currentChannelProvider?: string;
   currentThreadTs?: string;
+  currentMessageId?: string | number;
   replyToMode?: "off" | "first" | "all";
   hasRepliedRef?: { value: boolean };
   sandboxRoot?: string;
   requireExplicitTarget?: boolean;
+  requesterSenderId?: string;
 };
 
 function resolveMessageToolSchemaActions(params: {
@@ -614,17 +646,23 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
         clientDisplayName: "agent",
         mode: GATEWAY_CLIENT_MODES.BACKEND,
       };
+      const hasCurrentMessageId =
+        typeof options?.currentMessageId === "number" ||
+        (typeof options?.currentMessageId === "string" &&
+          options.currentMessageId.trim().length > 0);
 
       const toolContext =
         options?.currentChannelId ||
         options?.currentChannelProvider ||
         options?.currentThreadTs ||
+        hasCurrentMessageId ||
         options?.replyToMode ||
         options?.hasRepliedRef
           ? {
               currentChannelId: options?.currentChannelId,
               currentChannelProvider: options?.currentChannelProvider,
               currentThreadTs: options?.currentThreadTs,
+              currentMessageId: options?.currentMessageId,
               replyToMode: options?.replyToMode,
               hasRepliedRef: options?.hasRepliedRef,
               // Direct tool invocations should not add cross-context decoration.
@@ -638,6 +676,7 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
         action,
         params,
         defaultAccountId: accountId ?? undefined,
+        requesterSenderId: options?.requesterSenderId,
         gateway,
         toolContext,
         sessionKey: options?.agentSessionKey,
