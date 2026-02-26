@@ -62,16 +62,72 @@ function mergePropertySchemas(existing: unknown, incoming: unknown): unknown {
   return existing;
 }
 
+/**
+ * Converts the legacy array-of-parameter-descriptors format to a JSON Schema
+ * object so all downstream schema processing can handle it uniformly.
+ *
+ * Array format: `[{ name, type, description, required }]`
+ * JSON Schema:  `{ type: "object", properties: { … }, required: […] }`
+ */
+function arrayParametersToJsonSchema(params: unknown[]): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  const required: string[] = [];
+  for (const param of params) {
+    if (!param || typeof param !== "object") {
+      continue;
+    }
+    const p = param as Record<string, unknown>;
+    const name = typeof p.name === "string" ? p.name : undefined;
+    if (!name) {
+      continue;
+    }
+    const propSchema: Record<string, unknown> = {};
+    if (typeof p.type === "string") {
+      propSchema.type = p.type;
+    }
+    if (typeof p.description === "string") {
+      propSchema.description = p.description;
+    }
+    // Carry through any other standard JSON Schema keywords (enum, default, …)
+    for (const key of Object.keys(p)) {
+      if (key !== "name" && key !== "required" && !(key in propSchema)) {
+        propSchema[key] = p[key];
+      }
+    }
+    properties[name] = propSchema;
+    if (p.required === true) {
+      required.push(name);
+    }
+  }
+  const schema: Record<string, unknown> = { type: "object", properties };
+  if (required.length > 0) {
+    schema.required = required;
+  }
+  return schema;
+}
+
 export function normalizeToolParameters(
   tool: AnyAgentTool,
   options?: { modelProvider?: string },
 ): AnyAgentTool {
+  // Plugins/skills sometimes pass parameters as an array of descriptor objects
+  // (e.g. [{ name, type, description, required }]). typeof [] === "object" so the
+  // array would pass the guard below, but the subsequent JSON Schema checks
+  // ("type" in schema, "properties" in schema) all fail for arrays, causing the
+  // raw array to be forwarded to the provider — which rejects it (e.g. Gemini
+  // returns "schema at top-level must be a boolean or an object").  Convert to
+  // a proper JSON Schema before any other normalisation runs.
+  const rawParams = tool.parameters;
+  const normalizedTool: AnyAgentTool = Array.isArray(rawParams)
+    ? { ...tool, parameters: arrayParametersToJsonSchema(rawParams as unknown[]) }
+    : tool;
+
   const schema =
-    tool.parameters && typeof tool.parameters === "object"
-      ? (tool.parameters as Record<string, unknown>)
+    normalizedTool.parameters && typeof normalizedTool.parameters === "object"
+      ? (normalizedTool.parameters as Record<string, unknown>)
       : undefined;
   if (!schema) {
-    return tool;
+    return normalizedTool;
   }
 
   // Provider quirks:
@@ -91,7 +147,7 @@ export function normalizeToolParameters(
   // clean it for Gemini compatibility (but only if using Gemini, not Anthropic)
   if ("type" in schema && "properties" in schema && !Array.isArray(schema.anyOf)) {
     return {
-      ...tool,
+      ...normalizedTool,
       parameters: isGeminiProvider && !isAnthropicProvider ? cleanSchemaForGemini(schema) : schema,
     };
   }
@@ -106,7 +162,7 @@ export function normalizeToolParameters(
   ) {
     const schemaWithType = { ...schema, type: "object" };
     return {
-      ...tool,
+      ...normalizedTool,
       parameters:
         isGeminiProvider && !isAnthropicProvider
           ? cleanSchemaForGemini(schemaWithType)
@@ -120,7 +176,7 @@ export function normalizeToolParameters(
       ? "oneOf"
       : null;
   if (!variantKey) {
-    return tool;
+    return normalizedTool;
   }
   const variants = schema[variantKey] as unknown[];
   const mergedProperties: Record<string, unknown> = {};
@@ -178,7 +234,7 @@ export function normalizeToolParameters(
   };
 
   return {
-    ...tool,
+    ...normalizedTool,
     // Flatten union schemas into a single object schema:
     // - Gemini doesn't allow top-level `type` together with `anyOf`.
     // - OpenAI rejects schemas without top-level `type: "object"`.
