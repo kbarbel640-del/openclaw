@@ -65,6 +65,7 @@ describe("web search provider auto-detection", () => {
     delete process.env.XAI_API_KEY;
     delete process.env.KIMI_API_KEY;
     delete process.env.MOONSHOT_API_KEY;
+    delete process.env.BOCHA_API_KEY;
   });
 
   afterEach(() => {
@@ -109,6 +110,11 @@ describe("web search provider auto-detection", () => {
   it("auto-detects kimi when only MOONSHOT_API_KEY is set", () => {
     process.env.MOONSHOT_API_KEY = "test-moonshot-key";
     expect(resolveSearchProvider({})).toBe("kimi");
+  });
+
+  it("auto-detects bocha when only BOCHA_API_KEY is set", () => {
+    process.env.BOCHA_API_KEY = "test-bocha-key";
+    expect(resolveSearchProvider({})).toBe("bocha");
   });
 
   it("follows priority order — brave wins when multiple keys available", () => {
