@@ -9,14 +9,10 @@ import { getCustomProviderApiKey, resolveEnvApiKey } from "./model-auth.js";
 import { normalizeProviderId } from "./model-selection.js";
 
 function formatApiKeySnippet(apiKey: string): string {
-  const compact = apiKey.replace(/\s+/g, "");
-  if (!compact) {
+  if (!apiKey.replace(/\s+/g, "")) {
     return "unknown";
   }
-  const edge = compact.length >= 12 ? 6 : 4;
-  const head = compact.slice(0, edge);
-  const tail = compact.slice(-edge);
-  return `${head}…${tail}`;
+  return "****";
 }
 
 export function resolveModelAuthLabel(params: {
