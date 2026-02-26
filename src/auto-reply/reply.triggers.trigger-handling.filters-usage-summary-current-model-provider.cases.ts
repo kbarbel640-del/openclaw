@@ -211,10 +211,10 @@ export function registerTriggerHandlingUsageSummaryCases(params: {
           );
           const text = Array.isArray(res) ? res[0]?.text : res?.text;
           expect(text).toContain("api-key");
-          expect(text).toMatch(/\u2026|\.{3}/);
-          expect(text).toContain("sk-tes");
-          expect(text).toContain("abcdef");
+          // Prefix-only masking: "sk-test-***" — never reveal the tail.
+          expect(text).toContain("sk-test-***");
           expect(text).not.toContain("1234567890abcdef");
+          expect(text).not.toContain("abcdef");
           expect(text).toContain("(anthropic:work)");
           expect(text).not.toContain("mixed");
           expect(runEmbeddedPiAgentMock).not.toHaveBeenCalled();
