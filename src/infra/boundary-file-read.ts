@@ -49,6 +49,40 @@ export function canUseBoundaryFileOpen(ioFs: typeof fs): boolean {
   );
 }
 
+function maybeLogWindowsCiBoundaryValidationFailure(params: {
+  stage: "resolve" | "open";
+  absolutePath: string;
+  rootPath: string;
+  boundaryLabel: string;
+  skipLexicalRootCheck?: boolean;
+  rejectHardlinks?: boolean;
+  maxBytes?: number;
+  error?: unknown;
+}): void {
+  if (process.platform !== "win32" || !process.env.CI) {
+    return;
+  }
+  const detail = (() => {
+    if (params.error instanceof Error) {
+      return params.error.message;
+    }
+    if (typeof params.error === "string") {
+      return params.error;
+    }
+    if (params.error === undefined) {
+      return "";
+    }
+    try {
+      return JSON.stringify(params.error);
+    } catch {
+      return "<unserializable>";
+    }
+  })();
+  console.warn(
+    `[boundary-file-read] validation failed stage=${params.stage} boundary=${params.boundaryLabel} path=${params.absolutePath} root=${params.rootPath} skipLexicalRootCheck=${params.skipLexicalRootCheck === true} rejectHardlinks=${params.rejectHardlinks ?? true} maxBytes=${params.maxBytes ?? "none"} detail=${detail}`,
+  );
+}
+
 export function openBoundaryFileSync(params: OpenBoundaryFileSyncParams): BoundaryFileOpenResult {
   const ioFs = params.ioFs ?? fs;
   const absolutePath = path.resolve(params.absolutePath);
@@ -66,6 +100,16 @@ export function openBoundaryFileSync(params: OpenBoundaryFileSyncParams): Bounda
     resolvedPath = resolved.canonicalPath;
     rootRealPath = resolved.rootCanonicalPath;
   } catch (error) {
+    maybeLogWindowsCiBoundaryValidationFailure({
+      stage: "resolve",
+      absolutePath,
+      rootPath: params.rootPath,
+      boundaryLabel: params.boundaryLabel,
+      skipLexicalRootCheck: params.skipLexicalRootCheck,
+      rejectHardlinks: params.rejectHardlinks,
+      maxBytes: params.maxBytes,
+      error,
+    });
     return { ok: false, reason: "validation", error };
   }
 
@@ -77,6 +121,18 @@ export function openBoundaryFileSync(params: OpenBoundaryFileSyncParams): Bounda
     ioFs,
   });
   if (!opened.ok) {
+    if (opened.reason === "validation") {
+      maybeLogWindowsCiBoundaryValidationFailure({
+        stage: "open",
+        absolutePath,
+        rootPath: params.rootPath,
+        boundaryLabel: params.boundaryLabel,
+        skipLexicalRootCheck: params.skipLexicalRootCheck,
+        rejectHardlinks: params.rejectHardlinks,
+        maxBytes: params.maxBytes,
+        error: opened.error,
+      });
+    }
     return opened;
   }
   return {

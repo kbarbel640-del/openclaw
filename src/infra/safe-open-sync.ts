@@ -12,6 +12,14 @@ type SafeOpenSyncFs = Pick<
   "constants" | "lstatSync" | "realpathSync" | "openSync" | "fstatSync" | "closeSync"
 >;
 
+function formatStatSummary(stat: fs.Stats): string {
+  return `dev=${String(stat.dev)} ino=${String(stat.ino)} nlink=${stat.nlink} size=${stat.size}`;
+}
+
+function validationFailure(detail: string): SafeOpenSyncResult {
+  return { ok: false, reason: "validation", error: new Error(detail) };
+}
+
 function isExpectedPathError(error: unknown): boolean {
   const code =
     typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
@@ -39,35 +47,45 @@ export function openVerifiedFileSync(params: {
     if (params.rejectPathSymlink) {
       const candidateStat = ioFs.lstatSync(params.filePath);
       if (candidateStat.isSymbolicLink()) {
-        return { ok: false, reason: "validation" };
+        return validationFailure(`path symlink rejected: ${params.filePath}`);
       }
     }
 
     const realPath = params.resolvedPath ?? ioFs.realpathSync(params.filePath);
     const preOpenStat = ioFs.lstatSync(realPath);
     if (!preOpenStat.isFile()) {
-      return { ok: false, reason: "validation" };
+      return validationFailure(`pre-open path is not a regular file: ${realPath}`);
     }
     if (params.rejectHardlinks && preOpenStat.nlink > 1) {
-      return { ok: false, reason: "validation" };
+      return validationFailure(
+        `pre-open hardlink rejected: ${realPath} (${formatStatSummary(preOpenStat)})`,
+      );
     }
     if (params.maxBytes !== undefined && preOpenStat.size > params.maxBytes) {
-      return { ok: false, reason: "validation" };
+      return validationFailure(
+        `pre-open size exceeds maxBytes=${params.maxBytes}: ${realPath} (${formatStatSummary(preOpenStat)})`,
+      );
     }
 
     fd = ioFs.openSync(realPath, openReadFlags);
     const openedStat = ioFs.fstatSync(fd);
     if (!openedStat.isFile()) {
-      return { ok: false, reason: "validation" };
+      return validationFailure(`fd is not a regular file after open: ${realPath}`);
     }
     if (params.rejectHardlinks && openedStat.nlink > 1) {
-      return { ok: false, reason: "validation" };
+      return validationFailure(
+        `post-open hardlink rejected: ${realPath} (${formatStatSummary(openedStat)})`,
+      );
     }
     if (params.maxBytes !== undefined && openedStat.size > params.maxBytes) {
-      return { ok: false, reason: "validation" };
+      return validationFailure(
+        `post-open size exceeds maxBytes=${params.maxBytes}: ${realPath} (${formatStatSummary(openedStat)})`,
+      );
     }
     if (!sameFileIdentity(preOpenStat, openedStat)) {
-      return { ok: false, reason: "validation" };
+      return validationFailure(
+        `pre/post-open identity mismatch: pre(${formatStatSummary(preOpenStat)}) post(${formatStatSummary(openedStat)}) path=${realPath}`,
+      );
     }
 
     const opened = { ok: true as const, path: realPath, fd, stat: openedStat };
