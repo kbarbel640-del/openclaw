@@ -136,6 +136,52 @@ const PERMANENT_ANNOUNCE_DELIVERY_ERROR_PATTERNS: readonly RegExp[] = [
   /outbound not configured for channel/i,
 ];
 
+const TELEGRAM_MESSAGE_CHAR_LIMIT = 4096;
+
+function isTelegramMessageTooLongError(error: unknown): boolean {
+  const message = summarizeDeliveryError(error);
+  return /message is too long/i.test(message);
+}
+
+function splitTextIntoChunks(text: string, limit: number): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return [];
+  }
+  if (!Number.isFinite(limit) || limit <= 0 || trimmed.length <= limit) {
+    return [trimmed];
+  }
+  const chunks: string[] = [];
+  let cursor = 0;
+  while (cursor < trimmed.length) {
+    const remaining = trimmed.length - cursor;
+    if (remaining <= limit) {
+      chunks.push(trimmed.slice(cursor));
+      break;
+    }
+    const window = trimmed.slice(cursor, cursor + limit);
+    let splitAt = window.lastIndexOf("\n\n");
+    if (splitAt < Math.floor(limit * 0.5)) {
+      splitAt = window.lastIndexOf("\n");
+    }
+    if (splitAt < Math.floor(limit * 0.5)) {
+      splitAt = window.lastIndexOf(" ");
+    }
+    if (splitAt <= 0) {
+      splitAt = limit;
+    }
+    const chunk = trimmed.slice(cursor, cursor + splitAt).trim();
+    if (chunk) {
+      chunks.push(chunk);
+    }
+    cursor += splitAt;
+    while (cursor < trimmed.length && /\s/.test(trimmed[cursor] ?? "")) {
+      cursor += 1;
+    }
+  }
+  return chunks;
+}
+
 function isTransientAnnounceDeliveryError(error: unknown): boolean {
   const message = summarizeDeliveryError(error);
   if (!message) {
@@ -780,10 +826,39 @@ async function sendSubagentAnnounceDirectly(params: {
             path: "none",
           };
         }
-        await runAnnounceDeliveryWithRetry({
-          operation: "completion direct send",
-          signal: params.signal,
-          run: async () =>
+        try {
+          await runAnnounceDeliveryWithRetry({
+            operation: "completion direct send",
+            signal: params.signal,
+            run: async () =>
+              await callGateway({
+                method: "send",
+                params: {
+                  channel: completionChannel,
+                  to: completionTo,
+                  accountId: completionDirectOrigin?.accountId,
+                  threadId: completionThreadId,
+                  sessionKey: canonicalRequesterSessionKey,
+                  message: params.completionMessage,
+                  idempotencyKey: params.directIdempotencyKey,
+                },
+                timeoutMs: announceTimeoutMs,
+              }),
+          });
+        } catch (error) {
+          const shouldChunkTelegramMessage =
+            completionChannel === "telegram" && isTelegramMessageTooLongError(error);
+          if (!shouldChunkTelegramMessage) {
+            throw error;
+          }
+          const chunks = splitTextIntoChunks(params.completionMessage, TELEGRAM_MESSAGE_CHAR_LIMIT);
+          if (chunks.length <= 1) {
+            throw error;
+          }
+          for (let i = 0; i < chunks.length; i += 1) {
+            if (params.signal?.aborted) {
+              throw new Error("announce delivery aborted", { cause: error });
+            }
             await callGateway({
               method: "send",
               params: {
@@ -792,12 +867,13 @@ async function sendSubagentAnnounceDirectly(params: {
                 accountId: completionDirectOrigin?.accountId,
                 threadId: completionThreadId,
                 sessionKey: canonicalRequesterSessionKey,
-                message: params.completionMessage,
-                idempotencyKey: params.directIdempotencyKey,
+                message: chunks[i],
+                idempotencyKey: `${params.directIdempotencyKey}:chunk:${i + 1}`,
               },
               timeoutMs: announceTimeoutMs,
-            }),
-        });
+            });
+          }
+        }
 
         return {
           delivered: true,
