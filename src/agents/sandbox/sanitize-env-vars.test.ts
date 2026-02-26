@@ -54,4 +54,47 @@ describe("sanitizeEnvVars", () => {
     expect(result.allowed).toEqual({ NODE_ENV: "test" });
     expect(result.blocked).toEqual(["FOO"]);
   });
+
+  it("allows skill-declared env keys through allowedKeys even when they match blocked patterns", () => {
+    const result = sanitizeEnvVars(
+      {
+        NOTION_API_KEY: "ntn_xxx",
+        GITHUB_TOKEN: "gh-token",
+        OPENAI_API_KEY: "sk-live-xxx",
+        FOO: "bar",
+      },
+      { allowedKeys: new Set(["NOTION_API_KEY", "GITHUB_TOKEN"]) },
+    );
+
+    expect(result.allowed).toEqual({
+      NOTION_API_KEY: "ntn_xxx",
+      GITHUB_TOKEN: "gh-token",
+      FOO: "bar",
+    });
+    expect(result.blocked).toEqual(["OPENAI_API_KEY"]);
+  });
+
+  it("still blocks allowedKeys vars with null bytes in values", () => {
+    const result = sanitizeEnvVars(
+      { NOTION_API_KEY: "a\0b" },
+      { allowedKeys: new Set(["NOTION_API_KEY"]) },
+    );
+
+    expect(result.blocked).toEqual(["NOTION_API_KEY"]);
+    expect(result.allowed).toEqual({});
+  });
+
+  it("still warns for allowedKeys vars with suspicious values", () => {
+    const base64Like =
+      "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ==";
+    const result = sanitizeEnvVars(
+      { NOTION_API_KEY: base64Like },
+      { allowedKeys: new Set(["NOTION_API_KEY"]) },
+    );
+
+    expect(result.allowed).toEqual({ NOTION_API_KEY: base64Like });
+    expect(result.warnings).toContain(
+      "NOTION_API_KEY: Value looks like base64-encoded credential data",
+    );
+  });
 });

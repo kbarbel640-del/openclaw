@@ -40,6 +40,8 @@ export type EnvSanitizationOptions = {
   strictMode?: boolean;
   customBlockedPatterns?: ReadonlyArray<RegExp>;
   customAllowedPatterns?: ReadonlyArray<RegExp>;
+  /** Exact key names exempt from blocked-pattern checks (e.g. skill-declared primaryEnv vars). */
+  allowedKeys?: ReadonlySet<string>;
 };
 
 export function validateEnvVarValue(value: string): string | undefined {
@@ -76,7 +78,7 @@ export function sanitizeEnvVars(
       continue;
     }
 
-    if (matchesAnyPattern(key, blockedPatterns)) {
+    if (matchesAnyPattern(key, blockedPatterns) && !options.allowedKeys?.has(key)) {
       blocked.push(key);
       continue;
     }

@@ -82,17 +82,8 @@ function applySkillConfigEnvOverrides(params: {
   skillKey: string;
 }) {
   const { updates, skillConfig, primaryEnv, requiredEnv, skillKey } = params;
-  const allowedSensitiveKeys = new Set<string>();
+  const allowedSensitiveKeys = resolveSkillDeclaredEnvKeys([{ primaryEnv, requiredEnv }]);
   const normalizedPrimaryEnv = primaryEnv?.trim();
-  if (normalizedPrimaryEnv) {
-    allowedSensitiveKeys.add(normalizedPrimaryEnv);
-  }
-  for (const envName of requiredEnv ?? []) {
-    const trimmedEnv = envName.trim();
-    if (trimmedEnv) {
-      allowedSensitiveKeys.add(trimmedEnv);
-    }
-  }
 
   const pendingOverrides: Record<string, string> = {};
   if (skillConfig.env) {
@@ -142,6 +133,26 @@ function createEnvReverter(updates: EnvUpdate[]) {
       }
     }
   };
+}
+
+/** Collect env var names that skills declare via primaryEnv / requires.env. */
+export function resolveSkillDeclaredEnvKeys(
+  skills: ReadonlyArray<{ primaryEnv?: string | null; requiredEnv?: string[] | null }>,
+): Set<string> {
+  const keys = new Set<string>();
+  for (const skill of skills) {
+    const primary = skill.primaryEnv?.trim();
+    if (primary) {
+      keys.add(primary);
+    }
+    for (const envName of skill.requiredEnv ?? []) {
+      const trimmed = envName.trim();
+      if (trimmed) {
+        keys.add(trimmed);
+      }
+    }
+  }
+  return keys;
 }
 
 export function applySkillEnvOverrides(params: { skills: SkillEntry[]; config?: OpenClawConfig }) {

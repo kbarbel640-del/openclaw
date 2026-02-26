@@ -291,4 +291,28 @@ describe("buildSandboxCreateArgs", () => {
     });
     expect(args).toEqual(expect.arrayContaining(["--network", "container:peer"]));
   });
+
+  it("passes skill-declared env keys through to the container", () => {
+    const cfg = createSandboxConfig({
+      env: {
+        NOTION_API_KEY: "ntn_xxx",
+        GITHUB_TOKEN: "gh-token",
+        OPENAI_API_KEY: "sk-live-xxx",
+        FOO: "bar",
+      },
+    });
+
+    const args = buildSandboxCreateArgs({
+      name: "openclaw-sbx-skill-env",
+      cfg,
+      scopeKey: "main",
+      createdAtMs: 1700000000000,
+      skillAllowedEnvKeys: new Set(["NOTION_API_KEY", "GITHUB_TOKEN"]),
+    });
+
+    expect(args).toEqual(expect.arrayContaining(["--env", "NOTION_API_KEY=ntn_xxx"]));
+    expect(args).toEqual(expect.arrayContaining(["--env", "GITHUB_TOKEN=gh-token"]));
+    expect(args).toEqual(expect.arrayContaining(["--env", "FOO=bar"]));
+    expect(args).not.toEqual(expect.arrayContaining(["--env", "OPENAI_API_KEY=sk-live-xxx"]));
+  });
 });

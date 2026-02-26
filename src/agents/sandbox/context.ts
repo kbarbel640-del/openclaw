@@ -5,7 +5,10 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { defaultRuntime } from "../../runtime.js";
 import { resolveUserPath } from "../../utils.js";
+import { listAgentIds, resolveAgentWorkspaceDir } from "../agent-scope.js";
 import { syncSkillsToWorkspace } from "../skills.js";
+import { resolveSkillDeclaredEnvKeys } from "../skills/env-overrides.js";
+import { loadWorkspaceSkillEntries } from "../skills/workspace.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "../workspace.js";
 import { ensureSandboxBrowser } from "./browser.js";
 import { resolveSandboxConfigForAgent } from "./config.js";
@@ -114,7 +117,7 @@ export async function resolveSandboxContext(params: {
   if (!resolved) {
     return null;
   }
-  const { rawSessionKey, cfg } = resolved;
+  const { rawSessionKey, runtime, cfg } = resolved;
 
   await maybePruneSandboxes(cfg);
 
@@ -131,11 +134,55 @@ export async function resolveSandboxContext(params: {
   });
   const resolvedCfg = docker === cfg.docker ? cfg : { ...cfg, docker };
 
+  // Collect env var names declared by active skills so the sandbox sanitizer can allow them through.
+  // For shared scope, build a union across all agents so hash/allowlist is stable.
+  let skillAllowedEnvKeys: Set<string> | undefined;
+  try {
+    let agentIds = [runtime.agentId];
+    if (cfg.scope === "shared" && params.config) {
+      // Only include agents that also use shared sandbox scope and have sandboxing enabled.
+      const candidates = [...new Set([...listAgentIds(params.config), runtime.agentId])];
+      agentIds = candidates.filter((id) => {
+        const agentSandbox = resolveSandboxConfigForAgent(params.config, id);
+        return agentSandbox.scope === "shared" && agentSandbox.mode !== "off";
+      });
+    }
+    const merged = new Set<string>();
+    for (const agentId of agentIds) {
+      // Use the active workspace for the current agent (honours explicit overrides),
+      // and resolve from config for other agents in shared scope.
+      const wsDir =
+        agentId === runtime.agentId
+          ? agentWorkspaceDir
+          : params.config
+            ? resolveAgentWorkspaceDir(params.config, agentId)
+            : agentWorkspaceDir;
+      // Load raw skill entries WITHOUT eligibility filtering to avoid a bootstrap
+      // deadlock: eligibility checks `requires.env` against the host environment,
+      // but the env var may only exist in sandbox.docker.env. Using unfiltered
+      // entries ensures declared keys reach the allowlist regardless.
+      const entries = loadWorkspaceSkillEntries(wsDir, { config: params.config });
+      const declaredKeys = resolveSkillDeclaredEnvKeys(
+        entries.map((e) => ({
+          primaryEnv: e.metadata?.primaryEnv,
+          requiredEnv: e.metadata?.requires?.env?.slice(),
+        })),
+      );
+      for (const key of declaredKeys) {
+        merged.add(key);
+      }
+    }
+    skillAllowedEnvKeys = merged.size > 0 ? merged : undefined;
+  } catch {
+    // Skill loading is best-effort; missing skills should not block sandbox creation.
+  }
+
   const containerName = await ensureSandboxContainer({
     sessionKey: rawSessionKey,
     workspaceDir,
     agentWorkspaceDir,
     cfg: resolvedCfg,
+    skillAllowedEnvKeys,
   });
 
   const evaluateEnabled =
