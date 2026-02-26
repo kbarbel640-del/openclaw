@@ -1155,7 +1155,7 @@ describeLive("gateway live (dev agent, profile keys)", () => {
           continue;
         }
         try {
-          // eslint-disable-next-line no-await-in-loop
+          // oxlint-disable-next-line no-await-in-loop
           const apiKeyInfo = await getApiKeyForModel({
             model,
             cfg,

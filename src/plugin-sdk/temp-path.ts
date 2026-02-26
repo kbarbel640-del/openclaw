@@ -40,6 +40,29 @@ function isNodeErrorWithCode(err: unknown, code: string): boolean {
   );
 }
 
+/**
+ * @description Builds a unique temporary file path using the pattern
+ * `<tmpDir>/<prefix>-<timestamp>-<uuid><extension>`. The prefix and extension
+ * are sanitized to remove characters that are unsafe in file names. This
+ * function does **not** create the file; it only returns a path string.
+ *
+ * @param params.prefix - Human-readable prefix for the file name (unsafe chars
+ *   are replaced with `-`).
+ * @param params.extension - Optional file extension including the leading dot
+ *   (e.g. `".jpg"`). Sanitized before use.
+ * @param params.tmpDir - Override the tmp directory; defaults to
+ *   `resolvePreferredOpenClawTmpDir()`.
+ * @param params.now - Override the timestamp component (ms since epoch);
+ *   defaults to `Date.now()`.
+ * @param params.uuid - Override the UUID component; defaults to a random UUID.
+ * @returns An absolute temporary file path string.
+ *
+ * @example
+ * ```ts
+ * const path = buildRandomTempFilePath({ prefix: "download", extension: ".mp4" });
+ * // "/tmp/openclaw/download-1700000000000-xxxxxxxx-xxxx-xxxx.mp4"
+ * ```
+ */
 export function buildRandomTempFilePath(params: {
   prefix: string;
   extension?: string;
@@ -58,6 +81,28 @@ export function buildRandomTempFilePath(params: {
   return path.join(resolveTempRoot(params.tmpDir), `${prefix}-${now}-${uuid}${extension}`);
 }
 
+/**
+ * @description Creates a uniquely named temporary directory, invokes `fn` with
+ * a path inside it, then removes the entire directory — even if `fn` throws.
+ * Useful for downloading a media file to a location the caller does not need
+ * to keep after processing.
+ *
+ * @param params.prefix - Prefix for the temp directory name.
+ * @param params.fileName - Desired base name for the file inside the temp dir
+ *   (unsafe chars sanitized). Defaults to `"download.bin"`.
+ * @param params.tmpDir - Override the tmp root directory.
+ * @param fn - Async callback invoked with the resolved temp file path.
+ * @returns The value resolved by `fn`.
+ * @throws Propagates any error thrown by `fn`.
+ *
+ * @example
+ * ```ts
+ * const result = await withTempDownloadPath({ prefix: "media", fileName: "photo.jpg" }, async (tmpPath) => {
+ *   await downloadFile(url, tmpPath);
+ *   return processImage(tmpPath);
+ * });
+ * ```
+ */
 export async function withTempDownloadPath<T>(
   params: {
     prefix: string;

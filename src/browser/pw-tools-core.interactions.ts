@@ -284,7 +284,7 @@ export async function evaluateViaPlaywright(opts: {
   try {
     if (opts.ref) {
       const locator = refLocator(page, opts.ref);
-      // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
+      // oxlint-disable-next-line typescript/no-implied-eval -- required for browser-context eval
       const elementEvaluator = new Function(
         "el",
         "args",
@@ -325,7 +325,7 @@ export async function evaluateViaPlaywright(opts: {
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
+    // oxlint-disable-next-line typescript/no-implied-eval -- required for browser-context eval
     const browserEvaluator = new Function(
       "args",
       `
