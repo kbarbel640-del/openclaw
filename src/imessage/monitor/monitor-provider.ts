@@ -44,13 +44,13 @@ import { probeIMessage } from "../probe.js";
 import { sendMessageIMessage } from "../send.js";
 import { attachIMessageMonitorAbortHandler } from "./abort-handler.js";
 import { deliverReplies } from "./deliver.js";
-import { createSentMessageCache } from "./echo-cache.js";
 import {
   buildIMessageInboundContext,
   resolveIMessageInboundDecision,
 } from "./inbound-processing.js";
 import { parseIMessageNotification } from "./parse-notification.js";
 import { normalizeAllowList, resolveRuntime } from "./runtime.js";
+import { SentMessageCache } from "./sent-message-cache.js";
 import type { IMessagePayload, MonitorIMessageOpts } from "./types.js";
 
 /**
@@ -96,7 +96,7 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       DEFAULT_GROUP_HISTORY_LIMIT,
   );
   const groupHistories = new Map<string, HistoryEntry[]>();
-  const sentMessageCache = createSentMessageCache();
+  const sentMessageCache = new SentMessageCache();
   const textLimit = resolveTextChunkLimit(cfg, "imessage", accountInfo.accountId);
   const allowFrom = normalizeAllowList(opts.allowFrom ?? imessageCfg.allowFrom);
   const groupAllowFrom = normalizeAllowList(
