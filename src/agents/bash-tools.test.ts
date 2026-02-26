@@ -532,13 +532,17 @@ describe("exec PATH handling", () => {
 
     const text = readNormalizedTextContent(result.content);
     const entries = text.split(path.delimiter);
-    let cursor = -1;
-    for (const entry of prepend) {
-      const idx = entries.indexOf(entry, cursor + 1);
-      expect(idx).toBeGreaterThan(cursor);
-      cursor = idx;
+    const prependIndexes = prepend.map((entry) => entries.indexOf(entry));
+    for (const index of prependIndexes) {
+      expect(index).toBeGreaterThanOrEqual(0);
     }
-    expect(cursor).toBeLessThan(entries.indexOf(basePath));
-    expect(entries).toContain(basePath);
+    for (let i = 1; i < prependIndexes.length; i += 1) {
+      expect(prependIndexes[i]).toBeGreaterThan(prependIndexes[i - 1]);
+    }
+    const baseIndex = entries.indexOf(basePath);
+    expect(baseIndex).toBeGreaterThanOrEqual(0);
+    for (const index of prependIndexes) {
+      expect(index).toBeLessThan(baseIndex);
+    }
   });
 });
