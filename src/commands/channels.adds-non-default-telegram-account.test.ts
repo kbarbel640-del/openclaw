@@ -125,6 +125,37 @@ describe("channels command", () => {
     expect(next.channels?.telegram?.accounts?.alerts?.botToken).toBe("alerts-token");
   });
 
+  it("seeds accounts.default for env-only single-account telegram config when adding non-default", async () => {
+    configMocks.readConfigFileSnapshot.mockResolvedValue({
+      ...baseConfigSnapshot,
+      config: {
+        channels: {
+          telegram: {
+            enabled: true,
+          },
+        },
+      },
+    });
+
+    await channelsAddCommand(
+      { channel: "telegram", account: "alerts", token: "alerts-token" },
+      runtime,
+      { hasFlags: true },
+    );
+
+    const next = configMocks.writeConfigFile.mock.calls[0]?.[0] as {
+      channels?: {
+        telegram?: {
+          enabled?: boolean;
+          accounts?: Record<string, { botToken?: string }>;
+        };
+      };
+    };
+    expect(next.channels?.telegram?.enabled).toBe(true);
+    expect(next.channels?.telegram?.accounts?.default).toEqual({});
+    expect(next.channels?.telegram?.accounts?.alerts?.botToken).toBe("alerts-token");
+  });
+
   it("adds a default slack account with tokens", async () => {
     configMocks.readConfigFileSnapshot.mockResolvedValue({ ...baseConfigSnapshot });
     await channelsAddCommand(

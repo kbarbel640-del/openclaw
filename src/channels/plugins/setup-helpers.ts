@@ -207,10 +207,6 @@ export function moveSingleAccountChannelSectionToDefaultAccount(params: {
         shouldMoveSingleAccountChannelKey({ channelKey: params.channelKey, key }),
     )
     .map(([key]) => key);
-  if (keysToMove.length === 0) {
-    return params.cfg;
-  }
-
   const defaultAccount: Record<string, unknown> = {};
   for (const key of keysToMove) {
     const value = base[key];
