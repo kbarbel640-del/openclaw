@@ -25,22 +25,23 @@ describe("Plimsoll Firewall", () => {
       }
     });
 
-    it("emits friction on repeated identical call", () => {
+    it("emits friction one call before the block threshold", () => {
       const session = freshSession();
       const params = { to: "0xabc", amount: 100 };
-      evaluate(session, "swap", params, DEFAULT_CONFIG); // 1st
-      const v2 = evaluate(session, "swap", params, DEFAULT_CONFIG); // 2nd
-      expect(v2.friction).toBe(true);
-      expect(v2.code).toBe("FRICTION_LOOP_WARNING");
+      evaluate(session, "swap", params, DEFAULT_CONFIG); // 1st — dupeCount=0 → ALLOW
+      evaluate(session, "swap", params, DEFAULT_CONFIG); // 2nd — dupeCount=1 → ALLOW
+      const v3 = evaluate(session, "swap", params, DEFAULT_CONFIG); // 3rd — dupeCount=2 → FRICTION
+      expect(v3.friction).toBe(true);
+      expect(v3.code).toBe("FRICTION_LOOP_WARNING");
     });
 
-    it("blocks on 3+ identical calls", () => {
+    it("blocks when dupes reach the threshold", () => {
       const session = freshSession();
       const params = { to: "0xabc", amount: 100 };
       evaluate(session, "swap", params, DEFAULT_CONFIG); // 1
       evaluate(session, "swap", params, DEFAULT_CONFIG); // 2
       evaluate(session, "swap", params, DEFAULT_CONFIG); // 3
-      const v4 = evaluate(session, "swap", params, DEFAULT_CONFIG); // 4
+      const v4 = evaluate(session, "swap", params, DEFAULT_CONFIG); // 4 — dupeCount=3 → BLOCK
       expect(v4.blocked).toBe(true);
       expect(v4.code).toBe("BLOCK_LOOP_DETECTED");
     });
