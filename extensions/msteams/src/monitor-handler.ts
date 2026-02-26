@@ -143,12 +143,17 @@ export function registerMSTeamsHandlers<T extends MSTeamsActivityHandler>(
       const ctx = context as MSTeamsTurnContext;
       // Handle file consent invokes before passing to normal flow
       if (ctx.activity?.type === "invoke" && ctx.activity?.name === "fileConsent/invoke") {
-        const handled = await handleFileConsentInvoke(ctx, deps.log);
-        if (handled) {
-          // Send invoke response for file consent
-          await ctx.sendActivity({ type: "invokeResponse", value: { status: 200 } });
-          return;
-        }
+        // Acknowledge the invoke IMMEDIATELY to prevent Teams
+        // "Something went wrong" timeout while uploading the file.
+        // See: https://github.com/openclaw/openclaw/issues/27632
+        await ctx.sendActivity({ type: "invokeResponse", value: { status: 200 } });
+        // Handle the upload asynchronously after acknowledging
+        handleFileConsentInvoke(ctx, deps.log).catch((err) => {
+          deps.log.debug?.("file consent handler error after invoke ack", {
+            error: String(err),
+          });
+        });
+        return;
       }
       return originalRun.call(handler, context);
     };
