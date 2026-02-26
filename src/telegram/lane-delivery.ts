@@ -161,6 +161,17 @@ export function createLaneTextDeliverer(params: CreateLaneTextDelivererParams) {
       params.markDelivered();
       return true;
     } catch (err) {
+      // When stopBeforeEdit flushed the stream (which already sent the text
+      // as a visible message), an edit failure ("message is not modified" or
+      // similar) must NOT cause a fallback send — the content is already
+      // delivered. Treat it as successful to prevent duplicate messages.
+      if (stopBeforeEdit && !hadPreviewMessage && context === "final") {
+        params.log(
+          `telegram: ${laneName} preview ${context} edit failed after stream flush; treating as delivered (${String(err)})`,
+        );
+        params.markDelivered();
+        return true;
+      }
       params.log(
         `telegram: ${laneName} preview ${context} edit failed; falling back to standard send (${String(err)})`,
       );
