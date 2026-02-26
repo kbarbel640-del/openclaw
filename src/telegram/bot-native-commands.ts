@@ -269,23 +269,7 @@ async function resolveTelegramCommandAuth(params: {
   });
   const isChannel = msg.chat.type === "channel";
   const channelPolicy = resolveGroupPolicy(chatId);
-  const channelSenderAllowed = isSenderAllowed({
-    allow: effectiveGroupAllow,
-    senderId,
-    senderUsername,
-  });
-  // Channel command auth must be explicit: sender allowlist (`groupAllowFrom`)
-  // and/or an explicit channel allowlist entry via group policy.
-  const channelAuthorized = resolveCommandAuthorizedFromAuthorizers({
-    useAccessGroups: true,
-    authorizers: [
-      { configured: effectiveGroupAllow.hasEntries, allowed: channelSenderAllowed },
-      {
-        configured: channelPolicy.allowlistEnabled,
-        allowed: channelPolicy.allowed,
-      },
-    ],
-  });
+  const channelAuthorized = channelPolicy.allowlistEnabled && channelPolicy.allowed;
   const commandAuthorized = isChannel
     ? !requireAuth || channelAuthorized
     : resolveCommandAuthorizedFromAuthorizers({
