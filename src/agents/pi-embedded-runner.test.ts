@@ -60,17 +60,34 @@ vi.mock("@mariozechner/pi-ai", async () => {
       if (model.id === "mock-error") {
         return buildAssistantErrorMessage(model);
       }
+      if (model.id === "mock-throw") {
+        throw new Error("Provider openai is in cooldown (all profiles unavailable) (rate_limit)");
+      }
       return buildAssistantMessage(model);
     },
     completeSimple: async (model: { api: string; provider: string; id: string }) => {
       if (model.id === "mock-error") {
         return buildAssistantErrorMessage(model);
       }
+      if (model.id === "mock-throw") {
+        throw new Error("Provider openai is in cooldown (all profiles unavailable) (rate_limit)");
+      }
       return buildAssistantMessage(model);
     },
     streamSimple: (model: { api: string; provider: string; id: string }) => {
       const stream = actual.createAssistantMessageEventStream();
       queueMicrotask(() => {
+        if (model.id === "mock-throw") {
+          const streamWithError = stream as unknown as {
+            error?: (err: Error) => void;
+            end: () => void;
+          };
+          streamWithError.error?.(
+            new Error("Provider openai is in cooldown (all profiles unavailable) (rate_limit)"),
+          );
+          streamWithError.end();
+          return;
+        }
         stream.push({
           type: "done",
           reason: "stop",
@@ -288,6 +305,55 @@ describe("runEmbeddedPiAgent", () => {
       expect(newAssistantIndex).toBeGreaterThan(newUserIndex);
     },
   );
+
+  it("persists failed-turn user message when provider errors before assistant reply", async () => {
+    const sessionFile = nextSessionFile();
+    const cfg = makeOpenAiConfig(["mock-throw", "mock-1"]);
+    const sessionKey = nextSessionKey();
+
+    const failed = await runEmbeddedPiAgent({
+      sessionId: "session:test",
+      sessionKey,
+      sessionFile,
+      workspaceDir,
+      config: cfg,
+      prompt: "first turn should persist",
+      provider: "openai",
+      model: "mock-throw",
+      timeoutMs: 5_000,
+      agentDir,
+      runId: nextRunId("prompt-throw"),
+      enqueue: immediateEnqueue,
+    });
+    expect(failed.payloads?.[0]?.isError).toBe(true);
+
+    await runEmbeddedPiAgent({
+      sessionId: "session:test",
+      sessionKey,
+      sessionFile,
+      workspaceDir,
+      config: cfg,
+      prompt: "follow-up",
+      provider: "openai",
+      model: "mock-1",
+      timeoutMs: 5_000,
+      agentDir,
+      runId: nextRunId("after-prompt-throw"),
+      enqueue: immediateEnqueue,
+    });
+
+    const messages = await readSessionMessages(sessionFile);
+    const failedUserIndex = messages.findIndex(
+      (message) =>
+        message?.role === "user" &&
+        textFromContent(message.content) === "first turn should persist",
+    );
+    const followUpUserIndex = messages.findIndex(
+      (message) => message?.role === "user" && textFromContent(message.content) === "follow-up",
+    );
+    expect(failedUserIndex).toBeGreaterThanOrEqual(0);
+    expect(followUpUserIndex).toBeGreaterThan(failedUserIndex);
+  });
 
   it("repairs orphaned user messages and continues", async () => {
     const result = await runWithOrphanedSingleUserMessage("orphaned user", nextSessionKey());

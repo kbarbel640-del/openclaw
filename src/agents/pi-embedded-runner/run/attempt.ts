@@ -1256,6 +1256,7 @@ export async function runEmbeddedAttempt(
         sessionIdUsed = snapshotSelection.sessionIdUsed;
 
         if (promptError && promptErrorSource === "prompt") {
+          const promptErrorText = describeUnknownError(promptError);
           try {
             sessionManager.appendCustomEntry("openclaw:prompt-error", {
               timestamp: Date.now(),
@@ -1264,10 +1265,50 @@ export async function runEmbeddedAttempt(
               provider: params.provider,
               model: params.modelId,
               api: params.model.api,
-              error: describeUnknownError(promptError),
+              error: promptErrorText,
             });
           } catch (entryErr) {
             log.warn(`failed to persist prompt error entry: ${String(entryErr)}`);
+          }
+
+          // Keep the just-submitted user turn anchored in transcript history when
+          // a provider fails before emitting any assistant message (e.g. rate-limit
+          // or transport errors). Without this synthetic assistant error turn, a
+          // trailing user-only turn can be dropped as "orphaned" on the next run.
+          const lastSnapshotMessage = messagesSnapshot[messagesSnapshot.length - 1];
+          if (lastSnapshotMessage?.role === "user") {
+            const syntheticAssistantError: AgentMessage = {
+              role: "assistant",
+              content: [],
+              stopReason: "error",
+              errorMessage: promptErrorText,
+              api: params.model.api,
+              provider: params.provider,
+              model: params.modelId,
+              usage: {
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 0,
+                cost: {
+                  input: 0,
+                  output: 0,
+                  cacheRead: 0,
+                  cacheWrite: 0,
+                  total: 0,
+                },
+              },
+              timestamp: Date.now(),
+            };
+            try {
+              sessionManager.appendMessage(
+                syntheticAssistantError as Parameters<typeof sessionManager.appendMessage>[0],
+              );
+              messagesSnapshot.push(syntheticAssistantError);
+            } catch (appendErr) {
+              log.warn(`failed to persist synthetic prompt error message: ${String(appendErr)}`);
+            }
           }
         }
 
