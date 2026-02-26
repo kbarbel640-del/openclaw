@@ -150,6 +150,7 @@ async function uploadImageToDocx(
   blockId: string,
   imageBuffer: Buffer,
   fileName: string,
+  docToken?: string,
 ): Promise<string> {
   const res = await client.drive.media.uploadAll({
     data: {
@@ -159,6 +160,9 @@ async function uploadImageToDocx(
       size: imageBuffer.length,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK stream type
       file: Readable.from(imageBuffer) as any,
+      // Required for multi-region routing (e.g. JP cluster): tells the drive service
+      // which document the image block belongs to, enabling correct datacenter routing.
+      ...(docToken ? { extra: JSON.stringify({ drive_route_token: docToken }) } : {}),
     },
   });
 
@@ -199,7 +203,7 @@ async function processImages(
       const buffer = await downloadImage(url, maxBytes);
       const urlPath = new URL(url).pathname;
       const fileName = urlPath.split("/").pop() || `image_${i}.png`;
-      const fileToken = await uploadImageToDocx(client, blockId, buffer, fileName);
+      const fileToken = await uploadImageToDocx(client, blockId, buffer, fileName, docToken);
 
       await client.docx.documentBlock.patch({
         path: { document_id: docToken, block_id: blockId },
@@ -263,7 +267,8 @@ async function uploadImageAction(
   }
 
   // Step 2 (per Feishu FAQ): Upload image with parent_node = image block ID
-  const fileToken = await uploadImageToDocx(client, blockId, buffer, resolvedFileName);
+  // Pass docToken as drive_route_token for correct multi-region routing
+  const fileToken = await uploadImageToDocx(client, blockId, buffer, resolvedFileName, docToken);
 
   // Step 3 (per Feishu FAQ): Set image token on the block
   const patchRes = await client.docx.documentBlock.patch({
