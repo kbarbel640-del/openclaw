@@ -31,11 +31,20 @@ const MAX_TIMER_DELAY_MS = 60_000;
 const MIN_REFIRE_GAP_MS = 2_000;
 
 /**
- * Maximum wall-clock time for a single job execution. Acts as a safety net
- * on top of the per-provider / per-agent timeouts to prevent one stuck job
- * from wedging the entire cron lane.
+ * Maximum wall-clock time for a single non-agent job execution.
+ * Acts as a safety net for systemEvent and other payloads that lack their
+ * own timeout mechanism.
  */
 export const DEFAULT_JOB_TIMEOUT_MS = 10 * 60_000; // 10 minutes
+
+/**
+ * Safety-net wall-clock cap for agentTurn jobs. The agent runner enforces
+ * its own configured timeout (agents.defaults.timeoutSeconds), but that
+ * timer only starts after session setup completes. This outer cap catches
+ * hangs during setup (file locks, sandbox resolution) without racing against
+ * the configured agent timeout for normal execution.
+ */
+const AGENT_TURN_SAFETY_TIMEOUT_MS = 60 * 60_000; // 60 minutes
 
 type TimedCronRunOutcome = CronRunOutcome &
   CronRunTelemetry & {
@@ -52,7 +61,11 @@ function resolveCronJobTimeoutMs(job: CronJob): number | undefined {
       ? Math.floor(job.payload.timeoutSeconds * 1_000)
       : undefined;
   if (configuredTimeoutMs === undefined) {
-    return DEFAULT_JOB_TIMEOUT_MS;
+    // agentTurn jobs have their own timeout via resolveAgentTimeoutMs which
+    // reads agents.defaults.timeoutSeconds. That timer only starts after
+    // session setup, so we still need an outer cap for setup hangs — but it
+    // must be high enough not to race against the configured agent timeout.
+    return job.payload.kind === "agentTurn" ? AGENT_TURN_SAFETY_TIMEOUT_MS : DEFAULT_JOB_TIMEOUT_MS;
   }
   return configuredTimeoutMs <= 0 ? undefined : configuredTimeoutMs;
 }
