@@ -1,0 +1,161 @@
+{
+  "$schema": "https://open-claw.bot/schemas/openclaw-discord.json",
+  "_comment": [
+    "Reference Discord configuration for Brock's server.",
+    "Merge into your openclaw.json under 'channels.discord'.",
+    "",
+    "What this configures (openclaw concerns):",
+    "  - Bot connection, guild/channel allowlisting, DM policy, mention gating",
+    "  - Thread reply behavior, chunk limits, streaming, rate limiting",
+    "  - Per-channel user/role authorization",
+    "",
+    "What this does NOT configure (lobsterBucket concerns):",
+    "  - Which content routes to which channel (governance)",
+    "  - Command definitions and skill/runbook mappings (operational playbook)",
+    "  - Message format templates (Brock's voice)",
+    "  - Cost/usage policy for model tier selection per command",
+    "",
+    "Required env vars: see SETUP.md 'Discord' section."
+  ],
+
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "${DISCORD_BOT_TOKEN}",
+
+      "dmPolicy": "disabled",
+      "allowBots": false,
+      "groupPolicy": "allowlist",
+
+      "replyToMode": "all",
+      "textChunkLimit": 1800,
+      "streaming": "partial",
+      "maxLinesPerMessage": 25,
+
+      "commands": {
+        "native": false,
+        "nativeSkills": false
+      },
+
+      "actions": {
+        "reactions": true,
+        "threads": true,
+        "messages": true,
+        "pins": false,
+        "search": true,
+        "memberInfo": true,
+        "roleInfo": true,
+        "roles": false,
+        "channelInfo": true,
+        "moderation": false,
+        "emojiUploads": false,
+        "stickerUploads": false,
+        "channels": false,
+        "presence": true,
+        "events": false,
+        "voiceStatus": false,
+        "stickers": false,
+        "polls": false,
+        "permissions": false
+      },
+
+      "_status_note": "Brock can change his own status/activity at runtime via presence tools (actions.presence is true). The values below are just the initial boot state. SOUL.md encourages him to express personality through status updates — let him be creative.",
+      "activity": "waking up...",
+      "activityType": 4,
+      "status": "online",
+
+      "guilds": {
+        "${DISCORD_GUILD_ID}": {
+          "slug": "brock-server",
+          "requireMention": false,
+          "roles": ["Operator", "Admin"],
+          "reactionNotifications": "own",
+
+          "channels": {
+            "brock-alerts": {
+              "allow": true,
+              "enabled": true,
+              "requireMention": false,
+              "roles": ["Operator", "Admin"],
+              "systemPrompt": "This is the alerts channel. Only post critical/urgent issues here: escalations, system failures, security alerts, exceptional job matches."
+            },
+            "brock-dev": {
+              "allow": true,
+              "enabled": true,
+              "requireMention": false,
+              "roles": ["Operator", "Admin"],
+              "systemPrompt": "This is the dev channel. Post development activity here: PRs opened, reviews, build/deploy status, config changes."
+            },
+            "brock-content": {
+              "allow": true,
+              "enabled": true,
+              "requireMention": false,
+              "roles": ["Operator", "Admin"],
+              "systemPrompt": "This is the content channel. Post content and research here: generated content, research summaries, backlog updates."
+            },
+            "brock-daily": {
+              "allow": true,
+              "enabled": true,
+              "requireMention": false,
+              "roles": ["Operator", "Admin"],
+              "systemPrompt": "This is the daily operations channel. Post operational cadence here: morning briefings, EOD summaries, weekly reports, metrics."
+            }
+          }
+        }
+      },
+
+      "dm": {
+        "enabled": false,
+        "policy": "disabled"
+      },
+
+      "execApprovals": {
+        "enabled": true,
+        "target": "channel",
+        "approvers": ["${DISCORD_AUTHORIZED_USERS}"]
+      },
+
+      "retry": {
+        "maxRetries": 3,
+        "retryDelayMs": 2000
+      },
+
+      "_lobsterBucket_handoff": {
+        "_comment": "These values came from lobsterBucket's Discord config handoff. They document governance constraints that lobsterBucket enforces at runtime — openclaw does not enforce these directly, but the config should stay compatible.",
+        "rate_limits": {
+          "max_commands_per_minute": 5,
+          "max_commands_per_hour": 30,
+          "outbound_per_channel_per_hour": 5,
+          "max_responses_per_command": 3
+        },
+        "command_registry": {
+          "_comment": "These commands are defined in lobsterBucket skills/runbooks. openclaw just needs to know they exist so the bot doesn't reject unknown message patterns.",
+          "trigger_prefix": "!brock",
+          "trigger_mention": true,
+          "commands": [
+            { "name": "status",   "model_tier": "bulk",      "cooldown_seconds": 30 },
+            { "name": "brief",    "model_tier": "bulk",      "cooldown_seconds": 300 },
+            { "name": "research", "model_tier": "reasoning", "cooldown_seconds": 60 },
+            { "name": "jobs",     "model_tier": "bulk",      "cooldown_seconds": 300 },
+            { "name": "task",     "model_tier": "bulk",      "cooldown_seconds": 10 },
+            { "name": "review",   "model_tier": "code",      "cooldown_seconds": 60 },
+            { "name": "help",     "model_tier": "bulk",      "cooldown_seconds": 10 }
+          ]
+        },
+        "behavior": {
+          "acknowledge_immediately": true,
+          "respond_in_thread": true,
+          "unknown_command_response": "I don't recognize that command. Try `!brock help` to see what I can do.",
+          "error_response": "Something went wrong processing that command. I've logged the error — check #brock-alerts for details."
+        },
+        "webhooks": {
+          "_comment": "Webhooks for outbound-only posting to channels. Set these env vars for lobsterBucket to use when posting scheduled/automated content.",
+          "alerts":  "${DISCORD_WEBHOOK_ALERTS}",
+          "dev":     "${DISCORD_WEBHOOK_DEV}",
+          "content": "${DISCORD_WEBHOOK_CONTENT}",
+          "daily":   "${DISCORD_WEBHOOK_DAILY}"
+        }
+      }
+    }
+  }
+}

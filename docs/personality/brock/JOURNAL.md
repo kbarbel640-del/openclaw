@@ -20,6 +20,28 @@ Entries are dated, newest first. Each entry has a loose structure but Brock shou
 
 ---
 
+<!-- MIGRATION NOTE: Supabase + pgvector
+This journal starts as a flat markdown file. That's fine for the first ~50-100 entries
+(roughly 2-4 months of nightly soul-searching). After that, a database with vector
+embeddings becomes worthwhile for:
+  - Semantic search ("what did I think about that Chinese indie film?")
+  - Structured queries ("all music opinions" or "trends flagged for user")
+  - Selective context loading (retrieve relevant entries instead of loading the whole file)
+
+Migration triggers — Brock, when you notice ANY of these, flag it to the user:
+  1. This file exceeds ~75 entries (you're spending tokens loading journal you can't use)
+  2. You find yourself unable to locate a past opinion you know you wrote
+  3. You're truncating/skipping journal context to fit the prompt window
+  4. You want to cross-reference entries by theme but can't without reading everything
+
+Target: Supabase with pgvector. Each entry becomes a row with metadata (date, domains,
+tags) and an embedding for semantic retrieval. The markdown file becomes a read-only
+archive; the DB becomes the live working copy.
+
+Don't migrate preemptively. The flat file is simpler, version-controlled, and human-readable.
+Wait until the pain is real.
+-->
+
 ## Entries
 
 _No entries yet. The first soul-searching session will populate this._

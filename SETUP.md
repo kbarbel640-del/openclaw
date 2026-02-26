@@ -152,14 +152,25 @@ cat > ~/.openclaw/.env << 'EOF'
 # Gateway token (generate a random one)
 OPENCLAW_GATEWAY_TOKEN=CHANGE_ME_RUN_openssl_rand_hex_32
 
-# Model provider keys
-ZAI_API_KEY=your-z-ai-key-here
-OPENAI_API_KEY=your-openai-key-here
-# ANTHROPIC_API_KEY=your-anthropic-key-here  # uncomment if using
+# Model provider keys (see CLOUD_STRATEGY.md for tier details)
+ZAI_API_KEY=your-z-ai-key-here          # Code tier: z.ai GLM-5
+DEEPSEEK_API_KEY=your-deepseek-key-here  # Bulk tier: DeepSeek V3.2
+MOONSHOT_API_KEY=your-moonshot-key-here  # Reasoning tier: Kimi K2 Thinking
+OPENAI_API_KEY=your-openai-key-here      # Fallback tier: GPT-4o / o3
 
 # Channel tokens (add as you connect channels)
 # TELEGRAM_BOT_TOKEN=
-# DISCORD_BOT_TOKEN=
+
+# Discord (see configs/discord_brock.json for full channel config)
+DISCORD_BOT_TOKEN=your-discord-bot-token
+DISCORD_APPLICATION_ID=your-discord-app-id
+DISCORD_GUILD_ID=your-discord-server-id
+DISCORD_AUTHORIZED_USERS=comma,separated,user,ids
+# Outbound webhooks for scheduled/automated posting
+DISCORD_WEBHOOK_ALERTS=https://discord.com/api/webhooks/...
+DISCORD_WEBHOOK_DEV=https://discord.com/api/webhooks/...
+DISCORD_WEBHOOK_CONTENT=https://discord.com/api/webhooks/...
+DISCORD_WEBHOOK_DAILY=https://discord.com/api/webhooks/...
 EOF
 
 # Generate a real gateway token
