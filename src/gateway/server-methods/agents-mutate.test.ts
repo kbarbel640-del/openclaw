@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 /* ------------------------------------------------------------------ */
@@ -515,19 +516,22 @@ describe("agents.files.get/set symlink safety", () => {
 
   it("rejects agents.files.get when allowlisted file symlink escapes workspace", async () => {
     const workspace = "/workspace/test-agent";
-    const candidate = `${workspace}/AGENTS.md`;
+    const workspaceReal = path.resolve(workspace);
+    const candidate = path.resolve(workspaceReal, "AGENTS.md");
+    const outside = path.resolve("/outside/secret.txt");
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      if (p === workspace) {
-        return workspace;
+      const resolved = path.resolve(p);
+      if (resolved === workspaceReal) {
+        return workspaceReal;
       }
-      if (p === candidate) {
-        return "/outside/secret.txt";
+      if (resolved === candidate) {
+        return outside;
       }
-      return p;
+      return resolved;
     });
     mocks.fsLstat.mockImplementation(async (...args: unknown[]) => {
       const p = typeof args[0] === "string" ? args[0] : "";
-      if (p === candidate) {
+      if (path.resolve(p) === candidate) {
         return makeSymlinkStat();
       }
       throw createEnoentError();
@@ -548,19 +552,22 @@ describe("agents.files.get/set symlink safety", () => {
 
   it("rejects agents.files.set when allowlisted file symlink escapes workspace", async () => {
     const workspace = "/workspace/test-agent";
-    const candidate = `${workspace}/AGENTS.md`;
+    const workspaceReal = path.resolve(workspace);
+    const candidate = path.resolve(workspaceReal, "AGENTS.md");
+    const outside = path.resolve("/outside/secret.txt");
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      if (p === workspace) {
-        return workspace;
+      const resolved = path.resolve(p);
+      if (resolved === workspaceReal) {
+        return workspaceReal;
       }
-      if (p === candidate) {
-        return "/outside/secret.txt";
+      if (resolved === candidate) {
+        return outside;
       }
-      return p;
+      return resolved;
     });
     mocks.fsLstat.mockImplementation(async (...args: unknown[]) => {
       const p = typeof args[0] === "string" ? args[0] : "";
-      if (p === candidate) {
+      if (path.resolve(p) === candidate) {
         return makeSymlinkStat();
       }
       throw createEnoentError();
@@ -583,32 +590,34 @@ describe("agents.files.get/set symlink safety", () => {
 
   it("allows in-workspace symlink targets for get/set", async () => {
     const workspace = "/workspace/test-agent";
-    const candidate = `${workspace}/AGENTS.md`;
-    const target = `${workspace}/policies/AGENTS.md`;
+    const workspaceReal = path.resolve(workspace);
+    const candidate = path.resolve(workspaceReal, "AGENTS.md");
+    const target = path.resolve(workspaceReal, "policies", "AGENTS.md");
     const targetStat = makeFileStat({ size: 7, mtimeMs: 1700, dev: 9, ino: 42 });
 
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      if (p === workspace) {
-        return workspace;
+      const resolved = path.resolve(p);
+      if (resolved === workspaceReal) {
+        return workspaceReal;
       }
-      if (p === candidate) {
+      if (resolved === candidate) {
         return target;
       }
-      return p;
+      return resolved;
     });
     mocks.fsLstat.mockImplementation(async (...args: unknown[]) => {
       const p = typeof args[0] === "string" ? args[0] : "";
-      if (p === candidate) {
+      if (path.resolve(p) === candidate) {
         return makeSymlinkStat({ dev: 9, ino: 41 });
       }
-      if (p === target) {
+      if (path.resolve(p) === target) {
         return targetStat;
       }
       throw createEnoentError();
     });
     mocks.fsStat.mockImplementation(async (...args: unknown[]) => {
       const p = typeof args[0] === "string" ? args[0] : "";
-      if (p === target) {
+      if (path.resolve(p) === target) {
         return targetStat;
       }
       throw createEnoentError();
