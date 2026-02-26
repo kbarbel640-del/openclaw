@@ -1,5 +1,5 @@
-import os from "node:os";
 import { execSync } from "node:child_process";
+import os from "node:os";
 import { isIpInCidr } from "../shared/net/ip.js";
 
 export type TailnetAddresses = {
@@ -16,7 +16,7 @@ const TAILNET_IPV6_CIDR = "fd7a:115c:a1e0::/48";
 export function isTailnetIPv4(address: string): boolean {
   // Check official range first
   if (isIpInCidr(address, TAILNET_IPV4_CIDR)) return true;
-  
+
   // Check for custom range override via env
   const customCidr = process.env.OPENCLAW_TAILNET_IPV4_CIDR;
   if (customCidr && isIpInCidr(address, customCidr)) return true;
@@ -46,7 +46,9 @@ function findTailscaleBin(): string | undefined {
     try {
       // Use command -v for shell lookup if it's just a name
       const cmd = p.startsWith("/") ? p : `command -v ${p}`;
-      const resolved = execSync(cmd, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+      const resolved = execSync(cmd, { stdio: ["ignore", "pipe", "ignore"] })
+        .toString()
+        .trim();
       if (resolved) return resolved;
     } catch {
       continue;
@@ -112,7 +114,7 @@ export function listTailnetAddresses(): TailnetAddresses {
       if (!e || e.internal) continue;
       const address = e.address?.trim();
       if (!address) continue;
-      
+
       if (isTailnetIPv4(address)) ipv4.push(address);
       if (isTailnetIPv6(address)) ipv6.push(address);
     }
