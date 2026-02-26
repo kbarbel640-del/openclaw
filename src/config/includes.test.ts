@@ -619,7 +619,9 @@ describe("security: path traversal protection (CWE-22)", () => {
       expect(resolve(obj, files, rootConfigPath)).toEqual({ root: true });
     });
 
-    it("allows include files when the config root path is a symlink", async () => {
+    it.runIf(process.platform !== "win32")(
+      "allows include files when the config root path is a symlink",
+      async () => {
       const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-includes-symlink-"));
       try {
         const realRoot = path.join(tempRoot, "real");
@@ -640,7 +642,8 @@ describe("security: path traversal protection (CWE-22)", () => {
       } finally {
         await fs.rm(tempRoot, { recursive: true, force: true });
       }
-    });
+      },
+    );
 
     it("rejects include files that are hardlinked aliases", async () => {
       if (process.platform === "win32") {
