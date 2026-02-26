@@ -199,9 +199,7 @@ export async function resolveApiKeyForProvider(params: {
       // like MiniMax, Kimi, etc. where silent failures lead to confusing
       // "No API key found" errors despite profiles being configured.
       const message = err instanceof Error ? err.message : String(err);
-      log.warn(
-        `Profile "${candidate}" for provider "${provider}" failed to resolve: ${message}`,
-      );
+      log.warn(`Profile "${candidate}" for provider "${provider}" failed to resolve: ${message}`);
     }
   }
 

@@ -1,7 +1,7 @@
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import fs from "node:fs/promises";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 describe("resolveApiKeyForProvider logs profile errors", () => {
   it("logs a warning when a profile throws during resolution", async () => {
