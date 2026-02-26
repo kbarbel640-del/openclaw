@@ -66,12 +66,45 @@ export function normalizeToolParameters(
   tool: AnyAgentTool,
   options?: { modelProvider?: string },
 ): AnyAgentTool {
-  const schema =
+  let schema: Record<string, unknown> | undefined =
     tool.parameters && typeof tool.parameters === "object"
       ? (tool.parameters as Record<string, unknown>)
       : undefined;
   if (!schema) {
     return tool;
+  }
+
+  // Convert array-format parameters to JSON Schema
+  if (Array.isArray(schema)) {
+    const properties: Record<string, unknown> = {};
+    const required: string[] = [];
+    for (const param of schema as {
+      name?: string;
+      type?: string;
+      description?: string;
+      enum?: unknown;
+      required?: boolean;
+    }[]) {
+      if (!param || !param.name) {
+        continue;
+      }
+      const prop: Record<string, unknown> = { type: param.type || "string" };
+      if (param.description) {
+        prop.description = param.description;
+      }
+      if (param.enum) {
+        prop.enum = param.enum;
+      }
+      properties[param.name] = prop;
+      if (param.required) {
+        required.push(param.name);
+      }
+    }
+    schema = { type: "object", properties };
+    if (required.length > 0) {
+      schema.required = required;
+    }
+    tool = { ...tool, parameters: schema };
   }
 
   // Provider quirks:
