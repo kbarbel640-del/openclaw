@@ -63,6 +63,7 @@ export async function deliverReplies(params: {
   /** Optional quote text for Telegram reply_parameters. */
   replyQuoteText?: string;
   sessionKey?: string;
+  accountId?: string;
 }): Promise<{ delivered: boolean }> {
   const {
     replies,
@@ -106,6 +107,7 @@ export async function deliverReplies(params: {
     to: chatId,
     channelId: "telegram" as const,
     sessionKey: params.sessionKey,
+    accountId: params.accountId,
   };
   for (const reply of replies) {
     const hasMedia = Boolean(reply?.mediaUrl) || (reply?.mediaUrls?.length ?? 0) > 0;
@@ -213,29 +215,59 @@ export async function deliverReplies(params: {
       };
       const mediaContent = caption || mediaUrl;
       if (isGif) {
-        await withTelegramApiErrorLogging({
-          operation: "sendAnimation",
-          runtime,
-          fn: () => bot.api.sendAnimation(chatId, file, { ...mediaParams }),
-        });
-        markDelivered();
-        emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+        try {
+          await withTelegramApiErrorLogging({
+            operation: "sendAnimation",
+            runtime,
+            fn: () => bot.api.sendAnimation(chatId, file, { ...mediaParams }),
+          });
+          markDelivered();
+          emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+        } catch (err) {
+          emitMessageSentHook({
+            ...hookBase,
+            content: mediaContent,
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          throw err;
+        }
       } else if (kind === "image") {
-        await withTelegramApiErrorLogging({
-          operation: "sendPhoto",
-          runtime,
-          fn: () => bot.api.sendPhoto(chatId, file, { ...mediaParams }),
-        });
-        markDelivered();
-        emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+        try {
+          await withTelegramApiErrorLogging({
+            operation: "sendPhoto",
+            runtime,
+            fn: () => bot.api.sendPhoto(chatId, file, { ...mediaParams }),
+          });
+          markDelivered();
+          emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+        } catch (err) {
+          emitMessageSentHook({
+            ...hookBase,
+            content: mediaContent,
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          throw err;
+        }
       } else if (kind === "video") {
-        await withTelegramApiErrorLogging({
-          operation: "sendVideo",
-          runtime,
-          fn: () => bot.api.sendVideo(chatId, file, { ...mediaParams }),
-        });
-        markDelivered();
-        emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+        try {
+          await withTelegramApiErrorLogging({
+            operation: "sendVideo",
+            runtime,
+            fn: () => bot.api.sendVideo(chatId, file, { ...mediaParams }),
+          });
+          markDelivered();
+          emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+        } catch (err) {
+          emitMessageSentHook({
+            ...hookBase,
+            content: mediaContent,
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          throw err;
+        }
       } else if (kind === "audio") {
         const { useVoice } = resolveTelegramVoiceSend({
           wantsVoice: reply.audioAsVoice === true, // default false (backward compatible)
@@ -263,6 +295,12 @@ export async function deliverReplies(params: {
             if (isVoiceMessagesForbidden(voiceErr)) {
               const fallbackText = reply.text;
               if (!fallbackText || !fallbackText.trim()) {
+                emitMessageSentHook({
+                  ...hookBase,
+                  content: mediaContent,
+                  success: false,
+                  error: voiceErr instanceof Error ? voiceErr.message : String(voiceErr),
+                });
                 throw voiceErr;
               }
               logVerbose(
@@ -288,26 +326,52 @@ export async function deliverReplies(params: {
               // Skip this media item; continue with next.
               continue;
             }
+            emitMessageSentHook({
+              ...hookBase,
+              content: mediaContent,
+              success: false,
+              error: voiceErr instanceof Error ? voiceErr.message : String(voiceErr),
+            });
             throw voiceErr;
           }
         } else {
           // Audio file - displays with metadata (title, duration) - DEFAULT
+          try {
+            await withTelegramApiErrorLogging({
+              operation: "sendAudio",
+              runtime,
+              fn: () => bot.api.sendAudio(chatId, file, { ...mediaParams }),
+            });
+            markDelivered();
+            emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+          } catch (err) {
+            emitMessageSentHook({
+              ...hookBase,
+              content: mediaContent,
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
+            });
+            throw err;
+          }
+        }
+      } else {
+        try {
           await withTelegramApiErrorLogging({
-            operation: "sendAudio",
+            operation: "sendDocument",
             runtime,
-            fn: () => bot.api.sendAudio(chatId, file, { ...mediaParams }),
+            fn: () => bot.api.sendDocument(chatId, file, { ...mediaParams }),
           });
           markDelivered();
           emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+        } catch (err) {
+          emitMessageSentHook({
+            ...hookBase,
+            content: mediaContent,
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          throw err;
         }
-      } else {
-        await withTelegramApiErrorLogging({
-          operation: "sendDocument",
-          runtime,
-          fn: () => bot.api.sendDocument(chatId, file, { ...mediaParams }),
-        });
-        markDelivered();
-        emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
       }
       if (replyToId && !hasReplied) {
         hasReplied = true;
@@ -318,21 +382,31 @@ export async function deliverReplies(params: {
         const chunks = chunkText(pendingFollowUpText);
         for (let i = 0; i < chunks.length; i += 1) {
           const chunk = chunks[i];
-          const followUpMsgId = await sendTelegramText(bot, chatId, chunk.html, runtime, {
-            replyToMessageId: replyToMessageIdForPayload,
-            thread,
-            textMode: "html",
-            plainText: chunk.text,
-            linkPreview,
-            replyMarkup: i === 0 ? replyMarkup : undefined,
-          });
-          markDelivered();
-          emitMessageSentHook({
-            ...hookBase,
-            content: chunk.text,
-            success: true,
-            messageId: String(followUpMsgId),
-          });
+          try {
+            const followUpMsgId = await sendTelegramText(bot, chatId, chunk.html, runtime, {
+              replyToMessageId: replyToMessageIdForPayload,
+              thread,
+              textMode: "html",
+              plainText: chunk.text,
+              linkPreview,
+              replyMarkup: i === 0 ? replyMarkup : undefined,
+            });
+            markDelivered();
+            emitMessageSentHook({
+              ...hookBase,
+              content: chunk.text,
+              success: true,
+              messageId: String(followUpMsgId),
+            });
+          } catch (err) {
+            emitMessageSentHook({
+              ...hookBase,
+              content: chunk.text,
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
+            });
+            throw err;
+          }
         }
         pendingFollowUpText = undefined;
       }

@@ -190,7 +190,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
       textLimit: ctx.textLimit,
       replyThreadTs,
       replyToMode: ctx.replyToMode,
-      sessionKey: route.mainSessionKey,
+      sessionKey: prepared.ctxPayload.SessionKey ?? route.mainSessionKey,
     });
     replyPlan.markSent();
   };
