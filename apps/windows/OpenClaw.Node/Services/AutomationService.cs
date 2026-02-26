@@ -336,38 +336,27 @@ namespace OpenClaw.Node.Services
                          return new UiFindResult { Reason = "root-element-null" };
                     }
 
-                    // Build Conditions
-                    var conditions = new List<Condition>();
-                    if (!string.IsNullOrWhiteSpace(name))
-                    {
-                        conditions.Add(new PropertyCondition(AutomationElement.NameProperty, name));
-                    }
-                    if (!string.IsNullOrWhiteSpace(automationId))
-                    {
-                        conditions.Add(new PropertyCondition(AutomationElement.AutomationIdProperty, automationId));
-                    }
+                    var normalizedName = string.IsNullOrWhiteSpace(name) ? null : name;
+                    var normalizedAutomationId = string.IsNullOrWhiteSpace(automationId) ? null : automationId;
+                    ControlType? expectedControlType = null;
                     if (!string.IsNullOrWhiteSpace(controlType))
                     {
-                         var ct = GetControlTypeByName(controlType);
-                         if (ct != null)
-                         {
-                             conditions.Add(new PropertyCondition(AutomationElement.ControlTypeProperty, ct));
-                         }
+                        expectedControlType = GetControlTypeByName(controlType);
                     }
 
-                    if (conditions.Count == 0) return new UiFindResult { Reason = "no-conditions" };
+                    if (normalizedName == null && normalizedAutomationId == null && expectedControlType == null)
+                    {
+                        return new UiFindResult { Reason = "no-conditions" };
+                    }
 
-                    Condition searchCondition = conditions.Count == 1 
-                        ? conditions[0] 
-                        : new AndCondition(conditions.ToArray());
-
-                    // Retry loop
+                    // Retry loop bounded by deadline. Avoid TreeScope.Descendants FindFirst because
+                    // it can block for a long time on some desktop trees.
                     var deadline = DateTime.UtcNow.AddMilliseconds(Math.Clamp(timeoutMs, 200, 10000));
                     AutomationElement? found = null;
 
                     while (DateTime.UtcNow < deadline)
                     {
-                        found = root.FindFirst(TreeScope.Descendants, searchCondition);
+                        found = FindFirstMatchingElement(root, normalizedName, normalizedAutomationId, expectedControlType, deadline);
                         if (found != null) break;
                         System.Threading.Thread.Sleep(100);
                     }
@@ -409,6 +398,84 @@ namespace OpenClaw.Node.Services
         }
 
 #if WINDOWS
+        private static AutomationElement? FindFirstMatchingElement(
+            AutomationElement root,
+            string? name,
+            string? automationId,
+            ControlType? controlType,
+            DateTime deadline)
+        {
+            var walker = TreeWalker.ControlViewWalker;
+            var queue = new Queue<AutomationElement>();
+            queue.Enqueue(root);
+
+            while (queue.Count > 0 && DateTime.UtcNow < deadline)
+            {
+                var current = queue.Dequeue();
+
+                if (MatchesSelector(current, name, automationId, controlType))
+                {
+                    return current;
+                }
+
+                AutomationElement? child = null;
+                try
+                {
+                    child = walker.GetFirstChild(current);
+                }
+                catch
+                {
+                    child = null;
+                }
+
+                while (child != null && DateTime.UtcNow < deadline)
+                {
+                    queue.Enqueue(child);
+                    try
+                    {
+                        child = walker.GetNextSibling(child);
+                    }
+                    catch
+                    {
+                        child = null;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static bool MatchesSelector(
+            AutomationElement element,
+            string? name,
+            string? automationId,
+            ControlType? controlType)
+        {
+            try
+            {
+                if (name != null && !string.Equals(element.Current.Name, name, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (automationId != null && !string.Equals(element.Current.AutomationId, automationId, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (controlType != null && !Equals(element.Current.ControlType, controlType))
+                {
+                    return false;
+                }
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static ControlType? GetControlTypeByName(string name)
         {
             var clean = name.Trim();
