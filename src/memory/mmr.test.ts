@@ -45,6 +45,22 @@ describe("tokenize", () => {
         input: "龙",
         expected: ["龙"],
       },
+      {
+        name: "non-adjacent CJK chars do not form bigrams",
+        input: "我a好",
+        expected: ["a", "我", "好"],
+        // No "我好" bigram — they are separated by "a"
+      },
+      {
+        name: "Japanese hiragana",
+        input: "こんにちは",
+        expected: ["こ", "ん", "に", "ち", "は", "こん", "んに", "にち", "ちは"],
+      },
+      {
+        name: "Korean hangul",
+        input: "안녕하세요",
+        expected: ["안", "녕", "하", "세", "요", "안녕", "녕하", "하세", "세요"],
+      },
     ] as const;
 
     for (const testCase of cases) {
