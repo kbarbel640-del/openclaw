@@ -8,6 +8,7 @@ import type { ConsoleStyle } from "./console.js";
 import { resolveEnvLogLevelOverride } from "./env-log-level.js";
 import { type LogLevel, levelToMinLevel, normalizeLogLevel } from "./levels.js";
 import { resolveNodeRequireFromMeta } from "./node-require.js";
+import { redactIdentifier } from "./redact-identifier.js";
 import { loggingState } from "./state.js";
 
 export const DEFAULT_LOG_DIR = resolvePreferredOpenClawTmpDir();
@@ -40,9 +41,11 @@ function formatFileLogLine(logObj: LogObj): string {
   const level = typeof meta?.logLevelName === "string" ? meta.logLevelName : "INFO";
   const levelLower = level.toLowerCase();
   let subsystem = "main";
+  let parsedName: Record<string, unknown> | undefined;
   if (typeof meta?.name === "string") {
     try {
       const parsed = JSON.parse(meta.name) as Record<string, unknown>;
+      parsedName = parsed;
       if (typeof parsed.subsystem === "string") {
         subsystem = parsed.subsystem;
       } else if (typeof parsed.module === "string") {
@@ -59,13 +62,33 @@ function formatFileLogLine(logObj: LogObj): string {
       continue;
     }
     const item = (logObj as Record<string, unknown>)[key];
-    const s = typeof item === "string" ? item : item != null ? JSON.stringify(item) : "";
+    let s: string;
+    if (typeof item === "string") {
+      s = item;
+    } else if (item != null && typeof item === "object" && !Array.isArray(item)) {
+      const obj = item as Record<string, unknown>;
+      const redacted = { ...obj };
+      if (typeof redacted.jid === "string") {
+        redacted.jid = redactIdentifier(redacted.jid);
+      }
+      if (typeof redacted.to === "string") {
+        redacted.to = redactIdentifier(redacted.to);
+      }
+      s = JSON.stringify(redacted);
+    } else if (item != null) {
+      s = JSON.stringify(item);
+    } else {
+      s = "";
+    }
     if (!s || s === nameStr) {
       continue;
     }
     parts.push(s);
   }
-  const message = parts.join(" ").trim();
+  let message = parts.join(" ").trim();
+  if (parsedName && typeof parsedName.to === "string") {
+    message = `${redactIdentifier(parsedName.to)} ${message}`;
+  }
   return `[${timeStr}] [${process.pid}] [${subsystem}] ${levelLower}: ${message}`;
 }
 
