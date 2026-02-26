@@ -131,9 +131,11 @@ async function captureToolErrorMessage(params: {
 
 describe("web_fetch extraction fallbacks", () => {
   const priorFetch = global.fetch;
+  const priorFirecrawlBaseUrl = process.env.FIRECRAWL_BASE_URL;
 
   beforeEach(() => {
     vi.spyOn(ssrf, "resolvePinnedHostname").mockImplementation(async (hostname) => {
+    delete process.env.FIRECRAWL_BASE_URL;
       const normalized = hostname.trim().toLowerCase().replace(/\.$/, "");
       const addresses = ["93.184.216.34", "93.184.216.35"];
       return {
@@ -146,6 +148,11 @@ describe("web_fetch extraction fallbacks", () => {
 
   afterEach(() => {
     global.fetch = priorFetch;
+    if (typeof priorFirecrawlBaseUrl === "string") {
+      process.env.FIRECRAWL_BASE_URL = priorFirecrawlBaseUrl;
+    } else {
+      delete process.env.FIRECRAWL_BASE_URL;
+    }
     vi.restoreAllMocks();
   });
 
@@ -308,6 +315,67 @@ describe("web_fetch extraction fallbacks", () => {
     const init = firecrawlCall?.[1];
     const authHeader = new Headers(init?.headers).get("Authorization");
     expect(authHeader).toBe("Bearer firecrawl-test-key");
+  });
+
+
+  it("uses FIRECRAWL_BASE_URL env var when firecrawl.baseUrl is unset", async () => {
+    process.env.FIRECRAWL_BASE_URL = "https://firecrawl-env.example";
+    const fetchSpy = installMockFetch((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.includes("firecrawl-env.example")) {
+        return Promise.resolve(
+          firecrawlResponse("firecrawl env fallback", url),
+        ) as Promise<Response>;
+      }
+      return Promise.resolve(
+        htmlResponse("<!doctype html><html><head></head><body></body></html>", url),
+      ) as Promise<Response>;
+    });
+
+    const tool = createFetchTool({
+      firecrawl: { apiKey: "firecrawl-test" },
+    });
+
+    const result = await tool?.execute?.("call", { url: "https://example.com/empty-env" });
+    const details = result?.details as { extractor?: string; text?: string };
+
+    expect(details.extractor).toBe("firecrawl");
+    expect(details.text).toContain("firecrawl env fallback");
+    expect(
+      fetchSpy.mock.calls.some(([input]) =>
+        requestUrl(input).startsWith("https://firecrawl-env.example/v2/scrape"),
+      ),
+    ).toBe(true);
+  });
+
+  it("falls back to DEFAULT_FIRECRAWL_BASE_URL when config and env are unset", async () => {
+    delete process.env.FIRECRAWL_BASE_URL;
+    const fetchSpy = installMockFetch((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.includes("api.firecrawl.dev")) {
+        return Promise.resolve(
+          firecrawlResponse("firecrawl default fallback", url),
+        ) as Promise<Response>;
+      }
+      return Promise.resolve(
+        htmlResponse("<!doctype html><html><head></head><body></body></html>", url),
+      ) as Promise<Response>;
+    });
+
+    const tool = createFetchTool({
+      firecrawl: { apiKey: "firecrawl-test" },
+    });
+
+    const result = await tool?.execute?.("call", { url: "https://example.com/empty-default" });
+    const details = result?.details as { extractor?: string; text?: string };
+
+    expect(details.extractor).toBe("firecrawl");
+    expect(details.text).toContain("firecrawl default fallback");
+    expect(
+      fetchSpy.mock.calls.some(([input]) =>
+        requestUrl(input).startsWith("https://api.firecrawl.dev/v2/scrape"),
+      ),
+    ).toBe(true);
   });
 
   it("throws when readability is disabled and firecrawl is unavailable", async () => {
