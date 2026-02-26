@@ -46,16 +46,18 @@ function resolveWithMocks(params: {
     return secureDirStat(uid);
   }) as NonNullable<TmpDirOptions["lstatSync"]>;
   const mkdirSync = vi.fn();
+  const chmodSync = vi.fn();
   const getuid = vi.fn(() => uid);
   const tmpdir = vi.fn(() => params.tmpdirPath ?? "/var/fallback");
   const resolved = resolvePreferredOpenClawTmpDir({
     accessSync,
     lstatSync: wrappedLstatSync,
     mkdirSync,
+    chmodSync,
     getuid,
     tmpdir,
   });
-  return { resolved, accessSync, lstatSync: wrappedLstatSync, mkdirSync, tmpdir };
+  return { resolved, accessSync, lstatSync: wrappedLstatSync, mkdirSync, chmodSync, tmpdir };
 }
 
 describe("resolvePreferredOpenClawTmpDir", () => {
@@ -82,13 +84,14 @@ describe("resolvePreferredOpenClawTmpDir", () => {
       })
       .mockImplementationOnce(() => secureDirStat(501));
 
-    const { resolved, accessSync, mkdirSync, tmpdir } = resolveWithMocks({
+    const { resolved, accessSync, mkdirSync, chmodSync, tmpdir } = resolveWithMocks({
       lstatSync: lstatSyncMock,
     });
 
     expect(resolved).toBe(POSIX_OPENCLAW_TMP_DIR);
     expect(accessSync).toHaveBeenCalledWith("/tmp", expect.any(Number));
     expect(mkdirSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, expect.any(Object));
+    expect(chmodSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, 0o700);
     expect(tmpdir).not.toHaveBeenCalled();
   });
 
@@ -200,12 +203,65 @@ describe("resolvePreferredOpenClawTmpDir", () => {
       })
       .mockImplementationOnce(() => secureDirStat(501));
 
-    const { resolved, mkdirSync } = resolveWithMocks({
+    const { resolved, mkdirSync, chmodSync } = resolveWithMocks({
       lstatSync,
       fallbackLstatSync,
     });
 
     expect(resolved).toBe(fallbackTmp());
     expect(mkdirSync).toHaveBeenCalledWith(fallbackTmp(), { recursive: true, mode: 0o700 });
+    expect(chmodSync).toHaveBeenCalledWith(fallbackTmp(), 0o700);
+  });
+
+  it("fixes up umask-widened permissions after creating /tmp/openclaw", () => {
+    let preferredMode = 0o40775;
+
+    const accessSync = vi.fn((target: string) => {
+      if (target === "/tmp") {
+        return;
+      }
+    });
+
+    const lstatSync = vi.fn((target: string) => {
+      if (target === POSIX_OPENCLAW_TMP_DIR) {
+        return {
+          isDirectory: () => true,
+          isSymbolicLink: () => false,
+          uid: 501,
+          mode: preferredMode,
+        };
+      }
+      throw nodeErrorWithCode("ENOENT");
+    });
+
+    // First lookup says missing, then after mkdir we report a too-permissive mode (umask 0002).
+    lstatSync
+      .mockImplementationOnce(() => {
+        throw nodeErrorWithCode("ENOENT");
+      })
+      .mockImplementation(() => ({
+        isDirectory: () => true,
+        isSymbolicLink: () => false,
+        uid: 501,
+        mode: preferredMode,
+      }));
+
+    const mkdirSync = vi.fn();
+    const chmodSync = vi.fn(() => {
+      preferredMode = 0o40700;
+    });
+
+    const resolved = resolvePreferredOpenClawTmpDir({
+      accessSync,
+      lstatSync: lstatSync as NonNullable<TmpDirOptions["lstatSync"]>,
+      mkdirSync,
+      chmodSync,
+      getuid: () => 501,
+      tmpdir: () => "/var/fallback",
+    });
+
+    expect(resolved).toBe(POSIX_OPENCLAW_TMP_DIR);
+    expect(mkdirSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, expect.any(Object));
+    expect(chmodSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, 0o700);
   });
 });

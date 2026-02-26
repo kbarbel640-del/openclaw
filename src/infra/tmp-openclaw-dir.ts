@@ -14,6 +14,7 @@ type ResolvePreferredOpenClawTmpDirOptions = {
     uid?: number;
   };
   mkdirSync?: (path: string, opts: { recursive: boolean; mode?: number }) => void;
+  chmodSync?: (path: string, mode: number) => void;
   getuid?: () => number | undefined;
   tmpdir?: () => string;
 };
@@ -35,6 +36,7 @@ export function resolvePreferredOpenClawTmpDir(
   const accessSync = options.accessSync ?? fs.accessSync;
   const lstatSync = options.lstatSync ?? fs.lstatSync;
   const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
+  const chmodSync = options.chmodSync ?? fs.chmodSync;
   const getuid =
     options.getuid ??
     (() => {
@@ -103,6 +105,8 @@ export function resolvePreferredOpenClawTmpDir(
     }
     try {
       mkdirSync(fallbackPath, { recursive: true, mode: 0o700 });
+      // mkdir mode is filtered through umask; enforce strict permissions.
+      chmodSync(fallbackPath, 0o700);
     } catch {
       throw new Error(`Unable to create fallback OpenClaw temp dir: ${fallbackPath}`);
     }
@@ -124,6 +128,8 @@ export function resolvePreferredOpenClawTmpDir(
     accessSync("/tmp", TMP_DIR_ACCESS_MODE);
     // Create with a safe default; subsequent callers expect it exists.
     mkdirSync(POSIX_OPENCLAW_TMP_DIR, { recursive: true, mode: 0o700 });
+    // mkdir mode is filtered through umask; enforce strict permissions.
+    chmodSync(POSIX_OPENCLAW_TMP_DIR, 0o700);
     if (resolveDirState(POSIX_OPENCLAW_TMP_DIR) !== "available") {
       return ensureTrustedFallbackDir();
     }
