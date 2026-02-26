@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeEnv } from "../runtime.js";
+import { resolveUserPath } from "../utils.js";
 
 const mocks = vi.hoisted(() => ({
   runInteractiveOnboarding: vi.fn(async () => {}),
@@ -99,7 +100,7 @@ describe("onboardCommand", () => {
 
     expect(mocks.handleReset).toHaveBeenCalledWith(
       "config+creds+sessions",
-      "/tmp/openclaw-custom-workspace",
+      resolveUserPath("/tmp/openclaw-custom-workspace"),
       runtime,
     );
   });

@@ -54,19 +54,45 @@ export async function downloadLineMedia(
 
 function detectContentType(buffer: Buffer): string {
   // Check magic bytes
-  if (buffer.length >= 2) {
+  if (buffer.length >= 4) {
+    // PDF
+    if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+      return "application/pdf";
+    }
+
     // JPEG
     if (buffer[0] === 0xff && buffer[1] === 0xd8) {
       return "image/jpeg";
     }
+
     // PNG
     if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
       return "image/png";
     }
+
     // GIF
     if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
       return "image/gif";
     }
+
+    // ZIP (including Office Open XML formats like xlsx/docx/pptx)
+    // NOTE: We intentionally avoid full unzip here for performance.
+    // The ZIP central directory typically contains file names in plain text,
+    // so a substring search is usually enough.
+    if (buffer[0] === 0x50 && buffer[1] === 0x4b) {
+      const haystack = buffer.toString("latin1");
+      if (haystack.includes("xl/workbook.xml") && haystack.includes("[Content_Types].xml")) {
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      }
+      if (haystack.includes("word/document.xml") && haystack.includes("[Content_Types].xml")) {
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      }
+      if (haystack.includes("ppt/presentation.xml") && haystack.includes("[Content_Types].xml")) {
+        return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+      }
+      return "application/zip";
+    }
+
     // WebP
     if (
       buffer[0] === 0x52 &&
@@ -80,10 +106,12 @@ function detectContentType(buffer: Buffer): string {
     ) {
       return "image/webp";
     }
+
     // MP4
     if (buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
       return "video/mp4";
     }
+
     // M4A/AAC
     if (buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0x00) {
       if (buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
@@ -111,6 +139,16 @@ function getExtensionForContentType(contentType: string): string {
       return ".m4a";
     case "audio/mpeg":
       return ".mp3";
+    case "application/pdf":
+      return ".pdf";
+    case "application/zip":
+      return ".zip";
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+      return ".xlsx";
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return ".docx";
+    case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      return ".pptx";
     default:
       return ".bin";
   }
