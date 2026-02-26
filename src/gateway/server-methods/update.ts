@@ -1,3 +1,4 @@
+import { runDaemonInstall } from "../../cli/daemon-cli/install.js";
 import { loadConfig } from "../../config/config.js";
 import { extractDeliveryInfo } from "../../config/sessions.js";
 import { resolveOpenClawPackageRoot } from "../../infra/openclaw-root.js";
@@ -90,6 +91,18 @@ export const updateHandlers: GatewayRequestHandlers = {
       sentinelPath = await writeRestartSentinel(payload);
     } catch {
       sentinelPath = null;
+    }
+
+    // Keep service env/version metadata in sync after a successful update so
+    // dashboard/version surfaces don't keep stale OPENCLAW_SERVICE_VERSION values.
+    if (result.status === "ok") {
+      try {
+        await runDaemonInstall({ force: true, json: true });
+      } catch (err) {
+        context?.logGateway?.warn(
+          `update.run service env refresh failed ${formatControlPlaneActor(actor)} error=${String(err)}`,
+        );
+      }
     }
 
     // Only restart the gateway when the update actually succeeded.

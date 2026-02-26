@@ -18,6 +18,11 @@ vi.mock("../infra/update-runner.js", () => ({
   })),
 }));
 
+vi.mock("../cli/daemon-cli/install.js", () => ({
+  runDaemonInstall: vi.fn(async () => {}),
+}));
+
+import { runDaemonInstall } from "../cli/daemon-cli/install.js";
 import { runGatewayUpdate } from "../infra/update-runner.js";
 import { connectGatewayClient } from "./test-helpers.e2e.js";
 import { installGatewayTestHooks, onceMessage, rpcReq } from "./test-helpers.js";
@@ -131,6 +136,9 @@ describe("gateway update.run", () => {
     process.on("SIGUSR1", sigusr1);
 
     try {
+      const daemonInstallMock = vi.mocked(runDaemonInstall);
+      daemonInstallMock.mockClear();
+
       const id = "req-update";
       ws.send(
         JSON.stringify({
@@ -145,6 +153,7 @@ describe("gateway update.run", () => {
       );
       const res = await onceMessage(ws, (o) => o.type === "res" && o.id === id);
       expect(res.ok).toBe(true);
+      expect(daemonInstallMock).toHaveBeenCalledWith({ force: true, json: true });
 
       await vi.waitFor(() => {
         expect(sigusr1.mock.calls.length).toBeGreaterThan(0);
