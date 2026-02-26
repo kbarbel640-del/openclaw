@@ -37,13 +37,14 @@ const EXEC_APPROVAL_KEY = "execapproval";
 
 export type { ExecApprovalRequest, ExecApprovalResolved };
 
-/** Extract Discord channel ID from a session key like "agent:main:discord:channel:123456789" */
+/** Extract Discord channel ID from a session key like "agent:main:discord:channel:123456789" or "agent:main:discord:<accountId>:channel:123456789" */
 export function extractDiscordChannelId(sessionKey?: string | null): string | null {
   if (!sessionKey) {
     return null;
   }
-  // Session key format: agent:<id>:discord:channel:<channelId> or agent:<id>:discord:group:<channelId>
-  const match = sessionKey.match(/discord:(?:channel|group):(\d+)/);
+  // Session key format (new): agent:<id>:discord:<accountId>:channel:<channelId> or agent:<id>:discord:<accountId>:group:<channelId>
+  // Session key format (old): agent:<id>:discord:channel:<channelId> or agent:<id>:discord:group:<channelId>
+  const match = sessionKey.match(/discord:(?:[^:]+:)?(?:channel|group):(\d+)/);
   return match ? match[1] : null;
 }
 

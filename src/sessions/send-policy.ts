@@ -39,8 +39,18 @@ function deriveChannelFromKey(key?: string) {
     return undefined;
   }
   const parts = normalizedKey.split(":").filter(Boolean);
-  if (parts.length >= 3 && (parts[1] === "group" || parts[1] === "channel")) {
-    return normalizeMatchValue(parts[0]);
+  // New format: <channel>:<accountId>:<peerKind>:<peerId>
+  // Old format: <channel>:<peerKind>:<peerId>
+  // Check if parts[1] or parts[2] is "group" or "channel"
+  if (parts.length >= 3) {
+    if (parts[1] === "group" || parts[1] === "channel") {
+      // Old format
+      return normalizeMatchValue(parts[0]);
+    }
+    if (parts.length >= 4 && (parts[2] === "group" || parts[2] === "channel")) {
+      // New format with accountId
+      return normalizeMatchValue(parts[0]);
+    }
   }
   return undefined;
 }

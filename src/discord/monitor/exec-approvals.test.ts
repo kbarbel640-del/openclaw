@@ -231,6 +231,21 @@ describe("extractDiscordChannelId", () => {
         expected: "111222333",
       },
       {
+        name: "new format with accountId - channel",
+        input: "agent:main:discord:acc-1:channel:123456789",
+        expected: "123456789",
+      },
+      {
+        name: "new format with accountId - group",
+        input: "agent:main:discord:work-account:group:987654321",
+        expected: "987654321",
+      },
+      {
+        name: "new format with accountId and thread",
+        input: "agent:main:discord:acc-1:channel:111222333:thread:444555",
+        expected: "111222333",
+      },
+      {
         name: "non-discord session key",
         input: "agent:main:telegram:channel:123456789",
         expected: null,
