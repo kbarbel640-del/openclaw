@@ -9,6 +9,7 @@ import {
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import {
   getActiveTaskCount,
+  markGatewayDraining,
   resetAllLanes,
   waitForActiveTasks,
 } from "../../process/command-queue.js";
@@ -111,6 +112,10 @@ export async function runGatewayLoop(params: {
         // On restart, wait for in-flight agent turns to finish before
         // tearing down the server so buffered messages are delivered.
         if (isRestart) {
+          // Reject new enqueues immediately so sessions that connect during
+          // the drain window get a clean error instead of being silently
+          // killed when the process exits.
+          markGatewayDraining();
           const activeTasks = getActiveTaskCount();
           if (activeTasks > 0) {
             gatewayLog.info(

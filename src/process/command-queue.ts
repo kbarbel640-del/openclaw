@@ -12,6 +12,23 @@ export class CommandLaneClearedError extends Error {
   }
 }
 
+/**
+ * Dedicated error type thrown when a new command is rejected because the
+ * gateway is draining for restart.  Callers should surface this as a
+ * transient error so users know to retry after reconnecting.
+ */
+export class GatewayDrainingError extends Error {
+  constructor() {
+    super("Gateway is draining for restart; new tasks are not accepted");
+    this.name = "GatewayDrainingError";
+  }
+}
+
+// Set to true while the gateway is draining for an imminent restart.
+// New enqueues are immediately rejected to prevent sessions started during
+// the drain window from being silently killed when the process exits.
+let gatewayDraining = false;
+
 // Minimal in-process queue to serialize command executions.
 // Default lane ("main") preserves the existing behavior. Additional lanes allow
 // low-risk parallelism (e.g. cron jobs) without interleaving stdin / logs for
@@ -117,6 +134,16 @@ function drainLane(lane: string) {
   pump();
 }
 
+/**
+ * Mark the gateway as draining for restart.  All subsequent
+ * `enqueueCommandInLane` calls will be immediately rejected with
+ * `GatewayDrainingError` until `resetAllLanes()` clears the flag
+ * (which happens on in-process restart).
+ */
+export function markGatewayDraining(): void {
+  gatewayDraining = true;
+}
+
 export function setCommandLaneConcurrency(lane: string, maxConcurrent: number) {
   const cleaned = lane.trim() || CommandLane.Main;
   const state = getLaneState(cleaned);
@@ -132,6 +159,9 @@ export function enqueueCommandInLane<T>(
     onWait?: (waitMs: number, queuedAhead: number) => void;
   },
 ): Promise<T> {
+  if (gatewayDraining) {
+    return Promise.reject(new GatewayDrainingError());
+  }
   const cleaned = lane.trim() || CommandLane.Main;
   const warnAfterMs = opts?.warnAfterMs ?? 2_000;
   const state = getLaneState(cleaned);
@@ -205,6 +235,7 @@ export function clearCommandLane(lane: string = CommandLane.Main) {
  * `enqueueCommandInLane()` call (which may never come).
  */
 export function resetAllLanes(): void {
+  gatewayDraining = false;
   const lanesToDrain: string[] = [];
   for (const state of lanes.values()) {
     state.generation += 1;

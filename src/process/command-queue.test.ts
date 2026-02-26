@@ -21,8 +21,10 @@ import {
   CommandLaneClearedError,
   enqueueCommand,
   enqueueCommandInLane,
+  GatewayDrainingError,
   getActiveTaskCount,
   getQueueSize,
+  markGatewayDraining,
   resetAllLanes,
   setCommandLaneConcurrency,
   waitForActiveTasks,
@@ -52,6 +54,7 @@ function enqueueBlockedMainTask<T = void>(
 
 describe("command queue", () => {
   beforeEach(() => {
+    resetAllLanes();
     diagnosticMocks.logLaneEnqueue.mockClear();
     diagnosticMocks.logLaneDequeue.mockClear();
     diagnosticMocks.diag.debug.mockClear();
@@ -287,5 +290,31 @@ describe("command queue", () => {
     // Let the active task finish normally.
     release();
     await expect(first).resolves.toBe("first");
+  });
+
+  describe("markGatewayDraining", () => {
+    it("rejects new enqueues with GatewayDrainingError after marking", async () => {
+      markGatewayDraining();
+      await expect(enqueueCommand(async () => "should not run")).rejects.toBeInstanceOf(
+        GatewayDrainingError,
+      );
+    });
+
+    it("does not affect already-active tasks", async () => {
+      const { task, release } = enqueueBlockedMainTask(async () => "result");
+
+      // Mark draining while the task is mid-flight.
+      markGatewayDraining();
+
+      // The active task should complete normally.
+      release();
+      await expect(task).resolves.toBe("result");
+    });
+
+    it("resetAllLanes clears the draining flag so new tasks are accepted", async () => {
+      markGatewayDraining();
+      resetAllLanes();
+      await expect(enqueueCommand(async () => "ok")).resolves.toBe("ok");
+    });
   });
 });
