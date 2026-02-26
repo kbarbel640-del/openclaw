@@ -328,7 +328,6 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     dashscope: "DASHSCOPE_API_KEY",
     deepseek: "DEEPSEEK_API_KEY",
     volcengine: "VOLCENGINE_API_KEY",
-    xiaomi: "XIAOMI_API_KEY",
   };
   const envVar = envMap[normalized];
   if (!envVar) {
