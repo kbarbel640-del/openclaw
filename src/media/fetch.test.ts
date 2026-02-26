@@ -131,4 +131,26 @@ describe("fetchRemoteMedia", () => {
 
     expect(result.fileName).toBe('foo"bar.txt');
   });
+
+  it("preserves literal escaped backslash before a quote in quoted filename values", async () => {
+    const lookupFn = vi.fn(async () => [
+      { address: "93.184.216.34", family: 4 },
+    ]) as unknown as LookupFn;
+    const fetchImpl = async () =>
+      new Response(Buffer.from("%PDF-1.4"), {
+        status: 200,
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": String.raw`attachment; filename="foo\\\"bar.txt"`,
+        },
+      });
+
+    const result = await fetchRemoteMedia({
+      url: "https://example.com/download",
+      fetchImpl,
+      lookupFn,
+    });
+
+    expect(result.fileName).toBe(String.raw`foo\"bar.txt`);
+  });
 });

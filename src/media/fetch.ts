@@ -70,18 +70,37 @@ function unescapeHttpQuotedPair(value: string): string {
   return result;
 }
 
+function basenameWithWindowsSeparatorHeuristic(value: string): string {
+  let segment = "";
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+    if (char === "/") {
+      segment = "";
+      continue;
+    }
+    if (char === "\\") {
+      const next = value[i + 1];
+      // Preserve a literal backslash immediately before a quote so valid
+      // quoted-string filenames like foo\\"bar.txt are not truncated.
+      if (next !== '"' && next !== "'") {
+        segment = "";
+        continue;
+      }
+    }
+    segment += char;
+  }
+  return segment;
+}
+
 function sanitizeContentDispositionFileName(value: string): string {
-  // Treat both slash styles as path separators so Windows-style traversal
-  // segments cannot survive when running on POSIX hosts.
-  const normalizedSeparators = value.replaceAll("\\", "/");
   // Strip control chars to avoid downstream header/log injection surprises.
-  const withoutControls = Array.from(normalizedSeparators)
+  const withoutControls = Array.from(value)
     .filter((char) => {
       const codePoint = char.codePointAt(0) ?? 0x7f;
       return codePoint >= 0x20 && codePoint !== 0x7f;
     })
     .join("");
-  return path.posix.basename(withoutControls);
+  return basenameWithWindowsSeparatorHeuristic(withoutControls);
 }
 
 function parseContentDispositionFileName(header?: string | null): string | undefined {
