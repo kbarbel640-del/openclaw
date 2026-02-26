@@ -8,6 +8,9 @@ import { convertMarkdownTables } from "../markdown/tables.js";
 import { markdownToWhatsApp } from "../markdown/whatsapp.js";
 import { normalizePollInput, type PollInput } from "../polls.js";
 import { toWhatsappJid } from "../utils.js";
+import { isWhatsAppGroupJid } from "../whatsapp/normalize.js";
+import { resolveWhatsAppOutboundTarget } from "../whatsapp/resolve-outbound-target.js";
+import { resolveWhatsAppAccount } from "./accounts.js";
 import { type ActiveWebSendOptions, requireActiveWebListener } from "./active-listener.js";
 import { loadWebMedia } from "./media.js";
 
@@ -31,6 +34,26 @@ export async function sendMessageWhatsApp(
     options.accountId,
   );
   const cfg = loadConfig();
+
+  // Enforce allowSendTo / allowFrom at the lowest outbound level.
+  // This is the final gateway for ALL WhatsApp sends — no code path can bypass it.
+  const jidForCheck = toWhatsappJid(to);
+  if (!isWhatsAppGroupJid(jidForCheck)) {
+    const account = resolveWhatsAppAccount({
+      cfg,
+      accountId: resolvedAccountId ?? options.accountId,
+    });
+    const resolution = resolveWhatsAppOutboundTarget({
+      to,
+      allowFrom: account.allowFrom ?? [],
+      mode: "explicit",
+    });
+    if (!resolution.ok) {
+      outboundLog.info(`Blocked outbound to ${redactIdentifier(to)} (not in allow list)`);
+      return { messageId: "blocked-by-allow-list", toJid: jidForCheck };
+    }
+  }
+
   const tableMode = resolveMarkdownTableMode({
     cfg,
     channel: "whatsapp",
