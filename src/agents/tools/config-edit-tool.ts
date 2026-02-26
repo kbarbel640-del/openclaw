@@ -91,7 +91,7 @@ function getByPath(obj: unknown, segments: string[]): unknown {
 function setByPath(obj: unknown, segments: string[], value: unknown): unknown {
   if (segments.length === 0) return value;
 
-  const root = (obj != null && typeof obj === "object") ? structuredClone(obj) : {};
+  const root = obj != null && typeof obj === "object" ? structuredClone(obj) : {};
   let current: Record<string, unknown> = root as Record<string, unknown>;
 
   for (let i = 0; i < segments.length - 1; i++) {
