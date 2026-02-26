@@ -45,7 +45,10 @@ export function normalizeModelCompat(model: Model<Api>): Model<Api> {
     model.provider === "moonshot" ||
     baseUrl.includes("moonshot.ai") ||
     baseUrl.includes("moonshot.cn");
-  const isDashScope = model.provider === "dashscope" || isDashScopeCompatibleEndpoint(baseUrl);
+  const isDashScope =
+    model.provider === "dashscope" ||
+    model.provider === "bailian" ||
+    isDashScopeCompatibleEndpoint(baseUrl);
   if ((!isZai && !isMoonshot && !isDashScope) || !isOpenAiCompletionsModel(model)) {
     return model;
   }
