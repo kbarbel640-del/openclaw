@@ -209,14 +209,27 @@ describe("startTelegramWebhook", () => {
     webhookCallbackSpy.mockClear();
     const abort = new AbortController();
     const cfg = { bindings: [] };
-    const { server } = await startTelegramWebhook({
+
+    let capturedServer: ReturnType<typeof import("node:http").createServer> | undefined;
+    const running = startTelegramWebhook({
       token: "tok",
       secret: "secret",
       accountId: "opie",
       config: cfg,
       port: 0, // random free port
       abortSignal: abort.signal,
+      onReady: (srv) => {
+        capturedServer = srv;
+      },
     });
+
+    // Wait until onReady fires (server is listening).
+    await new Promise<void>((resolve) => {
+      const check = () => (capturedServer ? resolve() : setTimeout(check, 1));
+      check();
+    });
+    const server = capturedServer!;
+
     expect(createTelegramBotSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId: "opie",
@@ -248,6 +261,7 @@ describe("startTelegramWebhook", () => {
     );
 
     abort.abort();
+    await running;
   });
 
   it("invokes webhook handler on matching path", async () => {
@@ -255,7 +269,9 @@ describe("startTelegramWebhook", () => {
     createTelegramBotSpy.mockClear();
     const abort = new AbortController();
     const cfg = { bindings: [] };
-    const { server } = await startTelegramWebhook({
+
+    let capturedServer: ReturnType<typeof import("node:http").createServer> | undefined;
+    const running = startTelegramWebhook({
       token: "tok",
       secret: "secret",
       accountId: "opie",
@@ -263,7 +279,17 @@ describe("startTelegramWebhook", () => {
       port: 0,
       abortSignal: abort.signal,
       path: "/hook",
+      onReady: (srv) => {
+        capturedServer = srv;
+      },
     });
+
+    await new Promise<void>((resolve) => {
+      const check = () => (capturedServer ? resolve() : setTimeout(check, 1));
+      check();
+    });
+    const server = capturedServer!;
+
     expect(createTelegramBotSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId: "opie",
@@ -283,6 +309,7 @@ describe("startTelegramWebhook", () => {
     expect(response.status).toBe(200);
     expect(handlerSpy).toHaveBeenCalled();
     abort.abort();
+    await running;
   });
 
   it("rejects startup when webhook secret is missing", async () => {
