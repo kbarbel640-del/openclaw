@@ -204,7 +204,6 @@ async function runLockWatchdogCheck(nowMs = Date.now()): Promise<number> {
   }
   return released;
 }
-
 function ensureWatchdogStarted(intervalMs: number): void {
   const watchdogState = resolveWatchdogState();
   if (watchdogState.started) {
@@ -286,6 +285,7 @@ function inspectLockPayload(
   payload: LockFilePayload | null,
   staleMs: number,
   nowMs: number,
+  opts?: { checkOrphanedSelf?: boolean; lockPath?: string },
 ): LockInspectionDetails {
   const pid = typeof payload?.pid === "number" ? payload.pid : null;
   const pidAlive = pid !== null ? isPidAlive(pid) : false;
@@ -298,6 +298,16 @@ function inspectLockPayload(
     staleReasons.push("missing-pid");
   } else if (!pidAlive) {
     staleReasons.push("dead-pid");
+  } else if (opts?.checkOrphanedSelf && pid === process.pid) {
+    // The lock claims to be held by *this* process, but if we don't actually
+    // hold it in-memory it is an orphan from a previous in-process lifecycle
+    // (e.g. gateway hot-restarted within the same PID).
+    const isHeldInMemory = opts.lockPath
+      ? Array.from(HELD_LOCKS.values()).some((held) => held.lockPath === opts.lockPath)
+      : false;
+    if (!isHeldInMemory) {
+      staleReasons.push("orphaned-self");
+    }
   }
   if (ageMs === null) {
     staleReasons.push("invalid-createdAt");
@@ -350,6 +360,7 @@ export async function cleanStaleLockFiles(params: {
   sessionsDir: string;
   staleMs?: number;
   removeStale?: boolean;
+  checkOrphanedSelf?: boolean;
   nowMs?: number;
   log?: {
     warn?: (message: string) => void;
@@ -359,6 +370,7 @@ export async function cleanStaleLockFiles(params: {
   const sessionsDir = path.resolve(params.sessionsDir);
   const staleMs = resolvePositiveMs(params.staleMs, DEFAULT_STALE_MS);
   const removeStale = params.removeStale !== false;
+  const checkOrphanedSelf = params.checkOrphanedSelf ?? false;
   const nowMs = params.nowMs ?? Date.now();
 
   let entries: fsSync.Dirent[] = [];
@@ -381,13 +393,15 @@ export async function cleanStaleLockFiles(params: {
   for (const entry of lockEntries) {
     const lockPath = path.join(sessionsDir, entry.name);
     const payload = await readLockPayload(lockPath);
-    const inspected = inspectLockPayload(payload, staleMs, nowMs);
+    const inspected = inspectLockPayload(payload, staleMs, nowMs, {
+      checkOrphanedSelf,
+      lockPath,
+    });
     const lockInfo: SessionLockInspection = {
       lockPath,
       ...inspected,
       removed: false,
     };
-
     if (lockInfo.stale && removeStale) {
       await fs.rm(lockPath, { force: true });
       lockInfo.removed = true;
