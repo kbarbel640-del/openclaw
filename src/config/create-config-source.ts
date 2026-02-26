@@ -18,6 +18,7 @@ import { HttpConfigSource, createHttpConfigSourceFromEnv } from "./http-source.j
 export function createConfigSource(env: Record<string, string | undefined>): ConfigSource {
   // Generic HTTP source (upstream convention)
   if (env.OPENCLAW_CONFIG_SOURCE === "http") {
+    console.log("[config-source] using HTTP config source (OPENCLAW_CONFIG_SOURCE=http)");
     return createHttpConfigSourceFromEnv(env);
   }
 
@@ -25,6 +26,7 @@ export function createConfigSource(env: Record<string, string | undefined>): Con
   if (env.OCM_CONFIG_SOURCE === "metadata") {
     const metadataUrl = env.OCM_METADATA_URL || "http://169.254.169.253";
     const nonce = env.OCM_METADATA_NONCE || "";
+    console.log(`[config-source] using metadata config source (url=${metadataUrl})`);
     return new HttpConfigSource({
       url: metadataUrl,
       headers: nonce ? { "X-Metadata-Nonce": nonce } : {},
@@ -32,5 +34,6 @@ export function createConfigSource(env: Record<string, string | undefined>): Con
     });
   }
 
+  console.log("[config-source] using file config source (default)");
   return new FileConfigSource();
 }
