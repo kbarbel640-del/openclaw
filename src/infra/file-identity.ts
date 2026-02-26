@@ -13,7 +13,11 @@ export function sameFileIdentity(
   platform: NodeJS.Platform = process.platform,
 ): boolean {
   if (left.ino !== right.ino) {
-    return false;
+    // On Windows, inode can be reported as 0 for some path-based stats.
+    // Treat a zero inode as unknown and fall back to device checks.
+    if (platform !== "win32" || (!isZero(left.ino) && !isZero(right.ino))) {
+      return false;
+    }
   }
 
   // On Windows, path-based stat calls can report dev=0 while fd-based stat
