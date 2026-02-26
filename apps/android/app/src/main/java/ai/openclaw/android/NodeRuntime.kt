@@ -102,6 +102,10 @@ class NodeRuntime(context: Context) {
     sms = sms,
   )
 
+  private val flashlightHandler: FlashlightHandler = FlashlightHandler(
+    appContext = appContext,
+  )
+
   private val a2uiHandler: A2UIHandler = A2UIHandler(
     canvas = canvas,
     json = json,
@@ -125,6 +129,7 @@ class NodeRuntime(context: Context) {
     locationHandler = locationHandler,
     screenHandler = screenHandler,
     smsHandler = smsHandlerImpl,
+    flashlightHandler = flashlightHandler,
     a2uiHandler = a2uiHandler,
     debugHandler = debugHandler,
     appUpdateHandler = appUpdateHandler,
