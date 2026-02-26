@@ -14,8 +14,8 @@ import {
   applyCloudflareAiGatewayConfig,
   applyKilocodeConfig,
   applyQianfanConfig,
-  applyBailianConfig,
-  applyBailianConfigCn,
+  applyModelStudioConfig,
+  applyModelStudioConfigCn,
   applyKimiCodeConfig,
   applyMinimaxApiConfig,
   applyMinimaxApiConfigCn,
@@ -37,7 +37,7 @@ import {
   setAnthropicApiKey,
   setCloudflareAiGatewayConfig,
   setQianfanApiKey,
-  setBailianApiKey,
+  setModelStudioApiKey,
   setGeminiApiKey,
   setKilocodeApiKey,
   setKimiCodingApiKey,
@@ -403,50 +403,50 @@ export async function applyNonInteractiveAuthChoice(params: {
     return applyQianfanConfig(nextConfig);
   }
 
-  if (authChoice === "bailian-api-key-cn") {
+  if (authChoice === "modelstudio-api-key-cn") {
     const resolved = await resolveNonInteractiveApiKey({
-      provider: "bailian",
+      provider: "modelstudio",
       cfg: baseConfig,
-      flagValue: opts.bailianApiKeyCn,
-      flagName: "--bailian-api-key-cn",
-      envVar: "BAILIAN_API_KEY",
+      flagValue: opts.modelstudioApiKeyCn,
+      flagName: "--modelstudio-api-key-cn",
+      envVar: "MODELSTUDIO_API_KEY",
       runtime,
     });
     if (!resolved) {
       return null;
     }
     if (resolved.source !== "profile") {
-      setBailianApiKey(resolved.key);
+      setModelStudioApiKey(resolved.key);
     }
     nextConfig = applyAuthProfileConfig(nextConfig, {
-      profileId: "bailian:default",
-      provider: "bailian",
+      profileId: "modelstudio:default",
+      provider: "modelstudio",
       mode: "api_key",
     });
-    return applyBailianConfigCn(nextConfig);
+    return applyModelStudioConfigCn(nextConfig);
   }
 
-  if (authChoice === "bailian-api-key") {
+  if (authChoice === "modelstudio-api-key") {
     const resolved = await resolveNonInteractiveApiKey({
-      provider: "bailian",
+      provider: "modelstudio",
       cfg: baseConfig,
-      flagValue: opts.bailianApiKey,
-      flagName: "--bailian-api-key",
-      envVar: "BAILIAN_API_KEY",
+      flagValue: opts.modelstudioApiKey,
+      flagName: "--modelstudio-api-key",
+      envVar: "MODELSTUDIO_API_KEY",
       runtime,
     });
     if (!resolved) {
       return null;
     }
     if (resolved.source !== "profile") {
-      setBailianApiKey(resolved.key);
+      setModelStudioApiKey(resolved.key);
     }
     nextConfig = applyAuthProfileConfig(nextConfig, {
-      profileId: "bailian:default",
-      provider: "bailian",
+      profileId: "modelstudio:default",
+      provider: "modelstudio",
       mode: "api_key",
     });
-    return applyBailianConfig(nextConfig);
+    return applyModelStudioConfig(nextConfig);
   }
 
   if (authChoice === "openai-api-key") {
