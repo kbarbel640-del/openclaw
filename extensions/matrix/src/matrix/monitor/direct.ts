@@ -12,6 +12,16 @@ type DirectRoomTrackerOptions = {
 
 const DM_CACHE_TTL_MS = 30_000;
 
+/**
+ * Check if an error is a Matrix M_NOT_FOUND response (missing state event).
+ * The bot-sdk throws MatrixError with errcode/statusCode on the error object.
+ */
+function isMatrixNotFoundError(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as { errcode?: string; statusCode?: number };
+  return e.errcode === "M_NOT_FOUND" || e.statusCode === 404;
+}
+
 export function createDirectRoomTracker(client: MatrixClient, opts: DirectRoomTrackerOptions = {}) {
   const log = opts.log ?? (() => {});
   let lastDmUpdateMs = 0;
@@ -83,18 +93,49 @@ export function createDirectRoomTracker(client: MatrixClient, opts: DirectRoomTr
         return true;
       }
 
-      const memberCount = await resolveMemberCount(roomId);
-      if (memberCount === 2) {
-        log(`matrix: dm detected via member count room=${roomId} members=${memberCount}`);
-        return true;
-      }
-
       const selfUserId = params.selfUserId ?? (await ensureSelfUserId());
       const directViaState =
         (await hasDirectFlag(roomId, senderId)) || (await hasDirectFlag(roomId, selfUserId ?? ""));
       if (directViaState) {
         log(`matrix: dm detected via member state room=${roomId}`);
         return true;
+      }
+
+      // Conservative fallback: 2-member rooms without an explicit room name are likely
+      // DMs with broken m.direct / is_direct flags. This has been observed on Continuwuity
+      // where m.direct pointed to the wrong room and is_direct was never set on the invite.
+      // Unlike the removed heuristic, this requires two signals (member count + no name)
+      // to avoid false positives on named 2-person group rooms.
+      //
+      // Performance: member count is cached (resolveMemberCount). The room name state
+      // check is not cached but only runs for the subset of 2-member rooms that reach
+      // this fallback path (no m.direct, no is_direct). In typical deployments this is
+      // a small minority of rooms.
+      //
+      // Note: there is a narrow race where a room name is being set concurrently with
+      // this check. The consequence is a one-time misclassification that self-corrects
+      // on the next message (once the state event is synced). This is acceptable given
+      // the alternative of an additional API call on every message.
+      const memberCount = await resolveMemberCount(roomId);
+      if (memberCount === 2) {
+        try {
+          const nameState = await client.getRoomStateEvent(roomId, "m.room.name", "");
+          if (!nameState?.name?.trim()) {
+            log(`matrix: dm detected via fallback (2 members, no room name) room=${roomId}`);
+            return true;
+          }
+        } catch (err: unknown) {
+          // Missing state events (M_NOT_FOUND) are expected for unnamed rooms and
+          // strongly indicate a DM. Any other error (network, auth) is ambiguous,
+          // so we fall through to classify as group rather than guess.
+          if (isMatrixNotFoundError(err)) {
+            log(`matrix: dm detected via fallback (2 members, no room name) room=${roomId}`);
+            return true;
+          }
+          log(
+            `matrix: dm fallback skipped (room name check failed: ${String(err)}) room=${roomId}`,
+          );
+        }
       }
 
       log(`matrix: dm check room=${roomId} result=group members=${memberCount ?? "unknown"}`);
