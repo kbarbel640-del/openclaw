@@ -424,7 +424,7 @@ export async function handleToolExecutionEnd(
       durationMs,
     };
     void hookRunnerAfter
-      .runAfterToolCall(hookEvent, {
+      .runAfterToolCallVoid(hookEvent, {
         toolName,
         agentId: undefined,
         sessionKey: undefined,

@@ -174,7 +174,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
           const hookRunner = getGlobalHookRunner();
           if (hookRunner?.hasHooks("after_tool_call")) {
             try {
-              await hookRunner.runAfterToolCall(
+              const hookResult = await hookRunner.runAfterToolCall(
                 {
                   toolName: name,
                   params: isPlainObject(afterParams) ? afterParams : {},
@@ -182,6 +182,9 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
                 },
                 { toolName: name },
               );
+              if (hookResult?.result !== undefined) {
+                return hookResult.result as AgentToolResult<unknown>;
+              }
             } catch (hookErr) {
               logDebug(
                 `after_tool_call hook failed: tool=${normalizedName} error=${String(hookErr)}`,
@@ -220,7 +223,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
           const hookRunner = getGlobalHookRunner();
           if (hookRunner?.hasHooks("after_tool_call")) {
             try {
-              await hookRunner.runAfterToolCall(
+              const hookResult = await hookRunner.runAfterToolCall(
                 {
                   toolName: normalizedName,
                   params: isPlainObject(params) ? params : {},
@@ -228,6 +231,9 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
                 },
                 { toolName: normalizedName },
               );
+              if (hookResult?.result !== undefined) {
+                return hookResult.result as AgentToolResult<unknown>;
+              }
             } catch (hookErr) {
               logDebug(
                 `after_tool_call hook failed: tool=${normalizedName} error=${String(hookErr)}`,
