@@ -2,11 +2,18 @@ import fs from "node:fs";
 import path from "node:path";
 
 export function isPathInside(baseDir: string, targetPath: string): boolean {
-  const rel = path.relative(baseDir, targetPath);
-  if (!rel) {
-    return true;
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedTarget = path.resolve(targetPath);
+
+  if (process.platform === "win32") {
+    // Windows paths are case-insensitive and may have different normalizations
+    // (e.g., short names vs long names, different drive letter casing)
+    const relative = path.relative(resolvedBase.toLowerCase(), resolvedTarget.toLowerCase());
+    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
   }
-  return !rel.startsWith("..") && !path.isAbsolute(rel);
+
+  const relative = path.relative(resolvedBase, resolvedTarget);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 export function safeRealpathSync(targetPath: string, cache?: Map<string, string>): string | null {
