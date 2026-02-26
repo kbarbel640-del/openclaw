@@ -2,15 +2,24 @@ import { Cron } from "croner";
 import { parseAbsoluteTimeMs } from "./parse.js";
 import type { CronSchedule } from "./types.js";
 
-function resolveCronTimezone(tz?: string) {
+function resolveCronTimezone(tz?: string, defaultTimezone?: string) {
   const trimmed = typeof tz === "string" ? tz.trim() : "";
   if (trimmed) {
     return trimmed;
   }
+  // Use gateway-level default before falling back to process timezone.
+  const trimmedDefault = typeof defaultTimezone === "string" ? defaultTimezone.trim() : "";
+  if (trimmedDefault) {
+    return trimmedDefault;
+  }
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-export function computeNextRunAtMs(schedule: CronSchedule, nowMs: number): number | undefined {
+export function computeNextRunAtMs(
+  schedule: CronSchedule,
+  nowMs: number,
+  defaultTimezone?: string,
+): number | undefined {
   if (schedule.kind === "at") {
     // Handle both canonical `at` (string) and legacy `atMs` (number) fields.
     // The store migration should convert atMs→at, but be defensive in case
@@ -50,7 +59,7 @@ export function computeNextRunAtMs(schedule: CronSchedule, nowMs: number): numbe
     return undefined;
   }
   const cron = new Cron(expr, {
-    timezone: resolveCronTimezone(schedule.tz),
+    timezone: resolveCronTimezone(schedule.tz, defaultTimezone),
     catch: false,
   });
   const next = cron.nextRun(new Date(nowMs));

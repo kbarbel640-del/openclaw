@@ -384,6 +384,7 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        timezone: z.string().optional(),
       })
       .strict()
       .superRefine((val, ctx) => {
