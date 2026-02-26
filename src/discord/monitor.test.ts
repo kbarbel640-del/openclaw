@@ -18,7 +18,11 @@ import {
   sanitizeDiscordThreadName,
   shouldEmitDiscordReactionNotification,
 } from "./monitor.js";
-import { DiscordMessageListener, DiscordReactionListener } from "./monitor/listeners.js";
+import {
+  DiscordInteractionListener,
+  DiscordMessageListener,
+  DiscordReactionListener,
+} from "./monitor/listeners.js";
 
 const readAllowFromStoreMock = vi.hoisted(() => vi.fn());
 
@@ -72,32 +76,23 @@ describe("registerDiscordListener", () => {
   });
 });
 
+function createDeferred() {
+  let resolve: (() => void) | null = null;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return {
+    promise,
+    resolve: () => {
+      if (typeof resolve === "function") {
+        (resolve as () => void)();
+      }
+    },
+  };
+}
+
 describe("DiscordMessageListener", () => {
-  function createDeferred() {
-    let resolve: (() => void) | null = null;
-    const promise = new Promise<void>((done) => {
-      resolve = done;
-    });
-    return {
-      promise,
-      resolve: () => {
-        if (typeof resolve === "function") {
-          (resolve as () => void)();
-        }
-      },
-    };
-  }
-
-  async function expectPending(promise: Promise<unknown>) {
-    let resolved = false;
-    void promise.then(() => {
-      resolved = true;
-    });
-    await Promise.resolve();
-    expect(resolved).toBe(false);
-  }
-
-  it("awaits the handler before returning", async () => {
+  it("fires handler without blocking (fire-and-forget)", async () => {
     let handlerResolved = false;
     const deferred = createDeferred();
     const handler = vi.fn(async () => {
@@ -106,21 +101,20 @@ describe("DiscordMessageListener", () => {
     });
     const listener = new DiscordMessageListener(handler);
 
-    const handlePromise = listener.handle(
+    // handle() should return immediately (fire-and-forget)
+    await listener.handle(
       {} as unknown as import("./monitor/listeners.js").DiscordMessageEvent,
       {} as unknown as import("@buape/carbon").Client,
     );
 
-    // Handler should be called but not yet resolved
+    // Handler should be called but not yet resolved (still running in background)
     expect(handler).toHaveBeenCalledOnce();
     expect(handlerResolved).toBe(false);
-    await expectPending(handlePromise);
 
     // Release the handler
     deferred.resolve();
-
-    // Now await handle() - it should complete only after handler resolves
-    await handlePromise;
+    await Promise.resolve();
+    await Promise.resolve();
     expect(handlerResolved).toBe(true);
   });
 
@@ -149,28 +143,35 @@ describe("DiscordMessageListener", () => {
 
     try {
       const deferred = createDeferred();
-      const handler = vi.fn(() => deferred.promise);
+      // Track when the handler finishes so we can wait for the background task
+      let handlerDone: (() => void) | undefined;
+      const handlerDonePromise = new Promise<void>((resolve) => {
+        handlerDone = resolve;
+      });
+      const handler = vi.fn(async () => {
+        await deferred.promise;
+        handlerDone?.();
+      });
       const logger = {
         warn: vi.fn(),
         error: vi.fn(),
       } as unknown as ReturnType<typeof import("../logging/subsystem.js").createSubsystemLogger>;
       const listener = new DiscordMessageListener(handler, logger);
 
-      // Start handle() but don't await yet
-      const handlePromise = listener.handle(
+      // Fire-and-forget: handle() returns immediately
+      void listener.handle(
         {} as unknown as import("./monitor/listeners.js").DiscordMessageEvent,
         {} as unknown as import("@buape/carbon").Client,
       );
-      await expectPending(handlePromise);
 
       // Advance time past the slow listener threshold
       vi.setSystemTime(31_000);
 
-      // Release the handler
+      // Release the handler and wait for the background task to finish
       deferred.resolve();
-
-      // Now await handle() - it should complete and log the slow listener
-      await handlePromise;
+      await handlerDonePromise;
+      // Flush microtasks so the slow-log `finally` block runs
+      await Promise.resolve();
 
       expect(logger.warn).toHaveBeenCalled();
       const warnMock = logger.warn as unknown as { mock: { calls: unknown[][] } };
@@ -180,6 +181,57 @@ describe("DiscordMessageListener", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("DiscordInteractionListener", () => {
+  it("fires interaction handler without blocking (fire-and-forget)", async () => {
+    let handlerCalled = false;
+    const deferred = createDeferred();
+    const mockClient = {
+      handleInteraction: vi.fn(async () => {
+        await deferred.promise;
+        handlerCalled = true;
+      }),
+    } as unknown as import("@buape/carbon").Client;
+
+    const listener = new DiscordInteractionListener();
+
+    // handle() should return immediately
+    await listener.handle({} as never, mockClient);
+
+    // handleInteraction should be invoked but not yet resolved
+    // oxlint-disable-next-line typescript-eslint/unbound-method
+    expect(mockClient.handleInteraction).toHaveBeenCalledOnce();
+    expect(handlerCalled).toBe(false);
+
+    // Release
+    deferred.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(handlerCalled).toBe(true);
+  });
+
+  it("logs interaction handler failures", async () => {
+    const logger = {
+      warn: vi.fn(),
+      error: vi.fn(),
+    } as unknown as ReturnType<typeof import("../logging/subsystem.js").createSubsystemLogger>;
+
+    const mockClient = {
+      handleInteraction: vi.fn(async () => {
+        throw new Error("interaction boom");
+      }),
+    } as unknown as import("@buape/carbon").Client;
+
+    const listener = new DiscordInteractionListener(logger);
+    await listener.handle({} as never, mockClient);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("discord interaction handler failed"),
+    );
   });
 });
 
