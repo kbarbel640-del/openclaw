@@ -1,8 +1,8 @@
 // ─── P1.9: Provider Timeout Guard + AbortController ────────────────────
 
-const crypto = require('crypto');
+const crypto = require("crypto");
 
-async function withTimeout(fn, ms = 30000, label = 'tool') {
+async function withTimeout(fn, ms = 30000, label = "tool") {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ms);
   try {
@@ -31,15 +31,15 @@ function logStructuredTiming(req, res) {
   const latency = Date.now() - req._startTime;
   const logEntry = {
     req_id: req.id,
-    path: req.url || 'unknown',
+    path: req.url || "unknown",
     method: req.method,
     latency: latency,
-    phase: req.phase || 'unknown',
+    phase: req.phase || "unknown",
     intent: req.intent_hint?.intent || null,
     confidence: req.intent_hint?.confidence || null,
     tool: req.tool_name || null,
     status: res.statusCode || 0,
-    ts: Date.now()
+    ts: Date.now(),
   };
   console.log(JSON.stringify(logEntry));
 }
@@ -56,7 +56,7 @@ function logStructuredTiming(req, res) {
  * @returns {string} 格式化的錯誤信息
  */
 function formatError(component, message, reqId = null) {
-  const base = reqId ? `[wrapper] #${reqId}` : '[wrapper]';
+  const base = reqId ? `[wrapper] #${reqId}` : "[wrapper]";
   return `${base} ${component}: ${message}`;
 }
 
@@ -96,6 +96,7 @@ class KeywordMatcher {
       /^(不|沒|別|無|勿|莫)[\s]*(.*)$/,
       /^(don't|didn't|not|no|never|without)[\s]/i,
     ];
+    this._boundaryCache = new Map();
   }
 
   /**
@@ -105,7 +106,7 @@ class KeywordMatcher {
    */
   isNegated(text) {
     const lower = text.toLowerCase().trim();
-    return this.negationPatterns.some(p => p.test(lower));
+    return this.negationPatterns.some((p) => p.test(lower));
   }
 
   /**
@@ -118,8 +119,12 @@ class KeywordMatcher {
     const lower = text.toLowerCase();
     const lowerKw = keyword.toLowerCase();
 
-    // Exact match (整詞)
-    const wordBoundaryPattern = new RegExp(`\\b${lowerKw}\\b`);
+    // Exact match (整詞) — precompiled regex cache
+    let wordBoundaryPattern = this._boundaryCache.get(lowerKw);
+    if (!wordBoundaryPattern) {
+      wordBoundaryPattern = new RegExp(`\\b${lowerKw}\\b`);
+      this._boundaryCache.set(lowerKw, wordBoundaryPattern);
+    }
     if (wordBoundaryPattern.test(lower)) {
       return 1.0; // 最高置信度
     }
@@ -175,25 +180,25 @@ class KeywordMatcher {
    * @param {string} type - 類型：'en' | 'zh' | 'auto'
    * @returns {{matched: boolean, confidence: number}}
    */
-  match(text, keywords, type = 'auto') {
+  match(text, keywords, type = "auto") {
     if (!text || !keywords) {
       return { matched: false, confidence: 0 };
     }
 
     // 檢查否定
     if (this.isNegated(text)) {
-      return { matched: false, confidence: 0, reason: 'negated' };
+      return { matched: false, confidence: 0, reason: "negated" };
     }
 
     let confidence = 0;
 
-    if (type === 'auto') {
+    if (type === "auto") {
       // 自動檢測語言類型
       const hasChinese = /[\u4e00-\u9fff]/.test(text);
       confidence = hasChinese
         ? this.matchChinese(text, keywords)
         : this.matchWithBoundary(text, Array.isArray(keywords) ? keywords[0] : keywords);
-    } else if (type === 'zh') {
+    } else if (type === "zh") {
       confidence = this.matchChinese(text, keywords);
     } else {
       confidence = this.matchWithBoundary(text, Array.isArray(keywords) ? keywords[0] : keywords);
@@ -201,7 +206,7 @@ class KeywordMatcher {
 
     return {
       matched: confidence > 0.5,
-      confidence: confidence
+      confidence: confidence,
     };
   }
 }
@@ -217,12 +222,12 @@ class KeywordMatcher {
 // };
 
 function buildToolListForPrompt(toolsConfig) {
-  if (!toolsConfig || typeof toolsConfig !== 'object') {
-    return '（無可用工具）';
+  if (!toolsConfig || typeof toolsConfig !== "object") {
+    return "（無可用工具）";
   }
   return Object.entries(toolsConfig)
     .map(([name, def]) => `- ${name}: ${def.description || name}`)
-    .join('\n');
+    .join("\n");
 }
 
 function injectToolsIntoSystemPrompt(basePrompt, toolsConfig) {
@@ -234,12 +239,12 @@ function injectToolsIntoSystemPrompt(basePrompt, toolsConfig) {
 
 // Install: npm install p-limit
 // Note: p-limit uses ES6 modules, extract default export
-const pLimitModule = require('p-limit');
+const pLimitModule = require("p-limit");
 const pLimit = pLimitModule.default || pLimitModule;
 
 // Create separate limits for CPU-bound (docker, shell) vs IO-bound (web search, file)
-const cpuLimit = pLimit(1);   // docker build, shell commands
-const ioLimit = pLimit(3);    // web search, file operations
+const cpuLimit = pLimit(1); // docker build, shell commands
+const ioLimit = pLimit(3); // web search, file operations
 
 // Usage wrapper:
 async function executeToolWithConcurrency(toolName, toolFn, isCpuBound = false) {
@@ -258,7 +263,9 @@ class CircuitBreaker {
 
   isCircuitOpen(toolName) {
     const f = this.toolFailures[toolName];
-    if (!f) {return false;}
+    if (!f) {
+      return false;
+    }
     if (Date.now() - f.firstFailAt > this.resetMs) {
       delete this.toolFailures[toolName];
       return false;
@@ -292,65 +299,72 @@ class CircuitBreaker {
 
 class HybridIntentClassifier {
   constructor(options = {}) {
-    this.ollamaUrl = options.ollamaUrl || 'http://localhost:11434';
-    this.model = options.model || 'qwen2.5-coder:7b';
-    this.confidenceThreshold = options.confidenceThreshold || 0.80;
+    this.ollamaUrl = options.ollamaUrl || "http://localhost:11434";
+    this.model = options.model || "qwen2.5-coder:7b";
+    this.confidenceThreshold = options.confidenceThreshold || 0.8;
   }
 
   async classify(message) {
     // Call Ollama for intent classification (non-blocking)
     // Returns: { intent: string, confidence: number }
     try {
-      const http = require('http');
+      const http = require("http");
       const body = JSON.stringify({
         model: this.model,
         messages: [
-          { role: 'system', content: 'Classify user intent. Reply ONLY with valid JSON: {"intent":"code|chat|email|web_search|stock|system_status|deploy|summarize|calendar|progress","confidence":0.0-1.0}' },
-          { role: 'user', content: message }
+          {
+            role: "system",
+            content:
+              'Classify user intent. Reply ONLY with valid JSON: {"intent":"code|chat|email|web_search|stock|system_status|deploy|summarize|calendar|progress","confidence":0.0-1.0}',
+          },
+          { role: "user", content: message },
         ],
         stream: false,
-        temperature: 0.3
+        temperature: 0.3,
       });
 
       return new Promise((resolve) => {
-        const req = http.request({
-          hostname: 'localhost',
-          port: 11434,
-          path: '/api/chat',
-          method: 'POST',
-          timeout: 2000
-        }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => {
-            try {
-              const parsed = JSON.parse(data);
-              const content = parsed.message?.content || '{}';
-              // Extract JSON from response (may have extra text)
-              const jsonMatch = content.match(/\{[^}]*"intent"[^}]*"confidence"[^}]*\}/);
-              const json = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-              const intent = json.intent || 'unknown';
-              const confidence = Math.min(1, Math.max(0, json.confidence || 0));
-              resolve({
-                intent: confidence >= this.confidenceThreshold ? intent : 'unknown',
-                confidence
-              });
-            } catch (e) {
-              resolve({ intent: 'unknown', confidence: 0 });
-            }
-          });
-        });
-        req.on('error', () => resolve({ intent: 'unknown', confidence: 0 }));
-        req.on('timeout', () => {
+        const req = http.request(
+          {
+            hostname: "localhost",
+            port: 11434,
+            path: "/api/chat",
+            method: "POST",
+            timeout: 2000,
+          },
+          (res) => {
+            let data = "";
+            res.on("data", (chunk) => (data += chunk));
+            res.on("end", () => {
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.message?.content || "{}";
+                // Extract JSON from response (may have extra text)
+                const jsonMatch = content.match(/\{[^}]*"intent"[^}]*"confidence"[^}]*\}/);
+                const json = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+                const intent = json.intent || "unknown";
+                const confidence = Math.min(1, Math.max(0, json.confidence || 0));
+                resolve({
+                  intent: confidence >= this.confidenceThreshold ? intent : "unknown",
+                  confidence,
+                });
+              } catch (e) {
+                resolve({ intent: "unknown", confidence: 0 });
+              }
+            });
+          },
+        );
+        req.on("error", () => resolve({ intent: "unknown", confidence: 0 }));
+        req.on("timeout", () => {
           req.destroy();
-          resolve({ intent: 'unknown', confidence: 0 });
+          resolve({ intent: "unknown", confidence: 0 });
         });
         req.write(body);
         req.end();
       });
     } catch (e) {
-      console.error('Intent classifier error:', e.message);
-      return { intent: 'unknown', confidence: 0 };
+      console.error("Intent classifier error:", e.message);
+      return { intent: "unknown", confidence: 0 };
     }
   }
 }
@@ -380,5 +394,5 @@ module.exports = {
   formatError,
   createError,
   logError,
-  KeywordMatcher
+  KeywordMatcher,
 };

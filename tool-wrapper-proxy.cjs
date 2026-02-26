@@ -467,23 +467,38 @@ function detectStockSymbol(userText) {
   return null;
 }
 
-async function fetchTaiwanStockIndicators(stockId) {
+async function fetchTaiwanStockIndicators(stockId, signal) {
   return new Promise((resolve, reject) => {
+    if (signal && signal.aborted) {
+      return resolve(null);
+    }
     const http = require("http");
     const url = "http://localhost:8888/api/v1/indicators/" + stockId + "/latest";
-    http
-      .get(url, { timeout: 5000 }, (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      })
-      .on("error", reject);
+    const req = http.get(url, { timeout: 2000 }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        if (signal && signal.aborted) {
+          return resolve(null);
+        }
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on("error", reject);
+    if (signal) {
+      signal.addEventListener(
+        "abort",
+        () => {
+          req.destroy();
+          resolve(null);
+        },
+        { once: true },
+      );
+    }
   });
 }
 
@@ -2738,7 +2753,7 @@ function recordRoutingEvent(event) {
   }
   // Append to file (non-blocking)
   try {
-    fs.appendFileSync(CP_EVENTS_PATH, JSON.stringify(event) + "\n");
+    fs.appendFile(CP_EVENTS_PATH, JSON.stringify(event) + "\n", () => {});
   } catch {}
   updateDrift(event);
 }
@@ -2751,7 +2766,7 @@ function recordModeSnapshot() {
     lastIntent: _lastIntent,
   };
   try {
-    fs.appendFileSync(CP_MODE_HISTORY_PATH, JSON.stringify(snapshot) + "\n");
+    fs.appendFile(CP_MODE_HISTORY_PATH, JSON.stringify(snapshot) + "\n", () => {});
   } catch {}
   return snapshot;
 }
@@ -4375,15 +4390,23 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
 
       if (!response) {
         console.log();
-        const { execSync } = require("child_process");
+        const { spawn } = require("child_process");
         try {
-          execSync(
-            "launchctl stop com.ollama.optimized && sleep 2 && launchctl start com.ollama.optimized",
-            { timeout: 10000 },
+          const restart = spawn(
+            "sh",
+            [
+              "-c",
+              "launchctl stop com.ollama.optimized && sleep 2 && launchctl start com.ollama.optimized",
+            ],
+            {
+              detached: true,
+              stdio: "ignore",
+            },
           );
-          console.log();
+          restart.unref();
+          console.log("[wrapper] Ollama restart triggered (background)");
         } catch (e) {
-          console.error();
+          console.error("[wrapper] Ollama restart failed:", e.message);
         }
       }
     } catch (e) {
@@ -4459,8 +4482,9 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     const span = traceSpan(trace, "taiwan_stock");
     console.log(`[wrapper] #${reqId} TAIWAN_STOCK: ${stockSymbol}`);
     metrics.skillCalls++;
+    const stockAbort = new AbortController();
     try {
-      const indicators = await fetchTaiwanStockIndicators(stockSymbol);
+      const indicators = await fetchTaiwanStockIndicators(stockSymbol, stockAbort.signal);
       if (!indicators || !indicators.latest_close) {
         throw new Error(`${stockSymbol} 暫無數據`);
       }
@@ -5676,7 +5700,7 @@ function handleWakeEvent(req, res) {
       }) + "\n";
     try {
       fs.mkdirSync(path.dirname(WAKE_EVENT_LOG), { recursive: true });
-      fs.appendFileSync(WAKE_EVENT_LOG, logEntry);
+      fs.appendFile(WAKE_EVENT_LOG, logEntry, () => {});
     } catch (e) {
       console.error("[wake-event] Log write failed:", e.message);
     }
@@ -5919,14 +5943,12 @@ const server = http.createServer((req, res) => {
         avg_total_ms: traces.length ? Math.round(totalMs / traces.length) : 0,
         fallback_rate: traces.length ? ((fallbacks / traces.length) * 100).toFixed(1) + "%" : "0%",
         executors,
-        recent: traces
-          .slice(-5)
-          .map((t) => ({
-            trace_id: t.trace_id,
-            executor: t.executor,
-            total_ms: t.total_ms,
-            route_path: t.route_path,
-          })),
+        recent: traces.slice(-5).map((t) => ({
+          trace_id: t.trace_id,
+          executor: t.executor,
+          total_ms: t.total_ms,
+          route_path: t.route_path,
+        })),
       };
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(summary, null, 2));
@@ -6213,7 +6235,7 @@ server.on("error", (err) => {
     );
     try {
       const { execSync } = require("child_process");
-      execSync(`lsof -ti :${LISTEN_PORT} | xargs kill -9 2>/dev/null || true`);
+      execSync(`/usr/sbin/lsof -ti :${LISTEN_PORT} | xargs kill -9 2>/dev/null || true`);
       console.log(`[wrapper] Killed process on port :${LISTEN_PORT}, retrying in 1s...`);
       setTimeout(() => server.listen(LISTEN_PORT, "0.0.0.0"), 1000);
     } catch (e) {
