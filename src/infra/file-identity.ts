@@ -13,7 +13,11 @@ export function sameFileIdentity(
   platform: NodeJS.Platform = process.platform,
 ): boolean {
   if (left.ino !== right.ino) {
-    return false;
+    // On Windows, either side can report ino=0 for some filesystem / API combinations
+    // (especially path-based stats vs fd-based stats). Treat ino=0 as "unknown".
+    if (platform !== "win32" || (!isZero(left.ino) && !isZero(right.ino))) {
+      return false;
+    }
   }
 
   // On Windows, path-based stat calls can report dev=0 while fd-based stat
