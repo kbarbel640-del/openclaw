@@ -16,10 +16,6 @@ import { resolveGatewayService } from "../daemon/service.js";
 import { resolveGatewayAuth } from "../gateway/auth.js";
 import { buildGatewayConnectionDetails } from "../gateway/call.js";
 import { resolveOpenClawPackageRoot } from "../infra/openclaw-root.js";
-import {
-  extractZhipuAssistantText,
-  zhipuChatCompletions,
-} from "../providers/zhipu/zhipu-client.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { note } from "../terminal/note.js";
@@ -33,7 +29,7 @@ import {
 import { doctorShellCompletion } from "./doctor-completion.js";
 import { loadAndMaybeMigrateDoctorConfig } from "./doctor-config-flow.js";
 import { maybeRepairGatewayDaemon } from "./doctor-gateway-daemon-flow.js";
-import { checkGatewayHealth } from "./doctor-gateway-health.js";
+import { checkGatewayHealth, probeGatewayMemoryStatus } from "./doctor-gateway-health.js";
 import {
   maybeRepairGatewayServiceConfig,
   maybeScanExtraGatewayServices,
@@ -66,36 +62,6 @@ const outro = (message: string) => clackOutro(stylePromptTitle(message) ?? messa
 
 function resolveMode(cfg: OpenClawConfig): "local" | "remote" {
   return cfg.gateway?.mode === "remote" ? "remote" : "local";
-}
-
-async function noteZhipuProviderHealth() {
-  const apiKey = process.env.ZHIPU_API_KEY?.trim();
-  if (!apiKey) {
-    note('- FAIL: Missing ZHIPU_API_KEY. Set "ZHIPU_API_KEY" and rerun doctor.', "ZHIPU Provider");
-    return;
-  }
-
-  try {
-    const response = await zhipuChatCompletions({
-      model: "glm-4.5-flash",
-      messages: [{ role: "user", content: "reply with OK" }],
-      stream: false,
-      max_tokens: 64,
-      temperature: 0,
-    });
-    const assistantText = extractZhipuAssistantText(response);
-    if (assistantText.trim()) {
-      note("- PASS: Chat connectivity check succeeded.", "ZHIPU Provider");
-      return;
-    }
-    note(
-      "- FAIL: Chat connectivity check returned empty response content/reasoning_content.",
-      "ZHIPU Provider",
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    note(`- FAIL: Chat connectivity check failed: ${message}`, "ZHIPU Provider");
-  }
 }
 
 export async function doctorCommand(
@@ -298,8 +264,6 @@ export async function doctorCommand(
   }
 
   noteWorkspaceStatus(cfg);
-  await noteMemorySearchHealth(cfg);
-  await noteZhipuProviderHealth();
 
   // Check and fix shell completion
   await doctorShellCompletion(runtime, prompter, {
@@ -311,6 +275,13 @@ export async function doctorCommand(
     cfg,
     timeoutMs: options.nonInteractive === true ? 3000 : 10_000,
   });
+  const gatewayMemoryProbe = healthOk
+    ? await probeGatewayMemoryStatus({
+        cfg,
+        timeoutMs: options.nonInteractive === true ? 3000 : 10_000,
+      })
+    : { checked: false, ready: false };
+  await noteMemorySearchHealth(cfg, { gatewayMemoryProbe });
   await maybeRepairGatewayDaemon({
     cfg,
     runtime,
@@ -330,7 +301,7 @@ export async function doctorCommand(
     if (fs.existsSync(backupPath)) {
       runtime.log(`Backup: ${shortenHomePath(backupPath)}`);
     }
-  } else {
+  } else if (!prompter.shouldRepair) {
     runtime.log(`Run "${formatCliCommand("openclaw doctor --fix")}" to apply changes.`);
   }
 

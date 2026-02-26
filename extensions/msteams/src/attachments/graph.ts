@@ -5,9 +5,11 @@ import {
   GRAPH_ROOT,
   inferPlaceholder,
   isRecord,
+  isUrlAllowed,
   normalizeContentType,
   resolveRequestUrl,
   resolveAllowedHosts,
+  safeFetch,
 } from "./shared.js";
 import type {
   MSTeamsAccessTokenProvider,
@@ -264,6 +266,9 @@ export async function downloadMSTeamsGraphMedia(params: {
         try {
           // SharePoint URLs need to be accessed via Graph shares API
           const shareUrl = att.contentUrl!;
+          if (!isUrlAllowed(shareUrl, allowHosts)) {
+            continue;
+          }
           const encodedUrl = Buffer.from(shareUrl).toString("base64url");
           const sharesUrl = `${GRAPH_ROOT}/shares/u!${encodedUrl}/driveItem/content`;
 
@@ -274,12 +279,17 @@ export async function downloadMSTeamsGraphMedia(params: {
             contentTypeHint: "application/octet-stream",
             preserveFilenames: params.preserveFilenames,
             fetchImpl: async (input, init) => {
+              const requestUrl = resolveRequestUrl(input);
               const headers = new Headers(init?.headers);
               headers.set("Authorization", `Bearer ${accessToken}`);
-              return await fetchFn(resolveRequestUrl(input), {
-                ...init,
-                headers,
-                redirect: "follow",
+              return await safeFetch({
+                url: requestUrl,
+                allowHosts,
+                fetchFn,
+                requestInit: {
+                  ...init,
+                  headers,
+                },
               });
             },
           });

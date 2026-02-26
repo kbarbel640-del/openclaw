@@ -33,6 +33,27 @@ describe("fetchWithSsrFGuard hardening", () => {
     }
   });
 
+  it("blocks special-use IPv4 literal URLs before fetch", async () => {
+    const fetchImpl = vi.fn();
+    await expect(
+      fetchWithSsrFGuard({
+        url: "http://198.18.0.1:8080/internal",
+        fetchImpl,
+      }),
+    ).rejects.toThrow(/private|internal|blocked/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("allows RFC2544 benchmark range IPv4 literal URLs when explicitly opted in", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    const result = await fetchWithSsrFGuard({
+      url: "http://198.18.0.153/file",
+      fetchImpl,
+      policy: { allowRfc2544BenchmarkRange: true },
+    });
+    expect(result.response.status).toBe(200);
+  });
+
   it("blocks redirect chains that hop to private hosts", async () => {
     const lookupFn = vi.fn(async () => [
       { address: "93.184.216.34", family: 4 },
