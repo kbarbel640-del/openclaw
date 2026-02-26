@@ -30,11 +30,9 @@ export function buildCronEventPrompt(
       "\n\nHandle this reminder internally. Do not relay it to the user unless explicitly requested."
     );
   }
-  return (
-    "A scheduled reminder has been triggered. The reminder content is:\n\n" +
-    eventText +
-    "\n\nPlease relay this reminder to the user in a helpful and friendly way."
-  );
+  // deliverToUser=true: just show the reminder content
+  // Users can add relay instructions in their message text if needed
+  return "A scheduled reminder has been triggered. The reminder content is:\n\n" + eventText;
 }
 
 export function buildExecEventPrompt(opts?: { deliverToUser?: boolean }): string {
@@ -45,11 +43,9 @@ export function buildExecEventPrompt(opts?: { deliverToUser?: boolean }): string
       "Handle the result internally. Do not relay it to the user unless explicitly requested."
     );
   }
-  return (
-    "An async command you ran earlier has completed. The result is shown in the system messages above. " +
-    "Please relay the command output to the user in a helpful way. If the command succeeded, share the relevant output. " +
-    "If it failed, explain what went wrong."
-  );
+  // deliverToUser=true: just notify about completion
+  // Users can add relay instructions in their message text if needed
+  return "An async command you ran earlier has completed. The result is shown in the system messages above.";
 }
 
 const HEARTBEAT_OK_PREFIX = HEARTBEAT_TOKEN.toLowerCase();
