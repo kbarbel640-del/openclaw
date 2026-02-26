@@ -6,6 +6,7 @@ import { listEnabledFeishuAccounts } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
+import { cleanBlocksForDescendant } from "./table-utils.js";
 import { resolveToolsConfig } from "./tools-config.js";
 
 // ============ Helpers ============
@@ -51,34 +52,6 @@ const BLOCK_TYPE_NAMES: Record<number, string> = {
   31: "Table",
   32: "TableCell",
 };
-
-/**
- * Clean blocks for Descendant API - keeps block_id and children, removes parent_id.
- * For table blocks: removes read-only fields (cells, merge_info, column_width).
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block types
-function cleanBlocksForDescendant(blocks: any[]): any[] {
-  return blocks.map((block) => {
-    const { parent_id: _parentId, ...cleanBlock } = block;
-
-    // Fix: Convert API returns children as string for table_cell blocks (type 32)
-    if (cleanBlock.block_type === 32 && typeof cleanBlock.children === "string") {
-      cleanBlock.children = [cleanBlock.children];
-    }
-
-    // Clean table blocks - remove read-only fields
-    if (cleanBlock.block_type === 31 && cleanBlock.table) {
-      const { cells: _cells, ...tableWithoutCells } = cleanBlock.table;
-      if (tableWithoutCells.property) {
-        const { row_size, column_size } = tableWithoutCells.property;
-        tableWithoutCells.property = { row_size, column_size };
-      }
-      cleanBlock.table = tableWithoutCells;
-    }
-
-    return cleanBlock;
-  });
-}
 
 // ============ Core Functions ============
 
