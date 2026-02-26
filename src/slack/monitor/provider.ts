@@ -1,3 +1,4 @@
+import type { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import SlackBolt from "@slack/bolt";
 import { resolveTextChunkLimit } from "../../auto-reply/chunk.js";
@@ -18,6 +19,7 @@ import {
 } from "../../config/runtime-group-policy.js";
 import type { SessionScope } from "../../config/sessions.js";
 import { warn } from "../../globals.js";
+import { sleepWithAbort } from "../../infra/backoff.js";
 import { installRequestBodyLimitGuard } from "../../infra/http-body.js";
 import { normalizeMainKey } from "../../routing/session-key.js";
 import { createNonExitingRuntime, type RuntimeEnv } from "../../runtime.js";
@@ -348,21 +350,108 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   };
   opts.abortSignal?.addEventListener("abort", stopOnAbort, { once: true });
 
+  // For socket mode, the Bolt SDK manages WebSocket reconnection internally but
+  // has a known failure mode: when a DNS failure causes the reconnect loop's
+  // `apps.connections.open()` call to exhaust all HTTP retries, the error is
+  // swallowed (unhandled rejection in SocketModeClient) and the socket goes
+  // permanently dead without emitting `State.Disconnected`.
+  //
+  // We detect this by watching for `"close"` events on the underlying
+  // SocketModeClient: if the WebSocket closes and a fresh `"connected"` event
+  // does not arrive within SOCKET_RECONNECT_WATCHDOG_MS, we assume the SDK has
+  // given up and force a full stop/start cycle with exponential backoff.
+  const SOCKET_RECONNECT_INITIAL_MS = 1_000;
+  const SOCKET_RECONNECT_MAX_MS = 30_000;
+  // Allow enough time for the Bolt SDK's internal HTTP retries to succeed
+  // (SocketModeClient uses retryConfig: { retries: 100, factor: 1.3 }).
+  const SOCKET_RECONNECT_WATCHDOG_MS = 3 * 60_000;
+
+  // The SocketModeClient instance is held on the internal receiver; cast to
+  // access its EventEmitter interface for "close" / "connected" events.
+  const smClient = (app as unknown as { receiver?: { client?: EventEmitter } }).receiver?.client;
+
   try {
     if (slackMode === "socket") {
-      await app.start();
-      runtime.log?.("slack socket mode connected");
+      let reconnectDelayMs = SOCKET_RECONNECT_INITIAL_MS;
+
+      while (!opts.abortSignal?.aborted) {
+        // An AbortController used to signal that the socket watchdog expired
+        // and a reconnect is required.
+        const watchdogController = new AbortController();
+        let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
+
+        const onSocketClose = () => {
+          // The WebSocket closed; give the Bolt SDK time to reconnect on its
+          // own before we step in.
+          clearTimeout(watchdogTimer);
+          watchdogTimer = setTimeout(() => {
+            if (!opts.abortSignal?.aborted && !watchdogController.signal.aborted) {
+              runtime.log?.("slack socket reconnect watchdog expired; restarting connection");
+              watchdogController.abort();
+            }
+          }, SOCKET_RECONNECT_WATCHDOG_MS);
+        };
+
+        const onSocketConnected = () => {
+          // SDK reconnected successfully; reset the watchdog.
+          clearTimeout(watchdogTimer);
+        };
+
+        if (smClient) {
+          smClient.on("close", onSocketClose);
+          smClient.on("connected", onSocketConnected);
+        }
+
+        try {
+          await app.start();
+          runtime.log?.("slack socket mode connected");
+          reconnectDelayMs = SOCKET_RECONNECT_INITIAL_MS; // reset on success
+
+          // Wait until the gateway is shutting down (abort signal) or the
+          // watchdog determines the socket cannot be recovered.
+          await Promise.race([
+            new Promise<void>((resolve) => {
+              if (opts.abortSignal?.aborted) {
+                resolve();
+                return;
+              }
+              opts.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+            }),
+            new Promise<void>((resolve) => {
+              watchdogController.signal.addEventListener("abort", () => resolve(), { once: true });
+            }),
+          ]);
+        } catch (err) {
+          runtime.log?.(`slack socket failed to start: ${String(err)}`);
+        } finally {
+          clearTimeout(watchdogTimer);
+          if (smClient) {
+            smClient.off("close", onSocketClose);
+            smClient.off("connected", onSocketConnected);
+          }
+          await app.stop().catch(() => undefined);
+        }
+
+        if (opts.abortSignal?.aborted) {
+          break;
+        }
+
+        runtime.log?.(`slack socket mode reconnecting in ${reconnectDelayMs}ms`);
+        await sleepWithAbort(reconnectDelayMs, opts.abortSignal).catch(() => {
+          // abort fired during sleep — loop condition will exit cleanly
+        });
+        reconnectDelayMs = Math.min(reconnectDelayMs * 2, SOCKET_RECONNECT_MAX_MS);
+      }
     } else {
       runtime.log?.(`slack http mode listening at ${slackWebhookPath}`);
+      if (!opts.abortSignal?.aborted) {
+        await new Promise<void>((resolve) => {
+          opts.abortSignal?.addEventListener("abort", () => resolve(), {
+            once: true,
+          });
+        });
+      }
     }
-    if (opts.abortSignal?.aborted) {
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      opts.abortSignal?.addEventListener("abort", () => resolve(), {
-        once: true,
-      });
-    });
   } finally {
     opts.abortSignal?.removeEventListener("abort", stopOnAbort);
     unregisterHttpHandler?.();
