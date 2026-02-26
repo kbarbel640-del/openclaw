@@ -8,12 +8,12 @@ import {
   type ProviderConfig,
 } from "./models-config.providers.js";
 
-function buildModel(id: string) {
+function buildModel(id: string): NonNullable<ProviderConfig["models"]>[number] {
   return {
     id,
     name: id,
     reasoning: true,
-    input: ["text"] as const,
+    input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 1,
     maxTokens: 1,
