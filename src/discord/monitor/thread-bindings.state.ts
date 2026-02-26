@@ -6,7 +6,7 @@ import { normalizeAccountId, resolveAgentIdFromSessionKey } from "../../routing/
 import {
   DEFAULT_THREAD_BINDING_IDLE_TIMEOUT_MS,
   DEFAULT_THREAD_BINDING_MAX_AGE_MS,
-  RECENT_UNBOUND_WEBHOOK_ECHO_TTL_MS,
+  RECENT_UNBOUND_WEBHOOK_ECHO_WINDOW_MS,
   THREAD_BINDINGS_VERSION,
   type PersistedThreadBindingRecord,
   type PersistedThreadBindingsPayload,
@@ -177,29 +177,6 @@ function normalizePersistedBinding(threadIdKey: string, raw: unknown): ThreadBin
     typeof value.maxAgeMs === "number" && Number.isFinite(value.maxAgeMs)
       ? Math.max(0, Math.floor(value.maxAgeMs))
       : undefined;
-  const legacyExpiresAt =
-    typeof (value as { expiresAt?: unknown }).expiresAt === "number" &&
-    Number.isFinite((value as { expiresAt?: unknown }).expiresAt)
-      ? Math.max(0, Math.floor((value as { expiresAt?: number }).expiresAt ?? 0))
-      : undefined;
-
-  let migratedIdleTimeoutMs = idleTimeoutMs;
-  let migratedMaxAgeMs = maxAgeMs;
-  if (
-    migratedIdleTimeoutMs === undefined &&
-    migratedMaxAgeMs === undefined &&
-    legacyExpiresAt != null
-  ) {
-    if (legacyExpiresAt <= 0) {
-      migratedIdleTimeoutMs = 0;
-      migratedMaxAgeMs = 0;
-    } else {
-      const baseBoundAt = boundAt > 0 ? boundAt : lastActivityAt;
-      // Legacy expiresAt represented an absolute timestamp; map it to max-age and disable idle timeout.
-      migratedIdleTimeoutMs = 0;
-      migratedMaxAgeMs = Math.max(1, legacyExpiresAt - Math.max(0, baseBoundAt));
-    }
-  }
 
   return {
     accountId,
@@ -214,8 +191,8 @@ function normalizePersistedBinding(threadIdKey: string, raw: unknown): ThreadBin
     boundBy,
     boundAt,
     lastActivityAt,
-    idleTimeoutMs: migratedIdleTimeoutMs,
-    maxAgeMs: migratedMaxAgeMs,
+    idleTimeoutMs,
+    maxAgeMs,
   };
 }
 
@@ -344,7 +321,7 @@ export function rememberRecentUnboundWebhookEcho(record: ThreadBindingRecord) {
   }
   RECENT_UNBOUND_WEBHOOK_ECHOES_BY_BINDING_KEY.set(bindingKey, {
     webhookId,
-    expiresAt: Date.now() + RECENT_UNBOUND_WEBHOOK_ECHO_TTL_MS,
+    expiresAt: Date.now() + RECENT_UNBOUND_WEBHOOK_ECHO_WINDOW_MS,
   });
 }
 
