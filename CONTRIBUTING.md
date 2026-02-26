@@ -56,6 +56,9 @@ npm run dev      # or: python main.py
 - **Onur Solmaz** - Agents, dev workflows, ACP integrations, MS Teams
   - GitHub: [@onutc](https://github.com/onutc), [@osolmaz](https://github.com/osolmaz) · X: [@onusoz](https://x.com/onusoz)
 
+- **Josh Avant** - Core, CLI, Gateway, Security, Agents
+  - GitHub: [@joshavant](https://github.com/joshavant) · X: [@joshavant](https://x.com/joshavant)
+
 ## How to Contribute
 
 1. **Bugs & small fixes** → Open a PR!
