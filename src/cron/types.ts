@@ -43,6 +43,11 @@ export type CronRunTelemetry = {
   model?: string;
   provider?: string;
   usage?: CronUsageSummary;
+  command?: string;
+  exitCode?: number;
+  timedOut?: boolean;
+  stdoutPreview?: string;
+  stderrPreview?: string;
 };
 
 export type CronRunOutcome = {
@@ -69,6 +74,13 @@ export type CronPayload =
       channel?: CronMessageChannel;
       to?: string;
       bestEffortDeliver?: boolean;
+    }
+  | {
+      kind: "command";
+      command: string;
+      timeoutSeconds?: number;
+      cwd?: string;
+      shell?: string;
     };
 
 export type CronPayloadPatch =
@@ -84,6 +96,13 @@ export type CronPayloadPatch =
       channel?: CronMessageChannel;
       to?: string;
       bestEffortDeliver?: boolean;
+    }
+  | {
+      kind: "command";
+      command?: string;
+      timeoutSeconds?: number;
+      cwd?: string;
+      shell?: string;
     };
 
 export type CronJobState = {
