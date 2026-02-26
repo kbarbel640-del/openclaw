@@ -5,7 +5,7 @@
 param(
     [string]$Tag = "latest",
     [ValidateSet("npm", "git")]
-    [string]$InstallMethod = "npm",
+    [string]$InstallMethod = "git",
     [string]$GitDir,
     [switch]$NoOnboard,
     [switch]$NoGitUpdate,
