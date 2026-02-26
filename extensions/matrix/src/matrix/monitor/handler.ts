@@ -18,7 +18,12 @@ import {
   parsePollStartContent,
   type PollStartContent,
 } from "../poll-types.js";
-import { reactMatrixMessage, sendMessageMatrix, sendTypingMatrix } from "../send.js";
+import {
+  reactMatrixMessage,
+  sendMessageMatrix,
+  sendReadReceiptMatrix,
+  sendTypingMatrix,
+} from "../send.js";
 import {
   normalizeMatrixAllowList,
   resolveMatrixAllowListMatch,
