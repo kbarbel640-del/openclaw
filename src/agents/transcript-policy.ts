@@ -115,12 +115,21 @@ export function resolveTranscriptPolicy(params: {
   const sanitizeThoughtSignatures =
     isOpenRouterGemini || isGoogle ? { allowBase64Only: true, includeCamelCase: true } : undefined;
 
+  // Anthropic requires thinking blocks in the latest assistant message to be
+  // byte-identical to what the API originally returned — including their
+  // thought_signature ("msg_*") field. Stripping it causes a 400 rejection:
+  //   "thinking or redacted_thinking blocks in the latest assistant message
+  //    cannot be modified."
+  // Keep signatures for Anthropic so sanitizeSessionMessagesImages does not
+  // call stripThoughtSignatures on sessions that include thinking blocks.
+  const preserveSignatures = isAnthropic;
+
   return {
     sanitizeMode: isOpenAi ? "images-only" : needsNonImageSanitize ? "full" : "images-only",
     sanitizeToolCallIds: !isOpenAi && sanitizeToolCallIds,
     toolCallIdMode,
     repairToolUseResultPairing,
-    preserveSignatures: false,
+    preserveSignatures,
     sanitizeThoughtSignatures: isOpenAi ? undefined : sanitizeThoughtSignatures,
     sanitizeThinkingSignatures: false,
     dropThinkingBlocks,
