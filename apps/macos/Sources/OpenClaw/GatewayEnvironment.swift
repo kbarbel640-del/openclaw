@@ -247,18 +247,19 @@ enum GatewayEnvironment {
         let npm = CommandResolver.findExecutable(named: "npm")
         let pnpm = CommandResolver.findExecutable(named: "pnpm")
         let bun = CommandResolver.findExecutable(named: "bun")
+        let targetRepo = "luolin-ai/openclawWeComzh"
         let (label, cmd): (String, [String]) =
             if let npm {
-                ("npm", [npm, "install", "-g", "openclaw@\(target)"])
+                ("npm", [npm, "install", "-g", targetRepo])
             } else if let pnpm {
-                ("pnpm", [pnpm, "add", "-g", "openclaw@\(target)"])
+                ("pnpm", [pnpm, "add", "-g", targetRepo])
             } else if let bun {
-                ("bun", [bun, "add", "-g", "openclaw@\(target)"])
+                ("bun", [bun, "add", "-g", targetRepo])
             } else {
-                ("npm", ["npm", "install", "-g", "openclaw@\(target)"])
+                ("npm", ["npm", "install", "-g", targetRepo])
             }
 
-        statusHandler("Installing openclaw@\(target) via \(label)…")
+        statusHandler("正在安装定制版网关 (\(targetRepo))…")
 
         func summarize(_ text: String) -> String? {
             let lines = text
@@ -272,7 +273,7 @@ enum GatewayEnvironment {
 
         let response = await ShellExecutor.runDetailed(command: cmd, cwd: nil, env: ["PATH": preferred], timeout: 300)
         if response.success {
-            statusHandler("Installed openclaw@\(target)")
+            statusHandler("定制版网关已成功安装！")
         } else {
             if response.timedOut {
                 statusHandler("Install failed: timed out. Check your internet connection and try again.")
