@@ -6,6 +6,7 @@ import {
   cameraTempPath,
   parseCameraClipPayload,
   parseCameraSnapPayload,
+  writeCameraClipPayloadToFile,
   writeBase64ToFile,
   writeUrlToFile,
 } from "../../cli/nodes-camera.js";
@@ -17,6 +18,7 @@ import {
 } from "../../cli/nodes-screen.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { formatExecCommand } from "../../infra/system-run-command.js";
 import { imageMimeFromFormat } from "../../media/mime.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { resolveImageSanitizationLimits } from "../image-sanitization.js";
@@ -46,6 +48,20 @@ const NOTIFY_PRIORITIES = ["passive", "active", "timeSensitive"] as const;
 const NOTIFY_DELIVERIES = ["system", "overlay", "auto"] as const;
 const CAMERA_FACING = ["front", "back", "both"] as const;
 const LOCATION_ACCURACY = ["coarse", "balanced", "precise"] as const;
+
+function isPairingRequiredMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes("pairing required") || lower.includes("not_paired");
+}
+
+function extractPairingRequestId(message: string): string | null {
+  const match = message.match(/\(requestId:\s*([^)]+)\)/i);
+  if (!match) {
+    return null;
+  }
+  const value = (match[1] ?? "").trim();
+  return value.length > 0 ? value : null;
+}
 
 // Flattened schema: runtime validates per-action requirements.
 const NodesToolSchema = Type.Object({
@@ -170,7 +186,7 @@ export function createNodesTool(options?: {
             const node = readStringParam(params, "node", { required: true });
             const nodeId = await resolveNodeId(gatewayOpts, node);
             const facingRaw =
-              typeof params.facing === "string" ? params.facing.toLowerCase() : "both";
+              typeof params.facing === "string" ? params.facing.toLowerCase() : "front";
             const facings: CameraFacing[] =
               facingRaw === "both"
                 ? ["front", "back"]
@@ -182,11 +198,11 @@ export function createNodesTool(options?: {
             const maxWidth =
               typeof params.maxWidth === "number" && Number.isFinite(params.maxWidth)
                 ? params.maxWidth
-                : undefined;
+                : 1600;
             const quality =
               typeof params.quality === "number" && Number.isFinite(params.quality)
                 ? params.quality
-                : undefined;
+                : 0.95;
             const delayMs =
               typeof params.delayMs === "number" && Number.isFinite(params.delayMs)
                 ? params.delayMs
@@ -300,16 +316,10 @@ export function createNodesTool(options?: {
               idempotencyKey: crypto.randomUUID(),
             });
             const payload = parseCameraClipPayload(raw?.payload);
-            const filePath = cameraTempPath({
-              kind: "clip",
+            const filePath = await writeCameraClipPayloadToFile({
+              payload,
               facing,
-              ext: payload.format,
             });
-            if (payload.url) {
-              await writeUrlToFile(filePath, payload.url);
-            } else if (payload.base64) {
-              await writeBase64ToFile(filePath, payload.base64);
-            }
             return {
               content: [{ type: "text", text: `FILE:${filePath}` }],
               details: {
@@ -464,7 +474,7 @@ export function createNodesTool(options?: {
             // Node requires approval – create a pending approval request on
             // the gateway and wait for the user to approve/deny via the UI.
             const APPROVAL_TIMEOUT_MS = 120_000;
-            const cmdText = command.join(" ");
+            const cmdText = formatExecCommand(command);
             const approvalId = crypto.randomUUID();
             const approvalResult = await callGatewayTool(
               "exec.approval.request",
@@ -472,7 +482,9 @@ export function createNodesTool(options?: {
               {
                 id: approvalId,
                 command: cmdText,
+                commandArgv: command,
                 cwd,
+                nodeId,
                 host: "node",
                 agentId,
                 sessionKey,
@@ -549,7 +561,14 @@ export function createNodesTool(options?: {
             ? gatewayOpts.gatewayUrl.trim()
             : "default";
         const agentLabel = agentId ?? "unknown";
-        const message = err instanceof Error ? err.message : String(err);
+        let message = err instanceof Error ? err.message : String(err);
+        if (action === "invoke" && isPairingRequiredMessage(message)) {
+          const requestId = extractPairingRequestId(message);
+          const approveHint = requestId
+            ? `Approve pairing request ${requestId} and retry.`
+            : "Approve the pending pairing request and retry.";
+          message = `pairing required before node invoke. ${approveHint}`;
+        }
         throw new Error(
           `agent=${agentLabel} node=${nodeLabel} gateway=${gatewayLabel} action=${action}: ${message}`,
           { cause: err },

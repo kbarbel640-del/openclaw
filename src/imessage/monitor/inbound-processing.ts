@@ -96,7 +96,7 @@ export function resolveIMessageInboundDecision(params: {
   storeAllowFrom: string[];
   historyLimit: number;
   groupHistories: Map<string, HistoryEntry[]>;
-  echoCache?: { has: (scope: string, text: string) => boolean };
+  echoCache?: { has: (scope: string, lookup: { text?: string; messageId?: string }) => boolean };
   logVerbose?: (msg: string) => void;
 }): IMessageInboundDecision {
   const senderRaw = params.message.sender ?? "";
@@ -141,7 +141,8 @@ export function resolveIMessageInboundDecision(params: {
   }
 
   const groupId = isGroup ? groupIdCandidate : undefined;
-  const effectiveDmAllowFrom = Array.from(new Set([...params.allowFrom, ...params.storeAllowFrom]))
+  const storeAllowFrom = params.dmPolicy === "allowlist" ? [] : params.storeAllowFrom;
+  const effectiveDmAllowFrom = Array.from(new Set([...params.allowFrom, ...storeAllowFrom]))
     .map((v) => String(v).trim())
     .filter(Boolean);
   // Keep DM pairing-store authorization scoped to DMs; group access must come from explicit group allowlist config.
@@ -226,15 +227,23 @@ export function resolveIMessageInboundDecision(params: {
 
   // Echo detection: check if the received message matches a recently sent bot reply.
   // Scope by conversation so same text in different chats is not conflated.
-  if (params.echoCache && messageText) {
+  const inboundMessageId = params.message.id != null ? String(params.message.id) : undefined;
+  if (params.echoCache && (messageText || inboundMessageId)) {
     const echoScope = buildIMessageEchoScope({
       accountId: params.accountId,
       isGroup,
       chatId,
       sender,
     });
-    if (params.echoCache.has(echoScope, messageText)) {
-      params.logVerbose?.(describeIMessageEchoDropLog({ messageText }));
+    if (
+      params.echoCache.has(echoScope, {
+        text: messageText || undefined,
+        messageId: inboundMessageId,
+      })
+    ) {
+      params.logVerbose?.(
+        describeIMessageEchoDropLog({ messageText, messageId: inboundMessageId }),
+      );
       return { kind: "drop", reason: "echo" };
     }
   }
@@ -475,6 +484,11 @@ export function buildIMessageInboundContext(params: {
 // Re-export from shared module for backwards compatibility.
 export { buildIMessageEchoScope } from "./echo-scope.js";
 
-export function describeIMessageEchoDropLog(params: { messageText: string }): string {
-  return `imessage: skipping echo message (matches recently sent text): "${truncateUtf16Safe(params.messageText, 50)}"`;
+export function describeIMessageEchoDropLog(params: {
+  messageText: string;
+  messageId?: string;
+}): string {
+  const preview = truncateUtf16Safe(params.messageText, 50);
+  const messageIdPart = params.messageId ? ` id=${params.messageId}` : "";
+  return `imessage: skipping echo message${messageIdPart}: "${preview}"`;
 }
