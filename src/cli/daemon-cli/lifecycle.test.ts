@@ -19,13 +19,27 @@ type RestartParams = {
   postRestartCheck?: (ctx: RestartPostCheckContext) => Promise<void>;
 };
 
+type StopPostCheckContext = {
+  json: boolean;
+  stdout: NodeJS.WritableStream;
+  warnings: string[];
+  fail: (message: string, hints?: string[]) => void;
+};
+
+type StopParams = {
+  opts?: { json?: boolean };
+  postStopCheck?: (ctx: StopPostCheckContext) => Promise<void>;
+};
+
 const service = {
   readCommand: vi.fn(),
   restart: vi.fn(),
 };
 
 const runServiceRestart = vi.fn();
+const runServiceStop = vi.fn();
 const waitForGatewayHealthyRestart = vi.fn();
+const inspectGatewayRestart = vi.fn();
 const terminateStaleGatewayPids = vi.fn();
 const renderRestartDiagnostics = vi.fn(() => ["diag: unhealthy runtime"]);
 const resolveGatewayPort = vi.fn(() => 18789);
@@ -44,6 +58,7 @@ vi.mock("./restart-health.js", () => ({
   DEFAULT_RESTART_HEALTH_ATTEMPTS: 120,
   DEFAULT_RESTART_HEALTH_DELAY_MS: 500,
   waitForGatewayHealthyRestart,
+  inspectGatewayRestart,
   terminateStaleGatewayPids,
   renderRestartDiagnostics,
 }));
@@ -51,18 +66,20 @@ vi.mock("./restart-health.js", () => ({
 vi.mock("./lifecycle-core.js", () => ({
   runServiceRestart,
   runServiceStart: vi.fn(),
-  runServiceStop: vi.fn(),
+  runServiceStop,
   runServiceUninstall: vi.fn(),
 }));
 
 describe("runDaemonRestart health checks", () => {
   beforeEach(() => {
     vi.resetModules();
-    service.readCommand.mockClear();
-    service.restart.mockClear();
-    runServiceRestart.mockClear();
-    waitForGatewayHealthyRestart.mockClear();
-    terminateStaleGatewayPids.mockClear();
+    service.readCommand.mockReset();
+    service.restart.mockReset();
+    runServiceRestart.mockReset();
+    runServiceStop.mockReset();
+    waitForGatewayHealthyRestart.mockReset();
+    inspectGatewayRestart.mockReset();
+    terminateStaleGatewayPids.mockReset();
     renderRestartDiagnostics.mockClear();
     resolveGatewayPort.mockClear();
     loadConfig.mockClear();
@@ -79,6 +96,21 @@ describe("runDaemonRestart health checks", () => {
         throw err;
       };
       await params.postRestartCheck?.({
+        json: Boolean(params.opts?.json),
+        stdout: process.stdout,
+        warnings: [],
+        fail,
+      });
+      return true;
+    });
+
+    runServiceStop.mockImplementation(async (params: StopParams) => {
+      const fail = (message: string, hints?: string[]) => {
+        const err = new Error(message) as Error & { hints?: string[] };
+        err.hints = hints;
+        throw err;
+      };
+      await params.postStopCheck?.({
         json: Boolean(params.opts?.json),
         stdout: process.stdout,
         warnings: [],
@@ -129,6 +161,64 @@ describe("runDaemonRestart health checks", () => {
       hints: ["openclaw gateway status --deep", "openclaw doctor"],
     });
     expect(terminateStaleGatewayPids).not.toHaveBeenCalled();
+    expect(renderRestartDiagnostics).toHaveBeenCalledTimes(1);
+  });
+
+  it("kills lingering gateway pids after stop on Windows", async () => {
+    const stale: RestartHealthSnapshot = {
+      healthy: false,
+      staleGatewayPids: [42812],
+      runtime: { status: "stopped" },
+      portUsage: { port: 18789, status: "busy", listeners: [], hints: [] },
+    };
+    const clean: RestartHealthSnapshot = {
+      healthy: true,
+      staleGatewayPids: [],
+      runtime: { status: "stopped" },
+      portUsage: { port: 18789, status: "free", listeners: [], hints: [] },
+    };
+    inspectGatewayRestart.mockResolvedValueOnce(stale).mockResolvedValueOnce(clean);
+    terminateStaleGatewayPids.mockResolvedValue([42812]);
+
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      const { runDaemonStop } = await import("./lifecycle.js");
+      await runDaemonStop({ json: true });
+    } finally {
+      if (originalPlatform) {
+        Object.defineProperty(process, "platform", originalPlatform);
+      }
+    }
+
+    expect(terminateStaleGatewayPids).toHaveBeenCalledWith([42812]);
+    expect(inspectGatewayRestart).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails stop when lingering gateway pids remain after cleanup", async () => {
+    const stale: RestartHealthSnapshot = {
+      healthy: false,
+      staleGatewayPids: [42812],
+      runtime: { status: "stopped" },
+      portUsage: { port: 18789, status: "busy", listeners: [], hints: [] },
+    };
+    inspectGatewayRestart.mockResolvedValueOnce(stale).mockResolvedValueOnce(stale);
+    terminateStaleGatewayPids.mockResolvedValue([42812]);
+
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      const { runDaemonStop } = await import("./lifecycle.js");
+      await expect(runDaemonStop({ json: true })).rejects.toMatchObject({
+        message: "Gateway stop failed health checks.",
+      });
+    } finally {
+      if (originalPlatform) {
+        Object.defineProperty(process, "platform", originalPlatform);
+      }
+    }
+
+    expect(terminateStaleGatewayPids).toHaveBeenCalledWith([42812]);
     expect(renderRestartDiagnostics).toHaveBeenCalledTimes(1);
   });
 });

@@ -100,21 +100,21 @@ function loadBundledMemoryPluginRegistry(options?: {
     dir: pluginDir,
     filename: pluginFilename,
   });
-  process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = bundledDir;
-
-  return loadOpenClawPlugins({
-    cache: false,
-    config: {
-      plugins: {
-        slots: {
-          memory: "memory-core",
+  return withEnv({ OPENCLAW_BUNDLED_PLUGINS_DIR: bundledDir }, () =>
+    loadOpenClawPlugins({
+      cache: false,
+      config: {
+        plugins: {
+          slots: {
+            memory: "memory-core",
+          },
         },
       },
-    },
-  });
+    }),
+  );
 }
 
-function setupBundledTelegramPlugin() {
+function setupBundledTelegramPlugin(): string {
   const bundledDir = makeTempDir();
   writePlugin({
     id: "telegram",
@@ -122,7 +122,7 @@ function setupBundledTelegramPlugin() {
     dir: bundledDir,
     filename: "telegram.js",
   });
-  process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = bundledDir;
+  return bundledDir;
 }
 
 function expectTelegramLoaded(registry: ReturnType<typeof loadOpenClawPlugins>) {
@@ -187,61 +187,67 @@ describe("loadOpenClawPlugins", () => {
   });
 
   it("loads bundled telegram plugin when enabled", () => {
-    setupBundledTelegramPlugin();
+    const bundledDir = setupBundledTelegramPlugin();
 
-    const registry = loadOpenClawPlugins({
-      cache: false,
-      config: {
-        plugins: {
-          allow: ["telegram"],
-          entries: {
-            telegram: { enabled: true },
+    const registry = withEnv({ OPENCLAW_BUNDLED_PLUGINS_DIR: bundledDir }, () =>
+      loadOpenClawPlugins({
+        cache: false,
+        config: {
+          plugins: {
+            allow: ["telegram"],
+            entries: {
+              telegram: { enabled: true },
+            },
           },
         },
-      },
-    });
+      }),
+    );
 
     expectTelegramLoaded(registry);
   });
 
   it("loads bundled channel plugins when channels.<id>.enabled=true", () => {
-    setupBundledTelegramPlugin();
+    const bundledDir = setupBundledTelegramPlugin();
 
-    const registry = loadOpenClawPlugins({
-      cache: false,
-      config: {
-        channels: {
-          telegram: {
+    const registry = withEnv({ OPENCLAW_BUNDLED_PLUGINS_DIR: bundledDir }, () =>
+      loadOpenClawPlugins({
+        cache: false,
+        config: {
+          channels: {
+            telegram: {
+              enabled: true,
+            },
+          },
+          plugins: {
             enabled: true,
           },
         },
-        plugins: {
-          enabled: true,
-        },
-      },
-    });
+      }),
+    );
 
     expectTelegramLoaded(registry);
   });
 
   it("still respects explicit disable via plugins.entries for bundled channels", () => {
-    setupBundledTelegramPlugin();
+    const bundledDir = setupBundledTelegramPlugin();
 
-    const registry = loadOpenClawPlugins({
-      cache: false,
-      config: {
-        channels: {
-          telegram: {
-            enabled: true,
+    const registry = withEnv({ OPENCLAW_BUNDLED_PLUGINS_DIR: bundledDir }, () =>
+      loadOpenClawPlugins({
+        cache: false,
+        config: {
+          channels: {
+            telegram: {
+              enabled: true,
+            },
+          },
+          plugins: {
+            entries: {
+              telegram: { enabled: false },
+            },
           },
         },
-        plugins: {
-          entries: {
-            telegram: { enabled: false },
-          },
-        },
-      },
-    });
+      }),
+    );
 
     const telegram = registry.plugins.find((entry) => entry.id === "telegram");
     expect(telegram?.status).toBe("disabled");

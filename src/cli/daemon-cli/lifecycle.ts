@@ -12,6 +12,7 @@ import {
 import {
   DEFAULT_RESTART_HEALTH_ATTEMPTS,
   DEFAULT_RESTART_HEALTH_DELAY_MS,
+  inspectGatewayRestart,
   renderRestartDiagnostics,
   terminateStaleGatewayPids,
   waitForGatewayHealthyRestart,
@@ -55,10 +56,40 @@ export async function runDaemonStart(opts: DaemonLifecycleOptions = {}) {
 }
 
 export async function runDaemonStop(opts: DaemonLifecycleOptions = {}) {
+  const stopPort = await resolveGatewayRestartPort().catch(() =>
+    resolveGatewayPort(loadConfig(), process.env),
+  );
   return await runServiceStop({
     serviceNoun: "Gateway",
     service: resolveGatewayService(),
     opts,
+    postStopCheck: async ({ warnings, fail }) => {
+      if (process.platform !== "win32") {
+        return;
+      }
+      const service = resolveGatewayService();
+      let snapshot = await inspectGatewayRestart({
+        service,
+        port: stopPort,
+      });
+
+      if (snapshot.staleGatewayPids.length === 0) {
+        return;
+      }
+
+      const staleMsg = `Found lingering gateway process(es) after stop: ${snapshot.staleGatewayPids.join(", ")}.`;
+      warnings.push(staleMsg);
+      await terminateStaleGatewayPids(snapshot.staleGatewayPids);
+
+      snapshot = await inspectGatewayRestart({
+        service,
+        port: stopPort,
+      });
+      if (snapshot.staleGatewayPids.length > 0) {
+        const diagnostics = renderRestartDiagnostics(snapshot);
+        fail("Gateway stop failed health checks.", diagnostics);
+      }
+    },
   });
 }
 

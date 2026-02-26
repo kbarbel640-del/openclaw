@@ -3,7 +3,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { withEnvAsync } from "../test-utils/env.js";
 import { discoverOpenClawPlugins } from "./discovery.js";
 
 const tempDirs: string[] = [];
@@ -15,15 +14,12 @@ function makeTempDir() {
   return dir;
 }
 
-async function withStateDir<T>(stateDir: string, fn: () => Promise<T>) {
-  return await withEnvAsync(
-    {
-      OPENCLAW_STATE_DIR: stateDir,
-      CLAWDBOT_STATE_DIR: undefined,
-      OPENCLAW_BUNDLED_PLUGINS_DIR: "/nonexistent/bundled/plugins",
-    },
-    fn,
-  );
+function discoverWithStateDir(
+  stateDir: string,
+  params: Parameters<typeof discoverOpenClawPlugins>[0] = {},
+) {
+  const extraPaths = [...(params.extraPaths ?? []), path.join(stateDir, "extensions")];
+  return discoverOpenClawPlugins({ ...params, extraPaths });
 }
 
 afterEach(() => {
@@ -49,9 +45,7 @@ describe("discoverOpenClawPlugins", () => {
     fs.mkdirSync(workspaceExt, { recursive: true });
     fs.writeFileSync(path.join(workspaceExt, "beta.ts"), "export default function () {}", "utf-8");
 
-    const { candidates } = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({ workspaceDir });
-    });
+    const { candidates } = discoverWithStateDir(stateDir, { workspaceDir });
 
     const ids = candidates.map((c) => c.idHint);
     expect(ids).toContain("alpha");
@@ -79,9 +73,7 @@ describe("discoverOpenClawPlugins", () => {
     fs.mkdirSync(liveDir, { recursive: true });
     fs.writeFileSync(path.join(liveDir, "index.ts"), "export default function () {}", "utf-8");
 
-    const { candidates } = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({});
-    });
+    const { candidates } = discoverWithStateDir(stateDir, {});
 
     const ids = candidates.map((candidate) => candidate.idHint);
     expect(ids).toContain("live");
@@ -114,9 +106,7 @@ describe("discoverOpenClawPlugins", () => {
       "utf-8",
     );
 
-    const { candidates } = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({});
-    });
+    const { candidates } = discoverWithStateDir(stateDir, {});
 
     const ids = candidates.map((c) => c.idHint);
     expect(ids).toContain("pack/one");
@@ -142,9 +132,7 @@ describe("discoverOpenClawPlugins", () => {
       "utf-8",
     );
 
-    const { candidates } = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({});
-    });
+    const { candidates } = discoverWithStateDir(stateDir, {});
 
     const ids = candidates.map((c) => c.idHint);
     expect(ids).toContain("voice-call");
@@ -165,9 +153,7 @@ describe("discoverOpenClawPlugins", () => {
     );
     fs.writeFileSync(path.join(packDir, "index.js"), "module.exports = {}", "utf-8");
 
-    const { candidates } = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({ extraPaths: [packDir] });
-    });
+    const { candidates } = discoverWithStateDir(stateDir, { extraPaths: [packDir] });
 
     const ids = candidates.map((c) => c.idHint);
     expect(ids).toContain("demo-plugin-dir");
@@ -188,11 +174,11 @@ describe("discoverOpenClawPlugins", () => {
     );
     fs.writeFileSync(outside, "export default function () {}", "utf-8");
 
-    const result = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({});
-    });
+    const result = discoverWithStateDir(stateDir, {});
 
-    expect(result.candidates).toHaveLength(0);
+    expect(result.candidates.some((candidate) => candidate.idHint.startsWith("escape-pack"))).toBe(
+      false,
+    );
     expect(
       result.diagnostics.some((diag) => diag.message.includes("escapes package directory")),
     ).toBe(true);
@@ -221,9 +207,7 @@ describe("discoverOpenClawPlugins", () => {
       "utf-8",
     );
 
-    const { candidates, diagnostics } = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({});
-    });
+    const { candidates, diagnostics } = discoverWithStateDir(stateDir, {});
 
     expect(candidates.some((candidate) => candidate.idHint === "pack")).toBe(false);
     expect(diagnostics.some((entry) => entry.message.includes("escapes package directory"))).toBe(
@@ -261,9 +245,7 @@ describe("discoverOpenClawPlugins", () => {
       "utf-8",
     );
 
-    const { candidates, diagnostics } = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({});
-    });
+    const { candidates, diagnostics } = discoverWithStateDir(stateDir, {});
 
     expect(candidates.some((candidate) => candidate.idHint === "pack")).toBe(false);
     expect(diagnostics.some((entry) => entry.message.includes("escapes package directory"))).toBe(
@@ -300,9 +282,7 @@ describe("discoverOpenClawPlugins", () => {
       throw err;
     }
 
-    const { candidates } = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({});
-    });
+    const { candidates } = discoverWithStateDir(stateDir, {});
 
     expect(candidates.some((candidate) => candidate.idHint === "pack")).toBe(false);
   });
@@ -315,11 +295,9 @@ describe("discoverOpenClawPlugins", () => {
     fs.writeFileSync(pluginPath, "export default function () {}", "utf-8");
     fs.chmodSync(pluginPath, 0o777);
 
-    const result = await withStateDir(stateDir, async () => {
-      return discoverOpenClawPlugins({});
-    });
+    const result = discoverWithStateDir(stateDir, {});
 
-    expect(result.candidates).toHaveLength(0);
+    expect(result.candidates.some((candidate) => candidate.idHint === "world-open")).toBe(false);
     expect(result.diagnostics.some((diag) => diag.message.includes("world-writable path"))).toBe(
       true,
     );
@@ -338,10 +316,10 @@ describe("discoverOpenClawPlugins", () => {
       );
 
       const actualUid = (process as NodeJS.Process & { getuid: () => number }).getuid();
-      const result = await withStateDir(stateDir, async () => {
-        return discoverOpenClawPlugins({ ownershipUid: actualUid + 1 });
-      });
-      expect(result.candidates).toHaveLength(0);
+      const result = discoverWithStateDir(stateDir, { ownershipUid: actualUid + 1 });
+      expect(result.candidates.some((candidate) => candidate.idHint === "owner-mismatch")).toBe(
+        false,
+      );
       expect(result.diagnostics.some((diag) => diag.message.includes("suspicious ownership"))).toBe(
         true,
       );

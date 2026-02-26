@@ -30,6 +30,9 @@ vi.mock("../config/sessions.js", () => ({
       .trim()
       .toLowerCase();
     const mainKey = mainKeyRaw || "main";
+    if (mainKey.includes(":")) {
+      return mainKey;
+    }
     return `agent:${agentId}:${mainKey}`;
   },
 }));
@@ -134,6 +137,8 @@ vi.mock("../agents/openclaw-tools.js", () => {
 });
 
 const { handleToolsInvokeHttpRequest } = await import("./tools-invoke-http.js");
+const { getGatewayToolMetricsSnapshot, resetGatewayToolMetricsForTests } =
+  await import("./tool-observability.js");
 
 let pluginHttpHandlers: Array<(req: IncomingMessage, res: ServerResponse) => Promise<boolean>> = [];
 
@@ -187,6 +192,7 @@ beforeEach(() => {
   pluginHttpHandlers = [];
   cfg = {};
   lastCreateOpenClawToolsContext = undefined;
+  resetGatewayToolMetricsForTests();
 });
 
 const resolveGatewayToken = (): string => TEST_GATEWAY_TOKEN;
@@ -503,6 +509,31 @@ describe("POST /tools/invoke", () => {
 
     const resMain = await invokeAgentsListAuthed({ sessionKey: "main" });
     expect(resMain.status).toBe(200);
+  });
+
+  it("records channel metrics from the resolved main session key fallback", async () => {
+    cfg = {
+      ...cfg,
+      agents: {
+        list: [
+          {
+            id: "main",
+            default: true,
+            tools: {
+              allow: ["agents_list"],
+            },
+          },
+        ],
+      },
+      session: { mainKey: "discord:channel:ops" },
+    };
+
+    const res = await invokeAgentsListAuthed();
+    expect(res.status).toBe(200);
+
+    const snapshot = getGatewayToolMetricsSnapshot({ topChannels: 10 });
+    const discordRow = snapshot.channels.find((row) => row.channel === "discord");
+    expect(discordRow?.calls).toBe(1);
   });
 
   it("maps tool input/auth errors to 400/403 and unexpected execution errors to 500", async () => {
