@@ -95,11 +95,6 @@ function createOAuthHandler(region: MiniMaxRegion) {
                     input: ["text"],
                   }),
                   buildModelDefinition({
-                    id: "MiniMax-M2.1-highspeed",
-                    name: "MiniMax M2.1 Highspeed",
-                    input: ["text"],
-                  }),
-                  buildModelDefinition({
                     id: "MiniMax-M2.5",
                     name: "MiniMax M2.5",
                     input: ["text"],
@@ -120,7 +115,6 @@ function createOAuthHandler(region: MiniMaxRegion) {
               models: {
                 [modelRef("MiniMax-M2")]: { alias: "minimax-m2" },
                 [modelRef("MiniMax-M2.1")]: { alias: "minimax-m2.1" },
-                [modelRef("MiniMax-M2.1-highspeed")]: { alias: "minimax-m2.1-highspeed" },
                 [modelRef("MiniMax-M2.5")]: { alias: "minimax-m2.5" },
                 [modelRef("MiniMax-M2.5-highspeed")]: { alias: "minimax-m2.5-highspeed" },
               },
