@@ -14,6 +14,16 @@ const ANTHROPIC_SONNET_46_MODEL_ID = "claude-sonnet-4-6";
 const ANTHROPIC_SONNET_46_DOT_MODEL_ID = "claude-sonnet-4.6";
 const ANTHROPIC_SONNET_TEMPLATE_MODEL_IDS = ["claude-sonnet-4-5", "claude-sonnet-4.5"] as const;
 
+const ANTIGRAVITY_OPUS_46_MODEL_ID = "claude-opus-4-6";
+const ANTIGRAVITY_OPUS_46_DOT_MODEL_ID = "claude-opus-4.6";
+const ANTIGRAVITY_OPUS_TEMPLATE_MODEL_IDS = ["claude-opus-4-5", "claude-opus-4.5"] as const;
+const ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID = "claude-opus-4-6-thinking";
+const ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID = "claude-opus-4.6-thinking";
+const ANTIGRAVITY_OPUS_THINKING_TEMPLATE_MODEL_IDS = [
+  "claude-opus-4-5-thinking",
+  "claude-opus-4.5-thinking",
+] as const;
+
 const ZAI_GLM5_MODEL_ID = "glm-5";
 const ZAI_GLM5_TEMPLATE_MODEL_IDS = ["glm-4.7"] as const;
 
@@ -200,6 +210,61 @@ function resolveZaiGlm5ForwardCompatModel(
   } as Model<Api>);
 }
 
+function resolveAntigravityOpus46ForwardCompatModel(
+  provider: string,
+  modelId: string,
+  modelRegistry: ModelRegistry,
+): Model<Api> | undefined {
+  const normalizedProvider = normalizeProviderId(provider);
+  if (normalizedProvider !== "google-antigravity") {
+    return undefined;
+  }
+
+  const trimmedModelId = modelId.trim();
+  const lower = trimmedModelId.toLowerCase();
+  const isOpus46 =
+    lower === ANTIGRAVITY_OPUS_46_MODEL_ID ||
+    lower === ANTIGRAVITY_OPUS_46_DOT_MODEL_ID ||
+    lower.startsWith(`${ANTIGRAVITY_OPUS_46_MODEL_ID}-`) ||
+    lower.startsWith(`${ANTIGRAVITY_OPUS_46_DOT_MODEL_ID}-`);
+  const isOpus46Thinking =
+    lower === ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID ||
+    lower === ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID ||
+    lower.startsWith(`${ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID}-`) ||
+    lower.startsWith(`${ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID}-`);
+  if (!isOpus46 && !isOpus46Thinking) {
+    return undefined;
+  }
+
+  const templateIds: string[] = [];
+  if (lower.startsWith(ANTIGRAVITY_OPUS_46_MODEL_ID)) {
+    templateIds.push(lower.replace(ANTIGRAVITY_OPUS_46_MODEL_ID, "claude-opus-4-5"));
+  }
+  if (lower.startsWith(ANTIGRAVITY_OPUS_46_DOT_MODEL_ID)) {
+    templateIds.push(lower.replace(ANTIGRAVITY_OPUS_46_DOT_MODEL_ID, "claude-opus-4.5"));
+  }
+  if (lower.startsWith(ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID)) {
+    templateIds.push(
+      lower.replace(ANTIGRAVITY_OPUS_46_THINKING_MODEL_ID, "claude-opus-4-5-thinking"),
+    );
+  }
+  if (lower.startsWith(ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID)) {
+    templateIds.push(
+      lower.replace(ANTIGRAVITY_OPUS_46_DOT_THINKING_MODEL_ID, "claude-opus-4.5-thinking"),
+    );
+  }
+  templateIds.push(...ANTIGRAVITY_OPUS_TEMPLATE_MODEL_IDS);
+  templateIds.push(...ANTIGRAVITY_OPUS_THINKING_TEMPLATE_MODEL_IDS);
+
+  return cloneFirstTemplateModel({
+    normalizedProvider,
+    trimmedModelId,
+    templateIds,
+    modelRegistry,
+    // pi-ai templates may incorrectly carry "google-gemini-cli" for Antigravity models.
+    patch: { api: "google-antigravity" as Api },
+  });
+}
 export function resolveForwardCompatModel(
   provider: string,
   modelId: string,
@@ -209,6 +274,7 @@ export function resolveForwardCompatModel(
     resolveOpenAICodexGpt53FallbackModel(provider, modelId, modelRegistry) ??
     resolveAnthropicOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAnthropicSonnet46ForwardCompatModel(provider, modelId, modelRegistry) ??
+    resolveAntigravityOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry)
   );
 }
