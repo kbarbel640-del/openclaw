@@ -421,17 +421,17 @@ export async function prepareSlackMessage(params: {
       : null;
 
   const roomLabel = channelName ? `#${channelName}` : `#${message.channel}`;
+  // Keep preview for logging/debugging
   const preview = rawBody.replace(/\s+/g, " ").slice(0, 160);
-  const inboundLabel = isDirectMessage
-    ? `Slack DM from ${senderName}`
-    : `Slack message in ${roomLabel} from ${senderName}`;
   const slackFrom = isDirectMessage
     ? `slack:${message.user}`
     : isRoom
       ? `slack:channel:${message.channel}`
       : `slack:group:${message.channel}`;
 
-  enqueueSystemEvent(`${inboundLabel}: ${preview}`, {
+  // Add simple sender preamble for context (who is speaking in the thread)
+  // This is important for multi-human threads so the LLM can track participants
+  enqueueSystemEvent(`Slack message from ${senderName}`, {
     sessionKey,
     contextKey: `slack:message:${message.channel}:${message.ts ?? "unknown"}`,
   });
