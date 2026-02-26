@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import type {
   AcpRuntimeCapabilities,
@@ -24,7 +23,12 @@ import {
   parsePromptEventLine,
   toAcpxErrorEvent,
 } from "./runtime-internals/events.js";
-import { resolveSpawnFailure, spawnAndCollect, waitForExit } from "./runtime-internals/process.js";
+import {
+  resolveSpawnFailure,
+  spawnAndCollect,
+  spawnWithResolvedCommand,
+  waitForExit,
+} from "./runtime-internals/process.js";
 import {
   asOptionalString,
   asTrimmedString,
@@ -217,10 +221,10 @@ export class AcpxRuntime implements AcpRuntime {
     if (input.signal) {
       input.signal.addEventListener("abort", onAbort, { once: true });
     }
-    const child = spawn(this.config.command, args, {
+    const child = spawnWithResolvedCommand({
+      command: this.config.command,
+      args,
       cwd: state.cwd,
-      env: process.env,
-      stdio: ["pipe", "pipe", "pipe"],
     });
     child.stdin.on("error", () => {
       // Ignore EPIPE when the child exits before stdin flush completes.

@@ -1,11 +1,63 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
+import path from "node:path";
 
 export type SpawnExit = {
   code: number | null;
   signal: NodeJS.Signals | null;
   error: Error | null;
 };
+
+type ResolvedSpawnCommand = {
+  command: string;
+  args: string[];
+  shell?: boolean;
+};
+
+function resolveSpawnCommand(params: { command: string; args: string[] }): ResolvedSpawnCommand {
+  if (process.platform !== "win32") {
+    return { command: params.command, args: params.args };
+  }
+
+  const extension = path.extname(params.command).toLowerCase();
+  if (extension === ".js" || extension === ".cjs" || extension === ".mjs") {
+    return {
+      command: process.execPath,
+      args: [params.command, ...params.args],
+    };
+  }
+
+  if (extension === ".cmd" || extension === ".bat") {
+    return {
+      command: params.command,
+      args: params.args,
+      shell: true,
+    };
+  }
+
+  return {
+    command: params.command,
+    args: params.args,
+  };
+}
+
+export function spawnWithResolvedCommand(params: {
+  command: string;
+  args: string[];
+  cwd: string;
+}): ChildProcessWithoutNullStreams {
+  const resolved = resolveSpawnCommand({
+    command: params.command,
+    args: params.args,
+  });
+
+  return spawn(resolved.command, resolved.args, {
+    cwd: params.cwd,
+    env: process.env,
+    stdio: ["pipe", "pipe", "pipe"],
+    shell: resolved.shell,
+  });
+}
 
 export async function waitForExit(child: ChildProcessWithoutNullStreams): Promise<SpawnExit> {
   return await new Promise<SpawnExit>((resolve) => {
@@ -38,11 +90,7 @@ export async function spawnAndCollect(params: {
   code: number | null;
   error: Error | null;
 }> {
-  const child = spawn(params.command, params.args, {
-    cwd: params.cwd,
-    env: process.env,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  const child = spawnWithResolvedCommand(params);
   child.stdin.end();
 
   let stdout = "";

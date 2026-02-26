@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ACPX_BUNDLED_BIN,
@@ -15,7 +16,7 @@ describe("acpx plugin config parsing", () => {
     });
 
     expect(resolved.command).toBe(ACPX_BUNDLED_BIN);
-    expect(resolved.cwd).toBe("/tmp/workspace");
+    expect(resolved.cwd).toBe(path.resolve("/tmp/workspace"));
   });
 
   it("rejects command overrides", () => {
