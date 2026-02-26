@@ -29,6 +29,7 @@ import { readChannelAllowFromStore } from "../../../pairing/pairing-store.js";
 import type { resolveAgentRoute } from "../../../routing/resolve-route.js";
 import { jidToE164, normalizeE164 } from "../../../utils.js";
 import { resolveWhatsAppAccount } from "../../accounts.js";
+import { resolveWhatsAppOutboundTarget } from "../../resolve-outbound-target.js";
 import { newConnectionId } from "../../reconnect.js";
 import { formatError } from "../../session.js";
 import { deliverWebReply } from "../deliver-reply.js";
@@ -376,6 +377,29 @@ export async function processMessage(params: {
           // Block (reasoning/thinking) and tool updates are meant for the internal
           // web UI only; sending them here leaks chain-of-thought to end users.
           return;
+        }
+        // Enforce allowSendTo for auto-replies (DMs only).
+        // Without this, auto-replies bypass outbound gating because they use
+        // msg.reply() directly instead of going through outbound.resolveTarget.
+        if (params.msg.chatType !== "group") {
+          const account = resolveWhatsAppAccount({
+            cfg: params.cfg,
+            accountId: params.route.accountId,
+          });
+          if (account.allowSendTo != null) {
+            const resolution = resolveWhatsAppOutboundTarget({
+              to: params.msg.from,
+              allowFrom: account.allowFrom,
+              allowSendTo: account.allowSendTo,
+              mode: "implicit",
+            });
+            if (!resolution.ok) {
+              whatsappOutboundLog.info(
+                `Suppressed auto-reply to ${params.msg.from ?? "unknown"} (not in allowSendTo)`,
+              );
+              return;
+            }
+          }
         }
         await deliverWebReply({
           replyResult: payload,
