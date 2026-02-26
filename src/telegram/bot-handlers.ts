@@ -493,8 +493,12 @@ export const registerTelegramHandlers = ({
         return true;
       }
       if (policyAccess.reason === "group-policy-allowlist-empty") {
-        logVerbose(
-          "Blocked telegram group message (groupPolicy: allowlist, no group allowlist entries)",
+        // Emit a visible warning so users know why their messages are being
+        // dropped. Previously this used logVerbose which is invisible by
+        // default, causing silent failures when allowFrom is omitted.
+        logger.warn(
+          { chatId, title: chatTitle, resolvedThreadId },
+          "Blocked telegram group message (groupPolicy: allowlist, no group allowlist entries — add allowFrom or set groupPolicy: disabled)",
         );
         return true;
       }
