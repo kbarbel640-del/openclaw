@@ -23,6 +23,26 @@ function extractMessage(value: Record<string, unknown>): string {
   return parts.join(" ");
 }
 
+// Structured format: [YYYY-MM-DD HH:mm:ss.SSS] [pid] [subsystem] level: <message (often JSON payload)>
+const STRUCTURED_LINE_RE =
+  /^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]\s*\[(\d+)\]\s*\[([^\]]*)\]\s*(\w+):\s*(.*)$/s;
+
+function parseStructuredLine(line: string): ParsedLogLine | null {
+  const m = STRUCTURED_LINE_RE.exec(line.trim());
+  if (!m) {
+    return null;
+  }
+  const [, time, , subsystem, level, message] = m;
+  return {
+    time,
+    level: level.toLowerCase(),
+    subsystem: subsystem || undefined,
+    module: undefined,
+    message: message.trim(),
+    raw: line,
+  };
+}
+
 function parseMetaName(raw?: unknown): { subsystem?: string; module?: string } {
   if (typeof raw !== "string") {
     return {};
@@ -39,6 +59,10 @@ function parseMetaName(raw?: unknown): { subsystem?: string; module?: string } {
 }
 
 export function parseLogLine(raw: string): ParsedLogLine | null {
+  const structured = parseStructuredLine(raw);
+  if (structured) {
+    return structured;
+  }
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const meta = parsed._meta as Record<string, unknown> | undefined;

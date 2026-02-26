@@ -42,4 +42,30 @@ describe("parseLogLine", () => {
   it("returns null for invalid JSON", () => {
     expect(parseLogLine("not-json")).toBeNull();
   });
+
+  it("parses structured format [date time] [pid] [subsystem] level: payload", () => {
+    const line = "[2026-02-23 15:42:38.123] [12345] [config] info: Config reloaded successfully";
+    const parsed = parseLogLine(line);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.time).toBe("2026-02-23 15:42:38.123");
+    expect(parsed?.level).toBe("info");
+    expect(parsed?.subsystem).toBe("config");
+    expect(parsed?.message).toBe("Config reloaded successfully");
+    expect(parsed?.raw).toBe(line);
+  });
+
+  it("parses structured format with JSON payload (prefix + original JSON)", () => {
+    const payload =
+      '{"0":{"jid":"sha256:abc"},"1":"sending poll","_meta":{},"time":"2026-02-23T08:00:00.000Z"}';
+    const line = `[2026-02-23 16:00:00.000] [9999] [web-outbound] info: ${payload}`;
+    const parsed = parseLogLine(line);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.time).toBe("2026-02-23 16:00:00.000");
+    expect(parsed?.level).toBe("info");
+    expect(parsed?.subsystem).toBe("web-outbound");
+    expect(parsed?.message).toBe(payload);
+    expect(parsed?.raw).toBe(line);
+  });
 });
