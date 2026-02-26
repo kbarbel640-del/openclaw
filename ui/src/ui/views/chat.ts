@@ -522,8 +522,36 @@ function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup> {
   return result;
 }
 
+type TimelineEntry = {
+  item: ChatItem;
+  timestamp: number | null;
+  sourceRank: number;
+  sourceIndex: number;
+};
+
+function getRawTimestamp(message: unknown): number | null {
+  const m = message as Record<string, unknown>;
+  return typeof m.timestamp === "number" ? m.timestamp : null;
+}
+
+function compareTimelineEntries(a: TimelineEntry, b: TimelineEntry): number {
+  const leftTs = a.timestamp ?? Number.POSITIVE_INFINITY;
+  const rightTs = b.timestamp ?? Number.POSITIVE_INFINITY;
+  if (leftTs !== rightTs) {
+    return leftTs - rightTs;
+  }
+  if (a.sourceRank !== b.sourceRank) {
+    return a.sourceRank - b.sourceRank;
+  }
+  if (a.sourceIndex !== b.sourceIndex) {
+    return a.sourceIndex - b.sourceIndex;
+  }
+  return a.item.key.localeCompare(b.item.key);
+}
+
 function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
   const items: ChatItem[] = [];
+  const timeline: TimelineEntry[] = [];
   const history = Array.isArray(props.messages) ? props.messages : [];
   const tools = Array.isArray(props.toolMessages) ? props.toolMessages : [];
   const historyStart = Math.max(0, history.length - CHAT_HISTORY_RENDER_LIMIT);
@@ -543,15 +571,21 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
     const normalized = normalizeMessage(msg);
     const raw = msg as Record<string, unknown>;
     const marker = raw.__openclaw as Record<string, unknown> | undefined;
+    const rawTimestamp = getRawTimestamp(msg);
     if (marker && marker.kind === "compaction") {
-      items.push({
-        kind: "divider",
-        key:
-          typeof marker.id === "string"
-            ? `divider:compaction:${marker.id}`
-            : `divider:compaction:${normalized.timestamp}:${i}`,
-        label: "Compaction",
-        timestamp: normalized.timestamp ?? Date.now(),
+      timeline.push({
+        item: {
+          kind: "divider",
+          key:
+            typeof marker.id === "string"
+              ? `divider:compaction:${marker.id}`
+              : `divider:compaction:${normalized.timestamp}:${i}`,
+          label: "Compaction",
+          timestamp: normalized.timestamp ?? Date.now(),
+        },
+        timestamp: rawTimestamp,
+        sourceRank: 0,
+        sourceIndex: i,
       });
       continue;
     }
@@ -560,21 +594,33 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
       continue;
     }
 
-    items.push({
-      kind: "message",
-      key: messageKey(msg, i),
-      message: msg,
+    timeline.push({
+      item: {
+        kind: "message",
+        key: messageKey(msg, i),
+        message: msg,
+      },
+      timestamp: rawTimestamp,
+      sourceRank: 0,
+      sourceIndex: i,
     });
   }
   if (props.showThinking) {
     for (let i = 0; i < tools.length; i++) {
-      items.push({
-        kind: "message",
-        key: messageKey(tools[i], i + history.length),
-        message: tools[i],
+      timeline.push({
+        item: {
+          kind: "message",
+          key: messageKey(tools[i], i + history.length),
+          message: tools[i],
+        },
+        timestamp: getRawTimestamp(tools[i]),
+        sourceRank: 1,
+        sourceIndex: i,
       });
     }
   }
+  timeline.sort(compareTimelineEntries);
+  items.push(...timeline.map((entry) => entry.item));
 
   if (props.stream !== null) {
     const key = `stream:${props.sessionKey}:${props.streamStartedAt ?? "live"}`;
