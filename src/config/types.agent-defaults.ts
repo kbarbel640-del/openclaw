@@ -117,6 +117,17 @@ export type CliBackendConfig = {
   };
 };
 
+export type AgentPlanSearchConfig = {
+  /** Enable multi-candidate plan search before execution (opt-in). */
+  enabled?: boolean;
+  /** Number of candidate plans to generate and score (clamped to 2-8, default: 4). */
+  candidates?: number;
+  /** Candidate scoring mode. "llm" currently falls back to heuristic scoring in MVP. */
+  scoring?: "heuristic" | "llm";
+  /** Prepend the selected plan to the execution prompt (default: true). */
+  includeSelectedPlanInPrompt?: boolean;
+};
+
 export type AgentDefaultsConfig = {
   /** Primary model and fallbacks (provider/model). Accepts string or {primary,fallbacks}. */
   model?: AgentModelConfig;
@@ -158,6 +169,8 @@ export type AgentDefaultsConfig = {
   contextPruning?: AgentContextPruningConfig;
   /** Compaction tuning and pre-compaction memory flush behavior. */
   compaction?: AgentCompactionConfig;
+  /** Opt-in candidate plan search before runtime execution. */
+  planSearch?: AgentPlanSearchConfig;
   /** Vector memory search configuration (per-agent overrides supported). */
   memorySearch?: MemorySearchConfig;
   /** Default thinking level when no /think directive is present. */
