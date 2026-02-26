@@ -62,6 +62,7 @@ import type { StickerMetadata, TelegramContext } from "./bot/types.js";
 import { enforceTelegramDmAccess } from "./dm-access.js";
 import { evaluateTelegramGroupBaseAccess } from "./group-access.js";
 import { resolveTelegramGroupPromptSettings } from "./group-config-helpers.js";
+import { createTelegramSendChatActionHandler } from "./sendchataction-401-backoff.js";
 import {
   buildTelegramStatusReactionVariants,
   resolveTelegramAllowedEmojiReactions,
@@ -240,19 +241,38 @@ export const buildTelegramMessageContext = async ({
     baseRequireMention,
   );
 
+  // Create sendChatAction handler with backoff and circuit breaker for 401 errors
+  const sendChatActionHandler = createTelegramSendChatActionHandler({
+    sendChatActionFn: (chatId, action, threadParams) =>
+      bot.api.sendChatAction(chatId, action, threadParams),
+    logger: (message) => logger.info({ chatId }, message),
+    chatId,
+    action: "typing",
+    threadParams: buildTypingThreadParams(replyThreadId),
+  });
+
   const sendTyping = async () => {
     await withTelegramApiErrorLogging({
       operation: "sendChatAction",
-      fn: () => bot.api.sendChatAction(chatId, "typing", buildTypingThreadParams(replyThreadId)),
+      fn: () => sendChatActionHandler.sendChatAction(),
     });
   };
+
+  // Create sendChatAction handler for record_voice with backoff and circuit breaker
+  const sendRecordVoiceHandler = createTelegramSendChatActionHandler({
+    sendChatActionFn: (chatId, action, threadParams) =>
+      bot.api.sendChatAction(chatId, action, threadParams),
+    logger: (message) => logger.info({ chatId }, message),
+    chatId,
+    action: "record_voice",
+    threadParams: buildTypingThreadParams(replyThreadId),
+  });
 
   const sendRecordVoice = async () => {
     try {
       await withTelegramApiErrorLogging({
         operation: "sendChatAction",
-        fn: () =>
-          bot.api.sendChatAction(chatId, "record_voice", buildTypingThreadParams(replyThreadId)),
+        fn: () => sendRecordVoiceHandler.sendChatAction(),
       });
     } catch (err) {
       logVerbose(`telegram record_voice cue failed for chat ${chatId}: ${String(err)}`);
