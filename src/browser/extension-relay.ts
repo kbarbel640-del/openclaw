@@ -527,18 +527,22 @@ export async function ensureChromeExtensionRelayServer(opts: {
         rejectUpgrade(socket, 401, "Unauthorized");
         return;
       }
-      if (extensionConnected()) {
-        rejectUpgrade(socket, 409, "Extension already connected");
-        return;
-      }
-      // MV3 worker reconnect races can leave a stale non-OPEN socket reference.
-      if (extensionWs && extensionWs.readyState !== WebSocket.OPEN) {
-        try {
-          extensionWs.terminate();
-        } catch {
-          // ignore
+      // MV3 worker reconnect races can leave a stale socket reference.
+      // Always clean up non-OPEN sockets, even if extensionConnected() is true,
+      // because the readyState can lag behind the actual connection state.
+      if (extensionWs) {
+        if (extensionWs.readyState !== WebSocket.OPEN) {
+          try {
+            extensionWs.terminate();
+          } catch {
+            // ignore
+          }
+          extensionWs = null;
+        } else {
+          // Extension is genuinely connected. Reject the duplicate.
+          rejectUpgrade(socket, 409, "Extension already connected");
+          return;
         }
-        extensionWs = null;
       }
       wssExtension.handleUpgrade(req, socket, head, (ws) => {
         wssExtension.emit("connection", ws, req);
@@ -684,21 +688,33 @@ export async function ensureChromeExtensionRelayServer(opts: {
         return;
       }
       extensionWs = null;
+
+      // Reject pending extension commands immediately — they can't be retried.
       for (const [, pending] of pendingExtension) {
         clearTimeout(pending.timer);
         pending.reject(new Error("extension disconnected"));
       }
       pendingExtension.clear();
-      connectedTargets.clear();
 
-      for (const client of cdpClients) {
-        try {
-          client.close(1011, "extension disconnected");
-        } catch {
-          // ignore
+      // Grace period: MV3 service workers can sleep and reconnect within seconds.
+      // Give the extension a chance to reconnect before tearing down CDP clients.
+      const RECONNECT_GRACE_MS = 5_000;
+      setTimeout(() => {
+        // If the extension reconnected during the grace period, keep CDP clients alive.
+        if (extensionConnected()) {
+          return;
         }
-      }
-      cdpClients.clear();
+        // Extension did not reconnect — clean up.
+        connectedTargets.clear();
+        for (const client of cdpClients) {
+          try {
+            client.close(1011, "extension disconnected");
+          } catch {
+            // ignore
+          }
+        }
+        cdpClients.clear();
+      }, RECONNECT_GRACE_MS);
     });
   });
 
@@ -720,12 +736,22 @@ export async function ensureChromeExtensionRelayServer(opts: {
       }
 
       if (!extensionConnected()) {
-        sendResponseToCdp(ws, {
-          id: cmd.id,
-          sessionId: cmd.sessionId,
-          error: { message: "Extension not connected" },
-        });
-        return;
+        // Brief wait for MV3 reconnect before failing the command.
+        const WAIT_FOR_RECONNECT_MS = 3_000;
+        const POLL_INTERVAL_MS = 100;
+        let waited = 0;
+        while (!extensionConnected() && waited < WAIT_FOR_RECONNECT_MS) {
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+          waited += POLL_INTERVAL_MS;
+        }
+        if (!extensionConnected()) {
+          sendResponseToCdp(ws, {
+            id: cmd.id,
+            sessionId: cmd.sessionId,
+            error: { message: "Extension not connected" },
+          });
+          return;
+        }
       }
 
       try {
