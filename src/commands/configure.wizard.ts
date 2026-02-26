@@ -1,9 +1,15 @@
-import { formatCliCommand } from "../cli/command-format.js";
 import type { OpenClawConfig } from "../config/config.js";
+import type { RuntimeEnv } from "../runtime.js";
+import type { WizardPrompter } from "../wizard/prompts.js";
+import type {
+  ChannelsWizardMode,
+  ConfigureWizardParams,
+  WizardSection,
+} from "./configure.shared.js";
+import { formatCliCommand } from "../cli/command-format.js";
 import { readConfigFileSnapshot, resolveGatewayPort, writeConfigFile } from "../config/config.js";
 import { logConfigUpdated } from "../config/logging.js";
 import { ensureControlUiAssetsBuilt } from "../infra/control-ui-assets.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { note } from "../terminal/note.js";
 import { resolveUserPath } from "../utils.js";
@@ -13,11 +19,6 @@ import { removeChannelConfigWizard } from "./configure.channels.js";
 import { maybeInstallDaemon } from "./configure.daemon.js";
 import { promptAuthConfig } from "./configure.gateway-auth.js";
 import { promptGatewayConfig } from "./configure.gateway.js";
-import type {
-  ChannelsWizardMode,
-  ConfigureWizardParams,
-  WizardSection,
-} from "./configure.shared.js";
 import {
   CONFIGURE_SECTION_OPTIONS,
   confirm,
@@ -28,6 +29,7 @@ import {
 } from "./configure.shared.js";
 import { formatHealthCheckFailure } from "./health-format.js";
 import { healthCommand } from "./health.js";
+import { promptDefaultModel } from "./model-picker.js";
 import { noteChannelStatus, setupChannels } from "./onboard-channels.js";
 import {
   applyWizardMetadata,
@@ -44,6 +46,15 @@ import { promptRemoteGatewayConfig } from "./onboard-remote.js";
 import { setupSkills } from "./onboard-skills.js";
 
 type ConfigureSectionChoice = WizardSection | "__continue";
+
+function isProviderModelRef(value: string | undefined): value is string {
+  if (!value) {
+    return false;
+  }
+  const trimmed = value.trim();
+  const slashIdx = trimmed.indexOf("/");
+  return slashIdx > 0 && slashIdx < trimmed.length - 1;
+}
 
 async function runGatewayHealthCheck(params: {
   cfg: OpenClawConfig;
@@ -202,6 +213,136 @@ async function promptWebToolsConfig(
         ...nextConfig.tools?.web,
         search: nextSearch,
         fetch: nextFetch,
+      },
+    },
+  };
+}
+
+async function promptGuardModelConfig(
+  nextConfig: OpenClawConfig,
+  runtime: RuntimeEnv,
+  prompter: WizardPrompter,
+): Promise<OpenClawConfig> {
+  const existing = nextConfig.agents?.defaults?.guardModel;
+  const existingPrimary = typeof existing === "string" ? existing : existing?.primary;
+  const existingFallbacks =
+    typeof existing === "object" && existing !== null && Array.isArray(existing.fallbacks)
+      ? existing.fallbacks.filter((entry): entry is string => typeof entry === "string")
+      : undefined;
+
+  note(
+    [
+      "A guard model intercepts and evaluates assistant responses for safety.",
+      "If the response is flagged, it can be blocked, redacted, or returned with a warning.",
+      "Example providers: chutes/Qwen/Qwen3Guard-Gen-0.6B, openai/gpt-4o-mini",
+    ].join("\n"),
+    "Guard Model",
+  );
+
+  const enableGuard = guardCancel(
+    await confirm({
+      message: "Configure a guard model?",
+      initialValue: Boolean(existingPrimary),
+    }),
+    runtime,
+  );
+
+  if (!enableGuard) {
+    if (existingPrimary) {
+      return {
+        ...nextConfig,
+        agents: {
+          ...nextConfig.agents,
+          defaults: {
+            ...nextConfig.agents?.defaults,
+            guardModel: undefined,
+            guardModelAction: undefined,
+            guardModelOnError: undefined,
+          },
+        },
+      };
+    }
+    return nextConfig;
+  }
+
+  const modelSelection = await promptDefaultModel({
+    config: nextConfig,
+    prompter,
+    allowKeep: Boolean(existingPrimary),
+    includeManual: true,
+    includeVllm: false,
+    ignoreAllowlist: true,
+    preferredProvider: existingPrimary?.split("/")[0],
+    message: "Guard model",
+  });
+  const configAfterSelection = modelSelection.config ?? nextConfig;
+  const selectedModelRaw = modelSelection.model ?? existingPrimary;
+  const selectedModel = selectedModelRaw?.trim();
+  if (!isProviderModelRef(selectedModel)) {
+    note(
+      [
+        "Guard model must use provider/model format (for example: openai/gpt-4o-mini).",
+        "Keeping existing guard model settings unchanged.",
+      ].join("\n"),
+      "Guard Model",
+    );
+    return configAfterSelection;
+  }
+
+  const actionChoices: { value: "block" | "redact" | "warn"; label: string; hint?: string }[] = [
+    { value: "block", label: "Block", hint: "Replace response with an error message completely" },
+    {
+      value: "redact",
+      label: "Redact",
+      hint: "Replace text message but keep other payloads (like tools)",
+    },
+    { value: "warn", label: "Warn", hint: "Append a warning message to the original response" },
+  ];
+
+  const action = guardCancel(
+    await select({
+      message: "Action when content is flagged:",
+      initialValue: configAfterSelection.agents?.defaults?.guardModelAction ?? "block",
+      options: actionChoices,
+    }),
+    runtime,
+  );
+
+  const errorChoices: { value: "allow" | "block"; label: string; hint?: string }[] = [
+    {
+      value: "allow",
+      label: "Allow (fail-open)",
+      hint: "If the guard model fails/times out, allow the response",
+    },
+    {
+      value: "block",
+      label: "Block (fail-closed)",
+      hint: "If the guard model fails/times out, block the response",
+    },
+  ];
+
+  const onError = guardCancel(
+    await select({
+      message: "Behavior on API error/timeout:",
+      initialValue: configAfterSelection.agents?.defaults?.guardModelOnError ?? "allow",
+      options: errorChoices,
+    }),
+    runtime,
+  );
+
+  return {
+    ...configAfterSelection,
+    agents: {
+      ...configAfterSelection.agents,
+      defaults: {
+        ...configAfterSelection.agents?.defaults,
+        guardModel: selectedModel
+          ? existingFallbacks && existingFallbacks.length > 0
+            ? { primary: selectedModel, fallbacks: existingFallbacks }
+            : selectedModel
+          : undefined,
+        guardModelAction: action,
+        guardModelOnError: onError,
       },
     },
   };
@@ -391,6 +532,10 @@ export async function runConfigureWizard(
         nextConfig = await promptWebToolsConfig(nextConfig, runtime);
       }
 
+      if (selected.includes("guard-model")) {
+        nextConfig = await promptGuardModelConfig(nextConfig, runtime, prompter);
+      }
+
       if (selected.includes("gateway")) {
         const gateway = await promptGatewayConfig(nextConfig, runtime);
         nextConfig = gateway.config;
@@ -443,6 +588,11 @@ export async function runConfigureWizard(
 
         if (choice === "web") {
           nextConfig = await promptWebToolsConfig(nextConfig, runtime);
+          await persistConfig();
+        }
+
+        if (choice === "guard-model") {
+          nextConfig = await promptGuardModelConfig(nextConfig, runtime, prompter);
           await persistConfig();
         }
 
