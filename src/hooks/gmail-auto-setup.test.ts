@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { MoltbotConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
 
 // Mock external dependencies
 vi.mock("../process/exec.js", () => ({
@@ -37,7 +37,7 @@ describe("gmail-auto-setup", () => {
 
   describe("runGmailAutoSetup", () => {
     it("skips when no gmail account configured", async () => {
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: { enabled: true },
       };
 
@@ -49,7 +49,7 @@ describe("gmail-auto-setup", () => {
     });
 
     it("skips when hooks not enabled", async () => {
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: {
           enabled: false,
           gmail: { account: "test@example.com" },
@@ -65,7 +65,7 @@ describe("gmail-auto-setup", () => {
     it("returns ok when gmail configured but autoSetup not enabled", async () => {
       // No mocks needed since no service account key or tailscale auth key
 
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: {
           enabled: true,
           gmail: {
@@ -90,6 +90,8 @@ describe("gmail-auto-setup", () => {
           stdout: "",
           stderr: "not authenticated",
           killed: false,
+          signal: null,
+          termination: "exit",
         })
         // Mock successful service account auth
         .mockResolvedValueOnce({
@@ -97,6 +99,8 @@ describe("gmail-auto-setup", () => {
           stdout: "Activated service account",
           stderr: "",
           killed: false,
+          signal: null,
+          termination: "exit",
         });
 
       // Mock fs for service account key
@@ -105,7 +109,7 @@ describe("gmail-auto-setup", () => {
         project_id: "test-project",
       });
 
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: {
           enabled: true,
           gmail: {
@@ -135,6 +139,8 @@ describe("gmail-auto-setup", () => {
           stdout: JSON.stringify({ BackendState: "Stopped" }),
           stderr: "",
           killed: false,
+          signal: null,
+          termination: "exit",
         })
         // Mock tailscale up success
         .mockResolvedValueOnce({
@@ -142,9 +148,11 @@ describe("gmail-auto-setup", () => {
           stdout: "",
           stderr: "",
           killed: false,
+          signal: null,
+          termination: "exit",
         });
 
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: {
           enabled: true,
           gmail: {
@@ -172,9 +180,11 @@ describe("gmail-auto-setup", () => {
         stdout: JSON.stringify({ BackendState: "Running" }),
         stderr: "",
         killed: false,
+        signal: null,
+        termination: "exit",
       });
 
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: {
           enabled: true,
           gmail: {
@@ -212,9 +222,11 @@ describe("gmail-auto-setup", () => {
         stdout: "",
         stderr: "",
         killed: false,
+        signal: null,
+        termination: "exit",
       });
 
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: {
           enabled: true,
           token: "hook-token",
@@ -245,7 +257,7 @@ describe("gmail-auto-setup", () => {
     });
 
     it("skips Pub/Sub when autoSetup enabled but no push endpoint or tailscale", async () => {
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: {
           enabled: true,
           gmail: {
@@ -270,7 +282,7 @@ describe("gmail-auto-setup", () => {
     it("fails when autoSetup enabled but no project ID", async () => {
       // No mocks needed since failure happens before external calls
 
-      const cfg: MoltbotConfig = {
+      const cfg: OpenClawConfig = {
         hooks: {
           enabled: true,
           gmail: {

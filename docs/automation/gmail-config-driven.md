@@ -1,15 +1,15 @@
 ---
 title: Gmail Config-Driven Setup
-description: Configure Gmail webhooks entirely via moltbot.json without interactive CLI wizards
+description: Configure Gmail webhooks entirely via openclaw.json without interactive CLI wizards
 ---
 
 # Gmail Config-Driven Setup
 
-Configure Gmail webhooks entirely through `moltbot.json` without running interactive CLI wizards. This is ideal for automated deployments on platforms like Fly.io, Railway, or Kubernetes.
+Configure Gmail webhooks entirely through `openclaw.json` without running interactive CLI wizards. This is ideal for automated deployments on platforms like Fly.io, Railway, or Kubernetes.
 
 ## Overview
 
-The standard `moltbot webhooks gmail setup` wizard requires interactive authentication with Google and Tailscale. The config-driven approach allows you to:
+The standard `openclaw webhooks gmail setup` wizard requires interactive authentication with Google and Tailscale. The config-driven approach allows you to:
 
 - Use **GCP Service Account** credentials instead of user OAuth
 - Inject **gog credentials** via refresh token
@@ -22,11 +22,11 @@ The standard `moltbot webhooks gmail setup` wizard requires interactive authenti
 {
   "hooks": {
     "enabled": true,
-    "token": "${MOLTBOT_HOOK_TOKEN}",
+    "token": "${OPENCLAW_HOOK_TOKEN}",
     "gmail": {
       "account": "your-email@gmail.com",
-      "topic": "projects/your-project/topics/moltbot-gmail",
-      "subscription": "moltbot-gmail-push",
+      "topic": "projects/your-project/topics/openclaw-gmail",
+      "subscription": "openclaw-gmail-push",
       "pushToken": "${GMAIL_PUSH_TOKEN}",
       "gcp": {
         "projectId": "your-project",
@@ -83,17 +83,17 @@ The standard `moltbot webhooks gmail setup` wizard requires interactive authenti
 
 ```bash
 # Create service account
-gcloud iam service-accounts create moltbot-gmail \
-  --display-name="Moltbot Gmail Service Account"
+gcloud iam service-accounts create openclaw-gmail \
+  --display-name="OpenClaw Gmail Service Account"
 
 # Grant required roles
 gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-  --member="serviceAccount:moltbot-gmail@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+  --member="serviceAccount:openclaw-gmail@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/pubsub.admin"
 
 # Create and download key
 gcloud iam service-accounts keys create sa-key.json \
-  --iam-account=moltbot-gmail@YOUR_PROJECT_ID.iam.gserviceaccount.com
+  --iam-account=openclaw-gmail@YOUR_PROJECT_ID.iam.gserviceaccount.com
 ```
 
 Store the key content as a secret:
@@ -140,7 +140,7 @@ fly secrets set TS_AUTHKEY="tskey-auth-..." -a your-app
 
 ```bash
 fly secrets set \
-  MOLTBOT_HOOK_TOKEN="$(openssl rand -hex 24)" \
+  OPENCLAW_HOOK_TOKEN="$(openssl rand -hex 24)" \
   GMAIL_PUSH_TOKEN="$(openssl rand -hex 24)" \
   -a your-app
 ```
@@ -178,7 +178,7 @@ When using `serviceAccountKeyFile`, ensure the path is correct relative to the c
 Either set `gcp.projectId` or include the project ID in the topic path:
 
 ```json
-"topic": "projects/your-project/topics/moltbot-gmail"
+"topic": "projects/your-project/topics/openclaw-gmail"
 ```
 
 ## Security Best Practices
@@ -186,10 +186,10 @@ Either set `gcp.projectId` or include the project ID in the topic path:
 1. **Never commit credentials** - Use environment variables with `${VAR}` syntax
 2. **Rotate auth keys** - Generate new Tailscale auth keys periodically
 3. **Limit service account scope** - Only grant `roles/pubsub.admin`, not broader roles
-4. **Use app-scoped OAuth** - Create a dedicated OAuth client for Moltbot
+4. **Use app-scoped OAuth** - Create a dedicated OAuth client for OpenClaw
 
 ## Related
 
 - [Gmail Pub/Sub Setup](/automation/gmail-pubsub) - Standard interactive setup
 - [Hooks Configuration](/configuration#hooks) - General hooks configuration
-- [Environment Variables](/reference/environment) - Using `${VAR}` in config
+- [Environment Variables](/help/environment) - Using `${VAR}` in config

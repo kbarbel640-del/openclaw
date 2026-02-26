@@ -208,7 +208,7 @@ async function pollGmailHistory(cfg: GmailHookRuntimeConfig): Promise<void> {
 
     // Send a synthetic Pub/Sub push to gog watch serve to trigger its fetch+forward pipeline.
     // gog deduplicates via historyId, so this is safe even if push already delivered.
-    await pokGogServe(cfg, newHistoryId);
+    await pokeGogServe(cfg, newHistoryId);
   } catch (err) {
     log.debug(`poll: error checking history: ${String(err)}`);
   }
@@ -218,7 +218,7 @@ async function pollGmailHistory(cfg: GmailHookRuntimeConfig): Promise<void> {
  * Send a synthetic Pub/Sub-style push notification to the local gog watch serve process.
  * This triggers gog's existing fetch+format+forward pipeline.
  */
-function pokGogServe(cfg: GmailHookRuntimeConfig, historyId: string): Promise<void> {
+function pokeGogServe(cfg: GmailHookRuntimeConfig, historyId: string): Promise<void> {
   const data = Buffer.from(
     JSON.stringify({ emailAddress: cfg.account, historyId: Number(historyId) }),
   ).toString("base64");
