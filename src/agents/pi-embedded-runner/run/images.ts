@@ -13,18 +13,27 @@ import { log } from "../logger.js";
 /**
  * Common image file extensions for detection.
  */
-const IMAGE_EXTENSIONS = new Set([
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".gif",
-  ".webp",
-  ".bmp",
-  ".tiff",
-  ".tif",
-  ".heic",
-  ".heif",
-]);
+const IMAGE_EXTENSION_NAMES = [
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "tiff",
+  "tif",
+  "heic",
+  "heif",
+] as const;
+const IMAGE_EXTENSIONS = new Set(IMAGE_EXTENSION_NAMES.map((ext) => `.${ext}`));
+const IMAGE_EXTENSION_PATTERN = IMAGE_EXTENSION_NAMES.join("|");
+const MEDIA_ATTACHED_PATH_REGEX_SOURCE =
+  "^\\s*(.+?\\.(?:" + IMAGE_EXTENSION_PATTERN + "))\\s*(?:\\(|$|\\|)";
+const MESSAGE_IMAGE_REGEX_SOURCE =
+  "\\[Image:\\s*source:\\s*([^\\]]+\\.(?:" + IMAGE_EXTENSION_PATTERN + "))\\]";
+const FILE_URL_REGEX_SOURCE = "file://[^\\s<>\"'`\\]]+\\.(?:" + IMAGE_EXTENSION_PATTERN + ")";
+const PATH_REGEX_SOURCE =
+  "(?:^|\\s|[\"'`(])((\\.\\.?/|[~/])[^\\s\"'`()\\[\\]]*\\.(?:" + IMAGE_EXTENSION_PATTERN + "))";
 
 /**
  * Result of detecting an image reference in text.
@@ -32,9 +41,9 @@ const IMAGE_EXTENSIONS = new Set([
 export interface DetectedImageRef {
   /** The raw matched string from the prompt */
   raw: string;
-  /** The type of reference (path or url) */
-  type: "path" | "url";
-  /** The resolved/normalized path or URL */
+  /** The type of reference */
+  type: "path";
+  /** The resolved/normalized path */
   resolved: string;
 }
 
@@ -44,6 +53,10 @@ export interface DetectedImageRef {
 function isImageExtension(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
   return IMAGE_EXTENSIONS.has(ext);
+}
+
+function normalizeRefForDedupe(raw: string): string {
+  return process.platform === "win32" ? raw.toLowerCase() : raw;
 }
 
 async function sanitizeImagesWithLog(
@@ -82,7 +95,8 @@ export function detectImageReferences(prompt: string): DetectedImageRef[] {
   // Helper to add a path ref
   const addPathRef = (raw: string) => {
     const trimmed = raw.trim();
-    if (!trimmed || seen.has(trimmed.toLowerCase())) {
+    const dedupeKey = normalizeRefForDedupe(trimmed);
+    if (!trimmed || seen.has(dedupeKey)) {
       return;
     }
     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
@@ -91,7 +105,7 @@ export function detectImageReferences(prompt: string): DetectedImageRef[] {
     if (!isImageExtension(trimmed)) {
       return;
     }
-    seen.add(trimmed.toLowerCase());
+    seen.add(dedupeKey);
     const resolved = trimmed.startsWith("~") ? resolveUserPath(trimmed) : trimmed;
     refs.push({ raw: trimmed, type: "path", resolved });
   };
@@ -100,6 +114,10 @@ export function detectImageReferences(prompt: string): DetectedImageRef[] {
   // Each bracket = ONE file. The | separates path from URL, not multiple files.
   // Multi-file format uses separate brackets on separate lines.
   const mediaAttachedPattern = /\[media attached(?:\s+\d+\/\d+)?:\s*([^\]]+)\]/gi;
+  const mediaAttachedPathPattern = new RegExp(MEDIA_ATTACHED_PATH_REGEX_SOURCE, "i");
+  const messageImagePattern = new RegExp(MESSAGE_IMAGE_REGEX_SOURCE, "gi");
+  const fileUrlPattern = new RegExp(FILE_URL_REGEX_SOURCE, "gi");
+  const pathPattern = new RegExp(PATH_REGEX_SOURCE, "gi");
   let match: RegExpExecArray | null;
   while ((match = mediaAttachedPattern.exec(prompt)) !== null) {
     const content = match[1];
@@ -113,17 +131,13 @@ export function detectImageReferences(prompt: string): DetectedImageRef[] {
     // Format is: path (type) | url  OR  just: path (type)
     // Path may contain spaces (e.g., "ChatGPT Image Apr 21.png")
     // Use non-greedy .+? to stop at first image extension
-    const pathMatch = content.match(
-      /^\s*(.+?\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif))\s*(?:\(|$|\|)/i,
-    );
+    const pathMatch = content.match(mediaAttachedPathPattern);
     if (pathMatch?.[1]) {
       addPathRef(pathMatch[1].trim());
     }
   }
 
   // Pattern for [Image: source: /path/...] format from messaging systems
-  const messageImagePattern =
-    /\[Image:\s*source:\s*([^\]]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif))\]/gi;
   while ((match = messageImagePattern.exec(prompt)) !== null) {
     const raw = match[1]?.trim();
     if (raw) {
@@ -134,13 +148,13 @@ export function detectImageReferences(prompt: string): DetectedImageRef[] {
   // Remote HTTP(S) URLs are intentionally ignored. Native image injection is local-only.
 
   // Pattern for file:// URLs - treat as paths since loadWebMedia handles them
-  const fileUrlPattern = /file:\/\/[^\s<>"'`\]]+\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif)/gi;
   while ((match = fileUrlPattern.exec(prompt)) !== null) {
     const raw = match[0];
-    if (seen.has(raw.toLowerCase())) {
+    const dedupeKey = normalizeRefForDedupe(raw);
+    if (seen.has(dedupeKey)) {
       continue;
     }
-    seen.add(raw.toLowerCase());
+    seen.add(dedupeKey);
     // Use fileURLToPath for proper handling (e.g., file://localhost/path)
     try {
       const resolved = fileURLToPath(raw);
@@ -156,8 +170,6 @@ export function detectImageReferences(prompt: string): DetectedImageRef[] {
   // - ./relative/path.ext
   // - ../parent/path.ext
   // - ~/home/path.ext
-  const pathPattern =
-    /(?:^|\s|["'`(])((\.\.?\/|[~/])[^\s"'`()[\]]*\.(?:png|jpe?g|gif|webp|bmp|tiff?|heic|heif))/gi;
   while ((match = pathPattern.exec(prompt)) !== null) {
     // Use capture group 1 (the path without delimiter prefix); skip if undefined
     if (match[1]) {
@@ -169,7 +181,7 @@ export function detectImageReferences(prompt: string): DetectedImageRef[] {
 }
 
 /**
- * Loads an image from a file path or URL and returns it as ImageContent.
+ * Loads an image from a file path and returns it as ImageContent.
  *
  * @param ref The detected image reference
  * @param workspaceDir The current workspace directory for resolving relative paths
@@ -188,42 +200,34 @@ export async function loadImageFromRef(
   try {
     let targetPath = ref.resolved;
 
-    // Remote URL loading is disabled (local-only).
-    if (ref.type === "url") {
-      log.debug(`Native image: rejecting remote URL (local-only): ${ref.resolved}`);
-      return null;
-    }
-
     // Resolve paths relative to sandbox or workspace as needed
-    if (ref.type === "path") {
-      if (options?.sandbox) {
-        try {
-          const resolved = await resolveSandboxedBridgeMediaPath({
-            sandbox: {
-              root: options.sandbox.root,
-              bridge: options.sandbox.bridge,
-              workspaceOnly: options.workspaceOnly,
-            },
-            mediaPath: targetPath,
-          });
-          targetPath = resolved.resolved;
-        } catch (err) {
-          log.debug(
-            `Native image: sandbox validation failed for ${ref.resolved}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          return null;
-        }
-      } else if (!path.isAbsolute(targetPath)) {
-        targetPath = path.resolve(workspaceDir, targetPath);
-      }
-      if (options?.workspaceOnly && !options?.sandbox) {
-        const root = options?.sandbox?.root ?? workspaceDir;
-        await assertSandboxPath({
-          filePath: targetPath,
-          cwd: root,
-          root,
+    if (options?.sandbox) {
+      try {
+        const resolved = await resolveSandboxedBridgeMediaPath({
+          sandbox: {
+            root: options.sandbox.root,
+            bridge: options.sandbox.bridge,
+            workspaceOnly: options.workspaceOnly,
+          },
+          mediaPath: targetPath,
         });
+        targetPath = resolved.resolved;
+      } catch (err) {
+        log.debug(
+          `Native image: sandbox validation failed for ${ref.resolved}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
       }
+    } else if (!path.isAbsolute(targetPath)) {
+      targetPath = path.resolve(workspaceDir, targetPath);
+    }
+    if (options?.workspaceOnly && !options?.sandbox) {
+      const root = options?.sandbox?.root ?? workspaceDir;
+      await assertSandboxPath({
+        filePath: targetPath,
+        cwd: root,
+        root,
+      });
     }
 
     // loadWebMedia handles local file paths (including file:// URLs)

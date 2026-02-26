@@ -63,7 +63,6 @@ export type MonitorMattermostOpts = {
   webSocketFactory?: MattermostWebSocketFactory;
 };
 
-type FetchLike = (input: URL | RequestInfo, init?: RequestInit) => Promise<Response>;
 type MediaKind = "image" | "audio" | "video" | "document" | "unknown";
 
 type MattermostReaction = {
@@ -224,12 +223,6 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
     log: (message) => logVerboseMessage(message),
   });
 
-  const fetchWithAuth: FetchLike = (input, init) => {
-    const headers = new Headers(init?.headers);
-    headers.set("Authorization", `Bearer ${client.token}`);
-    return fetch(input, { ...init, headers });
-  };
-
   const resolveMattermostMedia = async (
     fileIds?: string[] | null,
   ): Promise<MattermostMediaInfo[]> => {
@@ -242,7 +235,11 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
       try {
         const fetched = await core.channel.media.fetchRemoteMedia({
           url: `${client.apiBaseUrl}/files/${fileId}`,
-          fetchImpl: fetchWithAuth,
+          requestInit: {
+            headers: {
+              Authorization: `Bearer ${client.token}`,
+            },
+          },
           filePathHint: fileId,
           maxBytes: mediaMaxBytes,
         });
@@ -775,24 +772,32 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
         },
       });
 
-    await core.channel.reply.dispatchReplyFromConfig({
-      ctx: ctxPayload,
-      cfg,
-      dispatcher,
-      replyOptions: {
-        ...replyOptions,
-        disableBlockStreaming:
-          typeof account.blockStreaming === "boolean" ? !account.blockStreaming : undefined,
-        onModelSelected,
-      },
-    });
-    markDispatchIdle();
-    if (historyKey) {
-      clearHistoryEntriesIfEnabled({
-        historyMap: channelHistories,
-        historyKey,
-        limit: historyLimit,
+    try {
+      await core.channel.reply.dispatchReplyFromConfig({
+        ctx: ctxPayload,
+        cfg,
+        dispatcher,
+        replyOptions: {
+          ...replyOptions,
+          disableBlockStreaming:
+            typeof account.blockStreaming === "boolean" ? !account.blockStreaming : undefined,
+          onModelSelected,
+        },
       });
+      if (historyKey) {
+        clearHistoryEntriesIfEnabled({
+          historyMap: channelHistories,
+          historyKey,
+          limit: historyLimit,
+        });
+      }
+    } finally {
+      dispatcher.markComplete();
+      try {
+        await dispatcher.waitForIdle();
+      } finally {
+        markDispatchIdle();
+      }
     }
   };
 
