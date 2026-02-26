@@ -90,9 +90,10 @@ export function createTypingController(params: {
       clearTimeout(typingTtlTimer);
     }
     typingTtlTimer = setTimeout(() => {
-      if (!typingLoop.isRunning()) {
-        return;
-      }
+      // Always clean up when TTL fires, even if the loop was stopped
+      // externally (e.g., by a WebSocket disconnect/reconnect). Skipping
+      // cleanup here left the controller unsealed, so late events or
+      // reconnects could restart typing indefinitely (#27926).
       log?.(`typing TTL reached (${formatTypingTtl(typingTtlMs)}); stopping typing indicator`);
       cleanup();
     }, typingTtlMs);
@@ -188,6 +189,11 @@ export function createTypingController(params: {
 
   const markRunComplete = () => {
     runComplete = true;
+    // Stop the keepalive loop immediately so no further sendChatAction
+    // calls can reach the channel. The guard blocks triggers, but the
+    // setInterval still fires; stopping it avoids a window where a
+    // late tick could slip through on slow event loops.
+    typingLoop.stop();
     maybeStopOnIdle();
     if (!sealed && !dispatchIdle) {
       dispatchIdleTimer = setTimeout(() => {
