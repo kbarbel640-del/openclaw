@@ -333,7 +333,7 @@ export function buildAssistantMessage(
       content.push({
         type: "toolCall",
         id: `ollama_call_${randomUUID()}`,
-        name: tc.function.name,
+        name: tc.function.name.trim(),
         arguments: tc.function.arguments,
       });
     }

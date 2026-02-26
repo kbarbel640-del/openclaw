@@ -148,6 +148,22 @@ describe("buildAssistantMessage", () => {
     expect(toolCall.id).toMatch(/^ollama_call_[0-9a-f-]{36}$/);
   });
 
+  it.each([" read", "read ", " read "])("trims tool call name %s", (rawName) => {
+    const response = {
+      model: "qwen3:32b",
+      created_at: "2026-01-01T00:00:00Z",
+      message: {
+        role: "assistant" as const,
+        content: "",
+        tool_calls: [{ function: { name: rawName, arguments: { path: "/tmp/a" } } }],
+      },
+      done: true,
+    };
+
+    const result = buildAssistantMessage(response, modelInfo);
+    expect(result.content[0]).toMatchObject({ type: "toolCall", name: "read" });
+  });
+
   it("sets all costs to zero for local models", () => {
     const response = {
       model: "qwen3:32b",
