@@ -229,7 +229,11 @@ export async function refreshActiveTab(host: SettingsHost) {
     await loadNodes(host as unknown as OpenClawApp);
     await loadDevices(host as unknown as OpenClawApp);
     await loadConfig(host as unknown as OpenClawApp);
-    await loadExecApprovals(host as unknown as OpenClawApp);
+    const approvalsTarget =
+      host.execApprovalsTarget === "node" && host.execApprovalsTargetNodeId
+        ? { kind: "node" as const, nodeId: host.execApprovalsTargetNodeId }
+        : { kind: "gateway" as const };
+    await loadExecApprovals(host as unknown as OpenClawApp, approvalsTarget);
   }
   if (host.tab === "chat") {
     await refreshChat(host as unknown as Parameters<typeof refreshChat>[0]);
