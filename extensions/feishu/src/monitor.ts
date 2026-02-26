@@ -219,7 +219,9 @@ async function monitorSingleAccount(params: MonitorAccountParams): Promise<void>
   await acquireStartupSlot(runtime, accountId);
 
   const shouldProbeBotInfo = account.config?.probeBotInfoOnStartup === true;
-  const botOpenId = shouldProbeBotInfo ? await fetchBotOpenIdWithRetry(account, runtime) : undefined;
+  const botOpenId = shouldProbeBotInfo
+    ? await fetchBotOpenIdWithRetry(account, runtime)
+    : undefined;
   botOpenIds.set(accountId, botOpenId ?? "");
   if (shouldProbeBotInfo) {
     log(`feishu[${accountId}]: bot open_id resolved: ${botOpenId ?? "unknown"}`);
