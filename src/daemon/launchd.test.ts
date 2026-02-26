@@ -5,6 +5,7 @@ import {
   isLaunchAgentListed,
   parseLaunchctlPrint,
   repairLaunchAgentBootstrap,
+  restartLaunchAgent,
   resolveLaunchAgentPlistPath,
 } from "./launchd.js";
 
@@ -177,6 +178,50 @@ describe("launchd install", () => {
     expect(plist).toContain("<key>EnvironmentVariables</key>");
     expect(plist).toContain("<key>TMPDIR</key>");
     expect(plist).toContain(`<string>${tmpDir}</string>`);
+  });
+
+  it("writes crash-only KeepAlive policy with throttle interval", async () => {
+    const env = createDefaultLaunchdEnv();
+    await installLaunchAgent({
+      env,
+      stdout: new PassThrough(),
+      programArguments: defaultProgramArguments,
+    });
+
+    const plistPath = resolveLaunchAgentPlistPath(env);
+    const plist = state.files.get(plistPath) ?? "";
+    expect(plist).toContain("<key>KeepAlive</key>");
+    expect(plist).toContain("<key>SuccessfulExit</key>");
+    expect(plist).toContain("<false/>");
+    expect(plist).toContain("<key>ThrottleInterval</key>");
+    expect(plist).toContain("<integer>5</integer>");
+  });
+
+  it("restarts LaunchAgent with bootout-bootstrap-kickstart order", async () => {
+    const env = createDefaultLaunchdEnv();
+    await restartLaunchAgent({
+      env,
+      stdout: new PassThrough(),
+    });
+
+    const domain = typeof process.getuid === "function" ? `gui/${process.getuid()}` : "gui/501";
+    const label = "ai.openclaw.gateway";
+    const plistPath = resolveLaunchAgentPlistPath(env);
+    const bootoutIndex = state.launchctlCalls.findIndex(
+      (c) => c[0] === "bootout" && c[1] === `${domain}/${label}`,
+    );
+    const bootstrapIndex = state.launchctlCalls.findIndex(
+      (c) => c[0] === "bootstrap" && c[1] === domain && c[2] === plistPath,
+    );
+    const kickstartIndex = state.launchctlCalls.findIndex(
+      (c) => c[0] === "kickstart" && c[1] === "-k" && c[2] === `${domain}/${label}`,
+    );
+
+    expect(bootoutIndex).toBeGreaterThanOrEqual(0);
+    expect(bootstrapIndex).toBeGreaterThanOrEqual(0);
+    expect(kickstartIndex).toBeGreaterThanOrEqual(0);
+    expect(bootoutIndex).toBeLessThan(bootstrapIndex);
+    expect(bootstrapIndex).toBeLessThan(kickstartIndex);
   });
 
   it("shows actionable guidance when launchctl gui domain does not support bootstrap", async () => {
