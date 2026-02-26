@@ -19,3 +19,4 @@ node-watchdog-child.err.log
 
 # Windows ADS metadata artifacts
 **/*:Zone.Identifier
+scripts/
