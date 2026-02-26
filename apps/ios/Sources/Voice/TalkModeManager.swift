@@ -95,7 +95,7 @@ final class TalkModeManager: NSObject {
     private var incrementalSpeechPrefetch: IncrementalSpeechPrefetchState?
     private var incrementalSpeechPrefetchMonitorTask: Task<Void, Never>?
 
-    private let logger = Logger(subsystem: "bot.molt", category: "TalkMode")
+    private let logger = Logger(subsystem: "ai.openclaw", category: "TalkMode")
 
     init(allowSimulatorCapture: Bool = false) {
         self.allowSimulatorCapture = allowSimulatorCapture
@@ -850,11 +850,10 @@ final class TalkModeManager: NSObject {
     private func buildPrompt(transcript: String) -> String {
         let interrupted = self.lastInterruptedAtSeconds
         self.lastInterruptedAtSeconds = nil
-        let includeVoiceDirectiveHint = (UserDefaults.standard.object(forKey: "talk.voiceDirectiveHint.enabled") as? Bool) ?? true
         return TalkPromptBuilder.build(
             transcript: transcript,
             interruptedAtSeconds: interrupted,
-            includeVoiceDirectiveHint: includeVoiceDirectiveHint)
+            includeVoiceDirectiveHint: false)
     }
 
     private enum ChatCompletionState: CustomStringConvertible {
