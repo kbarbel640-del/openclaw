@@ -8,10 +8,14 @@ import {
   resolveBootstrapTotalMaxChars,
 } from "./pi-embedded-helpers.js";
 import {
+  DEFAULT_MEMORY_ALT_FILENAME,
+  DEFAULT_MEMORY_FILENAME,
   filterBootstrapFilesForSession,
   loadWorkspaceBootstrapFiles,
   type WorkspaceBootstrapFile,
 } from "./workspace.js";
+
+const MEMORY_BOOTSTRAP_FILES = new Set([DEFAULT_MEMORY_FILENAME, DEFAULT_MEMORY_ALT_FILENAME]);
 
 export function makeBootstrapWarn(params: {
   sessionLabel: string;
@@ -41,6 +45,10 @@ function sanitizeBootstrapFiles(
   return sanitized;
 }
 
+function shouldInjectMemoryBootstrap(config?: OpenClawConfig): boolean {
+  return config?.agents?.defaults?.bootstrapInjectMemory !== false;
+}
+
 export async function resolveBootstrapFilesForRun(params: {
   workspaceDir: string;
   config?: OpenClawConfig;
@@ -66,7 +74,11 @@ export async function resolveBootstrapFilesForRun(params: {
     sessionId: params.sessionId,
     agentId: params.agentId,
   });
-  return sanitizeBootstrapFiles(updated, params.warn);
+  const sanitized = sanitizeBootstrapFiles(updated, params.warn);
+  if (shouldInjectMemoryBootstrap(params.config)) {
+    return sanitized;
+  }
+  return sanitized.filter((file) => !MEMORY_BOOTSTRAP_FILES.has(file.name));
 }
 
 export async function resolveBootstrapContextForRun(params: {

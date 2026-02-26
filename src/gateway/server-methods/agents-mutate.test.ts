@@ -516,13 +516,15 @@ describe("agents.files.get/set symlink safety", () => {
 
   it("rejects agents.files.get when allowlisted file symlink escapes workspace", async () => {
     const workspace = "/workspace/test-agent";
-    const candidate = path.resolve(workspace, "AGENTS.md");
+    const workspaceReal = path.resolve(workspace);
+    const candidate = path.resolve(workspaceReal, "AGENTS.md");
+    const outsideTarget = path.resolve("/outside/secret.txt");
     mocks.fsRealpath.mockImplementation(async (p: string) => {
       if (p === workspace) {
-        return workspace;
+        return workspaceReal;
       }
       if (p === candidate) {
-        return "/outside/secret.txt";
+        return outsideTarget;
       }
       return p;
     });
@@ -549,13 +551,15 @@ describe("agents.files.get/set symlink safety", () => {
 
   it("rejects agents.files.set when allowlisted file symlink escapes workspace", async () => {
     const workspace = "/workspace/test-agent";
-    const candidate = path.resolve(workspace, "AGENTS.md");
+    const workspaceReal = path.resolve(workspace);
+    const candidate = path.resolve(workspaceReal, "AGENTS.md");
+    const outsideTarget = path.resolve("/outside/secret.txt");
     mocks.fsRealpath.mockImplementation(async (p: string) => {
       if (p === workspace) {
-        return workspace;
+        return workspaceReal;
       }
       if (p === candidate) {
-        return "/outside/secret.txt";
+        return outsideTarget;
       }
       return p;
     });
@@ -584,13 +588,14 @@ describe("agents.files.get/set symlink safety", () => {
 
   it("allows in-workspace symlink targets for get/set", async () => {
     const workspace = "/workspace/test-agent";
-    const candidate = path.resolve(workspace, "AGENTS.md");
-    const target = path.resolve(workspace, "policies", "AGENTS.md");
+    const workspaceReal = path.resolve(workspace);
+    const candidate = path.resolve(workspaceReal, "AGENTS.md");
+    const target = path.resolve(workspaceReal, "policies", "AGENTS.md");
     const targetStat = makeFileStat({ size: 7, mtimeMs: 1700, dev: 9, ino: 42 });
 
     mocks.fsRealpath.mockImplementation(async (p: string) => {
       if (p === workspace) {
-        return workspace;
+        return workspaceReal;
       }
       if (p === candidate) {
         return target;
