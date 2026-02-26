@@ -84,6 +84,16 @@ export const FeishuDocSchema = Type.Union([
     column_start: Type.Number({ description: "Start column index" }),
     column_end: Type.Number({ description: "End column index (exclusive)" }),
   }),
+  // Color text
+  Type.Object({
+    action: Type.Literal("color_text"),
+    doc_token: Type.String({ description: "Document token" }),
+    block_id: Type.String({ description: "Text block ID to update" }),
+    content: Type.String({
+      description:
+        'Text with color markup. Supported tags: [red], [green], [blue], [orange], [yellow], [purple], [grey], [bold], [bg:yellow]. Example: "Revenue [green]+15%[/green] YoY, Costs [red]-3%[/red]"',
+    }),
+  }),
 ]);
 
 export type FeishuDocParams = Static<typeof FeishuDocSchema>;

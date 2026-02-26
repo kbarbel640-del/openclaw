@@ -5,6 +5,7 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts } from "./accounts.js";
 import { BATCH_SIZE, insertBlocksInBatches } from "./batch-insert.js";
 import { createFeishuClient } from "./client.js";
+import { updateColorText } from "./color-text.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
 import {
@@ -493,7 +494,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         name: "feishu_doc",
         label: "Feishu Doc",
         description:
-          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block, insert_table_row, insert_table_column, delete_table_rows, delete_table_columns, merge_table_cells",
+          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block, insert_table_row, insert_table_column, delete_table_rows, delete_table_columns, merge_table_cells, color_text",
         parameters: FeishuDocSchema,
         async execute(_toolCallId, params) {
           const p = params as FeishuDocParams;
@@ -552,6 +553,8 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                     p.column_end,
                   ),
                 );
+              case "color_text":
+                return json(await updateColorText(client, p.doc_token, p.block_id, p.content));
               default:
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
                 return json({ error: `Unknown action: ${(p as any).action}` });
