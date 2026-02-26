@@ -143,6 +143,41 @@ describe("resolveCronSession", () => {
       expect(result.sessionEntry.providerOverride).toBe("anthropic");
     });
 
+    it("reuses sessionId for hook keys even when forceNew is not explicitly set", () => {
+      // Hook sessions (e.g., hook:fizzy:card-461) should default to reusing
+      // their existing session for multi-turn history (#11665)
+      const result = resolveWithStoredEntry({
+        sessionKey: "agent:fizzy-orchestrator:hook:fizzy:card-461",
+        entry: {
+          sessionId: "hook-session-id",
+          updatedAt: NOW_MS - 5000,
+          systemSent: true,
+        },
+        fresh: true,
+        // forceNew not set — hooks should NOT force new sessions
+      });
+
+      expect(result.sessionEntry.sessionId).toBe("hook-session-id");
+      expect(result.isNewSession).toBe(false);
+      expect(result.systemSent).toBe(true);
+    });
+
+    it("creates new sessionId for hook keys when forceNew is explicitly true", () => {
+      // Verify that forceNew still overrides for any key type
+      const result = resolveWithStoredEntry({
+        sessionKey: "agent:fizzy-orchestrator:hook:fizzy:card-461",
+        entry: {
+          sessionId: "hook-session-id",
+          updatedAt: NOW_MS - 5000,
+        },
+        fresh: true,
+        forceNew: true,
+      });
+
+      expect(result.sessionEntry.sessionId).not.toBe("hook-session-id");
+      expect(result.isNewSession).toBe(true);
+    });
+
     it("creates new sessionId when entry exists but has no sessionId", () => {
       const result = resolveWithStoredEntry({
         entry: {

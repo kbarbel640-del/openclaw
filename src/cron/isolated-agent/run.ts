@@ -1,3 +1,7 @@
+import type { CliDeps } from "../../cli/outbound-send-deps.js";
+import type { OpenClawConfig } from "../../config/config.js";
+import type { AgentDefaultsConfig } from "../../config/types.js";
+import type { CronJob, CronRunOutcome, CronRunTelemetry } from "../types.js";
 import {
   resolveAgentConfig,
   resolveAgentDir,
@@ -30,14 +34,11 @@ import {
   normalizeVerboseLevel,
   supportsXHighThinking,
 } from "../../auto-reply/thinking.js";
-import type { CliDeps } from "../../cli/outbound-send-deps.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import {
   resolveSessionTranscriptPath,
   setSessionRuntimeModel,
   updateSessionStore,
 } from "../../config/sessions.js";
-import type { AgentDefaultsConfig } from "../../config/types.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
 import { logWarn } from "../../logger.js";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../../routing/session-key.js";
@@ -48,7 +49,6 @@ import {
   isExternalHookSession,
 } from "../../security/external-content.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
-import type { CronJob, CronRunOutcome, CronRunTelemetry } from "../types.js";
 import {
   dispatchCronDelivery,
   matchesMessagingToolDeliveryTarget,
@@ -222,8 +222,10 @@ export async function runCronIsolatedAgentTurn(params: {
     sessionKey: agentSessionKey,
     agentId,
     nowMs: now,
-    // Isolated cron runs must not carry prior turn context across executions.
-    forceNew: params.job.sessionTarget === "isolated",
+    // Isolated cron runs get a fresh session each execution, but hook sessions
+    // with deterministic keys should reuse their existing session for multi-turn
+    // conversation history (e.g., project management webhooks per card). (#11665)
+    forceNew: params.job.sessionTarget === "isolated" && /(?:^|:)cron:/.test(agentSessionKey),
   });
   const runSessionId = cronSession.sessionEntry.sessionId;
   const runSessionKey = baseSessionKey.startsWith("cron:")
