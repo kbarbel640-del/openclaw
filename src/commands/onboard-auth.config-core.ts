@@ -12,6 +12,11 @@ import {
   XIAOMI_DEFAULT_MODEL_ID,
 } from "../agents/models-config.providers.js";
 import {
+  buildSkillBossModelDefinition,
+  SKILLBOSS_BASE_URL,
+  SKILLBOSS_MODEL_CATALOG,
+} from "../agents/skillboss-models.js";
+import {
   buildSyntheticModelDefinition,
   SYNTHETIC_BASE_URL,
   SYNTHETIC_DEFAULT_MODEL_REF,
@@ -36,6 +41,7 @@ import {
   KILOCODE_DEFAULT_MODEL_REF,
   MISTRAL_DEFAULT_MODEL_REF,
   OPENROUTER_DEFAULT_MODEL_REF,
+  SKILLBOSS_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   XIAOMI_DEFAULT_MODEL_REF,
   ZAI_DEFAULT_MODEL_REF,
@@ -295,6 +301,28 @@ export function applyXiaomiProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
 export function applyXiaomiConfig(cfg: OpenClawConfig): OpenClawConfig {
   const next = applyXiaomiProviderConfig(cfg);
   return applyAgentDefaultModelPrimary(next, XIAOMI_DEFAULT_MODEL_REF);
+}
+
+export function applySkillBossProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[SKILLBOSS_DEFAULT_MODEL_REF] = {
+    ...models[SKILLBOSS_DEFAULT_MODEL_REF],
+    alias: models[SKILLBOSS_DEFAULT_MODEL_REF]?.alias ?? "SkillBoss",
+  };
+
+  const skillbossModels = SKILLBOSS_MODEL_CATALOG.map(buildSkillBossModelDefinition);
+  return applyProviderConfigWithModelCatalog(cfg, {
+    agentModels: models,
+    providerId: "skillboss",
+    api: "anthropic-messages",
+    baseUrl: SKILLBOSS_BASE_URL,
+    catalogModels: skillbossModels,
+  });
+}
+
+export function applySkillBossConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const next = applySkillBossProviderConfig(cfg);
+  return applyAgentDefaultModelPrimary(next, SKILLBOSS_DEFAULT_MODEL_REF);
 }
 
 /**

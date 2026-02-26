@@ -41,6 +41,8 @@ import {
   applyOpencodeZenProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
+  applySkillBossConfig,
+  applySkillBossProviderConfig,
   applyTogetherConfig,
   applyTogetherProviderConfig,
   applyVeniceConfig,
@@ -58,6 +60,7 @@ import {
   KIMI_CODING_MODEL_REF,
   MOONSHOT_DEFAULT_MODEL_REF,
   MISTRAL_DEFAULT_MODEL_REF,
+  SKILLBOSS_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   VENICE_DEFAULT_MODEL_REF,
@@ -65,6 +68,7 @@ import {
   XIAOMI_DEFAULT_MODEL_REF,
   setCloudflareAiGatewayConfig,
   setQianfanApiKey,
+  setSkillBossApiKey,
   setGeminiApiKey,
   setKilocodeApiKey,
   setLitellmApiKey,
@@ -103,6 +107,7 @@ const API_KEY_TOKEN_PROVIDER_AUTH_CHOICE: Record<string, AuthChoice> = {
   opencode: "opencode-zen",
   kilocode: "kilocode-api-key",
   qianfan: "qianfan-api-key",
+  skillboss: "skillboss-api-key",
 };
 
 const ZAI_AUTH_CHOICE_ENDPOINT: Partial<
@@ -293,6 +298,23 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     applyDefaultConfig: applyKilocodeConfig,
     applyProviderConfig: applyKilocodeProviderConfig,
     noteDefault: KILOCODE_DEFAULT_MODEL_REF,
+  },
+  "skillboss-api-key": {
+    provider: "skillboss",
+    profileId: "skillboss:default",
+    expectedProviders: ["skillboss"],
+    envLabel: "SKILLBOSS_API_KEY",
+    promptMessage: "Enter SkillBoss API key",
+    setCredential: setSkillBossApiKey,
+    defaultModel: SKILLBOSS_DEFAULT_MODEL_REF,
+    applyDefaultConfig: applySkillBossConfig,
+    applyProviderConfig: applySkillBossProviderConfig,
+    noteDefault: SKILLBOSS_DEFAULT_MODEL_REF,
+    noteMessage: [
+      "SkillBoss provides access to 50+ AI models with pay-as-you-go pricing.",
+      "Get your API key at: https://skillboss.co (Dashboard)",
+    ].join("\n"),
+    noteTitle: "SkillBoss",
   },
   "synthetic-api-key": {
     provider: "synthetic",

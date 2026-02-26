@@ -146,6 +146,7 @@ export function registerOnboardCommand(program: Command) {
           qianfanApiKey: opts.qianfanApiKey as string | undefined,
           minimaxApiKey: opts.minimaxApiKey as string | undefined,
           syntheticApiKey: opts.syntheticApiKey as string | undefined,
+          skillbossApiKey: opts.skillbossApiKey as string | undefined,
           veniceApiKey: opts.veniceApiKey as string | undefined,
           togetherApiKey: opts.togetherApiKey as string | undefined,
           huggingfaceApiKey: opts.huggingfaceApiKey as string | undefined,

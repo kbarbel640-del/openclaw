@@ -90,6 +90,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["byteplus-api-key"],
   },
   {
+    value: "skillboss",
+    label: "SkillBoss",
+    hint: "Anthropic-compatible (50+ models)",
+    choices: ["skillboss-api-key"],
+  },
+  {
     value: "openrouter",
     label: "OpenRouter",
     hint: "API key",
@@ -193,6 +199,7 @@ const PROVIDER_AUTH_CHOICE_OPTION_HINTS: Partial<Record<AuthChoice, string>> = {
   "venice-api-key": "Privacy-focused inference (uncensored models)",
   "together-api-key": "Access to Llama, DeepSeek, Qwen, and more open models",
   "huggingface-api-key": "Inference Providers — OpenAI-compatible chat",
+  "skillboss-api-key": "Unified platform with 50+ AI models",
 };
 
 const PROVIDER_AUTH_CHOICE_OPTION_LABELS: Partial<Record<AuthChoice, string>> = {
@@ -297,6 +304,7 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     label: "MiniMax M2.5 Lightning",
     hint: "Faster, higher output cost",
   },
+  { value: "skillboss-api-key", label: "SkillBoss API key" },
   { value: "custom-api-key", label: "Custom Provider" },
 ];
 
