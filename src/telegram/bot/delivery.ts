@@ -416,8 +416,14 @@ export async function resolveMedia(
   if (!m?.file_id) {
     return null;
   }
+  // Early size check: Telegram includes file_size in the message update.
+  // Reject before downloading to avoid wasting bandwidth and prevent crashes.
+  const reportedSize = (m as { file_size?: number }).file_size;
+  if (reportedSize != null && reportedSize > maxBytes) {
+    throw new Error(`Media exceeds ${(maxBytes / (1024 * 1024)).toFixed(0)}MB limit`);
+  }
 
-  let file: { file_path?: string };
+  let file: { file_path?: string; file_size?: number };
   try {
     file = await retryAsync(() => ctx.getFile(), {
       attempts: 3,
@@ -444,8 +450,16 @@ export async function resolveMedia(
     logVerbose(`telegram: getFile failed after retries: ${String(err)}`);
     return null;
   }
+  // Double-check with getFile response (more accurate for some file types)
+  if (file.file_size != null && file.file_size > maxBytes) {
+    throw new Error(`Media exceeds ${(maxBytes / (1024 * 1024)).toFixed(0)}MB limit`);
+  }
   if (!file.file_path) {
     throw new Error("Telegram getFile returned no file_path");
+  }
+  // Double-check with getFile response (more accurate for some file types)
+  if (file.file_size != null && file.file_size > maxBytes) {
+    throw new Error(`Media exceeds ${(maxBytes / (1024 * 1024)).toFixed(0)}MB limit`);
   }
   const fetchImpl = proxyFetch ?? globalThis.fetch;
   if (!fetchImpl) {
