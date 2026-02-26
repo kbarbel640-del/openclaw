@@ -93,7 +93,7 @@ describe("loginOpenAICodexOAuth", () => {
     });
 
     expect(onAuthInner).toHaveBeenCalledOnce();
-    const authEvent = onAuthInner.mock.calls[0]![0];
+    const authEvent = onAuthInner.mock.calls[0][0];
     const scope = new URL(authEvent.url).searchParams.get("scope") ?? "";
     const scopes = Array.from(new Set(scope.split(/\s+/).filter(Boolean)));
     expect(scopes).toEqual(
