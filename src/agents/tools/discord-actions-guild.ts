@@ -1,4 +1,23 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
+/**
+ * Coerce a string or boolean to boolean | undefined.
+ * Handles "true"/"false" strings from XML tool interface.
+ */
+function coerceBool(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+  }
+  return undefined;
+}
+
 import type { DiscordActionConfig } from "../../config/config.js";
 import { getPresence } from "../../discord/monitor/presence-cache.js";
 import {
@@ -290,7 +309,7 @@ export async function handleDiscordGuildAction(
       const parentId = readParentIdParam(params);
       const topic = readStringParam(params, "topic");
       const position = readNumberParam(params, "position", { integer: true });
-      const nsfw = params.nsfw as boolean | undefined;
+      const nsfw = coerceBool(params.nsfw);
       const channel = accountId
         ? await createChannelDiscord(
             {
@@ -326,12 +345,12 @@ export async function handleDiscordGuildAction(
       const topic = readStringParam(params, "topic");
       const position = readNumberParam(params, "position", { integer: true });
       const parentId = readParentIdParam(params);
-      const nsfw = params.nsfw as boolean | undefined;
+      const nsfw = coerceBool(params.nsfw);
       const rateLimitPerUser = readNumberParam(params, "rateLimitPerUser", {
         integer: true,
       });
-      const archived = typeof params.archived === "boolean" ? params.archived : undefined;
-      const locked = typeof params.locked === "boolean" ? params.locked : undefined;
+      const archived = coerceBool(params.archived);
+      const locked = coerceBool(params.locked);
       const autoArchiveDuration = readNumberParam(params, "autoArchiveDuration", {
         integer: true,
       });
