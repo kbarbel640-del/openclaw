@@ -54,7 +54,7 @@ describe("findGatewayPidsOnPortSync", () => {
       ].join("\n"),
     });
 
-    const pids = findGatewayPidsOnPortSync(18789);
+    const pids = findGatewayPidsOnPortSync(18789, "darwin");
 
     expect(pids).toEqual([4100, 4300]);
     expect(spawnSyncMock).toHaveBeenCalledWith(
@@ -72,7 +72,7 @@ describe("findGatewayPidsOnPortSync", () => {
       stderr: "lsof failed",
     });
 
-    expect(findGatewayPidsOnPortSync(18789)).toEqual([]);
+    expect(findGatewayPidsOnPortSync(18789, "darwin")).toEqual([]);
   });
 });
 
@@ -85,7 +85,7 @@ describe("cleanStaleGatewayProcessesSync", () => {
     });
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
 
-    const killed = cleanStaleGatewayProcessesSync();
+    const killed = cleanStaleGatewayProcessesSync({ platform: "darwin" });
 
     expect(killed).toEqual([6001, 6002]);
     expect(resolveGatewayPortMock).toHaveBeenCalledWith(undefined, process.env);
@@ -103,7 +103,7 @@ describe("cleanStaleGatewayProcessesSync", () => {
     });
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
 
-    const killed = cleanStaleGatewayProcessesSync();
+    const killed = cleanStaleGatewayProcessesSync({ platform: "darwin" });
 
     expect(killed).toEqual([]);
     expect(killSpy).not.toHaveBeenCalled();
