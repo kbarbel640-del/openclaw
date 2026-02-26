@@ -17,6 +17,7 @@ export const AgentDefaultsSchema = z
   .object({
     model: AgentModelSchema.optional(),
     imageModel: AgentModelSchema.optional(),
+    promptCachePartition: z.string().optional(),
     models: z
       .record(
         z.string(),

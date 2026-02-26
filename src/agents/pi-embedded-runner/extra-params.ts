@@ -3,6 +3,7 @@ import type { SimpleStreamOptions } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { resolvePromptCachePartition } from "../prompt-cache-partition.js";
 import { log } from "./logger.js";
 
 const OPENROUTER_APP_HEADERS: Record<string, string> = {
@@ -444,6 +445,19 @@ function createSiliconFlowThinkingWrapper(baseStreamFn: StreamFn | undefined): S
   };
 }
 
+function resolveOpenRouterPromptCacheKey(
+  extraParams: Record<string, unknown> | undefined,
+  defaultPartitionKey?: string,
+): string | undefined {
+  const raw =
+    extraParams?.prompt_cache_key ?? extraParams?.promptCacheKey ?? defaultPartitionKey ?? "";
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 /**
  * Create a streamFn wrapper that adds OpenRouter app attribution headers
  * and injects reasoning.effort based on the configured thinking level.
@@ -451,6 +465,7 @@ function createSiliconFlowThinkingWrapper(baseStreamFn: StreamFn | undefined): S
 function createOpenRouterWrapper(
   baseStreamFn: StreamFn | undefined,
   thinkingLevel?: ThinkLevel,
+  promptCacheKey?: string,
 ): StreamFn {
   const underlying = baseStreamFn ?? streamSimple;
   return (model, context, options) => {
@@ -496,6 +511,12 @@ function createOpenRouterWrapper(
                 effort: mapThinkingLevelToOpenRouterReasoningEffort(thinkingLevel),
               };
             }
+          }
+        }
+        if (promptCacheKey && payload && typeof payload === "object") {
+          const payloadObj = payload as Record<string, unknown>;
+          if (payloadObj.prompt_cache_key === undefined) {
+            payloadObj.prompt_cache_key = promptCacheKey;
           }
         }
         onPayload?.(payload);
@@ -684,7 +705,15 @@ export function applyExtraParamsToAgent(
     // Users who need reasoning control should target a specific model ID.
     // See: openclaw/openclaw#24851
     const openRouterThinkingLevel = modelId === "auto" ? undefined : thinkingLevel;
-    agent.streamFn = createOpenRouterWrapper(agent.streamFn, openRouterThinkingLevel);
+    const openRouterPromptCacheKey = resolveOpenRouterPromptCacheKey(
+      merged,
+      resolvePromptCachePartition(cfg),
+    );
+    agent.streamFn = createOpenRouterWrapper(
+      agent.streamFn,
+      openRouterThinkingLevel,
+      openRouterPromptCacheKey,
+    );
     agent.streamFn = createOpenRouterSystemCacheWrapper(agent.streamFn);
   }
 
