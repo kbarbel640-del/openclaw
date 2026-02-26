@@ -23,6 +23,15 @@ describe("sameFileIdentity", () => {
     expect(sameFileIdentity(stat(7, 11), stat(0, 11), "win32")).toBe(true);
   });
 
+  it("accepts win32 inode mismatch when either side is 0", () => {
+    expect(sameFileIdentity(stat(7, 0), stat(7, 11), "win32")).toBe(true);
+    expect(sameFileIdentity(stat(7, 11), stat(7, 0), "win32")).toBe(true);
+  });
+
+  it("keeps inode strictness on win32 when both inode values are non-zero", () => {
+    expect(sameFileIdentity(stat(7, 11), stat(7, 12), "win32")).toBe(false);
+  });
+
   it("keeps dev strictness on win32 when both dev values are non-zero", () => {
     expect(sameFileIdentity(stat(7, 11), stat(8, 11), "win32")).toBe(false);
   });
