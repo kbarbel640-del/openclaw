@@ -549,7 +549,16 @@ namespace OpenClaw.Node.Services
                     };
                 }
 
-                var deltaY = deltaEl.GetInt32();
+                if (!deltaEl.TryGetInt32(out var deltaY))
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.scroll params.deltaY must be an integer" }
+                    };
+                }
+
                 int? x = null;
                 int? y = null;
 
@@ -564,7 +573,16 @@ namespace OpenClaw.Node.Services
                             Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.scroll x must be numeric" }
                         };
                     }
-                    x = xEl.GetInt32();
+                    if (!xEl.TryGetInt32(out var parsedX))
+                    {
+                        return new IpcResponse
+                        {
+                            Id = req.Id ?? string.Empty,
+                            Ok = false,
+                            Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.scroll params.x must be an integer" }
+                        };
+                    }
+                    x = parsedX;
                 }
 
                 if (p.TryGetProperty("y", out var yEl))
@@ -578,7 +596,16 @@ namespace OpenClaw.Node.Services
                             Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.scroll y must be numeric" }
                         };
                     }
-                    y = yEl.GetInt32();
+                    if (!yEl.TryGetInt32(out var parsedY))
+                    {
+                        return new IpcResponse
+                        {
+                            Id = req.Id ?? string.Empty,
+                            Ok = false,
+                            Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.scroll params.y must be an integer" }
+                        };
+                    }
+                    y = parsedY;
                 }
 
                 var svc = new AutomationService();
@@ -646,8 +673,15 @@ namespace OpenClaw.Node.Services
                     };
                 }
 
-                var offsetX = oxEl.GetInt32();
-                var offsetY = oyEl.GetInt32();
+                if (!oxEl.TryGetInt32(out var offsetX) || !oyEl.TryGetInt32(out var offsetY))
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.click.relative params.offsetX and params.offsetY must be integers" }
+                    };
+                }
                 var button = p.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
                     ? (bEl.GetString() ?? "primary")
                     : "primary";
