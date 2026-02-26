@@ -269,12 +269,17 @@ export function createLaneTextDeliverer(params: CreateLaneTextDelivererParams) {
         return "preview-finalized";
       }
     }
-    try {
-      await params.deletePreviewMessage(archivedPreview.messageId);
-    } catch (err) {
-      params.log(
-        `telegram: archived answer preview cleanup failed (${archivedPreview.messageId}): ${String(err)}`,
-      );
+    // Only delete empty/placeholder previews. Previews with meaningful text
+    // were already visible to the user and should be kept as standalone messages
+    // rather than silently removed when a media payload follows.
+    if (!archivedPreview.textSnapshot?.trim()) {
+      try {
+        await params.deletePreviewMessage(archivedPreview.messageId);
+      } catch (err) {
+        params.log(
+          `telegram: archived answer preview cleanup failed (${archivedPreview.messageId}): ${String(err)}`,
+        );
+      }
     }
     const delivered = await params.sendPayload(params.applyTextToPayload(payload, text));
     return delivered ? "sent" : "skipped";
