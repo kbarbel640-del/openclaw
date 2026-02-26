@@ -152,6 +152,19 @@ export function createTelegramBot(opts: TelegramBotOptions) {
   const initialUpdateId =
     typeof opts.updateOffset?.lastUpdateId === "number" ? opts.updateOffset.lastUpdateId : null;
 
+  // Diagnostic logger for offset-related issues
+  const offsetLogger = createSubsystemLogger("gateway/channels/telegram/offset");
+  // Track how many updates have been skipped due to offset cutoff to avoid logging every skip
+  let skippedDueToOffsetCount = 0;
+  let lastLoggedSkippedCount = 0;
+
+  // Log the loaded offset value on startup for diagnostic purposes
+  if (initialUpdateId !== null) {
+    offsetLogger.info(`Loaded persisted update offset: ${initialUpdateId}`);
+  } else {
+    offsetLogger.info("No persisted update offset found, starting from latest");
+  }
+
   // Track update_ids that have entered the middleware pipeline but have not completed yet.
   // This includes updates that are "queued" behind sequentialize(...) for a chat/topic key.
   // We only persist a watermark that is strictly less than the smallest pending update_id,
@@ -189,6 +202,15 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     const updateId = resolveTelegramUpdateId(ctx);
     const skipCutoff = highestPersistedUpdateId ?? initialUpdateId;
     if (typeof updateId === "number" && skipCutoff !== null && updateId <= skipCutoff) {
+      // Track skipped updates and log periodically to avoid per-update spam
+      skippedDueToOffsetCount++;
+      // Log at INFO level when we've skipped 10+ updates since last log
+      if (skippedDueToOffsetCount - lastLoggedSkippedCount >= 10) {
+        offsetLogger.info(
+          `Skipped ${skippedDueToOffsetCount} update(s) due to offset cutoff (current: ${updateId}, cutoff: ${skipCutoff}). Consider deleting the offset file if messages are being silently dropped.`,
+        );
+        lastLoggedSkippedCount = skippedDueToOffsetCount;
+      }
       return true;
     }
     const key = buildTelegramUpdateKey(ctx);
