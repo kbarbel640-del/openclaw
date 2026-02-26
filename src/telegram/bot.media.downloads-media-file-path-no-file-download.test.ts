@@ -231,6 +231,8 @@ describe("telegram media groups", () => {
 
   const MEDIA_GROUP_TEST_TIMEOUT_MS = process.platform === "win32" ? 45_000 : 20_000;
   const MEDIA_GROUP_FLUSH_MS = TELEGRAM_TEST_TIMINGS.mediaGroupFlushMs + 40;
+  const MEDIA_GROUP_WAIT_TIMEOUT_MS =
+    process.platform === "win32" ? MEDIA_GROUP_FLUSH_MS * 20 : MEDIA_GROUP_FLUSH_MS * 4;
 
   it(
     "handles same-group buffering and separate-group independence",
@@ -311,7 +313,7 @@ describe("telegram media groups", () => {
             () => {
               expect(replySpy).toHaveBeenCalledTimes(scenario.expectedReplyCount);
             },
-            { timeout: MEDIA_GROUP_FLUSH_MS * 4, interval: 2 },
+            { timeout: MEDIA_GROUP_WAIT_TIMEOUT_MS, interval: 2 },
           );
 
           expect(runtimeError).not.toHaveBeenCalled();
