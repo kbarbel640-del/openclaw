@@ -153,6 +153,7 @@ describe("resolveCronSession", () => {
           lastTo: "C0XXXXXXXXX",
           lastAccountId: "acc-1",
           lastThreadId: "1234567890.123456",
+          deliveryContext: { channel: "slack", to: "C0XXXXXXXXX", threadId: "1234567890.123456" },
           modelOverride: "sonnet-4",
         },
         fresh: true,
@@ -164,6 +165,7 @@ describe("resolveCronSession", () => {
       expect(result.sessionEntry.lastTo).toBeUndefined();
       expect(result.sessionEntry.lastChannel).toBeUndefined();
       expect(result.sessionEntry.lastAccountId).toBeUndefined();
+      expect(result.sessionEntry.deliveryContext).toBeUndefined();
       // Model overrides should still be preserved
       expect(result.sessionEntry.modelOverride).toBe("sonnet-4");
     });
@@ -177,6 +179,7 @@ describe("resolveCronSession", () => {
           lastTo: "-100111",
           lastThreadId: 9999,
           lastAccountId: "acc-2",
+          deliveryContext: { channel: "telegram", to: "-100111", threadId: 9999 },
           modelOverride: "gpt-4.1-mini",
         },
         fresh: false,
@@ -187,6 +190,7 @@ describe("resolveCronSession", () => {
       expect(result.sessionEntry.lastTo).toBeUndefined();
       expect(result.sessionEntry.lastChannel).toBeUndefined();
       expect(result.sessionEntry.lastAccountId).toBeUndefined();
+      expect(result.sessionEntry.deliveryContext).toBeUndefined();
       expect(result.sessionEntry.modelOverride).toBe("gpt-4.1-mini");
     });
 
