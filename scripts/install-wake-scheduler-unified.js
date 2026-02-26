@@ -362,8 +362,7 @@ function createWindowsTaskXML(openclawPath) {
         <Interval>PT${CONFIG.wakeInterval}M</Interval>
         <StopAtDurationEnd>false</StopAtDurationEnd>
       </Repetition>
-      <StartBoundary>2026-02-25T07:00:00</StartBoundary>
-      <EndBoundary>2026-02-26T02:00:00</EndBoundary>
+      <StartBoundary>${new Date().toISOString().split('T')[0]}T07:00:00</StartBoundary>
       <Enabled>true</Enabled>
       <ScheduleByDay>
         <DaysInterval>1</DaysInterval>
@@ -374,8 +373,7 @@ function createWindowsTaskXML(openclawPath) {
         <Interval>PT${CONFIG.sleepInterval}M</Interval>
         <StopAtDurationEnd>false</StopAtDurationEnd>
       </Repetition>
-      <StartBoundary>2026-02-25T02:00:00</StartBoundary>
-      <EndBoundary>2026-02-25T07:00:00</EndBoundary>
+      <StartBoundary>${new Date().toISOString().split('T')[0]}T02:00:00</StartBoundary>
       <Enabled>true</Enabled>
       <ScheduleByDay>
         <DaysInterval>1</DaysInterval>
@@ -618,7 +616,10 @@ MESSAGE="\${1:-Scheduled wake pulse}"
     return true;
   } catch (error) {
     log(`❌ Unix installation failed: ${error.message}`);
-    await cleanupFiles(createdFiles);
+    // Don't cleanup wake script - fallback installers (systemd/launchd) need it
+    // Only cleanup temp crontab file
+    const tempFiles = createdFiles.filter(f => f.includes('openclaw-crontab-'));
+    await cleanupFiles(tempFiles);
     return false;
   }
 }
