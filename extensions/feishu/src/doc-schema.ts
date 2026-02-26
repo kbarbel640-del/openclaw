@@ -90,7 +90,7 @@ export const FeishuDocSchema = Type.Union([
     doc_token: Type.String({ description: "Document token" }),
     image: Type.String({
       description:
-        "Image data as base64 string, data URI (data:image/png;base64,...), or absolute file path",
+        "Image source: https/http URL, data URI (data:image/png;base64,...), plain base64 string, or absolute file path",
     }),
     file_name: Type.Optional(Type.String({ description: "File name (e.g. chart.png)" })),
     block_id: Type.Optional(

@@ -229,12 +229,17 @@ async function uploadImageAction(
   imageInput: string,
   fileName?: string,
   insertAfterBlockId?: string,
+  mediaMaxBytes?: number,
 ): Promise<{ success: boolean; block_id: string }> {
-  // Resolve image buffer from base64, data URI, or file path
+  // Resolve image buffer from URL, base64, data URI, or file path
   let buffer: Buffer;
   let resolvedFileName = fileName ?? "image.png";
 
-  if (imageInput.startsWith("data:")) {
+  if (imageInput.startsWith("http://") || imageInput.startsWith("https://")) {
+    // Remote URL — download via OpenClaw media fetcher
+    buffer = await downloadImage(imageInput, mediaMaxBytes ?? 20 * 1024 * 1024);
+    resolvedFileName = fileName ?? imageInput.split("/").pop()?.split("?")[0] ?? "image.jpg";
+  } else if (imageInput.startsWith("data:")) {
     // data URI: data:image/png;base64,xxxx
     const [header, data] = imageInput.split(",");
     const mimeMatch = header.match(/data:([^;]+)/);
@@ -631,7 +636,14 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                 return json(await updateColorText(client, p.doc_token, p.block_id, p.content));
               case "upload_image":
                 return json(
-                  await uploadImageAction(client, p.doc_token, p.image, p.file_name, p.block_id),
+                  await uploadImageAction(
+                    client,
+                    p.doc_token,
+                    p.image,
+                    p.file_name,
+                    p.block_id,
+                    mediaMaxBytes,
+                  ),
                 );
               default:
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
