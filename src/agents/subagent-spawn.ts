@@ -465,6 +465,12 @@ export async function spawnSubagentDirect(
 
   if (requestedAttachments.length > 0) {
     if (!attachmentsEnabled) {
+      // Clean up the provisional session created earlier.
+      await callGateway({
+        method: "sessions.delete",
+        params: { key: childSessionKey, emitLifecycleHooks: false },
+        timeoutMs: 10_000,
+      }).catch(() => {});
       return {
         status: "forbidden",
         error:
@@ -472,6 +478,12 @@ export async function spawnSubagentDirect(
       };
     }
     if (requestedAttachments.length > maxFiles) {
+      // Clean up the provisional session created earlier.
+      await callGateway({
+        method: "sessions.delete",
+        params: { key: childSessionKey, emitLifecycleHooks: false },
+        timeoutMs: 10_000,
+      }).catch(() => {});
       return {
         status: "error",
         error: `attachments_file_count_exceeded (maxFiles=${maxFiles})`,

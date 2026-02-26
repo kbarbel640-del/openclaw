@@ -213,7 +213,8 @@ export function repairToolCallInputs(
       if (isToolCallBlock(block)) {
         if (
           (block as { type?: unknown }).type === "toolCall" ||
-          (block as { type?: unknown }).type === "toolUse"
+          (block as { type?: unknown }).type === "toolUse" ||
+          (block as { type?: unknown }).type === "functionCall"
         ) {
           const sanitized = sanitizeToolCallBlock(block);
           if (sanitized !== block) {
