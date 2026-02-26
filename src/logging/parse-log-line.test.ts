@@ -42,4 +42,33 @@ describe("parseLogLine", () => {
   it("returns null for invalid JSON", () => {
     expect(parseLogLine("not-json")).toBeNull();
   });
+
+  it("parses structured prefix + short message", () => {
+    const line = "[2026-02-23 15:42:38.123] [12345] [gateway] info: hello world";
+    const parsed = parseLogLine(line);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.time).toBe("2026-02-23 15:42:38.123");
+    expect(parsed?.level).toBe("info");
+    expect(parsed?.subsystem).toBe("gateway");
+    expect(parsed?.message).toBe("hello world");
+    expect(parsed?.raw).toBe(line);
+  });
+
+  it("parses structured prefix + JSON payload (full line)", () => {
+    const jsonPayload = JSON.stringify({
+      time: "2026-02-23T07:42:38.123Z",
+      0: '{"subsystem":"gateway/channels/whatsapp"}',
+      1: "connected",
+      _meta: { name: '{"subsystem":"gateway/channels/whatsapp"}', logLevelName: "INFO" },
+    });
+    const line =
+      "[2026-02-23 15:42:38.123] [12345] [gateway/channels/whatsapp] info: " + jsonPayload;
+    const parsed = parseLogLine(line);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.time).toBe("2026-02-23 15:42:38.123");
+    expect(parsed?.level).toBe("info");
+    expect(parsed?.subsystem).toBe("gateway/channels/whatsapp");
+    expect(parsed?.message).toBe(jsonPayload);
+    expect(parsed?.raw).toBe(line);
+  });
 });

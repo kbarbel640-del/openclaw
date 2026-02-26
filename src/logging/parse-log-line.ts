@@ -7,6 +7,25 @@ export type ParsedLogLine = {
   raw: string;
 };
 
+/** Matches structured prefix: [YYYY-MM-DD HH:mm:ss.SSS] [pid] [subsystem] level: */
+export const STRUCTURED_LINE_RE =
+  /^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]\s*\[(\d+)\]\s*\[([^\]]*)\]\s*(\w+):\s*(.*)$/s;
+
+export function parseStructuredLine(raw: string): ParsedLogLine | null {
+  const m = raw.match(STRUCTURED_LINE_RE);
+  if (!m) {
+    return null;
+  }
+  const [, timeStr, _pid, subsystem, level, rest] = m;
+  return {
+    time: timeStr,
+    level: level?.toLowerCase(),
+    subsystem: subsystem ?? undefined,
+    message: rest ?? "",
+    raw,
+  };
+}
+
 function extractMessage(value: Record<string, unknown>): string {
   const parts: string[] = [];
   for (const key of Object.keys(value)) {
@@ -39,6 +58,10 @@ function parseMetaName(raw?: unknown): { subsystem?: string; module?: string } {
 }
 
 export function parseLogLine(raw: string): ParsedLogLine | null {
+  const structured = parseStructuredLine(raw);
+  if (structured) {
+    return structured;
+  }
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const meta = parsed._meta as Record<string, unknown> | undefined;
