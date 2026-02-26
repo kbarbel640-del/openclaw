@@ -7,6 +7,7 @@ import * as sessions from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
 import { withStateDirEnv } from "../../test-helpers/state-dir-env.js";
 import type { TemplateContext } from "../templating.js";
+import { SILENT_REPLY_TOKEN } from "../tokens.js";
 import type { GetReplyOptions } from "../types.js";
 import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
 import { createMockTypingController } from "./test-helpers.js";
@@ -1345,13 +1346,65 @@ describe("runReplyAgent typing (heartbeat)", () => {
       const res = await run();
 
       expect(res).toMatchObject({
-        text: expect.stringContaining("Agent failed before reply"),
+        text: expect.stringContaining("Something went wrong while processing your request"),
       });
       expect(sessionStore.main).toBeDefined();
       await expect(fs.access(transcriptPath)).resolves.toBeUndefined();
 
       const persisted = JSON.parse(await fs.readFile(storePath, "utf-8"));
       expect(persisted.main).toBeDefined();
+    });
+  });
+
+  it("returns raw provider error text when messages.errorMode is raw", async () => {
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async () => {
+      throw new Error("INVALID_ARGUMENT: some other failure");
+    });
+
+    const { run } = createMinimalRun({
+      runOverrides: {
+        config: {
+          messages: {
+            errorMode: "raw",
+          },
+        },
+      },
+    });
+    const res = await run();
+    expect(res).toMatchObject({
+      text: expect.stringContaining("Agent failed before reply"),
+    });
+  });
+
+  it("suppresses user-facing provider errors when messages.errorMode is silent", async () => {
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async () => {
+      throw new Error("INVALID_ARGUMENT: some other failure");
+    });
+
+    const { run } = createMinimalRun({
+      runOverrides: {
+        config: {
+          messages: {
+            errorMode: "silent",
+          },
+        },
+      },
+    });
+    const res = await run();
+    expect(res).toMatchObject({ text: SILENT_REPLY_TOKEN });
+  });
+
+  it("returns a session-sync hint for Bedrock toolResult/toolUse mismatch errors", async () => {
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async () => {
+      throw new Error(
+        "The number of toolResult blocks at messages.186.content exceeds the number of toolUse blocks of previous turn.",
+      );
+    });
+
+    const { run } = createMinimalRun();
+    const res = await run();
+    expect(res).toMatchObject({
+      text: "⚠️ Session history got out of sync. Please try again, or use /new to start a fresh session.",
     });
   });
 
