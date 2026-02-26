@@ -651,6 +651,12 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        webchat: z
+          .object({
+            chatHistoryMaxChars: z.number().int().positive().optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .optional(),
