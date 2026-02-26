@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -84,6 +85,7 @@ type ConnectedTarget = {
 const RELAY_AUTH_HEADER = "x-openclaw-relay-token";
 const DEFAULT_EXTENSION_RECONNECT_GRACE_MS = 5_000;
 const DEFAULT_EXTENSION_COMMAND_RECONNECT_WAIT_MS = 3_000;
+const OPENCLAW_EXTENSION_RELAY_BIND_HOST_ENV = "OPENCLAW_EXTENSION_RELAY_BIND_HOST";
 
 function headerValue(value: string | string[] | undefined): string | undefined {
   if (!value) {
@@ -185,6 +187,18 @@ function envMsOrDefault(name: string, fallback: number): number {
   return parsed;
 }
 
+function isDockerEnvironment(): boolean {
+  return existsSync("/.dockerenv");
+}
+
+function resolveRelayBindHost(defaultHost: string): string {
+  const configured = process.env[OPENCLAW_EXTENSION_RELAY_BIND_HOST_ENV]?.trim();
+  if (configured) {
+    return configured;
+  }
+  return isDockerEnvironment() ? "0.0.0.0" : defaultHost;
+}
+
 const relayRuntimeByPort = new Map<number, RelayRuntime>();
 const relayInitByPort = new Map<number, Promise<ChromeExtensionRelayServer>>();
 
@@ -247,6 +261,8 @@ export async function ensureChromeExtensionRelayServer(opts: {
     "OPENCLAW_EXTENSION_RELAY_COMMAND_RECONNECT_WAIT_MS",
     DEFAULT_EXTENSION_COMMAND_RECONNECT_WAIT_MS,
   );
+  const bindHost = resolveRelayBindHost(info.host);
+  const allowRemoteWs = !isLoopbackHost(bindHost);
 
   const initPromise = (async (): Promise<ChromeExtensionRelayServer> => {
     const relayAuthToken = resolveRelayAuthTokenForPort(info.port);
@@ -616,7 +632,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
       const pathname = url.pathname;
       const remote = req.socket.remoteAddress;
 
-      if (!isLoopbackAddress(remote)) {
+      if (!allowRemoteWs && !isLoopbackAddress(remote)) {
         rejectUpgrade(socket, 403, "Forbidden");
         return;
       }
@@ -886,7 +902,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     try {
       await new Promise<void>((resolve, reject) => {
-        server.listen(info.port, info.host, () => resolve());
+        server.listen(info.port, bindHost, () => resolve());
         server.once("error", reject);
       });
     } catch (err) {
@@ -899,7 +915,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
         }))
       ) {
         const existingRelay: ChromeExtensionRelayServer = {
-          host: info.host,
+          host: bindHost,
           port: info.port,
           baseUrl: info.baseUrl,
           cdpWsUrl: `ws://${info.host}:${info.port}/cdp`,
@@ -916,7 +932,7 @@ export async function ensureChromeExtensionRelayServer(opts: {
 
     const addr = server.address() as AddressInfo | null;
     const port = addr?.port ?? info.port;
-    const host = info.host;
+    const host = bindHost;
     const baseUrl = `${new URL(info.baseUrl).protocol}//${host}:${port}`;
 
     const relay: ChromeExtensionRelayServer = {
