@@ -363,10 +363,7 @@ export async function handleSlackAction(
         after: after ?? undefined,
       });
       const threads = result.threads.map((thread) =>
-        withNormalizedTimestamp(
-          thread as Record<string, unknown>,
-          (thread as { ts?: unknown }).ts,
-        ),
+        withNormalizedTimestamp(thread as Record<string, unknown>, (thread as { ts?: unknown }).ts),
       );
       return jsonResult({ ok: true, threads, hasMore: result.hasMore });
     }
