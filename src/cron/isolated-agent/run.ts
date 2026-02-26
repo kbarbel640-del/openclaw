@@ -40,7 +40,11 @@ import {
 import type { AgentDefaultsConfig } from "../../config/types.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
 import { logWarn } from "../../logger.js";
-import { buildAgentMainSessionKey, normalizeAgentId } from "../../routing/session-key.js";
+import {
+  buildAgentMainSessionKey,
+  normalizeAgentId,
+  parseAgentSessionKey,
+} from "../../routing/session-key.js";
 import {
   buildSafeExternalPrompt,
   detectSuspiciousPatterns,
@@ -142,10 +146,15 @@ export async function runCronIsolatedAgentTurn(params: {
   };
 
   const baseSessionKey = (params.sessionKey?.trim() || `cron:${params.job.id}`).trim();
-  const agentSessionKey = buildAgentMainSessionKey({
-    agentId,
-    mainKey: baseSessionKey,
-  });
+  // If the caller already provided a fully-qualified agent session key
+  // (e.g. "agent:main:main"), use it directly to avoid doubling the
+  // prefix into "agent:main:agent:main:main".  See #27282 / #27289.
+  const agentSessionKey = parseAgentSessionKey(baseSessionKey)
+    ? baseSessionKey.toLowerCase()
+    : buildAgentMainSessionKey({
+        agentId,
+        mainKey: baseSessionKey,
+      });
 
   const workspaceDirRaw = resolveAgentWorkspaceDir(params.cfg, agentId);
   const agentDir = resolveAgentDir(params.cfg, agentId);

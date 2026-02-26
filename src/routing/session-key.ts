@@ -108,6 +108,13 @@ export function buildAgentMainSessionKey(params: {
 }): string {
   const agentId = normalizeAgentId(params.agentId);
   const mainKey = normalizeMainKey(params.mainKey);
+  // Guard: if mainKey is already a fully-qualified agent session key,
+  // return it directly to prevent doubling (e.g. passing
+  // "agent:main:main" as mainKey would otherwise produce
+  // "agent:main:agent:main:main").  See #27282 / #27289.
+  if (parseAgentSessionKey(mainKey)) {
+    return mainKey;
+  }
   return `agent:${agentId}:${mainKey}`;
 }
 
