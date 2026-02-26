@@ -5,7 +5,11 @@ import { getPrimaryCommand, hasHelpOrVersion } from "../argv.js";
 import { reparseProgramFromActionArgs } from "./action-reparse.js";
 import { removeCommand, removeCommandByName } from "./command-tree.js";
 
-type SubCliRegistrar = (program: Command) => Promise<void> | void;
+export type SubCliRegisterOptions = {
+  forCompletion?: boolean;
+};
+
+type SubCliRegistrar = (program: Command, options?: SubCliRegisterOptions) => Promise<void> | void;
 
 type SubCliEntry = {
   name: string;
@@ -212,14 +216,15 @@ const entries: SubCliEntry[] = [
     name: "pairing",
     description: "Secure DM pairing (approve inbound requests)",
     hasSubcommands: true,
-    register: async (program) => {
-      // Initialize plugins before registering pairing CLI.
-      // The pairing CLI calls listPairingChannels() at registration time,
-      // which requires the plugin registry to be populated with channel plugins.
-      const { registerPluginCliCommands } = await import("../../plugins/cli.js");
-      registerPluginCliCommands(program, await loadConfig());
+    register: async (program, options) => {
+      if (!options?.forCompletion) {
+        const { ensurePluginRegistryLoaded } = await import("../plugin-registry.js");
+        ensurePluginRegistryLoaded();
+      }
       const mod = await import("../pairing-cli.js");
-      mod.registerPairingCli(program);
+      mod.registerPairingCli(program, {
+        forCompletionBuild: options?.forCompletion,
+      });
     },
   },
   {
@@ -297,13 +302,17 @@ export function getSubCliCommandsWithSubcommands(): string[] {
   return entries.filter((entry) => entry.hasSubcommands).map((entry) => entry.name);
 }
 
-export async function registerSubCliByName(program: Command, name: string): Promise<boolean> {
+export async function registerSubCliByName(
+  program: Command,
+  name: string,
+  options?: SubCliRegisterOptions,
+): Promise<boolean> {
   const entry = entries.find((candidate) => candidate.name === name);
   if (!entry) {
     return false;
   }
   removeCommandByName(program, entry.name);
-  await entry.register(program);
+  await entry.register(program, options);
   return true;
 }
 

@@ -28,6 +28,7 @@ const PLUGIN_REQUIRED_COMMANDS = new Set([
   "agents",
   "configure",
   "onboard",
+  "pairing",
 ]);
 
 function getRootCommand(command: Command): Command {

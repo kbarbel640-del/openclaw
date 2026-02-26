@@ -98,7 +98,31 @@ describe("pairing cli", () => {
   it("evaluates pairing channels when registering the CLI (not at import)", async () => {
     expect(listPairingChannels).not.toHaveBeenCalled();
 
-    createProgram();
+    const program = createProgram();
+
+    expect(listPairingChannels).toHaveBeenCalledTimes(1);
+
+    listChannelPairingRequests.mockResolvedValueOnce([]);
+    await program.parseAsync(["pairing", "list", "--channel", "telegram"], {
+      from: "user",
+    });
+
+    expect(listPairingChannels).toHaveBeenCalledTimes(2);
+  });
+
+  it("defers pairing channel resolution during completion build mode", async () => {
+    const { registerPairingCli } = await import("./pairing-cli.js");
+
+    const program = new Command();
+    program.name("test");
+    registerPairingCli(program, { forCompletionBuild: true });
+
+    expect(listPairingChannels).not.toHaveBeenCalled();
+
+    listChannelPairingRequests.mockResolvedValueOnce([]);
+    await program.parseAsync(["pairing", "list", "--channel", "telegram"], {
+      from: "user",
+    });
 
     expect(listPairingChannels).toHaveBeenCalledTimes(1);
   });
@@ -175,7 +199,7 @@ describe("pairing cli", () => {
   });
 
   it("defaults list to the sole available channel", async () => {
-    listPairingChannels.mockReturnValueOnce(["slack"]);
+    listPairingChannels.mockReturnValueOnce(["slack"]).mockReturnValueOnce(["slack"]);
     listChannelPairingRequests.mockResolvedValueOnce([]);
 
     await runPairing(["pairing", "list"]);
@@ -221,7 +245,7 @@ describe("pairing cli", () => {
   });
 
   it("defaults approve to the sole available channel when only code is provided", async () => {
-    listPairingChannels.mockReturnValueOnce(["slack"]);
+    listPairingChannels.mockReturnValueOnce(["slack"]).mockReturnValueOnce(["slack"]);
     mockApprovedPairing();
 
     await runPairing(["pairing", "approve", "ABCDEFGH"]);
