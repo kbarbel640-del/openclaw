@@ -8,6 +8,10 @@ function fallbackTmp(uid = 501) {
   return path.join("/var/fallback", `openclaw-${uid}`);
 }
 
+function fallbackTmpSafe(uid = 501) {
+  return path.join("/var/fallback", `openclaw-${uid}-safe`);
+}
+
 function nodeErrorWithCode(code: string) {
   const err = new Error(code) as Error & { code?: string };
   err.code = code;
@@ -164,7 +168,7 @@ describe("resolvePreferredOpenClawTmpDir", () => {
     expect(tmpdir).toHaveBeenCalled();
   });
 
-  it("throws when fallback path is a symlink", () => {
+  it("uses safe fallback path when primary fallback is a symlink", () => {
     const lstatSync = vi.fn(() => ({
       isDirectory: () => true,
       isSymbolicLink: () => true,
@@ -178,12 +182,12 @@ describe("resolvePreferredOpenClawTmpDir", () => {
       mode: 0o120777,
     }));
 
-    expect(() =>
-      resolveWithMocks({
-        lstatSync,
-        fallbackLstatSync,
-      }),
-    ).toThrow(/Unsafe fallback OpenClaw temp dir/);
+    const { resolved } = resolveWithMocks({
+      lstatSync,
+      fallbackLstatSync,
+    });
+
+    expect(resolved).toBe(fallbackTmpSafe());
   });
 
   it("creates fallback directory when missing, then validates ownership and mode", () => {
@@ -207,5 +211,45 @@ describe("resolvePreferredOpenClawTmpDir", () => {
 
     expect(resolved).toBe(fallbackTmp());
     expect(mkdirSync).toHaveBeenCalledWith(fallbackTmp(), { recursive: true, mode: 0o700 });
+  });
+
+  it("returns primary fallback path when all fallback candidates are unsafe", () => {
+    const uid = 501;
+    const primaryFallbackPath = fallbackTmp(uid);
+    const safeFallbackPath = fallbackTmpSafe(uid);
+    const unsafeDirStat = {
+      isDirectory: () => true,
+      isSymbolicLink: () => true,
+      uid,
+      mode: 0o120777,
+    };
+    const lstatSync: NonNullable<TmpDirOptions["lstatSync"]> = vi.fn((target: string) => {
+      if (
+        target === POSIX_OPENCLAW_TMP_DIR ||
+        target === primaryFallbackPath ||
+        target === safeFallbackPath
+      ) {
+        return unsafeDirStat;
+      }
+      return secureDirStat(uid);
+    });
+    const accessSync: NonNullable<TmpDirOptions["accessSync"]> = vi.fn();
+    const mkdirSync: NonNullable<TmpDirOptions["mkdirSync"]> = vi.fn();
+    const getuid: NonNullable<TmpDirOptions["getuid"]> = vi.fn(() => uid);
+    const tmpdir: NonNullable<TmpDirOptions["tmpdir"]> = vi.fn(() => "/var/fallback");
+
+    const resolved = resolvePreferredOpenClawTmpDir({
+      accessSync,
+      lstatSync,
+      mkdirSync,
+      getuid,
+      tmpdir,
+    });
+
+    expect(resolved).toBe(primaryFallbackPath);
+    expect(lstatSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR);
+    expect(lstatSync).toHaveBeenCalledWith(primaryFallbackPath);
+    expect(lstatSync).toHaveBeenCalledWith(safeFallbackPath);
+    expect(mkdirSync).not.toHaveBeenCalled();
   });
 });

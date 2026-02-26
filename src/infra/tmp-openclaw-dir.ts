@@ -67,6 +67,12 @@ export function resolvePreferredOpenClawTmpDir(
     return path.join(base, suffix);
   };
 
+  const fallbackSafe = (): string => {
+    const base = tmpdir();
+    const suffix = uid === undefined ? "openclaw-safe" : `openclaw-${uid}-safe`;
+    return path.join(base, suffix);
+  };
+
   const isTrustedTmpDir = (st: {
     isDirectory(): boolean;
     isSymbolicLink(): boolean;
@@ -92,23 +98,32 @@ export function resolvePreferredOpenClawTmpDir(
     }
   };
 
-  const ensureTrustedFallbackDir = (): string => {
-    const fallbackPath = fallback();
-    const state = resolveDirState(fallbackPath);
+  const ensureTrustedDir = (candidatePath: string): boolean => {
+    const state = resolveDirState(candidatePath);
     if (state === "available") {
-      return fallbackPath;
+      return true;
     }
     if (state === "invalid") {
-      throw new Error(`Unsafe fallback OpenClaw temp dir: ${fallbackPath}`);
+      return false;
     }
     try {
-      mkdirSync(fallbackPath, { recursive: true, mode: 0o700 });
+      mkdirSync(candidatePath, { recursive: true, mode: 0o700 });
     } catch {
-      throw new Error(`Unable to create fallback OpenClaw temp dir: ${fallbackPath}`);
+      return false;
     }
-    if (resolveDirState(fallbackPath) !== "available") {
-      throw new Error(`Unsafe fallback OpenClaw temp dir: ${fallbackPath}`);
+    return resolveDirState(candidatePath) === "available";
+  };
+
+  const ensureTrustedFallbackDir = (): string => {
+    const fallbackPath = fallback();
+    if (ensureTrustedDir(fallbackPath)) {
+      return fallbackPath;
     }
+    const safeFallbackPath = fallbackSafe();
+    if (safeFallbackPath !== fallbackPath && ensureTrustedDir(safeFallbackPath)) {
+      return safeFallbackPath;
+    }
+    // Keep CLI startup resilient even when host tmp ownership/permissions are unusual.
     return fallbackPath;
   };
 
