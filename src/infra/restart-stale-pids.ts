@@ -34,8 +34,11 @@ function sleepSync(ms: number): void {
  * Find PIDs of gateway processes listening on the given port using synchronous lsof.
  * Returns only PIDs that belong to openclaw gateway processes (not the current process).
  */
-export function findGatewayPidsOnPortSync(port: number): number[] {
-  if (process.platform === "win32") {
+export function findGatewayPidsOnPortSync(
+  port: number,
+  platform: NodeJS.Platform = process.platform,
+): number[] {
+  if (platform === "win32") {
     return [];
   }
   const lsof = resolveLsofCommandSync();
@@ -104,10 +107,10 @@ function terminateStaleProcessesSync(pids: number[]): number[] {
  * Inspect the gateway port and kill any stale gateway processes holding it.
  * Called before service restart commands to prevent port conflicts.
  */
-export function cleanStaleGatewayProcessesSync(): number[] {
+export function cleanStaleGatewayProcessesSync(opts?: { platform?: NodeJS.Platform }): number[] {
   try {
     const port = resolveGatewayPort(undefined, process.env);
-    const stalePids = findGatewayPidsOnPortSync(port);
+    const stalePids = findGatewayPidsOnPortSync(port, opts?.platform);
     if (stalePids.length === 0) {
       return [];
     }
