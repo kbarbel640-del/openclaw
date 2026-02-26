@@ -1,54 +1,10 @@
 import { Type } from "@sinclair/typebox";
-import crypto from "node:crypto";
-import { promises as fs } from "node:fs";
-import path from "node:path";
-
-import { loadConfig } from "../../config/config.js";
-import { resolveAgentModelPrimaryValue } from "../../config/model-input.js";
-import { callGateway } from "../../gateway/call.js";
-import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
-import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-key.js";
-import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
-import { resolveAgentConfig, resolveAgentWorkspaceDir } from "../agent-scope.js";
-import { resolveDefaultModelForAgent } from "../model-selection.js";
-
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import { ACP_SPAWN_MODES, spawnAcpDirect } from "../acp-spawn.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { SUBAGENT_SPAWN_MODES, spawnSubagentDirect } from "../subagent-spawn.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
-import {
-  resolveDisplaySessionKey,
-  resolveInternalSessionKey,
-  resolveMainSessionAlias,
-} from "./sessions-helpers.js";
-
-function decodeStrictBase64(value: string, maxDecodedBytes: number): Buffer | null {
-  const maxEncodedBytes = Math.ceil(maxDecodedBytes / 3) * 4;
-  if (value.length > maxEncodedBytes * 2) {
-    return null;
-  }
-  const normalized = value.replace(/\s+/g, "");
-  if (!normalized || normalized.length % 4 !== 0) {
-    return null;
-  }
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
-    return null;
-  }
-  if (normalized.length > maxEncodedBytes) {
-    return null;
-  }
-  const decoded = Buffer.from(normalized, "base64");
-  if (decoded.byteLength > maxDecodedBytes) {
-    return null;
-  }
-  const roundtrip = decoded.toString("base64");
-  if (roundtrip !== normalized) {
-    return null;
-  }
-  return decoded;
-}
 
 const SESSIONS_SPAWN_RUNTIMES = ["subagent", "acp"] as const;
 
@@ -130,6 +86,11 @@ export function createSessionsSpawnTool(opts?: {
           : undefined;
       const thread = params.thread === true;
 
+      const requestedAttachments = Array.isArray(params.attachments)
+        ? (params.attachments as Array<Record<string, unknown>>)
+        : [];
+      const attachAs = params.attachAs as { mountPath?: string } | undefined;
+
       const result =
         runtime === "acp"
           ? await spawnAcpDirect(
@@ -161,6 +122,8 @@ export function createSessionsSpawnTool(opts?: {
                 mode,
                 cleanup,
                 expectsCompletionMessage: true,
+                attachments: requestedAttachments,
+                attachAs,
               },
               {
                 agentSessionKey: opts?.agentSessionKey,

@@ -12,13 +12,6 @@ type RawToolCallBlock = {
   arguments?: unknown;
 };
 
-type ToolCallBlock = {
-  type: "toolCall";
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
-};
-
 function isToolCallBlock(block: unknown): block is RawToolCallBlock {
   if (!block || typeof block !== "object") {
     return false;
@@ -102,52 +95,31 @@ function redactSessionsSpawnAttachmentsArgs(value: unknown): unknown {
   return { ...rec, attachments: next };
 }
 
-function sanitizeToolCallBlock(block: RawToolCallBlock): ToolCallBlock {
+function sanitizeToolCallBlock(block: RawToolCallBlock): RawToolCallBlock {
   const name = typeof block.name === "string" ? block.name : undefined;
-  const argCandidate =
-    block.arguments && typeof block.arguments === "object"
-      ? (block.arguments as Record<string, unknown>)
-      : block.input && typeof block.input === "object"
-        ? (block.input as Record<string, unknown>)
-        : {};
-
-  const normalized: ToolCallBlock = {
-    id: typeof block.id === "string" ? block.id : "unknown",
-    type: typeof block.type === "string" ? (block.type as "toolCall") : "toolCall",
-    name: typeof block.name === "string" && block.name ? block.name : "unknown",
-    arguments: argCandidate,
-  };
 
   if (name !== "sessions_spawn") {
-    return normalized;
+    return block;
   }
+
   // Redact large/sensitive inline attachment content from persisted transcripts.
   // Apply redaction to both `.arguments` and `.input` properties since block structures can vary
   const nextArgs = redactSessionsSpawnAttachmentsArgs(block.arguments);
   const nextInput = redactSessionsSpawnAttachmentsArgs(block.input);
+
   if (nextArgs === block.arguments && nextInput === block.input) {
-    return normalized;
-  }
-  const merged =
-    nextArgs && typeof nextArgs === "object"
-      ? (nextArgs as Record<string, unknown>)
-      : nextInput && typeof nextInput === "object"
-        ? (nextInput as Record<string, unknown>)
-        : normalized.arguments;
-
-  // If original block had an input property, make sure we return it sanitized
-  // This is required for Google Cloud Vertex AI which validates the exact original shape
-  if ("input" in block && typeof block.input === "object" && block.input !== null) {
-    const inputObj =
-      nextInput && typeof nextInput === "object"
-        ? nextInput
-        : nextArgs && typeof nextArgs === "object"
-          ? nextArgs
-          : {};
-    return { ...normalized, arguments: merged, input: inputObj } as unknown as ToolCallBlock;
+    return block;
   }
 
-  return { ...normalized, arguments: merged };
+  const merged = { ...block };
+  if ("arguments" in block) {
+    merged.arguments = nextArgs;
+  }
+  if ("input" in block) {
+    merged.input = nextInput;
+  }
+
+  return merged;
 }
 
 function makeMissingToolResult(params: {
@@ -248,13 +220,13 @@ export function repairToolCallInputs(
             changed = true;
             messageChanged = true;
           }
-          nextContent.push(sanitized);
+          nextContent.push(sanitized as unknown as typeof block);
           continue;
         }
-        nextContent.push(block);
+        nextContent.push(block as unknown as typeof block);
         continue;
       }
-      nextContent.push(block);
+      nextContent.push(block as unknown as typeof block);
     }
 
     if (droppedInMessage > 0) {
