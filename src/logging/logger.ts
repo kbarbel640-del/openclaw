@@ -42,17 +42,26 @@ function formatFileLogLine(logObj: LogObj): string {
   const levelLower = level.toLowerCase();
   let subsystem = "main";
   let parsedName: Record<string, unknown> | undefined;
-  if (typeof meta?.name === "string") {
+  const nameCandidates = [
+    typeof meta?.name === "string" ? meta.name : null,
+    typeof (logObj as Record<string, unknown>)["0"] === "string"
+      ? (logObj as Record<string, unknown>)["0"]
+      : null,
+  ].filter(Boolean) as string[];
+  for (const candidate of nameCandidates) {
     try {
-      const parsed = JSON.parse(meta.name) as Record<string, unknown>;
-      parsedName = parsed;
-      if (typeof parsed.subsystem === "string") {
-        subsystem = parsed.subsystem;
-      } else if (typeof parsed.module === "string") {
-        subsystem = parsed.module;
+      const parsed = JSON.parse(candidate) as Record<string, unknown>;
+      if (typeof parsed.module === "string" || typeof parsed.subsystem === "string") {
+        parsedName = parsed;
+        if (typeof parsed.subsystem === "string") {
+          subsystem = parsed.subsystem;
+        } else if (typeof parsed.module === "string") {
+          subsystem = parsed.module;
+        }
+        break;
       }
     } catch {
-      // keep main
+      continue;
     }
   }
   const parts: string[] = [];
@@ -86,8 +95,31 @@ function formatFileLogLine(logObj: LogObj): string {
     parts.push(s);
   }
   let message = parts.join(" ").trim();
-  if (parsedName && typeof parsedName.to === "string") {
-    message = `${redactIdentifier(parsedName.to)} ${message}`;
+  if (parsedName && typeof parsedName === "object") {
+    const redacts: string[] = [];
+    for (const v of Object.values(parsedName)) {
+      if (typeof v !== "string") {
+        continue;
+      }
+      const s = v.trim();
+      if (!s) {
+        continue;
+      }
+      if (s.startsWith("sha256:")) {
+        redacts.push(s);
+        continue;
+      }
+      if (!s.startsWith("+") && !s.includes("@")) {
+        continue;
+      }
+      redacts.push(redactIdentifier(s));
+      if (s.includes("@")) {
+        redacts.push(redactIdentifier("+" + s.split("@")[0]));
+      }
+    }
+    if (redacts.length > 0) {
+      message = `${[...new Set(redacts)].join(" ")} ${message}`;
+    }
   }
   return `[${timeStr}] [${process.pid}] [${subsystem}] ${levelLower}: ${message}`;
 }
