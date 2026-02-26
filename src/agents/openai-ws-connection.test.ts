@@ -620,6 +620,26 @@ describe("OpenAIWebSocketManager", () => {
 
       expect(errors.some((e) => e.message === "SSL handshake failed")).toBe(true);
     });
+
+    it("handles multiple successive socket errors without crashing", async () => {
+      const manager = buildManager({ maxRetries: 0 });
+      const p = manager.connect("sk-test").catch(() => {
+        /* ignore rejection */
+      });
+
+      const errors: Error[] = [];
+      manager.on("error", (e) => errors.push(e));
+
+      // Fire two errors in quick succession — previously the second would
+      // be unhandled because .once("error") removed the handler after #1.
+      lastSocket().simulateError(new Error("first error"));
+      lastSocket().simulateError(new Error("second error"));
+      await p;
+
+      expect(errors.length).toBeGreaterThanOrEqual(2);
+      expect(errors.some((e) => e.message === "first error")).toBe(true);
+      expect(errors.some((e) => e.message === "second error")).toBe(true);
+    });
   });
 
   // ─── Integration: full multi-turn sequence ────────────────────────────────

@@ -419,13 +419,7 @@ export class OpenAIWebSocketManager extends EventEmitter<InternalEvents> {
       };
 
       socket.once("open", onOpen);
-      socket.once("open", onOpen);
-      socket.on("error", (err: Error) => {
-        if (this.listenerCount("error") > 0) {
-          this.emit("error", err);
-        }
-      });
-      socket.once("error", onError);
+      socket.on("error", onError);
       socket.on("close", onClose);
       socket.on("message", onMessage);
     });
