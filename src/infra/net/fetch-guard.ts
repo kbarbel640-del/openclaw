@@ -4,6 +4,7 @@ import { bindAbortRelay } from "../../utils/fetch-timeout.js";
 import {
   closeDispatcher,
   createPinnedDispatcher,
+  type DispatcherNetworkOptions,
   resolvePinnedHostnameWithPolicy,
   type LookupFn,
   SsrFBlockedError,
@@ -23,6 +24,8 @@ export type GuardedFetchOptions = {
   lookupFn?: LookupFn;
   pinDns?: boolean;
   auditContext?: string;
+  /** Network-level options forwarded to the pinned undici dispatcher. */
+  networkOptions?: DispatcherNetworkOptions;
 };
 
 export type GuardedFetchResult = {
@@ -139,7 +142,7 @@ export async function fetchWithSsrFGuard(params: GuardedFetchOptions): Promise<G
         policy: params.policy,
       });
       if (params.pinDns !== false) {
-        dispatcher = createPinnedDispatcher(pinned);
+        dispatcher = createPinnedDispatcher(pinned, params.networkOptions);
       }
 
       const init: RequestInit & { dispatcher?: Dispatcher } = {

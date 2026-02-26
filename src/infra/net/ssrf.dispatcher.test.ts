@@ -13,7 +13,7 @@ vi.mock("undici", () => ({
 import { createPinnedDispatcher, type PinnedHostname } from "./ssrf.js";
 
 describe("createPinnedDispatcher", () => {
-  it("enables network family auto-selection for pinned lookups", () => {
+  it("uses safe defaults for pinned lookups", () => {
     const lookup = vi.fn() as unknown as PinnedHostname["lookup"];
     const pinned: PinnedHostname = {
       hostname: "api.telegram.org",
@@ -28,7 +28,45 @@ describe("createPinnedDispatcher", () => {
       connect: {
         lookup,
         autoSelectFamily: true,
-        autoSelectFamilyAttemptTimeout: 300,
+        autoSelectFamilyAttemptTimeout: 2_000,
+      },
+    });
+  });
+
+  it("respects explicit autoSelectFamily override", () => {
+    const lookup = vi.fn() as unknown as PinnedHostname["lookup"];
+    const pinned: PinnedHostname = {
+      hostname: "api.telegram.org",
+      addresses: ["149.154.167.220"],
+      lookup,
+    };
+
+    createPinnedDispatcher(pinned, { autoSelectFamily: false });
+
+    expect(agentCtor).toHaveBeenCalledWith({
+      connect: {
+        lookup,
+        autoSelectFamily: false,
+        autoSelectFamilyAttemptTimeout: 2_000,
+      },
+    });
+  });
+
+  it("respects explicit autoSelectFamilyAttemptTimeout override", () => {
+    const lookup = vi.fn() as unknown as PinnedHostname["lookup"];
+    const pinned: PinnedHostname = {
+      hostname: "api.telegram.org",
+      addresses: ["149.154.167.220"],
+      lookup,
+    };
+
+    createPinnedDispatcher(pinned, { autoSelectFamilyAttemptTimeout: 5_000 });
+
+    expect(agentCtor).toHaveBeenCalledWith({
+      connect: {
+        lookup,
+        autoSelectFamily: true,
+        autoSelectFamilyAttemptTimeout: 5_000,
       },
     });
   });
