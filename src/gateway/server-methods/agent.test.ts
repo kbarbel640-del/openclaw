@@ -108,22 +108,26 @@ function mockMainSessionEntry(entry: Record<string, unknown>, cfg: Record<string
   });
 }
 
-function captureUpdatedMainEntry() {
+function captureUpdatedMainEntry(freshEntry?: Record<string, unknown>) {
   let capturedEntry: Record<string, unknown> | undefined;
   mocks.updateSessionStore.mockImplementation(async (_path, updater) => {
-    const store: Record<string, unknown> = {};
-    await updater(store);
+    const store: Record<string, unknown> = freshEntry ? { "agent:main:main": freshEntry } : {};
+    const result = await updater(store);
     capturedEntry = store["agent:main:main"] as Record<string, unknown>;
+    return result;
   });
   return () => capturedEntry;
 }
 
 function primeMainAgentRun(params?: { sessionId?: string; cfg?: Record<string, unknown> }) {
-  mockMainSessionEntry(
-    { sessionId: params?.sessionId ?? "existing-session-id" },
-    params?.cfg ?? {},
-  );
-  mocks.updateSessionStore.mockResolvedValue(undefined);
+  const sessionId = params?.sessionId ?? "existing-session-id";
+  mockMainSessionEntry({ sessionId }, params?.cfg ?? {});
+  mocks.updateSessionStore.mockImplementation(async (_path, updater) => {
+    const store: Record<string, unknown> = {
+      "agent:main:main": { sessionId, updatedAt: Date.now() },
+    };
+    return await updater(store);
+  });
   mocks.agentCommand.mockResolvedValue({
     payloads: [{ text: "ok" }],
     meta: { durationMs: 100 },
@@ -265,6 +269,140 @@ describe("gateway agent handler", () => {
     expect(capturedEntry?.acp).toEqual(existingAcpMeta);
   });
 
+  /**
+   * Issue #5369: Verify that modelOverride from sessions.patch is preserved.
+   *
+   * When sessions.patch sets a modelOverride on a session, the agent handler
+   * must use the fresh store data (not potentially stale cached data) when
+   * building the session entry.
+   */
+  it("issue #5369: preserves fresh modelOverride from store", async () => {
+    // Stale cache: loadSessionEntry returns entry WITHOUT modelOverride
+    mockMainSessionEntry({});
+
+    // Fresh store: has modelOverride from a concurrent sessions.patch
+    const getEntry = captureUpdatedMainEntry({
+      sessionId: "existing-session-id",
+      updatedAt: Date.now(),
+      modelOverride: "qwen3-coder:30b",
+      providerOverride: "ollama",
+    });
+
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await runMainAgent("test subagent task", "test-model-override-race");
+
+    expect(mocks.updateSessionStore).toHaveBeenCalled();
+    const entry = getEntry();
+    expect(entry).toBeDefined();
+    expect(entry?.modelOverride).toBe("qwen3-coder:30b");
+    expect(entry?.providerOverride).toBe("ollama");
+  });
+
+  it("issue #5369: request params override fresh store values for label/spawnedBy", async () => {
+    mockMainSessionEntry({ label: "old-label-from-cache", spawnedBy: "old-spawner" });
+
+    const getEntry = captureUpdatedMainEntry({
+      sessionId: "existing-session-id",
+      updatedAt: Date.now(),
+      label: "store-label",
+      spawnedBy: "store-spawner",
+      modelOverride: "gpt-4",
+    });
+
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await invokeAgent({
+      message: "test",
+      agentId: "main",
+      sessionKey: "agent:main:main",
+      idempotencyKey: "test-priority",
+      label: "request-label",
+      spawnedBy: "request-spawner",
+    });
+
+    const entry = getEntry();
+    expect(entry).toBeDefined();
+    expect(entry?.label).toBe("request-label");
+    expect(entry?.spawnedBy).toBe("agent:main:request-spawner");
+    expect(entry?.modelOverride).toBe("gpt-4");
+  });
+
+  it("issue #5369: creates new entry when store has no existing entry", async () => {
+    mocks.loadSessionEntry.mockReturnValue({
+      cfg: {},
+      storePath: "/tmp/sessions.json",
+      entry: undefined,
+      canonicalKey: "agent:main:main",
+    });
+
+    const getEntry = captureUpdatedMainEntry();
+
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await invokeAgent({
+      message: "test new session",
+      agentId: "main",
+      sessionKey: "agent:main:main",
+      idempotencyKey: "test-new-session",
+      label: "new-label",
+    });
+
+    const entry = getEntry();
+    expect(entry).toBeDefined();
+    expect(entry?.sessionId).toBeDefined();
+    expect(entry?.label).toBe("new-label");
+    expect(entry?.modelOverride).toBeUndefined();
+  });
+
+  it("issue #5369: preserves all important fields from fresh store", async () => {
+    mockMainSessionEntry({});
+
+    const getEntry = captureUpdatedMainEntry({
+      sessionId: "existing-session-id",
+      updatedAt: Date.now(),
+      thinkingLevel: "high",
+      verboseLevel: "detailed",
+      reasoningLevel: "on",
+      systemSent: true,
+      sendPolicy: "allow",
+      skillsSnapshot: { tools: ["bash"] },
+      modelOverride: "claude-opus",
+      providerOverride: "anthropic",
+      cliSessionIds: { "claude-cli": "xyz" },
+      claudeCliSessionId: "xyz",
+    });
+
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await runMainAgent("test all fields", "test-all-fields");
+
+    const entry = getEntry();
+    expect(entry).toBeDefined();
+    expect(entry?.thinkingLevel).toBe("high");
+    expect(entry?.verboseLevel).toBe("detailed");
+    expect(entry?.reasoningLevel).toBe("on");
+    expect(entry?.systemSent).toBe(true);
+    expect(entry?.sendPolicy).toBe("allow");
+    expect(entry?.skillsSnapshot).toEqual({ tools: ["bash"] });
+    expect(entry?.modelOverride).toBe("claude-opus");
+    expect(entry?.providerOverride).toBe("anthropic");
+    expect(entry?.cliSessionIds).toEqual({ "claude-cli": "xyz" });
+    expect(entry?.claudeCliSessionId).toBe("xyz");
+  });
+
   it("preserves cliSessionIds from existing session entry", async () => {
     const existingCliSessionIds = { "claude-cli": "abc-123-def" };
     const existingClaudeCliSessionId = "abc-123-def";
@@ -274,7 +412,12 @@ describe("gateway agent handler", () => {
       claudeCliSessionId: existingClaudeCliSessionId,
     });
 
-    const getCapturedEntry = captureUpdatedMainEntry();
+    const getCapturedEntry = captureUpdatedMainEntry({
+      sessionId: "existing-session-id",
+      updatedAt: Date.now(),
+      cliSessionIds: existingCliSessionIds,
+      claudeCliSessionId: existingClaudeCliSessionId,
+    });
 
     mocks.agentCommand.mockResolvedValue({
       payloads: [{ text: "ok" }],
@@ -438,8 +581,9 @@ describe("gateway agent handler", () => {
         "agent:main:work": { sessionId: "existing-session-id", updatedAt: 10 },
         "agent:main:MAIN": { sessionId: "legacy-session-id", updatedAt: 5 },
       };
-      await updater(store);
+      const result = await updater(store);
       capturedStore = store;
+      return result;
     });
 
     mocks.agentCommand.mockResolvedValue({
