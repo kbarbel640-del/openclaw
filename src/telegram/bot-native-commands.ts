@@ -71,6 +71,11 @@ const EMPTY_RESPONSE_FALLBACK = "No response generated. Please try again.";
 
 type TelegramNativeCommandContext = Context & { match?: string };
 
+/** Message from either a private/group chat or a channel post. */
+type TelegramCommandMessage =
+  | NonNullable<TelegramNativeCommandContext["message"]>
+  | NonNullable<TelegramNativeCommandContext["channelPost"]>;
+
 type TelegramCommandAuthResult = {
   chatId: number;
   isGroup: boolean;
@@ -135,7 +140,7 @@ type RegisterTelegramNativeCommandsParams = {
 };
 
 async function resolveTelegramCommandAuth(params: {
-  msg: NonNullable<TelegramNativeCommandContext["message"]>;
+  msg: TelegramCommandMessage;
   bot: Bot;
   cfg: OpenClawConfig;
   accountId: string;
@@ -382,7 +387,7 @@ export const registerTelegramNativeCommands = ({
   syncTelegramMenuCommands({ bot, runtime, commandsToRegister });
 
   const resolveCommandRuntimeContext = (params: {
-    msg: NonNullable<TelegramNativeCommandContext["message"]>;
+    msg: TelegramCommandMessage;
     isGroup: boolean;
     isForum: boolean;
     resolvedThreadId?: number;
