@@ -40,6 +40,7 @@ function runGroupGating(params: {
   msg: Record<string, unknown>;
   conversationId?: string;
   agentId?: string;
+  accountId?: string;
 }) {
   const groupHistories = new Map<string, GroupHistoryEntry[]>();
   const conversationId = params.conversationId ?? "123@g.us";
@@ -54,6 +55,7 @@ function runGroupGating(params: {
     groupHistoryKey: `whatsapp:default:group:${conversationId}`,
     agentId,
     sessionKey,
+    accountId: params.accountId,
     baseMentionConfig,
     groupHistories,
     groupHistoryLimit: 10,
@@ -266,6 +268,56 @@ describe("applyGroupGating", () => {
         mentionedJids: ["999@s.whatsapp.net"],
         selfJid: "999@s.whatsapp.net",
       }),
+    });
+
+    expect(result.shouldProcess).toBe(false);
+  });
+
+  it("resolves group policy from the correct account in multi-account setups", () => {
+    // Default account has groupPolicy: "disabled", secondary has "open"
+    const cfg = makeConfig({
+      channels: {
+        whatsapp: {
+          groupPolicy: "disabled",
+          accounts: {
+            work: {
+              groupPolicy: "open",
+              groups: { "*": { requireMention: false } },
+            },
+          },
+        },
+      },
+    });
+
+    // Without accountId, this resolves against default (disabled) and drops the message
+    const { result } = runGroupGating({
+      cfg,
+      msg: createGroupMessage(),
+      accountId: "work",
+    });
+
+    expect(result.shouldProcess).toBe(true);
+  });
+
+  it("drops group messages when the account's groupPolicy is disabled", () => {
+    const cfg = makeConfig({
+      channels: {
+        whatsapp: {
+          groupPolicy: "open",
+          groups: { "*": { requireMention: false } },
+          accounts: {
+            restricted: {
+              groupPolicy: "disabled",
+            },
+          },
+        },
+      },
+    });
+
+    const { result } = runGroupGating({
+      cfg,
+      msg: createGroupMessage(),
+      accountId: "restricted",
     });
 
     expect(result.shouldProcess).toBe(false);
