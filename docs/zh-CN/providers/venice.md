@@ -160,7 +160,7 @@ openclaw models list | grep venice
 | `claude-sonnet-45`       | Claude Sonnet 4.5 | 202k            | 推理，视觉 |
 | `openai-gpt-52`          | GPT-5.2           | 262k            | 推理       |
 | `openai-gpt-52-codex`    | GPT-5.2 Codex     | 262k            | 推理，视觉 |
-| `gemini-3-pro-preview`   | Gemini 3 Pro      | 202k            | 推理，视觉 |
+| `gemini-pro-latest`      | Gemini Pro Latest  | 202k            | 推理，视觉 |
 | `gemini-3-flash-preview` | Gemini 3 Flash    | 262k            | 推理，视觉 |
 | `grok-41-fast`           | Grok 4.1 Fast     | 262k            | 推理，视觉 |
 | `grok-code-fast-1`       | Grok Code Fast 1  | 262k            | 推理，编程 |

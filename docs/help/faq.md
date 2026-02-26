@@ -2174,7 +2174,7 @@ Yes. OpenClaw ships a few default shorthands (only applied when the model exists
 - `sonnet` → `anthropic/claude-sonnet-4-5`
 - `gpt` → `openai/gpt-5.2`
 - `gpt-mini` → `openai/gpt-5-mini`
-- `gemini` → `google/gemini-3-pro-preview`
+- `gemini` → `google/gemini-pro-latest`
 - `gemini-flash` → `google/gemini-3-flash-preview`
 
 If you set your own alias with the same name, your value wins.

@@ -84,7 +84,7 @@ OpenClaw 附带 pi-ai 目录。这些提供商**不需要** `models.providers` �
 
 - 提供商：`google`
 - 认证：`GEMINI_API_KEY`
-- 示例模型：`google/gemini-3-pro-preview`
+- 示例模型：`google/gemini-pro-latest`
 - CLI：`openclaw onboard --auth-choice gemini-api-key`
 
 ### Google Vertex、Antigravity 和 Gemini CLI

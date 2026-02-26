@@ -1673,7 +1673,7 @@ OpenClaw 还内置了一些别名快捷方式。默认值仅在模型已存在�
 - `sonnet` -> `anthropic/claude-sonnet-4-5`
 - `gpt` -> `openai/gpt-5.2`
 - `gpt-mini` -> `openai/gpt-5-mini`
-- `gemini` -> `google/gemini-3-pro-preview`
+- `gemini` -> `google/gemini-pro-latest`
 - `gemini-flash` -> `google/gemini-3-flash-preview`
 
 如果你配置了相同的别名（不区分大小写），你的值优先（默认值不会覆盖）。
