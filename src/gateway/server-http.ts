@@ -66,7 +66,7 @@ const HOOK_AUTH_FAILURE_TRACK_MAX = 2048;
 
 type HookDispatchers = {
   dispatchWakeHook: (value: { text: string; mode: "now" | "next-heartbeat" }) => void;
-  dispatchMessageHook: (value: { text: string; mode: "now" | "next-heartbeat" }) => string;
+  dispatchMessageHook: (value: { text: string }) => string;
   dispatchAgentHook: (value: {
     message: string;
     name: string;
@@ -410,7 +410,6 @@ export function createHooksRequestHandler(
           if (mapped.action.kind === "message") {
             const runId = dispatchMessageHook({
               text: mapped.action.text,
-              mode: mapped.action.mode,
             });
             sendJson(res, 202, { ok: true, runId });
             return true;

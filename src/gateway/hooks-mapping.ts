@@ -45,7 +45,6 @@ export type HookAction =
   | {
       kind: "message";
       text: string;
-      mode: "now" | "next-heartbeat";
     }
   | {
       kind: "agent";
@@ -262,7 +261,6 @@ function buildActionFromMapping(
       action: {
         kind: "message",
         text,
-        mode: mapping.wakeMode ?? "now",
       },
     };
   }
@@ -305,9 +303,7 @@ function mergeAction(
   if (kind === "message") {
     const baseMessage = base.kind === "message" ? base : undefined;
     const text = typeof override.text === "string" ? override.text : (baseMessage?.text ?? "");
-    const mode =
-      override.mode === "next-heartbeat" ? "next-heartbeat" : (baseMessage?.mode ?? "now");
-    return validateAction({ kind: "message", text, mode });
+    return validateAction({ kind: "message", text });
   }
   const baseAgent = base.kind === "agent" ? base : undefined;
   const message =

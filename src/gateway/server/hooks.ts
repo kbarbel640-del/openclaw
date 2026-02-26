@@ -30,7 +30,7 @@ export function createGatewayHooksRequestHandler(params: {
     }
   };
 
-  const dispatchMessageHook = (value: { text: string; mode: "now" | "next-heartbeat" }) => {
+  const dispatchMessageHook = (value: { text: string }) => {
     const sessionKey = resolveMainSessionKeyFromConfig();
     const runId = randomUUID();
     void (async () => {
