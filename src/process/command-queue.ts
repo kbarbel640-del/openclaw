@@ -66,52 +66,56 @@ function completeTask(state: LaneState, taskId: number, taskGeneration: number):
 function drainLane(lane: string) {
   const state = getLaneState(lane);
   if (state.draining) {
+    diag.warn(`drainLane blocked: lane=${lane} draining=true queue=${state.queue.length}`);
     return;
   }
   state.draining = true;
 
   const pump = () => {
-    while (state.activeTaskIds.size < state.maxConcurrent && state.queue.length > 0) {
-      const entry = state.queue.shift() as QueueEntry;
-      const waitedMs = Date.now() - entry.enqueuedAt;
-      if (waitedMs >= entry.warnAfterMs) {
-        entry.onWait?.(waitedMs, state.queue.length);
-        diag.warn(
-          `lane wait exceeded: lane=${lane} waitedMs=${waitedMs} queueAhead=${state.queue.length}`,
-        );
-      }
-      logLaneDequeue(lane, waitedMs, state.queue.length);
-      const taskId = nextTaskId++;
-      const taskGeneration = state.generation;
-      state.activeTaskIds.add(taskId);
-      void (async () => {
-        const startTime = Date.now();
-        try {
-          const result = await entry.task();
-          const completedCurrentGeneration = completeTask(state, taskId, taskGeneration);
-          if (completedCurrentGeneration) {
-            diag.debug(
-              `lane task done: lane=${lane} durationMs=${Date.now() - startTime} active=${state.activeTaskIds.size} queued=${state.queue.length}`,
-            );
-            pump();
-          }
-          entry.resolve(result);
-        } catch (err) {
-          const completedCurrentGeneration = completeTask(state, taskId, taskGeneration);
-          const isProbeLane = lane.startsWith("auth-probe:") || lane.startsWith("session:probe-");
-          if (!isProbeLane) {
-            diag.error(
-              `lane task error: lane=${lane} durationMs=${Date.now() - startTime} error="${String(err)}"`,
-            );
-          }
-          if (completedCurrentGeneration) {
-            pump();
-          }
-          entry.reject(err);
+    try {
+      while (state.activeTaskIds.size < state.maxConcurrent && state.queue.length > 0) {
+        const entry = state.queue.shift() as QueueEntry;
+        const waitedMs = Date.now() - entry.enqueuedAt;
+        if (waitedMs >= entry.warnAfterMs) {
+          entry.onWait?.(waitedMs, state.queue.length);
+          diag.warn(
+            `lane wait exceeded: lane=${lane} waitedMs=${waitedMs} queueAhead=${state.queue.length}`,
+          );
         }
-      })();
+        logLaneDequeue(lane, waitedMs, state.queue.length);
+        const taskId = nextTaskId++;
+        const taskGeneration = state.generation;
+        state.activeTaskIds.add(taskId);
+        void (async () => {
+          const startTime = Date.now();
+          try {
+            const result = await entry.task();
+            const completedCurrentGeneration = completeTask(state, taskId, taskGeneration);
+            if (completedCurrentGeneration) {
+              diag.debug(
+                `lane task done: lane=${lane} durationMs=${Date.now() - startTime} active=${state.activeTaskIds.size} queued=${state.queue.length}`,
+              );
+              pump();
+            }
+            entry.resolve(result);
+          } catch (err) {
+            const completedCurrentGeneration = completeTask(state, taskId, taskGeneration);
+            const isProbeLane = lane.startsWith("auth-probe:") || lane.startsWith("session:probe-");
+            if (!isProbeLane) {
+              diag.error(
+                `lane task error: lane=${lane} durationMs=${Date.now() - startTime} error="${String(err)}"`,
+              );
+            }
+            if (completedCurrentGeneration) {
+              pump();
+            }
+            entry.reject(err);
+          }
+        })();
+      }
+    } finally {
+      state.draining = false;
     }
-    state.draining = false;
   };
 
   pump();
