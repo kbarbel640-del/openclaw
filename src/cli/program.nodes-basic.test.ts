@@ -69,14 +69,10 @@ describe("cli program (nodes basics)", () => {
           paired: [
             {
               nodeId: "n1",
-              displayName: "One",
-              remoteIp: "10.0.0.1",
               lastConnectedAtMs: now - 1_000,
             },
             {
               nodeId: "n2",
-              displayName: "Two",
-              remoteIp: "10.0.0.2",
               lastConnectedAtMs: now - 1_000,
             },
           ],
@@ -85,8 +81,21 @@ describe("cli program (nodes basics)", () => {
       if (opts.method === "node.list") {
         return {
           nodes: [
-            { nodeId: "n1", connected: true },
-            { nodeId: "n2", connected: false },
+            {
+              nodeId: "n1",
+              displayName: "One",
+              remoteIp: "10.0.0.1",
+              paired: true,
+              connected: true,
+            },
+            {
+              nodeId: "n2",
+              displayName: "Two",
+              remoteIp: "10.0.0.2",
+              paired: true,
+              connected: false,
+            },
+            { nodeId: "n3", displayName: "Three", paired: false, connected: true },
           ],
         };
       }
