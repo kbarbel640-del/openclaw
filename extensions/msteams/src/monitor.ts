@@ -296,10 +296,24 @@ export async function monitorMSTeamsProvider(
 
   // Handle abort signal
   if (opts.abortSignal) {
-    opts.abortSignal.addEventListener("abort", () => {
-      void shutdown();
-    });
+    opts.abortSignal.addEventListener(
+      "abort",
+      () => {
+        void shutdown();
+      },
+      { once: true },
+    );
   }
+
+  // Block until abort signal fires — the channel manager treats promise
+  // resolution as "provider stopped" and triggers auto-restart.
+  await new Promise<void>((resolve) => {
+    if (opts.abortSignal?.aborted) {
+      resolve();
+      return;
+    }
+    opts.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+  });
 
   return { app: expressApp, shutdown };
 }
