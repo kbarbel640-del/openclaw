@@ -86,9 +86,9 @@ describe("describeGeminiVideo", () => {
     });
     const { url: seenUrl, init: seenInit } = getRequest();
 
-    expect(result.model).toBe("gemini-3-pro-preview");
+    expect(result.model).toBe("gemini-pro-latest");
     expect(result.text).toBe("first\nsecond");
-    expect(seenUrl).toBe("https://example.com/v1beta/models/gemini-3-pro-preview:generateContent");
+    expect(seenUrl).toBe("https://example.com/v1beta/models/gemini-pro-latest:generateContent");
     expect(seenInit?.method).toBe("POST");
     expect(seenInit?.signal).toBeInstanceOf(AbortSignal);
 
