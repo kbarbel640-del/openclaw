@@ -556,14 +556,16 @@ export const chatHandlers: GatewayRequestHandlers = {
     const defaultLimit = 200;
     const requested = typeof limit === "number" ? limit : defaultLimit;
     const max = Math.min(hardMax, requested);
-    const sliced = rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
-    const sanitized = stripEnvelopeFromMessages(sliced);
-    // Repair tool_use/tool_result pairing to prevent orphaned tool_result blocks
-    // from being sent to the client. This can happen after compaction when a
-    // tool_use is summarized away but its tool_result remains in the JSONL.
+    const sanitized = stripEnvelopeFromMessages(rawMessages);
+    // Repair tool_use/tool_result pairing BEFORE slicing to prevent false positives.
+    // If we slice first and the slice boundary starts on a toolResult whose matching
+    // assistant toolCall is just outside the window, repairToolUseResultPairing would
+    // incorrectly classify it as orphaned and drop it.
     // See: https://github.com/openclaw/openclaw/issues/27804
     const repaired = repairToolUseResultPairing(sanitized as AgentMessage[]);
-    const normalized = sanitizeChatHistoryMessages(repaired.messages);
+    const sliced =
+      repaired.messages.length > max ? repaired.messages.slice(-max) : repaired.messages;
+    const normalized = sanitizeChatHistoryMessages(sliced);
     const maxHistoryBytes = getMaxChatHistoryMessagesBytes();
     const perMessageHardCap = Math.min(CHAT_HISTORY_MAX_SINGLE_MESSAGE_BYTES, maxHistoryBytes);
     const replaced = replaceOversizedChatHistoryMessages({

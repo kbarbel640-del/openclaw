@@ -581,4 +581,94 @@ describe("gateway server chat", () => {
       testState.sessionStorePath = undefined;
     }
   });
+
+  test("chat.history repairs tool pairing before slicing to avoid false orphan detection", async () => {
+    // Regression test for false positive orphan detection when slice boundary
+    // starts on a toolResult whose matching assistant toolCall is outside the window.
+    // If we slice first, the toolResult appears orphaned even though it's legitimate.
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gw-"));
+    try {
+      testState.sessionStorePath = path.join(dir, "sessions.json");
+      await writeSessionStore({
+        entries: {
+          main: {
+            sessionId: "sess-slice-boundary",
+            updatedAt: Date.now(),
+          },
+        },
+      });
+
+      // Create a session with:
+      // - Message 0: user
+      // - Message 1: assistant with tool_use
+      // - Message 2: toolResult (matching message 1)
+      // - Messages 3-4: more messages
+      // When we request limit=3, the slice will be [2, 3, 4].
+      // If we repair AFTER slicing, message 2 (toolResult) would be incorrectly
+      // classified as orphaned because its matching assistant (message 1) is outside
+      // the slice window.
+      const lines = [
+        JSON.stringify({
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "message 0" }],
+            timestamp: 1000,
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: "calling tool" },
+              { type: "toolCall", id: "call_valid_123", name: "test_tool", arguments: {} },
+            ],
+            timestamp: 2000,
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "toolResult",
+            toolCallId: "call_valid_123",
+            toolName: "test_tool",
+            content: [{ type: "text", text: "valid result" }],
+            timestamp: 3000,
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "message 3" }],
+            timestamp: 4000,
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "message 4" }],
+            timestamp: 5000,
+          },
+        }),
+      ];
+
+      await fs.writeFile(path.join(dir, "sess-slice-boundary.jsonl"), lines.join("\n"), "utf-8");
+
+      // Request only the last 3 messages
+      const historyRes = await rpcReq<{ messages?: unknown[] }>(ws, "chat.history", {
+        sessionKey: "main",
+        limit: 3,
+      });
+
+      expect(historyRes.ok).toBe(true);
+      const messages = historyRes.payload?.messages ?? [];
+
+      // The toolResult should NOT be dropped even though its matching assistant
+      // is outside the slice window, because we repair BEFORE slicing
+      const roles = messages.map((m) => (m as { role?: string }).role);
+      expect(roles).toContain("toolResult");
+      expect(messages).toHaveLength(3);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+      testState.sessionStorePath = undefined;
+    }
+  });
 });
