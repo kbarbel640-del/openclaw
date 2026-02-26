@@ -36,6 +36,8 @@ export type Verdict = {
   code: string;
 };
 
+type WindowEntry<T> = T & { ts: number };
+
 const ALLOW: Verdict = {
   allowed: true,
   blocked: false,
@@ -45,20 +47,47 @@ const ALLOW: Verdict = {
   code: "ALLOW",
 };
 
+// ─── Per-Session State ──────────────────────────────────────────
+
+type SessionState = {
+  trajectoryWindow: WindowEntry<{ hash: string }>[];
+  velocityWindow: WindowEntry<{ amount: number }>[];
+};
+
+/**
+ * State is keyed by sessionKey so that one agent's DeFi activity
+ * does not affect another session running in the same gateway process.
+ */
+const sessions = new Map<string, SessionState>();
+
+/** Max sessions to track before pruning oldest entries. */
+const MAX_SESSIONS = 1000;
+
+function getSession(sessionKey: string): SessionState {
+  let state = sessions.get(sessionKey);
+  if (!state) {
+    // Evict oldest session if we've hit the cap
+    if (sessions.size >= MAX_SESSIONS) {
+      const oldest = sessions.keys().next().value;
+      if (oldest !== undefined) sessions.delete(oldest);
+    }
+    state = { trajectoryWindow: [], velocityWindow: [] };
+    sessions.set(sessionKey, state);
+  }
+  return state;
+}
+
 // ─── Engine 1: Trajectory Hash ──────────────────────────────────
 
-const trajectoryWindow: { hash: string; ts: number }[] = [];
-
 function trajectoryHash(toolName: string, params: Record<string, unknown>): string {
-  const target = String(
-    params.to ?? params.address ?? params.recipient ?? params.target ?? "",
-  );
+  const target = String(params.to ?? params.address ?? params.recipient ?? params.target ?? "");
   const amount = String(params.amount ?? params.value ?? params.quantity ?? "0");
   const canonical = `${toolName}:${target}:${amount}`;
   return createHash("sha256").update(canonical).digest("hex").slice(0, 16);
 }
 
 function evaluateTrajectory(
+  sessionKey: string,
   toolName: string,
   params: Record<string, unknown>,
   config: PlimsollConfig,
@@ -66,14 +95,15 @@ function evaluateTrajectory(
   const now = Date.now();
   const windowMs = config.loopWindowSeconds * 1000;
   const hash = trajectoryHash(toolName, params);
+  const state = getSession(sessionKey);
 
   // Prune expired entries
-  while (trajectoryWindow.length > 0 && now - trajectoryWindow[0].ts > windowMs) {
-    trajectoryWindow.shift();
+  while (state.trajectoryWindow.length > 0 && now - state.trajectoryWindow[0].ts > windowMs) {
+    state.trajectoryWindow.shift();
   }
 
-  const dupeCount = trajectoryWindow.filter((e) => e.hash === hash).length;
-  trajectoryWindow.push({ hash, ts: now });
+  const dupeCount = state.trajectoryWindow.filter((e) => e.hash === hash).length;
+  state.trajectoryWindow.push({ hash, ts: now });
 
   if (dupeCount >= config.loopThreshold) {
     return {
@@ -106,9 +136,8 @@ function evaluateTrajectory(
 
 // ─── Engine 2: Capital Velocity ─────────────────────────────────
 
-const velocityWindow: { amount: number; ts: number }[] = [];
-
 function evaluateVelocity(
+  sessionKey: string,
   params: Record<string, unknown>,
   config: PlimsollConfig,
 ): Verdict {
@@ -117,12 +146,14 @@ function evaluateVelocity(
   const amount = Number(params.amount ?? params.value ?? params.quantity ?? 0);
   if (amount <= 0) return ALLOW;
 
+  const state = getSession(sessionKey);
+
   // Prune expired entries
-  while (velocityWindow.length > 0 && now - velocityWindow[0].ts > windowMs) {
-    velocityWindow.shift();
+  while (state.velocityWindow.length > 0 && now - state.velocityWindow[0].ts > windowMs) {
+    state.velocityWindow.shift();
   }
 
-  const windowSpend = velocityWindow.reduce((sum, e) => sum + e.amount, 0);
+  const windowSpend = state.velocityWindow.reduce((sum, e) => sum + e.amount, 0);
 
   if (windowSpend + amount > config.maxVelocityCentsPerWindow) {
     return {
@@ -138,15 +169,39 @@ function evaluateVelocity(
     };
   }
 
-  velocityWindow.push({ amount, ts: now });
+  state.velocityWindow.push({ amount, ts: now });
   return ALLOW;
 }
 
 // ─── Engine 3: Entropy Guard ────────────────────────────────────
 
-const ETH_KEY_RE = /0x[0-9a-fA-F]{64}/;
+/**
+ * Matches Ethereum private keys (64 hex chars after 0x).
+ * We require the match to NOT be preceded by another hex char
+ * to reduce false positives on longer hex strings like tx hashes
+ * that happen to contain a 64-char substring.
+ */
+const ETH_KEY_RE = /(?<![0-9a-fA-F])0x[0-9a-fA-F]{64}(?![0-9a-fA-F])/;
+
 const MNEMONIC_RE = /\b([a-z]{3,8}\s+){11,}[a-z]{3,8}\b/;
 const BASE64_RE = /[A-Za-z0-9+/]{40,}={0,2}/;
+
+/** Fields that commonly carry transaction hashes, not private keys. */
+const TX_HASH_FIELD_NAMES = new Set([
+  "txHash",
+  "transactionHash",
+  "tx_hash",
+  "transaction_hash",
+  "hash",
+  "txId",
+  "tx_id",
+  "blockHash",
+  "block_hash",
+  "parentHash",
+  "parent_hash",
+  "previousHash",
+  "receipt",
+]);
 
 function shannonEntropy(s: string): number {
   if (s.length === 0) return 0;
@@ -165,6 +220,9 @@ function shannonEntropy(s: string): number {
 function evaluateEntropy(params: Record<string, unknown>): Verdict {
   for (const [key, val] of Object.entries(params)) {
     if (typeof val !== "string" || val.length < 20) continue;
+
+    // Skip fields that commonly carry tx hashes, not private keys
+    if (TX_HASH_FIELD_NAMES.has(key)) continue;
 
     if (ETH_KEY_RE.test(val)) {
       return {
@@ -210,18 +268,21 @@ function evaluateEntropy(params: Record<string, unknown>): Verdict {
 /**
  * Run all three Plimsoll engines against a tool call.
  * First block wins. Returns the verdict.
+ *
+ * @param sessionKey - Unique session identifier to isolate state
  */
 export function evaluate(
+  sessionKey: string,
   toolName: string,
   params: Record<string, unknown>,
   config: PlimsollConfig,
 ): Verdict {
   // Engine 1: Loop detection
-  const trajectoryVerdict = evaluateTrajectory(toolName, params, config);
+  const trajectoryVerdict = evaluateTrajectory(sessionKey, toolName, params, config);
   if (trajectoryVerdict.blocked) return trajectoryVerdict;
 
   // Engine 2: Spend rate
-  const velocityVerdict = evaluateVelocity(params, config);
+  const velocityVerdict = evaluateVelocity(sessionKey, params, config);
   if (velocityVerdict.blocked) return velocityVerdict;
 
   // Engine 3: Secret detection

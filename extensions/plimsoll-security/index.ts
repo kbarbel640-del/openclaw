@@ -49,7 +49,8 @@ function isDefiTool(toolName: string): boolean {
 const plugin = {
   id: "plimsoll-security",
   name: "Plimsoll DeFi Security",
-  description: "Transaction firewall — loop detection, spend-rate limits, and exfiltration defense for DeFi tools",
+  description:
+    "Transaction firewall — loop detection, spend-rate limits, and exfiltration defense for DeFi tools",
 
   register(api: OpenClawPluginApi) {
     const pluginCfg = (api.pluginConfig ?? {}) as Partial<PlimsollConfig & { enabled: boolean }>;
@@ -70,21 +71,15 @@ const plugin = {
 
     api.logger.info?.("Plimsoll Security: active");
 
-    // ── Hook: before_tool_call ──────────────────────────────────
-    api.registerHook("before_tool_call", async (event) => {
-      const { toolName, params } = event as {
-        toolName: string;
-        params: Record<string, unknown>;
-      };
+    // ── Hook: before_tool_call (typed hook via api.on) ──────────
+    api.on("before_tool_call", async (event, ctx) => {
+      if (!isDefiTool(event.toolName)) return;
 
-      if (!isDefiTool(toolName)) return {};
-
-      const verdict = evaluate(toolName, params, config);
+      const sessionKey = ctx.sessionKey ?? ctx.agentId ?? "default";
+      const verdict = evaluate(sessionKey, event.toolName, event.params, config);
 
       if (verdict.blocked) {
-        api.logger.warn?.(
-          `PLIMSOLL BLOCK [${verdict.engine}]: ${verdict.reason}`,
-        );
+        api.logger.warn?.(`PLIMSOLL BLOCK [${verdict.engine}]: ${verdict.reason}`);
         return {
           block: true,
           blockReason:
@@ -94,34 +89,20 @@ const plugin = {
       }
 
       if (verdict.friction) {
-        api.logger.info?.(
-          `PLIMSOLL FRICTION [${verdict.engine}]: ${verdict.reason}`,
-        );
-        // Inject friction as a modified parameter the LLM will read
+        api.logger.info?.(`PLIMSOLL FRICTION [${verdict.engine}]: ${verdict.reason}`);
         return {
           params: {
-            ...params,
+            ...event.params,
             _plimsoll_warning: verdict.reason,
           },
         };
       }
-
-      return {};
     });
 
     // ── Hook: after_tool_call (audit log) ────────────────────────
-    api.registerHook("after_tool_call", async (event) => {
-      const { toolName, durationMs } = event as {
-        toolName: string;
-        params: Record<string, unknown>;
-        result: unknown;
-        durationMs: number;
-      };
-
-      if (isDefiTool(toolName)) {
-        api.logger.debug?.(
-          `PLIMSOLL AUDIT: ${toolName} completed in ${durationMs}ms`,
-        );
+    api.on("after_tool_call", async (event) => {
+      if (isDefiTool(event.toolName)) {
+        api.logger.debug?.(`PLIMSOLL AUDIT: ${event.toolName} completed in ${event.durationMs}ms`);
       }
     });
 

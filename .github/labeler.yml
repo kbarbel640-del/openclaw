@@ -248,6 +248,10 @@
   - changed-files:
       - any-glob-to-any-file:
           - "extensions/phone-control/**"
+"extensions: plimsoll-security":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/plimsoll-security/**"
 "extensions: talk-voice":
   - changed-files:
       - any-glob-to-any-file:
