@@ -305,11 +305,11 @@ async function writeDoc(
   }
   const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
 
-  logger?.info?.(`feishu_doc: Done (${inserted.length} blocks, ${imagesProcessed} images)`);
+  logger?.info?.(`feishu_doc: Done (${blocks.length} blocks, ${imagesProcessed} images)`);
   return {
     success: true,
     blocks_deleted: deleted,
-    blocks_added: inserted.length,
+    blocks_added: blocks.length,
     images_processed: imagesProcessed,
   };
 }
@@ -345,10 +345,10 @@ async function appendDoc(
   }
   const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
 
-  logger?.info?.(`feishu_doc: Done (${inserted.length} blocks, ${imagesProcessed} images)`);
+  logger?.info?.(`feishu_doc: Done (${blocks.length} blocks, ${imagesProcessed} images)`);
   return {
     success: true,
-    blocks_added: inserted.length,
+    blocks_added: blocks.length,
     images_processed: imagesProcessed,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block type
     block_ids: inserted.map((b: any) => b.block_id),
