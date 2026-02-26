@@ -3,6 +3,14 @@ import { stripEnvelope, stripMessageIdHints } from "../shared/chat-envelope.js";
 
 export { stripEnvelope };
 
+// Matches [[reply_to_current]] and [[reply_to: <id>]] directive tags
+const REPLY_TO_TAG = /\[\[\s*(?:reply_to_current|reply_to\s*:\s*[^\]\n]+)\s*\]\]/gi;
+
+function stripReplyToTags(text: string): string {
+  if (!text.includes("[[reply_to")) return text;
+  return text.replace(REPLY_TO_TAG, "").trim();
+}
+
 function stripEnvelopeFromContentWithRole(
   content: unknown[],
   stripUserEnvelope: boolean,
@@ -18,7 +26,7 @@ function stripEnvelopeFromContentWithRole(
     }
     const inboundStripped = stripInboundMetadata(entry.text);
     const stripped = stripUserEnvelope
-      ? stripMessageIdHints(stripEnvelope(inboundStripped))
+      ? stripReplyToTags(stripMessageIdHints(stripEnvelope(inboundStripped)))
       : inboundStripped;
     if (stripped === entry.text) {
       return item;
@@ -46,7 +54,7 @@ export function stripEnvelopeFromMessage(message: unknown): unknown {
   if (typeof entry.content === "string") {
     const inboundStripped = stripInboundMetadata(entry.content);
     const stripped = stripUserEnvelope
-      ? stripMessageIdHints(stripEnvelope(inboundStripped))
+      ? stripReplyToTags(stripMessageIdHints(stripEnvelope(inboundStripped)))
       : inboundStripped;
     if (stripped !== entry.content) {
       next.content = stripped;
@@ -61,7 +69,7 @@ export function stripEnvelopeFromMessage(message: unknown): unknown {
   } else if (typeof entry.text === "string") {
     const inboundStripped = stripInboundMetadata(entry.text);
     const stripped = stripUserEnvelope
-      ? stripMessageIdHints(stripEnvelope(inboundStripped))
+      ? stripReplyToTags(stripMessageIdHints(stripEnvelope(inboundStripped)))
       : inboundStripped;
     if (stripped !== entry.text) {
       next.text = stripped;

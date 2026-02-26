@@ -1307,6 +1307,14 @@ export function clearConfigCache(): void {
   configCache = null;
 }
 
+/**
+ * Clear config cache (exported for multi-tenant support).
+ * Call this when switching tenant context to ensure fresh config load.
+ */
+export function clearConfigCacheForTenant(): void {
+  configCache = null;
+}
+
 export function loadConfig(): OpenClawConfig {
   const io = createConfigIO();
   const configPath = io.configPath;

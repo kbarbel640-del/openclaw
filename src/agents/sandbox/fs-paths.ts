@@ -61,7 +61,7 @@ export function buildSandboxFsMounts(sandbox: SandboxContext): SandboxFsMount[] 
   const mounts: SandboxFsMount[] = [
     {
       hostRoot: path.resolve(sandbox.workspaceDir),
-      containerRoot: normalizeContainerPath(sandbox.containerWorkdir),
+      containerRoot: normalizeContainerPath(sandbox.containerWorkdir!),
       writable: sandbox.workspaceAccess === "rw",
       source: "workspace",
     },
@@ -79,7 +79,7 @@ export function buildSandboxFsMounts(sandbox: SandboxContext): SandboxFsMount[] 
     });
   }
 
-  for (const bind of sandbox.docker.binds ?? []) {
+  for (const bind of sandbox.docker?.binds ?? []) {
     const parsed = parseSandboxBindMount(bind);
     if (!parsed) {
       continue;

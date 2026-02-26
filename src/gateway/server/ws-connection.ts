@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { WebSocket, WebSocketServer } from "ws";
+import {
+  clearConfigCacheForTenant,
+  resolveTenantStateDirFromId,
+  type TenantContext,
+} from "../../config/config.js";
 import { resolveCanvasHostUrl } from "../../infra/canvas-host-url.js";
 import { removeRemoteNodeInfo } from "../../infra/skills-remote.js";
 import { upsertPresence } from "../../infra/system-presence.js";
@@ -54,6 +59,39 @@ const sanitizeLogValue = (value: string | undefined): string | undefined => {
   }
   return truncateUtf16Safe(cleaned, LOG_HEADER_MAX_LEN);
 };
+
+/**
+ * Extract tenant ID from WebSocket upgrade request headers.
+ * Supports: X-Tenant-ID (case-insensitive)
+ */
+function getTenantIdFromUpgradeRequest(
+  headers: Record<string, string | string[] | undefined>,
+): string | undefined {
+  const header = headers["x-tenant-id"];
+  if (typeof header === "string" && header.trim()) {
+    return header.trim();
+  }
+  if (Array.isArray(header) && header[0]?.trim()) {
+    return header[0].trim();
+  }
+  return undefined;
+}
+
+/**
+ * Build tenant context from WebSocket upgrade request headers.
+ * Returns null if no tenant ID is present (single-tenant mode).
+ */
+function buildTenantContextForWs(
+  headers: Record<string, string | string[] | undefined>,
+): TenantContext | null {
+  const tenantId = getTenantIdFromUpgradeRequest(headers);
+  if (!tenantId) {
+    return null;
+  }
+
+  const stateDir = resolveTenantStateDirFromId(tenantId);
+  return { tenantId, stateDir };
+}
 
 export function attachGatewayWsConnectionHandler(params: {
   wss: WebSocketServer;
@@ -117,6 +155,13 @@ export function attachGatewayWsConnectionHandler(params: {
     const requestUserAgent = headerValue(upgradeReq.headers["user-agent"]);
     const forwardedFor = headerValue(upgradeReq.headers["x-forwarded-for"]);
     const realIp = headerValue(upgradeReq.headers["x-real-ip"]);
+
+    // Build tenant context for this WebSocket connection (multi-tenant support)
+    const tenantContext = buildTenantContextForWs(upgradeReq.headers);
+    // Clear config cache at start of tenant connection
+    if (tenantContext) {
+      clearConfigCacheForTenant();
+    }
 
     const canvasHostPortForWs = canvasHostServerPort ?? (canvasHostEnabled ? port : undefined);
     const canvasHostOverride =
@@ -303,6 +348,7 @@ export function attachGatewayWsConnectionHandler(params: {
       logGateway,
       logHealth,
       logWsControl,
+      tenantContext,
     });
   });
 }

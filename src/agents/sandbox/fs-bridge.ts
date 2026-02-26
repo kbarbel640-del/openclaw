@@ -230,7 +230,7 @@ class SandboxFsBridgeImpl implements SandboxFsBridge {
     const dockerArgs = [
       "exec",
       "-i",
-      this.sandbox.containerName,
+      this.sandbox.containerName!,
       "sh",
       "-c",
       script,
@@ -331,7 +331,7 @@ class SandboxFsBridgeImpl implements SandboxFsBridge {
       filePath: params.filePath,
       cwd: params.cwd ?? this.sandbox.workspaceDir,
       defaultWorkspaceRoot: this.sandbox.workspaceDir,
-      defaultContainerRoot: this.sandbox.containerWorkdir,
+      defaultContainerRoot: this.sandbox.containerWorkdir!,
       mounts: this.mounts,
     });
   }

@@ -1,6 +1,5 @@
 import { normalizeChatType, type ChatType } from "../../channels/chat-type.js";
 import type { ChannelOutboundTargetMode } from "../../channels/plugins/types.js";
-import { formatCliCommand } from "../../cli/command-format.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import type { AgentDefaultsConfig } from "../../config/types.agent-defaults.js";
@@ -176,12 +175,14 @@ export function resolveOutboundTarget(params: {
   mode?: ChannelOutboundTargetMode;
 }): OutboundTargetResolution {
   if (params.channel === INTERNAL_MESSAGE_CHANNEL) {
-    return {
-      ok: false,
-      error: new Error(
-        `Delivering to WebChat is not supported via \`${formatCliCommand("openclaw agent")}\`; use WhatsApp/Telegram or run with --deliver=false.`,
-      ),
-    };
+    const to = params.to?.trim();
+    if (!to) {
+      return {
+        ok: false,
+        error: new Error("webchat delivery requires a session key as 'to'"),
+      };
+    }
+    return { ok: true, to };
   }
 
   const plugin = resolveOutboundChannelPlugin({

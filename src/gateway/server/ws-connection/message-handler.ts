@@ -1,7 +1,11 @@
 import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import type { WebSocket } from "ws";
-import { loadConfig } from "../../../config/config.js";
+import {
+  loadConfig,
+  runWithTenantContextAsync,
+  type TenantContext,
+} from "../../../config/config.js";
 import {
   deriveDeviceIdFromPublicKey,
   normalizeDevicePublicKeyBase64Url,
@@ -164,6 +168,7 @@ export function attachGatewayWsMessageHandler(params: {
   logGateway: SubsystemLogger;
   logHealth: SubsystemLogger;
   logWsControl: SubsystemLogger;
+  tenantContext?: TenantContext | null;
 }) {
   const {
     socket,
@@ -196,6 +201,7 @@ export function attachGatewayWsMessageHandler(params: {
     logGateway,
     logHealth,
     logWsControl,
+    tenantContext,
   } = params;
 
   const configSnapshot = loadConfig();
@@ -256,11 +262,11 @@ export function attachGatewayWsMessageHandler(params: {
     authRateLimiter,
   } = browserSecurity;
 
-  socket.on("message", async (data) => {
-    if (isClosed()) {
-      return;
-    }
-    const text = rawDataToString(data);
+  /**
+   * Process an incoming WebSocket message.
+   * This function is called within the tenant context when multi-tenant mode is active.
+   */
+  const processMessage = async (text: string) => {
     try {
       const parsed = JSON.parse(text);
       const frameType =
@@ -481,7 +487,7 @@ export function attachGatewayWsMessageHandler(params: {
           close(1008, truncateCloseReason(authMessage));
         };
         const clearUnboundScopes = () => {
-          if (scopes.length > 0 && !controlUiAuthPolicy.allowBypass) {
+          if (scopes.length > 0 && !controlUiAuthPolicy.allowBypass && !sharedAuthOk) {
             scopes = [];
             connectParams.scopes = scopes;
           }
@@ -1052,6 +1058,20 @@ export function attachGatewayWsMessageHandler(params: {
       if (!getClient()) {
         close();
       }
+    }
+  };
+
+  socket.on("message", async (data) => {
+    if (isClosed()) {
+      return;
+    }
+    const text = rawDataToString(data);
+
+    // Wrap message processing in tenant context for multi-tenant isolation
+    if (tenantContext) {
+      await runWithTenantContextAsync(tenantContext, () => processMessage(text));
+    } else {
+      await processMessage(text);
     }
   });
 }

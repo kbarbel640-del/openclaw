@@ -408,12 +408,12 @@ export function createOpenClawCodingTools(options?: {
     notifyOnExit: options?.exec?.notifyOnExit ?? execConfig.notifyOnExit,
     notifyOnExitEmptySuccess:
       options?.exec?.notifyOnExitEmptySuccess ?? execConfig.notifyOnExitEmptySuccess,
-    sandbox: sandbox
+    sandbox: sandbox?.containerName
       ? {
           containerName: sandbox.containerName,
           workspaceDir: sandbox.workspaceDir,
-          containerWorkdir: sandbox.containerWorkdir,
-          env: sandbox.docker.env,
+          containerWorkdir: sandbox.containerWorkdir ?? "/workspace",
+          env: sandbox.docker?.env,
         }
       : undefined,
   });

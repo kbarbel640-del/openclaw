@@ -3,6 +3,42 @@ import os from "node:os";
 import path from "node:path";
 import { expandHomePrefix, resolveRequiredHomeDir } from "../infra/home-dir.js";
 import type { OpenClawConfig } from "./types.js";
+import { getTenantStateDirFromContext } from "./tenant-context.js";
+
+/**
+ * Get the current tenant state directory from AsyncLocalStorage context.
+ * Returns null if no tenant context is active (default/single-tenant mode).
+ *
+ * Multi-tenant requests must be wrapped in runWithTenantContextAsync()
+ * to ensure proper context isolation across concurrent requests.
+ */
+export function getTenantStateDir(): string | null {
+  return getTenantStateDirFromContext();
+}
+
+/**
+ * Resolve a tenant's state directory from tenant ID.
+ * Uses TENANT_DATA_DIR env var as base, defaults to /data/tenants.
+ *
+ * Directory structure matches workforce platform:
+ *   ${TENANT_DATA_DIR}/${tenantId}/
+ *     ├── clawdbot.json (or openclaw.json)
+ *     └── agents/
+ *
+ * Note: Does NOT add .openclaw subdirectory - uses tenant dir directly.
+ */
+export function resolveTenantStateDirFromId(
+  tenantId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  // Default: /data/tenants for production (Linux), ~/data/tenants for macOS local dev
+  const defaultDir =
+    process.platform === "darwin" ? path.join(os.homedir(), "data", "tenants") : "/data/tenants";
+  const baseDir = env.TENANT_DATA_DIR?.trim() || defaultDir;
+  // Resolve to absolute path to handle relative TENANT_DATA_DIR values like "./data/tenants"
+  // Return tenant dir directly (no .openclaw subdir) to match platform structure
+  return path.resolve(baseDir, tenantId);
+}
 
 /**
  * Nix mode detection: When OPENCLAW_NIX_MODE=1, the gateway is running under Nix.
@@ -56,11 +92,19 @@ export function resolveNewStateDir(homedir: () => string = resolveDefaultHomeDir
  * State directory for mutable data (sessions, logs, caches).
  * Can be overridden via OPENCLAW_STATE_DIR.
  * Default: ~/.openclaw
+ *
+ * Multi-tenant: If running within a tenant context (via runWithTenantContextAsync),
+ * returns the tenant's state directory.
  */
 export function resolveStateDir(
   env: NodeJS.ProcessEnv = process.env,
   homedir: () => string = envHomedir(env),
 ): string {
+  // Multi-tenant: AsyncLocalStorage context takes precedence
+  const tenantStateDir = getTenantStateDirFromContext();
+  if (tenantStateDir) {
+    return tenantStateDir;
+  }
   const effectiveHomedir = () => resolveRequiredHomeDir(env, homedir);
   const override = env.OPENCLAW_STATE_DIR?.trim() || env.CLAWDBOT_STATE_DIR?.trim();
   if (override) {
@@ -186,7 +230,10 @@ export const CONFIG_PATH = resolveConfigPathCandidate();
 
 /**
  * Resolve default config path candidates across default locations.
- * Order: explicit config path → state-dir-derived paths → new default.
+ * Order: explicit config path → tenant override → state-dir-derived paths → new default.
+ *
+ * Multi-tenant: If running within a tenant context (via runWithTenantContextAsync),
+ * tenant paths come first.
  */
 export function resolveDefaultConfigCandidates(
   env: NodeJS.ProcessEnv = process.env,
@@ -199,6 +246,14 @@ export function resolveDefaultConfigCandidates(
   }
 
   const candidates: string[] = [];
+
+  // Multi-tenant: AsyncLocalStorage context takes priority
+  const tenantDir = getTenantStateDirFromContext();
+  if (tenantDir) {
+    candidates.push(path.join(tenantDir, CONFIG_FILENAME));
+    candidates.push(...LEGACY_CONFIG_FILENAMES.map((name) => path.join(tenantDir, name)));
+  }
+
   const openclawStateDir = env.OPENCLAW_STATE_DIR?.trim() || env.CLAWDBOT_STATE_DIR?.trim();
   if (openclawStateDir) {
     const resolved = resolveUserPath(openclawStateDir, env, effectiveHomedir);

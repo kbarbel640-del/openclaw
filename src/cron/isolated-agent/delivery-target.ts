@@ -48,6 +48,19 @@ export async function resolveDeliveryTarget(
 ): Promise<DeliveryTargetResolution> {
   const requestedChannel = typeof jobPayload.channel === "string" ? jobPayload.channel : "last";
   const explicitTo = typeof jobPayload.to === "string" ? jobPayload.to : undefined;
+
+  // Webchat delivery doesn't need session-based target resolution — the
+  // session key IS the target. Short-circuit to avoid isDeliverableMessageChannel
+  // checks that would reject the internal webchat channel.
+  if (requestedChannel === "webchat" && explicitTo) {
+    return {
+      ok: true,
+      channel: "webchat" as Exclude<OutboundChannel, "none">,
+      to: explicitTo,
+      mode: "explicit",
+    };
+  }
+
   const allowMismatchedLastTo = requestedChannel === "last";
 
   const sessionCfg = cfg.session;

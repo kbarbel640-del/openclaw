@@ -6,6 +6,7 @@ import { loadConfig } from "../../config/config.js";
 import { defaultRuntime } from "../../runtime.js";
 import { resolveUserPath } from "../../utils.js";
 import { syncSkillsToWorkspace } from "../skills.js";
+import { createHostSandboxFsBridge } from "../test-helpers/host-sandbox-fs-bridge.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "../workspace.js";
 import { ensureSandboxBrowser } from "./browser.js";
 import { resolveSandboxConfigForAgent } from "./config.js";
@@ -115,6 +116,27 @@ export async function resolveSandboxContext(params: {
     return null;
   }
   const { rawSessionKey, cfg } = resolved;
+
+  // Light sandbox mode: path validation only, no Docker
+  if (cfg.mode === "paths-only") {
+    const agentWorkspaceDir = resolveUserPath(
+      params.workspaceDir?.trim() || DEFAULT_AGENT_WORKSPACE_DIR,
+    );
+    const workspaceRoot = resolveUserPath(cfg.workspaceRoot);
+
+    await fs.mkdir(workspaceRoot, { recursive: true });
+
+    return {
+      enabled: true,
+      sessionKey: rawSessionKey,
+      workspaceDir: agentWorkspaceDir,
+      agentWorkspaceDir,
+      workspaceAccess: cfg.workspaceAccess,
+      tools: cfg.tools,
+      browserAllowHostControl: false,
+      fsBridge: createHostSandboxFsBridge(agentWorkspaceDir),
+    };
+  }
 
   await maybePruneSandboxes(cfg);
 

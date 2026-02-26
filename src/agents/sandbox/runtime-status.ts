@@ -11,7 +11,7 @@ function shouldSandboxSession(cfg: SandboxConfig, sessionKey: string, mainSessio
   if (cfg.mode === "off") {
     return false;
   }
-  if (cfg.mode === "all") {
+  if (cfg.mode === "all" || cfg.mode === "paths-only") {
     return true;
   }
   return sessionKey.trim() !== mainSessionKey.trim();
