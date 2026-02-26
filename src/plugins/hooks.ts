@@ -105,18 +105,42 @@ export type HookRunnerOptions = {
   logger?: HookRunnerLogger;
   /** If true, errors in hooks will be caught and logged instead of thrown */
   catchErrors?: boolean;
+  /** Map of plugin ID to allowed agents. If not defined for a plugin, all agents are allowed. */
+  allowedAgents?: Record<string, string[]>;
 };
 
 /**
  * Get hooks for a specific hook name, sorted by priority (higher first).
+ * Filters hooks based on allowedAgents if ctx.agentId is provided.
  */
 function getHooksForName<K extends PluginHookName>(
   registry: PluginRegistry,
   hookName: K,
+  allowedAgents?: Record<string, string[]>,
+  agentId?: string,
 ): PluginHookRegistration<K>[] {
-  return (registry.typedHooks as PluginHookRegistration<K>[])
-    .filter((h) => h.hookName === hookName)
-    .toSorted((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  let hooks = (registry.typedHooks as PluginHookRegistration<K>[]).filter(
+    (h) => h.hookName === hookName,
+  );
+
+  // Filter by allowedAgents if configured
+  if (allowedAgents && agentId) {
+    hooks = hooks.filter((hook) => {
+      const pluginAllowedAgents = allowedAgents[hook.pluginId];
+      // If no allowedAgents configured, allow all
+      if (!pluginAllowedAgents || pluginAllowedAgents.length === 0) {
+        return true;
+      }
+      // Check if current agent is allowed
+      const allowed = pluginAllowedAgents.includes(agentId);
+      console.log(
+        `[hooks] filtering plugin=${hook.pluginId}, agentId=${agentId}, allowedAgents=${pluginAllowedAgents.join(",")}, allowed=${allowed}`,
+      );
+      return allowed;
+    });
+  }
+
+  return hooks.toSorted((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 }
 
 /**
@@ -125,6 +149,19 @@ function getHooksForName<K extends PluginHookName>(
 export function createHookRunner(registry: PluginRegistry, options: HookRunnerOptions = {}) {
   const logger = options.logger;
   const catchErrors = options.catchErrors ?? true;
+  const allowedAgents = options.allowedAgents;
+
+  // Check if a hook should run based on allowedAgents config
+  const shouldRunHook = (pluginId: string, agentId?: string): boolean => {
+    if (!agentId) {
+      return true;
+    }
+    const pluginAllowedAgents = allowedAgents?.[pluginId];
+    if (!pluginAllowedAgents || pluginAllowedAgents.length === 0) {
+      return true;
+    } // No restriction configured
+    return pluginAllowedAgents.includes(agentId);
+  };
 
   const mergeBeforeModelResolve = (
     acc: PluginHookBeforeModelResolveResult | undefined,
@@ -196,7 +233,10 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     event: Parameters<NonNullable<PluginHookRegistration<K>["handler"]>>[0],
     ctx: Parameters<NonNullable<PluginHookRegistration<K>["handler"]>>[1],
   ): Promise<void> {
-    const hooks = getHooksForName(registry, hookName);
+    const allHooks = getHooksForName(registry, hookName);
+    // Filter by allowedAgents
+    const agentId = (ctx as { agentId?: string })?.agentId;
+    const hooks = allHooks.filter((h) => shouldRunHook(h.pluginId, agentId));
     if (hooks.length === 0) {
       return;
     }
@@ -224,7 +264,10 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     ctx: Parameters<NonNullable<PluginHookRegistration<K>["handler"]>>[1],
     mergeResults?: (accumulated: TResult | undefined, next: TResult) => TResult,
   ): Promise<TResult | undefined> {
-    const hooks = getHooksForName(registry, hookName);
+    const allHooks = getHooksForName(registry, hookName);
+    // Filter by allowedAgents
+    const agentId = (ctx as { agentId?: string })?.agentId;
+    const hooks = allHooks.filter((h) => shouldRunHook(h.pluginId, agentId));
     if (hooks.length === 0) {
       return undefined;
     }
@@ -467,7 +510,8 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     event: PluginHookToolResultPersistEvent,
     ctx: PluginHookToolResultPersistContext,
   ): PluginHookToolResultPersistResult | undefined {
-    const hooks = getHooksForName(registry, "tool_result_persist");
+    const agentId = ctx.agentId;
+    const hooks = getHooksForName(registry, "tool_result_persist", options.allowedAgents, agentId);
     if (hooks.length === 0) {
       return undefined;
     }
@@ -532,7 +576,8 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     event: PluginHookBeforeMessageWriteEvent,
     ctx: { agentId?: string; sessionKey?: string },
   ): PluginHookBeforeMessageWriteResult | undefined {
-    const hooks = getHooksForName(registry, "before_message_write");
+    const agentId = ctx.agentId;
+    const hooks = getHooksForName(registry, "before_message_write", options.allowedAgents, agentId);
     if (hooks.length === 0) {
       return undefined;
     }

@@ -1,3 +1,4 @@
+import type { IconName } from "./icons.ts";
 import {
   defaultTitle,
   normalizeToolName,
@@ -10,8 +11,7 @@ import {
   resolveWebSearchDetail,
   resolveWriteDetail,
   type ToolDisplaySpec as ToolDisplaySpecBase,
-} from "../../../src/agents/tool-display-common.js";
-import type { IconName } from "./icons.ts";
+} from "./tool-display-common.js";
 import rawConfig from "./tool-display.json" with { type: "json" };
 
 type ToolDisplaySpec = ToolDisplaySpecBase & {

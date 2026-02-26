@@ -11,7 +11,7 @@ export type NormalizedPluginsConfig = {
   slots: {
     memory?: string | null;
   };
-  entries: Record<string, { enabled?: boolean; config?: unknown }>;
+  entries: Record<string, { enabled?: boolean; config?: unknown; allowedAgents?: string[] }>;
 };
 
 export const BUNDLED_ENABLED_BY_DEFAULT = new Set<string>([
@@ -55,9 +55,17 @@ const normalizePluginEntries = (entries: unknown): NormalizedPluginsConfig["entr
       continue;
     }
     const entry = value as Record<string, unknown>;
+    // Normalize allowedAgents: trim strings and filter empty values
+    let allowedAgents: string[] | undefined;
+    if (Array.isArray(entry.allowedAgents)) {
+      allowedAgents = entry.allowedAgents
+        .map((agent) => (typeof agent === "string" ? agent.trim() : ""))
+        .filter(Boolean);
+    }
     normalized[key] = {
       enabled: typeof entry.enabled === "boolean" ? entry.enabled : undefined,
       config: "config" in entry ? entry.config : undefined,
+      allowedAgents,
     };
   }
   return normalized;
