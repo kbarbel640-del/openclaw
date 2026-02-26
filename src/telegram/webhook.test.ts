@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { request } from "node:http";
 import { setTimeout as sleep } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
-import { startTelegramWebhook } from "./webhook.js";
+import { shouldUseLegacyWebhookServer, startTelegramWebhook } from "./webhook.js";
 
 const handlerSpy = vi.hoisted(() => vi.fn((..._args: unknown[]): unknown => undefined));
 const setWebhookSpy = vi.hoisted(() => vi.fn());
@@ -19,7 +19,19 @@ const createTelegramBotSpy = vi.hoisted(() =>
   })),
 );
 
+const registerTelegramHttpHandlerSpy = vi.hoisted(() =>
+  vi.fn(
+    (_params: { path?: string | null; handler: unknown; log?: unknown; accountId?: string }) => {
+      return vi.fn(); // returns unregister function
+    },
+  ),
+);
+
 const WEBHOOK_POST_TIMEOUT_MS = process.platform === "win32" ? 20_000 : 8_000;
+
+vi.mock("./http/index.js", () => ({
+  registerTelegramHttpHandler: registerTelegramHttpHandlerSpy,
+}));
 
 vi.mock("grammy", async (importOriginal) => {
   const actual = await importOriginal<typeof import("grammy")>();
@@ -672,5 +684,130 @@ describe("startTelegramWebhook", () => {
 
     expect(deleteWebhookSpy).toHaveBeenCalledTimes(1);
     expect(deleteWebhookSpy).toHaveBeenCalledWith({ drop_pending_updates: false });
+  });
+
+  it("uses legacy server mode when port is explicitly set", async () => {
+    const abort = new AbortController();
+    const runtimeLog = vi.fn();
+    const { server } = await startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      port: 0,
+      abortSignal: abort.signal,
+      runtime: { log: runtimeLog, error: vi.fn(), exit: vi.fn() },
+    });
+
+    expect(server).toBeDefined();
+    expect(registerTelegramHttpHandlerSpy).not.toHaveBeenCalled();
+    expect(runtimeLog).toHaveBeenCalledWith(
+      expect.stringContaining("webhook local listener on http://"),
+    );
+    abort.abort();
+  });
+
+  it("uses legacy server mode when host is explicitly set", async () => {
+    const abort = new AbortController();
+    const { server } = await startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      host: "0.0.0.0",
+      abortSignal: abort.signal,
+    });
+
+    expect(server).toBeDefined();
+    expect(registerTelegramHttpHandlerSpy).not.toHaveBeenCalled();
+    abort.abort();
+  });
+});
+
+describe("startTelegramWebhook (gateway mode)", () => {
+  it("uses gateway ingress when no host/port is set", async () => {
+    registerTelegramHttpHandlerSpy.mockClear();
+    const abort = new AbortController();
+    const runtimeLog = vi.fn();
+
+    const webhookPromise = startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      publicUrl: "https://example.test/telegram-webhook",
+      abortSignal: abort.signal,
+      runtime: { log: runtimeLog, error: vi.fn(), exit: vi.fn() },
+    });
+
+    // Let the webhook set up
+    await sleep(50);
+
+    expect(registerTelegramHttpHandlerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/telegram-webhook",
+      }),
+    );
+    expect(setWebhookSpy).toHaveBeenCalledWith(
+      "https://example.test/telegram-webhook",
+      expect.objectContaining({
+        secret_token: "secret",
+      }),
+    );
+    expect(runtimeLog).toHaveBeenCalledWith(
+      expect.stringContaining("webhook registered on gateway HTTP"),
+    );
+    expect(runtimeLog).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "webhook advertised to telegram on https://example.test/telegram-webhook",
+      ),
+    );
+
+    abort.abort();
+    await webhookPromise;
+  });
+
+  it("throws when publicUrl is missing in gateway mode", async () => {
+    await expect(
+      startTelegramWebhook({
+        token: "tok",
+        secret: "secret",
+      }),
+    ).rejects.toThrow(/requires a webhookUrl/i);
+  });
+
+  it("unregisters gateway handler on shutdown", async () => {
+    const unregisterFn = vi.fn();
+    registerTelegramHttpHandlerSpy.mockReturnValueOnce(unregisterFn);
+    deleteWebhookSpy.mockClear();
+
+    const abort = new AbortController();
+    const webhookPromise = startTelegramWebhook({
+      token: "tok",
+      secret: "secret",
+      publicUrl: "https://example.test/telegram-webhook",
+      abortSignal: abort.signal,
+    });
+
+    await sleep(50);
+    abort.abort();
+    await webhookPromise;
+    await sleep(25);
+
+    expect(unregisterFn).toHaveBeenCalledTimes(1);
+    expect(deleteWebhookSpy).toHaveBeenCalledTimes(1);
+    expect(deleteWebhookSpy).toHaveBeenCalledWith({ drop_pending_updates: false });
+  });
+});
+
+describe("shouldUseLegacyWebhookServer", () => {
+  it("returns false when neither host nor port is set", () => {
+    expect(shouldUseLegacyWebhookServer({})).toBe(false);
+  });
+
+  it("returns true when host is set", () => {
+    expect(shouldUseLegacyWebhookServer({ host: "0.0.0.0" })).toBe(true);
+  });
+
+  it("returns true when port is set", () => {
+    expect(shouldUseLegacyWebhookServer({ port: 8787 })).toBe(true);
+  });
+
+  it("returns true when both host and port are set", () => {
+    expect(shouldUseLegacyWebhookServer({ host: "0.0.0.0", port: 9999 })).toBe(true);
   });
 });

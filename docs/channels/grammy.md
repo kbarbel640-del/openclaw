@@ -18,7 +18,7 @@ title: grammY
 - **Single client path:** fetch-based implementation removed; grammY is now the sole Telegram client (send + gateway) with the grammY throttler enabled by default.
 - **Gateway:** `monitorTelegramProvider` builds a grammY `Bot`, wires mention/allowlist gating, media download via `getFile`/`download`, and delivers replies with `sendMessage/sendPhoto/sendVideo/sendAudio/sendDocument`. Supports long-poll or webhook via `webhookCallback`.
 - **Proxy:** optional `channels.telegram.proxy` uses `undici.ProxyAgent` through grammY’s `client.baseFetch`.
-- **Webhook support:** `webhook-set.ts` wraps `setWebhook/deleteWebhook`; `webhook.ts` hosts the callback with health + graceful shutdown. Gateway enables webhook mode when `channels.telegram.webhookUrl` + `channels.telegram.webhookSecret` are set (otherwise it long-polls).
+- **Webhook support:** `webhook-set.ts` wraps `setWebhook/deleteWebhook`; `webhook.ts` hosts the callback with health + graceful shutdown. Gateway enables webhook mode when `channels.telegram.webhookUrl` + `channels.telegram.webhookSecret` are set (otherwise it long-polls). Default webhook mode uses gateway HTTP ingress (webhook requests arrive on the gateway port); setting `webhookHost` or `webhookPort` explicitly switches to a dedicated legacy HTTP server.
 - **Sessions:** direct chats collapse into the agent main session (`agent:<agentId>:<mainKey>`); groups use `agent:<agentId>:telegram:group:<chatId>`; replies route back to the same channel.
 - **Config knobs:** `channels.telegram.botToken`, `channels.telegram.dmPolicy`, `channels.telegram.groups` (allowlist + mention defaults), `channels.telegram.allowFrom`, `channels.telegram.groupAllowFrom`, `channels.telegram.groupPolicy`, `channels.telegram.mediaMaxMb`, `channels.telegram.linkPreview`, `channels.telegram.proxy`, `channels.telegram.webhookSecret`, `channels.telegram.webhookUrl`, `channels.telegram.webhookHost`.
 - **Live stream preview:** `channels.telegram.streaming` (`off | partial | block | progress`) sends a temporary message and updates it with `editMessageText`. This is separate from channel block streaming.
@@ -28,4 +28,4 @@ Open questions
 
 - Optional grammY plugins (throttler) if we hit Bot API 429s.
 - Add more structured media tests (stickers, voice notes).
-- Make webhook listen port configurable (currently fixed to 8787 unless wired through the gateway).
+- ~~Make webhook listen port configurable~~ Resolved: gateway HTTP ingress is now the default; legacy dedicated server mode is available via explicit `webhookHost`/`webhookPort`.
