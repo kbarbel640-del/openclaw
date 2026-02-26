@@ -220,7 +220,7 @@ async function pollGmailHistory(cfg: GmailHookRuntimeConfig): Promise<void> {
  */
 function pokeGogServe(cfg: GmailHookRuntimeConfig, historyId: string): Promise<void> {
   const data = Buffer.from(
-    JSON.stringify({ emailAddress: cfg.account, historyId: Number(historyId) }),
+    JSON.stringify({ emailAddress: cfg.account, historyId: historyId }),
   ).toString("base64");
 
   const payload = JSON.stringify({
