@@ -211,6 +211,25 @@ function capCompactionSummary(summary: string, maxChars = MAX_COMPACTION_SUMMARY
   return `${summary.slice(0, budget)}${marker}`;
 }
 
+function capCompactionSummaryPreservingSuffix(
+  summaryBody: string,
+  suffix: string,
+  maxChars = MAX_COMPACTION_SUMMARY_CHARS,
+): string {
+  if (!suffix) {
+    return capCompactionSummary(summaryBody, maxChars);
+  }
+  if (maxChars <= 0) {
+    return capCompactionSummary(`${summaryBody}${suffix}`, maxChars);
+  }
+  if (suffix.length >= maxChars) {
+    return suffix.slice(0, maxChars);
+  }
+  const bodyBudget = Math.max(0, maxChars - suffix.length);
+  const cappedBody = capCompactionSummary(summaryBody, bodyBudget);
+  return `${cappedBody}${suffix}`;
+}
+
 /**
  * Read and format critical workspace context for compaction summary.
  * Extracts "Session Startup" and "Red Lines" from AGENTS.md.
@@ -409,11 +428,9 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       summary += fileOpsSummary;
 
       // Append workspace critical context (Session Startup + Red Lines from AGENTS.md)
+      // after capping the main summary body so the critical rules survive truncation.
       const workspaceContext = await readWorkspaceContextForSummary();
-      if (workspaceContext) {
-        summary += workspaceContext;
-      }
-      summary = capCompactionSummary(summary);
+      summary = capCompactionSummaryPreservingSuffix(summary, workspaceContext);
 
       return {
         compaction: {
@@ -438,6 +455,7 @@ export const __testing = {
   collectToolFailures,
   formatToolFailuresSection,
   capCompactionSummary,
+  capCompactionSummaryPreservingSuffix,
   formatFileOperations,
   computeAdaptiveChunkRatio,
   isOversizedForSummary,
