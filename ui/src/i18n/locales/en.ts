@@ -137,7 +137,8 @@ export const en: TranslationMap = {
     loading: "Loading…",
     viewChanges: "View {count} pending change{plural}",
     loadingSchema: "Loading schema…",
-    formUnsafeWarning: "Form view can't safely edit some fields. Use Raw to avoid losing config entries.",
+    formUnsafeWarning:
+      "Form view can't safely edit some fields. Use Raw to avoid losing config entries.",
     rawJson: "Raw JSON5",
     sections: {
       env: "Environment",
