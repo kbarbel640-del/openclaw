@@ -67,7 +67,9 @@ describe("Ollama provider", () => {
 
   it("should use native ollama api type", async () => {
     const agentDir = mkdtempSync(join(tmpdir(), "openclaw-test-"));
+    const prevHost = process.env.OLLAMA_HOST;
     process.env.OLLAMA_API_KEY = "test-key";
+    delete process.env.OLLAMA_HOST;
 
     try {
       const providers = await resolveImplicitProviders({ agentDir });
@@ -78,6 +80,8 @@ describe("Ollama provider", () => {
       expect(providers?.ollama?.baseUrl).toBe("http://127.0.0.1:11434");
     } finally {
       delete process.env.OLLAMA_API_KEY;
+      if (prevHost === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prevHost;
     }
   });
 
