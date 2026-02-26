@@ -6,7 +6,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import { ensureOpenClawModelsJson } from "./models-config.js";
 
-type ModelEntry = { id: string; contextWindow?: number };
+type ModelEntry = { id: string; contextWindow?: number; providerId?: string };
 type ModelRegistryLike = {
   getAvailable?: () => ModelEntry[];
   getAll: () => ModelEntry[];
@@ -32,12 +32,26 @@ export function applyDiscoveredContextWindows(params: {
     if (!contextWindow || contextWindow <= 0) {
       continue;
     }
-    const existing = params.cache.get(model.id);
-    // When multiple providers expose the same model id with different limits,
-    // prefer the smaller window so token budgeting is fail-safe (no overestimation).
-    if (existing === undefined || contextWindow < existing) {
-      params.cache.set(model.id, contextWindow);
+
+    // Prefer provider-qualified keys when available so same model ids can have
+    // different limits per provider.
+    const provider = typeof model.providerId === "string" ? model.providerId.trim() : "";
+    const fullKey = provider ? `${provider}/${model.id}` : undefined;
+
+    const setIfSmaller = (key: string) => {
+      const existing = params.cache.get(key);
+      // When multiple providers expose the same model id with different limits,
+      // prefer the smaller window so token budgeting is fail-safe (no overestimation).
+      if (existing === undefined || contextWindow < existing) {
+        params.cache.set(key, contextWindow);
+      }
+    };
+
+    if (fullKey) {
+      setIfSmaller(fullKey);
     }
+    // Always keep a best-effort unqualified mapping for older call sites.
+    setIfSmaller(model.id);
   }
 }
 
@@ -61,6 +75,16 @@ export function applyConfiguredContextWindows(params: {
         continue;
       }
       params.cache.set(modelId, contextWindow);
+      // Also map provider-qualified ids when the configured id includes one.
+      const slash = modelId.indexOf("/");
+      if (slash > 0) {
+        const provider = modelId.slice(0, slash).trim().toLowerCase();
+        const rawModel = modelId.slice(slash + 1).trim();
+        if (provider && rawModel) {
+          params.cache.set(`${provider}/${rawModel}`, contextWindow);
+          params.cache.set(rawModel, contextWindow);
+        }
+      }
     }
   }
 }
@@ -191,5 +215,14 @@ export function resolveContextTokensForModel(params: {
     }
   }
 
-  return lookupContextTokens(params.model) ?? params.fallbackContextTokens;
+  // Use the most specific lookup key available.
+  // Some providers expose the same model id with different context windows.
+  // In that case, we need to include the provider prefix in the cache key
+  // (e.g. openai/gpt-codex-5.3 vs openai-codex/gpt-codex-5.3).
+  const fullKey = ref ? `${ref.provider}/${ref.model}` : undefined;
+  return (
+    lookupContextTokens(fullKey) ??
+    lookupContextTokens(params.model) ??
+    params.fallbackContextTokens
+  );
 }
