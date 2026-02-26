@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const agentSpy = vi.fn(async () => ({ runId: "run-main", status: "ok" }));
+const resolveLabelSpy = vi.fn(async () => ({}));
+const patchLabelSpy = vi.fn(async () => ({}));
 const embeddedRunMock = {
   isEmbeddedPiRunActive: vi.fn(() => false),
   isEmbeddedPiRunStreaming: vi.fn(() => false),
@@ -24,8 +26,11 @@ vi.mock("../gateway/call.js", () => ({
     if (typed.method === "agent.wait") {
       return { status: "error", startedAt: 10, endedAt: 20, error: "boom" };
     }
+    if (typed.method === "sessions.resolve") {
+      return await resolveLabelSpy(typed);
+    }
     if (typed.method === "sessions.patch") {
-      return {};
+      return await patchLabelSpy(typed);
     }
     if (typed.method === "sessions.delete") {
       return {};
@@ -60,6 +65,8 @@ vi.mock("../config/config.js", async (importOriginal) => {
 describe("subagent announce formatting", () => {
   beforeEach(() => {
     agentSpy.mockClear();
+    resolveLabelSpy.mockReset().mockResolvedValue({});
+    patchLabelSpy.mockReset().mockResolvedValue({});
     embeddedRunMock.isEmbeddedPiRunActive.mockReset().mockReturnValue(false);
     embeddedRunMock.isEmbeddedPiRunStreaming.mockReset().mockReturnValue(false);
     embeddedRunMock.queueEmbeddedPiMessage.mockReset().mockReturnValue(false);
@@ -196,6 +203,33 @@ describe("subagent announce formatting", () => {
     expect(call?.params?.channel).toBe("whatsapp");
     expect(call?.params?.to).toBe("+1555");
     expect(call?.params?.accountId).toBe("kev");
+  });
+
+  it("uses a collision-safe fallback label when desired label is already in use", async () => {
+    resolveLabelSpy.mockImplementationOnce(async () => ({ key: "agent:main:subagent:other" }));
+    resolveLabelSpy.mockImplementationOnce(async () => ({}));
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-collision-123456",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      task: "label collision",
+      timeoutMs: 1000,
+      cleanup: "keep",
+      waitForCompletion: false,
+      startedAt: 10,
+      endedAt: 20,
+      label: "Daily Brief",
+      outcome: { status: "ok" },
+    });
+
+    expect(patchLabelSpy).toHaveBeenCalledTimes(1);
+    const patchCall = patchLabelSpy.mock.calls[0]?.[0] as {
+      params?: { label?: string; key?: string };
+    };
+    expect(patchCall?.params?.key).toBe("agent:main:subagent:test");
+    expect(patchCall?.params?.label).toMatch(/^Daily Brief #run-co-1$/);
   });
 
   it("splits collect-mode queues when accountId differs", async () => {

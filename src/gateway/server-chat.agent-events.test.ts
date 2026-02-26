@@ -49,6 +49,67 @@ describe("agent event handler", () => {
     nowSpy.mockRestore();
   });
 
+  it("keeps accumulated assistant text when a trailing LOOP_DONE chunk arrives", () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const broadcast = vi.fn();
+    const broadcastToConnIds = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+    const toolEventRecipients = createToolEventRecipientRegistry();
+    chatRunState.registry.add("run-loop", { sessionKey: "session-1", clientRunId: "client-loop" });
+
+    const handler = createAgentEventHandler({
+      broadcast,
+      broadcastToConnIds,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => undefined,
+      clearAgentRunContext: vi.fn(),
+      toolEventRecipients,
+    });
+
+    handler({
+      runId: "run-loop",
+      seq: 1,
+      stream: "assistant",
+      ts: Date.now(),
+      data: { text: "Hello " },
+    });
+    handler({
+      runId: "run-loop",
+      seq: 2,
+      stream: "assistant",
+      ts: Date.now(),
+      data: { text: "world" },
+    });
+    handler({
+      runId: "run-loop",
+      seq: 3,
+      stream: "assistant",
+      ts: Date.now(),
+      data: { text: "LOOP_DONE" },
+    });
+    handler({
+      runId: "run-loop",
+      seq: 4,
+      stream: "lifecycle",
+      ts: Date.now(),
+      data: { phase: "end" },
+    });
+
+    const finalCall = broadcast.mock.calls
+      .filter(([event]) => event === "chat")
+      .map(
+        ([, payload]) =>
+          payload as { state?: string; message?: { content?: Array<{ text?: string }> } },
+      )
+      .find((payload) => payload.state === "final");
+    expect(finalCall?.message?.content?.[0]?.text).toBe("Hello world");
+    nowSpy.mockRestore();
+  });
+
   it("routes tool events only to registered recipients when verbose is enabled", () => {
     const broadcast = vi.fn();
     const broadcastToConnIds = vi.fn();

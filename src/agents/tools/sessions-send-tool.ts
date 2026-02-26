@@ -34,6 +34,16 @@ const SessionsSendToolSchema = Type.Object({
   timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
 });
 
+function resolveLatestAssistantReply(messages: unknown[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const text = extractAssistantText(messages[i]);
+    if (text) {
+      return text;
+    }
+  }
+  return undefined;
+}
+
 export function createSessionsSendTool(opts?: {
   agentSessionKey?: string;
   agentChannel?: GatewayMessageChannel;
@@ -374,8 +384,7 @@ export function createSessionsSendTool(opts?: {
         params: { sessionKey: resolvedKey, limit: 50 },
       });
       const filtered = stripToolMessages(Array.isArray(history?.messages) ? history.messages : []);
-      const last = filtered.length > 0 ? filtered[filtered.length - 1] : undefined;
-      const reply = last ? extractAssistantText(last) : undefined;
+      const reply = resolveLatestAssistantReply(filtered);
       startA2AFlow(reply ?? undefined);
 
       return jsonResult({

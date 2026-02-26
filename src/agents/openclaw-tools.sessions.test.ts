@@ -436,6 +436,52 @@ describe("sessions tools", () => {
     });
   });
 
+  it("sessions_send returns latest assistant reply even when trailing message is user", async () => {
+    callGatewayMock.mockReset();
+    callGatewayMock.mockImplementation(async (opts: unknown) => {
+      const request = opts as { method?: string; params?: Record<string, unknown> };
+      if (request.method === "agent") {
+        return { runId: "run-last-assistant", acceptedAt: 123 };
+      }
+      if (request.method === "agent.wait") {
+        return { status: "ok" };
+      }
+      if (request.method === "chat.history") {
+        return {
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "assistant answer" }],
+            },
+            {
+              role: "user",
+              content: [{ type: "text", text: "follow-up user message" }],
+            },
+          ],
+        };
+      }
+      return {};
+    });
+
+    const tool = createOpenClawTools({
+      agentSessionKey: "main",
+      agentChannel: "discord",
+    }).find((candidate) => candidate.name === "sessions_send");
+    expect(tool).toBeDefined();
+    if (!tool) {
+      throw new Error("missing sessions_send tool");
+    }
+
+    const result = await tool.execute("call7b", {
+      sessionKey: "main",
+      message: "ping",
+      timeoutSeconds: 1,
+    });
+    const details = result.details as { status?: string; reply?: string };
+    expect(details.status).toBe("ok");
+    expect(details.reply).toBe("assistant answer");
+  });
+
   it("sessions_send runs ping-pong then announces", async () => {
     callGatewayMock.mockReset();
     const calls: Array<{ method?: string; params?: unknown }> = [];

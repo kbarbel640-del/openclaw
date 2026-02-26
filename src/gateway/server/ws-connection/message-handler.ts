@@ -201,10 +201,12 @@ export function attachGatewayWsMessageHandler(params: {
   // cause all external requests to be treated as trusted local clients.
   const hasProxyHeaders = Boolean(forwardedFor || realIp);
   const remoteIsTrustedProxy = isTrustedProxyAddress(remoteAddr, trustedProxies);
-  const hasUntrustedProxyHeaders = hasProxyHeaders && !remoteIsTrustedProxy;
   const hostName = resolveHostName(requestHost);
   const hostIsLocal = hostName === "localhost" || hostName === "127.0.0.1" || hostName === "::1";
   const hostIsTailscaleServe = hostName.endsWith(".ts.net");
+  const isTailscaleServeLoopbackProxy = hostIsTailscaleServe && isLoopbackAddress(remoteAddr);
+  const hasUntrustedProxyHeaders =
+    hasProxyHeaders && !remoteIsTrustedProxy && !isTailscaleServeLoopbackProxy;
   const hostIsLocalish = hostIsLocal || hostIsTailscaleServe;
   const isLocalClient = isLocalDirectRequest(upgradeReq, trustedProxies);
   const reportedClientIp =

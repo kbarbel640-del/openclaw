@@ -23,6 +23,7 @@ import {
   type ChatDocumentContent,
   parseMessageWithAttachments,
 } from "../chat-attachments.js";
+import { EMPTY_ASSISTANT_TEXT_FALLBACK, sanitizeAssistantText } from "../chat-response-text.js";
 import { stripEnvelopeFromMessages } from "../chat-sanitize.js";
 import { GATEWAY_CLIENT_CAPS, hasGatewayClientCap } from "../protocol/client-info.js";
 import {
@@ -503,7 +504,7 @@ export const chatHandlers: GatewayRequestHandlers = {
           if (info.kind !== "final") {
             return;
           }
-          const text = payload.text?.trim() ?? "";
+          const text = sanitizeAssistantText(payload.text ?? "").trim();
           if (!text) {
             return;
           }
@@ -570,6 +571,19 @@ export const chatHandlers: GatewayRequestHandlers = {
                   usage: { input: 0, output: 0, totalTokens: 0 },
                 };
               }
+            } else {
+              message = {
+                role: "assistant",
+                content: [
+                  {
+                    type: "text",
+                    text: EMPTY_ASSISTANT_TEXT_FALLBACK,
+                  },
+                ],
+                timestamp: Date.now(),
+                stopReason: "injected",
+                usage: { input: 0, output: 0, totalTokens: 0 },
+              };
             }
             broadcastChatFinal({
               context,

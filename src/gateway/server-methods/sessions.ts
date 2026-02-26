@@ -253,7 +253,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         reasoningLevel: entry?.reasoningLevel,
         responseUsage: entry?.responseUsage,
         model: entry?.model,
-        contextTokens: entry?.contextTokens,
+        contextTokens: 0, // Reset token count on session reset (#1523)
         sendPolicy: entry?.sendPolicy,
         label: entry?.label,
         origin: snapshotSessionOrigin(entry),

@@ -2,6 +2,11 @@ import { normalizeVerboseLevel } from "../auto-reply/thinking.js";
 import { loadConfig } from "../config/config.js";
 import { type AgentEventPayload, getAgentRunContext } from "../infra/agent-events.js";
 import { resolveHeartbeatVisibility } from "../infra/heartbeat-visibility.js";
+import {
+  EMPTY_ASSISTANT_TEXT_FALLBACK,
+  mergeAssistantTextBuffer,
+  sanitizeAssistantText,
+} from "./chat-response-text.js";
 import { loadSessionEntry } from "./session-utils.js";
 import { formatForLog } from "./ws-log.js";
 
@@ -228,7 +233,13 @@ export function createAgentEventHandler({
   toolEventRecipients,
 }: AgentEventHandlerOptions) {
   const emitChatDelta = (sessionKey: string, clientRunId: string, seq: number, text: string) => {
-    chatRunState.buffers.set(clientRunId, text);
+    const cleanText = sanitizeAssistantText(text);
+    if (!cleanText.trim()) {
+      return;
+    }
+    const previous = chatRunState.buffers.get(clientRunId) ?? "";
+    const mergedText = mergeAssistantTextBuffer(previous, cleanText);
+    chatRunState.buffers.set(clientRunId, mergedText);
     const now = Date.now();
     const last = chatRunState.deltaSentAt.get(clientRunId) ?? 0;
     if (now - last < 150) {
@@ -242,7 +253,7 @@ export function createAgentEventHandler({
       state: "delta" as const,
       message: {
         role: "assistant",
-        content: [{ type: "text", text }],
+        content: [{ type: "text", text: mergedText }],
         timestamp: now,
       },
     };
@@ -260,22 +271,22 @@ export function createAgentEventHandler({
     jobState: "done" | "error",
     error?: unknown,
   ) => {
-    const text = chatRunState.buffers.get(clientRunId)?.trim() ?? "";
+    const rawText = chatRunState.buffers.get(clientRunId)?.trim() ?? "";
+    const text = sanitizeAssistantText(rawText).trim();
     chatRunState.buffers.delete(clientRunId);
     chatRunState.deltaSentAt.delete(clientRunId);
     if (jobState === "done") {
+      const finalText = text.length > 0 ? text : EMPTY_ASSISTANT_TEXT_FALLBACK;
       const payload = {
         runId: clientRunId,
         sessionKey,
         seq,
         state: "final" as const,
-        message: text
-          ? {
-              role: "assistant",
-              content: [{ type: "text", text }],
-              timestamp: Date.now(),
-            }
-          : undefined,
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: finalText }],
+          timestamp: Date.now(),
+        },
       };
       // Suppress webchat broadcast for heartbeat runs when showOk is false
       if (!shouldSuppressHeartbeatBroadcast(clientRunId)) {

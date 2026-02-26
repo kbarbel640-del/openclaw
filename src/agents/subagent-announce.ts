@@ -11,6 +11,7 @@ import {
 import { callGateway } from "../gateway/call.js";
 import { normalizeMainKey } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
+import { SESSION_LABEL_MAX_LENGTH } from "../sessions/session-label.js";
 import {
   type DeliveryContext,
   deliveryContextFromSession,
@@ -177,6 +178,83 @@ function loadRequesterSessionEntry(requesterSessionKey: string) {
   return { cfg, entry, canonicalKey };
 }
 
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  if (typeof err === "string") {
+    return err;
+  }
+  return String(err);
+}
+
+function truncateLabel(input: string): string {
+  if (input.length <= SESSION_LABEL_MAX_LENGTH) {
+    return input;
+  }
+  return input.slice(0, SESSION_LABEL_MAX_LENGTH);
+}
+
+function buildCollisionSafeLabel(baseLabel: string, childRunId: string, attempt: number): string {
+  const normalized = baseLabel.trim();
+  const suffix = attempt <= 0 ? "" : ` #${childRunId.slice(0, 6)}-${attempt}`;
+  const maxBase = SESSION_LABEL_MAX_LENGTH - suffix.length;
+  const base = maxBase > 0 ? normalized.slice(0, maxBase) : "";
+  return truncateLabel(`${base}${suffix}`);
+}
+
+async function isSessionLabelAvailable(label: string, childSessionKey: string): Promise<boolean> {
+  try {
+    const resolved = await callGateway<{ key?: string }>({
+      method: "sessions.resolve",
+      params: { label },
+      timeoutMs: 5_000,
+    });
+    const resolvedKey = typeof resolved?.key === "string" ? resolved.key.trim() : "";
+    return !resolvedKey || resolvedKey === childSessionKey;
+  } catch {
+    // Resolve throws when no match; treat as available.
+    return true;
+  }
+}
+
+async function patchSubagentLabelBestEffort(params: {
+  childSessionKey: string;
+  label: string;
+  childRunId: string;
+}) {
+  const baseLabel = params.label.trim();
+  if (!baseLabel) {
+    return;
+  }
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const candidate = buildCollisionSafeLabel(baseLabel, params.childRunId, attempt);
+    if (!candidate) {
+      return;
+    }
+    const available = await isSessionLabelAvailable(candidate, params.childSessionKey);
+    if (!available) {
+      continue;
+    }
+
+    try {
+      await callGateway({
+        method: "sessions.patch",
+        params: { key: params.childSessionKey, label: candidate },
+        timeoutMs: 10_000,
+      });
+      return;
+    } catch (err) {
+      const message = toErrorMessage(err).toLowerCase();
+      if (message.includes("label already in use")) {
+        continue;
+      }
+      return;
+    }
+  }
+}
+
 export async function maybeQueueSubagentAnnounce(params: {
   requesterSessionKey: string;
   triggerMessage: string;
@@ -322,11 +400,23 @@ export function buildSubagentSystemPrompt(params: {
     "",
     "**Refer to your AGENTS.md for your agent network and session keys.**",
     "",
+    "## Planning (MANDATORY — do this first)",
+    "Before calling any tool, you MUST register a plan using the plan tool:",
+    "```",
+    'plan(action="set", goal="<what you need to accomplish>", steps=["step 1", "step 2", ...], done_when="<how you know it\'s done>")',
+    "```",
+    "- List at least 3 specific, ordered steps",
+    "- Include a clear `done_when` success criterion",
+    '- After each step completes, call `plan(action="step", step=N, status="done")`',
+    '- When the task is complete, call `plan(action="done", summary="...")`',
+    "Skipping the plan step means your work quality cannot be assessed.",
+    "",
     "## Rules",
-    "1. **Stay on task** - Focus on your assigned task and related collaboration",
-    "2. **Complete the task** - Your final message will be automatically reported back",
-    "3. **Collaborate when needed** - Don't work in isolation if another agent can help",
-    "4. **Be ephemeral** - You may be terminated after task completion. That's fine.",
+    "1. **Plan first** - Register your plan before calling any other tool",
+    "2. **Stay on task** - Focus on your assigned task and related collaboration",
+    "3. **Complete the task** - Your final message will be automatically reported back",
+    "4. **Collaborate when needed** - Don't work in isolation if another agent can help",
+    "5. **Be ephemeral** - You may be terminated after task completion. That's fine.",
     "",
     "## Output Format",
     "When complete, your final response should include:",
@@ -507,15 +597,11 @@ export async function runSubagentAnnounceFlow(params: {
   } finally {
     // Patch label after all writes complete
     if (params.label) {
-      try {
-        await callGateway({
-          method: "sessions.patch",
-          params: { key: params.childSessionKey, label: params.label },
-          timeoutMs: 10_000,
-        });
-      } catch {
-        // Best-effort
-      }
+      await patchSubagentLabelBestEffort({
+        childSessionKey: params.childSessionKey,
+        label: params.label,
+        childRunId: params.childRunId,
+      });
     }
     if (params.cleanup === "delete") {
       try {
