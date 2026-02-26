@@ -37,7 +37,9 @@ RUN if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
       mkdir -p /home/node/.cache/ms-playwright && \
       PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
       node /app/node_modules/playwright-core/cli.js install --with-deps chromium && \
-      chown -R node:node /home/node/.cache/ms-playwright && \
+      # Create stable symlink for K8s/Config usage
+      ln -sf /home/node/.cache/ms-playwright/chromium-*/chrome-linux64/chrome /home/node/chromium && \
+      chown -R node:node /home/node/.cache/ms-playwright /home/node/chromium && \
       apt-get clean && \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi

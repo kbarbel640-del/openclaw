@@ -4,6 +4,7 @@ metadata:
   name: openclaw-secret
 type: Opaque
 stringData:
+  # WARNING: Change this token for production deployments!
   OPENCLAW_GATEWAY_TOKEN: "openclaw-token-123"
 
   # ==========================================
@@ -53,13 +54,16 @@ data:
           "allowInsecureAuth": true,
           "dangerouslyAllowHostHeaderOriginFallback": true,
           "dangerouslyDisableDeviceAuth": true
+          // These flags are required because this Quick Start uses plain HTTP.
+          // If you configure HTTPS (via Ingress, NodePort TLS, etc.), you should remove these flags.
         }
       },
       "browser": {
         "defaultProfile": "openclaw",
         "headless": true,
         "noSandbox": true,
-        "executablePath": "/home/node/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome"
+        // Use stable symlink created in Dockerfile (avoids version-specific paths)
+        "executablePath": "/home/node/chromium"
       },
       "agents": { "defaults": { "workspace": "/data/workspace" } }
     }
@@ -209,8 +213,7 @@ spec:
               fi
 
               # 4. run doctor
-              echo "$(ls -lt /data/openclaw )"
-              #/data/openclaw doctor --fix
+              # /data/openclaw doctor --fix
 
               # 5. Fix permissions (Critical: main container runs as user 'node')
               chown -R node:node /data/.openclaw

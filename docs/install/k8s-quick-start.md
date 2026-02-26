@@ -83,6 +83,14 @@ Wait for the pod to be ready:
 kubectl get pods -w
 ```
 
+## Security Considerations for Production
+
+The default configuration in `deploy/k8s/openclaw.yaml` is optimized for a quick start on a local cluster (NodePort, HTTP). For a production deployment exposed to the internet, you **must**:
+
+1.  **Change the Default Token**: Update `OPENCLAW_GATEWAY_TOKEN` in the Secret.
+2.  **Use HTTPS**: Configure TLS (e.g., via Ingress, LoadBalancer, or NodePort TLS).
+3.  **Disable Dangerous Flags**: Once HTTPS is enabled, the browser treats the connection as a secure context. You should then remove `allowInsecureAuth`, `dangerouslyAllowHostHeaderOriginFallback`, and `dangerouslyDisableDeviceAuth` from the ConfigMap.
+
 ## 4. Access OpenClaw
 
 The service is exposed as a `NodePort` (port 31889) by default. For local development, port forwarding is the easiest way to access it.
