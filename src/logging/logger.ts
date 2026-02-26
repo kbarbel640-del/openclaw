@@ -33,6 +33,7 @@ type LogObj = { date?: Date } & Record<string, unknown>;
 type ResolvedSettings = {
   level: LogLevel;
   file: string;
+  formattedFile: string;
   maxFileBytes: number;
 };
 export type LoggerResolvedSettings = ResolvedSettings;
@@ -75,15 +76,78 @@ function resolveSettings(): ResolvedSettings {
   const envLevel = resolveEnvLogLevelOverride();
   const level = envLevel ?? fromConfig;
   const file = cfg?.file ?? defaultRollingPathForToday();
+  const formattedFile = deriveFormattedLogPath(file);
   const maxFileBytes = resolveMaxLogFileBytes(cfg?.maxFileBytes);
-  return { level, file, maxFileBytes };
+  return { level, file, formattedFile, maxFileBytes };
+}
+
+/** Same directory as file; base name + "-formatted" before extension, e.g. openclaw.log → openclaw-formatted.log */
+function deriveFormattedLogPath(file: string): string {
+  const dir = path.dirname(file);
+  const base = path.basename(file, path.extname(file));
+  const ext = path.extname(file);
+  return path.join(dir, `${base}-formatted${ext}`);
+}
+
+/** Plain text line for the formatted log file: YYYY-MM-DD HH:mm:ss [subsystem] message */
+function formatPlainLogLine(logObj: LogObj): string {
+  const d = logObj.date ?? new Date();
+  const timeStr =
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ` +
+    `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+  let subsystem = "main";
+  const meta = logObj._meta as Record<string, unknown> | undefined;
+  const nameCandidates = [
+    typeof meta?.name === "string" ? meta.name : null,
+    typeof (logObj as Record<string, unknown>)["0"] === "string"
+      ? (logObj as Record<string, unknown>)["0"]
+      : null,
+  ].filter(Boolean) as string[];
+  for (const candidate of nameCandidates) {
+    try {
+      const parsed = JSON.parse(candidate) as Record<string, unknown>;
+      if (typeof parsed.subsystem === "string") {
+        subsystem = parsed.subsystem;
+        break;
+      }
+      if (typeof parsed.module === "string") {
+        subsystem = parsed.module;
+        break;
+      }
+    } catch {
+      continue;
+    }
+  }
+  const parts: string[] = [];
+  const keys = Object.keys(logObj).filter((k) => /^\d+$/.test(k));
+  keys.sort((a, b) => Number(a) - Number(b));
+  for (const key of keys) {
+    const v = (logObj as Record<string, unknown>)[key];
+    if (typeof v === "string") {
+      parts.push(v.replace(/\s+/g, " ").trim());
+    } else if (v != null) {
+      parts.push(JSON.stringify(v).replace(/\s+/g, " ").trim());
+    }
+  }
+  const message: string =
+    parts.length > 0
+      ? parts.join(" ")
+      : typeof (logObj as Record<string, unknown>).message === "string"
+        ? (logObj as Record<string, unknown>).message
+        : "";
+  return `${timeStr} [${subsystem}] ${message}`.trim();
 }
 
 function settingsChanged(a: ResolvedSettings | null, b: ResolvedSettings) {
   if (!a) {
     return true;
   }
-  return a.level !== b.level || a.file !== b.file || a.maxFileBytes !== b.maxFileBytes;
+  return (
+    a.level !== b.level ||
+    a.file !== b.file ||
+    a.formattedFile !== b.formattedFile ||
+    a.maxFileBytes !== b.maxFileBytes
+  );
 }
 
 export function isFileLogLevelEnabled(level: LogLevel): boolean {
@@ -121,13 +185,19 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
       if (nextBytes > settings.maxFileBytes) {
         if (!warnedAboutSizeCap) {
           warnedAboutSizeCap = true;
-          const warningLine = JSON.stringify({
+          const warningJson = JSON.stringify({
             time: new Date().toISOString(),
             level: "warn",
             subsystem: "logging",
             message: `log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}`,
           });
-          appendLogLine(settings.file, `${warningLine}\n`);
+          appendLogLine(settings.file, `${warningJson}\n`);
+          const warningPlainLine = formatPlainLogLine({
+            date: new Date(),
+            _meta: { logLevelName: "WARN", name: '{"subsystem":"logging"}' },
+            0: `log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}`,
+          });
+          appendLogLine(settings.formattedFile, `${warningPlainLine}\n`);
           process.stderr.write(
             `[openclaw] log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}\n`,
           );
@@ -136,6 +206,8 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
       }
       if (appendLogLine(settings.file, payload)) {
         currentFileBytes = nextBytes;
+        const plainLine = formatPlainLogLine(logObj);
+        appendLogLine(settings.formattedFile, `${plainLine}\n`);
       }
     } catch {
       // never block on logging failures
