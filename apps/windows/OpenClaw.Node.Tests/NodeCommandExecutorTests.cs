@@ -36,7 +36,7 @@ namespace OpenClaw.Node.Tests
 
             var res = await executor.ExecuteAsync(req);
 
-            Assert.True(res.Ok);
+            if (!res.Ok) throw new Exception(res.Error?.Message ?? "(no error)");
             Assert.NotNull(res.PayloadJSON);
 
             using var doc = JsonDocument.Parse(res.PayloadJSON!);
@@ -116,7 +116,7 @@ namespace OpenClaw.Node.Tests
 
             var res = await executor.ExecuteAsync(req);
 
-            Assert.True(res.Ok);
+            if (!res.Ok) throw new Exception(res.Error?.Message ?? "(no error)");
             Assert.NotNull(res.PayloadJSON);
 
             using var doc = JsonDocument.Parse(res.PayloadJSON!);
@@ -519,7 +519,7 @@ namespace OpenClaw.Node.Tests
         }
 
                         [Fact]
-        public async Task ScreenCapture_ShouldReturnExpectedResult_ForCurrentPlatform()
+        public async Task ScreenCapture_WithoutRouting_ShouldReturnInvalidRequest_OnWindows()
         {
             var executor = new NodeCommandExecutor();
             var req = new BridgeInvokeRequest
@@ -532,8 +532,9 @@ namespace OpenClaw.Node.Tests
 
             if (OperatingSystem.IsWindows())
             {
-                Assert.True(res.Ok);
-                Assert.NotNull(res.PayloadJSON);
+                Assert.False(res.Ok);
+                Assert.NotNull(res.Error);
+                Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
             }
             else
             {

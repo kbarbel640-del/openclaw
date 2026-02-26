@@ -7,6 +7,10 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+#if WINDOWS
+using System.Windows.Automation;
+#endif
+
 namespace OpenClaw.Node.Services
 {
     public sealed class AutomationService
@@ -134,8 +138,7 @@ namespace OpenClaw.Node.Services
                 return Task.FromResult(true);
             }
 
-            // Fallback path for foreground lock constraints:
-            // temporarily attach input queues and retry focus activation.
+            // Fallback path for foreground lock constraints
             var foreground = GetForegroundWindow();
             var currentThread = GetCurrentThreadId();
             var targetThread = GetWindowThreadProcessId(target, out _);
@@ -222,6 +225,68 @@ namespace OpenClaw.Node.Services
             });
         }
 
+        public async Task<string> GetSnapshotAsync(int maxDepth = 5)
+        {
+#if WINDOWS
+            if (!OperatingSystem.IsWindows()) return "{}";
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    var root = AutomationElement.RootElement;
+                    var walker = TreeWalker.ControlViewWalker;
+                    var snapshot = WalkTree(root, walker, 0, maxDepth);
+                    return JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true });
+                }
+                catch (Exception ex)
+                {
+                    return JsonSerializer.Serialize(new { error = ex.Message });
+                }
+            });
+#else
+            return await Task.FromResult("{}");
+#endif
+        }
+
+#if WINDOWS
+        private object WalkTree(AutomationElement element, TreeWalker walker, int depth, int maxDepth)
+        {
+            var node = new Dictionary<string, object>();
+            
+            try
+            {
+                node["name"] = element.Current.Name;
+                node["type"] = element.Current.ControlType.ProgrammaticName.Replace("ControlType.", "");
+                node["id"] = element.Current.AutomationId;
+                
+                var rect = element.Current.BoundingRectangle;
+                if (!rect.IsEmpty)
+                {
+                    node["rect"] = new { x = (int)rect.Left, y = (int)rect.Top, w = (int)rect.Width, h = (int)rect.Height };
+                }
+            }
+            catch 
+            {
+                // Element might have gone invalid or offscreen
+                return new { error = "invalid" };
+            }
+
+            if (depth < maxDepth)
+            {
+                var children = new List<object>();
+                var child = walker.GetFirstChild(element);
+                while (child != null)
+                {
+                    children.Add(WalkTree(child, walker, depth + 1, maxDepth));
+                    child = walker.GetNextSibling(child);
+                }
+                if (children.Count > 0) node["children"] = children;
+            }
+            return node;
+        }
+#endif
+
         public async Task<UiElementInfo?> FindUiElementAsync(long? handle, string? titleContains, string? name, string? automationId, string? controlType, int timeoutMs = 1500)
         {
             var detailed = await FindUiElementDetailedAsync(handle, titleContains, name, automationId, controlType, timeoutMs);
@@ -240,160 +305,128 @@ namespace OpenClaw.Node.Services
                 return new UiFindResult { Reason = "selectors-required" };
             }
 
-            var target = ResolveWindow(handle, titleContains);
-            if (target == IntPtr.Zero)
+#if WINDOWS
+            return await Task.Run(() =>
             {
-                return new UiFindResult { Reason = "window-not-found" };
-            }
-
-            var controlTypeToken = MapControlTypeToken(controlType);
-            var safeName = EscapeForPowerShellSingleQuoted(name ?? string.Empty);
-            var safeAutomationId = EscapeForPowerShellSingleQuoted(automationId ?? string.Empty);
-            var safeControlType = EscapeForPowerShellSingleQuoted(controlTypeToken ?? string.Empty);
-            var safeTimeout = Math.Clamp(timeoutMs, 200, 10000);
-
-            var script = $@"
-Add-Type -AssemblyName UIAutomationClient
-$h = [IntPtr]::new({target.ToInt64()})
-$root = [System.Windows.Automation.AutomationElement]::FromHandle($h)
-if (-not $root) {{
-  @{{ ok = $false; reason = 'window-root-not-found' }} | ConvertTo-Json -Compress
-  return
-}}
-
-$ct = $null
-if ('{safeControlType}'.Length -gt 0) {{
-  $ctName = [System.Windows.Automation.ControlType].GetProperty('{safeControlType}', [System.Reflection.BindingFlags]'Public,Static,IgnoreCase')
-  if ($ctName) {{ $ct = $ctName.GetValue($null) }}
-}}
-
-$plans = @()
-if ('{safeAutomationId}'.Length -gt 0 -and '{safeName}'.Length -gt 0 -and '{safeControlType}'.Length -gt 0 -and $ct -ne $null) {{ $plans += @{{ label='automationId+name+controlType'; a=$true; n=$true; c=$true }} }}
-if ('{safeAutomationId}'.Length -gt 0 -and '{safeName}'.Length -gt 0) {{ $plans += @{{ label='automationId+name'; a=$true; n=$true; c=$false }} }}
-if ('{safeAutomationId}'.Length -gt 0 -and '{safeControlType}'.Length -gt 0 -and $ct -ne $null) {{ $plans += @{{ label='automationId+controlType'; a=$true; n=$false; c=$true }} }}
-if ('{safeName}'.Length -gt 0 -and '{safeControlType}'.Length -gt 0 -and $ct -ne $null) {{ $plans += @{{ label='name+controlType'; a=$false; n=$true; c=$true }} }}
-if ('{safeAutomationId}'.Length -gt 0) {{ $plans += @{{ label='automationId'; a=$true; n=$false; c=$false }} }}
-if ('{safeName}'.Length -gt 0) {{ $plans += @{{ label='name'; a=$false; n=$true; c=$false }} }}
-if ('{safeControlType}'.Length -gt 0 -and $ct -ne $null) {{ $plans += @{{ label='controlType'; a=$false; n=$false; c=$true }} }}
-
-if ($plans.Count -eq 0) {{
-  @{{ ok = $false; reason = if ('{safeControlType}'.Length -gt 0 -and $ct -eq $null) {{ 'invalid-control-type' }} else {{ 'selectors-required' }} }} | ConvertTo-Json -Compress
-  return
-}}
-
-$deadline = [DateTime]::UtcNow.AddMilliseconds({safeTimeout})
-$el = $null
-$matched = ''
-while (-not $el -and [DateTime]::UtcNow -lt $deadline) {{
-  foreach ($plan in $plans) {{
-    $conds = New-Object System.Collections.Generic.List[System.Windows.Automation.Condition]
-    if ($plan.n) {{
-      $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, '{safeName}')))
-    }}
-    if ($plan.a) {{
-      $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, '{safeAutomationId}')))
-    }}
-    if ($plan.c -and $ct -ne $null) {{
-      $conds.Add((New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, $ct)))
-    }}
-    if ($conds.Count -eq 0) {{ continue }}
-
-    $cond = if ($conds.Count -eq 1) {{ $conds[0] }} else {{ New-Object System.Windows.Automation.AndCondition($conds.ToArray()) }}
-    $candidate = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
-    if ($candidate) {{
-      $el = $candidate
-      $matched = $plan.label
-      break
-    }}
-  }}
-
-  if (-not $el) {{ Start-Sleep -Milliseconds 100 }}
-}}
-
-if (-not $el) {{
-  @{{ ok = $false; reason = 'not-found'; strategy = ($plans | ForEach-Object {{ $_.label }}) -join ',' }} | ConvertTo-Json -Compress
-  return
-}}
-
-$rect = $el.Current.BoundingRectangle
-if ($rect.IsEmpty) {{
-  @{{ ok = $false; reason = 'element-bounding-rect-empty'; strategy = $matched }} | ConvertTo-Json -Compress
-  return
-}}
-
-@{{
-  ok = $true
-  strategy = $matched
-  element = @{{
-    name = $el.Current.Name
-    automationId = $el.Current.AutomationId
-    controlType = $el.Current.ControlType.ProgrammaticName
-    left = [int][Math]::Round($rect.Left)
-    top = [int][Math]::Round($rect.Top)
-    right = [int][Math]::Round($rect.Right)
-    bottom = [int][Math]::Round($rect.Bottom)
-  }}
-}} | ConvertTo-Json -Compress
-";
-
-            var result = await RunPowerShellAsync(script);
-            if (result.ExitCode != 0)
-            {
-                return new UiFindResult { Reason = string.IsNullOrWhiteSpace(result.StdErr) ? "powershell-exit-nonzero" : result.StdErr.Trim() };
-            }
-
-            var jsonLine = result.StdOut
-                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(x => x.Trim())
-                .FirstOrDefault(x => x.StartsWith("{", StringComparison.Ordinal));
-
-            if (string.IsNullOrWhiteSpace(jsonLine))
-            {
-                return new UiFindResult { Reason = "no-json-output" };
-            }
-
-            try
-            {
-                using var doc = JsonDocument.Parse(jsonLine);
-                var root = doc.RootElement;
-                var ok = root.TryGetProperty("ok", out var okEl) && okEl.ValueKind == JsonValueKind.True;
-                var strategy = root.TryGetProperty("strategy", out var stEl) && stEl.ValueKind == JsonValueKind.String
-                    ? (stEl.GetString() ?? string.Empty)
-                    : string.Empty;
-
-                if (!ok)
+                try
                 {
-                    var reason = root.TryGetProperty("reason", out var rEl) && rEl.ValueKind == JsonValueKind.String
-                        ? (rEl.GetString() ?? "not-found")
-                        : "not-found";
-                    return new UiFindResult { Reason = reason, Strategy = strategy };
-                }
-
-                if (!root.TryGetProperty("element", out var elementEl) || elementEl.ValueKind != JsonValueKind.Object)
-                {
-                    return new UiFindResult { Reason = "missing-element-payload", Strategy = strategy };
-                }
-
-                return new UiFindResult
-                {
-                    Strategy = strategy,
-                    Element = new UiElementInfo
+                    AutomationElement? root = AutomationElement.RootElement;
+                    if (handle.HasValue || !string.IsNullOrWhiteSpace(titleContains))
                     {
-                        Name = elementEl.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String ? (nEl.GetString() ?? string.Empty) : string.Empty,
-                        AutomationId = elementEl.TryGetProperty("automationId", out var aEl) && aEl.ValueKind == JsonValueKind.String ? (aEl.GetString() ?? string.Empty) : string.Empty,
-                        ControlType = elementEl.TryGetProperty("controlType", out var cEl) && cEl.ValueKind == JsonValueKind.String ? (cEl.GetString() ?? string.Empty) : string.Empty,
-                        Left = elementEl.TryGetProperty("left", out var lEl) && lEl.ValueKind == JsonValueKind.Number ? lEl.GetInt32() : 0,
-                        Top = elementEl.TryGetProperty("top", out var tEl) && tEl.ValueKind == JsonValueKind.Number ? tEl.GetInt32() : 0,
-                        Right = elementEl.TryGetProperty("right", out var r2El) && r2El.ValueKind == JsonValueKind.Number ? r2El.GetInt32() : 0,
-                        Bottom = elementEl.TryGetProperty("bottom", out var bEl) && bEl.ValueKind == JsonValueKind.Number ? bEl.GetInt32() : 0,
+                        var targetHwnd = ResolveWindow(handle, titleContains);
+                        if (targetHwnd != IntPtr.Zero)
+                        {
+                            try
+                            {
+                                root = AutomationElement.FromHandle(targetHwnd);
+                            }
+                            catch
+                            {
+                                return new UiFindResult { Reason = "window-root-invalid" };
+                            }
+                        }
+                        else
+                        {
+                            return new UiFindResult { Reason = "window-not-found" };
+                        }
                     }
-                };
-            }
-            catch
-            {
-                return new UiFindResult { Reason = "invalid-json" };
-            }
+
+                    if (root == null)
+                    {
+                         return new UiFindResult { Reason = "root-element-null" };
+                    }
+
+                    // Build Conditions
+                    var conditions = new List<Condition>();
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        conditions.Add(new PropertyCondition(AutomationElement.NameProperty, name));
+                    }
+                    if (!string.IsNullOrWhiteSpace(automationId))
+                    {
+                        conditions.Add(new PropertyCondition(AutomationElement.AutomationIdProperty, automationId));
+                    }
+                    if (!string.IsNullOrWhiteSpace(controlType))
+                    {
+                         var ct = GetControlTypeByName(controlType);
+                         if (ct != null)
+                         {
+                             conditions.Add(new PropertyCondition(AutomationElement.ControlTypeProperty, ct));
+                         }
+                    }
+
+                    if (conditions.Count == 0) return new UiFindResult { Reason = "no-conditions" };
+
+                    Condition searchCondition = conditions.Count == 1 
+                        ? conditions[0] 
+                        : new AndCondition(conditions.ToArray());
+
+                    // Retry loop
+                    var deadline = DateTime.UtcNow.AddMilliseconds(Math.Clamp(timeoutMs, 200, 10000));
+                    AutomationElement? found = null;
+
+                    while (DateTime.UtcNow < deadline)
+                    {
+                        found = root.FindFirst(TreeScope.Descendants, searchCondition);
+                        if (found != null) break;
+                        System.Threading.Thread.Sleep(100);
+                    }
+
+                    if (found == null)
+                    {
+                        return new UiFindResult { Reason = "not-found", Strategy = "native-search" };
+                    }
+
+                    var rect = found.Current.BoundingRectangle;
+                    if (rect.IsEmpty)
+                    {
+                         return new UiFindResult { Reason = "element-bounding-rect-empty", Strategy = "native-search" };
+                    }
+
+                    return new UiFindResult
+                    {
+                        Strategy = "native-uia",
+                        Element = new UiElementInfo
+                        {
+                            Name = found.Current.Name,
+                            AutomationId = found.Current.AutomationId,
+                            ControlType = found.Current.ControlType.ProgrammaticName.Replace("ControlType.", ""),
+                            Left = (int)rect.Left,
+                            Top = (int)rect.Top,
+                            Right = (int)rect.Right,
+                            Bottom = (int)rect.Bottom
+                        }
+                    };
+                }
+                catch (Exception ex)
+                {
+                    return new UiFindResult { Reason = "exception: " + ex.Message };
+                }
+            });
+#else
+            return await Task.FromResult(new UiFindResult { Reason = "platform-not-supported" });
+#endif
         }
+
+#if WINDOWS
+        private static ControlType? GetControlTypeByName(string name)
+        {
+            var clean = name.Trim();
+            // Simple mapping for common types
+            if (clean.Equals("Button", StringComparison.OrdinalIgnoreCase)) return ControlType.Button;
+            if (clean.Equals("Edit", StringComparison.OrdinalIgnoreCase)) return ControlType.Edit;
+            if (clean.Equals("Window", StringComparison.OrdinalIgnoreCase)) return ControlType.Window;
+            if (clean.Equals("CheckBox", StringComparison.OrdinalIgnoreCase)) return ControlType.CheckBox;
+            if (clean.Equals("Document", StringComparison.OrdinalIgnoreCase)) return ControlType.Document;
+            if (clean.Equals("Pane", StringComparison.OrdinalIgnoreCase)) return ControlType.Pane;
+            if (clean.Equals("List", StringComparison.OrdinalIgnoreCase)) return ControlType.List;
+            if (clean.Equals("ListItem", StringComparison.OrdinalIgnoreCase)) return ControlType.ListItem;
+            if (clean.Equals("Menu", StringComparison.OrdinalIgnoreCase)) return ControlType.Menu;
+            if (clean.Equals("MenuItem", StringComparison.OrdinalIgnoreCase)) return ControlType.MenuItem;
+            // ... add more as needed, or use reflection
+            return null;
+        }
+#endif
 
         public async Task<bool> ClickUiElementAsync(long? handle, string? titleContains, string? name, string? automationId, string? controlType, string button = "primary", bool doubleClick = false)
         {
@@ -734,56 +767,11 @@ if ($rect.IsEmpty) {{
             return null;
         }
 
-        private static string EscapeForPowerShellSingleQuoted(string value)
-        {
-            return (value ?? string.Empty).Replace("'", "''");
-        }
-
-        private static string? MapControlTypeToken(string? controlType)
-        {
-            if (string.IsNullOrWhiteSpace(controlType))
-            {
-                return null;
-            }
-
-            return controlType.Trim().ToLowerInvariant() switch
-            {
-                "button" => "Button",
-                "edit" or "textbox" or "text" => "Edit",
-                "checkbox" => "CheckBox",
-                "combobox" => "ComboBox",
-                "list" => "List",
-                "listitem" => "ListItem",
-                "menu" => "Menu",
-                "menuitem" => "MenuItem",
-                "tab" => "Tab",
-                "tabitem" => "TabItem",
-                "tree" => "Tree",
-                "treeitem" => "TreeItem",
-                "pane" => "Pane",
-                "window" => "Window",
-                "hyperlink" => "Hyperlink",
-                "radio" or "radiobutton" => "RadioButton",
-                _ => controlType.Trim(),
-            };
-        }
-
         private sealed class PowerShellResult
         {
             public int ExitCode { get; set; }
             public string StdOut { get; set; } = string.Empty;
             public string StdErr { get; set; } = string.Empty;
-        }
-
-        private sealed class UiElementPowerShellDto
-        {
-            public string? Name { get; set; }
-            public string? AutomationId { get; set; }
-            public string? ControlType { get; set; }
-            public int Left { get; set; }
-            public int Top { get; set; }
-            public int Right { get; set; }
-            public int Bottom { get; set; }
         }
 
         private static bool SendUnicodeChar(char ch)

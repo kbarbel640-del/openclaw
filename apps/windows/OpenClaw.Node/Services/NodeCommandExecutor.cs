@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using OpenClaw.Node.Protocol;
 
@@ -10,6 +12,23 @@ namespace OpenClaw.Node.Services
 {
     public class NodeCommandExecutor
     {
+        private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        private static string ToJson(object? value) => JsonSerializer.Serialize(value, JsonOptions);
+
+        private readonly IGatewayRpcClient? _rpc;
+        private readonly IScreenImageProvider _screen;
+
+        public NodeCommandExecutor(IGatewayRpcClient? rpc = null, IScreenImageProvider? screen = null)
+        {
+            _rpc = rpc;
+            _screen = screen ?? new ScreenCaptureService();
+        }
+
         public async Task<BridgeInvokeResponse> ExecuteAsync(BridgeInvokeRequest request)
         {
             try
@@ -19,7 +38,7 @@ namespace OpenClaw.Node.Services
                     "system.notify" => HandleSystemNotify(request),
                     "system.which" => await HandleSystemWhichAsync(request),
                     "system.run" => await HandleSystemRunAsync(request),
-                    "screen.capture" => await HandleDevScreenshotAsync(request),
+                    "screen.capture" => await HandleScreenCaptureAsync(request),
                     "screen.list" => await HandleScreenListAsync(request),
                     "screen.record" => await HandleScreenRecordAsync(request),
                     "camera.list" => await HandleCameraListAsync(request),
@@ -73,7 +92,7 @@ namespace OpenClaw.Node.Services
             {
                 Id = request.Id,
                 Ok = true,
-                PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                PayloadJSON = ToJson(new { ok = true })
             };
         }
 
@@ -110,7 +129,7 @@ namespace OpenClaw.Node.Services
             {
                 Id = request.Id,
                 Ok = result.ExitCode == 0,
-                PayloadJSON = JsonSerializer.Serialize(payload),
+                PayloadJSON = ToJson(payload),
                 Error = result.ExitCode == 0
                     ? null
                     : new OpenClawNodeError
@@ -189,7 +208,7 @@ namespace OpenClaw.Node.Services
             {
                 Id = request.Id,
                 Ok = result.ExitCode == 0,
-                PayloadJSON = JsonSerializer.Serialize(payload),
+                PayloadJSON = ToJson(payload),
                 Error = result.ExitCode == 0
                     ? null
                     : new OpenClawNodeError
@@ -198,6 +217,397 @@ namespace OpenClaw.Node.Services
                         Message = $"system.run failed with exit code {result.ExitCode}"
                     }
             };
+        }
+
+        private async Task<BridgeInvokeResponse> HandleScreenCaptureAsync(BridgeInvokeRequest request)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = "screen.capture is only available on Windows"
+                    }
+                };
+            }
+
+            var root = ParseParams(request.ParamsJSON);
+
+            // Clean contract: reject deprecated/legacy params.
+            var legacyParams = new[] { "path", "handle", "route", "sendToAgent", "deliver" };
+            if (root != null)
+            {
+                foreach (var legacy in legacyParams)
+                {
+                    if (root.Value.TryGetProperty(legacy, out _))
+                    {
+                        return Invalid(request.Id, $"screen.capture params.{legacy} is no longer supported");
+                    }
+                }
+            }
+
+            if (root != null && root.Value.TryGetProperty("mode", out var modeEl) && modeEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "screen.capture params.mode must be a string");
+            }
+            if (root != null && root.Value.TryGetProperty("screenIndex", out var screenEl) && screenEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "screen.capture params.screenIndex must be a number");
+            }
+            if (root != null && root.Value.TryGetProperty("windowHandle", out var whEl) && whEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "screen.capture params.windowHandle must be a number");
+            }
+            if (root != null && root.Value.TryGetProperty("format", out var fmtEl) && fmtEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "screen.capture params.format must be a string");
+            }
+            if (root != null && root.Value.TryGetProperty("message", out var msgEl) && msgEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "screen.capture params.message must be a string");
+            }
+            if (root != null && root.Value.TryGetProperty("sessionKey", out var skEl) && skEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "screen.capture params.sessionKey must be a string");
+            }
+            if (root != null && root.Value.TryGetProperty("channel", out var chEl) && chEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "screen.capture params.channel must be a string");
+            }
+            if (root != null && root.Value.TryGetProperty("to", out var toEl) && toEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "screen.capture params.to must be a string");
+            }
+            if (root != null && root.Value.TryGetProperty("outputPath", out var opEl) && opEl.ValueKind != JsonValueKind.String)
+            {
+                return Invalid(request.Id, "screen.capture params.outputPath must be a string");
+            }
+            if (root != null && root.Value.TryGetProperty("maxWidth", out var mwEl) && mwEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "screen.capture params.maxWidth must be a number");
+            }
+            if (root != null && root.Value.TryGetProperty("quality", out var qEl) && qEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "screen.capture params.quality must be a number");
+            }
+            if (root != null && root.Value.TryGetProperty("maxInlineBytes", out var mibEl) && mibEl.ValueKind != JsonValueKind.Number)
+            {
+                return Invalid(request.Id, "screen.capture params.maxInlineBytes must be a number");
+            }
+
+            var mode = root != null && root.Value.TryGetProperty("mode", out var modeVal) && modeVal.ValueKind == JsonValueKind.String
+                ? (modeVal.GetString() ?? "deliver").Trim().ToLowerInvariant()
+                : "deliver";
+
+            if (mode != "deliver" && mode != "file" && mode != "data")
+            {
+                return Invalid(request.Id, "screen.capture params.mode must be one of: deliver, file, data");
+            }
+
+            var screenIndex = root != null && root.Value.TryGetProperty("screenIndex", out var sIdx) && sIdx.ValueKind == JsonValueKind.Number
+                ? sIdx.GetInt32()
+                : 0;
+            if (screenIndex < 0)
+            {
+                return Invalid(request.Id, "screen.capture params.screenIndex must be >= 0");
+            }
+
+            var format = root != null && root.Value.TryGetProperty("format", out var fmt) && fmt.ValueKind == JsonValueKind.String
+                ? (fmt.GetString() ?? "png").Trim().ToLowerInvariant()
+                : "png";
+            if (format != "png" && format != "jpg" && format != "jpeg")
+            {
+                return Invalid(request.Id, "screen.capture params.format must be one of: png, jpg, jpeg");
+            }
+
+            var outputPath = root != null && root.Value.TryGetProperty("outputPath", out var pathEl) && pathEl.ValueKind == JsonValueKind.String
+                ? (pathEl.GetString() ?? string.Empty).Trim()
+                : string.Empty;
+
+            long windowHandle = 0;
+            if (root != null && root.Value.TryGetProperty("windowHandle", out var wh) && wh.ValueKind == JsonValueKind.Number)
+            {
+                windowHandle = wh.TryGetInt64(out var v) ? v : (long)wh.GetDouble();
+            }
+
+            var sessionKey = root != null && root.Value.TryGetProperty("sessionKey", out var sk) && sk.ValueKind == JsonValueKind.String
+                ? (sk.GetString() ?? string.Empty).Trim()
+                : string.Empty;
+            var message = root != null && root.Value.TryGetProperty("message", out var msg) && msg.ValueKind == JsonValueKind.String
+                ? (msg.GetString() ?? "Desktop screenshot")
+                : "Desktop screenshot";
+            var channel = root != null && root.Value.TryGetProperty("channel", out var ch) && ch.ValueKind == JsonValueKind.String
+                ? (ch.GetString() ?? string.Empty).Trim()
+                : string.Empty;
+            var to = root != null && root.Value.TryGetProperty("to", out var toVal) && toVal.ValueKind == JsonValueKind.String
+                ? (toVal.GetString() ?? string.Empty).Trim()
+                : string.Empty;
+            var maxWidth = root != null && root.Value.TryGetProperty("maxWidth", out var mw) && mw.ValueKind == JsonValueKind.Number
+                ? mw.GetInt32()
+                : 1600;
+            var quality = root != null && root.Value.TryGetProperty("quality", out var qualityEl) && qualityEl.ValueKind == JsonValueKind.Number
+                ? qualityEl.GetDouble()
+                : 0.85;
+            var maxInlineBytes = root != null && root.Value.TryGetProperty("maxInlineBytes", out var maxInlineEl) && maxInlineEl.ValueKind == JsonValueKind.Number
+                ? maxInlineEl.GetInt32()
+                : 1_500_000;
+
+            if (maxWidth <= 0)
+            {
+                return Invalid(request.Id, "screen.capture params.maxWidth must be > 0");
+            }
+            if (quality <= 0 || quality > 1)
+            {
+                return Invalid(request.Id, "screen.capture params.quality must be in range (0, 1]");
+            }
+            if (maxInlineBytes <= 0)
+            {
+                return Invalid(request.Id, "screen.capture params.maxInlineBytes must be > 0");
+            }
+
+            if (mode == "deliver")
+            {
+                if (_rpc == null)
+                {
+                    return Invalid(request.Id, "screen.capture mode=deliver requires gateway RPC client");
+                }
+                if (string.IsNullOrWhiteSpace(channel) || string.IsNullOrWhiteSpace(to))
+                {
+                    return Invalid(request.Id, "screen.capture mode=deliver requires params.channel and params.to");
+                }
+            }
+
+            if (mode == "file" && string.IsNullOrWhiteSpace(outputPath))
+            {
+                return Invalid(request.Id, "screen.capture mode=file requires params.outputPath");
+            }
+
+            try
+            {
+                var source = windowHandle != 0 ? "window" : "screen";
+                (byte[] bytes, int width, int height) raw;
+                if (windowHandle != 0)
+                {
+                    raw = await _screen.CaptureWindowBytesAsync(windowHandle, format);
+                }
+                else
+                {
+                    raw = await _screen.CaptureScreenshotBytesAsync(screenIndex, format);
+                }
+
+                if (raw.bytes.Length == 0)
+                {
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = false,
+                        Error = new OpenClawNodeError
+                        {
+                            Code = OpenClawNodeErrorCode.Unavailable,
+                            Message = "screen.capture failed"
+                        }
+                    };
+                }
+
+                if (mode == "deliver")
+                {
+                    var encoded = ImageEncoding.EncodeJpegBase64(raw.bytes, maxWidth, quality);
+                    if (string.IsNullOrWhiteSpace(encoded.Base64))
+                    {
+                        return new BridgeInvokeResponse
+                        {
+                            Id = request.Id,
+                            Ok = false,
+                            Error = new OpenClawNodeError
+                            {
+                                Code = OpenClawNodeErrorCode.Unavailable,
+                                Message = "screen.capture encode failed"
+                            }
+                        };
+                    }
+
+                    var agentRequest = new
+                    {
+                        message,
+                        sessionKey = string.IsNullOrWhiteSpace(sessionKey) ? null : sessionKey,
+                        deliver = true,
+                        channel,
+                        to,
+                        attachments = new[]
+                        {
+                            new
+                            {
+                                mimeType = encoded.MimeType,
+                                fileName = $"screenshot.{encoded.Format}",
+                                content = encoded.Base64
+                            }
+                        }
+                    };
+
+                    await _rpc!.SendRequestAsync(
+                        method: "node.event",
+                        @params: new { @event = "agent.request", payload = agentRequest },
+                        cancellationToken: CancellationToken.None);
+
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = true,
+                        PayloadJSON = ToJson(new
+                        {
+                            ok = true,
+                            mode,
+                            target = new
+                            {
+                                source,
+                                screenIndex,
+                                windowHandle = windowHandle == 0 ? (long?)null : windowHandle
+                            },
+                            capture = new { format, bytes = raw.bytes.Length, width = raw.width, height = raw.height },
+                            attachment = new { format = encoded.Format, mimeType = encoded.MimeType, bytes = encoded.Bytes, width = encoded.Width, height = encoded.Height },
+                            delivery = new
+                            {
+                                @event = "agent.request",
+                                channel,
+                                to,
+                                sessionKey = string.IsNullOrWhiteSpace(sessionKey) ? null : sessionKey
+                            }
+                        })
+                    };
+                }
+
+                if (mode == "file")
+                {
+                    var effectivePath = outputPath;
+                    var ext = Path.GetExtension(effectivePath);
+                    if (string.IsNullOrWhiteSpace(ext))
+                    {
+                        effectivePath += "." + (format == "jpeg" ? "jpg" : format);
+                    }
+
+                    byte[] outputBytes;
+                    string outputFormat;
+                    string mimeType;
+                    int outWidth;
+                    int outHeight;
+
+                    if (format == "jpg" || format == "jpeg")
+                    {
+                        var encoded = ImageEncoding.EncodeJpegBase64(raw.bytes, maxWidth, quality);
+                        if (string.IsNullOrWhiteSpace(encoded.Base64))
+                        {
+                            return new BridgeInvokeResponse
+                            {
+                                Id = request.Id,
+                                Ok = false,
+                                Error = new OpenClawNodeError
+                                {
+                                    Code = OpenClawNodeErrorCode.Unavailable,
+                                    Message = "screen.capture encode failed"
+                                }
+                            };
+                        }
+
+                        outputBytes = Convert.FromBase64String(encoded.Base64);
+                        outputFormat = encoded.Format;
+                        mimeType = encoded.MimeType;
+                        outWidth = encoded.Width;
+                        outHeight = encoded.Height;
+                    }
+                    else
+                    {
+                        outputBytes = raw.bytes;
+                        outputFormat = "png";
+                        mimeType = "image/png";
+                        outWidth = raw.width;
+                        outHeight = raw.height;
+                    }
+
+                    var parent = Path.GetDirectoryName(effectivePath);
+                    if (!string.IsNullOrWhiteSpace(parent))
+                    {
+                        Directory.CreateDirectory(parent);
+                    }
+                    await File.WriteAllBytesAsync(effectivePath, outputBytes);
+
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = true,
+                        PayloadJSON = ToJson(new
+                        {
+                            ok = true,
+                            mode,
+                            target = new
+                            {
+                                source,
+                                screenIndex,
+                                windowHandle = windowHandle == 0 ? (long?)null : windowHandle
+                            },
+                            capture = new { format, bytes = raw.bytes.Length, width = raw.width, height = raw.height },
+                            file = new { path = effectivePath, format = outputFormat, mimeType, bytes = outputBytes.Length, width = outWidth, height = outHeight }
+                        })
+                    };
+                }
+
+                {
+                    var encoded = ImageEncoding.EncodeJpegBase64(raw.bytes, maxWidth, quality);
+                    if (string.IsNullOrWhiteSpace(encoded.Base64))
+                    {
+                        return new BridgeInvokeResponse
+                        {
+                            Id = request.Id,
+                            Ok = false,
+                            Error = new OpenClawNodeError
+                            {
+                                Code = OpenClawNodeErrorCode.Unavailable,
+                                Message = "screen.capture encode failed"
+                            }
+                        };
+                    }
+
+                    if (encoded.Bytes > maxInlineBytes)
+                    {
+                        return Invalid(request.Id, "screen.capture mode=data exceeds maxInlineBytes; use mode=deliver or mode=file");
+                    }
+
+                    return new BridgeInvokeResponse
+                    {
+                        Id = request.Id,
+                        Ok = true,
+                        PayloadJSON = ToJson(new
+                        {
+                            ok = true,
+                            mode,
+                            target = new
+                            {
+                                source,
+                                screenIndex,
+                                windowHandle = windowHandle == 0 ? (long?)null : windowHandle
+                            },
+                            capture = new { format, bytes = raw.bytes.Length, width = raw.width, height = raw.height },
+                            inline = new { format = encoded.Format, mimeType = encoded.MimeType, bytes = encoded.Bytes, width = encoded.Width, height = encoded.Height, base64 = encoded.Base64 }
+                        })
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new BridgeInvokeResponse
+                {
+                    Id = request.Id,
+                    Ok = false,
+                    Error = new OpenClawNodeError
+                    {
+                        Code = OpenClawNodeErrorCode.Unavailable,
+                        Message = $"screen.capture failed: {ex.Message}"
+                    }
+                };
+            }
         }
 
         private async Task<BridgeInvokeResponse> HandleDevScreenshotAsync(BridgeInvokeRequest request)
@@ -268,7 +678,7 @@ namespace OpenClaw.Node.Services
                         Code = OpenClawNodeErrorCode.Unavailable,
                         Message = "screen.capture failed"
                     },
-                    PayloadJSON = JsonSerializer.Serialize(new
+                    PayloadJSON = ToJson(new
                     {
                         ok = false,
                         path = outPath,
@@ -287,7 +697,7 @@ namespace OpenClaw.Node.Services
             {
                 Id = request.Id,
                 Ok = true,
-                PayloadJSON = JsonSerializer.Serialize(new
+                PayloadJSON = ToJson(new
                 {
                     ok = true,
                     path = outPath,
@@ -321,7 +731,7 @@ namespace OpenClaw.Node.Services
             {
                 Id = request.Id,
                 Ok = true,
-                PayloadJSON = JsonSerializer.Serialize(payload)
+                PayloadJSON = ToJson(payload)
             };
         }
 
@@ -424,7 +834,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(payload)
+                    PayloadJSON = ToJson(payload)
                 };
             }
             catch (Exception ex)
@@ -458,20 +868,18 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(payload)
+                    PayloadJSON = ToJson(payload)
                 };
             }
-            catch (Exception ex)
+            catch
             {
+                // Keep command resilient in mixed environments; expose empty list instead of hard error.
+                var payload = new { devices = Array.Empty<CameraCaptureService.CameraDeviceInfo>() };
                 return new BridgeInvokeResponse
                 {
                     Id = request.Id,
-                    Ok = false,
-                    Error = new OpenClawNodeError
-                    {
-                        Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = $"Camera list failed: {ex.Message}"
-                    }
+                    Ok = true,
+                    PayloadJSON = ToJson(payload)
                 };
             }
         }
@@ -560,7 +968,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(payload)
+                    PayloadJSON = ToJson(payload)
                 };
             }
             catch (Exception ex)
@@ -588,7 +996,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { windows })
+                    PayloadJSON = ToJson(new { windows })
                 };
             }
             catch (Exception ex)
@@ -643,7 +1051,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                    PayloadJSON = ToJson(new { ok = true })
                 };
             }
             catch (Exception ex)
@@ -698,7 +1106,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { rect })
+                    PayloadJSON = ToJson(new { rect })
                 };
             }
             catch (Exception ex)
@@ -750,7 +1158,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                    PayloadJSON = ToJson(new { ok = true })
                 };
             }
             catch (Exception ex)
@@ -802,7 +1210,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true })
+                    PayloadJSON = ToJson(new { ok = true })
                 };
             }
             catch (Exception ex)
@@ -879,7 +1287,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, x, y, button = button.ToLowerInvariant(), doubleClick })
+                    PayloadJSON = ToJson(new { ok = true, x, y, button = button.ToLowerInvariant(), doubleClick })
                 };
             }
             catch (Exception ex)
@@ -966,7 +1374,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, deltaY, x, y })
+                    PayloadJSON = ToJson(new { ok = true, deltaY, x, y })
                 };
             }
             catch (Exception ex)
@@ -1055,7 +1463,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, offsetX, offsetY, button = button.ToLowerInvariant(), doubleClick })
+                    PayloadJSON = ToJson(new { ok = true, offsetX, offsetY, button = button.ToLowerInvariant(), doubleClick })
                 };
             }
             catch (Exception ex)
@@ -1102,7 +1510,7 @@ namespace OpenClaw.Node.Services
                             Code = OpenClawNodeErrorCode.Unavailable,
                             Message = "UI element not found"
                         },
-                        PayloadJSON = JsonSerializer.Serialize(new { ok = false, details })
+                        PayloadJSON = ToJson(new { ok = false, details })
                     };
                 }
 
@@ -1110,7 +1518,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { element = find.Element, strategy = find.Strategy })
+                    PayloadJSON = ToJson(new { element = find.Element, strategy = find.Strategy })
                 };
             }
             catch (Exception ex)
@@ -1174,7 +1582,7 @@ namespace OpenClaw.Node.Services
                             Code = OpenClawNodeErrorCode.Unavailable,
                             Message = "UI click failed: element not found"
                         },
-                        PayloadJSON = JsonSerializer.Serialize(new { ok = false, details })
+                        PayloadJSON = ToJson(new { ok = false, details })
                     };
                 }
 
@@ -1197,7 +1605,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, button = button.ToLowerInvariant(), doubleClick, strategy = find.Strategy, x = find.Element.CenterX, y = find.Element.CenterY })
+                    PayloadJSON = ToJson(new { ok = true, button = button.ToLowerInvariant(), doubleClick, strategy = find.Strategy, x = find.Element.CenterX, y = find.Element.CenterY })
                 };
             }
             catch (Exception ex)
@@ -1255,7 +1663,7 @@ namespace OpenClaw.Node.Services
                             Code = OpenClawNodeErrorCode.Unavailable,
                             Message = "UI type failed: element not found"
                         },
-                        PayloadJSON = JsonSerializer.Serialize(new { ok = false, details })
+                        PayloadJSON = ToJson(new { ok = false, details })
                     };
                 }
 
@@ -1294,7 +1702,7 @@ namespace OpenClaw.Node.Services
                 {
                     Id = request.Id,
                     Ok = true,
-                    PayloadJSON = JsonSerializer.Serialize(new { ok = true, strategy = find.Strategy, x = find.Element.CenterX, y = find.Element.CenterY })
+                    PayloadJSON = ToJson(new { ok = true, strategy = find.Strategy, x = find.Element.CenterX, y = find.Element.CenterY })
                 };
             }
             catch (Exception ex)

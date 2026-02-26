@@ -11,7 +11,7 @@ using OpenClaw.Node.Services;
 
 namespace OpenClaw.Node.Protocol
 {
-    public class GatewayConnection : IDisposable
+    public class GatewayConnection : IDisposable, IGatewayRpcClient
     {
         private ClientWebSocket? _webSocket;
         private readonly Uri _serverUri;
@@ -64,6 +64,19 @@ namespace OpenClaw.Node.Protocol
                 Payload = payload
             };
             var json = JsonSerializer.Serialize(eventFrame, JsonOptions);
+            await SendRawAsync(json, cancellationToken);
+        }
+
+        public async Task SendRequestAsync(string method, object? @params, CancellationToken cancellationToken)
+        {
+            var req = new RequestFrame
+            {
+                Type = "req",
+                Id = Guid.NewGuid().ToString(),
+                Method = method,
+                Params = @params
+            };
+            var json = JsonSerializer.Serialize(req, JsonOptions);
             await SendRawAsync(json, cancellationToken);
         }
 

@@ -1,18 +1,32 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
+using System.Reflection;
+
+#if WINDOWS
+using System.Drawing;
+using System.Drawing.Imaging;
+using Forms = System.Windows.Forms;
 using ScreenRecorderLib;
+#endif
 
 namespace OpenClaw.Node.Services
 {
-    public class ScreenCaptureService
+    public class ScreenCaptureService : IScreenImageProvider
     {
         public sealed class ScreenDisplayInfo
         {
             public int Index { get; set; }
             public string Id { get; set; } = string.Empty;
             public string Name { get; set; } = string.Empty;
+            public int X { get; set; }
+            public int Y { get; set; }
+            public int Width { get; set; }
+            public int Height { get; set; }
+            public bool Primary { get; set; }
         }
 
         public sealed class ScreenRecordResult
@@ -23,39 +37,179 @@ namespace OpenClaw.Node.Services
             public bool LowLatency { get; set; }
         }
 
+        public const string Png1x1FallbackBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
         public Task<ScreenDisplayInfo[]> ListDisplaysAsync()
         {
-            if (!OperatingSystem.IsWindows())
-            {
-                return Task.FromResult(Array.Empty<ScreenDisplayInfo>());
-            }
+#if WINDOWS
+            if (!OperatingSystem.IsWindows()) return Task.FromResult(Array.Empty<ScreenDisplayInfo>());
 
             try
             {
-                var displays = Recorder.GetDisplays();
-                if (displays == null || displays.Count == 0)
+                var screens = Forms.Screen.AllScreens;
+                var result = new ScreenDisplayInfo[screens.Length];
+                for (var i = 0; i < screens.Length; i++)
                 {
-                    return Task.FromResult(Array.Empty<ScreenDisplayInfo>());
-                }
-
-                var result = new ScreenDisplayInfo[displays.Count];
-                for (var i = 0; i < displays.Count; i++)
-                {
-                    var name = displays[i].DeviceName ?? $"Display {i}";
+                    var s = screens[i];
                     result[i] = new ScreenDisplayInfo
                     {
                         Index = i,
-                        Id = name,
-                        Name = name,
+                        Id = s.DeviceName,
+                        Name = s.DeviceName, 
+                        X = s.Bounds.X,
+                        Y = s.Bounds.Y,
+                        Width = s.Bounds.Width,
+                        Height = s.Bounds.Height,
+                        Primary = s.Primary
                     };
                 }
-
                 return Task.FromResult(result);
             }
             catch
             {
                 return Task.FromResult(Array.Empty<ScreenDisplayInfo>());
             }
+#else
+            return Task.FromResult(Array.Empty<ScreenDisplayInfo>());
+#endif
+        }
+
+        public async Task<string> CaptureScreenshotAsync(int screenIndex = 0, string format = "png")
+        {
+#if WINDOWS
+            if (!OperatingSystem.IsWindows()) return await TakeScreenshotFallbackAsync();
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    var screens = Forms.Screen.AllScreens;
+                    if (screens.Length == 0) return string.Empty;
+                    
+                    var safeIndex = Math.Clamp(screenIndex, 0, screens.Length - 1);
+                    var screen = screens[safeIndex];
+
+                    using var bitmap = new Bitmap(screen.Bounds.Width, screen.Bounds.Height);
+                    using (var g = Graphics.FromImage(bitmap))
+                    {
+                        g.CopyFromScreen(screen.Bounds.X, screen.Bounds.Y, 0, 0, bitmap.Size, CopyPixelOperation.SourceCopy);
+                    }
+
+                    using var ms = new MemoryStream();
+                    var fmt = GetImageFormat(format);
+                    bitmap.Save(ms, fmt);
+                    return Convert.ToBase64String(ms.ToArray());
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException("Screenshot failed", ex);
+                }
+            });
+#else
+            return await TakeScreenshotFallbackAsync();
+#endif
+        }
+
+        public async Task<(byte[] bytes, int width, int height)> CaptureScreenshotBytesAsync(int screenIndex = 0, string format = "png")
+        {
+#if WINDOWS
+            if (!OperatingSystem.IsWindows()) return await TakeScreenshotFallbackBytesAsync();
+
+            return await Task.Run(() =>
+            {
+                var screens = Forms.Screen.AllScreens;
+                if (screens.Length == 0) return (Array.Empty<byte>(), 0, 0);
+
+                var safeIndex = Math.Clamp(screenIndex, 0, screens.Length - 1);
+                var screen = screens[safeIndex];
+
+                using var bitmap = new Bitmap(screen.Bounds.Width, screen.Bounds.Height);
+                using (var g = Graphics.FromImage(bitmap))
+                {
+                    g.CopyFromScreen(screen.Bounds.X, screen.Bounds.Y, 0, 0, bitmap.Size, CopyPixelOperation.SourceCopy);
+                }
+
+                using var ms = new MemoryStream();
+                var fmt = GetImageFormat(format);
+                bitmap.Save(ms, fmt);
+                var bytes = ms.ToArray();
+                return (bytes, bitmap.Width, bitmap.Height);
+            });
+#else
+            return await TakeScreenshotFallbackBytesAsync();
+#endif
+        }
+
+        public async Task<(byte[] bytes, int width, int height)> CaptureWindowBytesAsync(long handle, string format = "png")
+        {
+#if WINDOWS
+            if (!OperatingSystem.IsWindows()) return await TakeScreenshotFallbackBytesAsync();
+            if (handle == 0) return (Array.Empty<byte>(), 0, 0);
+
+            return await Task.Run(() =>
+            {
+                var hWnd = new IntPtr(handle);
+                if (!GetWindowRect(hWnd, out var rect)) return (Array.Empty<byte>(), 0, 0);
+
+                var width = rect.Right - rect.Left;
+                var height = rect.Bottom - rect.Top;
+
+                if (width <= 0 || height <= 0) return (Array.Empty<byte>(), 0, 0);
+
+                using var bitmap = new Bitmap(width, height);
+                using (var g = Graphics.FromImage(bitmap))
+                {
+                    g.CopyFromScreen(rect.Left, rect.Top, 0, 0, bitmap.Size, CopyPixelOperation.SourceCopy);
+                }
+
+                using var ms = new MemoryStream();
+                var fmt = GetImageFormat(format);
+                bitmap.Save(ms, fmt);
+                var bytes = ms.ToArray();
+                return (bytes, bitmap.Width, bitmap.Height);
+            });
+#else
+            return await TakeScreenshotFallbackBytesAsync();
+#endif
+        }
+
+        public async Task<string> CaptureWindowAsync(long handle, string format = "png")
+        {
+#if WINDOWS
+            if (!OperatingSystem.IsWindows()) return await TakeScreenshotFallbackAsync();
+            if (handle == 0) return string.Empty;
+
+            return await Task.Run(() =>
+            {
+                var hWnd = new IntPtr(handle);
+                if (!GetWindowRect(hWnd, out var rect)) return string.Empty;
+
+                var width = rect.Right - rect.Left;
+                var height = rect.Bottom - rect.Top;
+
+                if (width <= 0 || height <= 0) return string.Empty;
+
+                try 
+                {
+                    using var bitmap = new Bitmap(width, height);
+                    using (var g = Graphics.FromImage(bitmap))
+                    {
+                        g.CopyFromScreen(rect.Left, rect.Top, 0, 0, bitmap.Size, CopyPixelOperation.SourceCopy);
+                    }
+
+                    using var ms = new MemoryStream();
+                    var fmt = GetImageFormat(format);
+                    bitmap.Save(ms, fmt);
+                    return Convert.ToBase64String(ms.ToArray());
+                }
+                catch
+                {
+                    return string.Empty;
+                }
+            });
+#else
+            return await TakeScreenshotFallbackAsync();
+#endif
         }
 
         public async Task<ScreenRecordResult> RecordScreenAsBase64Async(
@@ -66,16 +220,10 @@ namespace OpenClaw.Node.Services
             string captureApi = "auto",
             bool lowLatency = false)
         {
+#if WINDOWS
             if (!OperatingSystem.IsWindows())
             {
-                // Dev fallback in non-Windows environments.
-                return new ScreenRecordResult
-                {
-                    Base64 = await TakeScreenshotFallbackAsync(),
-                    CaptureApi = "fallback",
-                    HardwareEncoding = false,
-                    LowLatency = false,
-                };
+                return await CreateFallbackResultAsync();
             }
 
             durationMs = Math.Clamp(durationMs, 500, 120000);
@@ -109,8 +257,12 @@ namespace OpenClaw.Node.Services
             }
 
             throw new InvalidOperationException($"Screen recording failed after fallback attempts: {lastError?.Message}", lastError);
+#else
+            return await CreateFallbackResultAsync();
+#endif
         }
 
+#if WINDOWS
         private static async Task<string> RecordSingleAttemptAsync(
             int durationMs,
             int fps,
@@ -136,7 +288,6 @@ namespace OpenClaw.Node.Services
             options.AudioOptions.IsOutputDeviceEnabled = includeAudio;
             options.AudioOptions.IsInputDeviceEnabled = false;
 
-            // Select display by index when possible; fallback to main monitor.
             var displays = Recorder.GetDisplays();
             if (displays != null && displays.Count > 0)
             {
@@ -165,8 +316,6 @@ namespace OpenClaw.Node.Services
 
             recorder.Record(outputPath);
 
-            // Duration should count from the moment recording actually starts,
-            // not from when Record(...) is requested.
             using (var startTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(6)))
             {
                 try
@@ -175,7 +324,6 @@ namespace OpenClaw.Node.Services
                 }
                 catch (OperationCanceledException)
                 {
-                    // Fallback: if start status wasn't observed, continue anyway.
                 }
             }
 
@@ -214,10 +362,7 @@ namespace OpenClaw.Node.Services
             try
             {
                 var prop = options.GetType().GetProperty("RecorderApi");
-                if (prop == null)
-                {
-                    return;
-                }
+                if (prop == null) return;
 
                 var token = captureApi.Trim().ToLowerInvariant() switch
                 {
@@ -231,14 +376,58 @@ namespace OpenClaw.Node.Services
             }
             catch
             {
-                // Keep best-effort: invalid API token should not hard-fail recording.
             }
         }
+        
+        private static System.Drawing.Imaging.ImageFormat GetImageFormat(string format)
+        {
+             return format.Trim().ToLowerInvariant() switch {
+                 "jpg" or "jpeg" => System.Drawing.Imaging.ImageFormat.Jpeg,
+                 "bmp" => System.Drawing.Imaging.ImageFormat.Bmp,
+                 _ => System.Drawing.Imaging.ImageFormat.Png
+             };
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+#endif
 
         private static Task<string> TakeScreenshotFallbackAsync()
         {
-            // 1x1 transparent PNG. Keeps command path alive in non-Windows dev env.
-            return Task.FromResult("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+            return Task.FromResult(Png1x1FallbackBase64);
+        }
+
+        private static Task<(byte[] bytes, int width, int height)> TakeScreenshotFallbackBytesAsync()
+        {
+            try
+            {
+                var bytes = Convert.FromBase64String(Png1x1FallbackBase64);
+                return Task.FromResult((bytes, 1, 1));
+            }
+            catch
+            {
+                return Task.FromResult((Array.Empty<byte>(), 0, 0));
+            }
+        }
+
+        private static async Task<ScreenRecordResult> CreateFallbackResultAsync()
+        {
+            return new ScreenRecordResult
+            {
+                Base64 = await TakeScreenshotFallbackAsync(),
+                CaptureApi = "fallback",
+                HardwareEncoding = false,
+                LowLatency = false,
+            };
         }
     }
 }

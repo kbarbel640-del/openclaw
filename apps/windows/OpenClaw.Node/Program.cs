@@ -59,10 +59,10 @@ namespace OpenClaw.Node
             using var cts = new CancellationTokenSource();
             var restartRequested = false;
 
-            var executor = new NodeCommandExecutor();
             var core = new CoreMethodService(startedAtUtc);
             using var ipc = new IpcPipeServerService(version: "dev", authToken: token);
             using var connection = new GatewayConnection(url, token, connectParams);
+            var executor = new NodeCommandExecutor(connection);
             using var discovery = new DiscoveryService(connectParams, url);
             var trayStatus = new TrayStatusBroadcaster();
             var reconnectStartedAtUtc = (DateTimeOffset?)null;

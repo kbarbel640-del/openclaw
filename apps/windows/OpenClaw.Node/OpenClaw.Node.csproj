@@ -9,6 +9,7 @@
     <TargetFrameworks>net8.0</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOsPlatform('Windows'))">net8.0;net8.0-windows</TargetFrameworks>
     <UseWindowsForms Condition="'$(TargetFramework)' == 'net8.0-windows'">true</UseWindowsForms>
+    <UseWPF Condition="'$(TargetFramework)' == 'net8.0-windows'">true</UseWPF>
     <ApplicationIcon Condition="'$(TargetFramework)' == 'net8.0-windows'">Tray/Assets/openclaw-claw.ico</ApplicationIcon>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
