@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { ZodIssue } from "zod";
+import { normalizeChatChannelId } from "../channels/registry.js";
 import {
   isNumericTelegramUserId,
   normalizeTelegramAllowFromEntry,
@@ -14,16 +15,32 @@ import {
   migrateLegacyConfig,
   readConfigFileSnapshot,
 } from "../config/config.js";
+import { collectProviderDangerousNameMatchingScopes } from "../config/dangerous-name-matching.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
 import { parseToolsBySenderTypedKey } from "../config/types.tools.js";
+import { resolveCommandResolutionFromArgv } from "../infra/exec-command-resolution.js";
 import {
   listInterpreterLikeSafeBins,
   resolveMergedSafeBinProfileFixtures,
 } from "../infra/exec-safe-bin-runtime-policy.js";
+import {
+  getTrustedSafeBinDirs,
+  isTrustedSafeBinPath,
+  normalizeTrustedSafeBinDirs,
+} from "../infra/exec-safe-bin-trust.js";
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
+import {
+  isDiscordMutableAllowEntry,
+  isGoogleChatMutableAllowEntry,
+  isIrcMutableAllowEntry,
+  isMSTeamsMutableAllowEntry,
+  isMattermostMutableAllowEntry,
+  isSlackMutableAllowEntry,
+} from "../security/mutable-allowlist-detectors.js";
 import { listTelegramAccountIds, resolveTelegramAccount } from "../telegram/accounts.js";
 import { note } from "../terminal/note.js";
 import { isRecord, resolveHomeDir } from "../utils.js";
-import { normalizeLegacyConfigValues } from "./doctor-legacy-config.js";
+import { normalizeCompatibilityConfigValues } from "./doctor-legacy-config.js";
 import type { DoctorOptions } from "./doctor-prompter.js";
 import { autoMigrateLegacyStateDir } from "./doctor-state-migrations.js";
 
@@ -192,8 +209,101 @@ function asObjectRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function asOptionalBoolean(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
+function normalizeBindingChannelKey(raw?: string | null): string {
+  const normalized = normalizeChatChannelId(raw);
+  if (normalized) {
+    return normalized;
+  }
+  return (raw ?? "").trim().toLowerCase();
+}
+
+export function collectMissingDefaultAccountBindingWarnings(cfg: OpenClawConfig): string[] {
+  const channels = asObjectRecord(cfg.channels);
+  if (!channels) {
+    return [];
+  }
+
+  const bindings = Array.isArray(cfg.bindings) ? cfg.bindings : [];
+  const warnings: string[] = [];
+
+  for (const [channelKey, rawChannel] of Object.entries(channels)) {
+    const channel = asObjectRecord(rawChannel);
+    if (!channel) {
+      continue;
+    }
+    const accounts = asObjectRecord(channel.accounts);
+    if (!accounts) {
+      continue;
+    }
+
+    const normalizedAccountIds = Array.from(
+      new Set(
+        Object.keys(accounts)
+          .map((accountId) => normalizeAccountId(accountId))
+          .filter(Boolean),
+      ),
+    );
+    if (normalizedAccountIds.length === 0 || normalizedAccountIds.includes(DEFAULT_ACCOUNT_ID)) {
+      continue;
+    }
+    const accountIdSet = new Set(normalizedAccountIds);
+    const channelPattern = normalizeBindingChannelKey(channelKey);
+
+    let hasWildcardBinding = false;
+    const coveredAccountIds = new Set<string>();
+    for (const binding of bindings) {
+      const bindingRecord = asObjectRecord(binding);
+      if (!bindingRecord) {
+        continue;
+      }
+      const match = asObjectRecord(bindingRecord.match);
+      if (!match) {
+        continue;
+      }
+
+      const matchChannel =
+        typeof match.channel === "string" ? normalizeBindingChannelKey(match.channel) : "";
+      if (!matchChannel || matchChannel !== channelPattern) {
+        continue;
+      }
+
+      const rawAccountId = typeof match.accountId === "string" ? match.accountId.trim() : "";
+      if (!rawAccountId) {
+        continue;
+      }
+      if (rawAccountId === "*") {
+        hasWildcardBinding = true;
+        continue;
+      }
+      const normalizedBindingAccountId = normalizeAccountId(rawAccountId);
+      if (accountIdSet.has(normalizedBindingAccountId)) {
+        coveredAccountIds.add(normalizedBindingAccountId);
+      }
+    }
+
+    if (hasWildcardBinding) {
+      continue;
+    }
+
+    const uncoveredAccountIds = normalizedAccountIds.filter(
+      (accountId) => !coveredAccountIds.has(accountId),
+    );
+    if (uncoveredAccountIds.length === 0) {
+      continue;
+    }
+    if (coveredAccountIds.size > 0) {
+      warnings.push(
+        `- channels.${channelKey}: accounts.default is missing and account bindings only cover a subset of configured accounts. Uncovered accounts: ${uncoveredAccountIds.join(", ")}. Add bindings[].match.accountId for uncovered accounts (or "*"), or add channels.${channelKey}.accounts.default.`,
+      );
+      continue;
+    }
+
+    warnings.push(
+      `- channels.${channelKey}: accounts.default is missing and no valid account-scoped binding exists for configured accounts (${normalizedAccountIds.join(", ")}). Channel-only bindings (no accountId) match only default. Add bindings[].match.accountId for one of these accounts (or "*"), or add channels.${channelKey}.accounts.default.`,
+    );
+  }
+
+  return warnings;
 }
 
 function collectTelegramAccountScopes(
@@ -589,148 +699,6 @@ type MutableAllowlistHit = {
   dangerousFlagPath: string;
 };
 
-type ProviderAccountScope = {
-  prefix: string;
-  account: Record<string, unknown>;
-  dangerousNameMatchingEnabled: boolean;
-  dangerousFlagPath: string;
-};
-
-function collectProviderAccountScopes(
-  cfg: OpenClawConfig,
-  provider: string,
-): ProviderAccountScope[] {
-  const scopes: ProviderAccountScope[] = [];
-  const channels = asObjectRecord(cfg.channels);
-  if (!channels) {
-    return scopes;
-  }
-  const providerCfg = asObjectRecord(channels[provider]);
-  if (!providerCfg) {
-    return scopes;
-  }
-  const providerPrefix = `channels.${provider}`;
-  const providerDangerousFlagPath = `${providerPrefix}.dangerouslyAllowNameMatching`;
-  const providerDangerousNameMatchingEnabled = providerCfg.dangerouslyAllowNameMatching === true;
-  scopes.push({
-    prefix: providerPrefix,
-    account: providerCfg,
-    dangerousNameMatchingEnabled: providerDangerousNameMatchingEnabled,
-    dangerousFlagPath: providerDangerousFlagPath,
-  });
-  const accounts = asObjectRecord(providerCfg.accounts);
-  if (!accounts) {
-    return scopes;
-  }
-  for (const key of Object.keys(accounts)) {
-    const account = asObjectRecord(accounts[key]);
-    if (!account) {
-      continue;
-    }
-    const accountPrefix = `${providerPrefix}.accounts.${key}`;
-    const accountDangerousNameMatching = asOptionalBoolean(account.dangerouslyAllowNameMatching);
-    scopes.push({
-      prefix: accountPrefix,
-      account,
-      dangerousNameMatchingEnabled:
-        accountDangerousNameMatching ?? providerDangerousNameMatchingEnabled,
-      dangerousFlagPath:
-        accountDangerousNameMatching == null
-          ? providerDangerousFlagPath
-          : `${accountPrefix}.dangerouslyAllowNameMatching`,
-    });
-  }
-  return scopes;
-}
-
-function isDiscordMutableAllowEntry(raw: string): boolean {
-  const text = raw.trim();
-  if (!text || text === "*") {
-    return false;
-  }
-  const maybeMentionId = text.replace(/^<@!?/, "").replace(/>$/, "");
-  if (/^\d+$/.test(maybeMentionId)) {
-    return false;
-  }
-  for (const prefix of ["discord:", "user:", "pk:"]) {
-    if (!text.startsWith(prefix)) {
-      continue;
-    }
-    return text.slice(prefix.length).trim().length === 0;
-  }
-  return true;
-}
-
-function isSlackMutableAllowEntry(raw: string): boolean {
-  const text = raw.trim();
-  if (!text || text === "*") {
-    return false;
-  }
-  const mentionMatch = text.match(/^<@([A-Z0-9]+)>$/i);
-  if (mentionMatch && /^[A-Z0-9]{8,}$/i.test(mentionMatch[1] ?? "")) {
-    return false;
-  }
-  const withoutPrefix = text.replace(/^(slack|user):/i, "").trim();
-  if (/^[UWBCGDT][A-Z0-9]{2,}$/.test(withoutPrefix)) {
-    return false;
-  }
-  if (/^[A-Z0-9]{8,}$/i.test(withoutPrefix)) {
-    return false;
-  }
-  return true;
-}
-
-function isGoogleChatMutableAllowEntry(raw: string): boolean {
-  const text = raw.trim();
-  if (!text || text === "*") {
-    return false;
-  }
-  const withoutPrefix = text.replace(/^(googlechat|google-chat|gchat):/i, "").trim();
-  if (!withoutPrefix) {
-    return false;
-  }
-  const withoutUsers = withoutPrefix.replace(/^users\//i, "");
-  return withoutUsers.includes("@");
-}
-
-function isMSTeamsMutableAllowEntry(raw: string): boolean {
-  const text = raw.trim();
-  if (!text || text === "*") {
-    return false;
-  }
-  const withoutPrefix = text.replace(/^(msteams|user):/i, "").trim();
-  return /\s/.test(withoutPrefix) || withoutPrefix.includes("@");
-}
-
-function isMattermostMutableAllowEntry(raw: string): boolean {
-  const text = raw.trim();
-  if (!text || text === "*") {
-    return false;
-  }
-  const normalized = text
-    .replace(/^(mattermost|user):/i, "")
-    .replace(/^@/, "")
-    .trim()
-    .toLowerCase();
-  // Mattermost user IDs are stable 26-char lowercase/number tokens.
-  if (/^[a-z0-9]{26}$/.test(normalized)) {
-    return false;
-  }
-  return true;
-}
-
-function isIrcMutableAllowEntry(raw: string): boolean {
-  const text = raw.trim().toLowerCase();
-  if (!text || text === "*") {
-    return false;
-  }
-  const normalized = text
-    .replace(/^irc:/, "")
-    .replace(/^user:/, "")
-    .trim();
-  return !normalized.includes("!") && !normalized.includes("@");
-}
-
 function addMutableAllowlistHits(params: {
   hits: MutableAllowlistHit[];
   pathLabel: string;
@@ -762,7 +730,7 @@ function addMutableAllowlistHits(params: {
 function scanMutableAllowlistEntries(cfg: OpenClawConfig): MutableAllowlistHit[] {
   const hits: MutableAllowlistHit[] = [];
 
-  for (const scope of collectProviderAccountScopes(cfg, "discord")) {
+  for (const scope of collectProviderDangerousNameMatchingScopes(cfg, "discord")) {
     if (scope.dangerousNameMatchingEnabled) {
       continue;
     }
@@ -823,7 +791,7 @@ function scanMutableAllowlistEntries(cfg: OpenClawConfig): MutableAllowlistHit[]
     }
   }
 
-  for (const scope of collectProviderAccountScopes(cfg, "slack")) {
+  for (const scope of collectProviderDangerousNameMatchingScopes(cfg, "slack")) {
     if (scope.dangerousNameMatchingEnabled) {
       continue;
     }
@@ -866,7 +834,7 @@ function scanMutableAllowlistEntries(cfg: OpenClawConfig): MutableAllowlistHit[]
     }
   }
 
-  for (const scope of collectProviderAccountScopes(cfg, "googlechat")) {
+  for (const scope of collectProviderDangerousNameMatchingScopes(cfg, "googlechat")) {
     if (scope.dangerousNameMatchingEnabled) {
       continue;
     }
@@ -909,7 +877,7 @@ function scanMutableAllowlistEntries(cfg: OpenClawConfig): MutableAllowlistHit[]
     }
   }
 
-  for (const scope of collectProviderAccountScopes(cfg, "msteams")) {
+  for (const scope of collectProviderDangerousNameMatchingScopes(cfg, "msteams")) {
     if (scope.dangerousNameMatchingEnabled) {
       continue;
     }
@@ -931,7 +899,7 @@ function scanMutableAllowlistEntries(cfg: OpenClawConfig): MutableAllowlistHit[]
     });
   }
 
-  for (const scope of collectProviderAccountScopes(cfg, "mattermost")) {
+  for (const scope of collectProviderDangerousNameMatchingScopes(cfg, "mattermost")) {
     if (scope.dangerousNameMatchingEnabled) {
       continue;
     }
@@ -953,7 +921,7 @@ function scanMutableAllowlistEntries(cfg: OpenClawConfig): MutableAllowlistHit[]
     });
   }
 
-  for (const scope of collectProviderAccountScopes(cfg, "irc")) {
+  for (const scope of collectProviderDangerousNameMatchingScopes(cfg, "irc")) {
     if (scope.dangerousNameMatchingEnabled) {
       continue;
     }
@@ -1138,6 +1106,13 @@ type ExecSafeBinScopeRef = {
   safeBins: string[];
   exec: Record<string, unknown>;
   mergedProfiles: Record<string, unknown>;
+  trustedSafeBinDirs: ReadonlySet<string>;
+};
+
+type ExecSafeBinTrustedDirHintHit = {
+  scopePath: string;
+  bin: string;
+  resolvedPath: string;
 };
 
 function normalizeConfiguredSafeBins(entries: unknown): string[] {
@@ -1153,9 +1128,19 @@ function normalizeConfiguredSafeBins(entries: unknown): string[] {
   ).toSorted();
 }
 
+function normalizeConfiguredTrustedSafeBinDirs(entries: unknown): string[] {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+  return normalizeTrustedSafeBinDirs(
+    entries.filter((entry): entry is string => typeof entry === "string"),
+  );
+}
+
 function collectExecSafeBinScopes(cfg: OpenClawConfig): ExecSafeBinScopeRef[] {
   const scopes: ExecSafeBinScopeRef[] = [];
   const globalExec = asObjectRecord(cfg.tools?.exec);
+  const globalTrustedDirs = normalizeConfiguredTrustedSafeBinDirs(globalExec?.safeBinTrustedDirs);
   if (globalExec) {
     const safeBins = normalizeConfiguredSafeBins(globalExec.safeBins);
     if (safeBins.length > 0) {
@@ -1167,6 +1152,9 @@ function collectExecSafeBinScopes(cfg: OpenClawConfig): ExecSafeBinScopeRef[] {
           resolveMergedSafeBinProfileFixtures({
             global: globalExec,
           }) ?? {},
+        trustedSafeBinDirs: getTrustedSafeBinDirs({
+          extraDirs: globalTrustedDirs,
+        }),
       });
     }
   }
@@ -1192,6 +1180,12 @@ function collectExecSafeBinScopes(cfg: OpenClawConfig): ExecSafeBinScopeRef[] {
           global: globalExec,
           local: agentExec,
         }) ?? {},
+      trustedSafeBinDirs: getTrustedSafeBinDirs({
+        extraDirs: [
+          ...globalTrustedDirs,
+          ...normalizeConfiguredTrustedSafeBinDirs(agentExec.safeBinTrustedDirs),
+        ],
+      }),
     });
   }
   return scopes;
@@ -1209,6 +1203,32 @@ function scanExecSafeBinCoverage(cfg: OpenClawConfig): ExecSafeBinCoverageHit[] 
         scopePath: scope.scopePath,
         bin,
         isInterpreter: interpreterBins.has(bin),
+      });
+    }
+  }
+  return hits;
+}
+
+function scanExecSafeBinTrustedDirHints(cfg: OpenClawConfig): ExecSafeBinTrustedDirHintHit[] {
+  const hits: ExecSafeBinTrustedDirHintHit[] = [];
+  for (const scope of collectExecSafeBinScopes(cfg)) {
+    for (const bin of scope.safeBins) {
+      const resolution = resolveCommandResolutionFromArgv([bin]);
+      if (!resolution?.resolvedPath) {
+        continue;
+      }
+      if (
+        isTrustedSafeBinPath({
+          resolvedPath: resolution.resolvedPath,
+          trustedDirs: scope.trustedSafeBinDirs,
+        })
+      ) {
+        continue;
+      }
+      hits.push({
+        scopePath: scope.scopePath,
+        bin,
+        resolvedPath: resolution.resolvedPath,
       });
     }
   }
@@ -1454,7 +1474,7 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
   if (snapshot.legacyIssues.length > 0) {
     note(
       snapshot.legacyIssues.map((issue) => `- ${issue.path}: ${issue.message}`).join("\n"),
-      "Legacy config keys detected",
+      "Compatibility config keys detected",
     );
     const { config: migrated, changes } = migrateLegacyConfig(snapshot.parsed);
     if (changes.length > 0) {
@@ -1465,18 +1485,18 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
       pendingChanges = pendingChanges || changes.length > 0;
     }
     if (shouldRepair) {
-      // Legacy migration (2026-01-02, commit: 16420e5b) — normalize per-provider allowlists; move WhatsApp gating into channels.whatsapp.allowFrom.
+      // Compatibility migration (2026-01-02, commit: 16420e5b) — normalize per-provider allowlists; move WhatsApp gating into channels.whatsapp.allowFrom.
       if (migrated) {
         cfg = migrated;
       }
     } else {
       fixHints.push(
-        `Run "${formatCliCommand("openclaw doctor --fix")}" to apply legacy migrations.`,
+        `Run "${formatCliCommand("openclaw doctor --fix")}" to apply compatibility migrations.`,
       );
     }
   }
 
-  const normalized = normalizeLegacyConfigValues(candidate);
+  const normalized = normalizeCompatibilityConfigValues(candidate);
   if (normalized.changes.length > 0) {
     note(normalized.changes.join("\n"), "Doctor changes");
     candidate = normalized.config;
@@ -1498,6 +1518,12 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
     } else {
       fixHints.push(`Run "${formatCliCommand("openclaw doctor --fix")}" to apply these changes.`);
     }
+  }
+
+  const missingDefaultAccountBindingWarnings =
+    collectMissingDefaultAccountBindingWarnings(candidate);
+  if (missingDefaultAccountBindingWarnings.length > 0) {
+    note(missingDefaultAccountBindingWarnings.join("\n"), "Doctor warnings");
   }
 
   if (shouldRepair) {
@@ -1622,6 +1648,25 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
       }
       lines.push(
         `- Run "${formatCliCommand("openclaw doctor --fix")}" to scaffold missing custom safeBinProfiles entries.`,
+      );
+      note(lines.join("\n"), "Doctor warnings");
+    }
+
+    const safeBinTrustedDirHints = scanExecSafeBinTrustedDirHints(candidate);
+    if (safeBinTrustedDirHints.length > 0) {
+      const lines = safeBinTrustedDirHints
+        .slice(0, 5)
+        .map(
+          (hit) =>
+            `- ${hit.scopePath}.safeBins entry '${hit.bin}' resolves to '${hit.resolvedPath}' outside trusted safe-bin dirs.`,
+        );
+      if (safeBinTrustedDirHints.length > 5) {
+        lines.push(
+          `- ${safeBinTrustedDirHints.length - 5} more safeBins entries resolve outside trusted safe-bin dirs.`,
+        );
+      }
+      lines.push(
+        "- If intentional, add the binary directory to tools.exec.safeBinTrustedDirs (global or agent scope).",
       );
       note(lines.join("\n"), "Doctor warnings");
     }
