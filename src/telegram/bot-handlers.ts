@@ -493,7 +493,8 @@ export const registerTelegramHandlers = ({
         return true;
       }
       if (policyAccess.reason === "group-policy-allowlist-empty") {
-        logVerbose(
+        logger.info(
+          { chatId, title: chatTitle },
           "Blocked telegram group message (groupPolicy: allowlist, no group allowlist entries)",
         );
         return true;
