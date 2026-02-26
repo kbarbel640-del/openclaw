@@ -129,7 +129,26 @@ describe("sendMediaFeishu msg_type routing", () => {
     );
   });
 
-  it("uses msg_type=media for opus", async () => {
+  it("sends opus audio via REST API with msg_type=audio", async () => {
+    // Provide a tokenManager on the client mock so sendAudioFeishu can get a token
+    createFeishuClientMock.mockReturnValue({
+      im: {
+        file: { create: fileCreateMock },
+        image: { get: imageGetMock },
+        message: { create: messageCreateMock, reply: messageReplyMock },
+        messageResource: { get: messageResourceGetMock },
+      },
+      tokenManager: {
+        getTenantAccessToken: vi.fn().mockResolvedValue("test-token"),
+      },
+    });
+
+    // Mock fetch for the REST API send call
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ code: 0, data: { message_id: "msg_audio_1" } }),
+    });
+
     await sendMediaFeishu({
       cfg: {} as any,
       to: "user:ou_target",
@@ -137,17 +156,23 @@ describe("sendMediaFeishu msg_type routing", () => {
       fileName: "voice.opus",
     });
 
+    // File upload should still go through SDK
     expect(fileCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ file_type: "opus" }),
       }),
     );
 
-    expect(messageCreateMock).toHaveBeenCalledWith(
+    // Message send should use REST API with msg_type "audio"
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/open-apis/im/v1/messages"),
       expect.objectContaining({
-        data: expect.objectContaining({ msg_type: "media" }),
+        body: expect.stringContaining('"msg_type":"audio"'),
       }),
     );
+
+    // SDK message.create should NOT be called for opus
+    expect(messageCreateMock).not.toHaveBeenCalled();
   });
 
   it("uses msg_type=file for documents", async () => {

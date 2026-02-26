@@ -369,18 +369,39 @@ export async function sendAudioFeishu(params: {
   let token: string;
   if (tokenManager && typeof tokenManager.getTenantAccessToken === "function") {
     const tokenResult = await tokenManager.getTenantAccessToken();
-    token = typeof tokenResult === "string" ? tokenResult : tokenResult?.token ?? tokenResult?.tenant_access_token;
+    token =
+      typeof tokenResult === "string"
+        ? tokenResult
+        : (tokenResult?.token ?? tokenResult?.tenant_access_token);
   } else {
     // Fallback: request token directly
     const appId = account.config?.appId;
     const appSecret = account.config?.appSecret;
     if (!appId || !appSecret) throw new Error("Feishu appId/appSecret required for audio send");
-    const tokenResp = await fetch("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
-    });
-    const tokenData = await tokenResp.json() as { tenant_access_token?: string };
+    let tokenResp: Response;
+    try {
+      tokenResp = await fetch(
+        "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+        },
+      );
+    } catch (err) {
+      throw new Error(
+        `Feishu token fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (!tokenResp.ok) {
+      throw new Error(`Feishu token fetch failed: HTTP ${tokenResp.status}`);
+    }
+    let tokenData: { tenant_access_token?: string };
+    try {
+      tokenData = (await tokenResp.json()) as { tenant_access_token?: string };
+    } catch {
+      throw new Error("Feishu token fetch failed: invalid JSON response");
+    }
     token = tokenData.tenant_access_token ?? "";
   }
   if (!token) throw new Error("Failed to obtain Feishu tenant access token for audio send");
@@ -399,19 +420,34 @@ export async function sendAudioFeishu(params: {
     body = { receive_id: receiveId, content, msg_type: "audio" };
   }
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-  const result = await resp.json() as {
-    code?: number;
-    msg?: string;
-    data?: { message_id?: string; chat_id?: string };
-  };
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new Error(
+      `Feishu audio send failed: network error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (!resp.ok) {
+    throw new Error(`Feishu audio send failed: HTTP ${resp.status}`);
+  }
+  let result: { code?: number; msg?: string; data?: { message_id?: string; chat_id?: string } };
+  try {
+    result = (await resp.json()) as {
+      code?: number;
+      msg?: string;
+      data?: { message_id?: string; chat_id?: string };
+    };
+  } catch {
+    throw new Error("Feishu audio send failed: invalid JSON response");
+  }
   if (result.code !== undefined && result.code !== 0) {
     throw new Error(`Feishu audio send failed: ${result.msg || `code ${result.code}`}`);
   }
