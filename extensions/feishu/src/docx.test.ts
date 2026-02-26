@@ -19,6 +19,22 @@ vi.mock("./runtime.js", () => ({
 
 import { registerFeishuDocTools } from "./docx.js";
 
+function resolveRegisteredTool(
+  registerTool: ReturnType<typeof vi.fn>,
+  name: string,
+  ctx?: { agentAccountId?: string },
+) {
+  const call = registerTool.mock.calls.find((entry) => entry[1]?.name === name);
+  const toolOrFactory = call?.[0];
+  if (!toolOrFactory) {
+    return undefined;
+  }
+  if (typeof toolOrFactory === "function") {
+    return toolOrFactory({ agentAccountId: ctx?.agentAccountId });
+  }
+  return toolOrFactory;
+}
+
 describe("feishu_doc image fetch hardening", () => {
   const convertMock = vi.hoisted(() => vi.fn());
   const blockListMock = vi.hoisted(() => vi.fn());
@@ -102,9 +118,7 @@ describe("feishu_doc image fetch hardening", () => {
       registerTool,
     } as any);
 
-    const feishuDocTool = registerTool.mock.calls
-      .map((call) => call[0])
-      .find((tool) => tool.name === "feishu_doc");
+    const feishuDocTool = resolveRegisteredTool(registerTool, "feishu_doc");
     expect(feishuDocTool).toBeDefined();
 
     const result = await feishuDocTool.execute("tool-call", {

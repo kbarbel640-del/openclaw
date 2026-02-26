@@ -1,9 +1,9 @@
 import type * as Lark from "@larksuiteoapi/node-sdk";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { listEnabledFeishuAccounts } from "./accounts.js";
+import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk";
+import { listEnabledFeishuAccounts, resolveFeishuAccountForToolContext } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuPermSchema, type FeishuPermParams } from "./perm-schema.js";
-import { resolveToolsConfig } from "./tools-config.js";
+import { assertToolEnabledForAccount, mergeToolsConfigs } from "./tools-config.js";
 
 // ============ Helpers ============
 
@@ -129,17 +129,14 @@ export function registerFeishuPermTools(api: OpenClawPluginApi) {
     return;
   }
 
-  const firstAccount = accounts[0];
-  const toolsCfg = resolveToolsConfig(firstAccount.config.tools);
+  const toolsCfg = mergeToolsConfigs(accounts.map((a) => a.config.tools));
   if (!toolsCfg.perm) {
     api.logger.debug?.("feishu_perm: perm tool disabled in config (default: false)");
     return;
   }
 
-  const getClient = () => createFeishuClient(firstAccount);
-
   api.registerTool(
-    {
+    (ctx: OpenClawPluginToolContext) => ({
       name: "feishu_perm",
       label: "Feishu Perm",
       description: "Feishu permission management. Actions: list, add, remove",
@@ -147,7 +144,10 @@ export function registerFeishuPermTools(api: OpenClawPluginApi) {
       async execute(_toolCallId, params) {
         const p = params as FeishuPermParams;
         try {
-          const client = getClient();
+          const account = resolveFeishuAccountForToolContext(accounts, ctx);
+          const gateError = assertToolEnabledForAccount(account, "perm", "feishu_perm");
+          if (gateError) return json({ error: gateError });
+          const client = createFeishuClient(account);
           switch (p.action) {
             case "list":
               return json(await listMembers(client, p.token, p.type));
@@ -165,7 +165,7 @@ export function registerFeishuPermTools(api: OpenClawPluginApi) {
           return json({ error: err instanceof Error ? err.message : String(err) });
         }
       },
-    },
+    }),
     { name: "feishu_perm" },
   );
 
