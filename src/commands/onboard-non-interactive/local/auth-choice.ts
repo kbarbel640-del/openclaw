@@ -23,6 +23,7 @@ import {
   applyOpencodeZenConfig,
   applyOpenrouterConfig,
   applySyntheticConfig,
+  applyApertisConfig,
   applyVeniceConfig,
   applyTogetherConfig,
   applyHuggingfaceConfig,
@@ -32,6 +33,7 @@ import {
   applyXaiConfig,
   applyXiaomiConfig,
   applyZaiConfig,
+  setApertisApiKey,
   setAnthropicApiKey,
   setCloudflareAiGatewayConfig,
   setQianfanApiKey,
@@ -650,6 +652,29 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyVeniceConfig(nextConfig);
+  }
+
+  if (authChoice === "apertis-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "apertis",
+      cfg: baseConfig,
+      flagValue: opts.apertisApiKey,
+      flagName: "--apertis-api-key",
+      envVar: "APERTIS_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setApertisApiKey(resolved.key);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "apertis:default",
+      provider: "apertis",
+      mode: "api_key",
+    });
+    return applyApertisConfig(nextConfig);
   }
 
   if (
