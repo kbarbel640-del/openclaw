@@ -102,6 +102,9 @@ export function createTypingController(params: {
     if (sealed) {
       return;
     }
+    if (runComplete) {
+      return;
+    }
     await onReplyStart?.();
   };
 

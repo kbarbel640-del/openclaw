@@ -25,11 +25,11 @@ describe("typing controller", () => {
 
     typing.markRunComplete();
     vi.advanceTimersByTime(1_000);
-    expect(onReplyStart).toHaveBeenCalledTimes(4);
+    expect(onReplyStart).toHaveBeenCalledTimes(3);
 
     typing.markDispatchIdle();
     vi.advanceTimersByTime(2_000);
-    expect(onReplyStart).toHaveBeenCalledTimes(4);
+    expect(onReplyStart).toHaveBeenCalledTimes(3);
   });
 
   it("keeps typing until both idle and run completion are set", async () => {
