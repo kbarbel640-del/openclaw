@@ -69,18 +69,14 @@ describe("model-selection", () => {
       });
     });
 
-    it("normalizes openai gpt-5.3 codex refs to openai-codex provider", () => {
-      expect(parseModelRef("openai/gpt-5.3-codex", "anthropic")).toEqual({
+    it("normalizes openai gpt-5.3 codex spark refs to openai-codex provider", () => {
+      expect(parseModelRef("openai/gpt-5.3-codex-spark", "anthropic")).toEqual({
         provider: "openai-codex",
-        model: "gpt-5.3-codex",
+        model: "gpt-5.3-codex-spark",
       });
-      expect(parseModelRef("gpt-5.3-codex", "openai")).toEqual({
+      expect(parseModelRef("gpt-5.3-codex-spark", "openai")).toEqual({
         provider: "openai-codex",
-        model: "gpt-5.3-codex",
-      });
-      expect(parseModelRef("openai/gpt-5.3-codex-codex", "anthropic")).toEqual({
-        provider: "openai-codex",
-        model: "gpt-5.3-codex-codex",
+        model: "gpt-5.3-codex-spark",
       });
     });
 
