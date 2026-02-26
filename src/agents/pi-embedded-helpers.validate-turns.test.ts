@@ -243,7 +243,7 @@ describe("validateAnthropicTurns", () => {
     ]);
   });
 
-  it("should not merge consecutive assistant messages", () => {
+  it("should merge consecutive assistant messages", () => {
     const msgs = asMessages([
       { role: "user", content: [{ type: "text", text: "Question" }] },
       {
@@ -258,8 +258,44 @@ describe("validateAnthropicTurns", () => {
 
     const result = validateAnthropicTurns(msgs);
 
-    // validateAnthropicTurns only merges user messages, not assistant
+    expect(result).toHaveLength(2);
+    expect(result[0].role).toBe("user");
+    expect(result[1].role).toBe("assistant");
+    const content = (result[1] as { content: unknown[] }).content;
+    expect(content).toHaveLength(2);
+    expect(content[0]).toEqual({ type: "text", text: "Answer 1" });
+    expect(content[1]).toEqual({ type: "text", text: "Answer 2" });
+  });
+
+  it("should merge assistant text + tool_use so tool_result follows correctly", () => {
+    const msgs = asMessages([
+      { role: "user", content: [{ type: "text", text: "Do something" }] },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Got it..." }],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "toolUse", id: "tool-1", name: "session_status", input: {} }],
+      },
+      {
+        role: "toolResult",
+        toolUseId: "tool-1",
+        content: [{ type: "text", text: "status ok" }],
+      },
+    ]);
+
+    const result = validateAnthropicTurns(msgs);
+
+    // assistant messages merged so tool_result immediately follows
     expect(result).toHaveLength(3);
+    expect(result[0].role).toBe("user");
+    expect(result[1].role).toBe("assistant");
+    const content = (result[1] as { content: unknown[] }).content;
+    expect(content).toHaveLength(2);
+    expect(content[0]).toEqual({ type: "text", text: "Got it..." });
+    expect(content[1]).toEqual({ type: "toolUse", id: "tool-1", name: "session_status", input: {} });
+    expect(result[2].role).toBe("toolResult");
   });
 
   it("should handle mixed scenario with steering messages", () => {
