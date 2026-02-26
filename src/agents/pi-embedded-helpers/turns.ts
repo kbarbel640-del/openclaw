@@ -97,11 +97,29 @@ export function mergeConsecutiveUserTurns(
 /**
  * Validates and fixes conversation turn sequences for Anthropic API.
  * Anthropic requires strict alternating user→assistant pattern.
- * Merges consecutive user messages together.
+ * Merges consecutive user messages together AND consecutive assistant messages
+ * together. Consecutive assistant messages can occur when an agent generates a
+ * text reply and a tool_use in two separate logical steps within the same turn
+ * (e.g. a text response followed immediately by a tool call). The Anthropic API
+ * rejects any history where a tool_use block is not in the message that
+ * immediately precedes the corresponding tool_result, so both consecutive
+ * assistant turns must be collapsed into one before the payload is sent.
  */
 export function validateAnthropicTurns(messages: AgentMessage[]): AgentMessage[] {
-  return validateTurnsWithConsecutiveMerge({
+  // First pass: merge consecutive assistant messages so that a text block and a
+  // tool_use block generated in separate steps appear in a single assistant
+  // message.  This is required because the Anthropic API mandates that the
+  // tool_result block in the next user message IMMEDIATELY follows the assistant
+  // message containing the tool_use block.
+  const mergedAssistants = validateTurnsWithConsecutiveMerge({
     messages,
+    role: "assistant",
+    merge: mergeConsecutiveAssistantTurns,
+  });
+
+  // Second pass: merge consecutive user messages (original behaviour).
+  return validateTurnsWithConsecutiveMerge({
+    messages: mergedAssistants,
     role: "user",
     merge: mergeConsecutiveUserTurns,
   });
