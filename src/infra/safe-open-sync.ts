@@ -28,9 +28,12 @@ export function openVerifiedFileSync(params: {
   rejectPathSymlink?: boolean;
   rejectHardlinks?: boolean;
   maxBytes?: number;
+  platform?: NodeJS.Platform;
   ioFs?: SafeOpenSyncFs;
 }): SafeOpenSyncResult {
   const ioFs = params.ioFs ?? fs;
+  const platform = params.platform ?? process.platform;
+  const rejectHardlinks = Boolean(params.rejectHardlinks) && platform !== "win32";
   const openReadFlags =
     ioFs.constants.O_RDONLY |
     (typeof ioFs.constants.O_NOFOLLOW === "number" ? ioFs.constants.O_NOFOLLOW : 0);
@@ -48,7 +51,7 @@ export function openVerifiedFileSync(params: {
     if (!preOpenStat.isFile()) {
       return { ok: false, reason: "validation" };
     }
-    if (params.rejectHardlinks && preOpenStat.nlink > 1) {
+    if (rejectHardlinks && preOpenStat.nlink > 1) {
       return { ok: false, reason: "validation" };
     }
     if (params.maxBytes !== undefined && preOpenStat.size > params.maxBytes) {
@@ -60,7 +63,7 @@ export function openVerifiedFileSync(params: {
     if (!openedStat.isFile()) {
       return { ok: false, reason: "validation" };
     }
-    if (params.rejectHardlinks && openedStat.nlink > 1) {
+    if (rejectHardlinks && openedStat.nlink > 1) {
       return { ok: false, reason: "validation" };
     }
     if (params.maxBytes !== undefined && openedStat.size > params.maxBytes) {
