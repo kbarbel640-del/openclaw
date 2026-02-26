@@ -11,6 +11,8 @@ import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import { stringEnum } from "../schema/typebox.js";
 import { type AnyAgentTool, jsonResult, readStringParam } from "./common.js";
+import type { ToolFsPolicy } from "../tool-fs-policy.js";
+import { normalizeWorkspaceDir } from "../workspace-dir.js";
 
 // ---------------------------------------------------------------------------
 // Format detection
@@ -67,10 +69,36 @@ async function serializeContent(value: unknown, format: ConfigFormat): Promise<s
 
 function parsePath(dotPath: string): string[] {
   if (!dotPath || dotPath === ".") return [];
-  return dotPath.split(".").map((seg) => {
-    // Support array index: "items.0.name"
-    return seg;
-  });
+  const segments = dotPath.split(".");
+  for (const seg of segments) {
+    if (!seg) throw new Error(`Invalid path: empty segment in "${dotPath}"`);
+    if (seg === "__proto__" || seg === "constructor" || seg === "prototype") {
+      throw new Error(`Invalid path: forbidden segment "${seg}"`);
+    }
+  }
+  return segments;
+}
+
+/**
+ * Resolve and validate the file path. When workspaceOnly is set, the resolved
+ * path must be inside the workspace root.
+ */
+function resolveFilePath(
+  filePath: string,
+  opts: { workspaceDir?: string | null; fsPolicy?: ToolFsPolicy },
+): string {
+  const resolved = path.resolve(filePath);
+  if (opts.fsPolicy?.workspaceOnly) {
+    const root = opts.workspaceDir ?? process.cwd();
+    const rel = path.relative(root, resolved);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+      throw new Error(
+        `Access denied: "${filePath}" is outside the workspace root ("${root}"). ` +
+          `Set workspaceOnly=false in tools.fs config to allow external paths.`,
+      );
+    }
+  }
+  return resolved;
 }
 
 function getByPath(obj: unknown, segments: string[]): unknown {
@@ -189,7 +217,11 @@ const ConfigEditSchema = Type.Object({
 // Tool implementation
 // ---------------------------------------------------------------------------
 
-export function createConfigEditTool(): AnyAgentTool {
+export function createConfigEditTool(options?: {
+  workspaceDir?: string;
+  fsPolicy?: ToolFsPolicy;
+}): AnyAgentTool {
+  const workspaceDir = normalizeWorkspaceDir(options?.workspaceDir);
   return {
     label: "Config Editor",
     name: "config_edit",
@@ -199,7 +231,8 @@ export function createConfigEditTool(): AnyAgentTool {
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const action = readStringParam(params, "action", { required: true });
-      const filePath = readStringParam(params, "file", { required: true });
+      const rawFilePath = readStringParam(params, "file", { required: true });
+      const filePath = resolveFilePath(rawFilePath, { workspaceDir, fsPolicy: options?.fsPolicy });
       const dotPath = readStringParam(params, "path") || ".";
       const segments = parsePath(dotPath);
 
