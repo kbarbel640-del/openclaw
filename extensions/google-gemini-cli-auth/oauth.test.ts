@@ -3,6 +3,19 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("openclaw/plugin-sdk", () => ({
   isWSL2Sync: () => false,
+  fetchWithSsrFGuard: async (params: {
+    url: string;
+    init?: RequestInit;
+    fetchImpl?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  }) => {
+    const fetchImpl = params.fetchImpl ?? globalThis.fetch;
+    const response = await fetchImpl(params.url, params.init);
+    return {
+      response,
+      finalUrl: params.url,
+      release: async () => {},
+    };
+  },
 }));
 
 // Mock fs module before importing the module under test
