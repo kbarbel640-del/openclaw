@@ -196,6 +196,16 @@ export type DiagnosticsCacheTraceConfig = {
   includeSystem?: boolean;
 };
 
+export type OpikConfig = {
+  enabled?: boolean;
+  apiKey?: string;
+  apiUrl?: string;
+  projectName?: string;
+  workspaceName?: string;
+  /** Tags applied to every trace. */
+  tags?: string[];
+};
+
 export type DiagnosticsConfig = {
   enabled?: boolean;
   /** Optional ad-hoc diagnostics flags (e.g. "telegram.http"). */

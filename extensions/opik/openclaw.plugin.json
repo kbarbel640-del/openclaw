@@ -1,0 +1,8 @@
+{
+  "id": "opik",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

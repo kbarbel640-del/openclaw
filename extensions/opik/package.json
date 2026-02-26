@@ -1,0 +1,18 @@
+{
+  "name": "@openclaw/opik",
+  "version": "2026.2.16",
+  "description": "OpenClaw Opik exporter — sends LLM traces to Opik",
+  "type": "module",
+  "dependencies": {
+    "@clack/prompts": "^1.0.1",
+    "opik": "^1.10.22"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

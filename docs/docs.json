@@ -1021,7 +1021,12 @@
               },
               {
                 "group": "Extensions",
-                "pages": ["plugins/community", "plugins/voice-call", "plugins/zalouser"]
+                "pages": [
+                  "plugins/community",
+                  "plugins/voice-call",
+                  "plugins/zalouser",
+                  "plugins/opik"
+                ]
               },
               {
                 "group": "Automation",

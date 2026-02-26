@@ -204,6 +204,11 @@
   - changed-files:
       - any-glob-to-any-file:
           - "extensions/diagnostics-otel/**"
+"extensions: opik":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/opik/**"
+          - "docs/plugins/opik.md"
 "extensions: google-antigravity-auth":
   - changed-files:
       - any-glob-to-any-file:

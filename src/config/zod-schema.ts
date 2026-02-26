@@ -207,6 +207,17 @@ export const OpenClawSchema = z
       })
       .strict()
       .optional(),
+    opik: z
+      .object({
+        enabled: z.boolean().optional(),
+        apiKey: z.string().optional().register(sensitive),
+        apiUrl: z.string().optional(),
+        projectName: z.string().optional(),
+        workspaceName: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+      })
+      .strict()
+      .optional(),
     logging: z
       .object({
         level: LoggingLevelSchema.optional(),

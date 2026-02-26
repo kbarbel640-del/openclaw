@@ -433,6 +433,15 @@ export const FIELD_HELP: Record<string, string> = {
     "Include full message payloads in trace output (default: true).",
   "diagnostics.cacheTrace.includePrompt": "Include prompt text in trace output (default: true).",
   "diagnostics.cacheTrace.includeSystem": "Include system prompt in trace output (default: true).",
+  opik: "Opik trace export settings for sending LLM observability data to Opik Cloud or a self-hosted Opik instance.",
+  "opik.enabled": "Enables Opik trace export for LLM calls, tool executions, and agent runs.",
+  "opik.apiKey":
+    "API key for authenticating with Opik Cloud. Not needed for local self-hosted instances without auth.",
+  "opik.apiUrl":
+    "Opik API endpoint URL. Defaults to Opik Cloud. Set to your self-hosted URL for local deployments.",
+  "opik.projectName": 'Project name in the Opik dashboard (default: "openclaw").',
+  "opik.workspaceName": 'Opik workspace name (default: "default").',
+  "opik.tags": 'Default tags applied to every exported trace (default: ["openclaw"]).',
   "tools.exec.applyPatch.enabled":
     "Experimental. Enables apply_patch for OpenAI models when allowed by tool policy.",
   "tools.exec.applyPatch.workspaceOnly":

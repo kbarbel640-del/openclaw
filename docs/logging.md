@@ -265,6 +265,14 @@ Notes:
 - Environment variables supported: `OTEL_EXPORTER_OTLP_ENDPOINT`,
   `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_PROTOCOL`.
 
+### Export to Opik
+
+Traces can also be exported to [Opik](https://www.comet.com/docs/opik/) for
+LLM-specific observability — prompts, completions, tool calls, token usage,
+and costs in a dedicated trace UI.
+
+See the full setup guide: [Opik plugin](/plugins/opik).
+
 ### Exported metrics (names + types)
 
 Model usage:
