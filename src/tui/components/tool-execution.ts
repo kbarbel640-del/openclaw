@@ -10,6 +10,7 @@ import {
   Text,
 } from "@mariozechner/pi-tui";
 import { formatToolDetail, resolveToolDisplay } from "../../agents/tool-display.js";
+import { MEDIA_TOKEN_RE } from "../../media/parse.js";
 import { markdownTheme, theme } from "../theme/theme.js";
 import { sanitizeRenderableText } from "../tui-formatters.js";
 
@@ -77,10 +78,15 @@ function getMediaPaths(result?: ToolResult): string[] {
     if (entry.type !== "text" || typeof entry.text !== "string") {
       continue;
     }
-    for (const line of entry.text.split("\n")) {
-      const match = line.trim().match(/^MEDIA:(.+)$/);
-      if (match) {
-        paths.push(match[1].trim());
+    // matchAll() internally clones the regex, avoiding lastIndex statefulness.
+    // MEDIA_TOKEN_RE handles backticks, whitespace after colon, case-insensitive.
+    for (const match of entry.text.matchAll(MEDIA_TOKEN_RE)) {
+      // MEDIA_TOKEN_RE's greedy ([^\n]+) captures the trailing backtick when
+      // present (the leading backtick is consumed before the capture group).
+      // Strip trailing punctuation the same way parse.ts cleanCandidate() does.
+      const raw = match[1].replace(/[`"'\\})],]+$/, "").trim();
+      if (raw) {
+        paths.push(raw);
       }
     }
   }
@@ -107,9 +113,11 @@ function extractText(result?: ToolResult): string {
   if (!result?.content) {
     return "";
   }
-  const hasMedia = result.content.some(
-    (e) => e.type === "text" && typeof e.text === "string" && /^MEDIA:.+/m.test(e.text),
-  );
+  // Only suppress image placeholders when images will actually render:
+  // terminal must support inline images AND at least one MEDIA path must be
+  // a valid, accessible image file. This avoids blank output when files are
+  // missing (e.g. stale history paths) or the terminal lacks image support.
+  const willRenderImages = canRenderInlineImages() && getMediaPaths(result).some(validateMediaPath);
   const lines: string[] = [];
   for (const entry of result.content) {
     if (entry.type === "text" && entry.text) {
@@ -122,8 +130,8 @@ function extractText(result?: ToolResult): string {
         lines.push(sanitizeRenderableText(filtered));
       }
     } else if (entry.type === "image") {
-      // Suppress placeholder when MEDIA paths provide the actual image
-      if (hasMedia) {
+      // Suppress placeholder only when images will actually render inline.
+      if (willRenderImages) {
         continue;
       }
       const mime = entry.mimeType ?? "image";

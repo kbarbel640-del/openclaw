@@ -368,9 +368,20 @@ export function asString(value: unknown, fallback = ""): string {
 }
 
 /**
- * Check if a tool result contains MEDIA: file path references.
+ * Match a MEDIA: line and capture the path portion, scoped to a single line.
+ * The `m` flag makes `^`/`$` match line boundaries so this works in multi-line text.
+ */
+const MEDIA_IMAGE_LINE_RE = /^MEDIA:\s*`?(.+\.(?:png|jpe?g|gif|webp))`?\s*$/im;
+
+/**
+ * Check if a tool result contains MEDIA: file path references to **images**.
  * The MEDIA: protocol is produced by `imageResult()` / `imageResultFromFile()`
  * as a text content block alongside the (often sanitized) image data block.
+ *
+ * Only matches image paths (png/jpg/jpeg/gif/webp) — not audio or other
+ * MEDIA: references like TTS output — so the verbose bypass remains scoped
+ * to actual inline image results. The extension check is on the MEDIA: path
+ * itself, not the surrounding text, to avoid false positives.
  */
 export function resultHasMedia(result: unknown): boolean {
   if (!result || typeof result !== "object") {
@@ -385,6 +396,9 @@ export function resultHasMedia(result: unknown): boolean {
       return false;
     }
     const e = entry as { type?: string; text?: string };
-    return e.type === "text" && typeof e.text === "string" && /^MEDIA:.+/m.test(e.text);
+    if (e.type !== "text" || typeof e.text !== "string") {
+      return false;
+    }
+    return MEDIA_IMAGE_LINE_RE.test(e.text);
   });
 }

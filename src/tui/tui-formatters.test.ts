@@ -314,4 +314,46 @@ describe("resultHasMedia", () => {
   it("returns false when content is not an array", () => {
     expect(resultHasMedia({ content: "not-array" })).toBe(false);
   });
+
+  it("returns false for non-image MEDIA: paths (e.g. audio)", () => {
+    expect(
+      resultHasMedia({
+        content: [{ type: "text", text: "MEDIA:/tmp/speech.mp3" }],
+      }),
+    ).toBe(false);
+    expect(
+      resultHasMedia({
+        content: [{ type: "text", text: "MEDIA:/tmp/audio.wav" }],
+      }),
+    ).toBe(false);
+  });
+
+  it("returns true for all supported image extensions", () => {
+    for (const ext of ["png", "jpg", "jpeg", "gif", "webp"]) {
+      expect(
+        resultHasMedia({
+          content: [{ type: "text", text: `MEDIA:/tmp/file.${ext}` }],
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("returns false for audio MEDIA: even when unrelated image extension appears in text", () => {
+    // Regression: extension check must be scoped to the MEDIA: path, not
+    // the entire text blob. A text block with audio MEDIA: and unrelated
+    // ".png" text elsewhere should NOT trigger the bypass.
+    expect(
+      resultHasMedia({
+        content: [{ type: "text", text: "MEDIA:/tmp/audio.wav\nSee report.png for details" }],
+      }),
+    ).toBe(false);
+  });
+
+  it("returns true for MEDIA: with space after colon", () => {
+    expect(
+      resultHasMedia({
+        content: [{ type: "text", text: "MEDIA: /tmp/photo.png" }],
+      }),
+    ).toBe(true);
+  });
 });
