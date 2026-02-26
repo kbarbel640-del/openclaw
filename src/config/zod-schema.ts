@@ -1,29 +1,12 @@
 import { z } from "zod";
 import { parseByteSize } from "../cli/parse-bytes.js";
+import { parseDurationMs } from "../cli/parse-duration.js";
+import { isCanonicalDottedDecimalIPv4 } from "../shared/net/ip.js";
+import { ToolsSchema } from "./zod-schema.agent-runtime.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
-
-function isValidIPv4String(value: string): boolean {
-  const parts = value.trim().split(".");
-  if (parts.length !== 4) {
-    return false;
-  }
-  for (const part of parts) {
-    if (!/^[0-9]{1,3}$/.test(part)) {
-      return false;
-    }
-    const num = Number(part);
-    if (!Number.isInteger(num) || num < 0 || num > 255) {
-      return false;
-    }
-  }
-  return true;
-}
-
-import { parseDurationMs } from "../cli/parse-duration.js";
-import { ToolsSchema } from "./zod-schema.agent-runtime.js";
 import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zod-schema.agents.js";
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
@@ -529,7 +512,7 @@ export const OpenClawSchema = z
 
         // Back-compat: allow gateway.bind to be a raw IPv4 host (commonly 0.0.0.0).
         // Canonical form is gateway.bind="custom" + gateway.customBindHost="<ip>".
-        if (typeof next.bind === "string" && isValidIPv4String(next.bind)) {
+        if (typeof next.bind === "string" && isCanonicalDottedDecimalIPv4(next.bind)) {
           if (typeof next.customBindHost !== "string" || next.customBindHost.trim().length === 0) {
             next.customBindHost = next.bind;
           }
