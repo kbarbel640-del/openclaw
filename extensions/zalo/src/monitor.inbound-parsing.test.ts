@@ -142,6 +142,62 @@ describe("zalo inbound parsing", () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining("message.unsupported.received"));
   });
 
+  it("does not send unsupported notices when dmPolicy is disabled", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: {} })));
+    await __testing.processUpdateForTesting(
+      {
+        event_name: "message.unsupported.received",
+        message: buildBaseMessage({ text: "unsupported payload" }),
+      },
+      {},
+      fetcher,
+      {
+        accountConfig: {
+          dmPolicy: "disabled",
+        },
+      },
+    );
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("does not send unsupported notices to non-allowlisted senders", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: {} })));
+    await __testing.processUpdateForTesting(
+      {
+        event_name: "message.unsupported.received",
+        message: buildBaseMessage({ text: "unsupported payload" }),
+      },
+      {},
+      fetcher,
+      {
+        accountConfig: {
+          dmPolicy: "allowlist",
+          allowFrom: ["trusted-user"],
+        },
+      },
+    );
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("sends unsupported notices to allowlisted senders", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: {} })));
+    await __testing.processUpdateForTesting(
+      {
+        event_name: "message.unsupported.received",
+        message: buildBaseMessage({ text: "unsupported payload" }),
+      },
+      {},
+      fetcher,
+      {
+        accountConfig: {
+          dmPolicy: "allowlist",
+          allowFrom: ["user-1"],
+        },
+      },
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("summarizes unsupported payload kind from attachments and extra fields", () => {
     const summary = __testing.summarizeUnsupportedInbound(
       buildBaseMessage({

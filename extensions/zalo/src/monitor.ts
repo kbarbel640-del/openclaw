@@ -321,7 +321,17 @@ async function processUpdate(
       );
       break;
     case "message.unsupported.received":
-      await handleUnsupportedMessage(update, message, token, account, runtime, statusSink, fetcher);
+      await handleUnsupportedMessage(
+        update,
+        message,
+        token,
+        account,
+        config,
+        runtime,
+        core,
+        statusSink,
+        fetcher,
+      );
       break;
     default:
       runtime.log?.(
@@ -340,19 +350,174 @@ function buildUnsupportedMessageNotice(
   ].join("\n");
 }
 
+async function enforceInboundDirectAccess(params: {
+  message: ZaloMessage;
+  token: string;
+  account: ResolvedZaloAccount;
+  config: OpenClawConfig;
+  runtime: ZaloRuntimeEnv;
+  core: ZaloCoreRuntime;
+  rawBody: string;
+  statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
+  fetcher?: ZaloFetch;
+}): Promise<{
+  allowed: boolean;
+  isGroup: boolean;
+  chatId: string;
+  senderId: string;
+  senderName?: string;
+  commandAuthorized: boolean | undefined;
+}> {
+  const { message, token, account, config, runtime, core, rawBody, statusSink, fetcher } = params;
+  const pairing = createScopedPairingAccess({
+    core,
+    channel: "zalo",
+    accountId: account.accountId,
+  });
+  const { from, chat } = message;
+  const isGroup = chat.chat_type === "GROUP";
+  const chatId = chat.id;
+  const senderId = from.id;
+  const senderName = from.name ?? from.display_name;
+
+  if (isGroup) {
+    logVerbose(core, runtime, `zalo: drop group ${chatId} (direct-only channel)`);
+    return {
+      allowed: false,
+      isGroup,
+      chatId,
+      senderId,
+      senderName,
+      commandAuthorized: undefined,
+    };
+  }
+
+  const dmPolicy = account.config.dmPolicy ?? "pairing";
+  if (dmPolicy === "disabled") {
+    logVerbose(core, runtime, `Blocked zalo DM from ${senderId} (dmPolicy=disabled)`);
+    return {
+      allowed: false,
+      isGroup,
+      chatId,
+      senderId,
+      senderName,
+      commandAuthorized: undefined,
+    };
+  }
+
+  if (dmPolicy === "open") {
+    return {
+      allowed: true,
+      isGroup,
+      chatId,
+      senderId,
+      senderName,
+      commandAuthorized: undefined,
+    };
+  }
+
+  const configAllowFrom = (account.config.allowFrom ?? []).map((v) => String(v));
+  const { senderAllowedForCommands, commandAuthorized } = await resolveSenderCommandAuthorization({
+    cfg: config,
+    rawBody,
+    isGroup,
+    dmPolicy,
+    configuredAllowFrom: configAllowFrom,
+    senderId,
+    isSenderAllowed: isZaloSenderAllowed,
+    readAllowFromStore: pairing.readAllowFromStore,
+    shouldComputeCommandAuthorized: (body, cfg) =>
+      core.channel.commands.shouldComputeCommandAuthorized(body, cfg),
+    resolveCommandAuthorizedFromAuthorizers: (authParams) =>
+      core.channel.commands.resolveCommandAuthorizedFromAuthorizers(authParams),
+  });
+
+  if (!senderAllowedForCommands) {
+    if (dmPolicy === "pairing") {
+      const { code, created } = await pairing.upsertPairingRequest({
+        id: senderId,
+        meta: { name: senderName ?? undefined },
+      });
+
+      if (created) {
+        logVerbose(core, runtime, `zalo pairing request sender=${senderId}`);
+        try {
+          await runWithSendRetry({
+            runtime,
+            accountId: account.accountId,
+            actionLabel: "send pairing reply",
+            operation: () =>
+              sendMessage(
+                token,
+                {
+                  chat_id: chatId,
+                  text: core.channel.pairing.buildPairingReply({
+                    channel: "zalo",
+                    idLine: `Your Zalo user id: ${senderId}`,
+                    code,
+                  }),
+                },
+                fetcher,
+              ),
+          });
+          statusSink?.({ lastOutboundAt: Date.now() });
+        } catch (err) {
+          logVerbose(core, runtime, `zalo pairing reply failed for ${senderId}: ${String(err)}`);
+        }
+      }
+    } else {
+      logVerbose(
+        core,
+        runtime,
+        `Blocked unauthorized zalo sender ${senderId} (dmPolicy=${dmPolicy})`,
+      );
+    }
+    return {
+      allowed: false,
+      isGroup,
+      chatId,
+      senderId,
+      senderName,
+      commandAuthorized,
+    };
+  }
+
+  return {
+    allowed: true,
+    isGroup,
+    chatId,
+    senderId,
+    senderName,
+    commandAuthorized,
+  };
+}
+
 async function handleUnsupportedMessage(
   update: ZaloUpdate,
   message: ZaloMessage,
   token: string,
   account: ResolvedZaloAccount,
+  config: OpenClawConfig,
   runtime: ZaloRuntimeEnv,
+  core: ZaloCoreRuntime,
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void,
   fetcher?: ZaloFetch,
 ): Promise<void> {
   runtime.log?.(
     `[${account.accountId}] [zalo] Unsupported event payload: ${formatUpdateForLog(update)}`,
   );
-  if (message.chat.chat_type !== "PRIVATE") {
+  const access = await enforceInboundDirectAccess({
+    message,
+    token,
+    account,
+    config,
+    runtime,
+    core,
+    rawBody: `<unsupported:${update.event_name}>`,
+    statusSink,
+    fetcher,
+  });
+  if (!access.allowed) {
     return;
   }
 
@@ -603,100 +768,23 @@ async function processMessageWithPipeline(params: {
     statusSink,
     fetcher,
   } = params;
-  const pairing = createScopedPairingAccess({
+  const { message_id, date } = message;
+  const rawBody = text?.trim() || (mediaPath ? "<media:image>" : "");
+  const access = await enforceInboundDirectAccess({
+    message,
+    token,
+    account,
+    config,
+    runtime,
     core,
-    channel: "zalo",
-    accountId: account.accountId,
+    rawBody,
+    statusSink,
+    fetcher,
   });
-  const { from, chat, message_id, date } = message;
-
-  const isGroup = chat.chat_type === "GROUP";
-  const chatId = chat.id;
-  const senderId = from.id;
-  const senderName = from.name ?? from.display_name;
-
-  if (isGroup) {
-    logVerbose(core, runtime, `zalo: drop group ${chatId} (direct-only channel)`);
+  if (!access.allowed) {
     return;
   }
-
-  const dmPolicy = account.config.dmPolicy ?? "pairing";
-  const configAllowFrom = (account.config.allowFrom ?? []).map((v) => String(v));
-
-  const rawBody = text?.trim() || (mediaPath ? "<media:image>" : "");
-  const { senderAllowedForCommands, commandAuthorized } = await resolveSenderCommandAuthorization({
-    cfg: config,
-    rawBody,
-    isGroup,
-    dmPolicy,
-    configuredAllowFrom: configAllowFrom,
-    configuredGroupAllowFrom: groupAllowFrom,
-    senderId,
-    isSenderAllowed: isZaloSenderAllowed,
-    readAllowFromStore: pairing.readAllowFromStore,
-    shouldComputeCommandAuthorized: (body, cfg) =>
-      core.channel.commands.shouldComputeCommandAuthorized(body, cfg),
-    resolveCommandAuthorizedFromAuthorizers: (params) =>
-      core.channel.commands.resolveCommandAuthorizedFromAuthorizers(params),
-  });
-
-  if (!isGroup) {
-    if (dmPolicy === "disabled") {
-      logVerbose(core, runtime, `Blocked zalo DM from ${senderId} (dmPolicy=disabled)`);
-      return;
-    }
-
-    if (dmPolicy !== "open") {
-      const allowed = senderAllowedForCommands;
-
-      if (!allowed) {
-        if (dmPolicy === "pairing") {
-          const { code, created } = await pairing.upsertPairingRequest({
-            id: senderId,
-            meta: { name: senderName ?? undefined },
-          });
-
-          if (created) {
-            logVerbose(core, runtime, `zalo pairing request sender=${senderId}`);
-            try {
-              await runWithSendRetry({
-                runtime,
-                accountId: account.accountId,
-                actionLabel: "send pairing reply",
-                operation: () =>
-                  sendMessage(
-                    token,
-                    {
-                      chat_id: chatId,
-                      text: core.channel.pairing.buildPairingReply({
-                        channel: "zalo",
-                        idLine: `Your Zalo user id: ${senderId}`,
-                        code,
-                      }),
-                    },
-                    fetcher,
-                  ),
-              });
-              statusSink?.({ lastOutboundAt: Date.now() });
-            } catch (err) {
-              logVerbose(
-                core,
-                runtime,
-                `zalo pairing reply failed for ${senderId}: ${String(err)}`,
-              );
-            }
-          }
-        } else {
-          logVerbose(
-            core,
-            runtime,
-            `Blocked unauthorized zalo sender ${senderId} (dmPolicy=${dmPolicy})`,
-          );
-        }
-        return;
-      }
-    }
-  }
+  const { isGroup, chatId, senderId, senderName, commandAuthorized } = access;
 
   const route = core.channel.routing.resolveAgentRoute({
     cfg: config,
@@ -986,21 +1074,46 @@ async function processUpdateForTesting(
   update: ZaloUpdate,
   runtime: ZaloRuntimeEnv = {},
   fetcher?: ZaloFetch,
+  options: {
+    accountConfig?: ResolvedZaloAccount["config"];
+    core?: ZaloCoreRuntime;
+  } = {},
 ): Promise<void> {
   const account: ResolvedZaloAccount = {
     accountId: "test",
     enabled: true,
     token: "test-token",
     tokenSource: "config",
-    config: {},
+    config: options.accountConfig ?? { dmPolicy: "open" },
   };
+  const testCore =
+    options.core ??
+    ({
+      logging: {
+        shouldLogVerbose: () => false,
+      },
+      channel: {
+        pairing: {
+          readAllowFromStore: async () => [],
+          upsertPairingRequest: async () => ({ code: "TEST-PAIR", created: false }),
+          buildPairingReply: ({ idLine, code }: { idLine: string; code: string }) =>
+            `${idLine}\nPairing code: ${code}`,
+        },
+        commands: {
+          shouldComputeCommandAuthorized: () => false,
+          resolveCommandAuthorizedFromAuthorizers: (params: {
+            authorizers: Array<{ allowed: boolean }>;
+          }) => params.authorizers.every((entry) => entry.allowed),
+        },
+      },
+    } as unknown as ZaloCoreRuntime);
   await processUpdate(
     update,
     account.token,
     account,
     {} as OpenClawConfig,
     runtime,
-    {} as ZaloCoreRuntime,
+    testCore,
     DEFAULT_MEDIA_MAX_MB,
     undefined,
     fetcher ?? (async () => new Response(JSON.stringify({ ok: true, result: {} }))),
