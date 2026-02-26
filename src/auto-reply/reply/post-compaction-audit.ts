@@ -2,8 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 // Default required files — constants, extensible to config later
+// Note: Only essential, user-controlled files are included by default.
+// Per issue #27697, hardcoding undocumented files creates a prompt injection vector.
 const DEFAULT_REQUIRED_READS: Array<string | RegExp> = [
-  "WORKFLOW_AUTO.md",
   /memory\/\d{4}-\d{2}-\d{2}\.md/, // daily memory files
 ];
 
