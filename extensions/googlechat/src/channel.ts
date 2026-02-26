@@ -554,23 +554,23 @@ export const googlechatPlugin: ChannelPlugin<ResolvedGoogleChatAccount> = {
         audienceType: account.config.audienceType,
         audience: account.config.audience,
       });
-      const unregister = await startGoogleChatMonitor({
-        account,
-        config: ctx.cfg,
-        runtime: ctx.runtime,
-        abortSignal: ctx.abortSignal,
-        webhookPath: account.config.webhookPath,
-        webhookUrl: account.config.webhookUrl,
-        statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
-      });
-      return () => {
-        unregister?.();
+      try {
+        await startGoogleChatMonitor({
+          account,
+          config: ctx.cfg,
+          runtime: ctx.runtime,
+          abortSignal: ctx.abortSignal,
+          webhookPath: account.config.webhookPath,
+          webhookUrl: account.config.webhookUrl,
+          statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
+        });
+      } finally {
         ctx.setStatus({
           accountId: account.accountId,
           running: false,
           lastStopAt: Date.now(),
         });
-      };
+      }
     },
   },
 };

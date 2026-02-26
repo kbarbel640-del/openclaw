@@ -10,6 +10,7 @@ import { createSubsystemLogger } from "../../logging/subsystem.js";
 import {
   getActiveTaskCount,
   resetAllLanes,
+  setCommandQueueAccepting,
   waitForActiveTasks,
 } from "../../process/command-queue.js";
 import { createRestartIterationHook } from "../../process/restart-recovery.js";
@@ -23,6 +24,8 @@ export async function runGatewayLoop(params: {
   start: () => Promise<Awaited<ReturnType<typeof startGatewayServer>>>;
   runtime: typeof defaultRuntime;
   lockPort?: number;
+  drainOnStop?: boolean;
+  drainTimeoutMs?: number;
 }) {
   let lock = await acquireGatewayLock({ port: params.lockPort });
   let server: Awaited<ReturnType<typeof startGatewayServer>> | null = null;
@@ -87,8 +90,9 @@ export async function runGatewayLoop(params: {
     exitProcess(0);
   };
 
-  const DRAIN_TIMEOUT_MS = 30_000;
+  const DRAIN_TIMEOUT_MS = Math.max(1, Math.floor(params.drainTimeoutMs ?? 30_000));
   const SHUTDOWN_TIMEOUT_MS = 5_000;
+  const drainOnStop = params.drainOnStop ?? true;
 
   const request = (action: GatewayRunSignalAction, signal: string) => {
     if (shuttingDown) {
@@ -96,11 +100,13 @@ export async function runGatewayLoop(params: {
       return;
     }
     shuttingDown = true;
+    setCommandQueueAccepting(false);
     const isRestart = action === "restart";
+    const shouldDrain = isRestart || drainOnStop;
     gatewayLog.info(`received ${signal}; ${isRestart ? "restarting" : "shutting down"}`);
 
     // Allow extra time for draining active turns on restart.
-    const forceExitMs = isRestart ? DRAIN_TIMEOUT_MS + SHUTDOWN_TIMEOUT_MS : SHUTDOWN_TIMEOUT_MS;
+    const forceExitMs = shouldDrain ? DRAIN_TIMEOUT_MS + SHUTDOWN_TIMEOUT_MS : SHUTDOWN_TIMEOUT_MS;
     const forceExitTimer = setTimeout(() => {
       gatewayLog.error("shutdown timed out; exiting without full cleanup");
       exitProcess(0);
@@ -110,17 +116,19 @@ export async function runGatewayLoop(params: {
       try {
         // On restart, wait for in-flight agent turns to finish before
         // tearing down the server so buffered messages are delivered.
-        if (isRestart) {
+        if (shouldDrain) {
           const activeTasks = getActiveTaskCount();
           if (activeTasks > 0) {
             gatewayLog.info(
-              `draining ${activeTasks} active task(s) before restart (timeout ${DRAIN_TIMEOUT_MS}ms)`,
+              `draining ${activeTasks} active task(s) before ${isRestart ? "restart" : "shutdown"} (timeout ${DRAIN_TIMEOUT_MS}ms)`,
             );
             const { drained } = await waitForActiveTasks(DRAIN_TIMEOUT_MS);
             if (drained) {
               gatewayLog.info("all active tasks drained");
             } else {
-              gatewayLog.warn("drain timeout reached; proceeding with restart");
+              gatewayLog.warn(
+                `drain timeout reached; proceeding with ${isRestart ? "restart" : "shutdown"}`,
+              );
             }
           }
         }
@@ -183,6 +191,7 @@ export async function runGatewayLoop(params: {
     // SIGTERM/SIGINT still exit after a graceful shutdown.
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      setCommandQueueAccepting(true);
       onIteration();
       server = await params.start();
       await new Promise<void>((resolve) => {
@@ -190,6 +199,7 @@ export async function runGatewayLoop(params: {
       });
     }
   } finally {
+    setCommandQueueAccepting(true);
     await releaseLockIfHeld();
     cleanupSignals();
   }

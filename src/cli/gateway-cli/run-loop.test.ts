@@ -11,6 +11,7 @@ const markGatewaySigusr1RestartHandled = vi.fn();
 const getActiveTaskCount = vi.fn(() => 0);
 const waitForActiveTasks = vi.fn(async (_timeoutMs: number) => ({ drained: true }));
 const resetAllLanes = vi.fn();
+const setCommandQueueAccepting = vi.fn();
 const restartGatewayProcessWithFreshPid = vi.fn<
   () => { mode: "spawned" | "supervised" | "disabled" | "failed"; pid?: number; detail?: string }
 >(() => ({ mode: "disabled" }));
@@ -39,6 +40,7 @@ vi.mock("../../process/command-queue.js", () => ({
   getActiveTaskCount: () => getActiveTaskCount(),
   waitForActiveTasks: (timeoutMs: number) => waitForActiveTasks(timeoutMs),
   resetAllLanes: () => resetAllLanes(),
+  setCommandQueueAccepting: (next: boolean) => setCommandQueueAccepting(next),
 }));
 
 vi.mock("../../logging/subsystem.js", () => ({
@@ -152,6 +154,7 @@ describe("runGatewayLoop", () => {
         reason: "gateway stopping",
         restartExpectedMs: null,
       });
+      expect(setCommandQueueAccepting).toHaveBeenCalledWith(false);
       expect(runtime.exit).toHaveBeenCalledWith(0);
     });
   });
@@ -218,6 +221,7 @@ describe("runGatewayLoop", () => {
         reason: "gateway restarting",
         restartExpectedMs: 1500,
       });
+      expect(setCommandQueueAccepting).toHaveBeenCalledWith(false);
       expect(markGatewaySigusr1RestartHandled).toHaveBeenCalledTimes(1);
       expect(resetAllLanes).toHaveBeenCalledTimes(1);
 
