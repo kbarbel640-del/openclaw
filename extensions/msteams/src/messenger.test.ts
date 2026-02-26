@@ -93,7 +93,6 @@ describe("msteams messenger", () => {
     });
 
     it("keeps non-exact silent token text", () => {
-    it("keeps non-exact silent token text", () => {
       const messages = renderReplyPayloadsToMessages(
         [{ text: `${SILENT_REPLY_TOKEN} -- ignored` }],
         { textChunkLimit: 4000, tableMode: "code" },
