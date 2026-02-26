@@ -1,11 +1,6 @@
 import fs from "node:fs";
 import type { IStorageProvider, ICryptoStorageProvider } from "@vector-im/matrix-bot-sdk";
-import {
-  LogService,
-  MatrixClient,
-  SimpleFsStorageProvider,
-  RustSdkCryptoStorageProvider,
-} from "@vector-im/matrix-bot-sdk";
+import { LogService, MatrixClient, SimpleFsStorageProvider } from "@vector-im/matrix-bot-sdk";
 import { ensureMatrixSdkLoggingConfigured } from "./logging.js";
 import {
   maybeMigrateLegacyStorage,
@@ -65,7 +60,10 @@ export async function createMatrixClient(params: {
     fs.mkdirSync(storagePaths.cryptoPath, { recursive: true });
 
     try {
-      const { StoreType } = await import("@matrix-org/matrix-sdk-crypto-nodejs");
+      const [{ StoreType }, { RustSdkCryptoStorageProvider }] = await Promise.all([
+        import("@matrix-org/matrix-sdk-crypto-nodejs"),
+        import("@vector-im/matrix-bot-sdk"),
+      ]);
       cryptoStorage = new RustSdkCryptoStorageProvider(storagePaths.cryptoPath, StoreType.Sqlite);
     } catch (err) {
       LogService.warn(
