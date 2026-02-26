@@ -16,6 +16,7 @@ export type RequestExecApprovalDecisionParams = {
   agentId?: string;
   resolvedPath?: string;
   sessionKey?: string;
+  timeoutMs?: number;
 };
 
 type ParsedDecision = { present: boolean; value: string | null };
@@ -50,6 +51,7 @@ export type ExecApprovalRegistration = {
 export async function registerExecApprovalRequest(
   params: RequestExecApprovalDecisionParams,
 ): Promise<ExecApprovalRegistration> {
+  const approvalTimeoutMs = params.timeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS;
   // Two-phase registration is critical: the ID must be registered server-side
   // before exec returns `approval-pending`, otherwise `/approve` can race and orphan.
   const registrationResult = await callGatewayTool<{
@@ -70,7 +72,7 @@ export async function registerExecApprovalRequest(
       agentId: params.agentId,
       resolvedPath: params.resolvedPath,
       sessionKey: params.sessionKey,
-      timeoutMs: DEFAULT_APPROVAL_TIMEOUT_MS,
+      timeoutMs: approvalTimeoutMs,
       twoPhase: true,
     },
     { expectFinal: false },
@@ -78,7 +80,7 @@ export async function registerExecApprovalRequest(
   const decision = parseDecision(registrationResult);
   const id = parseString(registrationResult?.id) ?? params.id;
   const expiresAtMs =
-    parseExpiresAtMs(registrationResult?.expiresAtMs) ?? Date.now() + DEFAULT_APPROVAL_TIMEOUT_MS;
+    parseExpiresAtMs(registrationResult?.expiresAtMs) ?? Date.now() + approvalTimeoutMs;
   if (decision.present) {
     return { id, expiresAtMs, finalDecision: decision.value };
   }
@@ -124,6 +126,7 @@ export async function requestExecApprovalDecisionForHost(params: {
   agentId?: string;
   resolvedPath?: string;
   sessionKey?: string;
+  timeoutMs?: number;
 }): Promise<string | null> {
   return await requestExecApprovalDecision({
     id: params.approvalId,
@@ -136,6 +139,7 @@ export async function requestExecApprovalDecisionForHost(params: {
     agentId: params.agentId,
     resolvedPath: params.resolvedPath,
     sessionKey: params.sessionKey,
+    timeoutMs: params.timeoutMs,
   });
 }
 
@@ -150,6 +154,7 @@ export async function registerExecApprovalRequestForHost(params: {
   agentId?: string;
   resolvedPath?: string;
   sessionKey?: string;
+  timeoutMs?: number;
 }): Promise<ExecApprovalRegistration> {
   return await registerExecApprovalRequest({
     id: params.approvalId,
@@ -162,5 +167,6 @@ export async function registerExecApprovalRequestForHost(params: {
     agentId: params.agentId,
     resolvedPath: params.resolvedPath,
     sessionKey: params.sessionKey,
+    timeoutMs: params.timeoutMs,
   });
 }

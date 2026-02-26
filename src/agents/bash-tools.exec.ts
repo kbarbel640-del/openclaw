@@ -24,6 +24,7 @@ import {
   normalizePathPrepend,
   renderExecHostLabel,
   resolveApprovalRunningNoticeMs,
+  resolveApprovalTimeoutMs,
   runExecProcess,
   sanitizeHostBaseEnv,
   execSchema,
@@ -194,6 +195,7 @@ export function createExecTool(
   const notifyOnExitEmptySuccess = defaults?.notifyOnExitEmptySuccess === true;
   const notifySessionKey = defaults?.sessionKey?.trim() || undefined;
   const approvalRunningNoticeMs = resolveApprovalRunningNoticeMs(defaults?.approvalRunningNoticeMs);
+  const approvalTimeoutMs = resolveApprovalTimeoutMs(defaults?.approvalTimeoutMs);
   // Derive agentId only when sessionKey is an agent session key.
   const parsedAgentSession = parseAgentSessionKey(defaults?.sessionKey);
   const agentId =
@@ -413,6 +415,7 @@ export function createExecTool(
           timeoutSec: params.timeout,
           defaultTimeoutSec,
           approvalRunningNoticeMs,
+          approvalTimeoutMs,
           warnings,
           notifySessionKey,
           trustedSafeBinDirs,
@@ -437,6 +440,7 @@ export function createExecTool(
           warnings,
           notifySessionKey,
           approvalRunningNoticeMs,
+          approvalTimeoutMs,
           maxOutput,
           pendingMaxOutput,
           trustedSafeBinDirs,

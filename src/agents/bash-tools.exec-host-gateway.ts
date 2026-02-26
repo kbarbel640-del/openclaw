@@ -48,6 +48,7 @@ export type ProcessGatewayAllowlistParams = {
   warnings: string[];
   notifySessionKey?: string;
   approvalRunningNoticeMs: number;
+  approvalTimeoutMs?: number;
   maxOutput: number;
   pendingMaxOutput: number;
   trustedSafeBinDirs?: ReadonlySet<string>;
@@ -144,7 +145,8 @@ export async function processGatewayAllowlist(
     const effectiveTimeout =
       typeof params.timeoutSec === "number" ? params.timeoutSec : params.defaultTimeoutSec;
     const warningText = params.warnings.length ? `${params.warnings.join("\n")}\n\n` : "";
-    let expiresAtMs = Date.now() + DEFAULT_APPROVAL_TIMEOUT_MS;
+    const approvalTimeoutMs = params.approvalTimeoutMs ?? DEFAULT_APPROVAL_TIMEOUT_MS;
+    let expiresAtMs = Date.now() + approvalTimeoutMs;
     let preResolvedDecision: string | null | undefined;
 
     try {
@@ -159,6 +161,7 @@ export async function processGatewayAllowlist(
         agentId: params.agentId,
         resolvedPath,
         sessionKey: params.sessionKey,
+        timeoutMs: approvalTimeoutMs,
       });
       expiresAtMs = registration.expiresAtMs;
       preResolvedDecision = registration.finalDecision;
