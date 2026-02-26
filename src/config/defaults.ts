@@ -20,8 +20,8 @@ const DEFAULT_MODEL_ALIASES: Readonly<Record<string, string>> = {
   gpt: "openai/gpt-5.2",
   "gpt-mini": "openai/gpt-5-mini",
 
-  // Google Gemini (3.x are preview ids in the catalog)
-  gemini: "google/gemini-3-pro-preview",
+  // Google Gemini (auto-updated latest alias)
+  gemini: "google/gemini-pro-latest",
   "gemini-flash": "google/gemini-3-flash-preview",
 };
 
