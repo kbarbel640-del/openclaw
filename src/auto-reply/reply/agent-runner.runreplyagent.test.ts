@@ -1428,6 +1428,35 @@ describe("runReplyAgent typing (heartbeat)", () => {
     expect(payloads[0]?.text).toContain("socket connection was closed unexpectedly");
     expect(payloads[0]?.text).toContain("```");
   });
+
+  it("fires markDispatchIdle in finally block on successful run (regression #27172)", async () => {
+    // Regression: the main reply pipeline was missing typing.markDispatchIdle() in its
+    // finally block. Without it, any code path that bypasses the buffered dispatcher's
+    // finally (dispatch.ts) could leave the typing keepalive loop spinning indefinitely.
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async () => ({
+      payloads: [{ text: "hello" }],
+      meta: {},
+    }));
+
+    const { run, typing } = createMinimalRun();
+    await run();
+
+    expect(typing.markRunComplete).toHaveBeenCalled();
+    expect(typing.markDispatchIdle).toHaveBeenCalled();
+  });
+
+  it("fires markDispatchIdle in finally block even when agent errors (regression #27172)", async () => {
+    state.runEmbeddedPiAgentMock.mockImplementationOnce(async () => {
+      throw new Error("agent exploded");
+    });
+
+    const { run, typing } = createMinimalRun();
+    // runReplyAgent catches the error internally and returns an error payload.
+    await run();
+
+    expect(typing.markRunComplete).toHaveBeenCalled();
+    expect(typing.markDispatchIdle).toHaveBeenCalled();
+  });
 });
 
 describe("runReplyAgent memory flush", () => {

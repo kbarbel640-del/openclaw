@@ -748,5 +748,14 @@ export async function runReplyAgent(params: {
   } finally {
     blockReplyPipeline?.stop();
     typing.markRunComplete();
+    // Safety-net: fire markDispatchIdle() here in addition to the buffered
+    // dispatcher's finally block (dispatch.ts).  Both signals are required for
+    // the typing controller to clean up (see TypingController.maybeStopOnIdle).
+    // When the reply path exits before the dispatcher's finally executes (e.g.
+    // early error, abort, or bypassed dispatcher code path) the keepalive loop
+    // would otherwise spin indefinitely — same pattern fixed for the followup
+    // runner in #26881.  Calling markDispatchIdle() twice is a no-op because
+    // maybeStopOnIdle() is guarded by both runComplete and dispatchIdle flags.
+    typing.markDispatchIdle();
   }
 }
