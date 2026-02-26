@@ -17,5 +17,9 @@ export function resolveSandboxHostPathViaExistingAncestor(sourcePath: string): s
   if (!sourcePath.startsWith("/")) {
     return sourcePath;
   }
-  return normalizeSandboxHostPath(resolvePathViaExistingAncestorSync(sourcePath));
+  const resolved = resolvePathViaExistingAncestorSync(sourcePath);
+  if (process.platform === "win32" && /^[A-Za-z]:[\\/]/.test(resolved)) {
+    return normalizeSandboxHostPath(sourcePath);
+  }
+  return normalizeSandboxHostPath(resolved);
 }

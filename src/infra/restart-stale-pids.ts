@@ -35,9 +35,6 @@ function sleepSync(ms: number): void {
  * Returns only PIDs that belong to openclaw gateway processes (not the current process).
  */
 export function findGatewayPidsOnPortSync(port: number): number[] {
-  if (process.platform === "win32") {
-    return [];
-  }
   const lsof = resolveLsofCommandSync();
   const res = spawnSync(lsof, ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpc"], {
     encoding: "utf8",

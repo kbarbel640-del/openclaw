@@ -31,9 +31,10 @@ export function openVerifiedFileSync(params: {
   ioFs?: SafeOpenSyncFs;
 }): SafeOpenSyncResult {
   const ioFs = params.ioFs ?? fs;
+  const supportsNoFollow =
+    process.platform !== "win32" && typeof ioFs.constants.O_NOFOLLOW === "number";
   const openReadFlags =
-    ioFs.constants.O_RDONLY |
-    (typeof ioFs.constants.O_NOFOLLOW === "number" ? ioFs.constants.O_NOFOLLOW : 0);
+    ioFs.constants.O_RDONLY | (supportsNoFollow ? ioFs.constants.O_NOFOLLOW : 0);
   let fd: number | null = null;
   try {
     if (params.rejectPathSymlink) {
