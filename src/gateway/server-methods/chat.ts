@@ -614,7 +614,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         respond(true, { archiveFile, messages: [] });
         return;
       }
-      if (!realFile.startsWith(realSessions + path.sep) && realFile !== realSessions) {
+      if (!realFile.startsWith(realSessions + path.sep)) {
         respond(
           false,
           undefined,
