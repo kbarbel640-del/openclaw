@@ -507,6 +507,7 @@ const CreateAppSchema = Type.Object({
       description: "Optional folder token to place the Bitable in a specific folder",
     }),
   ),
+  account: AccountField,
 });
 
 const CreateFieldSchema = Type.Object({
@@ -526,6 +527,7 @@ const CreateFieldSchema = Type.Object({
       description: "Field-specific properties (e.g., options for SingleSelect, format for Number)",
     }),
   ),
+  account: AccountField,
 });
 
 const UpdateRecordSchema = Type.Object({
@@ -732,56 +734,69 @@ export function registerFeishuBitableTools(api: OpenClawPluginApi) {
 
   // Tool 6: feishu_bitable_create_app
   api.registerTool(
-    {
-      name: "feishu_bitable_create_app",
-      label: "Feishu Bitable Create App",
-      description: "Create a new Bitable (multidimensional table) application",
-      parameters: CreateAppSchema,
-      async execute(_toolCallId, params) {
-        const { name, folder_token } = params as { name: string; folder_token?: string };
-        try {
-          const result = await createApp(getClient(), name, folder_token, {
-            debug: (msg) => api.logger.debug?.(msg),
-            warn: (msg) => api.logger.warn?.(msg),
-          });
-          return json(result);
-        } catch (err) {
-          return json({ error: err instanceof Error ? err.message : String(err) });
-        }
-      },
+    (ctx) => {
+      const preferredAccountId = ctx.agentAccountId;
+      return {
+        name: "feishu_bitable_create_app",
+        label: "Feishu Bitable Create App",
+        description: "Create a new Bitable (multidimensional table) application",
+        parameters: CreateAppSchema,
+        async execute(_toolCallId, params) {
+          const { name, folder_token, account } = params as {
+            name: string;
+            folder_token?: string;
+            account?: string;
+          };
+          try {
+            const { client } = resolveToolClient(api.config!, account, preferredAccountId);
+            const result = await createApp(client, name, folder_token, {
+              debug: (msg) => api.logger.debug?.(msg),
+              warn: (msg) => api.logger.warn?.(msg),
+            });
+            return json(result);
+          } catch (err) {
+            return json({ error: err instanceof Error ? err.message : String(err) });
+          }
+        },
+      };
     },
     { name: "feishu_bitable_create_app" },
   );
 
   // Tool 7: feishu_bitable_create_field
   api.registerTool(
-    {
-      name: "feishu_bitable_create_field",
-      label: "Feishu Bitable Create Field",
-      description: "Create a new field (column) in a Bitable table",
-      parameters: CreateFieldSchema,
-      async execute(_toolCallId, params) {
-        const { app_token, table_id, field_name, field_type, property } = params as {
-          app_token: string;
-          table_id: string;
-          field_name: string;
-          field_type: number;
-          property?: Record<string, unknown>;
-        };
-        try {
-          const result = await createField(
-            getClient(),
-            app_token,
-            table_id,
-            field_name,
-            field_type,
-            property,
-          );
-          return json(result);
-        } catch (err) {
-          return json({ error: err instanceof Error ? err.message : String(err) });
-        }
-      },
+    (ctx) => {
+      const preferredAccountId = ctx.agentAccountId;
+      return {
+        name: "feishu_bitable_create_field",
+        label: "Feishu Bitable Create Field",
+        description: "Create a new field (column) in a Bitable table",
+        parameters: CreateFieldSchema,
+        async execute(_toolCallId, params) {
+          const { app_token, table_id, field_name, field_type, property, account } = params as {
+            app_token: string;
+            table_id: string;
+            field_name: string;
+            field_type: number;
+            property?: Record<string, unknown>;
+            account?: string;
+          };
+          try {
+            const { client } = resolveToolClient(api.config!, account, preferredAccountId);
+            const result = await createField(
+              client,
+              app_token,
+              table_id,
+              field_name,
+              field_type,
+              property,
+            );
+            return json(result);
+          } catch (err) {
+            return json({ error: err instanceof Error ? err.message : String(err) });
+          }
+        },
+      };
     },
     { name: "feishu_bitable_create_field" },
   );
