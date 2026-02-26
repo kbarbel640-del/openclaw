@@ -89,14 +89,16 @@ function deriveFormattedLogPath(file: string): string {
   return path.join(dir, `${base}-formatted${ext}`);
 }
 
-/** Plain text line for the formatted log file: YYYY-MM-DD HH:mm:ss [subsystem] message */
+/** Plain text line for the formatted log file: YYYY-MM-DD HH:mm:ss [level] [subsystem] message */
 function formatPlainLogLine(logObj: LogObj): string {
   const d = logObj.date ?? new Date();
   const timeStr =
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ` +
     `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
-  let subsystem = "main";
   const meta = logObj._meta as Record<string, unknown> | undefined;
+  const levelRaw = typeof meta?.logLevelName === "string" ? meta.logLevelName : meta?.level;
+  const level = typeof levelRaw === "string" ? levelRaw.toLowerCase() : "info";
+  let subsystem = "main";
   const nameCandidates = [
     typeof meta?.name === "string" ? meta.name : null,
     typeof (logObj as Record<string, unknown>)["0"] === "string"
@@ -129,13 +131,9 @@ function formatPlainLogLine(logObj: LogObj): string {
       parts.push(JSON.stringify(v).replace(/\s+/g, " ").trim());
     }
   }
-  const message: string =
-    parts.length > 0
-      ? parts.join(" ")
-      : typeof (logObj as Record<string, unknown>).message === "string"
-        ? (logObj as Record<string, unknown>).message
-        : "";
-  return `${timeStr} [${subsystem}] ${message}`.trim();
+  const msg = (logObj as Record<string, unknown>).message;
+  const message: string = parts.length > 0 ? parts.join(" ") : typeof msg === "string" ? msg : "";
+  return `${timeStr} [${level}] [${subsystem}] ${message}`.trim();
 }
 
 function settingsChanged(a: ResolvedSettings | null, b: ResolvedSettings) {
