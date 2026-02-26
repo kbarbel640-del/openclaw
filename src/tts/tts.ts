@@ -481,14 +481,21 @@ export function setLastTtsAttempt(entry: TtsStatusEntry | undefined): void {
 }
 
 function resolveOutputFormat(channelId?: string | null) {
-  if (channelId === "telegram") {
+  if (channelId === "telegram" || channelId === "whatsapp") {
     return TELEGRAM_OUTPUT;
   }
   return DEFAULT_OUTPUT;
 }
 
 function resolveChannelId(channel: string | undefined): ChannelId | null {
-  return channel ? normalizeChannelId(channel) : null;
+  if (!channel) {
+    return null;
+  }
+  const lower = String(channel).toLowerCase().trim();
+  if (lower === "whatsapp" || lower === "telegram") {
+    return lower as ChannelId;
+  }
+  return normalizeChannelId(channel);
 }
 
 function resolveEdgeOutputFormat(config: ResolvedTtsConfig): string {
@@ -943,5 +950,6 @@ export const _test = {
   resolveModelOverridePolicy,
   summarizeText,
   resolveOutputFormat,
+  resolveChannelId,
   resolveEdgeOutputFormat,
 };
