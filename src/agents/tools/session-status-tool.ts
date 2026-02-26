@@ -391,6 +391,9 @@ export function createSessionStatusTool(opts?: {
           sessionKey: resolved.key,
           changedModel,
           statusText,
+          lastChannel: resolved.entry.lastChannel,
+          lastAccountId: resolved.entry.lastAccountId,
+          lastTo: resolved.entry.lastTo,
         },
       };
     },
