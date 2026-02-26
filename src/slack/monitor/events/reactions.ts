@@ -9,6 +9,19 @@ import { authorizeAndResolveSlackSystemEventContext } from "./system-event-conte
 export function registerSlackReactionEvents(params: { ctx: SlackMonitorContext }) {
   const { ctx } = params;
 
+  // Emit a startup diagnostic when reaction features are enabled.
+  // The Slack app must have `reaction_added` / `reaction_removed` bot events
+  // subscribed — without them, no reaction events will be delivered regardless
+  // of config. This catches a common misconfiguration.
+  const cfgReactionNotifications = ctx.cfg.channels?.slack?.reactionNotifications ?? "off";
+  const cfgReactionTrigger = ctx.cfg.channels?.slack?.reactionTrigger ?? "off";
+  if (cfgReactionNotifications !== "off" || cfgReactionTrigger !== "off") {
+    logVerbose(
+      `slack: reaction features enabled (notifications=${cfgReactionNotifications}, trigger=${cfgReactionTrigger}). ` +
+        `Ensure your Slack app has "reaction_added" and "reaction_removed" bot events subscribed ` +
+        `at https://api.slack.com/apps — without them, no reaction events will be delivered.`,
+    );
+  }
   const handleReactionEvent = async (event: SlackReactionEvent, action: string) => {
     try {
       const item = event.item;
