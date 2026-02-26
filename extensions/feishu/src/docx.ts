@@ -3,9 +3,18 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts } from "./accounts.js";
+import { BATCH_SIZE, insertBlocksInBatches } from "./batch-insert.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
+import {
+  insertTableRow,
+  insertTableColumn,
+  deleteTableRows,
+  deleteTableColumns,
+  mergeTableCells,
+} from "./table-ops.js";
+import { cleanBlocksForDescendant } from "./table-utils.js";
 import { resolveToolsConfig } from "./tools-config.js";
 
 // ============ Helpers ============
@@ -52,32 +61,6 @@ const BLOCK_TYPE_NAMES: Record<number, string> = {
   32: "TableCell",
 };
 
-// Block types that cannot be created via documentBlockChildren.create API
-const UNSUPPORTED_CREATE_TYPES = new Set([31, 32]);
-
-/** Clean blocks for insertion (remove unsupported types and read-only fields) */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block types
-function cleanBlocksForInsert(blocks: any[]): { cleaned: any[]; skipped: string[] } {
-  const skipped: string[] = [];
-  const cleaned = blocks
-    .filter((block) => {
-      if (UNSUPPORTED_CREATE_TYPES.has(block.block_type)) {
-        const typeName = BLOCK_TYPE_NAMES[block.block_type] || `type_${block.block_type}`;
-        skipped.push(typeName);
-        return false;
-      }
-      return true;
-    })
-    .map((block) => {
-      if (block.block_type === 31 && block.table?.merge_info) {
-        const { merge_info: _merge_info, ...tableRest } = block.table;
-        return { ...block, table: tableRest };
-      }
-      return block;
-    });
-  return { cleaned, skipped };
-}
-
 // ============ Core Functions ============
 
 async function convertMarkdown(client: Lark.Client, markdown: string) {
@@ -101,29 +84,38 @@ function sortBlocksByFirstLevel(blocks: any[], firstLevelIds: string[]): any[] {
   return [...sorted, ...remaining];
 }
 
+/**
+ * Insert blocks using Descendant API (single request, <1000 blocks).
+ * For larger documents, use insertBlocksInBatches from batch-insert.ts.
+ */
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
-async function insertBlocks(
+async function insertBlocksWithDescendant(
   client: Lark.Client,
   docToken: string,
   blocks: any[],
-  parentBlockId?: string,
+  firstLevelBlockIds: string[],
 ): Promise<{ children: any[]; skipped: string[] }> {
   /* eslint-enable @typescript-eslint/no-explicit-any */
-  const { cleaned, skipped } = cleanBlocksForInsert(blocks);
-  const blockId = parentBlockId ?? docToken;
+  const descendants = cleanBlocksForDescendant(blocks);
 
-  if (cleaned.length === 0) {
-    return { children: [], skipped };
+  if (descendants.length === 0) {
+    return { children: [], skipped: [] };
   }
 
-  const res = await client.docx.documentBlockChildren.create({
-    path: { document_id: docToken, block_id: blockId },
-    data: { children: cleaned },
+  const res = await client.docx.documentBlockDescendant.create({
+    path: { document_id: docToken, block_id: docToken },
+    data: {
+      children_id: firstLevelBlockIds,
+      descendants,
+    },
   });
+
   if (res.code !== 0) {
-    throw new Error(res.msg);
+    throw new Error(`${res.msg} (code: ${res.code})`);
   }
-  return { children: res.data?.children ?? [], skipped };
+
+  const children = res.data?.children ?? [];
+  return { children, skipped: [] };
 }
 
 async function clearDocumentContent(client: Lark.Client, docToken: string) {
@@ -283,26 +275,45 @@ async function createDoc(client: Lark.Client, title: string, folderToken?: strin
   };
 }
 
-async function writeDoc(client: Lark.Client, docToken: string, markdown: string, maxBytes: number) {
+type Logger = { info?: (msg: string) => void };
+
+async function writeDoc(
+  client: Lark.Client,
+  docToken: string,
+  markdown: string,
+  maxBytes: number,
+  logger?: Logger,
+) {
   const deleted = await clearDocumentContent(client, docToken);
 
+  logger?.info?.("feishu_doc: Converting markdown...");
   const { blocks, firstLevelBlockIds } = await convertMarkdown(client, markdown);
   if (blocks.length === 0) {
     return { success: true, blocks_deleted: deleted, blocks_added: 0, images_processed: 0 };
   }
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
-  const { children: inserted, skipped } = await insertBlocks(client, docToken, sortedBlocks);
+  logger?.info?.(`feishu_doc: Converted to ${blocks.length} blocks, inserting...`);
+  // Use batched insert for large documents (>1000 blocks)
+  const { children: inserted } =
+    blocks.length > BATCH_SIZE
+      ? await insertBlocksInBatches(client, docToken, sortedBlocks, firstLevelBlockIds, logger)
+      : await insertBlocksWithDescendant(client, docToken, sortedBlocks, firstLevelBlockIds);
+
+  const imageUrls = extractImageUrls(markdown);
+  if (imageUrls.length > 0) {
+    logger?.info?.(
+      `feishu_doc: Inserted ${inserted.length} blocks, processing ${imageUrls.length} images...`,
+    );
+  }
   const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
 
+  logger?.info?.(`feishu_doc: Done (${blocks.length} blocks, ${imagesProcessed} images)`);
   return {
     success: true,
     blocks_deleted: deleted,
-    blocks_added: inserted.length,
+    blocks_added: blocks.length,
     images_processed: imagesProcessed,
-    ...(skipped.length > 0 && {
-      warning: `Skipped unsupported block types: ${skipped.join(", ")}. Tables are not supported via this API.`,
-    }),
   };
 }
 
@@ -311,25 +322,37 @@ async function appendDoc(
   docToken: string,
   markdown: string,
   maxBytes: number,
+  logger?: Logger,
 ) {
+  logger?.info?.("feishu_doc: Converting markdown...");
   const { blocks, firstLevelBlockIds } = await convertMarkdown(client, markdown);
   if (blocks.length === 0) {
     throw new Error("Content is empty");
   }
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
-  const { children: inserted, skipped } = await insertBlocks(client, docToken, sortedBlocks);
+  logger?.info?.(`feishu_doc: Converted to ${blocks.length} blocks, inserting...`);
+  // Use batched insert for large documents (>1000 blocks)
+  const { children: inserted } =
+    blocks.length > BATCH_SIZE
+      ? await insertBlocksInBatches(client, docToken, sortedBlocks, firstLevelBlockIds, logger)
+      : await insertBlocksWithDescendant(client, docToken, sortedBlocks, firstLevelBlockIds);
+
+  const imageUrls = extractImageUrls(markdown);
+  if (imageUrls.length > 0) {
+    logger?.info?.(
+      `feishu_doc: Inserted ${inserted.length} blocks, processing ${imageUrls.length} images...`,
+    );
+  }
   const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
 
+  logger?.info?.(`feishu_doc: Done (${blocks.length} blocks, ${imagesProcessed} images)`);
   return {
     success: true,
-    blocks_added: inserted.length,
+    blocks_added: blocks.length,
     images_processed: imagesProcessed,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block type
     block_ids: inserted.map((b: any) => b.block_id),
-    ...(skipped.length > 0 && {
-      warning: `Skipped unsupported block types: ${skipped.join(", ")}. Tables are not supported via this API.`,
-    }),
   };
 }
 
@@ -470,7 +493,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         name: "feishu_doc",
         label: "Feishu Doc",
         description:
-          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block",
+          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block, insert_table_row, insert_table_column, delete_table_rows, delete_table_columns, merge_table_cells",
         parameters: FeishuDocSchema,
         async execute(_toolCallId, params) {
           const p = params as FeishuDocParams;
@@ -480,9 +503,13 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
               case "read":
                 return json(await readDoc(client, p.doc_token));
               case "write":
-                return json(await writeDoc(client, p.doc_token, p.content, mediaMaxBytes));
+                return json(
+                  await writeDoc(client, p.doc_token, p.content, mediaMaxBytes, api.logger),
+                );
               case "append":
-                return json(await appendDoc(client, p.doc_token, p.content, mediaMaxBytes));
+                return json(
+                  await appendDoc(client, p.doc_token, p.content, mediaMaxBytes, api.logger),
+                );
               case "create":
                 return json(await createDoc(client, p.title, p.folder_token));
               case "list_blocks":
@@ -493,11 +520,46 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                 return json(await updateBlock(client, p.doc_token, p.block_id, p.content));
               case "delete_block":
                 return json(await deleteBlock(client, p.doc_token, p.block_id));
+              case "insert_table_row":
+                return json(await insertTableRow(client, p.doc_token, p.block_id, p.row_index));
+              case "insert_table_column":
+                return json(
+                  await insertTableColumn(client, p.doc_token, p.block_id, p.column_index),
+                );
+              case "delete_table_rows":
+                return json(
+                  await deleteTableRows(client, p.doc_token, p.block_id, p.row_start, p.row_count),
+                );
+              case "delete_table_columns":
+                return json(
+                  await deleteTableColumns(
+                    client,
+                    p.doc_token,
+                    p.block_id,
+                    p.column_start,
+                    p.column_count,
+                  ),
+                );
+              case "merge_table_cells":
+                return json(
+                  await mergeTableCells(
+                    client,
+                    p.doc_token,
+                    p.block_id,
+                    p.row_start,
+                    p.row_end,
+                    p.column_start,
+                    p.column_end,
+                  ),
+                );
               default:
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
                 return json({ error: `Unknown action: ${(p as any).action}` });
             }
           } catch (err) {
+            api.logger.error?.(
+              `feishu_doc error: ${err instanceof Error ? err.message : String(err)}`,
+            );
             return json({ error: err instanceof Error ? err.message : String(err) });
           }
         },

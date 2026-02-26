@@ -22,7 +22,7 @@ import { registerFeishuDocTools } from "./docx.js";
 describe("feishu_doc image fetch hardening", () => {
   const convertMock = vi.hoisted(() => vi.fn());
   const blockListMock = vi.hoisted(() => vi.fn());
-  const blockChildrenCreateMock = vi.hoisted(() => vi.fn());
+  const blockDescendantCreateMock = vi.hoisted(() => vi.fn());
   const driveUploadAllMock = vi.hoisted(() => vi.fn());
   const blockPatchMock = vi.hoisted(() => vi.fn());
   const scopeListMock = vi.hoisted(() => vi.fn());
@@ -39,8 +39,8 @@ describe("feishu_doc image fetch hardening", () => {
           list: blockListMock,
           patch: blockPatchMock,
         },
-        documentBlockChildren: {
-          create: blockChildrenCreateMock,
+        documentBlockDescendant: {
+          create: blockDescendantCreateMock,
         },
       },
       drive: {
@@ -70,7 +70,7 @@ describe("feishu_doc image fetch hardening", () => {
       },
     });
 
-    blockChildrenCreateMock.mockResolvedValue({
+    blockDescendantCreateMock.mockResolvedValue({
       code: 0,
       data: {
         children: [{ block_type: 27, block_id: "img_block_1" }],
