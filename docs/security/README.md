@@ -6,6 +6,7 @@
 
 - [Threat Model](./THREAT-MODEL-ATLAS.md) - MITRE ATLAS-based threat model for the OpenClaw ecosystem
 - [Contributing to the Threat Model](./CONTRIBUTING-THREAT-MODEL.md) - How to add threats, mitigations, and attack chains
+- [Signed Policy Guardrails](./signed-policy-guardrails.md) - Optional fail-closed signed policy enforcement for dangerous runtime actions
 
 ## Reporting Vulnerabilities
 

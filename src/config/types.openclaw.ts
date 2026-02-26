@@ -22,6 +22,7 @@ import type {
 import type { ModelsConfig } from "./types.models.js";
 import type { NodeHostConfig } from "./types.node-host.js";
 import type { PluginsConfig } from "./types.plugins.js";
+import type { PolicyGuardrailsConfig } from "./types.policy.js";
 import type { SkillsConfig } from "./types.skills.js";
 import type { ToolsConfig } from "./types.tools.js";
 
@@ -87,6 +88,7 @@ export type OpenClawConfig = {
     };
   };
   skills?: SkillsConfig;
+  policy?: PolicyGuardrailsConfig;
   plugins?: PluginsConfig;
   models?: ModelsConfig;
   nodeHost?: NodeHostConfig;

@@ -14,6 +14,7 @@ import {
   emitGatewayRestart,
   setGatewaySigusr1RestartPolicy,
 } from "../infra/restart.js";
+import { refreshPolicyManager } from "../policy/policy.manager.js";
 import { setCommandLaneConcurrency, getTotalQueueSize } from "../process/command-queue.js";
 import { CommandLane } from "../process/lanes.js";
 import type { ChannelKind, GatewayReloadPlan } from "./config-reload.js";
@@ -50,6 +51,7 @@ export function createGatewayReloadHandlers(params: {
     nextConfig: ReturnType<typeof loadConfig>,
   ) => {
     setGatewaySigusr1RestartPolicy({ allowExternal: isRestartEnabled(nextConfig) });
+    await refreshPolicyManager({ config: nextConfig });
     const state = params.getState();
     const nextState = { ...state };
 

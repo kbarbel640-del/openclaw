@@ -261,6 +261,15 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "policy",
+    description: "Signed policy guardrails utilities",
+    hasSubcommands: true,
+    register: async (program) => {
+      const mod = await import("../policy-cli.js");
+      mod.registerPolicyCli(program);
+    },
+  },
+  {
     name: "skills",
     description: "List and inspect available skills",
     hasSubcommands: true,
