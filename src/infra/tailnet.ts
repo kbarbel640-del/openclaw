@@ -62,16 +62,35 @@ function getAddressesFromCli(): TailnetAddresses | undefined {
   const bin = findTailscaleBin();
   if (!bin) return undefined;
 
+  let ipv4: string[] = [];
+  let ipv6: string[] = [];
+
   try {
-    // tailscale ip -4 / -6 is fast and returns just the addresses
-    const ipv4 = execSync(`${bin} ip -4`, { timeout: 1000 }).toString().trim().split(/\s+/).filter(Boolean);
-    const ipv6 = execSync(`${bin} ip -6`, { timeout: 1000 }).toString().trim().split(/\s+/).filter(Boolean);
-    if (ipv4.length > 0 || ipv6.length > 0) {
-      return { ipv4, ipv6 };
-    }
+    // tailscale ip -4 is fast and returns just the addresses
+    ipv4 = execSync(`${bin} ip -4`, { timeout: 1000, stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
   } catch {
-    // Silently fall back to interface scanning
+    // IPv4 failed, but we might still have IPv6
   }
+
+  try {
+    // tailscale ip -6 is fast and returns just the addresses
+    ipv6 = execSync(`${bin} ip -6`, { timeout: 1000, stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+  } catch {
+    // IPv6 failed, but we might still have IPv4
+  }
+
+  if (ipv4.length > 0 || ipv6.length > 0) {
+    return { ipv4, ipv6 };
+  }
+
   return undefined;
 }
 
