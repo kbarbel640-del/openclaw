@@ -8,7 +8,7 @@ import {
   resolveBootstrapTotalMaxChars,
 } from "./pi-embedded-helpers.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
-import { DEFAULT_AGENTS_FILENAME } from "./workspace.js";
+import { DEFAULT_AGENTS_FILENAME, DEFAULT_BOOTSTRAP_FILENAME } from "./workspace.js";
 
 const makeFile = (overrides: Partial<WorkspaceBootstrapFile>): WorkspaceBootstrapFile => ({
   name: DEFAULT_AGENTS_FILENAME,
@@ -24,7 +24,7 @@ const createLargeBootstrapFiles = (): WorkspaceBootstrapFile[] => [
   makeFile({ name: "USER.md", path: "/tmp/USER.md", content: "c".repeat(10_000) }),
 ];
 describe("buildBootstrapContextFiles", () => {
-  it("keeps missing markers", () => {
+  it("keeps missing markers (except BOOTSTRAP.md)", () => {
     const files = [makeFile({ missing: true, content: undefined })];
     expect(buildBootstrapContextFiles(files)).toEqual([
       {
@@ -32,6 +32,18 @@ describe("buildBootstrapContextFiles", () => {
         content: "[MISSING] Expected at: /tmp/AGENTS.md",
       },
     ]);
+  });
+
+  it("skips missing BOOTSTRAP.md markers", () => {
+    const files = [
+      makeFile({
+        name: DEFAULT_BOOTSTRAP_FILENAME,
+        path: "/tmp/BOOTSTRAP.md",
+        missing: true,
+        content: undefined,
+      }),
+    ];
+    expect(buildBootstrapContextFiles(files)).toEqual([]);
   });
   it("skips empty or whitespace-only content", () => {
     const files = [makeFile({ content: "   \n  " })];
