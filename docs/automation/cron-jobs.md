@@ -202,7 +202,7 @@ Behavior details:
 - If the isolated run already sent a message to the same target via the message tool, delivery is
   skipped to avoid duplicates.
 - Missing or invalid delivery targets fail the job unless `delivery.bestEffort = true`.
-- A short summary is posted to the main session only when `delivery.mode = "announce"`.
+- A short summary is posted to the main session only when `delivery.mode = "announce"` and delivery did not already happen.
 - The main-session summary respects `wakeMode`: `now` triggers an immediate heartbeat and
   `next-heartbeat` waits for the next scheduled heartbeat.
 
