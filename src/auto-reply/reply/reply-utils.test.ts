@@ -197,7 +197,10 @@ describe("typing controller", () => {
     vi.useFakeTimers();
     let resolveOnReplyStart: () => void;
     const onReplyStart = vi.fn().mockImplementation(
-      () => new Promise<void>((resolve) => { resolveOnReplyStart = resolve; }),
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOnReplyStart = resolve;
+        }),
     );
     const onCleanup = vi.fn();
     const typing = createTypingController({

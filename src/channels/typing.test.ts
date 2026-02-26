@@ -115,7 +115,10 @@ describe("createTypingCallbacks", () => {
     try {
       let resolveStart: () => void;
       const start = vi.fn().mockImplementation(
-        () => new Promise<void>((resolve) => { resolveStart = resolve; }),
+        () =>
+          new Promise<void>((resolve) => {
+            resolveStart = resolve;
+          }),
       );
       const onStartError = vi.fn();
       const callbacks = createTypingCallbacks({ start, onStartError });
