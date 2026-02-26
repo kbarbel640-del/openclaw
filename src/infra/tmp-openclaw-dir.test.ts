@@ -47,6 +47,9 @@ function resolveWithMocks(params: {
   }) as NonNullable<TmpDirOptions["lstatSync"]>;
   const mkdirSync = vi.fn();
   const chmodSync = vi.fn();
+  const openSync = vi.fn(() => 123);
+  const fchmodSync = vi.fn();
+  const closeSync = vi.fn();
   const getuid = vi.fn(() => uid);
   const tmpdir = vi.fn(() => params.tmpdirPath ?? "/var/fallback");
   const resolved = resolvePreferredOpenClawTmpDir({
@@ -54,10 +57,23 @@ function resolveWithMocks(params: {
     lstatSync: wrappedLstatSync,
     mkdirSync,
     chmodSync,
+    openSync,
+    fchmodSync,
+    closeSync,
     getuid,
     tmpdir,
   });
-  return { resolved, accessSync, lstatSync: wrappedLstatSync, mkdirSync, chmodSync, tmpdir };
+  return {
+    resolved,
+    accessSync,
+    lstatSync: wrappedLstatSync,
+    mkdirSync,
+    chmodSync,
+    openSync,
+    fchmodSync,
+    closeSync,
+    tmpdir,
+  };
 }
 
 describe("resolvePreferredOpenClawTmpDir", () => {
@@ -84,14 +100,14 @@ describe("resolvePreferredOpenClawTmpDir", () => {
       })
       .mockImplementationOnce(() => secureDirStat(501));
 
-    const { resolved, accessSync, mkdirSync, chmodSync, tmpdir } = resolveWithMocks({
+    const { resolved, accessSync, mkdirSync, fchmodSync, tmpdir } = resolveWithMocks({
       lstatSync: lstatSyncMock,
     });
 
     expect(resolved).toBe(POSIX_OPENCLAW_TMP_DIR);
     expect(accessSync).toHaveBeenCalledWith("/tmp", expect.any(Number));
     expect(mkdirSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, expect.any(Object));
-    expect(chmodSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, 0o700);
+    expect(fchmodSync).toHaveBeenCalledWith(expect.any(Number), 0o700);
     expect(tmpdir).not.toHaveBeenCalled();
   });
 
@@ -203,14 +219,14 @@ describe("resolvePreferredOpenClawTmpDir", () => {
       })
       .mockImplementationOnce(() => secureDirStat(501));
 
-    const { resolved, mkdirSync, chmodSync } = resolveWithMocks({
+    const { resolved, mkdirSync, fchmodSync } = resolveWithMocks({
       lstatSync,
       fallbackLstatSync,
     });
 
     expect(resolved).toBe(fallbackTmp());
     expect(mkdirSync).toHaveBeenCalledWith(fallbackTmp(), { recursive: true, mode: 0o700 });
-    expect(chmodSync).toHaveBeenCalledWith(fallbackTmp(), 0o700);
+    expect(fchmodSync).toHaveBeenCalledWith(expect.any(Number), 0o700);
   });
 
   it("fixes up umask-widened permissions after creating /tmp/openclaw", () => {
@@ -222,20 +238,9 @@ describe("resolvePreferredOpenClawTmpDir", () => {
       }
     });
 
-    const lstatSync = vi.fn((target: string) => {
-      if (target === POSIX_OPENCLAW_TMP_DIR) {
-        return {
-          isDirectory: () => true,
-          isSymbolicLink: () => false,
-          uid: 501,
-          mode: preferredMode,
-        };
-      }
-      throw nodeErrorWithCode("ENOENT");
-    });
-
-    // First lookup says missing, then after mkdir we report a too-permissive mode (umask 0002).
-    lstatSync
+    const lstatSync = vi
+      .fn<NonNullable<TmpDirOptions["lstatSync"]>>()
+      // First lookup says missing, then after mkdir we report a too-permissive mode (umask 0002).
       .mockImplementationOnce(() => {
         throw nodeErrorWithCode("ENOENT");
       })
@@ -247,21 +252,29 @@ describe("resolvePreferredOpenClawTmpDir", () => {
       }));
 
     const mkdirSync = vi.fn();
-    const chmodSync = vi.fn(() => {
+    const openSync = vi.fn(() => 123);
+    const closeSync = vi.fn();
+    const fchmodSync = vi.fn(() => {
       preferredMode = 0o40700;
     });
 
     const resolved = resolvePreferredOpenClawTmpDir({
       accessSync,
-      lstatSync: lstatSync as NonNullable<TmpDirOptions["lstatSync"]>,
+      lstatSync,
       mkdirSync,
-      chmodSync,
+      openSync,
+      fchmodSync,
+      closeSync,
+      // provide chmodSync too (unused in the preferred FD-based path)
+      chmodSync: vi.fn(),
       getuid: () => 501,
       tmpdir: () => "/var/fallback",
     });
 
     expect(resolved).toBe(POSIX_OPENCLAW_TMP_DIR);
     expect(mkdirSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, expect.any(Object));
-    expect(chmodSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, 0o700);
+    expect(openSync).toHaveBeenCalled();
+    expect(fchmodSync).toHaveBeenCalledWith(expect.any(Number), 0o700);
+    expect(closeSync).toHaveBeenCalled();
   });
 });

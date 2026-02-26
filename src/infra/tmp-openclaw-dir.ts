@@ -15,6 +15,9 @@ type ResolvePreferredOpenClawTmpDirOptions = {
   };
   mkdirSync?: (path: string, opts: { recursive: boolean; mode?: number }) => void;
   chmodSync?: (path: string, mode: number) => void;
+  openSync?: (path: string, flags: number) => number;
+  fchmodSync?: (fd: number, mode: number) => void;
+  closeSync?: (fd: number) => void;
   getuid?: () => number | undefined;
   tmpdir?: () => string;
 };
@@ -37,6 +40,9 @@ export function resolvePreferredOpenClawTmpDir(
   const lstatSync = options.lstatSync ?? fs.lstatSync;
   const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
   const chmodSync = options.chmodSync ?? fs.chmodSync;
+  const openSync = options.openSync ?? fs.openSync;
+  const fchmodSync = options.fchmodSync ?? fs.fchmodSync;
+  const closeSync = options.closeSync ?? fs.closeSync;
   const getuid =
     options.getuid ??
     (() => {
@@ -67,6 +73,41 @@ export function resolvePreferredOpenClawTmpDir(
     const base = tmpdir();
     const suffix = uid === undefined ? "openclaw" : `openclaw-${uid}`;
     return path.join(base, suffix);
+  };
+
+  const tightenDirMode = (dirPath: string): void => {
+    const O_DIRECTORY = (fs.constants as Record<string, unknown>).O_DIRECTORY;
+    const O_NOFOLLOW = (fs.constants as Record<string, unknown>).O_NOFOLLOW;
+
+    // Prefer FD-based chmod: avoids TOCTOU + symlink-follow risks.
+    if (typeof O_DIRECTORY === "number" && typeof O_NOFOLLOW === "number") {
+      const flags = fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW;
+      try {
+        const fd = openSync(dirPath, flags);
+        try {
+          fchmodSync(fd, 0o700);
+          return;
+        } finally {
+          try {
+            closeSync(fd);
+          } catch {
+            // ignore
+          }
+        }
+      } catch (err) {
+        // If we hit a symlink loop / symlink, fail closed rather than chmod'ing a different path.
+        if (isNodeErrorWithCode(err, "ELOOP")) {
+          throw new Error(`Unsafe OpenClaw temp dir (symlink): ${dirPath}`, { cause: err });
+        }
+        // Otherwise, fall through to path-based chmod with strict re-check.
+      }
+    }
+
+    const st = lstatSync(dirPath);
+    if (!st.isDirectory() || st.isSymbolicLink()) {
+      throw new Error(`Unsafe OpenClaw temp dir (not a directory): ${dirPath}`);
+    }
+    chmodSync(dirPath, 0o700);
   };
 
   const isTrustedTmpDir = (st: {
@@ -106,7 +147,7 @@ export function resolvePreferredOpenClawTmpDir(
     try {
       mkdirSync(fallbackPath, { recursive: true, mode: 0o700 });
       // mkdir mode is filtered through umask; enforce strict permissions.
-      chmodSync(fallbackPath, 0o700);
+      tightenDirMode(fallbackPath);
     } catch {
       throw new Error(`Unable to create fallback OpenClaw temp dir: ${fallbackPath}`);
     }
@@ -129,7 +170,7 @@ export function resolvePreferredOpenClawTmpDir(
     // Create with a safe default; subsequent callers expect it exists.
     mkdirSync(POSIX_OPENCLAW_TMP_DIR, { recursive: true, mode: 0o700 });
     // mkdir mode is filtered through umask; enforce strict permissions.
-    chmodSync(POSIX_OPENCLAW_TMP_DIR, 0o700);
+    tightenDirMode(POSIX_OPENCLAW_TMP_DIR);
     if (resolveDirState(POSIX_OPENCLAW_TMP_DIR) !== "available") {
       return ensureTrustedFallbackDir();
     }
