@@ -1,6 +1,8 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../../config/config.js";
 import {
+  applyPromptBuildHookResult,
   resolveAttemptFsWorkspaceOnly,
   resolvePromptBuildHookResult,
   resolvePromptModeForSession,
@@ -20,6 +22,7 @@ describe("resolvePromptBuildHookResult", () => {
 
   it("reuses precomputed legacy before_agent_start result without invoking hook again", async () => {
     const hookRunner = createLegacyOnlyHookRunner();
+
     const result = await resolvePromptBuildHookResult({
       prompt: "hello",
       messages: [],
@@ -37,7 +40,8 @@ describe("resolvePromptBuildHookResult", () => {
 
   it("calls legacy hook when precomputed result is absent", async () => {
     const hookRunner = createLegacyOnlyHookRunner();
-    const messages = [{ role: "user", content: "ctx" }];
+    const messages: AgentMessage[] = [{ role: "user", content: "ctx" } as AgentMessage];
+
     const result = await resolvePromptBuildHookResult({
       prompt: "hello",
       messages,
@@ -101,5 +105,63 @@ describe("resolveAttemptFsWorkspaceOnly", () => {
         sessionAgentId: "main",
       }),
     ).toBe(false);
+  });
+});
+
+describe("applyPromptBuildHookResult", () => {
+  it("prepends multiple contexts in-order and appends system prompt", () => {
+    const result = applyPromptBuildHookResult({
+      prompt: "user prompt",
+      systemPromptText: "BASE",
+      hookResult: {
+        actions: [
+          { kind: "prependContext", text: "ctx A" },
+          { kind: "prependContext", text: "ctx B" },
+          { kind: "appendSystemPrompt", text: "sys X" },
+          { kind: "appendSystemPrompt", text: "sys Y" },
+        ],
+      },
+    });
+
+    expect(result.effectivePrompt).toBe("ctx A\n\nctx B\n\nuser prompt");
+    expect(result.systemPromptText).toBe("BASE\n\nsys X\n\nsys Y");
+  });
+
+  it("treats legacy fields as shorthand actions", () => {
+    const result = applyPromptBuildHookResult({
+      prompt: "user prompt",
+      systemPromptText: "BASE",
+      hookResult: {
+        prependContext: "legacy ctx",
+        systemPrompt: "legacy sys",
+      },
+    });
+
+    expect(result.effectivePrompt).toBe("legacy ctx\n\nuser prompt");
+    expect(result.systemPromptText).toBe("BASE\n\nlegacy sys");
+  });
+
+  it("caps prependContext and appendSystemPrompt budgets", () => {
+    const base = "BASE";
+    const longCtx = "x".repeat(9_000);
+    const longSys = "y".repeat(5_000);
+    const prompt = "user prompt";
+
+    const result = applyPromptBuildHookResult({
+      prompt,
+      systemPromptText: base,
+      hookResult: {
+        actions: [
+          { kind: "prependContext", text: longCtx },
+          { kind: "appendSystemPrompt", text: longSys },
+        ],
+      },
+    });
+
+    const contextPart = result.effectivePrompt.slice(0, -`\n\n${prompt}`.length);
+    expect(contextPart.length).toBeLessThanOrEqual(8_000);
+
+    const appendedPart = result.systemPromptText.slice(`${base}\n\n`.length);
+    expect(appendedPart.length).toBeLessThanOrEqual(4_000);
   });
 });
