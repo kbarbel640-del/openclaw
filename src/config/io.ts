@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import JSON5 from "json5";
-import { ensureOwnerDisplaySecret } from "../agents/owner-display.js";
 import { loadDotEnv } from "../infra/dotenv.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import {
@@ -36,7 +35,6 @@ import { applyConfigEnvVars } from "./env-vars.js";
 import { ConfigIncludeError, resolveConfigIncludes } from "./includes.js";
 import { findLegacyConfigIssues } from "./legacy.js";
 import { applyMergePatch } from "./merge-patch.js";
-import { normalizeExecSafeBinProfilesInConfig } from "./normalize-exec-safe-bin.js";
 import { normalizeConfigPaths } from "./normalize-paths.js";
 import { resolveConfigPath, resolveDefaultConfigCandidates, resolveStateDir } from "./paths.js";
 import { applyConfigOverrides } from "./runtime-overrides.js";
@@ -117,11 +115,6 @@ export type ConfigWriteOptions = {
    * same config file path that produced the snapshot.
    */
   expectedConfigPath?: string;
-  /**
-   * Paths that must be explicitly removed from the persisted file payload,
-   * even if schema/default normalization reintroduces them.
-   */
-  unsetPaths?: string[][];
 };
 
 export type ReadConfigFileSnapshotForWriteResult = {
@@ -134,86 +127,6 @@ function hashConfigRaw(raw: string | null): string {
     .createHash("sha256")
     .update(raw ?? "")
     .digest("hex");
-}
-
-function isNumericPathSegment(raw: string): boolean {
-  return /^[0-9]+$/.test(raw);
-}
-
-function isWritePlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function unsetPathForWrite(root: Record<string, unknown>, pathSegments: string[]): boolean {
-  if (pathSegments.length === 0) {
-    return false;
-  }
-
-  const traversal: Array<{ container: unknown; key: string | number }> = [];
-  let cursor: unknown = root;
-
-  for (let i = 0; i < pathSegments.length - 1; i += 1) {
-    const segment = pathSegments[i];
-    if (Array.isArray(cursor)) {
-      if (!isNumericPathSegment(segment)) {
-        return false;
-      }
-      const index = Number.parseInt(segment, 10);
-      if (!Number.isFinite(index) || index < 0 || index >= cursor.length) {
-        return false;
-      }
-      traversal.push({ container: cursor, key: index });
-      cursor = cursor[index];
-      continue;
-    }
-    if (!isWritePlainObject(cursor) || !(segment in cursor)) {
-      return false;
-    }
-    traversal.push({ container: cursor, key: segment });
-    cursor = cursor[segment];
-  }
-
-  const leaf = pathSegments[pathSegments.length - 1];
-  if (Array.isArray(cursor)) {
-    if (!isNumericPathSegment(leaf)) {
-      return false;
-    }
-    const index = Number.parseInt(leaf, 10);
-    if (!Number.isFinite(index) || index < 0 || index >= cursor.length) {
-      return false;
-    }
-    cursor.splice(index, 1);
-  } else {
-    if (!isWritePlainObject(cursor) || !(leaf in cursor)) {
-      return false;
-    }
-    delete cursor[leaf];
-  }
-
-  // Prune now-empty object branches after unsetting to avoid dead config scaffolding.
-  for (let i = traversal.length - 1; i >= 0; i -= 1) {
-    const { container, key } = traversal[i];
-    let child: unknown;
-    if (Array.isArray(container)) {
-      child = typeof key === "number" ? container[key] : undefined;
-    } else if (isWritePlainObject(container)) {
-      child = container[String(key)];
-    } else {
-      break;
-    }
-    if (!isWritePlainObject(child) || Object.keys(child).length > 0) {
-      break;
-    }
-    if (Array.isArray(container) && typeof key === "number") {
-      if (key >= 0 && key < container.length) {
-        container.splice(key, 1);
-      }
-    } else if (isWritePlainObject(container)) {
-      delete container[String(key)];
-    }
-  }
-
-  return true;
 }
 
 export function resolveConfigSnapshotHash(snapshot: {
@@ -616,79 +529,6 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
 
   function loadConfig(): OpenClawConfig {
     let resolvedConfigForInvalidFallback: unknown;
-    const finalizeLoadedConfig = (config: OpenClawConfig): OpenClawConfig => {
-      warnIfConfigFromFuture(config, deps.logger);
-      const cfg = applyModelDefaults(
-        applyCompactionDefaults(
-          applyContextPruningDefaults(
-            applyAgentDefaults(
-              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(config))),
-            ),
-          ),
-        ),
-      );
-      normalizeConfigPaths(cfg);
-      normalizeExecSafeBinProfilesInConfig(cfg);
-
-      const duplicates = findDuplicateAgentDirs(cfg, {
-        env: deps.env,
-        homedir: deps.homedir,
-      });
-      if (duplicates.length > 0) {
-        throw new DuplicateAgentDirError(duplicates);
-      }
-
-      applyConfigEnvVars(cfg, deps.env);
-
-      const enabled = shouldEnableShellEnvFallback(deps.env) || cfg.env?.shellEnv?.enabled === true;
-      if (enabled && !shouldDeferShellEnvFallback(deps.env)) {
-        loadShellEnvFallback({
-          enabled: true,
-          env: deps.env,
-          expectedKeys: SHELL_ENV_EXPECTED_KEYS,
-          logger: deps.logger,
-          timeoutMs: cfg.env?.shellEnv?.timeoutMs ?? resolveShellEnvFallbackTimeoutMs(deps.env),
-        });
-      }
-
-      const pendingSecret = AUTO_OWNER_DISPLAY_SECRET_BY_PATH.get(configPath);
-      const ownerDisplaySecretResolution = ensureOwnerDisplaySecret(
-        cfg,
-        () => pendingSecret ?? crypto.randomBytes(32).toString("hex"),
-      );
-      const cfgWithOwnerDisplaySecret = ownerDisplaySecretResolution.config;
-      if (ownerDisplaySecretResolution.generatedSecret) {
-        AUTO_OWNER_DISPLAY_SECRET_BY_PATH.set(
-          configPath,
-          ownerDisplaySecretResolution.generatedSecret,
-        );
-        if (!AUTO_OWNER_DISPLAY_SECRET_PERSIST_IN_FLIGHT.has(configPath)) {
-          AUTO_OWNER_DISPLAY_SECRET_PERSIST_IN_FLIGHT.add(configPath);
-          void writeConfigFile(cfgWithOwnerDisplaySecret, { expectedConfigPath: configPath })
-            .then(() => {
-              AUTO_OWNER_DISPLAY_SECRET_BY_PATH.delete(configPath);
-              AUTO_OWNER_DISPLAY_SECRET_PERSIST_WARNED.delete(configPath);
-            })
-            .catch((err) => {
-              if (!AUTO_OWNER_DISPLAY_SECRET_PERSIST_WARNED.has(configPath)) {
-                AUTO_OWNER_DISPLAY_SECRET_PERSIST_WARNED.add(configPath);
-                deps.logger.warn(
-                  `Failed to persist auto-generated commands.ownerDisplaySecret at ${configPath}: ${String(err)}`,
-                );
-              }
-            })
-            .finally(() => {
-              AUTO_OWNER_DISPLAY_SECRET_PERSIST_IN_FLIGHT.delete(configPath);
-            });
-        }
-      } else {
-        AUTO_OWNER_DISPLAY_SECRET_BY_PATH.delete(configPath);
-        AUTO_OWNER_DISPLAY_SECRET_PERSIST_WARNED.delete(configPath);
-      }
-
-      return applyConfigOverrides(cfgWithOwnerDisplaySecret);
-    };
-
     try {
       maybeLoadDotEnvForConfig(deps.env);
       if (!deps.fs.existsSync(configPath)) {
@@ -741,7 +581,40 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           .join("\n");
         deps.logger.warn(`Config warnings:\\n${details}`);
       }
-      return finalizeLoadedConfig(validated.config);
+      warnIfConfigFromFuture(validated.config, deps.logger);
+      const cfg = applyModelDefaults(
+        applyCompactionDefaults(
+          applyContextPruningDefaults(
+            applyAgentDefaults(
+              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
+            ),
+          ),
+        ),
+      );
+      normalizeConfigPaths(cfg);
+
+      const duplicates = findDuplicateAgentDirs(cfg, {
+        env: deps.env,
+        homedir: deps.homedir,
+      });
+      if (duplicates.length > 0) {
+        throw new DuplicateAgentDirError(duplicates);
+      }
+
+      applyConfigEnvVars(cfg, deps.env);
+
+      const enabled = shouldEnableShellEnvFallback(deps.env) || cfg.env?.shellEnv?.enabled === true;
+      if (enabled && !shouldDeferShellEnvFallback(deps.env)) {
+        loadShellEnvFallback({
+          enabled: true,
+          env: deps.env,
+          expectedKeys: SHELL_ENV_EXPECTED_KEYS,
+          logger: deps.logger,
+          timeoutMs: cfg.env?.shellEnv?.timeoutMs ?? resolveShellEnvFallbackTimeoutMs(deps.env),
+        });
+      }
+
+      return applyConfigOverrides(cfg);
     } catch (err) {
       if (err instanceof DuplicateAgentDirError) {
         deps.logger.error(err.message);
@@ -754,7 +627,41 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           deps.logger.warn(
             `Config at ${configPath} failed plugin validation; loading core settings without plugin checks.`,
           );
-          return finalizeLoadedConfig(fallback.config);
+          warnIfConfigFromFuture(fallback.config, deps.logger);
+          const cfg = applyModelDefaults(
+            applyCompactionDefaults(
+              applyContextPruningDefaults(
+                applyAgentDefaults(
+                  applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(fallback.config))),
+                ),
+              ),
+            ),
+          );
+          normalizeConfigPaths(cfg);
+
+          const duplicates = findDuplicateAgentDirs(cfg, {
+            env: deps.env,
+            homedir: deps.homedir,
+          });
+          if (duplicates.length > 0) {
+            throw new DuplicateAgentDirError(duplicates);
+          }
+
+          applyConfigEnvVars(cfg, deps.env);
+
+          const enabled =
+            shouldEnableShellEnvFallback(deps.env) || cfg.env?.shellEnv?.enabled === true;
+          if (enabled && !shouldDeferShellEnvFallback(deps.env)) {
+            loadShellEnvFallback({
+              enabled: true,
+              env: deps.env,
+              expectedKeys: SHELL_ENV_EXPECTED_KEYS,
+              logger: deps.logger,
+              timeoutMs: cfg.env?.shellEnv?.timeoutMs ?? resolveShellEnvFallbackTimeoutMs(deps.env),
+            });
+          }
+
+          return applyConfigOverrides(cfg);
         }
         return {};
       }
@@ -891,16 +798,6 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
 
       warnIfConfigFromFuture(validated.config, deps.logger);
-      const snapshotConfig = normalizeConfigPaths(
-        applyTalkApiKey(
-          applyModelDefaults(
-            applyAgentDefaults(
-              applySessionDefaults(applyLoggingDefaults(applyMessageDefaults(validated.config))),
-            ),
-          ),
-        ),
-      );
-      normalizeExecSafeBinProfilesInConfig(snapshotConfig);
       return {
         snapshot: {
           path: configPath,
@@ -911,7 +808,17 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           // for config set/unset operations (issue #6070)
           resolved: coerceConfig(resolvedConfigRaw),
           valid: true,
-          config: snapshotConfig,
+          config: normalizeConfigPaths(
+            applyTalkApiKey(
+              applyModelDefaults(
+                applyAgentDefaults(
+                  applySessionDefaults(
+                    applyLoggingDefaults(applyMessageDefaults(validated.config)),
+                  ),
+                ),
+              ),
+            ),
+          ),
           hash,
           issues: [],
           warnings: validated.warnings,
@@ -1029,14 +936,6 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       envRefMap && changedPaths
         ? (restoreEnvRefsFromMap(cfgToWrite, "", envRefMap, changedPaths) as OpenClawConfig)
         : cfgToWrite;
-    if (options.unsetPaths?.length) {
-      for (const unsetPath of options.unsetPaths) {
-        if (!Array.isArray(unsetPath) || unsetPath.length === 0) {
-          continue;
-        }
-        unsetPathForWrite(outputConfig as Record<string, unknown>, unsetPath);
-      }
-    }
     // Do NOT apply runtime defaults when writing — user config should only contain
     // explicitly set values. Runtime defaults are applied when loading (issue #6070).
     const stampedOutputConfig = stampConfigVersion(outputConfig);
@@ -1201,9 +1100,6 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
 // module scope. `OPENCLAW_CONFIG_PATH` (and friends) are expected to work even
 // when set after the module has been imported (tests, one-off scripts, etc.).
 const DEFAULT_CONFIG_CACHE_MS = 200;
-const AUTO_OWNER_DISPLAY_SECRET_BY_PATH = new Map<string, string>();
-const AUTO_OWNER_DISPLAY_SECRET_PERSIST_IN_FLIGHT = new Set<string>();
-const AUTO_OWNER_DISPLAY_SECRET_PERSIST_WARNED = new Set<string>();
 let configCache: {
   configPath: string;
   expiresAt: number;
@@ -1277,6 +1173,5 @@ export async function writeConfigFile(
     options.expectedConfigPath === undefined || options.expectedConfigPath === io.configPath;
   await io.writeConfigFile(cfg, {
     envSnapshotForRestore: sameConfigPath ? options.envSnapshotForRestore : undefined,
-    unsetPaths: options.unsetPaths,
   });
 }
