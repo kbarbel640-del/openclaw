@@ -1037,6 +1037,7 @@ public struct SessionsListParams: Codable, Sendable {
     public let spawnedby: String?
     public let agentid: String?
     public let search: String?
+    public let includekeys: [String]?
 
     public init(
         limit: Int?,
@@ -1048,7 +1049,8 @@ public struct SessionsListParams: Codable, Sendable {
         label: String?,
         spawnedby: String?,
         agentid: String?,
-        search: String?)
+        search: String?,
+        includekeys: [String]?)
     {
         self.limit = limit
         self.activeminutes = activeminutes
@@ -1060,6 +1062,7 @@ public struct SessionsListParams: Codable, Sendable {
         self.spawnedby = spawnedby
         self.agentid = agentid
         self.search = search
+        self.includekeys = includekeys
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -1073,6 +1076,7 @@ public struct SessionsListParams: Codable, Sendable {
         case spawnedby = "spawnedBy"
         case agentid = "agentId"
         case search
+        case includekeys = "includeKeys"
     }
 }
 
