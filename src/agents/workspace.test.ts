@@ -8,6 +8,7 @@ import {
   DEFAULT_IDENTITY_FILENAME,
   DEFAULT_MEMORY_ALT_FILENAME,
   DEFAULT_MEMORY_FILENAME,
+  DEFAULT_SOUL_FILENAME,
   DEFAULT_TOOLS_FILENAME,
   DEFAULT_USER_FILENAME,
   ensureAgentWorkspace,
@@ -101,6 +102,56 @@ describe("ensureAgentWorkspace", () => {
     const state = await readOnboardingState(tempDir);
     expect(state.bootstrapSeededAt).toBeUndefined();
     expect(state.onboardingCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("treats workspace as onboarded when SOUL.md diverges from template, even if IDENTITY.md is still default (#26734)", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    // Only customize SOUL.md â leave IDENTITY.md and USER.md as default templates
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_SOUL_FILENAME,
+      content: "custom persona",
+    });
+
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+
+    // BOOTSTRAP.md should NOT exist because SOUL.md divergence marks onboarding as complete
+    await expect(fs.access(path.join(tempDir, DEFAULT_BOOTSTRAP_FILENAME))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    const state = await readOnboardingState(tempDir);
+    expect(state.bootstrapSeededAt).toBeUndefined();
+    expect(state.onboardingCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("auto-deletes BOOTSTRAP.md when onboarding is already complete (#26734)", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    // First run: brand new workspace, BOOTSTRAP.md gets created
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+    await expect(
+      fs.access(path.join(tempDir, DEFAULT_BOOTSTRAP_FILENAME)),
+    ).resolves.toBeUndefined();
+
+    // User customizes IDENTITY.md + USER.md, then deletes BOOTSTRAP.md â onboarding completes
+    await writeWorkspaceFile({ dir: tempDir, name: DEFAULT_IDENTITY_FILENAME, content: "custom" });
+    await writeWorkspaceFile({ dir: tempDir, name: DEFAULT_USER_FILENAME, content: "custom" });
+    await fs.unlink(path.join(tempDir, DEFAULT_BOOTSTRAP_FILENAME));
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+    const state1 = await readOnboardingState(tempDir);
+    expect(state1.onboardingCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
+
+    // Simulate the bug: BOOTSTRAP.md reappears (e.g. from an update or manual copy)
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_BOOTSTRAP_FILENAME,
+      content: "stale bootstrap",
+    });
+
+    // Next run should auto-delete the stale BOOTSTRAP.md
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+    await expect(fs.access(path.join(tempDir, DEFAULT_BOOTSTRAP_FILENAME))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 });
 
