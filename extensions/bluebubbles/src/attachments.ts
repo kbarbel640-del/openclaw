@@ -62,6 +62,16 @@ function resolveAccount(params: BlueBubblesAttachmentOpts) {
   return resolveBlueBubblesServerAccount(params);
 }
 
+/** Extract hostname from a URL string, returning undefined on parse failure. */
+function safeExtractHostname(url: string): string | undefined {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 type MediaFetchErrorCode = "max_bytes" | "http_error" | "fetch_failed";
 
 function readMediaFetchErrorCode(error: unknown): MediaFetchErrorCode | undefined {
@@ -94,7 +104,14 @@ export async function downloadBlueBubblesAttachment(
       url,
       filePathHint: attachment.transferName ?? attachment.guid ?? "attachment",
       maxBytes,
-      ssrfPolicy: allowPrivateNetwork ? { allowPrivateNetwork: true } : undefined,
+      ssrfPolicy: allowPrivateNetwork
+        ? { allowPrivateNetwork: true }
+        : // Auto-trust the configured serverUrl hostname so localhost/private-IP
+          // setups work without requiring explicit allowPrivateNetwork config (#27599)
+          (() => {
+            const host = safeExtractHostname(url);
+            return host ? { allowedHostnames: [host] } : undefined;
+          })(),
       fetchImpl: async (input, init) =>
         await blueBubblesFetchWithTimeout(
           resolveRequestUrl(input),
