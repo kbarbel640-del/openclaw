@@ -121,7 +121,13 @@ export function resolveAgentOutboundTarget(params: {
       targetMode,
     };
   }
-  if (params.validateExplicitTarget !== true && params.plan.resolvedTo) {
+  // When a channel has allowSendTo configured, explicit targets must still be
+  // validated to enforce outbound gating. Without this, agent tool calls like
+  // message(to="+1234") bypass resolveOutboundTarget entirely. See #25051.
+  const channelCfg = params.cfg?.channels?.[params.plan.resolvedChannel];
+  const hasOutboundGating = channelCfg != null && "allowSendTo" in channelCfg;
+
+  if (params.validateExplicitTarget !== true && !hasOutboundGating && params.plan.resolvedTo) {
     return {
       resolvedTarget: null,
       resolvedTo: params.plan.resolvedTo,
