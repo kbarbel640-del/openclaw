@@ -466,17 +466,21 @@ describe("sanitizeSessionHistory", () => {
     ).toBe(false);
   });
 
-  it("drops assistant thinking blocks for github-copilot models", async () => {
+  it("preserves thinking blocks in latest assistant message for github-copilot models (Anthropic API requirement)", async () => {
     setNonGoogleModelApi();
 
     const messages = makeThinkingAndTextAssistantMessages("reasoning_text");
 
     const result = await sanitizeGithubCopilotHistory({ messages });
     const assistant = getAssistantMessage(result);
-    expect(assistant.content).toEqual([{ type: "text", text: "hi" }]);
+    // Latest assistant message thinking blocks must be preserved for Anthropic API
+    expect(assistant.content).toEqual([
+      { type: "thinking", thinking: "internal", thinkingSignature: "reasoning_text" },
+      { type: "text", text: "hi" },
+    ]);
   });
 
-  it("preserves assistant turn when all content is thinking blocks (github-copilot)", async () => {
+  it("preserves thinking blocks in latest assistant when all content is thinking (github-copilot)", async () => {
     setNonGoogleModelApi();
 
     const messages = [
@@ -496,13 +500,15 @@ describe("sanitizeSessionHistory", () => {
 
     const result = await sanitizeGithubCopilotHistory({ messages });
 
-    // Assistant turn should be preserved (not dropped) to maintain turn alternation
+    // Assistant turn should be preserved with thinking blocks intact (latest assistant)
     expect(result).toHaveLength(3);
     const assistant = getAssistantMessage(result);
-    expect(assistant.content).toEqual([{ type: "text", text: "" }]);
+    expect(assistant.content).toEqual([
+      { type: "thinking", thinking: "some reasoning", thinkingSignature: "reasoning_text" },
+    ]);
   });
 
-  it("preserves tool_use blocks when dropping thinking blocks (github-copilot)", async () => {
+  it("preserves thinking blocks in latest assistant message with tool_use blocks (github-copilot)", async () => {
     setNonGoogleModelApi();
 
     const messages = [
@@ -523,9 +529,10 @@ describe("sanitizeSessionHistory", () => {
 
     const result = await sanitizeGithubCopilotHistory({ messages });
     const types = getAssistantContentTypes(result);
+    // Latest assistant preserves all blocks including thinking
+    expect(types).toContain("thinking");
     expect(types).toContain("toolCall");
     expect(types).toContain("text");
-    expect(types).not.toContain("thinking");
   });
 
   it("does not drop thinking blocks for non-copilot providers", async () => {
@@ -554,5 +561,40 @@ describe("sanitizeSessionHistory", () => {
     const result = await sanitizeGithubCopilotHistory({ messages, modelId: "gpt-5.2" });
     const types = getAssistantContentTypes(result);
     expect(types).toContain("thinking");
+  });
+
+  it("drops thinking blocks from older assistant messages but preserves in latest (github-copilot)", async () => {
+    setNonGoogleModelApi();
+
+    const messages = [
+      { role: "user", content: "first question" },
+      {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "old reasoning" },
+          { type: "text", text: "old response" },
+        ],
+      },
+      { role: "user", content: "second question" },
+      {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "latest reasoning", thinkingSignature: "sig" },
+          { type: "text", text: "latest response" },
+        ],
+      },
+    ] as unknown as AgentMessage[];
+
+    const result = await sanitizeGithubCopilotHistory({ messages });
+    const oldAssistant = result[1] as Extract<AgentMessage, { role: "assistant" }>;
+    const latestAssistant = result[3] as Extract<AgentMessage, { role: "assistant" }>;
+
+    // Old assistant: thinking blocks dropped
+    expect(oldAssistant.content).toEqual([{ type: "text", text: "old response" }]);
+    // Latest assistant: thinking blocks preserved (Anthropic API requirement)
+    expect(latestAssistant.content).toEqual([
+      { type: "thinking", thinking: "latest reasoning", thinkingSignature: "sig" },
+      { type: "text", text: "latest response" },
+    ]);
   });
 });

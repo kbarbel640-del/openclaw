@@ -20,6 +20,8 @@ export type TelegramActionConfig = {
   sticker?: boolean;
   /** Enable forum topic creation. */
   createForumTopic?: boolean;
+  /** Enable dice rolling action. */
+  sendDice?: boolean;
 };
 
 export type TelegramNetworkConfig = {
