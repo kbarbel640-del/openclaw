@@ -1526,8 +1526,8 @@ export class QmdMemoryManager implements MemorySearchManager {
       }
       let total = 0;
       for (const row of rows) {
-        const root = this.collectionRoots.get(row.collection);
-        const source = root?.kind ?? "memory";
+        const resolved = this.resolveCollectionRoot(row.collection);
+        const source = resolved?.root.kind ?? "memory";
         const entry = bySource.get(source) ?? { files: 0, chunks: 0 };
         entry.files += row.c ?? 0;
         entry.chunks += row.c ?? 0;
@@ -1564,19 +1564,37 @@ export class QmdMemoryManager implements MemorySearchManager {
     return isQmdScopeAllowed(this.qmd.scope, sessionKey);
   }
 
+  private resolveCollectionRoot(collection: string): { name: string; root: CollectionRoot } | null {
+    const normalized = collection.trim();
+    if (!normalized) {
+      return null;
+    }
+    const direct = this.collectionRoots.get(normalized);
+    if (direct) {
+      return { name: normalized, root: direct };
+    }
+    const scoped = `${normalized}-${this.sanitizeCollectionNameSegment(this.agentId)}`;
+    const scopedRoot = this.collectionRoots.get(scoped);
+    if (scopedRoot) {
+      return { name: scoped, root: scopedRoot };
+    }
+    return null;
+  }
+
   private toDocLocation(
     collection: string,
     collectionRelativePath: string,
   ): { rel: string; abs: string; source: MemorySource } | null {
-    const root = this.collectionRoots.get(collection);
-    if (!root) {
+    const resolvedCollection = this.resolveCollectionRoot(collection);
+    if (!resolvedCollection) {
       return null;
     }
+    const { name: resolvedName, root } = resolvedCollection;
     const normalizedRelative = collectionRelativePath.replace(/\\/g, "/");
     const absPath = path.normalize(path.resolve(root.path, collectionRelativePath));
     const relativeToWorkspace = path.relative(this.workspaceDir, absPath);
     const relPath = this.buildSearchPath(
-      collection,
+      resolvedName,
       normalizedRelative,
       relativeToWorkspace,
       absPath,
@@ -1621,10 +1639,11 @@ export class QmdMemoryManager implements MemorySearchManager {
       if (!collection || rest.length === 0) {
         throw new Error("invalid qmd path");
       }
-      const root = this.collectionRoots.get(collection);
-      if (!root) {
+      const resolvedCollection = this.resolveCollectionRoot(collection);
+      if (!resolvedCollection) {
         throw new Error(`unknown qmd collection: ${collection}`);
       }
+      const root = resolvedCollection.root;
       const joined = rest.join("/");
       const resolved = path.resolve(root.path, joined);
       if (!this.isWithinRoot(root.path, resolved)) {
