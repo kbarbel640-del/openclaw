@@ -928,7 +928,11 @@ export async function runEmbeddedPiAgent(
             }
             // FIX: Throw FailoverError for prompt errors when fallbacks configured
             // This enables model fallback for quota/rate limit errors during prompt submission
-            if (fallbackConfigured && isFailoverErrorMessage(errorText)) {
+            // AND general provider errors like "Corrupted thought signature" (400)
+            if (
+              fallbackConfigured &&
+              (isFailoverErrorMessage(errorText) || /400|provider returned error/i.test(errorText))
+            ) {
               throw new FailoverError(errorText, {
                 reason: promptFailoverReason ?? "unknown",
                 provider,
@@ -937,7 +941,29 @@ export async function runEmbeddedPiAgent(
                 status: resolveFailoverStatus(promptFailoverReason ?? "unknown"),
               });
             }
-            throw promptError;
+            // If not falling back, and we have no other way to inform the user,
+            // we will return an error payload in the final check below (line 1116 area)
+            // but we must not throw here if we want to reach that check.
+            // However, runEmbeddedAttempt already failed. We should return an error result.
+            return {
+              payloads: [
+                {
+                  text: `⚠️ Model request failed: ${errorText}. Please try again or use /new to reset.`,
+                  isError: true,
+                },
+              ],
+              meta: {
+                durationMs: Date.now() - started,
+                agentMeta: {
+                  sessionId: sessionIdUsed,
+                  provider,
+                  model: model.id,
+                  promptTokens: derivePromptTokens(lastRunPromptUsage),
+                },
+                systemPromptReport: attempt.systemPromptReport,
+                error: { kind: "prompt_error", message: errorText },
+              },
+            };
           }
 
           const fallbackThinking = pickFallbackThinkingLevel({
