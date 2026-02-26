@@ -723,6 +723,7 @@ export async function handleFeishuMessage(params: {
     let topicSessionMode: "enabled" | "disabled" = "disabled";
 
     const replyInThread =
+      isGroup &&
       (groupConfig?.replyInThread ?? feishuCfg?.replyInThread ?? "disabled") === "enabled";
 
     if (isGroup) {
