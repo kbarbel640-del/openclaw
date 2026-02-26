@@ -69,6 +69,15 @@ describe("isChatStopCommandText", () => {
     expect(isChatStopCommandText("detén")).toBe(true);
     expect(isChatStopCommandText("arrête")).toBe(true);
   });
+
+  it("matches stop commands with smart quotes (curly apostrophes)", () => {
+    // Smart/curly apostrophe (') common on mobile keyboards
+    expect(isChatStopCommandText("stop don't do anything")).toBe(true);
+    expect(isChatStopCommandText("stop dont do anything")).toBe(true);
+    // Verify straight apostrophe still works
+    expect(isChatStopCommandText("stop don't do anything")).toBe(true);
+    expect(isChatStopCommandText("do not do that")).toBe(true);
+  });
 });
 
 describe("abortChatRunById", () => {
