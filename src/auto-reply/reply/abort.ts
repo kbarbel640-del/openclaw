@@ -83,7 +83,7 @@ function normalizeAbortTriggerText(text: string): string {
     .normalize("NFC")
     .trim()
     .toLowerCase()
-    .replace(/['`'']/g, "'")
+    .replace(/['`\u2018\u2019]/g, "'")
     .replace(/\s+/g, " ")
     .replace(TRAILING_ABORT_PUNCTUATION_RE, "")
     .trim();

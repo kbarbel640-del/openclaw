@@ -67,9 +67,10 @@ describe("gateway server chat", () => {
     const ctx = spyCalls.at(-1)?.[0] as
       | { Body?: string; RawBody?: string; BodyForCommands?: string }
       | undefined;
-    expect(ctx?.Body).toBe("Café\tline");
-    expect(ctx?.RawBody).toBe("Café\tline");
-    expect(ctx?.BodyForCommands).toBe("Café\tline");
+    // Unicode normalization is NOT applied - decomposed forms are preserved
+    expect(ctx?.Body).toBe("Cafe\u0301\tline");
+    expect(ctx?.RawBody).toBe("Cafe\u0301\tline");
+    expect(ctx?.BodyForCommands).toBe("Cafe\u0301\tline");
   });
 
   test("handles chat send and history flows", async () => {
