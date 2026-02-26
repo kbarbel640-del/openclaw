@@ -106,7 +106,7 @@ export function useWorkflowEditor(workflowId: string) {
   const onConnect: OnConnect = useCallback(
     (params) => {
       if (!params.source || !params.target) return;
-      const flowId = `bpmn-fl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const flowId = `bpmn-fl-${crypto.randomUUID()}`;
       const newEdge: Edge = {
         id: flowId,
         source: params.source,
@@ -132,7 +132,7 @@ export function useWorkflowEditor(workflowId: string) {
   // Add node from palette drop
   const addNode = useCallback(
     (type: string, subType: string | undefined, position: { x: number; y: number }) => {
-      const id = `bpmn-el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const id = `bpmn-el-${crypto.randomUUID()}`;
 
       // Determine element properties based on type
       let elementType = type;

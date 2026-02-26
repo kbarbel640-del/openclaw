@@ -1,4 +1,4 @@
-import { Target, AlertCircle } from "lucide-react";
+import { Target, AlertCircle, TrendingUp, CheckCircle2, Clock } from "lucide-react";
 import { useState, useMemo } from "react";
 import { GoalCard } from "@/components/goals/GoalCard";
 import { GoalModelDiagram } from "@/components/goals/GoalModelDiagram";
@@ -12,6 +12,81 @@ import type { BusinessGoal, GoalLevel, GoalPerspective, GoalState, GoalType } fr
 
 const BUSINESS_ID = "vividwalls";
 
+/* ─── Banner Ring Chart ─── */
+function BannerRingChart({ value, size = 120 }: { value: number; size?: number }) {
+  const strokeWidth = 10;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const filled = circumference * value;
+  const gap = circumference - filled;
+
+  return (
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
+      <svg width={size} height={size} className="block -rotate-90">
+        <defs>
+          <linearGradient id="banner-ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#3B82F6" />
+            <stop offset="100%" stopColor="#10B981" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#E5E7EB"
+          strokeWidth={strokeWidth}
+          opacity={0.3}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="url(#banner-ring-grad)"
+          strokeWidth={strokeWidth}
+          strokeDasharray={`${filled} ${gap}`}
+          strokeLinecap="round"
+        />
+      </svg>
+      <span className="absolute font-bold text-white" style={{ fontSize: 32 }}>
+        {(value * 100).toFixed(0)}%
+      </span>
+    </div>
+  );
+}
+
+/* ─── Tab Bar ─── */
+type TabBarProps<T extends string> = {
+  tabs: { value: T; label: string }[];
+  active: T;
+  onChange: (v: T) => void;
+};
+
+function TabBar<T extends string>({ tabs, active, onChange }: TabBarProps<T>) {
+  return (
+    <div className="flex items-center gap-1 p-1 rounded-lg bg-[var(--bg-secondary)] overflow-x-auto">
+      {tabs.map((tab) => (
+        <button
+          key={tab.value}
+          onClick={() => onChange(tab.value)}
+          className={`px-4 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+            active === tab.value
+              ? "bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm"
+              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Skeleton ─── */
 function GoalCardSkeleton() {
   return (
     <Card className="bg-[var(--bg-card)] border-[var(--border-mabos)] py-4">
@@ -30,6 +105,42 @@ function GoalCardSkeleton() {
     </Card>
   );
 }
+
+/* ─── Level tabs ─── */
+const levelTabs: { value: GoalLevel | "all"; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "strategic", label: "Strategic" },
+  { value: "tactical", label: "Tactical" },
+  { value: "operational", label: "Operational" },
+];
+
+/* ─── Type tabs (Tropos + BDI) ─── */
+const typeTabs: { value: GoalType | "all"; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "hardgoal", label: "Hard Goal" },
+  { value: "softgoal", label: "Soft Goal" },
+  { value: "task", label: "Task" },
+  { value: "resource", label: "Resource" },
+  { value: "achieve" as GoalType, label: "Achieve" },
+  { value: "maintain" as GoalType, label: "Maintain" },
+  { value: "cease" as GoalType, label: "Cease" },
+  { value: "avoid" as GoalType, label: "Avoid" },
+  { value: "query" as GoalType, label: "Query" },
+];
+
+/* ─── State tabs ─── */
+const stateTabs: { value: GoalState | "all"; label: string }[] = [
+  { value: "all", label: "All States" },
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "achieved", label: "Achieved" },
+  { value: "failed", label: "Failed" },
+  { value: "suspended", label: "Suspended" },
+  { value: "abandoned", label: "Abandoned" },
+];
+
+/* ════════════════════════════════════════════════════════ */
 
 export function BusinessGoalsPage() {
   const { data: goalModel, isLoading, error } = useGoalModel(BUSINESS_ID);
@@ -95,6 +206,13 @@ export function BusinessGoalsPage() {
     });
   }, [goals, levelFilter, typeFilter, stateFilter]);
 
+  // Banner stats
+  const avgPriority =
+    goals.length > 0 ? goals.reduce((sum, g) => sum + g.priority, 0) / goals.length : 0;
+  const strategicCount = goals.filter((g) => g.level === "strategic").length;
+  const tacticalCount = goals.filter((g) => g.level === "tactical").length;
+  const operationalCount = goals.filter((g) => g.level === "operational").length;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -126,6 +244,54 @@ export function BusinessGoalsPage() {
         )}
       </div>
 
+      {/* ─── Banner ─── */}
+      {!isLoading && goals.length > 0 && (
+        <div
+          className="w-full rounded-xl overflow-hidden"
+          style={{
+            height: 200,
+            background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%)",
+          }}
+        >
+          <div className="flex items-center justify-between h-full px-8">
+            {/* Left: Ring chart */}
+            <div className="flex items-center gap-8">
+              <BannerRingChart value={avgPriority} />
+              <div className="space-y-1">
+                <p className="text-white/60 text-sm font-medium">Average Priority</p>
+                <p className="text-white text-3xl font-bold">{(avgPriority * 100).toFixed(0)}%</p>
+                <p className="text-white/50 text-xs">Across {goals.length} business goals</p>
+              </div>
+            </div>
+
+            {/* Right: Quick stats */}
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3 px-5 py-3 rounded-lg bg-white/10 backdrop-blur-sm">
+                <TrendingUp className="w-5 h-5 text-purple-300" />
+                <div>
+                  <p className="text-white text-lg font-bold">{strategicCount}</p>
+                  <p className="text-white/50 text-xs">Strategic</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 px-5 py-3 rounded-lg bg-white/10 backdrop-blur-sm">
+                <CheckCircle2 className="w-5 h-5 text-blue-300" />
+                <div>
+                  <p className="text-white text-lg font-bold">{tacticalCount}</p>
+                  <p className="text-white/50 text-xs">Tactical</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 px-5 py-3 rounded-lg bg-white/10 backdrop-blur-sm">
+                <Clock className="w-5 h-5 text-orange-300" />
+                <div>
+                  <p className="text-white text-lg font-bold">{operationalCount}</p>
+                  <p className="text-white/50 text-xs">Operational</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Error banner */}
       {error && (
         <div className="flex items-center gap-3 p-4 rounded-lg bg-[color-mix(in_srgb,var(--accent-red)_10%,var(--bg-card))] border border-[var(--accent-red)]/20">
@@ -139,55 +305,12 @@ export function BusinessGoalsPage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* ─── Tab Bar Filters ─── */}
       {!isLoading && goals.length > 0 && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <select
-            value={levelFilter}
-            onChange={(e) => setLevelFilter(e.target.value as GoalLevel | "all")}
-            className="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-purple)]"
-          >
-            <option value="all">All Levels</option>
-            <option value="strategic">Strategic</option>
-            <option value="tactical">Tactical</option>
-            <option value="operational">Operational</option>
-          </select>
-
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as GoalType | "all")}
-            className="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-purple)]"
-          >
-            <option value="all">All Types</option>
-            <optgroup label="Tropos">
-              <option value="hardgoal">Hard Goal</option>
-              <option value="softgoal">Soft Goal</option>
-              <option value="task">Task</option>
-              <option value="resource">Resource</option>
-            </optgroup>
-            <optgroup label="BDI">
-              <option value="achieve">Achieve</option>
-              <option value="maintain">Maintain</option>
-              <option value="cease">Cease</option>
-              <option value="avoid">Avoid</option>
-              <option value="query">Query</option>
-            </optgroup>
-          </select>
-
-          <select
-            value={stateFilter}
-            onChange={(e) => setStateFilter(e.target.value as GoalState | "all")}
-            className="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-purple)]"
-          >
-            <option value="all">All States</option>
-            <option value="pending">Pending</option>
-            <option value="active">Active</option>
-            <option value="in_progress">In Progress</option>
-            <option value="achieved">Achieved</option>
-            <option value="failed">Failed</option>
-            <option value="suspended">Suspended</option>
-            <option value="abandoned">Abandoned</option>
-          </select>
+        <div className="space-y-2">
+          <TabBar tabs={levelTabs} active={levelFilter} onChange={setLevelFilter} />
+          <TabBar tabs={typeTabs} active={typeFilter} onChange={setTypeFilter} />
+          <TabBar tabs={stateTabs} active={stateFilter} onChange={setStateFilter} />
         </div>
       )}
 
@@ -203,10 +326,10 @@ export function BusinessGoalsPage() {
       {/* Content area */}
       {viewMode === "grid" ? (
         <>
-          {/* Goals Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Goals Grid — 3 columns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {isLoading
-              ? Array.from({ length: 4 }).map((_, i) => <GoalCardSkeleton key={i} />)
+              ? Array.from({ length: 6 }).map((_, i) => <GoalCardSkeleton key={i} />)
               : filtered.map((goal) => (
                   <GoalCard
                     key={goal.id}

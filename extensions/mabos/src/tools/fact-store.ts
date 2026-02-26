@@ -15,7 +15,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import type { OpenClawPluginApi, AnyAgentTool } from "openclaw/plugin-sdk";
 import { getTypeDBClient, TypeDBUnavailableError } from "../knowledge/typedb-client.js";
 import { FactStoreQueries } from "../knowledge/typedb-queries.js";
-import { textResult, resolveWorkspaceDir } from "./common.js";
+import { textResult, resolveWorkspaceDir, generatePrefixedId } from "./common.js";
 import { materializeFacts } from "./memory-materializer.js";
 
 async function readJson(p: string) {
@@ -130,10 +130,7 @@ export function createFactStoreTools(api: OpenClawPluginApi): AnyAgentTool[] {
             f.object === params.object,
         );
 
-        const factId =
-          existing !== -1
-            ? store.facts[existing].id
-            : `F-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const factId = existing !== -1 ? store.facts[existing].id : generatePrefixedId("F");
 
         const fact: Fact = {
           id: factId,
