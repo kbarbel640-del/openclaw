@@ -1,4 +1,5 @@
 import { connectGateway } from "./app-gateway.ts";
+import { readBuildInfoVersion } from "./build-info.ts";
 import {
   startLogsPolling,
   startNodesPolling,
@@ -60,6 +61,8 @@ export function handleConnected(host: LifecycleHost) {
 
 export function handleFirstUpdated(host: LifecycleHost) {
   observeTopbar(host as unknown as Parameters<typeof observeTopbar>[0]);
+  // Preload build-info version so it's available when connectGateway is called
+  void readBuildInfoVersion();
 }
 
 export function handleDisconnected(host: LifecycleHost) {
