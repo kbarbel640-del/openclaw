@@ -8,6 +8,15 @@
 
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+
+/**
+ * Sanitize an ID for the OpenAI Responses API which requires IDs to contain
+ * only letters, numbers, underscores, or dashes (`[A-Za-z0-9_-]`).
+ * Replace any disallowed character (e.g. pipe `|`) with an underscore.
+ */
+function sanitizeResponsesId(id: string): string {
+  return id.replace(/[^A-Za-z0-9_-]/g, "_");
+}
 import type { ClientToolDefinition } from "../agents/pi-embedded-runner/run/params.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
@@ -485,7 +494,7 @@ export async function handleOpenResponsesHttpRequest(
             {
               type: "function_call",
               id: functionCallItemId,
-              call_id: functionCall.id,
+              call_id: sanitizeResponsesId(functionCall.id),
               name: functionCall.name,
               arguments: functionCall.arguments,
             },
@@ -754,7 +763,7 @@ export async function handleOpenResponsesHttpRequest(
           const functionCallItem = {
             type: "function_call" as const,
             id: functionCallItemId,
-            call_id: functionCall.id,
+            call_id: sanitizeResponsesId(functionCall.id),
             name: functionCall.name,
             arguments: functionCall.arguments,
           };
