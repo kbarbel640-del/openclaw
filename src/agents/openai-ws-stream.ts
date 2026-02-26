@@ -409,7 +409,12 @@ export function createOpenAIWebSocketStreamFn(
       // Forward generation options that the HTTP path (openai-responses provider) also uses.
       // Cast to record since SimpleStreamOptions carries openai-specific fields as unknown.
       const streamOpts = options as
-        | (Record<string, unknown> & { temperature?: number; maxTokens?: number })
+        | (Record<string, unknown> & {
+            temperature?: number;
+            maxTokens?: number;
+            topP?: number;
+            toolChoice?: unknown;
+          })
         | undefined;
       const extraParams: Record<string, unknown> = {};
       if (streamOpts?.temperature !== undefined) {
@@ -417,6 +422,12 @@ export function createOpenAIWebSocketStreamFn(
       }
       if (streamOpts?.maxTokens) {
         extraParams.max_output_tokens = streamOpts.maxTokens;
+      }
+      if (streamOpts?.topP !== undefined) {
+        extraParams.top_p = streamOpts.topP;
+      }
+      if (streamOpts?.toolChoice !== undefined) {
+        extraParams.tool_choice = streamOpts.toolChoice;
       }
       if (streamOpts?.reasoningEffort || streamOpts?.reasoningSummary) {
         extraParams.reasoning = {
@@ -467,8 +478,18 @@ export function createOpenAIWebSocketStreamFn(
         }
         signal?.addEventListener("abort", abortHandler, { once: true });
 
+        // If the WebSocket drops mid-request, reject so we don't hang forever.
+        const closeHandler = (code: number, reason: string) => {
+          cleanup();
+          reject(
+            new Error(`WebSocket closed mid-request (code=${code}, reason=${reason || "unknown"})`),
+          );
+        };
+        session.manager.on("close", closeHandler);
+
         const cleanup = () => {
           signal?.removeEventListener("abort", abortHandler);
+          session.manager.off("close", closeHandler);
           unsubscribe();
         };
 

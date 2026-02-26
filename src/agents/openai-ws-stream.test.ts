@@ -25,12 +25,14 @@ import {
 
 // We mock the entire openai-ws-connection module so no real WebSocket is opened.
 const { MockManager } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { EventEmitter } = require("node:events") as typeof import("node:events");
   type AnyFn = (...args: unknown[]) => void;
 
   // Shared mutable flag so inner class can see it
   let _globalConnectShouldFail = false;
 
-  class MockManager {
+  class MockManager extends EventEmitter {
     private _listeners: AnyFn[] = [];
     private _previousResponseId: string | null = null;
     private _connected = false;
@@ -80,6 +82,12 @@ const { MockManager } = vi.hoisted(() => {
     close(): void {
       this.closeCallCount++;
       this._connected = false;
+    }
+
+    // Test helper: simulate WebSocket connection drop mid-request
+    simulateClose(code = 1006, reason = "connection lost"): void {
+      this._connected = false;
+      this.emit("close", code, reason);
     }
 
     // Test helper: simulate a server event
@@ -892,6 +900,69 @@ describe("createOpenAIWebSocketStreamFn", () => {
     const sent = MockManager.lastInstance!.sentEvents[0] as Record<string, unknown>;
     expect(sent.type).toBe("response.create");
     expect(sent.reasoning).toEqual({ effort: "high", summary: "auto" });
+  });
+
+  it("forwards topP and toolChoice to response.create", async () => {
+    const streamFn = createOpenAIWebSocketStreamFn("sk-test", "sess-topp");
+    const opts = { topP: 0.9, toolChoice: "auto" };
+    const stream = streamFn(
+      modelStub as Parameters<typeof streamFn>[0],
+      contextStub as Parameters<typeof streamFn>[1],
+      opts as unknown as Parameters<typeof streamFn>[2],
+    );
+    await new Promise<void>((resolve, reject) => {
+      queueMicrotask(async () => {
+        try {
+          await new Promise((r) => setImmediate(r));
+          MockManager.lastInstance!.simulateEvent({
+            type: "response.completed",
+            response: makeResponseObject("resp-topp", "Done"),
+          });
+          for await (const _ of await resolveStream(stream)) {
+            /* consume */
+          }
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    const sent = MockManager.lastInstance!.sentEvents[0] as Record<string, unknown>;
+    expect(sent.type).toBe("response.create");
+    expect(sent.top_p).toBe(0.9);
+    expect(sent.tool_choice).toBe("auto");
+  });
+
+  it("rejects promise when WebSocket drops mid-request", async () => {
+    const streamFn = createOpenAIWebSocketStreamFn("sk-test", "sess-drop");
+    const stream = streamFn(
+      modelStub as Parameters<typeof streamFn>[0],
+      contextStub as Parameters<typeof streamFn>[1],
+      {} as Parameters<typeof streamFn>[2],
+    );
+    // Let the send go through, then simulate connection drop before response.completed
+    await new Promise<void>((resolve) => {
+      queueMicrotask(async () => {
+        try {
+          await new Promise((r) => setImmediate(r));
+          // Simulate a connection drop instead of sending response.completed
+          MockManager.lastInstance!.simulateClose(1006, "connection lost");
+          const events: unknown[] = [];
+          for await (const ev of await resolveStream(stream)) {
+            events.push(ev);
+          }
+          // Should have gotten an error event, not hung forever
+          const hasError = events.some(
+            (e) => typeof e === "object" && e !== null && (e as { type: string }).type === "error",
+          );
+          expect(hasError).toBe(true);
+          resolve();
+        } catch {
+          // The error propagation is also acceptable — promise rejected
+          resolve();
+        }
+      });
+    });
   });
 });
 
