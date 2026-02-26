@@ -27,11 +27,22 @@ export const DEFAULT_MMR_CONFIG: MMRConfig = {
 
 /**
  * Tokenize text for Jaccard similarity computation.
- * Extracts alphanumeric tokens and normalizes to lowercase.
+ * Extracts alphanumeric tokens, CJK characters, and CJK bigrams.
+ *
+ * CJK scripts (Chinese, Japanese kanji, Korean hanja) lack whitespace
+ * word boundaries, so we extract individual characters (unigrams) for
+ * broad matching and consecutive character pairs (bigrams) for
+ * phrase-level similarity — no external tokenizer required.
  */
 export function tokenize(text: string): Set<string> {
-  const tokens = text.toLowerCase().match(/[a-z0-9_]+/g) ?? [];
-  return new Set(tokens);
+  const lower = text.toLowerCase();
+  const ascii = lower.match(/[a-z0-9_]+/g) ?? [];
+  const cjkChars = Array.from(lower).filter((c) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(c));
+  const bigrams: string[] = [];
+  for (let i = 0; i < cjkChars.length - 1; i++) {
+    bigrams.push(cjkChars[i] + cjkChars[i + 1]);
+  }
+  return new Set([...ascii, ...bigrams, ...cjkChars]);
 }
 
 /**

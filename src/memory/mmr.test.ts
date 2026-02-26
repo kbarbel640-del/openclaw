@@ -30,6 +30,21 @@ describe("tokenize", () => {
         input: "hello hello world world",
         expected: ["hello", "world"],
       },
+      {
+        name: "CJK characters produce unigrams and bigrams",
+        input: "今天讨论",
+        expected: ["今", "天", "讨", "论", "今天", "天讨", "讨论"],
+      },
+      {
+        name: "mixed ASCII and CJK",
+        input: "hello 你好世界 test",
+        expected: ["hello", "test", "你", "好", "世", "界", "你好", "好世", "世界"],
+      },
+      {
+        name: "single CJK character (no bigrams)",
+        input: "龙",
+        expected: ["龙"],
+      },
     ] as const;
 
     for (const testCase of cases) {
@@ -90,10 +105,33 @@ describe("textSimilarity", () => {
       { name: "same words reordered", left: "hello world", right: "world hello", expected: 1 },
       { name: "different text", left: "hello world", right: "foo bar", expected: 0 },
       { name: "case insensitive", left: "Hello World", right: "hello world", expected: 1 },
+      {
+        name: "CJK similar texts share tokens",
+        left: "今天我们讨论了项目进展",
+        right: "今天我们讨论了会议安排",
+        // Shared unigrams: 今,天,我,们,讨,论,了 (7) + shared bigrams: 今天,天我,我们,们讨,讨论,论了 (6) = 13 shared
+        // Total unique tokens > 13, so similarity > 0 and < 1
+        expected: -1, // placeholder — just check > 0
+      },
+      {
+        name: "CJK completely different texts",
+        left: "苹果香蕉",
+        right: "钢铁煤炭",
+        expected: 0,
+      },
     ] as const;
 
     for (const testCase of cases) {
-      expect(textSimilarity(testCase.left, testCase.right), testCase.name).toBe(testCase.expected);
+      if (testCase.expected === -1) {
+        // Placeholder: just assert positive similarity
+        const sim = textSimilarity(testCase.left, testCase.right);
+        expect(sim, testCase.name).toBeGreaterThan(0);
+        expect(sim, testCase.name).toBeLessThan(1);
+      } else {
+        expect(textSimilarity(testCase.left, testCase.right), testCase.name).toBe(
+          testCase.expected,
+        );
+      }
     }
   });
 });
