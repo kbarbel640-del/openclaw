@@ -1,19 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
-import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
+import type { OpenClawConfig } from "../config/config.js";
 import "../cron/isolated-agent.mocks.js";
+import type { RuntimeEnv } from "../runtime.js";
+import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
 import * as cliRunnerModule from "../agents/cli-runner.js";
 import { loadModelCatalog } from "../agents/model-catalog.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
-import type { OpenClawConfig } from "../config/config.js";
 import * as configModule from "../config/config.js";
 import * as sessionsModule from "../config/sessions.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
-import type { RuntimeEnv } from "../runtime.js";
 import { createOutboundTestPlugin, createTestRegistry } from "../test-utils/channel-plugins.js";
 import { agentCommand } from "./agent.js";
+import * as agentDeliveryModule from "./agent/delivery.js";
 
 vi.mock("../agents/auth-profiles.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../agents/auth-profiles.js")>();
@@ -49,6 +50,7 @@ const runtime: RuntimeEnv = {
 
 const configSpy = vi.spyOn(configModule, "loadConfig");
 const runCliAgentSpy = vi.spyOn(cliRunnerModule, "runCliAgent");
+const deliverAgentCommandResultSpy = vi.spyOn(agentDeliveryModule, "deliverAgentCommandResult");
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
   return withTempHomeBase(fn, { prefix: "openclaw-agent-" });
@@ -227,6 +229,35 @@ describe("agentCommand", () => {
       expect(callArgs?.sessionKey).toBe("agent:exec:hook:gmail:thread-1");
       expect(callArgs?.agentId).toBe("exec");
       expect(callArgs?.agentDir).toContain(`${path.sep}agents${path.sep}exec${path.sep}agent`);
+    });
+  });
+
+  it("forwards resolved outbound session context when resuming by sessionId", async () => {
+    await withTempHome(async (home) => {
+      const storePattern = path.join(home, "sessions", "{agentId}", "sessions.json");
+      const execStore = path.join(home, "sessions", "exec", "sessions.json");
+      writeSessionStoreSeed(execStore, {
+        "agent:exec:hook:gmail:thread-1": {
+          sessionId: "session-exec-hook",
+          updatedAt: Date.now(),
+          systemSent: true,
+        },
+      });
+      mockConfig(home, storePattern, undefined, undefined, [
+        { id: "dev" },
+        { id: "exec", default: true },
+      ]);
+
+      await agentCommand({ message: "resume me", sessionId: "session-exec-hook" }, runtime);
+
+      const deliverCall = deliverAgentCommandResultSpy.mock.calls.at(-1)?.[0];
+      expect(deliverCall?.opts.sessionKey).toBeUndefined();
+      expect(deliverCall?.outboundSession).toEqual(
+        expect.objectContaining({
+          key: "agent:exec:hook:gmail:thread-1",
+          agentId: "exec",
+        }),
+      );
     });
   });
 
