@@ -1,5 +1,5 @@
 ---
-summary: "CLI reference for `openclaw agents` (list/add/delete/set identity)"
+summary: "CLI reference for `openclaw agents` (list/add/delete/bindings/bind/unbind/set identity)"
 read_when:
   - You want multiple isolated agents (workspaces + routing + auth)
 title: "agents"
@@ -19,9 +19,39 @@ Related:
 ```bash
 openclaw agents list
 openclaw agents add work --workspace ~/.openclaw/workspace-work
+openclaw agents bindings
+openclaw agents bind --agent work --bind telegram:ops
+openclaw agents unbind --agent work --bind telegram:ops
 openclaw agents set-identity --workspace ~/.openclaw/workspace --from-identity
 openclaw agents set-identity --agent main --avatar avatars/openclaw.png
 openclaw agents delete work
+```
+
+## Routing bindings
+
+Use routing bindings to pin inbound channel traffic to a specific agent.
+
+List bindings:
+
+```bash
+openclaw agents bindings
+openclaw agents bindings --agent work
+openclaw agents bindings --json
+```
+
+Add bindings:
+
+```bash
+openclaw agents bind --agent work --bind telegram:ops --bind discord:guild-a
+```
+
+If you omit `accountId` (`--bind <channel>`), OpenClaw resolves it from channel defaults and plugin setup hooks when available.
+
+Remove bindings:
+
+```bash
+openclaw agents unbind --agent work --bind telegram:ops
+openclaw agents unbind --agent work --all
 ```
 
 ## Identity files
