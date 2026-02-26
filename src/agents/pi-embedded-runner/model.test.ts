@@ -442,18 +442,19 @@ describe("resolveModel", () => {
 });
 
 describe("applyProviderApiOverride", () => {
-  it("returns model unchanged when no provider config exists", () => {
-    const model = { ...OPENAI_CODEX_TEMPLATE_MODEL } as Parameters<
+  const toModel = () =>
+    ({ ...OPENAI_CODEX_TEMPLATE_MODEL }) as unknown as Parameters<
       typeof applyProviderApiOverride
     >[0];
+
+  it("returns model unchanged when no provider config exists", () => {
+    const model = toModel();
     const result = applyProviderApiOverride(model, "openai-codex", {});
     expect(result).toBe(model);
   });
 
   it("returns model unchanged when provider config has no api", () => {
-    const model = { ...OPENAI_CODEX_TEMPLATE_MODEL } as Parameters<
-      typeof applyProviderApiOverride
-    >[0];
+    const model = toModel();
     const result = applyProviderApiOverride(model, "openai-codex", {
       "openai-codex": { baseUrl: "https://example.com" },
     });
@@ -461,19 +462,18 @@ describe("applyProviderApiOverride", () => {
   });
 
   it("returns model unchanged when provider api matches", () => {
-    const model = { ...OPENAI_CODEX_TEMPLATE_MODEL } as Parameters<
-      typeof applyProviderApiOverride
-    >[0];
+    const model = toModel();
+    // Model's api is "openai-codex-responses" (pi-ai extension, not in ModelApi union).
+    // Simulate a matching config by overriding the model's api to a known ModelApi value.
+    model.api = "openai-completions";
     const result = applyProviderApiOverride(model, "openai-codex", {
-      "openai-codex": { api: "openai-codex-responses" },
+      "openai-codex": { api: "openai-completions" },
     });
     expect(result).toBe(model);
   });
 
   it("overrides api and clears baseUrl", () => {
-    const model = { ...OPENAI_CODEX_TEMPLATE_MODEL } as Parameters<
-      typeof applyProviderApiOverride
-    >[0];
+    const model = toModel();
     const result = applyProviderApiOverride(model, "openai-codex", {
       "openai-codex": { api: "openai-completions" },
     });
@@ -483,9 +483,7 @@ describe("applyProviderApiOverride", () => {
   });
 
   it("overrides api and uses explicit baseUrl from config", () => {
-    const model = { ...OPENAI_CODEX_TEMPLATE_MODEL } as Parameters<
-      typeof applyProviderApiOverride
-    >[0];
+    const model = toModel();
     const result = applyProviderApiOverride(model, "openai-codex", {
       "openai-codex": { api: "openai-completions", baseUrl: "https://custom.example.com" },
     });

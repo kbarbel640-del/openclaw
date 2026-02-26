@@ -151,9 +151,9 @@ export function applyProviderApiOverride(
   }
   const overridden = { ...model, api: providerCfg.api } as Model<Api>;
   if (providerCfg.baseUrl) {
-    (overridden as Record<string, unknown>).baseUrl = providerCfg.baseUrl;
+    (overridden as unknown as Record<string, unknown>).baseUrl = providerCfg.baseUrl;
   } else {
-    delete (overridden as Record<string, unknown>).baseUrl;
+    delete (overridden as unknown as Record<string, unknown>).baseUrl;
   }
   return overridden;
 }
