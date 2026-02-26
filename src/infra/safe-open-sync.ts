@@ -18,23 +18,8 @@ function isExpectedPathError(error: unknown): boolean {
   return code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP";
 }
 
-function shouldBypassWin32IdentityMismatch(params: {
-  platform: NodeJS.Platform;
-  preOpenStat: fs.Stats;
-  openedStat: fs.Stats;
-}): boolean {
-  if (params.platform !== "win32") {
-    return false;
-  }
-  return params.preOpenStat.nlink <= 1 && params.openedStat.nlink <= 1;
-}
-
-export function sameFileIdentity(
-  left: fs.Stats,
-  right: fs.Stats,
-  platform: NodeJS.Platform = process.platform,
-): boolean {
-  return hasSameFileIdentity(left, right, platform);
+export function sameFileIdentity(left: fs.Stats, right: fs.Stats): boolean {
+  return hasSameFileIdentity(left, right);
 }
 
 export function openVerifiedFileSync(params: {
@@ -44,10 +29,8 @@ export function openVerifiedFileSync(params: {
   rejectHardlinks?: boolean;
   maxBytes?: number;
   ioFs?: SafeOpenSyncFs;
-  platform?: NodeJS.Platform;
 }): SafeOpenSyncResult {
   const ioFs = params.ioFs ?? fs;
-  const platform = params.platform ?? process.platform;
   const openReadFlags =
     ioFs.constants.O_RDONLY |
     (typeof ioFs.constants.O_NOFOLLOW === "number" ? ioFs.constants.O_NOFOLLOW : 0);
@@ -83,15 +66,7 @@ export function openVerifiedFileSync(params: {
     if (params.maxBytes !== undefined && openedStat.size > params.maxBytes) {
       return { ok: false, reason: "validation" };
     }
-
-    if (
-      !sameFileIdentity(preOpenStat, openedStat, platform) &&
-      !shouldBypassWin32IdentityMismatch({
-        platform,
-        preOpenStat,
-        openedStat,
-      })
-    ) {
+    if (!sameFileIdentity(preOpenStat, openedStat)) {
       return { ok: false, reason: "validation" };
     }
 
