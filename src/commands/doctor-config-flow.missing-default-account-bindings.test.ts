@@ -37,6 +37,25 @@ describe("collectMissingDefaultAccountBindingWarnings", () => {
     expect(collectMissingDefaultAccountBindingWarnings(cfg)).toEqual([]);
   });
 
+  it("warns when bindings cover only a subset of configured accounts", () => {
+    const cfg: OpenClawConfig = {
+      channels: {
+        telegram: {
+          accounts: {
+            alerts: { botToken: "a" },
+            work: { botToken: "w" },
+          },
+        },
+      },
+      bindings: [{ agentId: "ops", match: { channel: "telegram", accountId: "alerts" } }],
+    };
+
+    const warnings = collectMissingDefaultAccountBindingWarnings(cfg);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("subset");
+    expect(warnings[0]).toContain("Uncovered accounts: work");
+  });
+
   it("does not warn when wildcard account binding exists", () => {
     const cfg: OpenClawConfig = {
       channels: {

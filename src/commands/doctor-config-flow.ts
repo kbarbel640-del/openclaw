@@ -249,33 +249,52 @@ export function collectMissingDefaultAccountBindingWarnings(cfg: OpenClawConfig)
     const accountIdSet = new Set(normalizedAccountIds);
     const channelPattern = normalizeBindingChannelKey(channelKey);
 
-    const hasValidBinding = bindings.some((binding) => {
+    let hasWildcardBinding = false;
+    const coveredAccountIds = new Set<string>();
+    for (const binding of bindings) {
       const bindingRecord = asObjectRecord(binding);
       if (!bindingRecord) {
-        return false;
+        continue;
       }
       const match = asObjectRecord(bindingRecord.match);
       if (!match) {
-        return false;
+        continue;
       }
 
       const matchChannel =
         typeof match.channel === "string" ? normalizeBindingChannelKey(match.channel) : "";
       if (!matchChannel || matchChannel !== channelPattern) {
-        return false;
+        continue;
       }
 
       const rawAccountId = typeof match.accountId === "string" ? match.accountId.trim() : "";
       if (!rawAccountId) {
-        return false;
+        continue;
       }
       if (rawAccountId === "*") {
-        return true;
+        hasWildcardBinding = true;
+        continue;
       }
-      return accountIdSet.has(normalizeAccountId(rawAccountId));
-    });
+      const normalizedBindingAccountId = normalizeAccountId(rawAccountId);
+      if (accountIdSet.has(normalizedBindingAccountId)) {
+        coveredAccountIds.add(normalizedBindingAccountId);
+      }
+    }
 
-    if (hasValidBinding) {
+    if (hasWildcardBinding) {
+      continue;
+    }
+
+    const uncoveredAccountIds = normalizedAccountIds.filter(
+      (accountId) => !coveredAccountIds.has(accountId),
+    );
+    if (uncoveredAccountIds.length === 0) {
+      continue;
+    }
+    if (coveredAccountIds.size > 0) {
+      warnings.push(
+        `- channels.${channelKey}: accounts.default is missing and account bindings only cover a subset of configured accounts. Uncovered accounts: ${uncoveredAccountIds.join(", ")}. Add bindings[].match.accountId for uncovered accounts (or "*"), or add channels.${channelKey}.accounts.default.`,
+      );
       continue;
     }
 
