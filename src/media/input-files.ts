@@ -247,10 +247,11 @@ async function extractPdfContent(params: {
 }): Promise<{ text: string; images: InputImageContent[] }> {
   const { buffer, limits } = params;
   const { getDocument } = await loadPdfJsModule();
-  const pdf = await getDocument({
+  const loadingTask = getDocument({
     data: new Uint8Array(buffer),
     disableWorker: true,
-  }).promise;
+  });
+  const pdf = await loadingTask.promise;
   try {
     const maxPages = Math.min(pdf.numPages, limits.pdf.maxPages);
     const textParts: string[] = [];
@@ -300,7 +301,8 @@ async function extractPdfContent(params: {
 
     return { text, images };
   } finally {
-    pdf.destroy();
+    // @ts-expect-error -- tsgo cannot resolve PDFDocumentLoadingTask.destroy() through pdfjs re-export
+    await loadingTask.destroy();
   }
 }
 
