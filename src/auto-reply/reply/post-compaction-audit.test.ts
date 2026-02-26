@@ -174,7 +174,7 @@ describe("auditPostCompactionReads", () => {
 
 describe("formatAuditWarning", () => {
   it("formats warning message with missing patterns", () => {
-    const missingPatterns = ["WORKFLOW_AUTO.md", "memory\\/\\d{4}-\\d{2}-\\d{2}\\.md"];
+    const missingPatterns = ["WORKFLOW_AUTO.md", "memory/YYYY-MM-DD.md"];
     const message = formatAuditWarning(missingPatterns);
 
     expect(message).toContain("⚠️ Post-Compaction Audit");
