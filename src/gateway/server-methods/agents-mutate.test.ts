@@ -524,7 +524,7 @@ describe("agents.files.get/set symlink safety", () => {
         return workspace;
       }
       if (p === candidate) {
-        return "/outside/secret.txt";
+        return path.resolve(workspace, "..", "..", "outside", "secret.txt");
       }
       return p;
     });
@@ -557,7 +557,7 @@ describe("agents.files.get/set symlink safety", () => {
         return workspace;
       }
       if (p === candidate) {
-        return "/outside/secret.txt";
+        return path.resolve(workspace, "..", "..", "outside", "secret.txt");
       }
       return p;
     });

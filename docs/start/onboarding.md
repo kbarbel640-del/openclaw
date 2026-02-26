@@ -19,6 +19,7 @@ For a general overview of onboarding paths, see [Onboarding Overview](/start/onb
 <Frame>
 <img src="/assets/macos-onboarding/01-macos-warning.jpeg" alt="" />
 </Frame>
+
 </Step>
 <Step title="Approve find local networks">
 <Frame>

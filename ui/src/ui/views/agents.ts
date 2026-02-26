@@ -40,6 +40,7 @@ export type AgentsProps = {
   configForm: Record<string, unknown> | null;
   configLoading: boolean;
   configSaving: boolean;
+  configApplying: boolean;
   configDirty: boolean;
   channelsLoading: boolean;
   channelsError: string | null;
@@ -78,7 +79,9 @@ export type AgentsProps = {
   onToolsProfileChange: (agentId: string, profile: string | null, clearAllow: boolean) => void;
   onToolsOverridesChange: (agentId: string, alsoAllow: string[], deny: string[]) => void;
   onConfigReload: () => void;
+  onConfigDiscard: () => void;
   onConfigSave: () => void;
+  onConfigApply: () => void;
   onModelChange: (agentId: string, modelId: string | null) => void;
   onModelFallbacksChange: (agentId: string, fallbacks: string[]) => void;
   onChannelsRefresh: () => void;
@@ -179,9 +182,12 @@ export function renderAgents(props: AgentsProps) {
                         agentIdentityLoading: props.agentIdentityLoading,
                         configLoading: props.configLoading,
                         configSaving: props.configSaving,
+                        configApplying: props.configApplying,
                         configDirty: props.configDirty,
                         onConfigReload: props.onConfigReload,
+                        onConfigDiscard: props.onConfigDiscard,
                         onConfigSave: props.onConfigSave,
+                        onConfigApply: props.onConfigApply,
                         onModelChange: props.onModelChange,
                         onModelFallbacksChange: props.onModelFallbacksChange,
                       })
@@ -354,9 +360,12 @@ function renderAgentOverview(params: {
   agentIdentityError: string | null;
   configLoading: boolean;
   configSaving: boolean;
+  configApplying: boolean;
   configDirty: boolean;
   onConfigReload: () => void;
+  onConfigDiscard: () => void;
   onConfigSave: () => void;
+  onConfigApply: () => void;
   onModelChange: (agentId: string, modelId: string | null) => void;
   onModelFallbacksChange: (agentId: string, fallbacks: string[]) => void;
 }) {
@@ -369,9 +378,12 @@ function renderAgentOverview(params: {
     agentIdentityError,
     configLoading,
     configSaving,
+    configApplying,
     configDirty,
     onConfigReload,
+    onConfigDiscard,
     onConfigSave,
+    onConfigApply,
     onModelChange,
     onModelFallbacksChange,
   } = params;
@@ -446,6 +458,17 @@ function renderAgentOverview(params: {
 
       <div class="agent-model-select" style="margin-top: 20px;">
         <div class="label">Model Selection</div>
+        ${
+          configDirty
+            ? html`
+                <div class="callout info" style="margin: 10px 0 12px">
+                  Unsaved config draft is active. Model shown here may differ from runtime defaults until you save
+                  or discard.
+                </div>
+              `
+            : nothing
+        }
+        <div class="muted" style="margin: 6px 0 10px;">Save updates the config file. Apply updates the running gateway.</div>
         <div class="row" style="gap: 12px; flex-wrap: wrap;">
           <label class="field" style="min-width: 260px; flex: 1;">
             <span>Primary model${isDefault ? " (default)" : ""}</span>
@@ -482,15 +505,21 @@ function renderAgentOverview(params: {
           </label>
         </div>
         <div class="row" style="justify-content: flex-end; gap: 8px;">
+          <button class="btn btn--sm" ?disabled=${configLoading} @click=${onConfigDiscard}>
+            Discard Draft
+          </button>
           <button class="btn btn--sm" ?disabled=${configLoading} @click=${onConfigReload}>
             Reload Config
           </button>
+          <button class="btn btn--sm" ?disabled=${configSaving || !configDirty} @click=${onConfigSave}>
+            ${configSaving ? "Saving…" : "Save"}
+          </button>
           <button
             class="btn btn--sm primary"
-            ?disabled=${configSaving || !configDirty}
-            @click=${onConfigSave}
+            ?disabled=${configApplying || !configDirty}
+            @click=${onConfigApply}
           >
-            ${configSaving ? "Saving…" : "Save"}
+            ${configApplying ? "Applying…" : "Apply"}
           </button>
         </div>
       </div>

@@ -36,7 +36,11 @@ export type ConfigState = {
   lastError: string | null;
 };
 
-export async function loadConfig(state: ConfigState) {
+export type LoadConfigOptions = {
+  preserveDirty?: boolean;
+};
+
+export async function loadConfig(state: ConfigState, opts: LoadConfigOptions = {}) {
   if (!state.client || !state.connected) {
     return;
   }
@@ -44,7 +48,7 @@ export async function loadConfig(state: ConfigState) {
   state.lastError = null;
   try {
     const res = await state.client.request<ConfigSnapshot>("config.get", {});
-    applyConfigSnapshot(state, res);
+    applyConfigSnapshot(state, res, opts);
   } catch (err) {
     state.lastError = String(err);
   } finally {
@@ -76,7 +80,13 @@ export function applyConfigSchema(state: ConfigState, res: ConfigSchemaResponse)
   state.configSchemaVersion = res.version ?? null;
 }
 
-export function applyConfigSnapshot(state: ConfigState, snapshot: ConfigSnapshot) {
+export function applyConfigSnapshot(
+  state: ConfigState,
+  snapshot: ConfigSnapshot,
+  opts: LoadConfigOptions = {},
+) {
+  const preserveDirty = opts.preserveDirty !== false;
+  const keepDirtyDraft = preserveDirty && state.configFormDirty;
   state.configSnapshot = snapshot;
   const rawFromSnapshot =
     typeof snapshot.raw === "string"
@@ -84,7 +94,7 @@ export function applyConfigSnapshot(state: ConfigState, snapshot: ConfigSnapshot
       : snapshot.config && typeof snapshot.config === "object"
         ? serializeConfigForm(snapshot.config)
         : state.configRaw;
-  if (!state.configFormDirty || state.configFormMode === "raw") {
+  if (!keepDirtyDraft || state.configFormMode === "raw") {
     state.configRaw = rawFromSnapshot;
   } else if (state.configForm) {
     state.configRaw = serializeConfigForm(state.configForm);
@@ -94,11 +104,20 @@ export function applyConfigSnapshot(state: ConfigState, snapshot: ConfigSnapshot
   state.configValid = typeof snapshot.valid === "boolean" ? snapshot.valid : null;
   state.configIssues = Array.isArray(snapshot.issues) ? snapshot.issues : [];
 
-  if (!state.configFormDirty) {
+  if (!keepDirtyDraft) {
     state.configForm = cloneConfigObject(snapshot.config ?? {});
     state.configFormOriginal = cloneConfigObject(snapshot.config ?? {});
     state.configRawOriginal = rawFromSnapshot;
+    state.configFormDirty = false;
   }
+}
+
+export function discardConfigDraft(state: ConfigState) {
+  const snapshot = state.configSnapshot;
+  if (!snapshot) {
+    return;
+  }
+  applyConfigSnapshot(state, snapshot, { preserveDirty: false });
 }
 
 function asJsonSchema(value: unknown): JsonSchema | null {
