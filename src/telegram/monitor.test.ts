@@ -64,7 +64,7 @@ const { computeBackoff, sleepWithAbort } = vi.hoisted(() => ({
   sleepWithAbort: vi.fn(async () => undefined),
 }));
 const { startTelegramWebhookSpy } = vi.hoisted(() => ({
-  startTelegramWebhookSpy: vi.fn(async () => ({ server: { close: vi.fn() }, stop: vi.fn() })),
+  startTelegramWebhookSpy: vi.fn(async () => ({ bot: { stop: vi.fn() }, stop: vi.fn() })),
 }));
 
 type RunnerStub = {
@@ -432,7 +432,7 @@ describe("monitorTelegramProvider (grammY)", () => {
     expect(runSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("passes configured webhookHost to webhook listener", async () => {
+  it("passes configured webhookHost to webhook listener (legacy mode)", async () => {
     await monitorTelegramProvider({
       token: "tok",
       useWebhook: true,
@@ -456,23 +456,47 @@ describe("monitorTelegramProvider (grammY)", () => {
     expect(runSpy).not.toHaveBeenCalled();
   });
 
-  it("webhook mode waits for abort signal before returning", async () => {
-    const abort = new AbortController();
-    const settled = vi.fn();
-    const monitor = monitorTelegramProvider({
+  it("passes configured webhookPort to webhook listener", async () => {
+    await monitorTelegramProvider({
       token: "tok",
       useWebhook: true,
       webhookUrl: "https://example.test/telegram",
       webhookSecret: "secret",
-      abortSignal: abort.signal,
-    }).then(settled);
+      config: {
+        agents: { defaults: { maxConcurrent: 2 } },
+        channels: {
+          telegram: {
+            webhookPort: 9999,
+          },
+        },
+      },
+    });
 
-    await Promise.resolve();
-    expect(settled).not.toHaveBeenCalled();
+    expect(startTelegramWebhookSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        port: 9999,
+      }),
+    );
+    expect(runSpy).not.toHaveBeenCalled();
+  });
 
-    abort.abort();
-    await monitor;
-    expect(settled).toHaveBeenCalledTimes(1);
+  it("webhook mode returns when startTelegramWebhook completes", async () => {
+    // In the new architecture, startTelegramWebhook handles abort
+    // internally (gateway mode awaits abort, legacy mode returns).
+    // The monitor simply awaits startTelegramWebhook and returns.
+    startTelegramWebhookSpy.mockImplementationOnce(async () => {
+      return { bot: { stop: vi.fn() }, stop: vi.fn() };
+    });
+
+    await monitorTelegramProvider({
+      token: "tok",
+      useWebhook: true,
+      webhookUrl: "https://example.test/telegram",
+      webhookSecret: "secret",
+    });
+
+    expect(startTelegramWebhookSpy).toHaveBeenCalledTimes(1);
+    expect(runSpy).not.toHaveBeenCalled();
   });
 
   it("falls back to configured webhookSecret when not passed explicitly", async () => {
