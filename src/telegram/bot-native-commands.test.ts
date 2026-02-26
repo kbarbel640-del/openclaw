@@ -306,7 +306,7 @@ describe("registerTelegramNativeCommands", () => {
       },
     };
 
-    it("processes native commands from channel_post instead of silently dropping them", async () => {
+    it("rejects auth-required native commands from channel_post when channel is not explicitly allowed", async () => {
       const { commandHandlers, sendMessage, bot } = buildChannelPostBot();
       registerTelegramNativeCommands({
         ...buildParams({}),
@@ -316,10 +316,9 @@ describe("registerTelegramNativeCommands", () => {
       const handler = commandHandlers.get("status");
       expect(handler).toBeTruthy();
 
-      // Should not reject with "not authorized" or silently return
       await handler?.(channelPostCtx);
-      expect(sendMessage).not.toHaveBeenCalledWith(
-        expect.anything(),
+      expect(sendMessage).toHaveBeenCalledWith(
+        -1001234567890,
         "You are not authorized to use this command.",
       );
     });
@@ -363,6 +362,10 @@ describe("registerTelegramNativeCommands", () => {
       registerTelegramNativeCommands({
         ...buildParams({}),
         bot,
+        resolveGroupPolicy: () => ({
+          allowlistEnabled: true,
+          allowed: true,
+        }),
       });
 
       const handler = commandHandlers.get("plug");
@@ -371,7 +374,7 @@ describe("registerTelegramNativeCommands", () => {
       // Channel post with no `from`, only `sender_chat`
       await handler?.(channelPostCtx);
 
-      // Should be authorized (channels are inherently authorized)
+      // Should be authorized when channel policy explicitly allows this channel.
       expect(sendMessage).not.toHaveBeenCalledWith(
         expect.anything(),
         "You are not authorized to use this command.",
@@ -381,6 +384,44 @@ describe("registerTelegramNativeCommands", () => {
       expect(pluginCommandMocks.executePluginCommand).toHaveBeenCalledWith(
         expect.objectContaining({
           senderId: String(-1001234567890),
+        }),
+      );
+    });
+
+    it("authorizes channel_post when sender is explicitly allowed via groupAllowFrom", async () => {
+      const { commandHandlers, sendMessage, bot } = buildChannelPostBot();
+      pluginCommandMocks.getPluginCommandSpecs.mockReturnValue([
+        { name: "plug", description: "Plugin command" },
+      ] as never);
+      pluginCommandMocks.matchPluginCommand.mockReturnValue({
+        command: { key: "plug", requireAuth: true },
+        args: undefined,
+      } as never);
+
+      registerTelegramNativeCommands({
+        ...buildParams({}),
+        bot,
+        groupAllowFrom: ["456"],
+      });
+
+      const handler = commandHandlers.get("plug");
+      expect(handler).toBeTruthy();
+
+      await handler?.({
+        ...channelPostCtx,
+        channelPost: {
+          ...channelPostCtx.channelPost,
+          from: { id: 456, username: "allowed_admin" },
+        },
+      });
+
+      expect(sendMessage).not.toHaveBeenCalledWith(
+        expect.anything(),
+        "You are not authorized to use this command.",
+      );
+      expect(pluginCommandMocks.executePluginCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          senderId: "456",
         }),
       );
     });

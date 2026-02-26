@@ -267,16 +267,32 @@ async function resolveTelegramCommandAuth(params: {
     senderId,
     senderUsername,
   });
-  // Channel posts are inherently authorized — only channel admins can post,
-  // and the bot is intentionally subscribed to the channel.
   const isChannel = msg.chat.type === "channel";
-  const commandAuthorized =
-    isChannel ||
-    resolveCommandAuthorizedFromAuthorizers({
-      useAccessGroups,
-      authorizers: [{ configured: dmAllow.hasEntries, allowed: senderAllowed }],
-      modeWhenAccessGroupsOff: "configured",
-    });
+  const channelPolicy = resolveGroupPolicy(chatId);
+  const channelSenderAllowed = isSenderAllowed({
+    allow: effectiveGroupAllow,
+    senderId,
+    senderUsername,
+  });
+  // Channel command auth must be explicit: sender allowlist (`groupAllowFrom`)
+  // and/or an explicit channel allowlist entry via group policy.
+  const channelAuthorized = resolveCommandAuthorizedFromAuthorizers({
+    useAccessGroups: true,
+    authorizers: [
+      { configured: effectiveGroupAllow.hasEntries, allowed: channelSenderAllowed },
+      {
+        configured: channelPolicy.allowlistEnabled,
+        allowed: channelPolicy.allowed,
+      },
+    ],
+  });
+  const commandAuthorized = isChannel
+    ? !requireAuth || channelAuthorized
+    : resolveCommandAuthorizedFromAuthorizers({
+        useAccessGroups,
+        authorizers: [{ configured: dmAllow.hasEntries, allowed: senderAllowed }],
+        modeWhenAccessGroupsOff: "configured",
+      });
   if (requireAuth && !commandAuthorized) {
     return await rejectNotAuthorized();
   }
