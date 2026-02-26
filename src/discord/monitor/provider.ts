@@ -115,25 +115,6 @@ function formatThreadBindingSessionTtlLabel(ttlMs: number): string {
   return label === "disabled" ? "off" : label;
 }
 
-function dedupeSkillCommandsForDiscord(
-  skillCommands: ReturnType<typeof listSkillCommandsForAgents>,
-) {
-  const seen = new Set<string>();
-  const deduped: ReturnType<typeof listSkillCommandsForAgents> = [];
-  for (const command of skillCommands) {
-    const key = command.skillName.trim().toLowerCase();
-    if (!key) {
-      deduped.push(command);
-      continue;
-    }
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    deduped.push(command);
-  }
-  return deduped;
-}
 
 async function deployDiscordCommands(params: {
   client: Client;
@@ -300,7 +281,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   const maxDiscordCommands = 100;
   let skillCommands =
     nativeEnabled && nativeSkillsEnabled
-      ? dedupeSkillCommandsForDiscord(listSkillCommandsForAgents({ cfg }))
+      ? listSkillCommandsForAgents({ cfg })
       : [];
   let commandSpecs = nativeEnabled
     ? listNativeCommandSpecsForConfig(cfg, { skillCommands, provider: "discord" })
@@ -621,7 +602,6 @@ async function clearDiscordNativeCommands(params: {
 
 export const __testing = {
   createDiscordGatewayPlugin,
-  dedupeSkillCommandsForDiscord,
   resolveDiscordRuntimeGroupPolicy: resolveOpenProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   resolveDiscordRestFetch,
