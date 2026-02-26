@@ -45,7 +45,7 @@ Use this format when adding entries:
 
 ## Listed plugins
 
-- **memory-lancedb-pro** — Enhanced long-term memory with hybrid retrieval (Vector + BM25), cross-encoder rerank (Jina), multi-scope isolation, adaptive retrieval, and a management CLI. Drop-in upgrade for the built-in `memory-lancedb`.
+- **memory-lancedb-pro** — Community-maintained LanceDB-backed long-term memory plugin with hybrid retrieval (vector + BM25) and a management CLI.
   npm: `memory-lancedb-pro`
   repo: `https://github.com/win4r/memory-lancedb-pro`
   install: `openclaw plugins install memory-lancedb-pro`
