@@ -206,6 +206,7 @@ describe("chat view", () => {
   it("shows a new session button when aborting is unavailable", () => {
     const container = document.createElement("div");
     const onNewSession = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(
       renderChat(
         createProps({
@@ -221,7 +222,33 @@ describe("chat view", () => {
     );
     expect(newSessionButton).not.toBeUndefined();
     newSessionButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(confirmSpy).toHaveBeenCalledWith(
+      "Start new session? This will clear the current context and cannot be undone.",
+    );
     expect(onNewSession).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain("Stop");
+    confirmSpy.mockRestore();
+  });
+
+  it("does not start new session when user cancels confirmation", () => {
+    const container = document.createElement("div");
+    const onNewSession = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      renderChat(
+        createProps({
+          canAbort: false,
+          onNewSession,
+        }),
+      ),
+      container,
+    );
+
+    const newSessionButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "New session",
+    );
+    newSessionButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onNewSession).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });
