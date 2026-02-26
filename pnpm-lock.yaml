@@ -251,7 +251,11 @@ importers:
         specifier: ^0.10.0
         version: 0.10.0
 
-  extensions/bluebubbles: {}
+  extensions/bluebubbles:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
   extensions/copilot-proxy: {}
 
@@ -318,7 +322,11 @@ importers:
 
   extensions/imessage: {}
 
-  extensions/irc: {}
+  extensions/irc:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
   extensions/line: {}
 
@@ -344,7 +352,11 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
 
-  extensions/mattermost: {}
+  extensions/mattermost:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
   extensions/memory-core:
     dependencies:
@@ -375,7 +387,11 @@ importers:
         specifier: ^5.2.1
         version: 5.2.1
 
-  extensions/nextcloud-talk: {}
+  extensions/nextcloud-talk:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
   extensions/nostr:
     dependencies:
@@ -405,6 +421,9 @@ importers:
       '@urbit/aura':
         specifier: ^3.0.0
         version: 3.0.0
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
   extensions/twitch:
     dependencies:
@@ -440,12 +459,18 @@ importers:
       undici:
         specifier: 7.22.0
         version: 7.22.0
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
   extensions/zalouser:
     dependencies:
       '@sinclair/typebox':
         specifier: 0.34.48
         version: 0.34.48
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
   packages/clawdbot:
     dependencies:
