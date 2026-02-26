@@ -2571,6 +2571,10 @@ Current builds no longer include the TCP bridge. Nodes connect over the Gateway 
 
 ## Cron
 
+<Note>
+Cron **jobs** are managed via the CLI (`openclaw cron add`, `openclaw cron list`, `openclaw cron remove`) and stored in `~/.openclaw/cron/jobs.json` — not in `openclaw.json`. Adding `cron.jobs` to `openclaw.json` will cause a config validation error. The settings below control the cron **runtime** only (concurrency, retention, webhooks).
+</Note>
+
 ```json5
 {
   cron: {
