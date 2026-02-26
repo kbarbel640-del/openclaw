@@ -127,16 +127,28 @@ export class DiscordMessageListener extends MessageCreateListener {
   }
 
   async handle(data: DiscordMessageEvent, client: Client) {
-    await runDiscordListenerWithSlowLog({
-      logger: this.logger,
-      listener: this.constructor.name,
-      event: this.type,
-      run: () => this.handler(data, client),
-      onError: (err) => {
+    // Fire-and-forget: Start handler asynchronously and return immediately
+    // to release the event lane. Handler continues in background.
+    const startedAt = Date.now();
+    const handlerPromise = this.handler(data, client);
+
+    // Track promise for error logging and slow listener detection
+    // .catch() must come before .finally() to handle errors properly
+    void handlerPromise
+      .catch((err) => {
         const logger = this.logger ?? discordEventQueueLog;
         logger.error(danger(`discord handler failed: ${String(err)}`));
-      },
-    });
+      })
+      .finally(() => {
+        logSlowDiscordListener({
+          logger: this.logger,
+          listener: this.constructor.name,
+          event: this.type,
+          durationMs: Date.now() - startedAt,
+        });
+      });
+
+    // Return immediately - event lane is now free
   }
 }
 
