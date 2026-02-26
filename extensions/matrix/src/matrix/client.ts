@@ -1,4 +1,4 @@
-import type { createMatrixClient as CreateMatrixClientFn } from "./client/create-client.js";
+type CreateMatrixClientFn = (typeof import("./client/create-client.js"))["createMatrixClient"];
 
 export type { MatrixAuth, MatrixResolvedConfig } from "./client/types.js";
 export { isBunRuntime } from "./client/runtime.js";
