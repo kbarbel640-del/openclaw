@@ -7,13 +7,20 @@
 # ]
 # ///
 """
-Generate images using Google's Nano Banana Pro (Gemini 3 Pro Image) API.
+Generate images using Google's Gemini image generation models.
+
+Models:
+    - flash: Nano Banana 2 (gemini-3.1-flash-image-preview) - Fast, efficient, default
+    - pro: Nano Banana Pro (gemini-3-pro-image-preview) - High-fidelity for demanding tasks
 
 Usage:
-    uv run generate_image.py --prompt "your image description" --filename "output.png" [--resolution 1K|2K|4K] [--api-key KEY]
+    uv run generate_image.py --prompt "your image description" --filename "output.png" [--model flash|pro] [--resolution 1K|2K|4K] [--api-key KEY]
 
 Multi-image editing (up to 14 images):
     uv run generate_image.py --prompt "combine these images" --filename "output.png" -i img1.png -i img2.png -i img3.png
+
+High-fidelity generation:
+    uv run generate_image.py --prompt "detailed artwork" --filename "output.png" --model pro --resolution 4K
 """
 
 import argparse
@@ -31,7 +38,7 @@ def get_api_key(provided_key: str | None) -> str | None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate images using Nano Banana Pro (Gemini 3 Pro Image)"
+        description="Generate images using Gemini image models (Nano Banana 2 / Pro)"
     )
     parser.add_argument(
         "--prompt", "-p",
@@ -55,6 +62,12 @@ def main():
         choices=["1K", "2K", "4K"],
         default="1K",
         help="Output resolution: 1K (default), 2K, or 4K"
+    )
+    parser.add_argument(
+        "--model", "-m",
+        choices=["flash", "pro"],
+        default="flash",
+        help="Model to use: flash (Nano Banana 2, default) or pro (Nano Banana Pro, high-fidelity)"
     )
     parser.add_argument(
         "--api-key", "-k",
@@ -126,9 +139,17 @@ def main():
         contents = args.prompt
         print(f"Generating image with resolution {output_resolution}...")
 
+    # Select model based on --model argument
+    model_map = {
+        "flash": "gemini-3.1-flash-image-preview",  # Nano Banana 2
+        "pro": "gemini-3-pro-image-preview",        # Nano Banana Pro
+    }
+    model_name = model_map[args.model]
+    print(f"Using model: {model_name}")
+
     try:
         response = client.models.generate_content(
-            model="gemini-3-pro-image-preview",
+            model=model_name,
             contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["TEXT", "IMAGE"],
