@@ -163,7 +163,13 @@ export async function sessionsCommand(
               totalTokensFresh:
                 typeof r.totalTokens === "number" ? r.totalTokensFresh !== false : false,
               contextTokens:
-                r.contextTokens ?? resolveContextTokensForModel({ cfg, model, fallbackContextTokens: configContextTokens ?? undefined }) ?? null,
+                r.contextTokens ??
+                resolveContextTokensForModel({
+                  cfg,
+                  model,
+                  fallbackContextTokens: configContextTokens ?? undefined,
+                }) ??
+                null,
               model,
             };
           }),
@@ -207,7 +213,10 @@ export async function sessionsCommand(
 
   for (const row of rows) {
     const model = resolveSessionDisplayModel(cfg, row, displayDefaults);
-    const contextTokens = row.contextTokens ?? resolveContextTokensForModel({ cfg, model, fallbackContextTokens: configContextTokens }) ?? configContextTokens;
+    const contextTokens =
+      row.contextTokens ??
+      resolveContextTokensForModel({ cfg, model, fallbackContextTokens: configContextTokens }) ??
+      configContextTokens;
     const total = resolveFreshSessionTotalTokens(row);
 
     const line = [

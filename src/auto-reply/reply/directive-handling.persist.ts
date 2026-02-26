@@ -213,13 +213,14 @@ export async function persistInlineDirectives(params: {
   return {
     provider,
     model,
-    contextTokens: resolveContextTokensForModel({
-      cfg: params.cfg,
-      provider,
-      model,
-      contextTokensOverride: agentCfg?.contextTokens,
-      fallbackContextTokens: DEFAULT_CONTEXT_TOKENS,
-    }) ?? DEFAULT_CONTEXT_TOKENS,
+    contextTokens:
+      resolveContextTokensForModel({
+        cfg: params.cfg,
+        provider,
+        model,
+        contextTokensOverride: agentCfg?.contextTokens,
+        fallbackContextTokens: DEFAULT_CONTEXT_TOKENS,
+      }) ?? DEFAULT_CONTEXT_TOKENS,
   };
 }
 
