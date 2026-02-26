@@ -150,6 +150,22 @@ namespace OpenClaw.Node.Services
                 return Invalid(request.Id, "system.run requires params");
             }
 
+            int? timeoutMs = null;
+            if (root.Value.TryGetProperty("timeoutMs", out var timeoutEl))
+            {
+                if (timeoutEl.ValueKind != JsonValueKind.Number || !timeoutEl.TryGetInt32(out var parsedTimeout))
+                {
+                    return Invalid(request.Id, "system.run params.timeoutMs must be an integer");
+                }
+
+                if (parsedTimeout <= 0)
+                {
+                    return Invalid(request.Id, "system.run params.timeoutMs must be > 0");
+                }
+
+                timeoutMs = parsedTimeout;
+            }
+
             ProcessResult result;
 
             if (root.Value.TryGetProperty("command", out var commandEl))
@@ -174,7 +190,7 @@ namespace OpenClaw.Node.Services
                     }
 
                     if (string.IsNullOrWhiteSpace(fileName)) return Invalid(request.Id, "system.run command array cannot be empty");
-                    result = await RunProcessAsync(fileName, args.ToArray());
+                    result = await RunProcessAsync(fileName, args.ToArray(), null, timeoutMs);
                 }
                 else if (commandEl.ValueKind == JsonValueKind.String)
                 {
@@ -182,9 +198,9 @@ namespace OpenClaw.Node.Services
                     if (string.IsNullOrWhiteSpace(commandText)) return Invalid(request.Id, "system.run command string cannot be empty");
 
                     if (OperatingSystem.IsWindows())
-                        result = await RunProcessAsync("cmd.exe", "/c", commandText);
+                        result = await RunProcessAsync("cmd.exe", new[] { "/c", commandText }, null, timeoutMs);
                     else
-                        result = await RunProcessAsync("bash", "-lc", commandText);
+                        result = await RunProcessAsync("bash", new[] { "-lc", commandText }, null, timeoutMs);
                 }
                 else
                 {
@@ -198,7 +214,9 @@ namespace OpenClaw.Node.Services
 
             var payload = new
             {
-                ok = result.ExitCode == 0,
+                ok = result.ExitCode == 0 && !result.TimedOut,
+                timedOut = result.TimedOut,
+                timeoutMs,
                 exitCode = result.ExitCode,
                 stdout = result.StdOut,
                 stderr = result.StdErr,
@@ -207,14 +225,16 @@ namespace OpenClaw.Node.Services
             return new BridgeInvokeResponse
             {
                 Id = request.Id,
-                Ok = result.ExitCode == 0,
+                Ok = result.ExitCode == 0 && !result.TimedOut,
                 PayloadJSON = ToJson(payload),
-                Error = result.ExitCode == 0
+                Error = (result.ExitCode == 0 && !result.TimedOut)
                     ? null
                     : new OpenClawNodeError
                     {
                         Code = OpenClawNodeErrorCode.Unavailable,
-                        Message = $"system.run failed with exit code {result.ExitCode}"
+                        Message = result.TimedOut
+                            ? $"system.run timed out after {timeoutMs ?? 0}ms"
+                            : $"system.run failed with exit code {result.ExitCode}"
                     }
             };
         }
@@ -1816,7 +1836,11 @@ namespace OpenClaw.Node.Services
             return doc.RootElement.Clone();
         }
 
-        private static async Task<ProcessResult> RunProcessAsync(string fileName, string[] args, string? workingDirectory = null)
+        private static async Task<ProcessResult> RunProcessAsync(
+            string fileName,
+            string[] args,
+            string? workingDirectory = null,
+            int? timeoutMs = null)
         {
             var psi = new ProcessStartInfo
             {
@@ -1838,24 +1862,66 @@ namespace OpenClaw.Node.Services
             process.Start();
             var stdOutTask = process.StandardOutput.ReadToEndAsync();
             var stdErrTask = process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
+
+            var timedOut = false;
+            if (timeoutMs.HasValue)
+            {
+                using var timeoutCts = new CancellationTokenSource(timeoutMs.Value);
+                try
+                {
+                    await process.WaitForExitAsync(timeoutCts.Token);
+                }
+                catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+                {
+                    timedOut = true;
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            process.Kill(entireProcessTree: true);
+                        }
+                    }
+                    catch
+                    {
+                        // best effort
+                    }
+
+                    try
+                    {
+                        await process.WaitForExitAsync();
+                    }
+                    catch
+                    {
+                        // best effort
+                    }
+                }
+            }
+            else
+            {
+                await process.WaitForExitAsync();
+            }
+
+            var stdOut = await stdOutTask;
+            var stdErr = await stdErrTask;
 
             return new ProcessResult
             {
-                ExitCode = process.ExitCode,
-                StdOut = await stdOutTask,
-                StdErr = await stdErrTask,
+                ExitCode = timedOut ? -1 : process.ExitCode,
+                StdOut = stdOut,
+                StdErr = stdErr,
+                TimedOut = timedOut,
             };
         }
 
         private static Task<ProcessResult> RunProcessAsync(string fileName, params string[] args)
-            => RunProcessAsync(fileName, args, null);
+            => RunProcessAsync(fileName, args, null, null);
 
         private class ProcessResult
         {
             public int ExitCode { get; set; }
             public string StdOut { get; set; } = string.Empty;
             public string StdErr { get; set; } = string.Empty;
+            public bool TimedOut { get; set; }
         }
     }
 }
