@@ -475,14 +475,19 @@ export async function collectPluginsTrustFindings(params: {
       const slackConfigured =
         hasString(params.cfg.channels?.slack?.botToken) ||
         hasString(params.cfg.channels?.slack?.appToken) ||
+        hasString(params.cfg.channels?.slack?.userToken) ||
         Boolean(
           params.cfg.channels?.slack?.accounts &&
           Object.values(params.cfg.channels.slack.accounts).some(
-            (a) => hasAccountStringKey(a, "botToken") || hasAccountStringKey(a, "appToken"),
+            (a) =>
+              hasAccountStringKey(a, "botToken") ||
+              hasAccountStringKey(a, "appToken") ||
+              hasAccountStringKey(a, "userToken"),
           ),
         ) ||
         hasString(process.env.SLACK_BOT_TOKEN) ||
-        hasString(process.env.SLACK_APP_TOKEN);
+        hasString(process.env.SLACK_APP_TOKEN) ||
+        hasString(process.env.SLACK_USER_TOKEN);
 
       const skillCommandsLikelyExposed =
         (discordConfigured &&

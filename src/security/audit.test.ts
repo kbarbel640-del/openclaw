@@ -2282,10 +2282,12 @@ describe("security audit", () => {
     const prevTelegramToken = process.env.TELEGRAM_BOT_TOKEN;
     const prevSlackBotToken = process.env.SLACK_BOT_TOKEN;
     const prevSlackAppToken = process.env.SLACK_APP_TOKEN;
+    const prevSlackUserToken = process.env.SLACK_USER_TOKEN;
     delete process.env.DISCORD_BOT_TOKEN;
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.SLACK_BOT_TOKEN;
     delete process.env.SLACK_APP_TOKEN;
+    delete process.env.SLACK_USER_TOKEN;
     const tmp = await makeTmpDir("extensions-no-allowlist");
     const stateDir = path.join(tmp, "state");
     await fs.mkdir(path.join(stateDir, "extensions", "some-plugin"), {
@@ -2328,6 +2330,11 @@ describe("security audit", () => {
         delete process.env.SLACK_APP_TOKEN;
       } else {
         process.env.SLACK_APP_TOKEN = prevSlackAppToken;
+      }
+      if (prevSlackUserToken == null) {
+        delete process.env.SLACK_USER_TOKEN;
+      } else {
+        process.env.SLACK_USER_TOKEN = prevSlackUserToken;
       }
     }
   });
