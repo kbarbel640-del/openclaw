@@ -19,7 +19,8 @@ function mergeProviderModels(implicit: ProviderConfig, explicit: ProviderConfig)
   const implicitModels = Array.isArray(implicit.models) ? implicit.models : [];
   const explicitModels = Array.isArray(explicit.models) ? explicit.models : [];
   if (implicitModels.length === 0) {
-    return { ...implicit, ...explicit };
+    // implicit (agent-level) should win for provider-level overrides like apiKey/baseUrl
+    return { ...explicit, ...implicit };
   }
 
   const getId = (model: unknown): string => {
@@ -70,8 +71,9 @@ function mergeProviderModels(implicit: ProviderConfig, explicit: ProviderConfig)
   }
 
   return {
-    ...implicit,
+    // explicit (main config) provides defaults, implicit (agent-level) overrides
     ...explicit,
+    ...implicit,
     models: mergedModels,
   };
 }
@@ -142,7 +144,10 @@ export async function ensureOpenClawModelsJson(
         string,
         NonNullable<ModelsConfig["providers"]>[string]
       >;
-      mergedProviders = { ...existingProviders, ...providers };
+      // Existing on-disk models.json is treated as agent-level overrides.
+      // When merging, config-derived providers act as defaults and must not
+      // overwrite agent-level provider fields like apiKey/baseUrl.
+      mergedProviders = { ...providers, ...existingProviders };
     }
   }
 
