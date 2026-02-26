@@ -273,6 +273,8 @@ export type AgentCompactionConfig = {
   maxHistoryShare?: number;
   /** Pre-compaction memory flush (agentic turn). Default: enabled. */
   memoryFlush?: AgentCompactionMemoryFlushConfig;
+  /** Safety timeout for the compaction LLM call in milliseconds (default: 300000 = 5 min). Increase for slow local models. */
+  timeoutMs?: number;
 };
 
 export type AgentCompactionMemoryFlushConfig = {

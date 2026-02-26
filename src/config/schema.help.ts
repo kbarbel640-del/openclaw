@@ -920,6 +920,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Minimum floor enforced for reserveTokens in Pi compaction paths (0 disables the floor guard). Use a non-zero floor to avoid over-aggressive compression under fluctuating token estimates.",
   "agents.defaults.compaction.maxHistoryShare":
     "Maximum fraction of total context budget allowed for retained history after compaction (range 0.1-0.9). Use lower shares for more generation headroom or higher shares for deeper historical continuity.",
+  "agents.defaults.compaction.timeoutMs":
+    "Safety timeout in milliseconds for the compaction LLM call (default: 300000 = 5 minutes, range: 30000-3600000). Increase for slow local models (e.g., Ollama) that need more time to generate compaction summaries.",
   "agents.defaults.compaction.memoryFlush":
     "Pre-compaction memory flush settings that run an agentic memory write before heavy compaction. Keep enabled for long sessions so salient context is persisted before aggressive trimming.",
   "agents.defaults.compaction.memoryFlush.enabled":

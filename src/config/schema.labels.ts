@@ -408,6 +408,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.compaction.keepRecentTokens": "Compaction Keep Recent Tokens",
   "agents.defaults.compaction.reserveTokensFloor": "Compaction Reserve Token Floor",
   "agents.defaults.compaction.maxHistoryShare": "Compaction Max History Share",
+  "agents.defaults.compaction.timeoutMs": "Compaction Timeout (ms)",
   "agents.defaults.compaction.memoryFlush": "Compaction Memory Flush",
   "agents.defaults.compaction.memoryFlush.enabled": "Compaction Memory Flush Enabled",
   "agents.defaults.compaction.memoryFlush.softThresholdTokens":
