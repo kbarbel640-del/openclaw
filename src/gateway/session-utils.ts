@@ -819,7 +819,18 @@ export function listSessionsFromStore(params: {
       const deliveryFields = normalizeSessionDeliveryFields(entry);
       const parsedAgent = parseAgentSessionKey(key);
       const sessionAgentId = normalizeAgentId(parsedAgent?.agentId ?? resolveDefaultAgentId(cfg));
-      const resolvedModel = resolveSessionModelIdentityRef(cfg, entry, sessionAgentId);
+      // For session listings (used by TUI status bar, session picker, etc),
+      // show the *selected* model immediately after /model changes:
+      // - if an override is set: show override
+      // - otherwise: show the agent default (NOT the last-run runtime model)
+      // This avoids stale status when switching back to the default model.
+      const resolvedModel = entry?.modelOverride?.trim()
+        ? resolveSessionModelRef(
+            cfg,
+            { ...entry, modelProvider: undefined, model: undefined },
+            sessionAgentId,
+          )
+        : resolveDefaultModelForAgent({ cfg, agentId: sessionAgentId });
       const modelProvider = resolvedModel.provider;
       const model = resolvedModel.model ?? DEFAULT_MODEL;
       return {
