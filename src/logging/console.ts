@@ -47,11 +47,19 @@ function normalizeConsoleLevel(level?: string): LogLevel {
   return normalizeLogLevel(level, "info");
 }
 
+function safeIsStdoutTTY(): boolean {
+  try {
+    return Boolean(process.stdout?.isTTY);
+  } catch {
+    return false;
+  }
+}
+
 function normalizeConsoleStyle(style?: string): ConsoleStyle {
   if (style === "compact" || style === "json" || style === "pretty") {
     return style;
   }
-  if (!process.stdout.isTTY) {
+  if (!safeIsStdoutTTY()) {
     return "compact";
   }
   return "pretty";
