@@ -65,11 +65,14 @@ export async function checkInboundAccessControl(params: {
       ? []
       : await readChannelAllowFromStore("whatsapp", process.env, account.accountId).catch(() => []);
   // Without user config, default to self-only DM access so the owner can talk to themselves.
+  // However, for "allowlist" policy, don't apply this default - it's strict blocking instead.
   const combinedAllowFrom = Array.from(
     new Set([...(configuredAllowFrom ?? []), ...storeAllowFrom]),
   );
   const defaultAllowFrom =
-    combinedAllowFrom.length === 0 && params.selfE164 ? [params.selfE164] : undefined;
+    dmPolicy !== "allowlist" && combinedAllowFrom.length === 0 && params.selfE164
+      ? [params.selfE164]
+      : undefined;
   const allowFrom = combinedAllowFrom.length > 0 ? combinedAllowFrom : defaultAllowFrom;
   const groupAllowFrom =
     account.groupAllowFrom ??
