@@ -106,16 +106,22 @@ export function calculateAdaptiveColumnWidths(
   // Apply min/max constraints
   widths = widths.map((w) => Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, w)));
 
-  // Redistribute to match total width
-  const currentTotal = widths.reduce((a, b) => a + b, 0);
-  if (currentTotal !== totalWidth) {
-    const diff = totalWidth - currentTotal;
-    // Add/subtract from widest column (or first if all equal)
-    const targetIndex = widths.indexOf(Math.max(...widths));
-    widths[targetIndex] = Math.max(
-      MIN_COLUMN_WIDTH,
-      Math.min(MAX_COLUMN_WIDTH, widths[targetIndex] + diff),
-    );
+  // Redistribute remaining space to fill total width
+  let remaining = totalWidth - widths.reduce((a, b) => a + b, 0);
+  while (remaining > 0) {
+    // Find columns that can still grow (not at max)
+    const growable = widths.map((w, i) => (w < MAX_COLUMN_WIDTH ? i : -1)).filter((i) => i >= 0);
+    if (growable.length === 0) break;
+
+    // Distribute evenly among growable columns
+    const perColumn = Math.floor(remaining / growable.length);
+    if (perColumn === 0) break;
+
+    for (const i of growable) {
+      const add = Math.min(perColumn, MAX_COLUMN_WIDTH - widths[i]);
+      widths[i] += add;
+      remaining -= add;
+    }
   }
 
   return widths;
