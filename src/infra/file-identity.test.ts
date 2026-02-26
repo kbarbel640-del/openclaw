@@ -32,6 +32,12 @@ describe("sameFileIdentity", () => {
     expect(sameFileIdentity(stat(7, 11), stat(7, 0), "win32")).toBe(true);
   });
 
+  it("accepts win32 dev mismatch when inode is unknown", () => {
+    // When inode is unknown (ino=0), Windows can also report inconsistent dev ids
+    // between path-based and fd-based stats.
+    expect(sameFileIdentity(stat(7, 0), stat(8, 12), "win32")).toBe(true);
+  });
+
   it("keeps inode strictness on non-windows", () => {
     expect(sameFileIdentity(stat(7, 0), stat(7, 12), "linux")).toBe(false);
   });

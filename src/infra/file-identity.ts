@@ -21,9 +21,22 @@ export function sameFileIdentity(
   }
 
   // On Windows, path-based stat calls can report dev=0 while fd-based stat
-  // reports a real volume serial; treat either-side dev=0 as "unknown device".
+  // reports a real volume serial; treat dev=0 as "unknown device".
   if (left.dev === right.dev) {
     return true;
   }
-  return platform === "win32" && (isZero(left.dev) || isZero(right.dev));
+
+  if (platform === "win32") {
+    if (isZero(left.dev) || isZero(right.dev)) {
+      return true;
+    }
+
+    // Some Windows filesystem/API combinations also report inconsistent dev ids
+    // when inode is unknown (ino=0). Treat dev as "unknown" in that case.
+    if (isZero(left.ino) || isZero(right.ino)) {
+      return true;
+    }
+  }
+
+  return false;
 }
