@@ -337,6 +337,19 @@ describe("gateway server cron", () => {
         },
       });
       expect(rejectUpdateRes.ok).toBe(false);
+      expect(rejectUpdateRes.error?.code).toBe("INVALID_REQUEST");
+
+      const rejectTimeoutOnlyRes = await rpcReq(ws, "cron.update", {
+        id: rejectJobId,
+        patch: {
+          payload: { kind: "agentTurn", timeoutSeconds: 30 },
+        },
+      });
+      expect(rejectTimeoutOnlyRes.ok).toBe(false);
+      expect(rejectTimeoutOnlyRes.error?.code).toBe("INVALID_REQUEST");
+      expect(rejectTimeoutOnlyRes.error?.message).toContain(
+        'payload.kind="agentTurn" requires message',
+      );
 
       const jobIdRes = await rpcReq(ws, "cron.add", {
         name: "jobId test",
@@ -380,6 +393,14 @@ describe("gateway server cron", () => {
       expect(disableUpdateRes.ok).toBe(true);
       const disabled = disableUpdateRes.payload as { enabled?: unknown } | undefined;
       expect(disabled?.enabled).toBe(false);
+
+      const missingJobUpdateRes = await rpcReq(ws, "cron.update", {
+        id: "missing-cron-job-id",
+        patch: { enabled: false },
+      });
+      expect(missingJobUpdateRes.ok).toBe(false);
+      expect(missingJobUpdateRes.error?.code).toBe("INVALID_REQUEST");
+      expect(missingJobUpdateRes.error?.message).toContain("unknown cron job id");
     } finally {
       await cleanupCronTestRun({
         ws,

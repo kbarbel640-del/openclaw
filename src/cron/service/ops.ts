@@ -264,7 +264,10 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
   return await locked(state, async () => {
     warnIfDisabled(state, "update");
     await ensureLoaded(state, { skipRecompute: true });
-    const job = findJobOrThrow(state, id);
+    const currentJob = findJobOrThrow(state, id);
+    // Apply edits on a copy first so failed validation never leaves a partially
+    // mutated job object behind.
+    const job = structuredClone(currentJob);
     const now = state.deps.nowMs();
     applyJobPatch(job, patch);
     if (job.schedule.kind === "every") {
@@ -303,14 +306,16 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
       }
     }
 
+    Object.assign(currentJob, job);
+
     await persist(state);
     armTimer(state);
     emit(state, {
       jobId: id,
       action: "updated",
-      nextRunAtMs: job.state.nextRunAtMs,
+      nextRunAtMs: currentJob.state.nextRunAtMs,
     });
-    return job;
+    return currentJob;
   });
 }
 

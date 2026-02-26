@@ -157,8 +157,36 @@ export const cronHandlers: GatewayRequestHandlers = {
         return;
       }
     }
-    const job = await context.cron.update(jobId, patch);
-    respond(true, job, undefined);
+    try {
+      const job = await context.cron.update(jobId, patch);
+      respond(true, job, undefined);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : "unknown error";
+      const normalized = message.toLowerCase();
+      const isClientPatchError =
+        normalized.includes("requires message") ||
+        normalized.includes("require payload.kind") ||
+        normalized.includes("only supported") ||
+        normalized.includes("requires delivery.to") ||
+        normalized.includes("invalid") ||
+        normalized.includes("cannot use") ||
+        normalized.includes("must use") ||
+        normalized.includes("not found") ||
+        normalized.includes("unknown");
+      if (!isClientPatchError) {
+        throw error instanceof Error ? error : new Error(message);
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `cron.update failed: ${message}`),
+      );
+    }
   },
   "cron.remove": async ({ params, respond, context }) => {
     if (!validateCronRemoveParams(params)) {
