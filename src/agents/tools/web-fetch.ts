@@ -218,9 +218,18 @@ function formatWebFetchErrorDetail(params: {
   if (!detail) {
     return "";
   }
+  const contentTypeLower = contentType?.toLowerCase() || "";
+  // CSS, images, and fonts are never useful as error details
+  if (
+    contentTypeLower.includes("text/css") ||
+    contentTypeLower.includes("image/") ||
+    contentTypeLower.includes("font/") ||
+    /^\s*(@charset|@import|@font-face)\b/.test(detail)
+  ) {
+    return "";
+  }
   let text = detail;
-  const contentTypeLower = contentType?.toLowerCase();
-  if (contentTypeLower?.includes("text/html") || looksLikeHtml(detail)) {
+  if (contentTypeLower.includes("text/html") || looksLikeHtml(detail)) {
     const rendered = htmlToMarkdown(detail);
     const withTitle = rendered.title ? `${rendered.title}\n${rendered.text}` : rendered.text;
     text = markdownToText(withTitle);
