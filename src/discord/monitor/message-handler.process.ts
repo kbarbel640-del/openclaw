@@ -45,6 +45,7 @@ import { buildDirectLabel, buildGuildLabel, resolveReplyContext } from "./reply-
 import { deliverDiscordReply } from "./reply-delivery.js";
 import {
   createDiscordStatusReactionLifecycle,
+  DISCORD_STATUS_CLEAR_HOLD_MS,
   resolveDiscordStatusReactionProjection,
   type DiscordStatusReactionAdapter,
 } from "./status-reaction-lifecycle.js";
@@ -112,6 +113,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     channel: "discord",
     accountId,
   });
+  const removeAckAfterReply = cfg.messages?.removeAckAfterReply ?? false;
   const shouldAckReaction = () =>
     Boolean(
       ackReaction &&
@@ -174,6 +176,9 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     }
     statusLifecycleSettled = true;
     await statusReactions.complete(succeeded);
+    if (removeAckAfterReply) {
+      statusReactions.clearAfterHold(DISCORD_STATUS_CLEAR_HOLD_MS);
+    }
   };
 
   try {
