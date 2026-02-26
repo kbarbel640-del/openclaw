@@ -241,14 +241,20 @@ async function uploadImageAction(
     const ext = mimeMatch?.[1]?.split("/")[1] ?? "png";
     resolvedFileName = fileName ?? `image.${ext}`;
     buffer = Buffer.from(data, "base64");
-  } else if (/^[A-Za-z0-9+/\n\r]+=*$/.test(imageInput.trim()) && !imageInput.includes("/")) {
-    // Plain base64 string
-    buffer = Buffer.from(imageInput.trim(), "base64");
-  } else {
-    // File path
+  } else if (
+    (imageInput.startsWith("/") ||
+      imageInput.startsWith("~") ||
+      imageInput.startsWith("./") ||
+      imageInput.startsWith("../")) &&
+    imageInput.length < 1024 // File paths are short; base64 JPEGs start with "/9j/" but are thousands of chars
+  ) {
+    // File path (absolute or relative)
     const { readFile } = await import("fs/promises");
     buffer = await readFile(imageInput);
     resolvedFileName = fileName ?? imageInput.split("/").pop() ?? "image.png";
+  } else {
+    // Plain base64 string (may contain A-Za-z0-9+/= including '/')
+    buffer = Buffer.from(imageInput.trim(), "base64");
   }
 
   // Step 1 (per Feishu FAQ): Create an empty image block
