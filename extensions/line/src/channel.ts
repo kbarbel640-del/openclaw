@@ -574,10 +574,18 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
       lastError: null,
     },
     collectStatusIssues: (accounts) => {
+      // NOTE: `collectStatusIssues()` receives **account snapshots** (output of
+      // `status.buildAccountSnapshot()`), not raw resolved accounts.
+      // Snapshots intentionally do not include secrets (token/secret strings),
+      // so status issues must rely on boolean indicators.
       const issues: ChannelStatusIssue[] = [];
       for (const account of accounts) {
         const accountId = account.accountId ?? DEFAULT_ACCOUNT_ID;
-        if (!account.channelAccessToken?.trim()) {
+        const hasToken = Boolean(
+          (account as { hasChannelAccessToken?: boolean }).hasChannelAccessToken,
+        );
+        const hasSecret = Boolean((account as { hasChannelSecret?: boolean }).hasChannelSecret);
+        if (!hasToken) {
           issues.push({
             channel: "line",
             accountId,
@@ -585,7 +593,7 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
             message: "LINE channel access token not configured",
           });
         }
-        if (!account.channelSecret?.trim()) {
+        if (!hasSecret) {
           issues.push({
             channel: "line",
             accountId,
@@ -608,6 +616,9 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
         name: account.name,
         enabled: account.enabled,
         configured,
+        // Avoid leaking secrets in snapshots; keep booleans for status issues.
+        hasChannelAccessToken: Boolean(account.channelAccessToken?.trim()),
+        hasChannelSecret: Boolean(account.channelSecret?.trim()),
         tokenSource: account.tokenSource,
         running: runtime?.running ?? false,
         lastStartAt: runtime?.lastStartAt ?? null,
