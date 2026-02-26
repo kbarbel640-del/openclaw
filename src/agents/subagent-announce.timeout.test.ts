@@ -147,4 +147,26 @@ describe("subagent announce timeout config", () => {
     const sendCall = findGatewayCall((call) => call.method === "send");
     expect(sendCall?.timeoutMs).toBe(90_000);
   });
+
+  it("injects requester session when completion direct send is used", async () => {
+    await runAnnounceFlowForTest("run-completion-direct-inject", {
+      requesterOrigin: {
+        channel: "discord",
+        to: "12345",
+      },
+      expectsCompletionMessage: true,
+    });
+
+    const sendCall = findGatewayCall((call) => call.method === "send");
+    expect(sendCall).toBeTruthy();
+
+    const agentInjectCall = findGatewayCall(
+      (call) =>
+        call.method === "agent" &&
+        call.params?.deliver === false &&
+        typeof call.params?.message === "string" &&
+        call.params?.message.includes("[System Message]"),
+    );
+    expect(agentInjectCall).toBeTruthy();
+  });
 });

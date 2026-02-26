@@ -4,7 +4,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { SlackAccountConfig } from "../config/types.js";
 import { resolveAccountEntry } from "../routing/account-lookup.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
-import { resolveSlackAppToken, resolveSlackBotToken } from "./token.js";
+import { resolveSlackAppToken, resolveSlackBotToken, resolveSlackUserToken } from "./token.js";
 
 export type SlackTokenSource = "env" | "config" | "none";
 
@@ -61,10 +61,13 @@ export function resolveSlackAccount(params: {
   const allowEnv = accountId === DEFAULT_ACCOUNT_ID;
   const envBot = allowEnv ? resolveSlackBotToken(process.env.SLACK_BOT_TOKEN) : undefined;
   const envApp = allowEnv ? resolveSlackAppToken(process.env.SLACK_APP_TOKEN) : undefined;
+  const envUser = allowEnv ? resolveSlackUserToken(process.env.SLACK_USER_TOKEN) : undefined;
   const configBot = resolveSlackBotToken(merged.botToken);
   const configApp = resolveSlackAppToken(merged.appToken);
+  const configUser = resolveSlackUserToken(merged.userToken);
   const botToken = configBot ?? envBot;
   const appToken = configApp ?? envApp;
+  const userToken = configUser ?? envUser;
   const botTokenSource: SlackTokenSource = configBot ? "config" : envBot ? "env" : "none";
   const appTokenSource: SlackTokenSource = configApp ? "config" : envApp ? "env" : "none";
 
@@ -76,7 +79,7 @@ export function resolveSlackAccount(params: {
     appToken,
     botTokenSource,
     appTokenSource,
-    config: merged,
+    config: userToken ? { ...merged, userToken } : merged,
     groupPolicy: merged.groupPolicy,
     textChunkLimit: merged.textChunkLimit,
     mediaMaxMb: merged.mediaMaxMb,
