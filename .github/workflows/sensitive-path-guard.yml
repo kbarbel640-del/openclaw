@@ -1,0 +1,178 @@
+name: Sensitive Path Guard
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  block-external-sensitive-path-changes:
+    permissions:
+      pull-requests: write
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    steps:
+      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        id: app-token
+        with:
+          app-id: "2729701"
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Block non-org changes to restricted paths
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const pullRequest = context.payload.pull_request;
+            if (!pullRequest) {
+              core.info("No pull request payload found.");
+              return;
+            }
+
+            const internalAssociations = new Set(["OWNER", "MEMBER"]);
+            const authorAssociation = (pullRequest.author_association ?? "NONE").toUpperCase();
+            if (internalAssociations.has(authorAssociation)) {
+              core.info(
+                `Author association is ${authorAssociation}; skipping restricted-path policy for org members.`,
+              );
+              return;
+            }
+
+            // Keep this list tight and explicit. Expand only for high-risk surfaces.
+            const sensitivePathGlobs = [
+              ".github/actions/**",
+              ".github/workflows/**",
+              ".github/dependabot.yml",
+              ".github/labeler.yml",
+              ".detect-secrets.cfg",
+              ".secrets.baseline",
+              "SECURITY.md",
+              "scripts/auth-monitor.sh",
+              "scripts/sandbox-*.sh",
+              "scripts/sandbox-*.ts",
+              "scripts/setup-auth-system.sh",
+              "src/agents/sandbox/**",
+              "src/cli/sandbox-cli.ts",
+              "src/node-host/exec-policy.ts",
+              "src/node-host/exec-policy.test.ts",
+              "src/process/exec.ts",
+              "src/process/exec.test.ts",
+              "src/security/**",
+            ];
+
+            function globToRegExp(globPattern) {
+              const escaped = globPattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+              const withGlobstar = escaped.replace(/\\\*\\\*/g, ".*");
+              const withStar = withGlobstar.replace(/\\\*/g, "[^/]*");
+              return new RegExp(`^${withStar}$`);
+            }
+
+            const sensitiveMatchers = sensitivePathGlobs.map((globPattern) => ({
+              globPattern,
+              regex: globToRegExp(globPattern),
+            }));
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullRequest.number,
+              per_page: 100,
+            });
+
+            const matchedFiles = [];
+            for (const file of files) {
+              const filename = file.filename ?? "";
+              for (const matcher of sensitiveMatchers) {
+                if (!matcher.regex.test(filename)) {
+                  continue;
+                }
+                matchedFiles.push({ filename, globPattern: matcher.globPattern });
+                break;
+              }
+            }
+
+            const policyLabels = [
+              {
+                name: "security: restricted-path-change",
+                color: "b60205",
+                description: "Touches restricted security or exec surfaces",
+              },
+              {
+                name: "r: external-sensitive-path",
+                color: "d93f0b",
+                description: "Auto-close: non-org contributor touched restricted path",
+              },
+            ];
+
+            async function ensureLabel(label) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                });
+              } catch (error) {
+                if (error?.status !== 404) {
+                  throw error;
+                }
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description,
+                });
+              }
+            }
+
+            const currentLabels = await github.paginate(github.rest.issues.listLabelsOnIssue, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequest.number,
+              per_page: 100,
+            });
+            const currentLabelNames = new Set(
+              currentLabels.map((label) => label.name).filter((name) => typeof name === "string"),
+            );
+
+            if (matchedFiles.length === 0) {
+              for (const label of policyLabels) {
+                if (!currentLabelNames.has(label.name)) {
+                  continue;
+                }
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pullRequest.number,
+                  name: label.name,
+                });
+              }
+              core.info("No restricted paths touched by this external contributor PR.");
+              return;
+            }
+
+            for (const label of policyLabels) {
+              await ensureLabel(label);
+            }
+
+            const labelsToAdd = policyLabels
+              .map((label) => label.name)
+              .filter((name) => !currentLabelNames.has(name));
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullRequest.number,
+                labels: labelsToAdd,
+              });
+            }
+
+            const changedSensitiveFiles = [...new Set(matchedFiles.map((item) => item.filename))].sort();
+            core.error("Restricted paths modified by non-org contributor:");
+            for (const filename of changedSensitiveFiles) {
+              core.error(`- ${filename}`);
+            }
+
+            core.setFailed(
+              `PR touches ${changedSensitiveFiles.length} restricted path(s). Only org members can modify these files.`,
+            );
