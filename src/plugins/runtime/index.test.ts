@@ -8,6 +8,13 @@ vi.mock("../../process/exec.js", () => ({
 
 import { createPluginRuntime } from "./index.js";
 
+describe("plugin runtime system surface", () => {
+  it("exposes requestHeartbeatNow on system", () => {
+    const runtime = createPluginRuntime();
+    expect(typeof runtime.system.requestHeartbeatNow).toBe("function");
+  });
+});
+
 describe("plugin runtime command execution", () => {
   beforeEach(() => {
     runCommandWithTimeoutMock.mockClear();
