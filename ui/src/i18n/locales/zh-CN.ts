@@ -2,6 +2,7 @@ import type { TranslationMap } from "../lib/types.ts";
 
 export const zh_CN: TranslationMap = {
   common: {
+    version: "版本",
     health: "健康状况",
     ok: "正常",
     offline: "离线",
@@ -61,6 +62,7 @@ export const zh_CN: TranslationMap = {
       sessionKey: "默认会话密钥",
       language: "语言",
       connectHint: "点击连接以应用连接更改。",
+      trustedProxy: "通过受信任代理认证。",
     },
     snapshot: {
       title: "快照",
@@ -92,6 +94,11 @@ export const zh_CN: TranslationMap = {
     auth: {
       required: "此网关需要身份验证。添加令牌或密码，然后点击连接。",
       failed: "身份验证失败。请使用 {command} 重新复制令牌化 URL，或更新令牌，然后点击连接。",
+    },
+    pairing: {
+      hint: "此设备需要网关主机的配对批准。",
+      mobileHint:
+        "在手机上？从桌面运行 openclaw dashboard --no-open 复制完整 URL（包括 #token=...）。",
     },
     insecure: {
       hint: "此页面为 HTTP，因此浏览器阻止设备标识。请使用 HTTPS (Tailscale Serve) 或在网关主机上打开 {url}。",

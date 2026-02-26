@@ -2,6 +2,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isPidAlive } from "../shared/pid-alive.js";
+import { resolveProcessScopedMap } from "../shared/process-scoped-map.js";
 
 type LockFilePayload = {
   pid?: number;
@@ -37,6 +38,8 @@ const WATCHDOG_STATE_KEY = Symbol.for("openclaw.sessionWriteLockWatchdogState");
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
 const DEFAULT_MAX_HOLD_MS = 5 * 60 * 1000;
 const DEFAULT_WATCHDOG_INTERVAL_MS = 60_000;
+const DEFAULT_TIMEOUT_GRACE_MS = 2 * 60 * 1000;
+const MAX_LOCK_HOLD_MS = 2_147_000_000;
 
 type CleanupState = {
   registered: boolean;
@@ -49,17 +52,12 @@ type WatchdogState = {
   timer?: NodeJS.Timeout;
 };
 
-function resolveHeldLocks(): Map<string, HeldLock> {
-  const proc = process as NodeJS.Process & {
-    [HELD_LOCKS_KEY]?: Map<string, HeldLock>;
-  };
-  if (!proc[HELD_LOCKS_KEY]) {
-    proc[HELD_LOCKS_KEY] = new Map<string, HeldLock>();
-  }
-  return proc[HELD_LOCKS_KEY];
-}
+type LockInspectionDetails = Pick<
+  SessionLockInspection,
+  "pid" | "pidAlive" | "createdAt" | "ageMs" | "stale" | "staleReasons"
+>;
 
-const HELD_LOCKS = resolveHeldLocks();
+const HELD_LOCKS = resolveProcessScopedMap<HeldLock>(HELD_LOCKS_KEY);
 
 function resolveCleanupState(): CleanupState {
   const proc = process as NodeJS.Process & {
@@ -102,6 +100,20 @@ function resolvePositiveMs(
     return fallback;
   }
   return value;
+}
+
+export function resolveSessionLockMaxHoldFromTimeout(params: {
+  timeoutMs: number;
+  graceMs?: number;
+  minMs?: number;
+}): number {
+  const minMs = resolvePositiveMs(params.minMs, DEFAULT_MAX_HOLD_MS);
+  const timeoutMs = resolvePositiveMs(params.timeoutMs, minMs, { allowInfinity: true });
+  if (timeoutMs === Number.POSITIVE_INFINITY) {
+    return MAX_LOCK_HOLD_MS;
+  }
+  const graceMs = resolvePositiveMs(params.graceMs, DEFAULT_TIMEOUT_GRACE_MS);
+  return Math.min(MAX_LOCK_HOLD_MS, Math.max(minMs, timeoutMs + graceMs));
 }
 
 async function releaseHeldLock(
@@ -274,10 +286,7 @@ function inspectLockPayload(
   payload: LockFilePayload | null,
   staleMs: number,
   nowMs: number,
-): Pick<
-  SessionLockInspection,
-  "pid" | "pidAlive" | "createdAt" | "ageMs" | "stale" | "staleReasons"
-> {
+): LockInspectionDetails {
   const pid = typeof payload?.pid === "number" ? payload.pid : null;
   const pidAlive = pid !== null ? isPidAlive(pid) : false;
   const createdAt = typeof payload?.createdAt === "string" ? payload.createdAt : null;
@@ -304,6 +313,37 @@ function inspectLockPayload(
     stale: staleReasons.length > 0,
     staleReasons,
   };
+}
+
+function lockInspectionNeedsMtimeStaleFallback(details: LockInspectionDetails): boolean {
+  return (
+    details.stale &&
+    details.staleReasons.every(
+      (reason) => reason === "missing-pid" || reason === "invalid-createdAt",
+    )
+  );
+}
+
+async function shouldReclaimContendedLockFile(
+  lockPath: string,
+  details: LockInspectionDetails,
+  staleMs: number,
+  nowMs: number,
+): Promise<boolean> {
+  if (!details.stale) {
+    return false;
+  }
+  if (!lockInspectionNeedsMtimeStaleFallback(details)) {
+    return true;
+  }
+  try {
+    const stat = await fs.stat(lockPath);
+    const ageMs = Math.max(0, nowMs - stat.mtimeMs);
+    return ageMs > staleMs;
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    return code !== "ENOENT";
+  }
 }
 
 export async function cleanStaleLockFiles(params: {
@@ -368,6 +408,7 @@ export async function acquireSessionWriteLock(params: {
   timeoutMs?: number;
   staleMs?: number;
   maxHoldMs?: number;
+  allowReentrant?: boolean;
 }): Promise<{
   release: () => Promise<void>;
 }> {
@@ -387,8 +428,9 @@ export async function acquireSessionWriteLock(params: {
   const normalizedSessionFile = path.join(normalizedDir, path.basename(sessionFile));
   const lockPath = `${normalizedSessionFile}.lock`;
 
+  const allowReentrant = params.allowReentrant ?? true;
   const held = HELD_LOCKS.get(normalizedSessionFile);
-  if (held) {
+  if (allowReentrant && held) {
     held.count += 1;
     return {
       release: async () => {
@@ -401,8 +443,9 @@ export async function acquireSessionWriteLock(params: {
   let attempt = 0;
   while (Date.now() - startedAt < timeoutMs) {
     attempt += 1;
+    let handle: fs.FileHandle | null = null;
     try {
-      const handle = await fs.open(lockPath, "wx");
+      handle = await fs.open(lockPath, "wx");
       const createdAt = new Date().toISOString();
       await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt }, null, 2), "utf8");
       const createdHeld: HeldLock = {
@@ -419,13 +462,26 @@ export async function acquireSessionWriteLock(params: {
         },
       };
     } catch (err) {
+      if (handle) {
+        try {
+          await handle.close();
+        } catch {
+          // Ignore cleanup errors on failed lock initialization.
+        }
+        try {
+          await fs.rm(lockPath, { force: true });
+        } catch {
+          // Ignore cleanup errors on failed lock initialization.
+        }
+      }
       const code = (err as { code?: unknown }).code;
       if (code !== "EEXIST") {
         throw err;
       }
       const payload = await readLockPayload(lockPath);
-      const inspected = inspectLockPayload(payload, staleMs, Date.now());
-      if (inspected.stale) {
+      const nowMs = Date.now();
+      const inspected = inspectLockPayload(payload, staleMs, nowMs);
+      if (await shouldReclaimContendedLockFile(lockPath, inspected, staleMs, nowMs)) {
         await fs.rm(lockPath, { force: true });
         continue;
       }

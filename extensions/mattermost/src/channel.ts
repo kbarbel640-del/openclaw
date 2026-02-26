@@ -6,6 +6,8 @@ import {
   formatPairingApproveHint,
   migrateBaseNameToDefaultAccount,
   normalizeAccountId,
+  resolveAllowlistProviderRuntimeGroupPolicy,
+  resolveDefaultGroupPolicy,
   setAccountEnabledInConfigSection,
   type ChannelMessageActionAdapter,
   type ChannelMessageActionName,
@@ -83,7 +85,7 @@ const mattermostMessageActions: ChannelMessageActionAdapter = {
       throw new Error("Mattermost react requires emoji");
     }
 
-    const remove = Boolean((params as any)?.remove);
+    const remove = (params as any)?.remove === true;
     if (remove) {
       const result = await removeMattermostReaction({
         cfg,
@@ -167,6 +169,7 @@ export const mattermostPlugin: ChannelPlugin<ResolvedMattermostAccount> = {
   },
   capabilities: {
     chatTypes: ["direct", "channel", "group", "thread"],
+    reactions: true,
     threads: true,
     media: true,
   },
@@ -227,8 +230,12 @@ export const mattermostPlugin: ChannelPlugin<ResolvedMattermostAccount> = {
       };
     },
     collectWarnings: ({ account, cfg }) => {
-      const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
-      const groupPolicy = account.config.groupPolicy ?? defaultGroupPolicy ?? "allowlist";
+      const defaultGroupPolicy = resolveDefaultGroupPolicy(cfg);
+      const { groupPolicy } = resolveAllowlistProviderRuntimeGroupPolicy({
+        providerConfigPresent: cfg.channels?.mattermost !== undefined,
+        groupPolicy: account.config.groupPolicy,
+        defaultGroupPolicy,
+      });
       if (groupPolicy !== "open") {
         return [];
       }
