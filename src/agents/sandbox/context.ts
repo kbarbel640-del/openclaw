@@ -4,11 +4,14 @@ import { ensureBrowserControlAuth, resolveBrowserControlAuth } from "../../brows
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { defaultRuntime } from "../../runtime.js";
+import { evaluateRuntimeEligibility } from "../../shared/config-eval.js";
 import { resolveUserPath } from "../../utils.js";
 import { listAgentIds, resolveAgentWorkspaceDir } from "../agent-scope.js";
 import { syncSkillsToWorkspace } from "../skills.js";
 import {
+  hasBinary,
   isBundledSkillAllowed,
+  isConfigPathTruthy,
   resolveBundledAllowlist,
   resolveSkillConfig,
 } from "../skills/config.js";
@@ -163,10 +166,11 @@ export async function resolveSandboxContext(params: {
           : params.config
             ? resolveAgentWorkspaceDir(params.config, agentId)
             : agentWorkspaceDir;
-      // Load raw skill entries and apply config-level filters (enabled flag,
-      // bundled allowlist) but skip runtime eligibility checks to avoid a
-      // bootstrap deadlock: eligibility checks `requires.env` against the host
-      // environment, but the env var may only exist in sandbox.docker.env.
+      // Load skill entries and apply config + runtime filters, but stub out
+      // `hasEnv` to avoid a bootstrap deadlock: the real check tests
+      // `requires.env` against the host environment, but the env var may only
+      // exist in sandbox.docker.env. Stubbing `hasEnv` to `true` keeps OS,
+      // bins, and config checks active while breaking the circular dependency.
       const entries = loadWorkspaceSkillEntries(wsDir, { config: params.config });
       const allowBundled = resolveBundledAllowlist(params.config);
       const activeEntries = entries.filter((e) => {
@@ -175,7 +179,17 @@ export async function resolveSandboxContext(params: {
         if (skillCfg?.enabled === false) {
           return false;
         }
-        return isBundledSkillAllowed(e, allowBundled);
+        if (!isBundledSkillAllowed(e, allowBundled)) {
+          return false;
+        }
+        return evaluateRuntimeEligibility({
+          os: e.metadata?.os,
+          always: e.metadata?.always,
+          requires: e.metadata?.requires,
+          hasBin: hasBinary,
+          hasEnv: () => true,
+          isConfigPathTruthy: (configPath) => isConfigPathTruthy(params.config, configPath),
+        });
       });
       const declaredKeys = resolveSkillDeclaredEnvKeys(
         activeEntries.map((e) => ({
