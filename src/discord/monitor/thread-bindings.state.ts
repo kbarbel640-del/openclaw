@@ -177,6 +177,30 @@ function normalizePersistedBinding(threadIdKey: string, raw: unknown): ThreadBin
     typeof value.maxAgeMs === "number" && Number.isFinite(value.maxAgeMs)
       ? Math.max(0, Math.floor(value.maxAgeMs))
       : undefined;
+  const legacyExpiresAt =
+    typeof (value as { expiresAt?: unknown }).expiresAt === "number" &&
+    Number.isFinite((value as { expiresAt?: unknown }).expiresAt)
+      ? Math.max(0, Math.floor((value as { expiresAt?: number }).expiresAt ?? 0))
+      : undefined;
+
+  let migratedIdleTimeoutMs = idleTimeoutMs;
+  let migratedMaxAgeMs = maxAgeMs;
+  if (
+    migratedIdleTimeoutMs === undefined &&
+    migratedMaxAgeMs === undefined &&
+    legacyExpiresAt != null
+  ) {
+    if (legacyExpiresAt <= 0) {
+      migratedIdleTimeoutMs = 0;
+      migratedMaxAgeMs = 0;
+    } else {
+      const baseBoundAt = boundAt > 0 ? boundAt : lastActivityAt;
+      // Legacy expiresAt represented an absolute timestamp; map it to max-age and disable idle timeout.
+      migratedIdleTimeoutMs = 0;
+      migratedMaxAgeMs = Math.max(1, legacyExpiresAt - Math.max(0, baseBoundAt));
+    }
+  }
+
   return {
     accountId,
     channelId,
@@ -190,8 +214,8 @@ function normalizePersistedBinding(threadIdKey: string, raw: unknown): ThreadBin
     boundBy,
     boundAt,
     lastActivityAt,
-    idleTimeoutMs,
-    maxAgeMs,
+    idleTimeoutMs: migratedIdleTimeoutMs,
+    maxAgeMs: migratedMaxAgeMs,
   };
 }
 

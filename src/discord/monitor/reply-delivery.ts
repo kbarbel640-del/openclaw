@@ -272,6 +272,6 @@ export async function deliverDiscordReply(params: {
   }
 
   if (binding && deliveredAny) {
-    params.threadBindings?.touchThread({ threadId: binding.threadId, persist: true });
+    params.threadBindings?.touchThread({ threadId: binding.threadId, persist: false });
   }
 }
