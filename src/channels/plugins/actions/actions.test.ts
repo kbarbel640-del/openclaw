@@ -157,6 +157,7 @@ async function expectSignalActionRejected(
   params: Record<string, unknown>,
   error: RegExp,
   cfg: OpenClawConfig,
+  action: string = "react",
 ) {
   const handleAction = signalMessageActions.handleAction;
   if (!handleAction) {
@@ -165,7 +166,7 @@ async function expectSignalActionRejected(
   await expect(
     handleAction({
       channel: "signal",
-      action: "react",
+      action,
       params,
       cfg,
       accountId: undefined,
@@ -765,12 +766,27 @@ describe("signalMessageActions", () => {
         cfg: {
           channels: { signal: { account: "+15550001111", actions: { reactions: false } } },
         } as OpenClawConfig,
-        expected: ["send"],
+        expected: [
+          "send",
+          "renameGroup",
+          "addParticipant",
+          "removeParticipant",
+          "leaveGroup",
+          "member-info",
+        ],
       },
       {
         name: "account-level reactions enabled",
         cfg: createSignalAccountOverrideCfg(),
-        expected: ["send", "react"],
+        expected: [
+          "send",
+          "react",
+          "renameGroup",
+          "addParticipant",
+          "removeParticipant",
+          "leaveGroup",
+          "member-info",
+        ],
       },
     ] as const;
 
@@ -795,6 +811,18 @@ describe("signalMessageActions", () => {
       { to: "+15550001111", messageId: "123", emoji: "✅" },
       /actions\.reactions/,
       cfg,
+    );
+  });
+
+  it("blocks group management when action gate is disabled", async () => {
+    const cfg = {
+      channels: { signal: { account: "+15550001111", actions: { groupManagement: false } } },
+    } as OpenClawConfig;
+    await expectSignalActionRejected(
+      { groupId: "test-group", name: "New Name" },
+      /actions\.groupManagement/,
+      cfg,
+      "renameGroup",
     );
   });
 

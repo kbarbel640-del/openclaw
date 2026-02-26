@@ -222,6 +222,11 @@ export const signalMessageActions: ChannelMessageActionAdapter = {
 
     const resolvedAccountId = accountId ?? undefined;
 
+    const actionConfig = resolveSignalAccount({ cfg, accountId }).config.actions;
+    if (!createActionGate(actionConfig)("groupManagement")) {
+      throw new Error("Signal group management is disabled via actions.groupManagement.");
+    }
+
     if (action === "renameGroup") {
       const groupId = readSignalGroupIdParam(params);
       const name = readStringParam(params, "name") ?? readStringParam(params, "displayName");
