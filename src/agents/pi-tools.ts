@@ -40,6 +40,7 @@ import {
   createSandboxedReadTool,
   createSandboxedWriteTool,
   normalizeToolParams,
+  patchEditToolDocumentation,
   patchToolSchemaForClaudeCompatibility,
   wrapToolWorkspaceRootGuard,
   wrapToolWorkspaceRootGuardWithOptions,
@@ -376,10 +377,11 @@ export function createOpenClawCodingTools(options?: {
         return [];
       }
       // Wrap with param normalization for Claude Code compatibility
-      const wrapped = wrapToolParamNormalization(
+      const wrappedBase = wrapToolParamNormalization(
         createEditTool(workspaceRoot),
         CLAUDE_PARAM_GROUPS.edit,
       );
+      const wrapped = patchEditToolDocumentation(wrappedBase);
       return [workspaceOnly ? wrapToolWorkspaceRootGuard(wrapped, workspaceRoot) : wrapped];
     }
     return [tool];
@@ -439,13 +441,17 @@ export function createOpenClawCodingTools(options?: {
         ? [
             workspaceOnly
               ? wrapToolWorkspaceRootGuardWithOptions(
-                  createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+                  patchEditToolDocumentation(
+                    createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+                  ),
                   sandboxRoot,
                   {
                     containerWorkdir: sandbox.containerWorkdir,
                   },
                 )
-              : createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+              : patchEditToolDocumentation(
+                  createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+                ),
             workspaceOnly
               ? wrapToolWorkspaceRootGuardWithOptions(
                   createSandboxedWriteTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
