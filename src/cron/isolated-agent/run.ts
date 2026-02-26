@@ -25,7 +25,9 @@ import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { deriveSessionTotalTokens, hasNonzeroUsage } from "../../agents/usage.js";
 import { ensureAgentWorkspace } from "../../agents/workspace.js";
+import { resolveSystemElevatedDefaults } from "../../auto-reply/reply/reply-elevated.js";
 import {
+  normalizeElevatedLevel,
   normalizeThinkLevel,
   normalizeVerboseLevel,
   supportsXHighThinking,
@@ -321,6 +323,18 @@ export async function runCronIsolatedAgentTurn(params: {
     accountId: deliveryPlan.accountId,
   });
 
+  // Resolve elevated exec permissions so cron runs can use elevated tools
+  // when the config enables them. Cron is system-initiated (no sender), so
+  // only the enablement check applies — the allowFrom sender gate is skipped.
+  // Persisted session elevated level takes priority over config default
+  // (honours /elevated off set during the session).
+  const persistedElevated = normalizeElevatedLevel(cronSession.sessionEntry.elevatedLevel);
+  const bashElevated = resolveSystemElevatedDefaults({
+    cfg: cfgWithAgentDefaults,
+    agentId,
+    elevatedDefault: persistedElevated ?? agentCfg?.elevatedDefault,
+  });
+
   const { formattedTime, timeLine } = resolveCronStyleNow(params.cfg, now);
   const base = `[cron:${params.job.id} ${params.job.name}] ${params.message}`.trim();
 
@@ -464,6 +478,7 @@ export async function runCronIsolatedAgentTurn(params: {
           authProfileIdSource,
           thinkLevel,
           verboseLevel: resolvedVerboseLevel,
+          bashElevated,
           timeoutMs,
           runId: cronSession.sessionEntry.sessionId,
           requireExplicitMessageTarget: true,
