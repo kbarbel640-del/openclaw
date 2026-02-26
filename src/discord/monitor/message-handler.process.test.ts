@@ -236,7 +236,7 @@ describe("processDiscordMessage ack reactions", () => {
     expect(emojis).not.toContain("👨‍💻");
   });
 
-  it("shows backlog waiting only for later messages in the same channel", async () => {
+  it("keeps backlog waiting until prior message releases the lane", async () => {
     let releaseFirst!: () => void;
     const firstGate = new Promise<void>((resolve) => {
       releaseFirst = resolve;
@@ -274,8 +274,19 @@ describe("processDiscordMessage ack reactions", () => {
     // oxlint-disable-next-line typescript/no-explicit-any
     const secondRun = processDiscordMessage(second as any);
 
+    await Promise.resolve();
+
+    const beforeRelease = (
+      sendMocks.reactMessageDiscord.mock.calls as unknown as Array<[string, string, string]>
+    )
+      .filter(([, messageId]) => messageId === "m2")
+      .map(([, , emoji]) => emoji);
+    expect(beforeRelease).toContain("⏳");
+    expect(beforeRelease).not.toContain(DISCORD_STATUS_DEFAULT_PROJECTION.done);
+
     releaseFirst();
     await Promise.all([firstRun, secondRun]);
+    expect(dispatchInboundMessage).toHaveBeenCalledTimes(2);
 
     const byMessage = new Map<string, string[]>();
     for (const call of sendMocks.reactMessageDiscord.mock.calls as unknown as Array<
@@ -289,6 +300,7 @@ describe("processDiscordMessage ack reactions", () => {
     expect(byMessage.get("m1") ?? []).not.toContain("⏳");
     expect(byMessage.get("m2") ?? []).toContain("⏳");
     expect(byMessage.get("m2") ?? []).not.toContain("👀");
+    expect(byMessage.get("m2") ?? []).toContain(DISCORD_STATUS_DEFAULT_PROJECTION.done);
   });
 
   it("applies status reaction emoji/timing overrides from config", async () => {

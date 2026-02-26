@@ -9,6 +9,7 @@ type QueueSnapshot = {
 };
 
 const lanes = new Map<string, string[]>();
+const laneWaiters = new Map<string, Map<string, Set<() => void>>>();
 
 function normalizeChannelId(channelId: string): string {
   return channelId.trim();
@@ -16,6 +17,36 @@ function normalizeChannelId(channelId: string): string {
 
 function normalizeMessageId(messageId: string): string {
   return messageId.trim();
+}
+
+function resolveWaiters(channelId: string, messageId: string): void {
+  const channelWaiters = laneWaiters.get(channelId);
+  if (!channelWaiters) {
+    return;
+  }
+  const waiters = channelWaiters.get(messageId);
+  if (!waiters || waiters.size === 0) {
+    return;
+  }
+  channelWaiters.delete(messageId);
+  if (channelWaiters.size === 0) {
+    laneWaiters.delete(channelId);
+  }
+  for (const resolve of waiters) {
+    resolve();
+  }
+}
+
+function notifyHeadWaiters(channelId: string): void {
+  const lane = lanes.get(channelId);
+  if (!lane || lane.length === 0) {
+    return;
+  }
+  const head = lane[0];
+  if (!head) {
+    return;
+  }
+  resolveWaiters(channelId, head);
 }
 
 /**
@@ -42,10 +73,50 @@ export function claimDiscordStatusReactionQueue(
     position = lane.length - 1;
   }
   lanes.set(laneKey, lane);
+  if (position === 0) {
+    notifyHeadWaiters(laneKey);
+  }
   return {
     hasPriorPendingWork: position > 0,
     position,
   };
+}
+
+/**
+ * Wait until this claimed message reaches the head of its channel lane.
+ */
+export function waitForDiscordStatusReactionQueueTurn(
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  const laneKey = normalizeChannelId(channelId);
+  const normalizedMessageId = normalizeMessageId(messageId);
+  if (!laneKey || !normalizedMessageId) {
+    return Promise.resolve();
+  }
+
+  const lane = lanes.get(laneKey);
+  if (!lane) {
+    return Promise.resolve();
+  }
+  const position = lane.indexOf(normalizedMessageId);
+  if (position <= 0) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let channelWaiters = laneWaiters.get(laneKey);
+    if (!channelWaiters) {
+      channelWaiters = new Map<string, Set<() => void>>();
+      laneWaiters.set(laneKey, channelWaiters);
+    }
+    let waiters = channelWaiters.get(normalizedMessageId);
+    if (!waiters) {
+      waiters = new Set<() => void>();
+      channelWaiters.set(normalizedMessageId, waiters);
+    }
+    waiters.add(resolve);
+  });
 }
 
 /**
@@ -62,11 +133,14 @@ export function releaseDiscordStatusReactionQueue(channelId: string, messageId: 
     return;
   }
   const nextLane = lane.filter((entry) => entry !== normalizedMessageId);
+  resolveWaiters(laneKey, normalizedMessageId);
   if (nextLane.length === 0) {
     lanes.delete(laneKey);
+    laneWaiters.delete(laneKey);
     return;
   }
   lanes.set(laneKey, nextLane);
+  notifyHeadWaiters(laneKey);
 }
 
 function getQueueSnapshot(): QueueSnapshot {
@@ -81,6 +155,7 @@ function getQueueSnapshot(): QueueSnapshot {
 
 function resetQueueForTests(): void {
   lanes.clear();
+  laneWaiters.clear();
 }
 
 export const __testing = {

@@ -3,6 +3,7 @@ import {
   __testing,
   claimDiscordStatusReactionQueue,
   releaseDiscordStatusReactionQueue,
+  waitForDiscordStatusReactionQueueTurn,
 } from "./status-reaction-queue.js";
 
 afterEach(() => {
@@ -24,6 +25,23 @@ describe("status-reaction-queue", () => {
 
     expect(c1.hasPriorPendingWork).toBe(false);
     expect(c2.hasPriorPendingWork).toBe(false);
+  });
+
+  it("waits until the message reaches the lane head", async () => {
+    claimDiscordStatusReactionQueue("c1", "m1");
+    claimDiscordStatusReactionQueue("c1", "m2");
+
+    let resolved = false;
+    const waitTurn = waitForDiscordStatusReactionQueueTurn("c1", "m2").then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    releaseDiscordStatusReactionQueue("c1", "m1");
+    await waitTurn;
+    expect(resolved).toBe(true);
   });
 
   it("is idempotent for duplicate claims and cleans up on release", () => {

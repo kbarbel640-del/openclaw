@@ -52,6 +52,7 @@ import {
 import {
   claimDiscordStatusReactionQueue,
   releaseDiscordStatusReactionQueue,
+  waitForDiscordStatusReactionQueueTurn,
 } from "./status-reaction-queue.js";
 import { resolveDiscordAutoThreadReplyPlan, resolveDiscordThreadStarter } from "./threading.js";
 import { sendTyping } from "./typing.js";
@@ -129,6 +130,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     );
   const statusReactionsEnabled = shouldAckReaction();
   let statusQueueClaimed = false;
+  let queueTurnPromise: Promise<void> | null = null;
   const discordAdapter: DiscordStatusReactionAdapter = {
     setReaction: async (emoji) => {
       await reactMessageDiscord(messageChannelId, message.id, emoji, {
@@ -162,6 +164,9 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     const claim = claimDiscordStatusReactionQueue(messageChannelId, message.id);
     statusQueueClaimed = true;
     void statusReactions.enterWaiting(claim.hasPriorPendingWork);
+    if (claim.hasPriorPendingWork) {
+      queueTurnPromise = waitForDiscordStatusReactionQueueTurn(messageChannelId, message.id);
+    }
   }
   let dispatchResult: Awaited<ReturnType<typeof dispatchInboundMessage>> | null = null;
   let statusLifecycleSettled = false;
@@ -177,6 +182,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   };
 
   try {
+    await queueTurnPromise;
     const mediaList = await resolveMediaList(message, mediaMaxBytes, discordRestFetch);
     const forwardedMediaList = await resolveForwardedMediaList(
       message,
@@ -694,6 +700,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
 
     let dispatchError = false;
     try {
+      void statusReactions.enterActive();
       dispatchResult = await dispatchInboundMessage({
         ctx: ctxPayload,
         cfg,
