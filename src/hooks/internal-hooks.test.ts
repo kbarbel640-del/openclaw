@@ -245,3 +245,23 @@ describe("hooks", () => {
     });
   });
 });
+
+describe("subagent hook events", () => {
+  it("should support subagent hook events", async () => {
+    const handler = vi.fn();
+    registerInternalHook("subagent:complete", handler);
+
+    const event = createInternalHookEvent("subagent", "complete", "agent:main:main", {
+      runId: "run-1",
+      childSessionKey: "agent:main:subagent:child",
+      requesterSessionKey: "agent:main:main",
+      task: "task",
+      outcome: { status: "ok" },
+      reason: "subagent-complete",
+    });
+    await triggerInternalHook(event);
+
+    expect(handler).toHaveBeenCalledWith(event);
+    clearInternalHooks();
+  });
+});

@@ -8,7 +8,37 @@
 import type { WorkspaceBootstrapFile } from "../agents/workspace.js";
 import type { OpenClawConfig } from "../config/config.js";
 
-export type InternalHookEventType = "command" | "session" | "agent" | "gateway";
+export type InternalHookEventType =
+  | "command"
+  | "session"
+  | "agent"
+  | "gateway"
+  | "message"
+  | "subagent";
+
+export type SubagentHookAction = "complete" | "error" | "timeout" | "killed";
+
+export type SubagentHookContext = {
+  childSessionKey: string;
+  requesterSessionKey: string;
+  runId: string;
+  label?: string;
+  task: string;
+  outcome: {
+    status: "ok" | "error" | "timeout";
+    error?: string;
+  };
+  reason: string;
+  startedAt?: number;
+  endedAt?: number;
+  runtimeMs?: number;
+};
+
+export type SubagentHookEvent = InternalHookEvent & {
+  type: "subagent";
+  action: SubagentHookAction;
+  context: SubagentHookContext;
+};
 
 export type AgentBootstrapHookContext = {
   workspaceDir: string;
