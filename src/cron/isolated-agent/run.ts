@@ -40,7 +40,7 @@ import {
 import type { AgentDefaultsConfig } from "../../config/types.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
 import { logWarn } from "../../logger.js";
-import { buildAgentMainSessionKey, normalizeAgentId } from "../../routing/session-key.js";
+import { normalizeAgentId, toAgentStoreSessionKey } from "../../routing/session-key.js";
 import {
   buildSafeExternalPrompt,
   detectSuspiciousPatterns,
@@ -142,9 +142,13 @@ export async function runCronIsolatedAgentTurn(params: {
   };
 
   const baseSessionKey = (params.sessionKey?.trim() || `cron:${params.job.id}`).trim();
-  const agentSessionKey = buildAgentMainSessionKey({
+  // Use toAgentStoreSessionKey instead of buildAgentMainSessionKey to avoid doubling
+  // the prefix when params.sessionKey is already a fully-qualified "agent:..." key.
+  // e.g. "agent:main:main" must not become "agent:main:agent:main:main".
+  const agentSessionKey = toAgentStoreSessionKey({
     agentId,
-    mainKey: baseSessionKey,
+    requestKey: baseSessionKey,
+    mainKey: params.cfg.session?.mainKey,
   });
 
   const workspaceDirRaw = resolveAgentWorkspaceDir(params.cfg, agentId);
