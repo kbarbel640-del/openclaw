@@ -27,6 +27,13 @@ type RestartPostCheckContext = {
   fail: (message: string, hints?: string[]) => void;
 };
 
+type StopPostCheckContext = {
+  json: boolean;
+  stdout: Writable;
+  warnings: string[];
+  fail: (message: string, hints?: string[]) => void;
+};
+
 async function maybeAugmentSystemdHints(hints: string[]): Promise<string[]> {
   if (process.platform !== "linux") {
     return hints;
@@ -199,9 +206,11 @@ export async function runServiceStop(params: {
   serviceNoun: string;
   service: GatewayService;
   opts?: DaemonLifecycleOptions;
+  postStopCheck?: (ctx: StopPostCheckContext) => Promise<void>;
 }) {
   const json = Boolean(params.opts?.json);
   const { stdout, emit, fail } = createActionIO({ action: "stop", json });
+  const warnings: string[] = [];
 
   const loaded = await resolveServiceLoadedOrFail({
     serviceNoun: params.serviceNoun,
@@ -225,6 +234,9 @@ export async function runServiceStop(params: {
   }
   try {
     await params.service.stop({ env: process.env, stdout });
+    if (params.postStopCheck) {
+      await params.postStopCheck({ json, stdout, warnings, fail });
+    }
   } catch (err) {
     fail(`${params.serviceNoun} stop failed: ${String(err)}`);
     return;
@@ -240,6 +252,7 @@ export async function runServiceStop(params: {
     ok: true,
     result: "stopped",
     service: buildDaemonServiceSnapshot(params.service, stopped),
+    warnings: warnings.length ? warnings : undefined,
   });
 }
 
