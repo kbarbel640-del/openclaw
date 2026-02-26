@@ -508,6 +508,10 @@ describe("agents.files.list", () => {
 
 describe("agents.files.get/set symlink safety", () => {
   const normalizePath = (value: string) => value.replaceAll("\\", "/");
+  const matchesPath = (actual: string, expected: string) => {
+    const normalized = normalizePath(actual);
+    return normalized === expected || normalized.endsWith(expected);
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -519,11 +523,10 @@ describe("agents.files.get/set symlink safety", () => {
     const workspace = "/workspace/test-agent";
     const candidate = `${workspace}/AGENTS.md`;
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      const normalized = normalizePath(p);
-      if (normalized === workspace) {
+      if (matchesPath(p, workspace)) {
         return workspace;
       }
-      if (normalized === candidate) {
+      if (matchesPath(p, candidate)) {
         return "/outside/secret.txt";
       }
       return p;
@@ -553,11 +556,10 @@ describe("agents.files.get/set symlink safety", () => {
     const workspace = "/workspace/test-agent";
     const candidate = `${workspace}/AGENTS.md`;
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      const normalized = normalizePath(p);
-      if (normalized === workspace) {
+      if (matchesPath(p, workspace)) {
         return workspace;
       }
-      if (normalized === candidate) {
+      if (matchesPath(p, candidate)) {
         return "/outside/secret.txt";
       }
       return p;
@@ -592,11 +594,10 @@ describe("agents.files.get/set symlink safety", () => {
     const targetStat = makeFileStat({ size: 7, mtimeMs: 1700, dev: 9, ino: 42 });
 
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      const normalized = normalizePath(p);
-      if (normalized === workspace) {
+      if (matchesPath(p, workspace)) {
         return workspace;
       }
-      if (normalized === candidate) {
+      if (matchesPath(p, candidate)) {
         return target;
       }
       return p;
