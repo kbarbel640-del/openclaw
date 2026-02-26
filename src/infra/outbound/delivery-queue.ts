@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import type { OutboundChannel } from "./targets.js";
 import { resolveStateDir } from "../../config/paths.js";
 import { generateSecureUuid } from "../secure-random.js";
-import type { OutboundChannel } from "./targets.js";
 
 const QUEUE_DIRNAME = "delivery-queue";
 const FAILED_DIRNAME = "failed";
@@ -253,11 +253,15 @@ export async function recoverPendingDeliveries(opts: {
     const backoff = computeBackoffMs(entry.retryCount + 1);
     if (backoff > 0) {
       if (now + backoff >= deadline) {
-        const deferred = pending.length - recovered - failed - skipped;
-        opts.log.warn(
-          `Recovery time budget exceeded — ${deferred} entries deferred to next restart`,
+        // Skip this entry individually — its backoff exceeds the remaining
+        // budget. Continue processing subsequent entries that may have shorter
+        // backoffs (lower retry counts). This prevents head-of-line blocking
+        // where a single high-retry entry starves all newer entries (#27638).
+        skipped += 1;
+        opts.log.info(
+          `Backoff ${backoff}ms exceeds remaining budget for ${entry.id} (retryCount=${entry.retryCount}) — skipping to next entry`,
         );
-        break;
+        continue;
       }
       opts.log.info(`Waiting ${backoff}ms before retrying delivery ${entry.id}`);
       await delayFn(backoff);
