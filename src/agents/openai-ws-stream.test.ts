@@ -681,6 +681,9 @@ describe("createOpenAIWebSocketStreamFn", () => {
 
       // streamSimple was called as part of HTTP fallback
       expect(streamSimpleCalls.length).toBeGreaterThanOrEqual(1);
+
+      // manager.close() must be called to cancel background reconnect attempts
+      expect(MockManager.lastInstance!.closeCallCount).toBeGreaterThanOrEqual(1);
     } finally {
       MockManager.globalConnectShouldFail = false;
     }

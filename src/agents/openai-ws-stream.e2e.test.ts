@@ -31,15 +31,22 @@ const model = {
   api: "openai-responses" as const,
   provider: "openai",
   id: "gpt-4o-mini",
+  name: "gpt-4o-mini",
+  baseUrl: "",
+  reasoning: false,
+  input: { maxTokens: 128_000 },
+  output: { maxTokens: 16_384 },
+  cache: false,
   compat: {},
-};
+} as unknown as Parameters<ReturnType<typeof createOpenAIWebSocketStreamFn>>[0];
 
-function makeContext(userMessage: string) {
+type StreamFnParams = Parameters<ReturnType<typeof createOpenAIWebSocketStreamFn>>;
+function makeContext(userMessage: string): StreamFnParams[1] {
   return {
     systemPrompt: "You are a helpful assistant. Reply in one sentence.",
     messages: [{ role: "user" as const, content: userMessage }],
     tools: [],
-  };
+  } as unknown as StreamFnParams[1];
 }
 
 describe("OpenAI WebSocket e2e", () => {
@@ -54,7 +61,7 @@ describe("OpenAI WebSocket e2e", () => {
       const stream = streamFn(model, makeContext("What is 2+2?"), {});
 
       const events: Array<{ type: string }> = [];
-      for await (const event of stream) {
+      for await (const event of stream as AsyncIterable<{ type: string }>) {
         events.push(event as { type: string });
       }
 
@@ -82,7 +89,7 @@ describe("OpenAI WebSocket e2e", () => {
       });
 
       const events: Array<{ type: string }> = [];
-      for await (const event of stream) {
+      for await (const event of stream as AsyncIterable<{ type: string }>) {
         events.push(event as { type: string });
       }
 
@@ -100,7 +107,7 @@ describe("OpenAI WebSocket e2e", () => {
       expect(hasWsSession("e2e-session")).toBe(false);
 
       const stream = streamFn(model, makeContext("Say hello."), {});
-      for await (const _ of stream) {
+      for await (const _ of stream as AsyncIterable<unknown>) {
         /* consume */
       }
 
@@ -123,7 +130,7 @@ describe("OpenAI WebSocket e2e", () => {
       // Should either produce a done event (via HTTP fallback) or an error —
       // but must NOT hang forever.
       const events: Array<{ type: string }> = [];
-      for await (const event of stream) {
+      for await (const event of stream as AsyncIterable<{ type: string }>) {
         events.push(event as { type: string });
       }
 

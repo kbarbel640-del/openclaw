@@ -369,7 +369,14 @@ export function createOpenAIWebSocketStreamFn(
           session.everConnected = true;
           log.debug(`[ws-stream] connected for session=${sessionId}`);
         } catch (connErr) {
+          // Cancel any background reconnect attempts before marking as broken.
+          try {
+            session.manager.close();
+          } catch {
+            /* ignore */
+          }
           session.broken = true;
+          wsRegistry.delete(sessionId);
           log.warn(
             `[ws-stream] WebSocket connect failed for session=${sessionId}; falling back to HTTP. error=${String(connErr)}`,
           );
@@ -439,13 +446,14 @@ export function createOpenAIWebSocketStreamFn(
         extraParams.tool_choice = streamOpts.toolChoice;
       }
       if (streamOpts?.reasoningEffort || streamOpts?.reasoningSummary) {
-        extraParams.reasoning = {};
+        const reasoning: { effort?: string; summary?: string } = {};
         if (streamOpts.reasoningEffort !== undefined) {
-          extraParams.reasoning.effort = streamOpts.reasoningEffort;
+          reasoning.effort = streamOpts.reasoningEffort as string;
         }
         if (streamOpts.reasoningSummary !== undefined) {
-          extraParams.reasoning.summary = streamOpts.reasoningSummary;
+          reasoning.summary = streamOpts.reasoningSummary as string;
         }
+        extraParams.reasoning = reasoning;
       }
 
       try {
