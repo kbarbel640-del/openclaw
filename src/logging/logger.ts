@@ -39,7 +39,18 @@ export type LoggerResolvedSettings = ResolvedSettings;
 export type LogTransportRecord = Record<string, unknown>;
 export type LogTransport = (logObj: LogTransportRecord) => void;
 
-const externalTransports = new Set<LogTransport>();
+// Share external transports across module bundles via globalThis, matching the
+// pattern used by diagnostic-events.ts (PR #12897). Without this, jiti/bundler
+// module isolation can cause registerLogTransport() from plugins to register
+// on a different Set than the one the gateway logger reads.
+function getExternalTransports(): Set<LogTransport> {
+  const globalStore = globalThis as typeof globalThis & {
+    __openclawLogTransportState?: { transports: Set<LogTransport> };
+  };
+  globalStore.__openclawLogTransportState ??= { transports: new Set() };
+  return globalStore.__openclawLogTransportState.transports;
+}
+const externalTransports = getExternalTransports();
 
 function attachExternalTransport(logger: TsLogger<LogObj>, transport: LogTransport): void {
   logger.attachTransport((logObj: LogObj) => {
