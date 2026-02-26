@@ -36,7 +36,7 @@ describe("createOpenClawReadTool image fidelity", () => {
       execute: vi.fn(async () => baseResult),
     };
 
-    const wrapped = createOpenClawReadTool(baseRead as any);
+    const wrapped = createOpenClawReadTool(baseRead as unknown as Parameters<typeof createOpenClawReadTool>[0]);
     const result = await wrapped.execute("read-img-1", { path: "/tmp/sample.png", limit: 1 });
 
     const image = result.content.find((block) => block.type === "image") as
