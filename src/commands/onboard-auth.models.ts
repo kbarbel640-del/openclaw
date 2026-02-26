@@ -229,3 +229,84 @@ export function buildKilocodeModelDefinition(): ModelDefinitionConfig {
     maxTokens: KILOCODE_DEFAULT_MAX_TOKENS,
   };
 }
+
+// 新增：OpenAI兼容供应商默认配置（基础URL与模型ID）
+// 硅基流动：官方提供OpenAI兼容API，常见基地址如下
+export const SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1";
+// 采用在中文环境中更常见且可用的Qwen 2.5指令模型作为默认
+export const SILICONFLOW_DEFAULT_MODEL_ID = "Qwen/Qwen2.5-32B-Instruct";
+export const SILICONFLOW_DEFAULT_MODEL_REF = `siliconflow/${SILICONFLOW_DEFAULT_MODEL_ID}`;
+export const SILICONFLOW_DEFAULT_CONTEXT_WINDOW = 128000;
+export const SILICONFLOW_DEFAULT_MAX_TOKENS = 8192;
+export const SILICONFLOW_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+// 阿里云百炼（DashScope）：OpenAI兼容模式端点
+export const DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+export const DASHSCOPE_DEFAULT_MODEL_ID = "qwen-plus";
+export const DASHSCOPE_DEFAULT_MODEL_REF = `dashscope/${DASHSCOPE_DEFAULT_MODEL_ID}`;
+export const DASHSCOPE_DEFAULT_CONTEXT_WINDOW = 128000;
+export const DASHSCOPE_DEFAULT_MAX_TOKENS = 8192;
+export const DASHSCOPE_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+// DeepSeek：官方OpenAI兼容API
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
+export const DEEPSEEK_DEFAULT_MODEL_ID = "deepseek-chat";
+export const DEEPSEEK_DEFAULT_MODEL_REF = `deepseek/${DEEPSEEK_DEFAULT_MODEL_ID}`;
+export const DEEPSEEK_DEFAULT_CONTEXT_WINDOW = 128000;
+export const DEEPSEEK_DEFAULT_MAX_TOKENS = 8192;
+export const DEEPSEEK_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+// 新增：构建硅基流动默认模型定义（OpenAI兼容）
+export function buildSiliconflowModelDefinition(): ModelDefinitionConfig {
+  return {
+    id: SILICONFLOW_DEFAULT_MODEL_ID,
+    name: "SiliconFlow Auto",
+    reasoning: false,
+    input: ["text"],
+    cost: SILICONFLOW_DEFAULT_COST,
+    contextWindow: SILICONFLOW_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: SILICONFLOW_DEFAULT_MAX_TOKENS,
+  };
+}
+
+// 新增：构建阿里云百炼（DashScope）默认模型定义（OpenAI兼容）
+export function buildDashscopeModelDefinition(): ModelDefinitionConfig {
+  return {
+    id: DASHSCOPE_DEFAULT_MODEL_ID,
+    name: "Qwen Plus",
+    reasoning: false,
+    input: ["text"],
+    cost: DASHSCOPE_DEFAULT_COST,
+    contextWindow: DASHSCOPE_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DASHSCOPE_DEFAULT_MAX_TOKENS,
+  };
+}
+
+// 新增：构建DeepSeek默认模型定义（OpenAI兼容）
+export function buildDeepseekModelDefinition(): ModelDefinitionConfig {
+  return {
+    id: DEEPSEEK_DEFAULT_MODEL_ID,
+    name: "DeepSeek Chat",
+    reasoning: false,
+    input: ["text"],
+    cost: DEEPSEEK_DEFAULT_COST,
+    contextWindow: DEEPSEEK_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEEPSEEK_DEFAULT_MAX_TOKENS,
+  };
+}
+

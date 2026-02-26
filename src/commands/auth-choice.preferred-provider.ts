@@ -18,7 +18,12 @@ const PREFERRED_PROVIDER_BY_AUTH_CHOICE: Partial<Record<AuthChoice, string>> = {
   "moonshot-api-key": "moonshot",
   "moonshot-api-key-cn": "moonshot",
   "kimi-code-api-key": "kimi-coding",
+  // 新增：OpenAI兼容供应商的API Key映射
+  "siliconflow-api-key": "siliconflow",
+  "dashscope-api-key": "dashscope",
+  "deepseek-api-key": "deepseek",
   "gemini-api-key": "google",
+  "google-antigravity": "google-antigravity",
   "google-gemini-cli": "google-gemini-cli",
   "mistral-api-key": "mistral",
   "zai-api-key": "zai",
