@@ -671,3 +671,79 @@ export async function edgeTTS(params: {
   });
   await tts.ttsPromise(text, outputPath);
 }
+
+export async function qwenTTS(params: {
+  text: string;
+  apiKey: string;
+  model: string;
+  voice: string;
+  language: string;
+  instruction?: string;
+  timeoutMs: number;
+}): Promise<Buffer> {
+  const { text, apiKey, model, voice, language, instruction, timeoutMs } = params;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    // Use the MultiModalConversation REST endpoint (same as Python SDK)
+    const reqBody: {
+      model: string;
+      input: {
+        text: string;
+        voice: string;
+        language_type?: string;
+        instruction?: string;
+      };
+    } = {
+      model,
+      input: { text, voice },
+    };
+    // Map intuitive language to language_type parameter
+    if (language) {
+      reqBody.input.language_type = language;
+    }
+    // Only pass instruction if specified (mainly for instruct models)
+    if (instruction) {
+      reqBody.input.instruction = instruction;
+    }
+
+    const initRes = await fetch(
+      "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "X-DashScope-Async": "disable",
+        },
+        body: JSON.stringify(reqBody),
+        signal: controller.signal,
+      },
+    );
+
+    if (!initRes.ok) {
+      const errText = await initRes.text().catch(() => "");
+      throw new Error(`DashScope API error (${initRes.status}): ${errText}`);
+    }
+
+    const initData = await initRes.json();
+    const audioUrl = initData?.output?.audio?.url ?? initData?.output?.audio_url;
+    if (!audioUrl) {
+      throw new Error(
+        `DashScope API error: no audio URL in response (${JSON.stringify(initData)})`,
+      );
+    }
+
+    // 2. Download the audio file from the returned URL
+    const audioRes = await fetch(audioUrl, { signal: controller.signal });
+    if (!audioRes.ok) {
+      throw new Error(`DashScope Audio Download error (${audioRes.status})`);
+    }
+
+    return Buffer.from(await audioRes.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
