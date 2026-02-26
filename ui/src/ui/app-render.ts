@@ -237,7 +237,7 @@ export function renderApp(state: AppViewState) {
             </div>
             <div class="brand-text">
               <div class="brand-title">OPENCLAW</div>
-              <div class="brand-sub">Gateway Dashboard</div>
+              <div class="brand-sub">${t("shell.productSubtitle")}</div>
             </div>
           </div>
         </div>
@@ -292,7 +292,7 @@ export function renderApp(state: AppViewState) {
               href="https://docs.openclaw.ai"
               target=${EXTERNAL_LINK_TARGET}
               rel=${buildExternalLinkRel()}
-              title="${t("common.docs")} (opens in new tab)"
+              title="${t("common.docs")} (${t("shell.opensInNewTab")})"
             >
               <span class="nav-item__icon" aria-hidden="true">${icons.book}</span>
               <span class="nav-item__text">${t("common.docs")}</span>
@@ -304,13 +304,13 @@ export function renderApp(state: AppViewState) {
         ${
           availableUpdate
             ? html`<div class="update-banner callout danger" role="alert">
-              <strong>Update available:</strong> v${availableUpdate.latestVersion}
-              (running v${availableUpdate.currentVersion}).
+              <strong>${t("shell.updateAvailable")}</strong> v${availableUpdate.latestVersion}
+              ${t("shell.runningVersion", { version: availableUpdate.currentVersion })}
               <button
                 class="btn btn--sm update-banner__btn"
                 ?disabled=${state.updateRunning || !state.connected}
                 @click=${() => runUpdate(state)}
-              >${state.updateRunning ? "Updating…" : "Update now"}</button>
+              >${state.updateRunning ? t("shell.updating") : t("shell.updateNow")}</button>
             </div>`
             : nothing
         }

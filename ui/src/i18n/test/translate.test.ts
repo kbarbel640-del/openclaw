@@ -2,6 +2,16 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { i18n, t } from "../lib/translate.ts";
 
 describe("i18n", () => {
+  async function waitForLocale(
+    getter: { getLocale: () => string },
+    expected: string,
+    attempts = 500,
+  ): Promise<void> {
+    for (let index = 0; index < attempts && getter.getLocale() !== expected; index += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
   beforeEach(async () => {
     localStorage.clear();
     // Reset to English
@@ -46,11 +56,46 @@ describe("i18n", () => {
     vi.resetModules();
     const fresh = await import("../lib/translate.ts");
 
-    for (let index = 0; index < 5 && fresh.i18n.getLocale() !== "zh-CN"; index += 1) {
-      await Promise.resolve();
-    }
+    await waitForLocale(fresh.i18n, "zh-CN");
 
     expect(fresh.i18n.getLocale()).toBe("zh-CN");
     expect(fresh.t("common.health")).toBe("健康状况");
+  });
+
+  it("loads Ukrainian translations", async () => {
+    await i18n.setLocale("uk");
+    expect(t("common.health")).toBe("Стан");
+    expect(t("shell.productSubtitle")).toBe("Панель керування шлюзом");
+  });
+
+  it("loads saved Ukrainian locale on startup", async () => {
+    localStorage.setItem("openclaw.i18n.locale", "uk");
+    vi.resetModules();
+    const fresh = await import("../lib/translate.ts");
+
+    await waitForLocale(fresh.i18n, "uk");
+
+    expect(fresh.i18n.getLocale()).toBe("uk");
+    expect(fresh.t("common.health")).toBe("Стан");
+  });
+
+  it("detects browser locale uk-UA as uk", async () => {
+    localStorage.clear();
+    const languageDescriptor = Object.getOwnPropertyDescriptor(window.navigator, "language");
+    Object.defineProperty(window.navigator, "language", {
+      configurable: true,
+      value: "uk-UA",
+    });
+
+    try {
+      vi.resetModules();
+      const fresh = await import("../lib/translate.ts");
+      await waitForLocale(fresh.i18n, "uk");
+      expect(fresh.i18n.getLocale()).toBe("uk");
+    } finally {
+      if (languageDescriptor) {
+        Object.defineProperty(window.navigator, "language", languageDescriptor);
+      }
+    }
   });
 });

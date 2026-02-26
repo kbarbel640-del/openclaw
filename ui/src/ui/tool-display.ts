@@ -11,6 +11,7 @@ import {
   resolveWriteDetail,
   type ToolDisplaySpec as ToolDisplaySpecBase,
 } from "../../../src/agents/tool-display-common.js";
+import { t } from "../i18n/index.ts";
 import type { IconName } from "./icons.ts";
 import rawConfig from "./tool-display.json" with { type: "json" };
 
@@ -36,6 +37,31 @@ export type ToolDisplay = {
 const TOOL_DISPLAY_CONFIG = rawConfig as ToolDisplayConfig;
 const FALLBACK = TOOL_DISPLAY_CONFIG.fallback ?? { icon: "puzzle" };
 const TOOL_MAP = TOOL_DISPLAY_CONFIG.tools ?? {};
+
+function toI18nKeySegment(value: string): string {
+  return value
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+function translateIfExists(key: string): string | null {
+  const value = t(key);
+  return value === key ? null : value;
+}
+
+function translateToolTitle(toolKey: string, fallback: string): string {
+  return translateIfExists(`toolDisplay.titles.${toI18nKeySegment(toolKey)}`) ?? fallback;
+}
+
+function translateToolActionLabel(fallback: string): string {
+  const segment = toI18nKeySegment(fallback);
+  if (!segment) {
+    return fallback;
+  }
+  return translateIfExists(`toolDisplay.actions.${segment}`) ?? fallback;
+}
 
 function shortenHomeInString(input: string): string {
   if (!input) {
@@ -67,8 +93,8 @@ export function resolveToolDisplay(params: {
   const key = name.toLowerCase();
   const spec = TOOL_MAP[key];
   const icon = (spec?.icon ?? FALLBACK.icon ?? "puzzle") as IconName;
-  const title = spec?.title ?? defaultTitle(name);
-  const label = spec?.label ?? title;
+  const title = translateToolTitle(key, spec?.title ?? defaultTitle(name));
+  const label = spec?.label ? translateToolActionLabel(spec.label) : title;
   const actionRaw =
     params.args && typeof params.args === "object"
       ? ((params.args as Record<string, unknown>).action as string | undefined)
@@ -81,7 +107,7 @@ export function resolveToolDisplay(params: {
       : key === "web_fetch"
         ? "fetch"
         : key.replace(/_/g, " ").replace(/\./g, " ");
-  const verb = normalizeVerb(actionSpec?.label ?? action ?? fallbackVerb);
+  const verb = normalizeVerb(translateToolActionLabel(actionSpec?.label ?? action ?? fallbackVerb));
 
   let detail: string | undefined;
   if (key === "exec") {
@@ -138,12 +164,12 @@ export function formatToolDetail(display: ToolDisplay): string | undefined {
       .map((part) => part.trim())
       .filter((part) => part.length > 0)
       .join(", ");
-    return compact ? `with ${compact}` : undefined;
+    return compact ? t("format.withDetail", { detail: compact }) : undefined;
   }
   return display.detail;
 }
 
 export function formatToolSummary(display: ToolDisplay): string {
   const detail = formatToolDetail(display);
-  return detail ? `${display.label}: ${detail}` : display.label;
+  return detail ? t("toolDisplay.summary", { label: display.label, detail }) : display.label;
 }

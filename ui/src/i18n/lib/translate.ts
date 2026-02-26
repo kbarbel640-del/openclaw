@@ -3,7 +3,7 @@ import type { Locale, TranslationMap } from "./types.ts";
 
 type Subscriber = (locale: Locale) => void;
 
-export const SUPPORTED_LOCALES: ReadonlyArray<Locale> = ["en", "zh-CN", "zh-TW", "pt-BR"];
+export const SUPPORTED_LOCALES: ReadonlyArray<Locale> = ["en", "zh-CN", "zh-TW", "pt-BR", "uk"];
 
 export function isSupportedLocale(value: string | null | undefined): value is Locale {
   return value !== null && value !== undefined && SUPPORTED_LOCALES.includes(value as Locale);
@@ -13,38 +13,52 @@ class I18nManager {
   private locale: Locale = "en";
   private translations: Record<Locale, TranslationMap> = { en } as Record<Locale, TranslationMap>;
   private subscribers: Set<Subscriber> = new Set();
+  private startupRequestedLocale: Locale | null = null;
 
   constructor() {
-    this.loadLocale();
+    this.ensureStartupLocale();
   }
 
   private resolveInitialLocale(): Locale {
-    const saved = localStorage.getItem("openclaw.i18n.locale");
+    const saved =
+      typeof localStorage !== "undefined" ? localStorage.getItem("openclaw.i18n.locale") : null;
     if (isSupportedLocale(saved)) {
       return saved;
     }
-    const navLang = navigator.language;
+    const navLang = typeof navigator !== "undefined" ? navigator.language : "en";
     if (navLang.startsWith("zh")) {
       return navLang === "zh-TW" || navLang === "zh-HK" ? "zh-TW" : "zh-CN";
     }
     if (navLang.startsWith("pt")) {
       return "pt-BR";
     }
+    if (navLang.startsWith("uk")) {
+      return "uk";
+    }
     return "en";
   }
 
-  private loadLocale() {
+  private ensureStartupLocale() {
     const initialLocale = this.resolveInitialLocale();
     if (initialLocale === "en") {
       this.locale = "en";
       return;
     }
+    if (this.locale === initialLocale || this.startupRequestedLocale === initialLocale) {
+      return;
+    }
+    this.startupRequestedLocale = initialLocale;
     // Use the normal locale setter so startup locale loading follows the same
     // translation-loading + notify path as manual locale changes.
-    void this.setLocale(initialLocale);
+    void this.setLocale(initialLocale).finally(() => {
+      if (this.startupRequestedLocale === initialLocale) {
+        this.startupRequestedLocale = null;
+      }
+    });
   }
 
   public getLocale(): Locale {
+    this.ensureStartupLocale();
     return this.locale;
   }
 
@@ -64,6 +78,8 @@ class I18nManager {
           module = await import("../locales/zh-TW.ts");
         } else if (locale === "pt-BR") {
           module = await import("../locales/pt-BR.ts");
+        } else if (locale === "uk") {
+          module = await import("../locales/uk.ts");
         } else {
           return;
         }
