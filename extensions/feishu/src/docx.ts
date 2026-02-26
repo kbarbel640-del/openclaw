@@ -217,6 +217,67 @@ async function processImages(
   return processed;
 }
 
+async function uploadImageAction(
+  client: Lark.Client,
+  docToken: string,
+  imageInput: string,
+  fileName?: string,
+  insertAfterBlockId?: string,
+): Promise<{ success: boolean; block_id: string }> {
+  // Resolve image buffer from base64, data URI, or file path
+  let buffer: Buffer;
+  let resolvedFileName = fileName ?? "image.png";
+
+  if (imageInput.startsWith("data:")) {
+    // data URI: data:image/png;base64,xxxx
+    const [header, data] = imageInput.split(",");
+    const mimeMatch = header.match(/data:([^;]+)/);
+    const ext = mimeMatch?.[1]?.split("/")[1] ?? "png";
+    resolvedFileName = fileName ?? `image.${ext}`;
+    buffer = Buffer.from(data, "base64");
+  } else if (/^[A-Za-z0-9+/\n\r]+=*$/.test(imageInput.trim()) && !imageInput.includes("/")) {
+    // Plain base64 string
+    buffer = Buffer.from(imageInput.trim(), "base64");
+  } else {
+    // File path
+    const { readFile } = await import("fs/promises");
+    buffer = await readFile(imageInput);
+    resolvedFileName = fileName ?? imageInput.split("/").pop() ?? "image.png";
+  }
+
+  // Step 1 (per Feishu FAQ): Create an empty image block
+  const insertRes = await client.docx.documentBlockChildren.create({
+    path: { document_id: docToken, block_id: insertAfterBlockId ?? docToken },
+    params: { document_revision_id: -1 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK type
+    data: { children: [{ block_type: 27, image: {} as any }], index: -1 },
+  });
+
+  if (insertRes.code !== 0) {
+    throw new Error(`Failed to create image block: ${insertRes.msg}`);
+  }
+
+  const blockId = insertRes.data?.children?.[0]?.block_id;
+  if (!blockId) {
+    throw new Error("No block_id returned after creating image block");
+  }
+
+  // Step 2 (per Feishu FAQ): Upload image with parent_node = image block ID
+  const fileToken = await uploadImageToDocx(client, blockId, buffer, resolvedFileName);
+
+  // Step 3 (per Feishu FAQ): Set image token on the block
+  const patchRes = await client.docx.documentBlock.patch({
+    path: { document_id: docToken, block_id: blockId },
+    data: { replace_image: { token: fileToken } },
+  });
+
+  if (patchRes.code !== 0) {
+    throw new Error(`Failed to set image: ${patchRes.msg}`);
+  }
+
+  return { success: true, block_id: blockId };
+}
+
 // ============ Actions ============
 
 const STRUCTURED_BLOCK_TYPES = new Set([14, 18, 21, 23, 27, 30, 31, 32]);
@@ -494,7 +555,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         name: "feishu_doc",
         label: "Feishu Doc",
         description:
-          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block, insert_table_row, insert_table_column, delete_table_rows, delete_table_columns, merge_table_cells, color_text",
+          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block, insert_table_row, insert_table_column, delete_table_rows, delete_table_columns, merge_table_cells, color_text, upload_image",
         parameters: FeishuDocSchema,
         async execute(_toolCallId, params) {
           const p = params as FeishuDocParams;
@@ -555,6 +616,10 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                 );
               case "color_text":
                 return json(await updateColorText(client, p.doc_token, p.block_id, p.content));
+              case "upload_image":
+                return json(
+                  await uploadImageAction(client, p.doc_token, p.image, p.file_name, p.block_id),
+                );
               default:
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
                 return json({ error: `Unknown action: ${(p as any).action}` });

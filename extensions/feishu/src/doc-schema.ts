@@ -84,6 +84,19 @@ export const FeishuDocSchema = Type.Union([
     column_start: Type.Number({ description: "Start column index" }),
     column_end: Type.Number({ description: "End column index (exclusive)" }),
   }),
+  // Image upload
+  Type.Object({
+    action: Type.Literal("upload_image"),
+    doc_token: Type.String({ description: "Document token" }),
+    image: Type.String({
+      description:
+        "Image data as base64 string, data URI (data:image/png;base64,...), or absolute file path",
+    }),
+    file_name: Type.Optional(Type.String({ description: "File name (e.g. chart.png)" })),
+    block_id: Type.Optional(
+      Type.String({ description: "Insert after this block ID (default: append to document end)" }),
+    ),
+  }),
   // Color text
   Type.Object({
     action: Type.Literal("color_text"),
