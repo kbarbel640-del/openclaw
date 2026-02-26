@@ -9,11 +9,13 @@ import {
   Minimize2,
   Camera,
   UserPlus,
+  Workflow,
+  FolderKanban,
+  BookOpen,
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AgentDeleteConfirmDialog } from "@/components/agents/AgentDeleteConfirmDialog";
 import { AgentFileEditor } from "@/components/agents/AgentFileEditor";
-import { AgentFormDialog } from "@/components/agents/AgentFormDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,7 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePanels } from "@/contexts/PanelContext";
 import { useAgentDetail } from "@/hooks/useAgentDetail";
-import { useCreateAgent } from "@/hooks/useAgentMutations";
+import { useCreateAgent, useUpdateAgent } from "@/hooks/useAgentMutations";
 import { useAgents } from "@/hooks/useAgents";
 import { useGoals } from "@/hooks/useGoals";
 import { getAgentAvatar } from "@/lib/agent-avatars";
@@ -51,27 +53,23 @@ const statusColors: Record<string, string> = {
 const BDI_FILES = [
   { label: "Beliefs", filename: "Beliefs.md" },
   { label: "Desires", filename: "Desires.md" },
-  { label: "Goals", filename: "Goals.md" },
   { label: "Intentions", filename: "Intentions.md" },
+  { label: "Goals", filename: "Goals.md" },
   { label: "Plans", filename: "Plans.md" },
-  { label: "Memory", filename: "Memory.md" },
-  { label: "Persona", filename: "Persona.md" },
-  { label: "Capabilities", filename: "Capabilities.md" },
-  { label: "Knowledge", filename: "Knowledge.md" },
-  { label: "Playbooks", filename: "Playbooks.md" },
-  { label: "Actions", filename: "Actions.md" },
   { label: "Tasks", filename: "Task.md" },
-  { label: "Role", filename: "Role.md" },
   { label: "Skills", filename: "Skill.md" },
+  { label: "Actions", filename: "Actions.md" },
+  { label: "Role", filename: "Role.md" },
 ] as const;
 
 // OpenClaw core files
 const CORE_FILES = [
   { label: "Soul", filename: "SOUL.md" },
-  { label: "Agent", filename: "AGENTS.md" },
-  { label: "Identity", filename: "IDENTITY.md" },
+  { label: "Memory", filename: "Memory.md" },
+  { label: "Agents", filename: "AGENTS.md" },
   { label: "Tools", filename: "TOOLS.md" },
   { label: "Bootstrap", filename: "Bootstrap.md" },
+  { label: "Identity", filename: "IDENTITY.md" },
 ] as const;
 
 interface AgentDetailPanelProps {
@@ -109,10 +107,11 @@ const priorityColors: Record<number, string> = {
   3: "var(--accent-blue)",
 };
 
-function GoalsSection({ agentId }: { agentId: string }) {
+function AgentContextSection({ agentId }: { agentId: string }) {
   const { data, isLoading } = useGoals(BUSINESS_ID);
 
   const agentGoals: BusinessGoal[] = data?.goals?.filter((g) => g.actor === agentId) ?? [];
+  const agentWorkflows = agentGoals.flatMap((g) => g.workflows ?? []);
 
   if (isLoading) {
     return (
@@ -125,49 +124,106 @@ function GoalsSection({ agentId }: { agentId: string }) {
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Target className="w-3.5 h-3.5 text-[var(--accent-green)]" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          Goals ({agentGoals.length})
-        </span>
-      </div>
-      {agentGoals.length === 0 ? (
-        <p className="text-xs text-[var(--text-muted)] italic pl-5.5">
-          No goals assigned to this agent
-        </p>
-      ) : (
-        <div className="space-y-1">
-          {agentGoals.map((goal) => (
-            <div
-              key={goal.id}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-mabos)]"
-            >
-              <span
-                className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: priorityColors[goal.priority] ?? "var(--text-muted)" }}
-              />
-              <span className="text-xs text-[var(--text-secondary)] flex-1 truncate">
-                {goal.name}
-              </span>
-              <Badge
-                variant="outline"
-                className="border-[var(--border-mabos)] text-[10px] px-1.5 py-0 text-[var(--text-muted)] capitalize shrink-0"
-              >
-                {goal.level}
-              </Badge>
-            </div>
-          ))}
+    <div className="space-y-4">
+      {/* Goals */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Target className="w-3.5 h-3.5 text-[var(--accent-green)]" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Goals ({agentGoals.length})
+          </span>
         </div>
-      )}
+        {agentGoals.length === 0 ? (
+          <p className="text-xs text-[var(--text-muted)] italic pl-5.5">
+            No goals assigned to this agent
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {agentGoals.map((goal) => (
+              <div
+                key={goal.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-mabos)]"
+              >
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: priorityColors[goal.priority] ?? "var(--text-muted)" }}
+                />
+                <span className="text-xs text-[var(--text-secondary)] flex-1 truncate">
+                  {goal.name}
+                </span>
+                <Badge
+                  variant="outline"
+                  className="border-[var(--border-mabos)] text-[10px] px-1.5 py-0 text-[var(--text-muted)] capitalize shrink-0"
+                >
+                  {goal.level}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* Projects & Workflows placeholders */}
-      <div className="mt-3 space-y-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-          Projects & Workflows
+      {/* Workflows */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Workflow className="w-3.5 h-3.5 text-[var(--accent-blue)]" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Workflows ({agentWorkflows.length})
+          </span>
+        </div>
+        {agentWorkflows.length === 0 ? (
+          <p className="text-xs text-[var(--text-muted)] italic pl-5.5">
+            No workflows linked to this agent&apos;s goals
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {agentWorkflows.map((wf) => (
+              <div
+                key={wf.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-mabos)]"
+              >
+                <Workflow className="w-3.5 h-3.5 text-[var(--accent-blue)] shrink-0" />
+                <span className="text-xs text-[var(--text-secondary)] flex-1 truncate">
+                  {wf.name}
+                </span>
+                <Badge
+                  variant="outline"
+                  className="border-[var(--border-mabos)] text-[10px] px-1.5 py-0 text-[var(--text-muted)] capitalize shrink-0"
+                >
+                  {wf.status}
+                </Badge>
+                <span className="text-[10px] text-[var(--text-muted)]">
+                  {wf.steps.length} steps
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Projects */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <FolderKanban className="w-3.5 h-3.5 text-[var(--accent-orange)]" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Projects
+          </span>
+        </div>
+        <p className="text-xs text-[var(--text-muted)] italic pl-5.5">
+          Project assignments coming soon
         </p>
-        <p className="text-xs text-[var(--text-muted)] italic">
-          Coming soon — will show agent-specific projects and workflow assignments.
+      </div>
+
+      {/* Knowledge Topics */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-3.5 h-3.5 text-[var(--accent-purple)]" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Knowledge Topics
+          </span>
+        </div>
+        <p className="text-xs text-[var(--text-muted)] italic pl-5.5">
+          Knowledge topics coming soon
         </p>
       </div>
     </div>
@@ -235,9 +291,9 @@ function AgentMindTab({ agentId, editable }: { agentId: string; editable: boolea
         ))}
       </Tabs>
 
-      {/* Goals Section */}
+      {/* Agent Context Section */}
       <Separator className="bg-[var(--border-mabos)]" />
-      <GoalsSection agentId={agentId} />
+      <AgentContextSection agentId={agentId} />
     </div>
   );
 }
@@ -442,6 +498,153 @@ function AgentCreateForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+// --- Inline Agent Settings Form (replaces AgentFormDialog) ---
+
+function AgentSettingsForm({
+  agent,
+  businessId,
+  onClose,
+}: {
+  agent: AgentListItem;
+  businessId: string;
+  onClose: () => void;
+}) {
+  const updateAgent = useUpdateAgent(businessId);
+  const [name, setName] = useState(agent.name);
+  const [type, setType] = useState<"core" | "domain">(agent.type);
+  const [autonomyLevel, setAutonomyLevel] = useState<"low" | "medium" | "high">(
+    agent.autonomy_level,
+  );
+  const [threshold, setThreshold] = useState(agent.approval_threshold_usd);
+  const [status, setStatus] = useState<"active" | "idle" | "paused">(
+    agent.status === "error" ? "paused" : agent.status,
+  );
+
+  // Sync form state when agent prop changes
+  useEffect(() => {
+    setName(agent.name);
+    setType(agent.type);
+    setAutonomyLevel(agent.autonomy_level);
+    setThreshold(agent.approval_threshold_usd);
+    setStatus(agent.status === "error" ? "paused" : agent.status);
+  }, [agent]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    updateAgent.mutate(
+      {
+        agentId: agent.id,
+        body: {
+          name,
+          type,
+          autonomy_level: autonomyLevel,
+          approval_threshold_usd: threshold,
+          status,
+        },
+      },
+      { onSuccess: () => onClose() },
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 py-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-[var(--text-primary)]">Agent Settings</p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          aria-label="Close settings"
+        >
+          <span className="text-lg leading-none">&times;</span>
+        </button>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-[var(--text-muted)]">Name</label>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g., Product Manager"
+          required
+          className="bg-[var(--bg-secondary)] border-[var(--border-mabos)] text-[var(--text-primary)]"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-[var(--text-muted)]">Type</label>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as "core" | "domain")}
+            className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)]"
+          >
+            <option value="core">Core</option>
+            <option value="domain">Domain</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-[var(--text-muted)]">Autonomy Level</label>
+          <select
+            value={autonomyLevel}
+            onChange={(e) => setAutonomyLevel(e.target.value as "low" | "medium" | "high")}
+            className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)]"
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-[var(--text-muted)]">
+          Approval Threshold (USD)
+        </label>
+        <Input
+          type="number"
+          value={threshold}
+          onChange={(e) => setThreshold(Number(e.target.value))}
+          min={0}
+          className="bg-[var(--bg-secondary)] border-[var(--border-mabos)] text-[var(--text-primary)]"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-[var(--text-muted)]">Status</label>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as "active" | "idle" | "paused")}
+          className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-mabos)] text-[var(--text-primary)]"
+        >
+          <option value="active">Active</option>
+          <option value="idle">Idle</option>
+          <option value="paused">Paused</option>
+        </select>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onClose}
+          className="border-[var(--border-mabos)] text-[var(--text-secondary)]"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={updateAgent.isPending}
+          className="bg-[var(--accent-green)] text-white hover:bg-[var(--accent-green)]/90"
+        >
+          {updateAgent.isPending ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 // --- Avatar with upload ---
 
 function AvatarWithUpload({
@@ -490,22 +693,22 @@ function AvatarWithUpload({
       onClick={() => fileInputRef.current?.click()}
     >
       {imgSrc ? (
-        <img src={imgSrc} alt={displayName} className="w-24 h-24 rounded-xl object-cover" />
+        <img src={imgSrc} alt={displayName} className="w-48 h-48 rounded-xl object-cover" />
       ) : Icon ? (
         <div
-          className="flex items-center justify-center w-24 h-24 rounded-xl"
+          className="flex items-center justify-center w-48 h-48 rounded-xl"
           style={{
             backgroundColor: `color-mix(in srgb, var(--accent-purple) 15%, transparent)`,
           }}
         >
-          <Icon className="w-10 h-10 text-[var(--accent-purple)]" />
+          <Icon className="w-16 h-16 text-[var(--accent-purple)]" />
         </div>
       ) : (
-        <div className="w-24 h-24 rounded-xl bg-[var(--bg-secondary)]" />
+        <div className="w-48 h-48 rounded-xl bg-[var(--bg-secondary)]" />
       )}
       {/* Camera overlay on hover */}
       <div className="absolute inset-0 rounded-xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-        <Camera className="w-6 h-6 text-white" />
+        <Camera className="w-10 h-10 text-white" />
       </div>
       <input
         ref={fileInputRef}
@@ -535,7 +738,7 @@ function AgentPanelContent({
   onClose,
   mode,
 }: AgentPanelContentProps) {
-  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [isEditingSettings, setIsEditingSettings] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [isEditable, setIsEditable] = useState(false);
 
@@ -684,30 +887,38 @@ function AgentPanelContent({
 
       {/* Scrollable Content */}
       <div className="px-4 flex-1 overflow-y-auto min-h-0">
-        <Tabs defaultValue="mind">
-          <TabsList className="bg-[var(--bg-secondary)]">
-            <TabsTrigger
-              value="mind"
-              className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
-            >
-              Agent Mind
-            </TabsTrigger>
-            <TabsTrigger
-              value="config"
-              className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
-            >
-              Configuration
-            </TabsTrigger>
-          </TabsList>
+        {isEditingSettings && agentListItem ? (
+          <AgentSettingsForm
+            agent={agentListItem}
+            businessId={BUSINESS_ID}
+            onClose={() => setIsEditingSettings(false)}
+          />
+        ) : (
+          <Tabs defaultValue="mind">
+            <TabsList className="bg-[var(--bg-secondary)]">
+              <TabsTrigger
+                value="mind"
+                className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
+              >
+                Agent Mind
+              </TabsTrigger>
+              <TabsTrigger
+                value="config"
+                className="text-[var(--text-secondary)] data-[state=active]:text-[var(--text-primary)] data-[state=active]:bg-[var(--bg-tertiary)]"
+              >
+                Configuration
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="mind" className="mt-4">
-            {agentId && <AgentMindTab agentId={agentId} editable={isEditable} />}
-          </TabsContent>
+            <TabsContent value="mind" className="mt-4">
+              {agentId && <AgentMindTab agentId={agentId} editable={isEditable} />}
+            </TabsContent>
 
-          <TabsContent value="config" className="mt-4">
-            <ConfigurationTab agent={agentListItem} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="config" className="mt-4">
+              <ConfigurationTab agent={agentListItem} />
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
 
       {/* Fixed Footer */}
@@ -726,8 +937,8 @@ function AgentPanelContent({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setShowEditDialog(true)}
-          className="border-[var(--border-mabos)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] gap-1.5"
+          onClick={() => setIsEditingSettings(!isEditingSettings)}
+          className={`border-[var(--border-mabos)] gap-1.5 ${isEditingSettings ? "text-[var(--accent-blue)] border-[var(--accent-blue)]/30" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
         >
           <Gauge className="w-3.5 h-3.5" />
           Settings
@@ -746,12 +957,6 @@ function AgentPanelContent({
       {/* Dialogs rendered outside Sheet to avoid portal conflicts */}
       {agentId && (
         <>
-          <AgentFormDialog
-            open={showEditDialog}
-            onOpenChange={setShowEditDialog}
-            businessId={BUSINESS_ID}
-            agent={agentListItem}
-          />
           <AgentDeleteConfirmDialog
             open={showArchiveDialog}
             onOpenChange={setShowArchiveDialog}
