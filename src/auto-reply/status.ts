@@ -220,7 +220,6 @@ const readUsageFromSessionLog = (
       promptTokens: number;
       total: number;
       model?: string;
-      provider?: string;
     }
   | undefined => {
   // Transcripts are stored at the session file path (fallback: ~/.openclaw/sessions/<SessionId>.jsonl)
