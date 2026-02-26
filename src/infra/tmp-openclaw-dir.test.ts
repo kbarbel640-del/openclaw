@@ -27,12 +27,14 @@ function resolveWithMocks(params: {
   lstatSync: NonNullable<TmpDirOptions["lstatSync"]>;
   fallbackLstatSync?: NonNullable<TmpDirOptions["lstatSync"]>;
   accessSync?: NonNullable<TmpDirOptions["accessSync"]>;
+  chmodSync?: NonNullable<TmpDirOptions["chmodSync"]>;
   uid?: number;
   tmpdirPath?: string;
 }) {
   const uid = params.uid ?? 501;
   const fallbackPath = fallbackTmp(uid);
   const accessSync = params.accessSync ?? vi.fn();
+  const chmodSync = params.chmodSync ?? vi.fn();
   const wrappedLstatSync = vi.fn((target: string) => {
     if (target === POSIX_OPENCLAW_TMP_DIR) {
       return params.lstatSync(target);
@@ -52,10 +54,11 @@ function resolveWithMocks(params: {
     accessSync,
     lstatSync: wrappedLstatSync,
     mkdirSync,
+    chmodSync,
     getuid,
     tmpdir,
   });
-  return { resolved, accessSync, lstatSync: wrappedLstatSync, mkdirSync, tmpdir };
+  return { resolved, accessSync, chmodSync, lstatSync: wrappedLstatSync, mkdirSync, tmpdir };
 }
 
 describe("resolvePreferredOpenClawTmpDir", () => {
@@ -207,5 +210,99 @@ describe("resolvePreferredOpenClawTmpDir", () => {
 
     expect(resolved).toBe(fallbackTmp());
     expect(mkdirSync).toHaveBeenCalledWith(fallbackTmp(), { recursive: true, mode: 0o700 });
+  });
+
+  it("repairs group-writable preferred dir owned by current user", () => {
+    let repaired = false;
+    const lstatSync = vi.fn(() => ({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+      uid: 501,
+      mode: repaired ? 0o40700 : 0o40775,
+    }));
+    const chmodSync = vi.fn(() => {
+      repaired = true;
+    });
+
+    const { resolved } = resolveWithMocks({ lstatSync, chmodSync });
+
+    expect(resolved).toBe(POSIX_OPENCLAW_TMP_DIR);
+    expect(chmodSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, 0o700);
+  });
+
+  it("repairs group-writable fallback dir owned by current user", () => {
+    // Preferred dir is a symlink (invalid, not repairable)
+    const lstatSync = vi.fn(() => ({
+      isDirectory: () => true,
+      isSymbolicLink: () => true,
+      uid: 501,
+      mode: 0o120777,
+    }));
+
+    let repaired = false;
+    const fallbackLstatSync = vi.fn(() => ({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+      uid: 501,
+      mode: repaired ? 0o40700 : 0o40777,
+    }));
+    const chmodSync = vi.fn(() => {
+      repaired = true;
+    });
+
+    const { resolved } = resolveWithMocks({ lstatSync, fallbackLstatSync, chmodSync });
+
+    expect(resolved).toBe(fallbackTmp());
+    expect(chmodSync).toHaveBeenCalledWith(fallbackTmp(), 0o700);
+  });
+
+  it("does not repair dir owned by a different user", () => {
+    const lstatSync = vi.fn(() => ({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+      uid: 0,
+      mode: 0o40777,
+    }));
+    const fallbackLstatSync = vi.fn(() => ({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+      uid: 0,
+      mode: 0o40777,
+    }));
+    const chmodSync = vi.fn();
+
+    expect(() =>
+      resolveWithMocks({
+        lstatSync,
+        fallbackLstatSync,
+        chmodSync,
+      }),
+    ).toThrow(/Unsafe fallback OpenClaw temp dir/);
+    expect(chmodSync).not.toHaveBeenCalled();
+  });
+
+  it("does not repair a symlink even if owned by current user", () => {
+    const lstatSync = vi.fn(() => ({
+      isDirectory: () => true,
+      isSymbolicLink: () => true,
+      uid: 501,
+      mode: 0o120777,
+    }));
+    const fallbackLstatSync = vi.fn(() => ({
+      isDirectory: () => true,
+      isSymbolicLink: () => true,
+      uid: 501,
+      mode: 0o120777,
+    }));
+    const chmodSync = vi.fn();
+
+    expect(() =>
+      resolveWithMocks({
+        lstatSync,
+        fallbackLstatSync,
+        chmodSync,
+      }),
+    ).toThrow(/Unsafe fallback OpenClaw temp dir/);
+    expect(chmodSync).not.toHaveBeenCalled();
   });
 });

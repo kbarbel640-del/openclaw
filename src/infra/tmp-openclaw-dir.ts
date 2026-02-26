@@ -14,6 +14,7 @@ type ResolvePreferredOpenClawTmpDirOptions = {
     uid?: number;
   };
   mkdirSync?: (path: string, opts: { recursive: boolean; mode?: number }) => void;
+  chmodSync?: (path: string, mode: number) => void;
   getuid?: () => number | undefined;
   tmpdir?: () => string;
 };
@@ -35,6 +36,7 @@ export function resolvePreferredOpenClawTmpDir(
   const accessSync = options.accessSync ?? fs.accessSync;
   const lstatSync = options.lstatSync ?? fs.lstatSync;
   const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
+  const chmodSync = options.chmodSync ?? fs.chmodSync;
   const getuid =
     options.getuid ??
     (() => {
@@ -92,6 +94,27 @@ export function resolvePreferredOpenClawTmpDir(
     }
   };
 
+  // Tighten permissions on a directory we own. Only repairs real directories
+  // (not symlinks) owned by the current uid — safe against symlink attacks.
+  const tryRepairPermissions = (dirPath: string): boolean => {
+    try {
+      const st = lstatSync(dirPath);
+      if (!st.isDirectory() || st.isSymbolicLink()) {
+        return false;
+      }
+      if (uid === undefined) {
+        return false;
+      }
+      if (typeof st.uid === "number" && st.uid !== uid) {
+        return false;
+      }
+      chmodSync(dirPath, 0o700);
+      return resolveDirState(dirPath) === "available";
+    } catch {
+      return false;
+    }
+  };
+
   const ensureTrustedFallbackDir = (): string => {
     const fallbackPath = fallback();
     const state = resolveDirState(fallbackPath);
@@ -99,6 +122,9 @@ export function resolvePreferredOpenClawTmpDir(
       return fallbackPath;
     }
     if (state === "invalid") {
+      if (tryRepairPermissions(fallbackPath)) {
+        return fallbackPath;
+      }
       throw new Error(`Unsafe fallback OpenClaw temp dir: ${fallbackPath}`);
     }
     try {
@@ -117,6 +143,9 @@ export function resolvePreferredOpenClawTmpDir(
     return POSIX_OPENCLAW_TMP_DIR;
   }
   if (existingPreferredState === "invalid") {
+    if (tryRepairPermissions(POSIX_OPENCLAW_TMP_DIR)) {
+      return POSIX_OPENCLAW_TMP_DIR;
+    }
     return ensureTrustedFallbackDir();
   }
 
