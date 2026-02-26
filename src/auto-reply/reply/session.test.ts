@@ -1094,6 +1094,53 @@ describe("initSessionState preserves behavior overrides across /new and /reset",
     expect(result.sessionEntry.verboseLevel).toBeUndefined();
     expect(result.sessionEntry.thinkingLevel).toBeUndefined();
   });
+
+  it("/new clears modelOverride and providerOverride but keeps behavior overrides", async () => {
+    const storePath = await createStorePath("openclaw-reset-model-clear-");
+    const sessionKey = "agent:main:telegram:dm:user-model";
+    const existingSessionId = "existing-session-model";
+
+    await seedSessionStoreWithOverrides({
+      storePath,
+      sessionKey,
+      sessionId: existingSessionId,
+      overrides: {
+        modelOverride: "anthropic/claude-opus-4-6",
+        providerOverride: "anthropic",
+        verboseLevel: "on",
+        thinkingLevel: "high",
+      },
+    });
+
+    const cfg = {
+      session: { store: storePath, idleMinutes: 999 },
+    } as OpenClawConfig;
+
+    const result = await initSessionState({
+      ctx: {
+        Body: "/new",
+        RawBody: "/new",
+        CommandBody: "/new",
+        From: "user-model",
+        To: "bot",
+        ChatType: "direct",
+        SessionKey: sessionKey,
+        Provider: "telegram",
+        Surface: "telegram",
+      },
+      cfg,
+      commandAuthorized: true,
+    });
+
+    expect(result.isNewSession).toBe(true);
+    expect(result.resetTriggered).toBe(true);
+    // modelOverride and providerOverride must be cleared so /new returns to default_model
+    expect(result.sessionEntry.modelOverride).toBeUndefined();
+    expect(result.sessionEntry.providerOverride).toBeUndefined();
+    // Behavior overrides (thinking, verbose) must still be carried over
+    expect(result.sessionEntry.verboseLevel).toBe("on");
+    expect(result.sessionEntry.thinkingLevel).toBe("high");
+  });
 });
 
 describe("prependSystemEvents", () => {
