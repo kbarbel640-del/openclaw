@@ -60,6 +60,7 @@ export const TelegramTopicSchema = z
     enabled: z.boolean().optional(),
     allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     systemPrompt: z.string().optional(),
+    model: z.string().optional(),
   })
   .strict();
 
@@ -74,6 +75,7 @@ export const TelegramGroupSchema = z
     allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     systemPrompt: z.string().optional(),
     topics: z.record(z.string(), TelegramTopicSchema.optional()).optional(),
+    sharedTopicSession: z.boolean().optional(),
   })
   .strict();
 
