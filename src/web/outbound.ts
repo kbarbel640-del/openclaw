@@ -8,7 +8,6 @@ import { convertMarkdownTables } from "../markdown/tables.js";
 import { markdownToWhatsApp } from "../markdown/whatsapp.js";
 import { normalizePollInput, type PollInput } from "../polls.js";
 import { toWhatsappJid } from "../utils.js";
-import { isWhatsAppGroupJid } from "../whatsapp/normalize.js";
 import { resolveWhatsAppOutboundTarget } from "../whatsapp/resolve-outbound-target.js";
 import { resolveWhatsAppAccount } from "./accounts.js";
 import { type ActiveWebSendOptions, requireActiveWebListener } from "./active-listener.js";
@@ -35,23 +34,20 @@ export async function sendMessageWhatsApp(
   );
   const cfg = loadConfig();
 
-  // Enforce allowSendTo / allowFrom at the lowest outbound level.
-  // This is the final gateway for ALL WhatsApp sends — no code path can bypass it.
-  const jidForCheck = toWhatsappJid(to);
-  if (!isWhatsAppGroupJid(jidForCheck)) {
-    const account = resolveWhatsAppAccount({
-      cfg,
-      accountId: resolvedAccountId ?? options.accountId,
-    });
-    const resolution = resolveWhatsAppOutboundTarget({
-      to,
-      allowFrom: account.allowFrom ?? [],
-      mode: "explicit",
-    });
-    if (!resolution.ok) {
-      outboundLog.info(`Blocked outbound to ${redactIdentifier(to)} (not in allow list)`);
-      return { messageId: "blocked-by-allow-list", toJid: jidForCheck };
-    }
+  // Enforce allowFrom at the lowest outbound level.
+  // resolveWhatsAppOutboundTarget handles groups internally (always allowed).
+  const account = resolveWhatsAppAccount({
+    cfg,
+    accountId: resolvedAccountId ?? options.accountId,
+  });
+  const outboundCheck = resolveWhatsAppOutboundTarget({
+    to,
+    allowFrom: account.allowFrom ?? [],
+    mode: "explicit",
+  });
+  if (!outboundCheck.ok) {
+    outboundLog.info(`Blocked outbound to ${redactIdentifier(to)} (not in allow list)`);
+    return { messageId: "blocked-by-allow-list", toJid: toWhatsappJid(to) };
   }
 
   const tableMode = resolveMarkdownTableMode({
@@ -139,7 +135,28 @@ export async function sendReactionWhatsApp(
   },
 ): Promise<void> {
   const correlationId = generateSecureUuid();
-  const { listener: active } = requireActiveWebListener(options.accountId);
+  const { listener: active, accountId: resolvedAccountId } = requireActiveWebListener(
+    options.accountId,
+  );
+
+  // Enforce allowFrom — reactions are also outbound sends.
+  const cfg = loadConfig();
+  const account = resolveWhatsAppAccount({
+    cfg,
+    accountId: resolvedAccountId ?? options.accountId,
+  });
+  const outboundCheck = resolveWhatsAppOutboundTarget({
+    to: chatJid,
+    allowFrom: account.allowFrom ?? [],
+    mode: "explicit",
+  });
+  if (!outboundCheck.ok) {
+    outboundLog.info(
+      `Blocked outbound reaction to ${redactIdentifier(chatJid)} (not in allow list)`,
+    );
+    return;
+  }
+
   const redactedChatJid = redactIdentifier(chatJid);
   const logger = getChildLogger({
     module: "web-outbound",
@@ -177,7 +194,26 @@ export async function sendPollWhatsApp(
 ): Promise<{ messageId: string; toJid: string }> {
   const correlationId = generateSecureUuid();
   const startedAt = Date.now();
-  const { listener: active } = requireActiveWebListener(options.accountId);
+  const { listener: active, accountId: resolvedAccountId } = requireActiveWebListener(
+    options.accountId,
+  );
+
+  // Enforce allowFrom — polls are also outbound sends.
+  const cfg = loadConfig();
+  const account = resolveWhatsAppAccount({
+    cfg,
+    accountId: resolvedAccountId ?? options.accountId,
+  });
+  const outboundCheck = resolveWhatsAppOutboundTarget({
+    to,
+    allowFrom: account.allowFrom ?? [],
+    mode: "explicit",
+  });
+  if (!outboundCheck.ok) {
+    outboundLog.info(`Blocked outbound poll to ${redactIdentifier(to)} (not in allow list)`);
+    return { messageId: "blocked-by-allow-list", toJid: toWhatsappJid(to) };
+  }
+
   const redactedTo = redactIdentifier(to);
   const logger = getChildLogger({
     module: "web-outbound",
