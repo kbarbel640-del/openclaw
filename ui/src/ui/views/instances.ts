@@ -12,7 +12,7 @@ export type InstancesProps = {
   onRefresh: () => void;
 };
 
-let hostsRevealed = false;
+let hostsRevealed = true;
 
 export function renderInstances(props: InstancesProps) {
   const masked = props.streamMode || !hostsRevealed;
