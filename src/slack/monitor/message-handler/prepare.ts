@@ -127,7 +127,9 @@ export async function prepareSlackMessage(params: {
     return null;
   }
 
-  const { allowFromLower } = await resolveSlackEffectiveAllowFrom(ctx);
+  const { allowFromLower } = await resolveSlackEffectiveAllowFrom(ctx, {
+    includePairingStore: isDirectMessage,
+  });
 
   if (isDirectMessage) {
     const directUserId = message.user;
@@ -153,6 +155,7 @@ export async function prepareSlackMessage(params: {
           const { code, created } = await upsertChannelPairingRequest({
             channel: "slack",
             id: directUserId,
+            accountId: account.accountId,
             meta: { name: senderName },
           });
           if (created) {

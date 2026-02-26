@@ -28,7 +28,7 @@ import { resolveThreadSessionKeys } from "../routing/session-key.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import {
   isSenderAllowed,
-  normalizeAllowFromWithStore,
+  normalizeDmAllowFromWithStore,
   type NormalizedAllowFrom,
 } from "./bot-access.js";
 import type { TelegramMediaRef } from "./bot-message-context.js";
@@ -618,7 +618,7 @@ export const registerTelegramHandlers = ({
         return { allowed: false, reason: "direct-disabled" };
       }
       if (dmPolicy !== "open") {
-        const effectiveDmAllow = normalizeAllowFromWithStore({
+        const effectiveDmAllow = normalizeDmAllowFromWithStore({
           allowFrom,
           storeAllowFrom,
           dmPolicy,
@@ -1276,7 +1276,7 @@ export const registerTelegramHandlers = ({
         effectiveGroupAllow,
         hasGroupAllowOverride,
       } = eventAuthContext;
-      const effectiveDmAllow = normalizeAllowFromWithStore({
+      const effectiveDmAllow = normalizeDmAllowFromWithStore({
         allowFrom,
         storeAllowFrom,
         dmPolicy,
