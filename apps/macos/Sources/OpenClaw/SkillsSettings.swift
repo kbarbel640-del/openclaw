@@ -37,9 +37,9 @@ struct SkillsSettings: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Skills")
+                Text("技能 (Skills)")
                     .font(.headline)
-                Text("Skills are enabled when requirements are met (binaries, env, config).")
+                Text("当满足环境要求（依赖程序、环境变量、配置项）时，技能才可启用。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -149,13 +149,13 @@ private enum SkillsFilter: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .all:
-            "All"
+            "全部 (All)"
         case .ready:
-            "Ready"
+            "已就绪 (Ready)"
         case .needsSetup:
-            "Needs Setup"
+            "需要配置 (Needs Setup)"
         case .disabled:
-            "Disabled"
+            "已禁用 (Disabled)"
         }
     }
 }
@@ -226,15 +226,15 @@ private struct SkillRow: View {
     private var sourceLabel: String {
         switch self.skill.source {
         case "openclaw-bundled":
-            "Bundled"
+            "内置 (Bundled)"
         case "openclaw-managed":
-            "Managed"
+            "托管 (Managed)"
         case "openclaw-workspace":
-            "Workspace"
+            "工作区 (Workspace)"
         case "openclaw-extra":
-            "Extra"
+            "额外 (Extra)"
         case "openclaw-plugin":
-            "Plugin"
+            "插件 (Plugin)"
         default:
             self.skill.source
         }
@@ -271,17 +271,17 @@ private struct SkillRow: View {
     private var missingSummary: some View {
         VStack(alignment: .leading, spacing: 4) {
             if self.shouldShowMissingBins {
-                Text("Missing binaries: \(self.missingBins.joined(separator: ", "))")
+                Text("缺失依赖程序: \(self.missingBins.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             if !self.missingEnv.isEmpty {
-                Text("Missing env: \(self.missingEnv.joined(separator: ", "))")
+                Text("缺失环境变量: \(self.missingEnv.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             if !self.missingConfig.isEmpty {
-                Text("Requires config: \(self.missingConfig.joined(separator: ", "))")
+                Text("需要配置: \(self.missingConfig.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -308,7 +308,7 @@ private struct SkillRow: View {
         HStack(spacing: 8) {
             ForEach(self.missingEnv, id: \.self) { envKey in
                 let isPrimary = envKey == self.skill.primaryEnv
-                Button(isPrimary ? "Set API Key" : "Set \(envKey)") {
+                Button(isPrimary ? "设置 API 密钥" : "设置 \(envKey)") {
                     self.onSetEnv(envKey, isPrimary)
                 }
                 .buttonStyle(.bordered)
@@ -334,7 +334,7 @@ private struct SkillRow: View {
                                 .disabled(self.isBusy)
                                 .help(
                                     self.localInstallNeedsSwitch
-                                        ? "Switches to Local mode to install on this Mac."
+                                        ? "将切换到本地模式以在此 Mac 上安装。"
                                         : "")
                         } else {
                             Button("在这台 Mac 安装") { self.onInstall(option, .local) }
@@ -342,7 +342,7 @@ private struct SkillRow: View {
                                 .disabled(self.isBusy)
                                 .help(
                                     self.localInstallNeedsSwitch
-                                        ? "Switches to Local mode to install on this Mac."
+                                        ? "将切换到本地模式以在此 Mac 上安装。"
                                         : "")
                         }
                     }
@@ -452,7 +452,7 @@ private struct EnvEditorView: View {
             HStack {
                 Button("取消") { self.dismiss() }
                 Spacer()
-                Button("Save") {
+                Button("保存 (Save)") {
                     self.onSave(self.value)
                     self.dismiss()
                 }
@@ -465,11 +465,11 @@ private struct EnvEditorView: View {
     }
 
     private var title: String {
-        self.editor.isPrimary ? "Set API Key" : "Set Environment Variable"
+        self.editor.isPrimary ? "设置 API 密钥" : "设置环境变量"
     }
 
     private var subtitle: String {
-        "Skill: \(self.editor.skillName)"
+        "技能: \(self.editor.skillName)"
     }
 }
 

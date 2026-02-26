@@ -31,7 +31,7 @@ struct AboutSettings: View {
             VStack(spacing: 3) {
                 Text("OpenClaw 客户端")
                     .font(.title3.bold())
-                Text("Version \(self.versionString)")
+                Text("版本: \(self.versionString)")
                     .foregroundStyle(.secondary)
                 if let buildTimestamp {
                     Text("构建于: \(buildTimestamp)\(self.buildSuffix)")

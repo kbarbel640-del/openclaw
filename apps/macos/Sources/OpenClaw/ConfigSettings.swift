@@ -105,7 +105,7 @@ extension ConfigSettings {
             } else if self.store.configSchema != nil {
                 self.emptyDetail
             } else {
-                Text("Schema unavailable.")
+                Text("配置 Schema 不可用。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -116,7 +116,7 @@ extension ConfigSettings {
     private var emptyDetail: some View {
         VStack(alignment: .leading, spacing: 8) {
             self.header
-            Text("Select a config section to view settings.")
+            Text("左侧选择一个配置项以查看设置。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -138,7 +138,7 @@ extension ConfigSettings {
                 self.subsectionNav(section)
                 self.sectionForm(section)
                 if self.store.configDirty, !self.isNixMode {
-                    Text("Unsaved changes")
+                    Text("未保存的更改")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -156,8 +156,8 @@ extension ConfigSettings {
         Text("配置")
             .font(.title3.weight(.semibold))
         Text(self.isNixMode
-            ? "This tab is read-only in Nix mode. Edit config via Nix and rebuild."
-            : "Edit ~/.openclaw/openclaw.json using the schema-driven form.")
+            ? "在 Nix 模式下，此选项卡为只读。请通过 Nix 编辑配置并重新构建。"
+            : "通过 Schema 表单编辑 ~/.openclaw/openclaw.json 配置文件。")
             .font(.callout)
             .foregroundStyle(.secondary)
     }
@@ -181,7 +181,7 @@ extension ConfigSettings {
             }
             .disabled(!self.store.configLoaded)
 
-            Button(self.store.isSavingConfig ? "Saving…" : "Save") {
+            Button(self.store.isSavingConfig ? "保存中…" : "保存") {
                 Task { await self.store.saveConfigDraft() }
             }
             .disabled(self.isNixMode || self.store.isSavingConfig || !self.store.configDirty)
@@ -225,7 +225,7 @@ extension ConfigSettings {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     self.subsectionButton(
-                        title: "All",
+                        title: "全部 (All)",
                         isSelected: self.activeSubsection == .all)
                     {
                         self.activeSubsection = .all
