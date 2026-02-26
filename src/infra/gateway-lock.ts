@@ -1,9 +1,9 @@
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
-import { execSync } from "node:child_process";
 import { resolveConfigPath, resolveGatewayLockDir, resolveStateDir } from "../config/paths.js";
 import { isPidAlive } from "../shared/pid-alive.js";
 
@@ -148,7 +148,11 @@ async function isAnyGatewayProcessRunning(): Promise<boolean> {
       encoding: "utf8",
       timeout: 2000,
     });
-    const pids = output.trim().split("\n").filter(Boolean).map((p) => parseInt(p, 10));
+    const pids = output
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((p) => parseInt(p, 10));
     // Filter out current process
     const otherPids = pids.filter((pid) => pid !== process.pid);
     return otherPids.length > 0;
