@@ -481,6 +481,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         label: entry?.label,
         origin: snapshotSessionOrigin(entry),
         lastChannel: entry?.lastChannel,
+        lastAccountId: entry?.lastAccountId,
         lastTo: entry?.lastTo,
         skillsSnapshot: entry?.skillsSnapshot,
         // Reset token counts to 0 on session reset (#1523)
