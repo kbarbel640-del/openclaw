@@ -94,6 +94,11 @@ function createModelCandidateCollector(allowlist: Set<string> | null | undefined
   return { candidates, addExplicitCandidate, addAllowlistedCandidate };
 }
 
+/** Auth and billing failures are provider-scoped (shared credentials / billing). */
+function isProviderScopedFailure(reason: FailoverReason | undefined): boolean {
+  return reason === "auth" || reason === "billing";
+}
+
 type ModelFallbackErrorHandler = (attempt: {
   provider: string;
   model: string;
@@ -400,8 +405,24 @@ export async function runWithModelFallback<T>(params: {
 
   const hasFallbackCandidates = candidates.length > 1;
 
+  // Provider-level circuit breaker: once a provider fails with a
+  // provider-scoped error (auth/billing), skip remaining candidates
+  // from the same provider within this invocation.
+  const failedProviders = new Set<string>();
+
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
+
+    if (failedProviders.has(candidate.provider)) {
+      attempts.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        error: `Provider ${candidate.provider} skipped (auth/billing failed for another model on this provider)`,
+        reason: "auth",
+      });
+      continue;
+    }
+
     if (authStore) {
       const profileIds = resolveAuthProfileOrder({
         cfg: params.cfg,
@@ -480,6 +501,9 @@ export async function runWithModelFallback<T>(params: {
 
       lastError = isKnownFailover ? normalized : err;
       const described = describeFailoverError(normalized);
+      if (isProviderScopedFailure(described.reason)) {
+        failedProviders.add(candidate.provider);
+      }
       attempts.push({
         provider: candidate.provider,
         model: candidate.model,
@@ -530,8 +554,22 @@ export async function runWithImageModelFallback<T>(params: {
   const attempts: FallbackAttempt[] = [];
   let lastError: unknown;
 
+  // Provider-level circuit breaker (same as runWithModelFallback).
+  const failedProviders = new Set<string>();
+
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
+
+    if (failedProviders.has(candidate.provider)) {
+      attempts.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        error: `Provider ${candidate.provider} skipped (auth/billing failed for another model on this provider)`,
+        reason: "auth",
+      });
+      continue;
+    }
+
     try {
       const result = await params.run(candidate.provider, candidate.model);
       return {
@@ -545,10 +583,22 @@ export async function runWithImageModelFallback<T>(params: {
         throw err;
       }
       lastError = err;
+      // Use the same status-code-aware classification as runWithModelFallback
+      // (B1 fix: classifyFailoverReason alone would miss 401s with non-standard messages).
+      const described = describeFailoverError(
+        coerceToFailoverError(err, {
+          provider: candidate.provider,
+          model: candidate.model,
+        }) ?? err,
+      );
+      if (isProviderScopedFailure(described.reason)) {
+        failedProviders.add(candidate.provider);
+      }
       attempts.push({
         provider: candidate.provider,
         model: candidate.model,
-        error: err instanceof Error ? err.message : String(err),
+        error: described.message || (err instanceof Error ? err.message : String(err)),
+        reason: described.reason,
       });
       await params.onError?.({
         provider: candidate.provider,
