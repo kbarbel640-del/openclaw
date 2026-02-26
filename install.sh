@@ -1824,15 +1824,16 @@ install_openclaw_from_git() {
     fi
     run_quiet_step "Building OpenClaw" run_pnpm -C "$repo_dir" build
 
-    ensure_user_local_bin_on_path
+    local bin_dir="${PREFIX:-$HOME/.openclaw}/bin"
+    mkdir -p "$bin_dir"
 
-    cat > "$HOME/.local/bin/openclaw" <<EOF
+    cat > "$bin_dir/openclaw" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 exec node "${repo_dir}/dist/entry.js" "\$@"
 EOF
-    chmod +x "$HOME/.local/bin/openclaw"
-    ui_success "OpenClaw wrapper installed to \$HOME/.local/bin/openclaw"
+    chmod +x "$bin_dir/openclaw"
+    ui_success "OpenClaw wrapper installed to $bin_dir/openclaw"
     ui_info "This checkout uses pnpm — run pnpm install (or corepack pnpm install) for deps"
 }
 
@@ -2088,7 +2089,7 @@ main() {
     fi
 
     if [[ -z "$INSTALL_METHOD" ]]; then
-        INSTALL_METHOD="npm"
+        INSTALL_METHOD="git"
     fi
 
     if [[ "$INSTALL_METHOD" != "npm" && "$INSTALL_METHOD" != "git" ]]; then
