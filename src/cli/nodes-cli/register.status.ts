@@ -304,33 +304,30 @@ export function registerNodesStatusCommands(nodes: Command) {
         await runNodesCommand("list", async () => {
           const connectedOnly = Boolean(opts.connected);
           const sinceMs = parseSinceMs(opts.lastConnected, "Invalid --last-connected");
-          const result = await callGatewayCli("node.pair.list", opts, {});
-          const { pending, paired } = parsePairingList(result);
+          const { pending, paired: pairedHistory } = parsePairingList(
+            await callGatewayCli("node.pair.list", opts, {}),
+          );
+          const nodes = parseNodeList(await callGatewayCli("node.list", opts, {}));
+          const paired = nodes.filter((node) => node.paired === true);
+          const pairedHistoryById = new Map(pairedHistory.map((entry) => [entry.nodeId, entry]));
           const { heading, muted, warn } = getNodesTheme();
           const tableWidth = Math.max(60, (process.stdout.columns ?? 120) - 1);
           const now = Date.now();
           const hasFilters = connectedOnly || sinceMs !== undefined;
           const pendingRows = hasFilters ? [] : pending;
-          const connectedById = hasFilters
-            ? new Map(
-                parseNodeList(await callGatewayCli("node.list", opts, {})).map((node) => [
-                  node.nodeId,
-                  node,
-                ]),
-              )
-            : null;
+          const connectedById = new Map(nodes.map((node) => [node.nodeId, node]));
           const filteredPaired = paired.filter((node) => {
             if (connectedOnly) {
-              const live = connectedById?.get(node.nodeId);
-              if (!live?.connected) {
+              if (!connectedById.get(node.nodeId)?.connected) {
                 return false;
               }
             }
             if (sinceMs !== undefined) {
-              const live = connectedById?.get(node.nodeId);
+              const live = connectedById.get(node.nodeId);
+              const history = pairedHistoryById.get(node.nodeId);
               const lastConnectedAtMs =
-                typeof node.lastConnectedAtMs === "number"
-                  ? node.lastConnectedAtMs
+                typeof history?.lastConnectedAtMs === "number"
+                  ? history.lastConnectedAtMs
                   : typeof live?.connectedAtMs === "number"
                     ? live.connectedAtMs
                     : undefined;
@@ -370,17 +367,18 @@ export function registerNodesStatusCommands(nodes: Command) {
 
           if (filteredPaired.length > 0) {
             const pairedRows = filteredPaired.map((n) => {
-              const live = connectedById?.get(n.nodeId);
+              const live = connectedById.get(n.nodeId);
+              const history = pairedHistoryById.get(n.nodeId);
               const lastConnectedAtMs =
-                typeof n.lastConnectedAtMs === "number"
-                  ? n.lastConnectedAtMs
+                typeof history?.lastConnectedAtMs === "number"
+                  ? history.lastConnectedAtMs
                   : typeof live?.connectedAtMs === "number"
                     ? live.connectedAtMs
                     : undefined;
               return {
                 Node: n.displayName?.trim() ? n.displayName.trim() : n.nodeId,
                 Id: n.nodeId,
-                IP: n.remoteIp ?? "",
+                IP: n.remoteIp ?? history?.remoteIp ?? "",
                 LastConnect:
                   typeof lastConnectedAtMs === "number"
                     ? formatTimeAgo(Math.max(0, now - lastConnectedAtMs))
