@@ -112,6 +112,23 @@ export const FeishuGroupSchema = z
   })
   .strict();
 
+/**
+ * Typing indicator configuration.
+ * Feishu lacks a native "typing" API, so OpenClaw simulates it via emoji reactions.
+ * The keepalive loop fires every `intervalSeconds` during inference, which can
+ * consume significant API quota on long-running model calls.
+ *
+ * - enabled: show typing indicator (default: true)
+ * - intervalSeconds: keepalive interval (default: 120; SDK default is 3)
+ */
+const TypingIndicatorSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    intervalSeconds: z.number().int().positive().optional(),
+  })
+  .strict()
+  .optional();
+
 const FeishuSharedConfigShape = {
   webhookHost: z.string().optional(),
   webhookPort: z.number().int().positive().optional(),
@@ -135,6 +152,7 @@ const FeishuSharedConfigShape = {
   renderMode: RenderModeSchema,
   streaming: StreamingModeSchema,
   tools: FeishuToolsConfigSchema,
+  typingIndicator: TypingIndicatorSchema,
 };
 
 /**
