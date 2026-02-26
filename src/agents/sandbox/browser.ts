@@ -49,12 +49,11 @@ async function waitForSandboxCdp(params: { cdpPort: number; timeoutMs: number })
       const ctrl = new AbortController();
       const t = setTimeout(ctrl.abort.bind(ctrl), 1000);
       try {
-        const res = await retryHttpAsync(() => fetch(url, { signal: ctrl.signal }), {
+        return await retryHttpAsync(() => fetch(url, { signal: ctrl.signal }), {
           label: "sandbox-cdp-wait",
+          initialUrl: url,
+          transformResponse: async (_res) => true,
         });
-        if (res.ok) {
-          return true;
-        }
       } finally {
         clearTimeout(t);
       }

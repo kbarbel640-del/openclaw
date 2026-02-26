@@ -555,7 +555,7 @@ export async function elevenLabsTTS(params: {
       url.searchParams.set("output_format", outputFormat);
     }
 
-    const response = await retryHttpAsync(
+    return await retryHttpAsync(
       () =>
         fetch(url.toString(), {
           method: "POST",
@@ -580,10 +580,12 @@ export async function elevenLabsTTS(params: {
           }),
           signal: controller.signal,
         }),
-      { label: "elevenlabs-tts" },
+      {
+        initialUrl: url.toString(),
+        label: "elevenlabs-tts",
+        transformResponse: async (res) => Buffer.from(await res.arrayBuffer()),
+      },
     );
-
-    return Buffer.from(await response.arrayBuffer());
   } finally {
     clearTimeout(timeout);
   }
@@ -610,9 +612,10 @@ export async function openaiTTS(params: {
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const url = `${getOpenAITtsBaseUrl()}/audio/speech`;
     const response = await retryHttpAsync(
       () =>
-        fetch(`${getOpenAITtsBaseUrl()}/audio/speech`, {
+        fetch(url, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -626,7 +629,7 @@ export async function openaiTTS(params: {
           }),
           signal: controller.signal,
         }),
-      { label: "openai-tts" },
+      { initialUrl: url, label: "openai-tts" },
     );
 
     return Buffer.from(await response.arrayBuffer());

@@ -29,18 +29,19 @@ export async function refreshQwenPortalCredentials(
         }),
       }),
     {
+      initialUrl: QWEN_OAUTH_TOKEN_ENDPOINT,
       label: "qwen-portal-refresh-token",
-      onResponse: async (r) => {
-        if (!r.ok) {
-          if (r.status === 400) {
+      onResponse: async (res) => {
+        if (!res.ok) {
+          if (res.status === 400) {
             throw new Error(
               `Qwen OAuth refresh token expired or invalid. Re-authenticate with \`${formatCliCommand("openclaw models auth login --provider qwen-portal")}\`.`,
             );
           }
-          const text = await r.text();
-          throw new Error(`Qwen OAuth refresh failed: ${text || r.statusText}`);
+          const text = await res.text();
+          throw new Error(`Qwen OAuth refresh failed: ${text || res.statusText}`);
         }
-        return r;
+        return res;
       },
     },
   );
