@@ -363,13 +363,11 @@ export async function handleDiscordMessagingAction(
         typeof autoArchiveMinutesRaw === "number" && Number.isFinite(autoArchiveMinutesRaw)
           ? autoArchiveMinutesRaw
           : undefined;
+      const appliedTagIds = readStringArrayParam(params, "appliedTagIds");
+      const threadPayload = { name, messageId, autoArchiveMinutes, content, appliedTagIds };
       const thread = accountId
-        ? await createThreadDiscord(
-            channelId,
-            { name, messageId, autoArchiveMinutes, content },
-            { accountId },
-          )
-        : await createThreadDiscord(channelId, { name, messageId, autoArchiveMinutes, content });
+        ? await createThreadDiscord(channelId, threadPayload, { accountId })
+        : await createThreadDiscord(channelId, threadPayload);
       return jsonResult({ ok: true, thread });
     }
     case "threadList": {
