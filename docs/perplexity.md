@@ -8,8 +8,8 @@ title: "Perplexity Sonar"
 
 # Perplexity Sonar
 
-OpenClaw can use Perplexity Sonar for the `web_search` tool. You can connect
-through Perplexity’s direct API or via OpenRouter.
+OpenClaw uses Perplexity Sonar as the default provider for the `web_search`
+tool. You can connect through Perplexity’s direct API or via OpenRouter.
 
 ## API options
 

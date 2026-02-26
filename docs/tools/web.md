@@ -1,9 +1,9 @@
 ---
-summary: "Web search + fetch tools (Brave Search API, Perplexity direct/OpenRouter, Gemini Google Search grounding)"
+summary: "Web search + fetch tools (Perplexity via OpenRouter/default, Brave alternative, Gemini Google Search grounding)"
 read_when:
   - You want to enable web_search or web_fetch
-  - You need Brave Search API key setup
-  - You want to use Perplexity Sonar for web search
+  - You want to use Perplexity Sonar (default) for web search
+  - You need Brave Search API key setup as an alternative
   - You want to use Gemini with Google Search grounding
 title: "Web Tools"
 ---
@@ -12,7 +12,7 @@ title: "Web Tools"
 
 OpenClaw ships two lightweight web tools:
 
-- `web_search` — Search the web via Brave Search API (default), Perplexity Sonar, or Gemini with Google Search grounding.
+- `web_search` — Search the web via Perplexity Sonar (default), Brave Search API, or Gemini with Google Search grounding.
 - `web_fetch` — HTTP fetch + readable extraction (HTML → markdown/text).
 
 These are **not** browser automation. For JS-heavy sites or logins, use the
@@ -21,8 +21,8 @@ These are **not** browser automation. For JS-heavy sites or logins, use the
 ## How it works
 
 - `web_search` calls your configured provider and returns results.
-  - **Brave** (default): returns structured results (title, URL, snippet).
-  - **Perplexity**: returns AI-synthesized answers with citations from real-time web search.
+  - **Perplexity** (default): returns AI-synthesized answers with citations from real-time web search.
+  - **Brave**: returns structured results (title, URL, snippet).
   - **Gemini**: returns AI-synthesized answers grounded in Google Search with citations.
 - Results are cached by query for 15 minutes (configurable).
 - `web_fetch` does a plain HTTP GET and extracts readable content
@@ -33,8 +33,8 @@ These are **not** browser automation. For JS-heavy sites or logins, use the
 
 | Provider            | Pros                                         | Cons                                     | API Key                                      |
 | ------------------- | -------------------------------------------- | ---------------------------------------- | -------------------------------------------- |
-| **Brave** (default) | Fast, structured results, free tier          | Traditional search results               | `BRAVE_API_KEY`                              |
-| **Perplexity**      | AI-synthesized answers, citations, real-time | Requires Perplexity or OpenRouter access | `OPENROUTER_API_KEY` or `PERPLEXITY_API_KEY` |
+| **Perplexity** (default) | AI-synthesized answers, citations, real-time | Requires Perplexity or OpenRouter access | `OPENROUTER_API_KEY` or `PERPLEXITY_API_KEY` |
+| **Brave**               | Fast, structured results, free tier          | Traditional search results               | `BRAVE_API_KEY`                              |
 | **Gemini**          | Google Search grounding, AI-synthesized      | Requires Gemini API key                  | `GEMINI_API_KEY`                             |
 
 See [Brave Search setup](/brave-search) and [Perplexity Sonar](/perplexity) for provider-specific details.
@@ -43,12 +43,13 @@ See [Brave Search setup](/brave-search) and [Perplexity Sonar](/perplexity) for 
 
 If no `provider` is explicitly set, OpenClaw auto-detects which provider to use based on available API keys, checking in this order:
 
-1. **Brave** — `BRAVE_API_KEY` env var or `search.apiKey` config
+1. **Perplexity** — `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY` env var or `search.perplexity.apiKey` config
 2. **Gemini** — `GEMINI_API_KEY` env var or `search.gemini.apiKey` config
-3. **Perplexity** — `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY` env var or `search.perplexity.apiKey` config
-4. **Grok** — `XAI_API_KEY` env var or `search.grok.apiKey` config
+3. **Kimi** — `KIMI_API_KEY` / `MOONSHOT_API_KEY` env var or `search.kimi.apiKey` config
+4. **Brave** — `BRAVE_API_KEY` env var or `search.apiKey` config
+5. **Grok** — `XAI_API_KEY` env var or `search.grok.apiKey` config
 
-If no keys are found, it falls back to Brave (you'll get a missing-key error prompting you to configure one).
+If no keys are found, it falls back to Perplexity (you'll get a missing-key error prompting you to configure one).
 
 ### Explicit provider
 
@@ -59,49 +60,27 @@ Set the provider in config:
   tools: {
     web: {
       search: {
-        provider: "brave", // or "perplexity" or "gemini"
+        provider: "perplexity", // or "brave" or "gemini"
       },
     },
   },
 }
 ```
 
-Example: switch to Perplexity Sonar (direct API):
+Example: switch to Brave Search:
 
 ```json5
 {
   tools: {
     web: {
       search: {
-        provider: "perplexity",
-        perplexity: {
-          apiKey: "pplx-...",
-          baseUrl: "https://api.perplexity.ai",
-          model: "perplexity/sonar-pro",
-        },
+        provider: "brave",
+        apiKey: "BRAVE_API_KEY_HERE",
       },
     },
   },
 }
 ```
-
-## Getting a Brave API key
-
-1. Create a Brave Search API account at [https://brave.com/search/api/](https://brave.com/search/api/)
-2. In the dashboard, choose the **Data for Search** plan (not “Data for AI”) and generate an API key.
-3. Run `openclaw configure --section web` to store the key in config (recommended), or set `BRAVE_API_KEY` in your environment.
-
-Brave provides a free tier plus paid plans; check the Brave API portal for the
-current limits and pricing.
-
-### Where to set the key (recommended)
-
-**Recommended:** run `openclaw configure --section web`. It stores the key in
-`~/.openclaw/openclaw.json` under `tools.web.search.apiKey`.
-
-**Environment alternative:** set `BRAVE_API_KEY` in the Gateway process
-environment. For a gateway install, put it in `~/.openclaw/.env` (or your
-service environment). See [Env vars](/help/faq#how-does-openclaw-load-environment-variables).
 
 ## Using Perplexity (direct or via OpenRouter)
 
@@ -155,6 +134,21 @@ If no base URL is set, OpenClaw chooses a default based on the API key source:
 | `perplexity/sonar-pro` (default) | Multi-step reasoning with web search | Complex questions |
 | `perplexity/sonar-reasoning-pro` | Chain-of-thought analysis            | Deep research     |
 
+## Getting a Brave API key (alternative provider)
+
+1. Create a Brave Search API account at [https://brave.com/search/api/](https://brave.com/search/api/)
+2. In the dashboard, choose the **Data for Search** plan (not “Data for AI”) and generate an API key.
+3. Run `openclaw configure --section web` to store the key in config, or set `BRAVE_API_KEY` in your environment.
+
+Brave provides a free tier plus paid plans; check the Brave API portal for the
+current limits and pricing.
+
+### Where to set the key
+
+Set `tools.web.search.apiKey` in config, or set `BRAVE_API_KEY` in the Gateway process
+environment. For a gateway install, put it in `~/.openclaw/.env` (or your
+service environment). See [Env vars](/help/faq#how-does-openclaw-load-environment-variables).
+
 ## Using Gemini (Google Search grounding)
 
 Gemini models support built-in [Google Search grounding](https://ai.google.dev/gemini-api/docs/grounding),
@@ -206,8 +200,8 @@ Search the web using your configured provider.
 
 - `tools.web.search.enabled` must not be `false` (default: enabled)
 - API key for your chosen provider:
-  - **Brave**: `BRAVE_API_KEY` or `tools.web.search.apiKey`
   - **Perplexity**: `OPENROUTER_API_KEY`, `PERPLEXITY_API_KEY`, or `tools.web.search.perplexity.apiKey`
+  - **Brave**: `BRAVE_API_KEY` or `tools.web.search.apiKey`
 
 ### Config
 
@@ -217,7 +211,10 @@ Search the web using your configured provider.
     web: {
       search: {
         enabled: true,
-        apiKey: "BRAVE_API_KEY_HERE", // optional if BRAVE_API_KEY is set
+        provider: "perplexity",
+        perplexity: {
+          apiKey: "OPENROUTER_OR_PERPLEXITY_KEY_HERE", // optional if OPENROUTER_API_KEY or PERPLEXITY_API_KEY is set
+        },
         maxResults: 5,
         timeoutSeconds: 30,
         cacheTtlMinutes: 15,
@@ -321,4 +318,4 @@ Notes:
 - See [Firecrawl](/tools/firecrawl) for key setup and service details.
 - Responses are cached (default 15 minutes) to reduce repeated fetches.
 - If you use tool profiles/allowlists, add `web_search`/`web_fetch` or `group:web`.
-- If the Brave key is missing, `web_search` returns a short setup hint with a docs link.
+- If the configured provider key is missing, `web_search` returns a short setup hint with a docs link.

@@ -75,12 +75,12 @@ OpenClaw 可以从以下来源获取凭据：
 
 请参阅[记忆](/concepts/memory)。
 
-### 4）网页搜索工具（Brave / 通过 OpenRouter 使用 Perplexity）
+### 4）网页搜索工具（通过 OpenRouter 使用 Perplexity / Brave 替代）
 
 `web_search` 使用 API 密钥，可能产生使用费用：
 
-- **Brave Search API**：`BRAVE_API_KEY` 或 `tools.web.search.apiKey`
 - **Perplexity**（通过 OpenRouter）：`PERPLEXITY_API_KEY` 或 `OPENROUTER_API_KEY`
+- **Brave Search API**（替代）：`BRAVE_API_KEY` 或 `tools.web.search.apiKey`
 
 **Brave 免费套餐（额度充裕）：**
 

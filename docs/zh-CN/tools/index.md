@@ -232,7 +232,7 @@ OpenClaw 为 browser、canvas、nodes 和 cron 暴露**一流的智能体工具*
 
 ### `web_search`
 
-使用 Brave Search API 搜索网络。
+使用 Perplexity Sonar（默认）搜索网络，Brave 作为替代提供商。
 
 核心参数：
 
@@ -241,7 +241,7 @@ OpenClaw 为 browser、canvas、nodes 和 cron 暴露**一流的智能体工具*
 
 注意：
 
-- 需要 Brave API 密钥（推荐：`openclaw configure --section web`，或设置 `BRAVE_API_KEY`）。
+- 需要提供商 API 密钥（推荐：`openclaw configure --section web`；默认可用 `OPENROUTER_API_KEY` 或 `PERPLEXITY_API_KEY`，Brave 仍支持 `BRAVE_API_KEY`）。
 - 通过 `tools.web.search.enabled` 启用。
 - 响应被缓存（默认 15 分钟）。
 - 参见 [Web 工具](/tools/web) 了解设置。

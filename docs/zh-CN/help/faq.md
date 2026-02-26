@@ -1266,7 +1266,7 @@ Gateway 网关监视配置文件并支持热重载：
 
 ### 如何启用网络搜索（和网页抓取）
 
-`web_fetch` 无需 API 密钥即可工作。`web_search` 需要 Brave Search API 密钥。**推荐：** 运行 `openclaw configure --section web` 将其存储在 `tools.web.search.apiKey` 中。环境变量替代方案：为 Gateway 网关进程设置 `BRAVE_API_KEY`。
+`web_fetch` 无需 API 密钥即可工作。`web_search` 默认使用 Perplexity，需要 Perplexity/OpenRouter 密钥（或其他提供商密钥，如 Brave）。**推荐：** 运行 `openclaw configure --section web` 将其存储在 `tools.web.search.perplexity.apiKey` 中。环境变量替代方案：为 Gateway 网关进程设置 `PERPLEXITY_API_KEY` 或 `OPENROUTER_API_KEY`。
 
 ```json5
 {
@@ -1274,7 +1274,10 @@ Gateway 网关监视配置文件并支持热重载：
     web: {
       search: {
         enabled: true,
-        apiKey: "BRAVE_API_KEY_HERE",
+        provider: "perplexity",
+        perplexity: {
+          apiKey: "OPENROUTER_OR_PERPLEXITY_KEY_HERE",
+        },
         maxResults: 5,
       },
       fetch: {

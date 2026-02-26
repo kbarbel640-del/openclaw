@@ -355,12 +355,14 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
 
   // Auto-detect provider from available API keys (priority order)
   if (raw === "") {
-    // 1. Brave
-    if (resolveSearchApiKey(search)) {
+    // 1. Perplexity
+    const perplexityConfig = resolvePerplexityConfig(search);
+    const { apiKey: perplexityKey } = resolvePerplexityApiKey(perplexityConfig);
+    if (perplexityKey) {
       logVerbose(
-        'web_search: no provider configured, auto-detected "brave" from available API keys',
+        'web_search: no provider configured, auto-detected "perplexity" from available API keys',
       );
-      return "brave";
+      return "perplexity";
     }
     // 2. Gemini
     const geminiConfig = resolveGeminiConfig(search);
@@ -378,14 +380,12 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
       );
       return "kimi";
     }
-    // 4. Perplexity
-    const perplexityConfig = resolvePerplexityConfig(search);
-    const { apiKey: perplexityKey } = resolvePerplexityApiKey(perplexityConfig);
-    if (perplexityKey) {
+    // 4. Brave
+    if (resolveSearchApiKey(search)) {
       logVerbose(
-        'web_search: no provider configured, auto-detected "perplexity" from available API keys',
+        'web_search: no provider configured, auto-detected "brave" from available API keys',
       );
-      return "perplexity";
+      return "brave";
     }
     // 5. Grok
     const grokConfig = resolveGrokConfig(search);
@@ -397,7 +397,7 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
     }
   }
 
-  return "brave";
+  return "perplexity";
 }
 
 function resolvePerplexityConfig(search?: WebSearchConfig): PerplexityConfig {

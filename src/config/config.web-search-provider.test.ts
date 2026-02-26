@@ -72,8 +72,8 @@ describe("web search provider auto-detection", () => {
     vi.restoreAllMocks();
   });
 
-  it("falls back to brave when no keys available", () => {
-    expect(resolveSearchProvider({})).toBe("brave");
+  it("falls back to perplexity when no keys available", () => {
+    expect(resolveSearchProvider({})).toBe("perplexity");
   });
 
   it("auto-detects brave when only BRAVE_API_KEY is set", () => {
@@ -111,16 +111,19 @@ describe("web search provider auto-detection", () => {
     expect(resolveSearchProvider({})).toBe("kimi");
   });
 
-  it("follows priority order — brave wins when multiple keys available", () => {
+  it("follows priority order — perplexity wins when multiple keys available", () => {
+    process.env.PERPLEXITY_API_KEY = "test-perplexity-key";
     process.env.BRAVE_API_KEY = "test-brave-key";
     process.env.GEMINI_API_KEY = "test-gemini-key";
     process.env.XAI_API_KEY = "test-xai-key";
-    expect(resolveSearchProvider({})).toBe("brave");
+    expect(resolveSearchProvider({})).toBe("perplexity");
   });
 
-  it("gemini wins over perplexity and grok when brave unavailable", () => {
+  it("gemini wins over kimi, brave, and grok when perplexity unavailable", () => {
     process.env.GEMINI_API_KEY = "test-gemini-key";
-    process.env.PERPLEXITY_API_KEY = "test-perplexity-key";
+    process.env.KIMI_API_KEY = "test-kimi-key";
+    process.env.BRAVE_API_KEY = "test-brave-key";
+    process.env.XAI_API_KEY = "test-xai-key";
     expect(resolveSearchProvider({})).toBe("gemini");
   });
 

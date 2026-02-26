@@ -1576,7 +1576,10 @@ Settings can be defined globally in `tools.loopDetection` and overridden per-age
     web: {
       search: {
         enabled: true,
-        apiKey: "brave_api_key", // or BRAVE_API_KEY env
+        provider: "perplexity", // default provider
+        perplexity: {
+          apiKey: "openrouter_or_perplexity_key", // or OPENROUTER_API_KEY / PERPLEXITY_API_KEY env
+        },
         maxResults: 5,
         timeoutSeconds: 30,
         cacheTtlMinutes: 15,

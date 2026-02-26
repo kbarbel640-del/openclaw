@@ -35,9 +35,9 @@ openclaw agents add <name>
 </Note>
 
 <Tip>
-Recommended: set up a Brave Search API key so the agent can use `web_search`
+Recommended: set up Perplexity via OpenRouter so the agent can use `web_search`
 (`web_fetch` works without a key). Easiest path: `openclaw configure --section web`
-which stores `tools.web.search.apiKey`. Docs: [Web tools](/tools/web).
+which stores `tools.web.search.perplexity.apiKey` (Brave is still supported as an alternative). Docs: [Web tools](/tools/web).
 </Tip>
 
 ## QuickStart vs Advanced

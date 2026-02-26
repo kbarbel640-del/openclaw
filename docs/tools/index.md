@@ -255,7 +255,7 @@ Enable with `tools.loopDetection.enabled: true` (default is `false`).
 
 ### `web_search`
 
-Search the web using Brave Search API.
+Search the web using Perplexity Sonar (default), with Brave as an alternative provider.
 
 Core parameters:
 
@@ -264,7 +264,7 @@ Core parameters:
 
 Notes:
 
-- Requires a Brave API key (recommended: `openclaw configure --section web`, or set `BRAVE_API_KEY`).
+- Requires a provider API key (recommended: `openclaw configure --section web`; Perplexity via `OPENROUTER_API_KEY` or `PERPLEXITY_API_KEY` is the default path, Brave is also supported via `BRAVE_API_KEY`).
 - Enable via `tools.web.search.enabled`.
 - Responses are cached (default 15 min).
 - See [Web tools](/tools/web) for setup.
