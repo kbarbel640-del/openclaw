@@ -114,7 +114,9 @@ function sameModelCandidate(a: ModelCandidate, b: ModelCandidate): boolean {
 }
 
 function resolveModelFamilyKey(model: string): string {
-  const raw = String(model ?? "").trim().toLowerCase();
+  const raw = String(model ?? "")
+    .trim()
+    .toLowerCase();
   if (!raw) {
     return "";
   }
