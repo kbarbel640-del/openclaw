@@ -58,6 +58,24 @@ describe("config compaction settings", () => {
     );
   });
 
+  it("preserves compaction timeoutMs", async () => {
+    await withTempHomeConfig(
+      {
+        agents: {
+          defaults: {
+            compaction: {
+              timeoutMs: 600_000,
+            },
+          },
+        },
+      },
+      async () => {
+        const cfg = loadConfig();
+        expect(cfg.agents?.defaults?.compaction?.timeoutMs).toBe(600_000);
+      },
+    );
+  });
+
   it("defaults compaction mode to safeguard", async () => {
     await withTempHomeConfig(
       {
