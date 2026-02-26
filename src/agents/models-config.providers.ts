@@ -226,12 +226,22 @@ type VllmModelsResponse = {
  * strip the `/v1` suffix when present.
  */
 export function resolveOllamaApiBase(configuredBaseUrl?: string): string {
-  if (!configuredBaseUrl) {
+  // Resolution order:
+  // 1. Explicit config (models.providers.ollama.baseUrl)
+  // 2. OLLAMA_HOST env var (standard Ollama SDK/CLI convention)
+  // 3. Hardcoded localhost fallback
+  const raw = configuredBaseUrl || process.env.OLLAMA_HOST || undefined;
+  if (!raw) {
     return OLLAMA_API_BASE_URL;
   }
-  // Strip trailing slash, then strip /v1 suffix if present
-  const trimmed = configuredBaseUrl.replace(/\/+$/, "");
-  return trimmed.replace(/\/v1$/i, "");
+  // Normalise: strip trailing slash, then strip /v1 suffix if present
+  let trimmed = raw.replace(/\/+$/, "");
+  trimmed = trimmed.replace(/\/v1$/i, "");
+  // OLLAMA_HOST may be just "host:port" without a scheme — add http://
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `http://${trimmed}`;
+  }
+  return trimmed;
 }
 
 async function discoverOllamaModels(baseUrl?: string): Promise<ModelDefinitionConfig[]> {

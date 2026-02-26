@@ -22,6 +22,39 @@ describe("resolveOllamaApiBase", () => {
     expect(resolveOllamaApiBase("http://ollama-host:11434/v1/")).toBe("http://ollama-host:11434");
     expect(resolveOllamaApiBase("http://ollama-host:11434/")).toBe("http://ollama-host:11434");
   });
+
+  it("falls back to OLLAMA_HOST env var when no config provided", () => {
+    const prev = process.env.OLLAMA_HOST;
+    try {
+      process.env.OLLAMA_HOST = "http://192.168.4.168:11434";
+      expect(resolveOllamaApiBase()).toBe("http://192.168.4.168:11434");
+    } finally {
+      if (prev === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prev;
+    }
+  });
+
+  it("adds http:// scheme to OLLAMA_HOST when missing", () => {
+    const prev = process.env.OLLAMA_HOST;
+    try {
+      process.env.OLLAMA_HOST = "192.168.4.168:11434";
+      expect(resolveOllamaApiBase()).toBe("http://192.168.4.168:11434");
+    } finally {
+      if (prev === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prev;
+    }
+  });
+
+  it("prefers explicit config over OLLAMA_HOST env var", () => {
+    const prev = process.env.OLLAMA_HOST;
+    try {
+      process.env.OLLAMA_HOST = "http://env-host:11434";
+      expect(resolveOllamaApiBase("http://config-host:11434")).toBe("http://config-host:11434");
+    } finally {
+      if (prev === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prev;
+    }
+  });
 });
 
 describe("Ollama provider", () => {
