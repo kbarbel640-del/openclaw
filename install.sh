@@ -1500,10 +1500,26 @@ ensure_openclaw_bin_link() {
 # Check for existing OpenClaw installation
 check_existing_openclaw() {
     if [[ -n "$(type -P openclaw 2>/dev/null || true)" ]]; then
-        ui_info "Existing OpenClaw installation detected, upgrading"
+        ui_info "Existing OpenClaw installation detected"
         return 0
     fi
     return 1
+}
+
+# Uninstall existing OpenClaw background service and binary
+uninstall_existing_openclaw() {
+    ui_info "Attempting to uninstall existing OpenClaw before installing custom version..."
+    
+    # Try removing the gateway service if accessible
+    if command -v openclaw >/dev/null 2>&1; then
+        openclaw gateway uninstall --force >/dev/null 2>&1 || true
+    fi
+
+    # Attempt to uninstall generic NPM package
+    ui_info "  Uninstalling NPM openclaw globally..."
+    npm uninstall -g openclaw >/dev/null 2>&1 || true
+    
+    ui_success "Legacy OpenClaw cleaned up (if any)"
 }
 
 set_pnpm_cmd() {
@@ -2092,6 +2108,7 @@ main() {
     local is_upgrade=false
     if check_existing_openclaw; then
         is_upgrade=true
+        uninstall_existing_openclaw
     fi
     local should_open_dashboard=false
     local skip_onboard=false
