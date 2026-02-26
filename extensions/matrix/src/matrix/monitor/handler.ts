@@ -20,7 +20,12 @@ import {
   parsePollStartContent,
   type PollStartContent,
 } from "../poll-types.js";
-import { reactMatrixMessage, sendMessageMatrix, sendTypingMatrix } from "../send.js";
+import {
+  reactMatrixMessage,
+  sendMessageMatrix,
+  sendReadReceiptMatrix,
+  sendTypingMatrix,
+} from "../send.js";
 import {
   normalizeMatrixAllowList,
   resolveMatrixAllowListMatch,
@@ -621,6 +626,13 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
       }
 
       let didSendReply = false;
+      if (messageId) {
+        sendReadReceiptMatrix(roomId, messageId, client).catch((err) => {
+          logVerboseMessage(
+            `matrix: read receipt failed room=${roomId} id=${messageId}: ${String(err)}`,
+          );
+        });
+      }
       const tableMode = core.channel.text.resolveMarkdownTableMode({
         cfg,
         channel: "matrix",
@@ -671,7 +683,6 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
               accountId: route.accountId,
               tableMode,
             });
-            didSendReply = true;
           },
           onError: (err, info) => {
             runtime.error?.(`matrix ${info.kind} reply failed: ${String(err)}`);
@@ -698,18 +709,10 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
       if (!queuedFinal) {
         return;
       }
-      didSendReply = true;
       const finalCount = counts.final;
       logVerboseMessage(
         `matrix: delivered ${finalCount} reply${finalCount === 1 ? "" : "ies"} to ${replyTarget}`,
       );
-      if (didSendReply) {
-        const previewText = bodyText.replace(/\s+/g, " ").slice(0, 160);
-        core.system.enqueueSystemEvent(`Matrix message from ${senderName}: ${previewText}`, {
-          sessionKey: route.sessionKey,
-          contextKey: `matrix:message:${roomId}:${messageId || "unknown"}`,
-        });
-      }
     } catch (err) {
       runtime.error?.(`matrix handler failed: ${String(err)}`);
     }
