@@ -734,6 +734,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       logVerbose(`discord: draft cleanup failed: ${String(err)}`);
     } finally {
       markDispatchIdle();
+      // Explicitly cleanup typing to stop the keepalive loop on NO_REPLY/silent runs.
+      // Without this, the typing indicator persists indefinitely because
+      // markRunComplete() is never called for silent replies.
+      typingCallbacks.onCleanup?.();
     }
     if (statusReactionsEnabled) {
       if (dispatchError) {
