@@ -3,6 +3,7 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts } from "./accounts.js";
+import { BATCH_SIZE, insertBlocksInBatches } from "./batch-insert.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
@@ -76,10 +77,9 @@ function sortBlocksByFirstLevel(blocks: any[], firstLevelIds: string[]): any[] {
   return [...sorted, ...remaining];
 }
 
-const BATCH_SIZE = 1000; // Feishu API limit per request
-
 /**
- * Insert blocks using Descendant API (single batch, <1000 blocks).
+ * Insert blocks using Descendant API (single request, <1000 blocks).
+ * For larger documents, use insertBlocksInBatches from batch-insert.ts.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
 async function insertBlocksWithDescendant(
@@ -87,10 +87,8 @@ async function insertBlocksWithDescendant(
   docToken: string,
   blocks: any[],
   firstLevelBlockIds: string[],
-  parentBlockId?: string,
 ): Promise<{ children: any[]; skipped: string[] }> {
   /* eslint-enable @typescript-eslint/no-explicit-any */
-  const blockId = parentBlockId ?? docToken;
   const descendants = cleanBlocksForDescendant(blocks);
 
   if (descendants.length === 0) {
@@ -98,7 +96,7 @@ async function insertBlocksWithDescendant(
   }
 
   const res = await client.docx.documentBlockDescendant.create({
-    path: { document_id: docToken, block_id: blockId },
+    path: { document_id: docToken, block_id: docToken },
     data: {
       children_id: firstLevelBlockIds,
       descendants,
@@ -111,85 +109,6 @@ async function insertBlocksWithDescendant(
 
   const children = res.data?.children ?? [];
   return { children, skipped: [] };
-}
-
-/**
- * Collect all descendant block IDs for a given set of first-level block IDs.
- */
-/* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
-function collectDescendants(blocks: any[], firstLevelIds: string[]): any[] {
-  const blockMap = new Map<string, any>();
-  for (const block of blocks) {
-    blockMap.set(block.block_id, block);
-  }
-
-  const result: any[] = [];
-  const visited = new Set<string>();
-
-  function collect(blockId: string) {
-    if (visited.has(blockId)) return;
-    visited.add(blockId);
-
-    const block = blockMap.get(blockId);
-    if (!block) return;
-
-    result.push(block);
-
-    // Recursively collect children
-    const children = block.children;
-    if (Array.isArray(children)) {
-      for (const childId of children) {
-        collect(childId);
-      }
-    } else if (typeof children === "string") {
-      collect(children);
-    }
-  }
-
-  for (const id of firstLevelIds) {
-    collect(id);
-  }
-
-  return result;
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-/**
- * Insert blocks in batches (for >1000 blocks).
- * Splits first-level blocks into batches and inserts each with its descendants.
- */
-/* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
-async function insertBlocksInBatches(
-  client: Lark.Client,
-  docToken: string,
-  blocks: any[],
-  firstLevelBlockIds: string[],
-  logger?: Logger,
-): Promise<{ children: any[]; skipped: string[] }> {
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-  const allChildren: any[] = [];
-  const totalBatches = Math.ceil(firstLevelBlockIds.length / BATCH_SIZE);
-
-  for (let i = 0; i < firstLevelBlockIds.length; i += BATCH_SIZE) {
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    const batchFirstLevelIds = firstLevelBlockIds.slice(i, i + BATCH_SIZE);
-    const batchBlocks = collectDescendants(blocks, batchFirstLevelIds);
-
-    logger?.info?.(
-      `feishu_doc: Inserting batch ${batchNum}/${totalBatches} (${batchBlocks.length} blocks)...`,
-    );
-
-    const { children } = await insertBlocksWithDescendant(
-      client,
-      docToken,
-      batchBlocks,
-      batchFirstLevelIds,
-    );
-
-    allChildren.push(...children);
-  }
-
-  return { children: allChildren, skipped: [] };
 }
 
 async function clearDocumentContent(client: Lark.Client, docToken: string) {
