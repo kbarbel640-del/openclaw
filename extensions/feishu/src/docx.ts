@@ -270,15 +270,25 @@ async function createDoc(client: Lark.Client, title: string, folderToken?: strin
   };
 }
 
-async function writeDoc(client: Lark.Client, docToken: string, markdown: string, maxBytes: number) {
+type Logger = { info?: (msg: string) => void };
+
+async function writeDoc(
+  client: Lark.Client,
+  docToken: string,
+  markdown: string,
+  maxBytes: number,
+  logger?: Logger,
+) {
   const deleted = await clearDocumentContent(client, docToken);
 
+  logger?.info?.("feishu_doc: Converting markdown...");
   const { blocks, firstLevelBlockIds } = await convertMarkdown(client, markdown);
   if (blocks.length === 0) {
     return { success: true, blocks_deleted: deleted, blocks_added: 0, images_processed: 0 };
   }
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
+  logger?.info?.(`feishu_doc: Converted to ${blocks.length} blocks, inserting...`);
   // Use Descendant API - supports all block types including tables
   const { children: inserted } = await insertBlocksWithDescendant(
     client,
@@ -287,8 +297,15 @@ async function writeDoc(client: Lark.Client, docToken: string, markdown: string,
     firstLevelBlockIds,
   );
 
+  const imageUrls = extractImageUrls(markdown);
+  if (imageUrls.length > 0) {
+    logger?.info?.(
+      `feishu_doc: Inserted ${inserted.length} blocks, processing ${imageUrls.length} images...`,
+    );
+  }
   const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
 
+  logger?.info?.(`feishu_doc: Done (${inserted.length} blocks, ${imagesProcessed} images)`);
   return {
     success: true,
     blocks_deleted: deleted,
@@ -302,13 +319,16 @@ async function appendDoc(
   docToken: string,
   markdown: string,
   maxBytes: number,
+  logger?: Logger,
 ) {
+  logger?.info?.("feishu_doc: Converting markdown...");
   const { blocks, firstLevelBlockIds } = await convertMarkdown(client, markdown);
   if (blocks.length === 0) {
     throw new Error("Content is empty");
   }
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
+  logger?.info?.(`feishu_doc: Converted to ${blocks.length} blocks, inserting...`);
   // Use Descendant API - supports all block types including tables
   const { children: inserted } = await insertBlocksWithDescendant(
     client,
@@ -317,8 +337,15 @@ async function appendDoc(
     firstLevelBlockIds,
   );
 
+  const imageUrls = extractImageUrls(markdown);
+  if (imageUrls.length > 0) {
+    logger?.info?.(
+      `feishu_doc: Inserted ${inserted.length} blocks, processing ${imageUrls.length} images...`,
+    );
+  }
   const imagesProcessed = await processImages(client, docToken, markdown, inserted, maxBytes);
 
+  logger?.info?.(`feishu_doc: Done (${inserted.length} blocks, ${imagesProcessed} images)`);
   return {
     success: true,
     blocks_added: inserted.length,
@@ -475,9 +502,13 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
               case "read":
                 return json(await readDoc(client, p.doc_token));
               case "write":
-                return json(await writeDoc(client, p.doc_token, p.content, mediaMaxBytes));
+                return json(
+                  await writeDoc(client, p.doc_token, p.content, mediaMaxBytes, api.logger),
+                );
               case "append":
-                return json(await appendDoc(client, p.doc_token, p.content, mediaMaxBytes));
+                return json(
+                  await appendDoc(client, p.doc_token, p.content, mediaMaxBytes, api.logger),
+                );
               case "create":
                 return json(await createDoc(client, p.title, p.folder_token));
               case "list_blocks":
