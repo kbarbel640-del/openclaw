@@ -25,7 +25,7 @@ else
   exit 1
 fi
 
-if ! "$CONTAINER_CMD" images ls >/dev/null 2>&1; then
+if ! "$CONTAINER_CMD" image ls >/dev/null 2>&1; then
   echo "Warning: Container runtime not responding. Try: $CONTAINER_CMD system start" >&2
 fi
 
