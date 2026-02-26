@@ -144,6 +144,16 @@ export OTEL_EXPORTER_OTLP_HEADERS_AUTH="your-api-key"
 otelcol-contrib --config /etc/otelcol/config.yaml
 ```
 
+Create the environment file referenced by the systemd unit:
+
+```bash
+sudo tee /etc/otelcol/env > /dev/null <<'ENV'
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-backend:4317
+OTEL_EXPORTER_OTLP_HEADERS_AUTH=your-api-key
+ENV
+sudo chmod 600 /etc/otelcol/env
+```
+
 Or as a systemd service:
 
 ```bash
@@ -187,6 +197,34 @@ journalctl -u otelcol -f --no-pager | head -20
 ### Check your backend
 
 Query for logs where `service.name = "openclaw-security"` in your observability backend. You should see Tetragon events appearing within a few seconds of the batch interval.
+
+## 6. Tuning
+
+The default policies are intentionally broad. In production you will want to reduce noise:
+
+- **Narrow binary selectors.** The process-exec policy (`01-process-exec.yaml`) watches `/usr/bin/node` and `/usr/local/bin/node`. If OpenClaw runs from a different path (e.g. nvm, Homebrew, container image), update the `matchBinaries` values. Remove paths that do not apply to your setup.
+- **Exclude known-safe file access.** If your application legitimately reads `.env` on every startup, add a `matchActions` with `action: NoPost` for that specific path, or remove the pattern from `02-sensitive-files.yaml`.
+- **Rate-limit shell events.** The dangerous-commands policy fires on every `/bin/bash` and `/bin/sh` exec. On busy hosts this can be noisy. Consider removing the shell selector and relying on correlation with `curl`/`wget` events in your backend instead.
+- **Use `matchNamespaces` in Kubernetes.** Scope policies to the namespace where OpenClaw runs so unrelated workloads do not generate events:
+
+  ```yaml
+  selectors:
+    - matchNamespaces:
+        - namespace: openclaw
+  ```
+
+- **Adjust OTel Collector batch size.** If event volume is high, increase `send_batch_size` and `timeout` in `collector-config.yaml` to reduce export overhead.
+- **Filter at the Collector.** Add a `filter` processor to drop low-value events before they reach your backend:
+
+  ```yaml
+  processors:
+    filter/tetragon:
+      logs:
+        exclude:
+          match_type: strict
+          bodies:
+            - '{"process_exec":null}'
+  ```
 
 ## Combining with diagnostics-otel
 

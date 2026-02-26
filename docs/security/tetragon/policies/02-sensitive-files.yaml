@@ -43,8 +43,17 @@ spec:
               operator: Prefix
               values:
                 - /root/.ssh/
+        # Match .ssh paths under /home/<user>/ — both conditions
+        # must hold so we don't fire on every file under /home.
+        - matchArgs:
+            - index: 1
+              operator: Prefix
+              values:
                 - /home/
-              # Catches any /<user>/.ssh/* path under /home
+            - index: 1
+              operator: InStr
+              values:
+                - /.ssh/
     - call: security_file_open
       args:
         - index: 0
