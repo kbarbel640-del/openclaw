@@ -43,6 +43,12 @@ export function toAgentRequestSessionKey(storeKey: string | undefined | null): s
   return parseAgentSessionKey(raw)?.rest ?? raw;
 }
 
+/**
+ * Prevent session key doubling by ensuring keys are always normalized to a consistent format.
+ * 
+ * Bug: Session key `agent:main:main` was being transformed to `agent:main:agent:main:main`
+ * when the prefix was incorrectly prepended to an already-qualified key.
+ */
 export function toAgentStoreSessionKey(params: {
   agentId: string;
   requestKey: string | undefined | null;
@@ -50,11 +56,23 @@ export function toAgentStoreSessionKey(params: {
 }): string {
   const raw = (params.requestKey ?? "").trim();
   if (!raw || raw === DEFAULT_MAIN_KEY) {
-    return buildAgentMainSessionKey({ agentId: params.agentId, mainKey: params.mainKey });
+    // Prevent key doubling: if mainKey already contains agent: prefix, normalize it
+    const effectiveMainKey = params.mainKey ?? DEFAULT_MAIN_KEY;
+    const normalizedKey = effectiveMainKey.toLowerCase().startsWith("agent:")
+      ? parseAgentSessionKey(effectiveMainKey)?.rest ?? effectiveMainKey
+      : effectiveMainKey;
+    return buildAgentMainSessionKey({ agentId: params.agentId, mainKey: normalizedKey });
   }
   const lowered = raw.toLowerCase();
   if (lowered.startsWith("agent:")) {
-    return lowered;
+    // Normalize already-qualified keys to prevent doubling
+    // Parse and reconstruct to ensure consistent formatting
+    const parsed = parseAgentSessionKey(lowered);
+    if (parsed) {
+      return `agent:${normalizeAgentId(params.agentId)}:${parsed.rest}`;
+    }
+    // Fallback for malformed keys - still add normalized prefix
+    return `agent:${normalizeAgentId(params.agentId)}:${lowered}`;
   }
   if (lowered.startsWith("subagent:")) {
     return `agent:${normalizeAgentId(params.agentId)}:${lowered}`;
