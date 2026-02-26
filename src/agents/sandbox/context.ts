@@ -6,7 +6,11 @@ import { loadConfig } from "../../config/config.js";
 import { defaultRuntime } from "../../runtime.js";
 import { evaluateRuntimeEligibility } from "../../shared/config-eval.js";
 import { resolveUserPath } from "../../utils.js";
-import { listAgentIds, resolveAgentWorkspaceDir } from "../agent-scope.js";
+import {
+  listAgentIds,
+  resolveAgentSkillsFilter,
+  resolveAgentWorkspaceDir,
+} from "../agent-scope.js";
 import { syncSkillsToWorkspace } from "../skills.js";
 import {
   hasBinary,
@@ -166,14 +170,17 @@ export async function resolveSandboxContext(params: {
           : params.config
             ? resolveAgentWorkspaceDir(params.config, agentId)
             : agentWorkspaceDir;
-      // Load skill entries and apply config + runtime filters, but stub out
-      // `hasEnv` to avoid a bootstrap deadlock: the real check tests
-      // `requires.env` against the host environment, but the env var may only
-      // exist in sandbox.docker.env. Stubbing `hasEnv` to `true` keeps OS,
-      // bins, and config checks active while breaking the circular dependency.
+      // Load skill entries and apply the same filters as shouldIncludeSkill,
+      // except `hasEnv` is stubbed to `true` to avoid a bootstrap deadlock:
+      // the real check tests `requires.env` against the host, but the var may
+      // only exist in sandbox.docker.env. The per-agent skills allowlist is
+      // also applied so skills outside the agent's scope don't widen env access.
       const entries = loadWorkspaceSkillEntries(wsDir, { config: params.config });
       const allowBundled = resolveBundledAllowlist(params.config);
-      const activeEntries = entries.filter((e) => {
+      const agentSkillFilter = params.config
+        ? resolveAgentSkillsFilter(params.config, agentId)
+        : undefined;
+      let activeEntries = entries.filter((e) => {
         const skillKey = resolveSkillKey(e.skill, e);
         const skillCfg = resolveSkillConfig(params.config, skillKey);
         if (skillCfg?.enabled === false) {
@@ -191,6 +198,9 @@ export async function resolveSandboxContext(params: {
           isConfigPathTruthy: (configPath) => isConfigPathTruthy(params.config, configPath),
         });
       });
+      if (agentSkillFilter !== undefined) {
+        activeEntries = activeEntries.filter((e) => agentSkillFilter.includes(e.skill.name));
+      }
       const declaredKeys = resolveSkillDeclaredEnvKeys(
         activeEntries.map((e) => ({
           primaryEnv: e.metadata?.primaryEnv,
