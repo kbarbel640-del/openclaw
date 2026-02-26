@@ -162,7 +162,7 @@ function makeSymlinkStat(params?: { dev?: number; ino?: number }): import("node:
 }
 
 function normalizeTestPath(value: string): string {
-  return value.replace(/\\/g, "/");
+  return value.replace(/\\/g, "/").replace(/^[A-Za-z]:/, "");
 }
 
 function mockWorkspaceStateRead(params: {
