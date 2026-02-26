@@ -33,8 +33,6 @@ namespace OpenClaw.Node
                 return;
             }
 
-            var stableClientId = ResolveStableClientId();
-
             var connectParams = new ConnectParams
             {
                 MinProtocol = Constants.GatewayProtocolVersion,
@@ -42,7 +40,7 @@ namespace OpenClaw.Node
                 Role = "node",
                 Client = new Dictionary<string, object>
                 {
-                    { "id", stableClientId },
+                    { "id", "node-host" },
                     { "displayName", Environment.MachineName },
                     { "platform", "windows" },
                     { "mode", "node" },
@@ -464,30 +462,6 @@ namespace OpenClaw.Node
                 if (args[i].Equals(key, StringComparison.OrdinalIgnoreCase)) return true;
             }
             return false;
-        }
-
-        private static string ResolveStableClientId()
-        {
-            try
-            {
-                var identity = new DeviceIdentityService().LoadOrCreate();
-                if (!string.IsNullOrWhiteSpace(identity.DeviceId))
-                {
-                    return identity.DeviceId;
-                }
-            }
-            catch
-            {
-                // Fallback below.
-            }
-
-            var machine = Environment.MachineName?.Trim();
-            if (!string.IsNullOrWhiteSpace(machine))
-            {
-                return $"node-{machine}";
-            }
-
-            return "node-host";
         }
 
         private static string? GetArgValue(string[] args, string key)
