@@ -404,6 +404,9 @@ export async function* parseNdjsonStream(
 
 // ── Main StreamFn factory ───────────────────────────────────────────────────
 
+/** Ollama error text pattern for models that reject tool call schemas (e.g. gemma3:1b) */
+const OLLAMA_TOOL_UNSUPPORTED_RE = /does not support tools/i;
+
 function resolveOllamaChatUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, "");
   const normalizedBase = trimmed.replace(/\/v1$/i, "");
@@ -452,7 +455,7 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
           headers.Authorization = `Bearer ${options.apiKey}`;
         }
 
-        const response = await fetch(chatUrl, {
+        let response = await fetch(chatUrl, {
           method: "POST",
           headers,
           body: JSON.stringify(body),
@@ -461,7 +464,25 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => "unknown error");
-          throw new Error(`Ollama API error ${response.status}: ${errorText}`);
+          // One-time fallback: some Ollama models (e.g. gemma3:1b) return HTTP 400
+          // when tools are included. Retry without tools so they can still respond.
+          if (response.status === 400 && body.tools && OLLAMA_TOOL_UNSUPPORTED_RE.test(errorText)) {
+            log.warn(`Model ${model.id} does not support tools; retrying without tools`);
+            const bodyWithoutTools = { ...body };
+            delete bodyWithoutTools.tools;
+            response = await fetch(chatUrl, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(bodyWithoutTools),
+              signal: options?.signal,
+            });
+            if (!response.ok) {
+              const retryErrorText = await response.text().catch(() => "unknown error");
+              throw new Error(`Ollama API error ${response.status}: ${retryErrorText}`);
+            }
+          } else {
+            throw new Error(`Ollama API error ${response.status}: ${errorText}`);
+          }
         }
 
         if (!response.body) {
