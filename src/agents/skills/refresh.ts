@@ -75,24 +75,20 @@ function resolveWatchPaths(workspaceDir: string, config?: OpenClawConfig): strin
   return paths;
 }
 
-function toWatchGlobRoot(raw: string): string {
-  // Chokidar treats globs as POSIX-ish patterns. Normalize Windows separators
-  // so `*` works consistently across platforms.
-  return raw.replaceAll("\\", "/").replace(/\/+$/, "");
+function resolveWatchRoots(workspaceDir: string, config?: OpenClawConfig): string[] {
+  const roots = new Set<string>();
+  for (const root of resolveWatchPaths(workspaceDir, config)) {
+    const normalized = root.trim();
+    if (!normalized) {
+      continue;
+    }
+    roots.add(path.resolve(normalized));
+  }
+  return Array.from(roots).toSorted();
 }
 
-function resolveWatchTargets(workspaceDir: string, config?: OpenClawConfig): string[] {
-  // Skills are defined by SKILL.md; watch only those files to avoid traversing
-  // or watching unrelated large trees (e.g. datasets) that can exhaust FDs.
-  const targets = new Set<string>();
-  for (const root of resolveWatchPaths(workspaceDir, config)) {
-    const globRoot = toWatchGlobRoot(root);
-    // Some configs point directly at a skill folder.
-    targets.add(`${globRoot}/SKILL.md`);
-    // Standard layout: <skillsRoot>/<skillName>/SKILL.md
-    targets.add(`${globRoot}/*/SKILL.md`);
-  }
-  return Array.from(targets).toSorted();
+function isSkillManifestPath(filePath: string): boolean {
+  return path.basename(filePath).toLowerCase() === "skill.md";
 }
 
 export function registerSkillsChangeListener(listener: (event: SkillsChangeEvent) => void) {
@@ -153,8 +149,8 @@ export function ensureSkillsWatcher(params: { workspaceDir: string; config?: Ope
     return;
   }
 
-  const watchTargets = resolveWatchTargets(workspaceDir, params.config);
-  const pathsKey = watchTargets.join("|");
+  const watchRoots = resolveWatchRoots(workspaceDir, params.config);
+  const pathsKey = watchRoots.join("|");
   if (existing && existing.pathsKey === pathsKey && existing.debounceMs === debounceMs) {
     return;
   }
@@ -166,8 +162,11 @@ export function ensureSkillsWatcher(params: { workspaceDir: string; config?: Ope
     void existing.watcher.close().catch(() => {});
   }
 
-  const watcher = chokidar.watch(watchTargets, {
+  const watcher = chokidar.watch(watchRoots, {
     ignoreInitial: true,
+    // We only care about <root>/SKILL.md and <root>/<skill>/SKILL.md.
+    // Keeping depth shallow avoids expensive recursive scans in large trees.
+    depth: 2,
     awaitWriteFinish: {
       stabilityThreshold: debounceMs,
       pollInterval: 100,
@@ -196,9 +195,15 @@ export function ensureSkillsWatcher(params: { workspaceDir: string; config?: Ope
     }, debounceMs);
   };
 
-  watcher.on("add", (p) => schedule(p));
-  watcher.on("change", (p) => schedule(p));
-  watcher.on("unlink", (p) => schedule(p));
+  const onFileEvent = (p: string) => {
+    if (!isSkillManifestPath(p)) {
+      return;
+    }
+    schedule(p);
+  };
+  watcher.on("add", onFileEvent);
+  watcher.on("change", onFileEvent);
+  watcher.on("unlink", onFileEvent);
   watcher.on("error", (err) => {
     log.warn(`skills watcher error (${workspaceDir}): ${String(err)}`);
   });

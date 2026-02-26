@@ -20,24 +20,22 @@ describe("ensureSkillsWatcher", () => {
 
     expect(watchMock).toHaveBeenCalledTimes(1);
     const firstCall = (
-      watchMock.mock.calls as unknown as Array<[string[], { ignored?: unknown }]>
+      watchMock.mock.calls as unknown as Array<[string[], { ignored?: unknown; depth?: number }]>
     )[0];
     const targets = firstCall?.[0] ?? [];
     const opts = firstCall?.[1] ?? {};
 
     expect(opts.ignored).toBe(mod.DEFAULT_SKILLS_WATCH_IGNORED);
+    expect(opts.depth).toBe(2);
     const posix = (p: string) => p.replaceAll("\\", "/");
     expect(targets).toEqual(
       expect.arrayContaining([
-        posix(path.join("/tmp/workspace", "skills", "SKILL.md")),
-        posix(path.join("/tmp/workspace", "skills", "*", "SKILL.md")),
-        posix(path.join("/tmp/workspace", ".agents", "skills", "SKILL.md")),
-        posix(path.join("/tmp/workspace", ".agents", "skills", "*", "SKILL.md")),
-        posix(path.join(os.homedir(), ".agents", "skills", "SKILL.md")),
-        posix(path.join(os.homedir(), ".agents", "skills", "*", "SKILL.md")),
+        posix(path.join("/tmp/workspace", "skills")),
+        posix(path.join("/tmp/workspace", ".agents", "skills")),
+        posix(path.join(os.homedir(), ".agents", "skills")),
       ]),
     );
-    expect(targets.every((target) => target.includes("SKILL.md"))).toBe(true);
+    expect(targets.every((target) => !target.includes("*"))).toBe(true);
     const ignored = mod.DEFAULT_SKILLS_WATCH_IGNORED;
 
     // Node/JS paths
