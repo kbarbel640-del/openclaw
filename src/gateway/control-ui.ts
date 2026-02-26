@@ -186,6 +186,15 @@ function isSafeRelativePath(relPath: string) {
   return true;
 }
 
+function resolveControlUiFilePath(root: string, fileRel: string): string | null {
+  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+  const resolved = path.resolve(rootWithSep, fileRel);
+  if (!resolved.startsWith(rootWithSep)) {
+    return null;
+  }
+  return resolved;
+}
+
 export function handleControlUiHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -312,8 +321,8 @@ export function handleControlUiHttpRequest(
     return true;
   }
 
-  const filePath = path.join(root, fileRel);
-  if (!filePath.startsWith(root)) {
+  const filePath = resolveControlUiFilePath(root, fileRel);
+  if (!filePath) {
     respondNotFound(res);
     return true;
   }
