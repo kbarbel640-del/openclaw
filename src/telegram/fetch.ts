@@ -3,6 +3,7 @@ import * as net from "node:net";
 import { Agent, setGlobalDispatcher } from "undici";
 import type { TelegramNetworkConfig } from "../config/types.telegram.js";
 import { resolveFetch } from "../infra/fetch.js";
+import { DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT } from "../infra/net/ssrf.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
   resolveTelegramAutoSelectFamilyDecision,
@@ -49,7 +50,7 @@ function applyTelegramNetworkWorkarounds(network?: TelegramNetworkConfig): void 
         new Agent({
           connect: {
             autoSelectFamily: autoSelectDecision.value,
-            autoSelectFamilyAttemptTimeout: 300,
+            autoSelectFamilyAttemptTimeout: DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT,
           },
         }),
       );

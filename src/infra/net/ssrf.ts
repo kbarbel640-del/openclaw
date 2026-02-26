@@ -329,12 +329,47 @@ export async function resolvePinnedHostname(
   return await resolvePinnedHostnameWithPolicy(hostname, { lookupFn });
 }
 
-export function createPinnedDispatcher(pinned: PinnedHostname): Dispatcher {
+/**
+ * Network-level options forwarded to the pinned undici dispatcher.
+ *
+ * When omitted the dispatcher falls back to safe defaults that work on most
+ * networks.  Callers that have access to channel-level network configuration
+ * (e.g. `channels.telegram.network`) should forward the relevant fields so
+ * the user's intent is respected for SSRF-guarded media fetches as well.
+ */
+export type DispatcherNetworkOptions = {
+  /**
+   * Override Node / undici `autoSelectFamily` (Happy Eyeballs).  When `true`
+   * undici races IPv4 and IPv6 connections; when `false` it uses the first
+   * address returned by DNS (typically IPv4 after `dedupeAndPreferIpv4`).
+   *
+   * Default: `true`.
+   */
+  autoSelectFamily?: boolean;
+  /**
+   * Milliseconds to wait for the preferred address family before trying the
+   * next one.  The previous hard-coded value of 300 ms was too aggressive for
+   * high-latency routes (Australia/Asia/South America → Telegram API).
+   *
+   * Default: `2000`.
+   */
+  autoSelectFamilyAttemptTimeout?: number;
+};
+
+const DEFAULT_AUTO_SELECT_FAMILY = true;
+export const DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT = 2_000;
+
+export function createPinnedDispatcher(
+  pinned: PinnedHostname,
+  networkOptions?: DispatcherNetworkOptions,
+): Dispatcher {
   return new Agent({
     connect: {
       lookup: pinned.lookup,
-      autoSelectFamily: true,
-      autoSelectFamilyAttemptTimeout: 300,
+      autoSelectFamily: networkOptions?.autoSelectFamily ?? DEFAULT_AUTO_SELECT_FAMILY,
+      autoSelectFamilyAttemptTimeout:
+        networkOptions?.autoSelectFamilyAttemptTimeout ??
+        DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT,
     },
   });
 }
