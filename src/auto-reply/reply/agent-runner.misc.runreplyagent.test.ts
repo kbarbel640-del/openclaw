@@ -174,7 +174,7 @@ describe("runReplyAgent onAgentRunStart", () => {
 
     expect(onAgentRunStart).not.toHaveBeenCalled();
     expect(result).toMatchObject({
-      text: expect.stringContaining('Something went wrong while processing your request'),
+      text: expect.stringContaining("Something went wrong while processing your request"),
     });
   });
 
