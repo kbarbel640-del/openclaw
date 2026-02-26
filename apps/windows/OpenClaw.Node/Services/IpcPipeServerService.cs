@@ -310,7 +310,16 @@ namespace OpenClaw.Node.Services
                 {
                     if (p.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number)
                     {
-                        handle = h.GetInt64();
+                        if (!h.TryGetInt64(out var parsedHandle))
+                        {
+                            return new IpcResponse
+                            {
+                                Id = req.Id ?? string.Empty,
+                                Ok = false,
+                                Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.window.focus params.handle must be an integer" }
+                            };
+                        }
+                        handle = parsedHandle;
                     }
                     if (p.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String)
                     {
@@ -358,7 +367,16 @@ namespace OpenClaw.Node.Services
                 {
                     if (p.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number)
                     {
-                        handle = h.GetInt64();
+                        if (!h.TryGetInt64(out var parsedHandle))
+                        {
+                            return new IpcResponse
+                            {
+                                Id = req.Id ?? string.Empty,
+                                Ok = false,
+                                Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.window.rect params.handle must be an integer" }
+                            };
+                        }
+                        handle = parsedHandle;
                     }
                     if (p.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String)
                     {
@@ -645,7 +663,16 @@ namespace OpenClaw.Node.Services
                 string? titleContains = null;
                 if (p.TryGetProperty("handle", out var h) && h.ValueKind == JsonValueKind.Number)
                 {
-                    handle = h.GetInt64();
+                    if (!h.TryGetInt64(out var parsedHandle))
+                    {
+                        return new IpcResponse
+                        {
+                            Id = req.Id ?? string.Empty,
+                            Ok = false,
+                            Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.click.relative params.handle must be an integer" }
+                        };
+                    }
+                    handle = parsedHandle;
                 }
                 if (p.TryGetProperty("titleContains", out var t) && t.ValueKind == JsonValueKind.String)
                 {

@@ -104,6 +104,29 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task StopAsync_ShouldNotThrow_WhenAnnounceLoopFaults()
+        {
+            var transport = new FaultingDiscoveryTransport();
+            var connectParams = BuildConnectParams();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+            using var svc = new DiscoveryService(
+                connectParams,
+                gatewayUrl: "ws://127.0.0.1:18789",
+                transport: transport,
+                interval: TimeSpan.FromMilliseconds(30),
+                clock: () => DateTimeOffset.UtcNow,
+                nextJitterMs: _ => 0,
+                enableListener: false);
+
+            svc.Start(cts.Token);
+            await Task.Delay(80, cts.Token);
+
+            var ex = await Record.ExceptionAsync(() => svc.StopAsync());
+            Assert.Null(ex);
+        }
+
+        [Fact]
         public void HandleBeaconJson_ShouldTrackAndExpireEntries()
         {
             var transport = new FakeDiscoveryTransport();
@@ -175,6 +198,16 @@ namespace OpenClaw.Node.Tests
                 SentPackets.Add((host, port, Encoding.UTF8.GetString(payload)));
                 return Task.CompletedTask;
             }
+
+            public void Dispose()
+            {
+            }
+        }
+
+        private sealed class FaultingDiscoveryTransport : IDiscoveryTransport
+        {
+            public Task SendAsync(string host, int port, byte[] payload, CancellationToken cancellationToken)
+                => throw new InvalidOperationException("simulated transport failure");
 
             public void Dispose()
             {

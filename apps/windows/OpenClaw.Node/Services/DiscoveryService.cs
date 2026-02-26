@@ -122,12 +122,20 @@ namespace OpenClaw.Node.Services
                 if (_announceLoopTask != null) await _announceLoopTask;
             }
             catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                OnLog?.Invoke($"[DISCOVERY] announce loop stop error: {ex.Message}");
+            }
 
             try
             {
                 if (_listenLoopTask != null) await _listenLoopTask;
             }
             catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                OnLog?.Invoke($"[DISCOVERY] listen loop stop error: {ex.Message}");
+            }
             finally
             {
                 UnsubscribeNetworkChangeEvents();
