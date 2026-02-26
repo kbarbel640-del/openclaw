@@ -26,10 +26,10 @@ type DiscordGuildRule = {
 };
 
 type DiscordAccountRule = {
-  allowFrom?: string[];
-  dm?: { allowFrom: string[]; groupChannels: string[] };
-  execApprovals?: { approvers: string[] };
-  guilds?: Record<string, DiscordGuildRule>;
+  allowFrom: string[];
+  dm: { allowFrom: string[]; groupChannels: string[] };
+  execApprovals: { approvers: string[] };
+  guilds: Record<string, DiscordGuildRule>;
 };
 
 type RepairedDiscordPolicy = {
