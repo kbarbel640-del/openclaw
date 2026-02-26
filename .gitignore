@@ -3,6 +3,8 @@ node_modules
 .env
 docker-compose.extra.yml
 dist
+!dist/
+dist/*
 pnpm-lock.yaml
 bun.lock
 bun.lockb
@@ -102,7 +104,11 @@ package-lock.json
 # Local iOS signing overrides
 apps/ios/LocalSigning.xcconfig
 # Generated protocol schema (produced via pnpm protocol:gen)
-dist/protocol.schema.json
+!dist/protocol.schema.json
+!dist/config.schema.json
+!dist/config.uihints.json
+!dist/config.keys.json
+!dist/config-http.openapi.json
 .ant-colony/
 
 # Eclipse
