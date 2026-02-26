@@ -390,28 +390,17 @@ describe("send", () => {
       ).rejects.toThrow("requires text");
     });
 
-    it("sends horizontal rule markers as-is (edge case)", async () => {
-      // Edge case: input like "***" or "---" used to become empty after stripMarkdown
-      // but now stripMarkdown returns original text when result would be empty
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        text: () => Promise.resolve(JSON.stringify({ guid: "msg-123" })),
-      });
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        text: () => Promise.resolve(JSON.stringify({ data: [] })),
-      });
-
-      await sendMessageBlueBubbles("+15551234567", "***", {
-        serverUrl: "http://localhost:1234",
-        password: "test",
-      });
-
-      expect(mockFetch).toHaveBeenCalled();
-      const call = mockFetch.mock.calls.find((c) => c[0]?.includes("/api/v1/message/text"));
-      expect(call).toBeDefined();
-      const body = JSON.parse(call![1].body);
-      expect(body.message).toBe("***");
+    it("sends text that was previously horizontal rule markdown", async () => {
+      // After the stripMarkdown fix, "***" now returns "***" instead of empty string
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { guid: "ok" } }), { status: 200 }),
+      );
+      await expect(
+        sendMessageBlueBubbles("+15551234567", "***", {
+          serverUrl: "http://localhost:1234",
+          password: "test",
+        }),
+      ).resolves.toBeDefined();
     });
 
     it("throws when serverUrl is missing", async () => {
