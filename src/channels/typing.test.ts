@@ -109,4 +109,36 @@ describe("createTypingCallbacks", () => {
       vi.useRealTimers();
     }
   });
+
+  it("auto-stops keepalive when cleanup is missed", async () => {
+    vi.useFakeTimers();
+    try {
+      const start = vi.fn().mockResolvedValue(undefined);
+      const stop = vi.fn().mockResolvedValue(undefined);
+      const onStartError = vi.fn();
+      const callbacks = createTypingCallbacks({
+        start,
+        stop,
+        onStartError,
+        keepaliveIntervalMs: 3_000,
+        maxKeepaliveMs: 10_000,
+      });
+
+      await callbacks.onReplyStart();
+      expect(start).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(start).toHaveBeenCalledTimes(4); // t=0,3,6,9
+      expect(stop).toHaveBeenCalledTimes(0);
+
+      await vi.advanceTimersByTimeAsync(1_500);
+      await flushMicrotasks();
+      expect(stop).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(start).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

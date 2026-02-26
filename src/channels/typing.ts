@@ -13,11 +13,18 @@ export function createTypingCallbacks(params: {
   onStartError: (err: unknown) => void;
   onStopError?: (err: unknown) => void;
   keepaliveIntervalMs?: number;
+  /**
+   * Failsafe: automatically stop keepalive after this duration if no idle/cleanup arrives.
+   * Prevents stuck typing indicators when a channel path misses cleanup.
+   */
+  maxKeepaliveMs?: number;
 }): TypingCallbacks {
   const stop = params.stop;
   const keepaliveIntervalMs = params.keepaliveIntervalMs ?? 3_000;
+  const maxKeepaliveMs = params.maxKeepaliveMs ?? 120_000;
   let stopSent = false;
   let closed = false;
+  let failsafeTimer: ReturnType<typeof setTimeout> | undefined;
 
   const fireStart = async () => {
     if (closed) {
@@ -35,6 +42,24 @@ export function createTypingCallbacks(params: {
     onTick: fireStart,
   });
 
+  const armFailsafe = () => {
+    if (maxKeepaliveMs <= 0) {
+      return;
+    }
+    if (failsafeTimer) {
+      clearTimeout(failsafeTimer);
+    }
+    failsafeTimer = setTimeout(() => {
+      // Don’t close the callback entirely; just stop this run’s keepalive.
+      keepaliveLoop.stop();
+      if (!stop || stopSent) {
+        return;
+      }
+      stopSent = true;
+      void stop().catch((err) => (params.onStopError ?? params.onStartError)(err));
+    }, maxKeepaliveMs);
+  };
+
   const onReplyStart = async () => {
     if (closed) {
       return;
@@ -43,11 +68,16 @@ export function createTypingCallbacks(params: {
     keepaliveLoop.stop();
     await fireStart();
     keepaliveLoop.start();
+    armFailsafe();
   };
 
   const fireStop = () => {
     closed = true;
     keepaliveLoop.stop();
+    if (failsafeTimer) {
+      clearTimeout(failsafeTimer);
+      failsafeTimer = undefined;
+    }
     if (!stop || stopSent) {
       return;
     }
