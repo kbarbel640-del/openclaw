@@ -95,6 +95,25 @@ function canTransition(
   return false;
 }
 
+function canEnqueueTransition(params: {
+  state: DiscordStatusLifecycleState;
+  lastRequestedState: DiscordStatusLifecycleState | null;
+  nextState: DiscordStatusLifecycleState;
+}): boolean {
+  if (canTransition(params.state, params.nextState)) {
+    return true;
+  }
+  if (
+    isWaitingState(params.state) &&
+    params.lastRequestedState === "active" &&
+    (params.nextState === "done" || params.nextState === "error")
+  ) {
+    // Allow terminal transition to queue behind an in-flight active transition.
+    return true;
+  }
+  return false;
+}
+
 function trackTransition(params: {
   messageId: string;
   state: DiscordStatusLifecycleState;
@@ -176,7 +195,7 @@ export function createDiscordStatusReactionLifecycle(params: {
       });
       return chain;
     }
-    if (!canTransition(state, nextState)) {
+    if (!canEnqueueTransition({ state, lastRequestedState, nextState })) {
       trackTransition({
         messageId,
         state: nextState,
@@ -191,6 +210,17 @@ export function createDiscordStatusReactionLifecycle(params: {
     chain = chain.then(async () => {
       const fromState = state;
       try {
+        if (!canTransition(fromState, nextState)) {
+          trackTransition({
+            messageId,
+            state: nextState,
+            stage: "ignored",
+            emoji: nextEmoji,
+            onTrace,
+          });
+          return;
+        }
+
         if (nextState === "cleared") {
           let hadFailure = false;
           if (adapter.removeReaction) {
