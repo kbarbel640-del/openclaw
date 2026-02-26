@@ -39,6 +39,37 @@ function stripQuotes(value: string): string {
   return value.replace(/^["']|["']$/g, "");
 }
 
+function isQuotedHeaderValue(value: string): boolean {
+  if (value.length < 2) {
+    return false;
+  }
+  const first = value[0];
+  const last = value[value.length - 1];
+  return (first === '"' || first === "'") && last === first;
+}
+
+function unescapeHttpQuotedPair(value: string): string {
+  let result = "";
+  let escaping = false;
+  for (const char of value) {
+    if (escaping) {
+      result += char;
+      escaping = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+    result += char;
+  }
+  if (escaping) {
+    // Preserve a malformed trailing escape so callers do not lose data.
+    result += "\\";
+  }
+  return result;
+}
+
 function sanitizeContentDispositionFileName(value: string): string {
   // Treat both slash styles as path separators so Windows-style traversal
   // segments cannot survive when running on POSIX hosts.
@@ -69,7 +100,12 @@ function parseContentDispositionFileName(header?: string | null): string | undef
   }
   const match = /filename\s*=\s*([^;]+)/i.exec(header);
   if (match?.[1]) {
-    return sanitizeContentDispositionFileName(stripQuotes(match[1].trim()));
+    const rawValue = match[1].trim();
+    const unquoted = stripQuotes(rawValue);
+    const decodedValue = isQuotedHeaderValue(rawValue)
+      ? unescapeHttpQuotedPair(unquoted)
+      : unquoted;
+    return sanitizeContentDispositionFileName(decodedValue);
   }
   return undefined;
 }

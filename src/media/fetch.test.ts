@@ -109,4 +109,26 @@ describe("fetchRemoteMedia", () => {
 
     expect(result.fileName).toBe("report-final.pdf");
   });
+
+  it("preserves quoted-pair escapes in quoted filename values", async () => {
+    const lookupFn = vi.fn(async () => [
+      { address: "93.184.216.34", family: 4 },
+    ]) as unknown as LookupFn;
+    const fetchImpl = async () =>
+      new Response(Buffer.from("%PDF-1.4"), {
+        status: 200,
+        headers: {
+          "content-type": "application/pdf",
+          "content-disposition": 'attachment; filename="foo\\\"bar.txt"',
+        },
+      });
+
+    const result = await fetchRemoteMedia({
+      url: "https://example.com/download",
+      fetchImpl,
+      lookupFn,
+    });
+
+    expect(result.fileName).toBe('foo"bar.txt');
+  });
 });
