@@ -417,6 +417,17 @@ export async function resolveMedia(
     return null;
   }
 
+  // Pre-download size check: Telegram provides file_size in the message metadata.
+  // Reject early to avoid downloading large files we'll discard anyway (#26246).
+  if (maxBytes && "file_size" in m && typeof m.file_size === "number" && m.file_size > maxBytes) {
+    const sizeMb = (m.file_size / (1024 * 1024)).toFixed(1);
+    const limitMb = (maxBytes / (1024 * 1024)).toFixed(0);
+    throw new MediaFetchError(
+      "max_bytes",
+      `File size ${sizeMb}MB exceeds maxBytes limit of ${limitMb}MB`,
+    );
+  }
+
   let file: { file_path?: string };
   try {
     file = await retryAsync(() => ctx.getFile(), {
