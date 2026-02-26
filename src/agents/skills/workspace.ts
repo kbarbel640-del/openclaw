@@ -232,7 +232,9 @@ function unwrapLoadedDiagnostics(loaded: unknown): SkillDiagnostic[] {
 
 function logSkillDiagnostics(diagnostics: SkillDiagnostic[]): void {
   for (const diag of diagnostics) {
-    if (diag.type === "warning") {
+    if (diag.type === "error") {
+      skillsLogger.error(diag.message, { path: diag.path });
+    } else if (diag.type === "warning") {
       skillsLogger.warn(diag.message, { path: diag.path });
     }
   }
