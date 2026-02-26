@@ -14,6 +14,7 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { fetchWithSsrFGuard } from "openclaw/plugin-sdk";
 import { compressContext } from "./src/compress-client.js";
 import { parseConfig, tokenRangerConfigSchema } from "./src/config.js";
 import type { TokenRangerConfig } from "./src/config.js";
@@ -341,14 +342,18 @@ const tokenRangerPlugin = {
         if (args === "model") {
           let models: string[] = [];
           try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 3000);
-            const res = await fetch(`${cfg.ollamaUrl}/api/tags`, {
-              signal: controller.signal,
+            const { response, release } = await fetchWithSsrFGuard({
+              url: `${cfg.ollamaUrl}/api/tags`,
+              timeoutMs: 3000,
+              policy: { allowPrivateNetwork: true },
+              auditContext: "tokenranger-ollama-tags",
             });
-            clearTimeout(timer);
-            const data = (await res.json()) as { models?: Array<{ name: string }> };
-            models = (data.models ?? []).map((m) => m.name);
+            try {
+              const data = (await response.json()) as { models?: Array<{ name: string }> };
+              models = (data.models ?? []).map((m) => m.name);
+            } finally {
+              await release();
+            }
           } catch {
             return { text: `Could not reach Ollama at ${cfg.ollamaUrl} to list models.` };
           }
