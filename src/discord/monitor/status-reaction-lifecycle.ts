@@ -85,7 +85,7 @@ function canTransition(
     return isWaitingState(to) || to === "active" || to === "done" || to === "error";
   }
   if (to === "cleared") {
-    return from !== "idle" && from !== "cleared";
+    return from !== "cleared";
   }
   if (isWaitingState(from)) {
     // Allow terminal fallback even if active reaction fails.
