@@ -81,15 +81,29 @@ function normalizeAbortTriggerText(text: string): string {
     .trim();
 }
 
-export function isAbortTrigger(text?: string): boolean {
+export function isAbortTrigger(text?: string, extraTriggers?: string[]): boolean {
   if (!text) {
     return false;
   }
   const normalized = normalizeAbortTriggerText(text);
-  return ABORT_TRIGGERS.has(normalized);
+  if (ABORT_TRIGGERS.has(normalized)) {
+    return true;
+  }
+  if (extraTriggers) {
+    for (const trigger of extraTriggers) {
+      if (normalizeAbortTriggerText(trigger) === normalized) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
-export function isAbortRequestText(text?: string, options?: CommandNormalizeOptions): boolean {
+export function isAbortRequestText(
+  text?: string,
+  options?: CommandNormalizeOptions,
+  extraTriggers?: string[],
+): boolean {
   if (!text) {
     return false;
   }
@@ -101,7 +115,7 @@ export function isAbortRequestText(text?: string, options?: CommandNormalizeOpti
   return (
     normalizedLower === "/stop" ||
     normalizeAbortTriggerText(normalizedLower) === "/stop" ||
-    isAbortTrigger(normalizedLower)
+    isAbortTrigger(normalizedLower, extraTriggers)
   );
 }
 
@@ -272,7 +286,8 @@ export async function tryFastAbortFromMessage(params: {
   const raw = stripStructuralPrefixes(ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "");
   const isGroup = ctx.ChatType?.trim().toLowerCase() === "group";
   const stripped = isGroup ? stripMentions(raw, ctx, cfg, agentId) : raw;
-  const abortRequested = isAbortRequestText(stripped);
+  const extraTriggers = cfg.messages?.abort?.extraTriggers;
+  const abortRequested = isAbortRequestText(stripped, undefined, extraTriggers);
   if (!abortRequested) {
     return { handled: false, aborted: false };
   }

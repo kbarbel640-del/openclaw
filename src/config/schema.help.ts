@@ -1313,6 +1313,10 @@ export const FIELD_HELP: Record<string, string> = {
     "Override default timing. Keys: debounceMs (700), stallSoftMs (25000), stallHardMs (60000), doneHoldMs (1500), errorHoldMs (2500).",
   "messages.inbound.debounceMs":
     "Debounce window (ms) for batching rapid inbound messages from the same sender (0 to disable).",
+  "messages.abort":
+    "Abort trigger configuration for extending the built-in set of stop phrases with custom entries.",
+  "messages.abort.extraTriggers":
+    "Additional abort trigger phrases merged with the built-in multilingual set. Normalization (trim, lowercase, punctuation strip) is applied automatically.",
   "channels.telegram.dmPolicy":
     'Direct message access control ("pairing" recommended). "open" requires channels.telegram.allowFrom=["*"].',
   "channels.telegram.streaming":

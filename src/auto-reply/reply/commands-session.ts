@@ -531,7 +531,9 @@ export const handleAbortTrigger: CommandHandler = async (params, allowTextComman
   if (!allowTextCommands) {
     return null;
   }
-  if (!isAbortTrigger(params.command.rawBodyNormalized)) {
+  if (
+    !isAbortTrigger(params.command.rawBodyNormalized, params.cfg.messages?.abort?.extraTriggers)
+  ) {
     return null;
   }
   const abortTarget = resolveAbortTarget({

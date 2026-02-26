@@ -8,8 +8,8 @@ export type ChatAbortControllerEntry = {
   expiresAtMs: number;
 };
 
-export function isChatStopCommandText(text: string): boolean {
-  return isAbortRequestText(text);
+export function isChatStopCommandText(text: string, extraTriggers?: string[]): boolean {
+  return isAbortRequestText(text, undefined, extraTriggers);
 }
 
 export function resolveChatRunExpiresAtMs(params: {
