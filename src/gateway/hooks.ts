@@ -225,6 +225,7 @@ export type HookAgentPayload = {
   agentId?: string;
   wakeMode: "now" | "next-heartbeat";
   sessionKey?: string;
+  sessionMode?: "isolated" | "persistent";
   deliver: boolean;
   channel: HookMessageChannel;
   to?: string;
@@ -371,6 +372,11 @@ export function normalizeAgentPayload(payload: Record<string, unknown>):
     typeof timeoutRaw === "number" && Number.isFinite(timeoutRaw) && timeoutRaw > 0
       ? Math.floor(timeoutRaw)
       : undefined;
+  const sessionModeRaw = payload.sessionMode;
+  const sessionMode =
+    sessionModeRaw === "persistent" ? ("persistent" as const)
+    : sessionModeRaw === "isolated" ? ("isolated" as const)
+    : undefined;
   return {
     ok: true,
     value: {
@@ -379,6 +385,7 @@ export function normalizeAgentPayload(payload: Record<string, unknown>):
       agentId,
       wakeMode,
       sessionKey,
+      sessionMode,
       deliver,
       channel,
       to,
