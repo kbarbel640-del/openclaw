@@ -5,6 +5,9 @@
 - GitHub comment footgun: never use `gh issue/pr comment -b "..."` when body contains backticks or shell chars. Always use single-quoted heredoc (`-F - <<'EOF'`) so no command substitution/escaping corruption.
 - GitHub linking footgun: don’t wrap issue/PR refs like `#24643` in backticks when you want auto-linking. Use plain `#24643` (optionally add full URL).
 - Security advisory analysis: before triage/severity decisions, read `SECURITY.md` to align with OpenClaw's trust model and design boundaries.
+- **Mandatory before any implementation on an issue:** check for existing PRs first (`gh pr list` + `gh search prs` for issue number/title keywords). If an active PR already covers the issue, stop and report instead of coding a duplicate.
+- Do not claim tool/exec limitations unless a command actually failed. For repo tasks, attempt `exec` commands first and report concrete command output/errors.
+- **Hard rule (ocwork):** For any GitHub request, run command-first and include raw output snippet (`gh --version`, then relevant `gh issue/pr/...`). The sentence pattern "I can’t run this here" is forbidden unless accompanied by exact stderr + exit code.
 
 ## Project Structure & Module Organization
 
@@ -164,6 +167,7 @@
 - When adding a new `AGENTS.md` anywhere in the repo, also add a `CLAUDE.md` symlink pointing to it (example: `ln -s AGENTS.md CLAUDE.md`).
 - Signal: "update fly" => `fly ssh console -a flawd-bot -C "bash -lc 'cd /data/clawd/openclaw && git pull --rebase origin main'"` then `fly machines restart e825232f34d058 -a flawd-bot`.
 - When working on a GitHub Issue or PR, print the full URL at the end of the task.
+- Before any external GitHub action (creating/updating PRs, posting comments/reviews, merging, publishing), get explicit user approval in-chat first. Do not proceed on implied consent.
 - When answering questions, respond with high-confidence answers only: verify in code; do not guess.
 - Never update the Carbon dependency.
 - Any dependency with `pnpm.patchedDependencies` must use an exact version (no `^`/`~`).
