@@ -563,14 +563,26 @@ export const googlechatPlugin: ChannelPlugin<ResolvedGoogleChatAccount> = {
         webhookUrl: account.config.webhookUrl,
         statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
       });
-      return () => {
+
+      // Park until abort signal fires - this prevents the promise from resolving
+      // immediately, which would otherwise trigger the gateway's auto-restart loop.
+      // This matches the pattern used by Telegram/Discord polling-based monitors.
+      try {
+        await new Promise<void>((resolve) => {
+          if (ctx.abortSignal.aborted) {
+            resolve();
+            return;
+          }
+          ctx.abortSignal.addEventListener("abort", () => resolve(), { once: true });
+        });
+      } finally {
         unregister?.();
         ctx.setStatus({
           accountId: account.accountId,
           running: false,
           lastStopAt: Date.now(),
         });
-      };
+      }
     },
   },
 };
