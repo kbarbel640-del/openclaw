@@ -7,7 +7,6 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { AuthProfileStore } from "./auth-profiles.js";
 import { saveAuthProfileStore } from "./auth-profiles.js";
 import { AUTH_STORE_VERSION } from "./auth-profiles/constants.js";
-import type { AuthProfileFailureReason } from "./auth-profiles/types.js";
 import { isAnthropicBillingError } from "./live-auth-keys.js";
 import { runWithImageModelFallback, runWithModelFallback } from "./model-fallback.js";
 import { makeModelFallbackCfg } from "./test-helpers/model-fallback-config-fixture.js";
@@ -943,14 +942,15 @@ describe("runWithModelFallback", () => {
           [`${provider}:default`]:
             reason === "rate_limit"
               ? {
-                  // Rate limits use cooldownUntil
+                  // Real rate-limit cooldowns are tracked through cooldownUntil
+                  // and failureCounts, not disabledReason.
                   cooldownUntil: now + 300000,
-                  disabledReason: reason as AuthProfileFailureReason,
+                  failureCounts: { rate_limit: 1 },
                 }
               : {
                   // Auth/billing issues use disabledUntil
                   disabledUntil: now + 300000,
-                  disabledReason: reason as AuthProfileFailureReason,
+                  disabledReason: reason,
                 },
         },
       };
@@ -986,7 +986,7 @@ describe("runWithModelFallback", () => {
       expect(run).toHaveBeenNthCalledWith(1, "anthropic", "claude-sonnet-4-5");
     });
 
-    it("does NOT attempt fallbacks during auth cooldown", async () => {
+    it("skips same-provider models on auth cooldown but still tries no-profile fallback providers", async () => {
       const { dir } = await makeAuthStoreWithCooldown("anthropic", "auth");
       const cfg = makeCfg({
         agents: {
@@ -999,23 +999,22 @@ describe("runWithModelFallback", () => {
         },
       });
 
-      const run = vi.fn().mockResolvedValueOnce("should not be called");
+      const run = vi.fn().mockResolvedValueOnce("groq success");
 
-      await expect(
-        runWithModelFallback({
-          cfg,
-          provider: "anthropic",
-          model: "claude-opus-4-6",
-          run,
-          agentDir: dir,
-        }),
-      ).rejects.toThrow("All models failed");
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic",
+        model: "claude-opus-4-6",
+        run,
+        agentDir: dir,
+      });
 
-      // Auth cooldown should skip both primary and same-provider fallbacks
-      expect(run).toHaveBeenCalledTimes(0); // No attempts made
+      expect(result.result).toBe("groq success");
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(run).toHaveBeenNthCalledWith(1, "groq", "llama-3.3-70b-versatile");
     });
 
-    it("does NOT attempt fallbacks during billing cooldown", async () => {
+    it("skips same-provider models on billing cooldown but still tries no-profile fallback providers", async () => {
       const { dir } = await makeAuthStoreWithCooldown("anthropic", "billing");
       const cfg = makeCfg({
         agents: {
@@ -1028,20 +1027,19 @@ describe("runWithModelFallback", () => {
         },
       });
 
-      const run = vi.fn().mockResolvedValueOnce("should not be called");
+      const run = vi.fn().mockResolvedValueOnce("groq success");
 
-      await expect(
-        runWithModelFallback({
-          cfg,
-          provider: "anthropic",
-          model: "claude-opus-4-6",
-          run,
-          agentDir: dir,
-        }),
-      ).rejects.toThrow("All models failed");
+      const result = await runWithModelFallback({
+        cfg,
+        provider: "anthropic",
+        model: "claude-opus-4-6",
+        run,
+        agentDir: dir,
+      });
 
-      // Billing cooldown should skip both primary and same-provider fallbacks
-      expect(run).toHaveBeenCalledTimes(0); // No attempts made
+      expect(result.result).toBe("groq success");
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(run).toHaveBeenNthCalledWith(1, "groq", "llama-3.3-70b-versatile");
     });
 
     it("tries cross-provider fallbacks when same provider has rate limit", async () => {
@@ -1055,8 +1053,9 @@ describe("runWithModelFallback", () => {
         },
         usageStats: {
           "anthropic:default": {
-            cooldownUntil: Date.now() + 300000, // Rate limit uses cooldownUntil
-            disabledReason: "rate_limit" as AuthProfileFailureReason,
+            // Rate-limit reason is inferred from failureCounts for cooldown windows.
+            cooldownUntil: Date.now() + 300000,
+            failureCounts: { rate_limit: 2 },
           },
           // Groq not in cooldown
         },

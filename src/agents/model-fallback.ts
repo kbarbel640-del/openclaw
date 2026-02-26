@@ -340,24 +340,6 @@ export async function runWithModelFallback<T>(params: {
       });
       const isAnyProfileAvailable = profileIds.some((id) => !isProfileInCooldown(authStore, id));
 
-      if (profileIds.length === 0) {
-        // Skip no-profile providers when there are persistent auth or billing issues elsewhere.
-        // This prevents wasting time on unconfigured providers when auth problems exist.
-        // Note: If Provider A has auth/billing issues, Provider B with no profiles will also be skipped.
-        const hasAuthOrBillingIssues = Object.values(authStore.usageStats || {}).some(
-          (stats) => stats?.disabledReason === "auth" || stats?.disabledReason === "billing",
-        );
-        if (hasAuthOrBillingIssues) {
-          attempts.push({
-            provider: candidate.provider,
-            model: candidate.model,
-            error: `No auth profiles configured for provider ${candidate.provider}`,
-            reason: "auth",
-          });
-          continue;
-        }
-      }
-
       if (profileIds.length > 0 && !isAnyProfileAvailable) {
         // All profiles for this provider are in cooldown.
         const isPrimary = i === 0;
@@ -374,29 +356,33 @@ export async function runWithModelFallback<T>(params: {
           profileIds,
         });
 
-        const disabledReason = authStore.usageStats?.[profileIds[0]]?.disabledReason;
-        const isPersistentIssue = disabledReason === "auth" || disabledReason === "billing";
+        const inferredReason =
+          resolveProfilesUnavailableReason({
+            store: authStore,
+            profileIds,
+            now,
+          }) ?? "rate_limit";
+        const isPersistentIssue =
+          inferredReason === "auth" ||
+          inferredReason === "auth_permanent" ||
+          inferredReason === "billing";
         if (isPersistentIssue) {
           attempts.push({
             provider: candidate.provider,
             model: candidate.model,
-            error: `Provider ${candidate.provider} has ${disabledReason} issue (skipping all models)`,
-            reason: disabledReason,
+            error: `Provider ${candidate.provider} has ${inferredReason} issue (skipping all models)`,
+            reason: inferredReason,
           });
           continue;
         }
 
-        // For primary: try when requested model or when probe allows. For fallbacks: attempt only when explicitly rate_limit (model-specific), skip otherwise.
+        // For primary: try when requested model or when probe allows.
+        // For same-provider fallbacks: only relax cooldown on rate_limit, which
+        // is commonly model-scoped and can recover on a sibling model.
         const shouldAttemptDespiteCooldown =
           (isPrimary && (!requestedModel || shouldProbe)) ||
-          (!isPrimary && disabledReason === "rate_limit");
+          (!isPrimary && inferredReason === "rate_limit");
         if (!shouldAttemptDespiteCooldown) {
-          const inferredReason =
-            resolveProfilesUnavailableReason({
-              store: authStore,
-              profileIds,
-              now,
-            }) ?? "rate_limit";
           attempts.push({
             provider: candidate.provider,
             model: candidate.model,
