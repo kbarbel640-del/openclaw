@@ -13,6 +13,7 @@ import type {
 } from "./types.gateway.js";
 import type { HooksConfig } from "./types.hooks.js";
 import type { MemoryConfig } from "./types.memory.js";
+import type { MeshConfig } from "./types.mesh.js";
 import type {
   AudioConfig,
   BroadcastConfig,
@@ -108,6 +109,7 @@ export type OpenClawConfig = {
   talk?: TalkConfig;
   gateway?: GatewayConfig;
   memory?: MemoryConfig;
+  mesh?: MeshConfig;
 };
 
 export type ConfigValidationIssue = {
