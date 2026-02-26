@@ -7,6 +7,7 @@ import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import type { MsgContext } from "../../auto-reply/templating.js";
+import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
@@ -100,7 +101,23 @@ function truncateChatHistoryText(text: string): { text: string; truncated: boole
   };
 }
 
-function sanitizeChatHistoryContentBlock(block: unknown): { block: unknown; changed: boolean } {
+function sanitizeSilentReplyTextForHistory(params: { role: string; text: string }): {
+  text: string;
+  changed: boolean;
+} {
+  if (params.role !== "assistant") {
+    return { text: params.text, changed: false };
+  }
+  if (!isSilentReplyText(params.text, SILENT_REPLY_TOKEN)) {
+    return { text: params.text, changed: false };
+  }
+  return { text: "", changed: true };
+}
+
+function sanitizeChatHistoryContentBlock(
+  block: unknown,
+  role: string,
+): { block: unknown; changed: boolean } {
   if (!block || typeof block !== "object") {
     return { block, changed: false };
   }
@@ -109,8 +126,9 @@ function sanitizeChatHistoryContentBlock(block: unknown): { block: unknown; chan
   if (typeof entry.text === "string") {
     const stripped = stripInlineDirectiveTagsForDisplay(entry.text);
     const res = truncateChatHistoryText(stripped.text);
-    entry.text = res.text;
-    changed ||= stripped.changed || res.truncated;
+    const silent = sanitizeSilentReplyTextForHistory({ role, text: res.text });
+    entry.text = silent.text;
+    changed ||= stripped.changed || res.truncated || silent.changed;
   }
   if (typeof entry.partialJson === "string") {
     const res = truncateChatHistoryText(entry.partialJson);
@@ -147,6 +165,7 @@ function sanitizeChatHistoryMessage(message: unknown): { message: unknown; chang
     return { message, changed: false };
   }
   const entry = { ...(message as Record<string, unknown>) };
+  const role = typeof entry.role === "string" ? entry.role.toLowerCase() : "";
   let changed = false;
 
   if ("details" in entry) {
@@ -165,10 +184,11 @@ function sanitizeChatHistoryMessage(message: unknown): { message: unknown; chang
   if (typeof entry.content === "string") {
     const stripped = stripInlineDirectiveTagsForDisplay(entry.content);
     const res = truncateChatHistoryText(stripped.text);
-    entry.content = res.text;
-    changed ||= stripped.changed || res.truncated;
+    const silent = sanitizeSilentReplyTextForHistory({ role, text: res.text });
+    entry.content = silent.text;
+    changed ||= stripped.changed || res.truncated || silent.changed;
   } else if (Array.isArray(entry.content)) {
-    const updated = entry.content.map((block) => sanitizeChatHistoryContentBlock(block));
+    const updated = entry.content.map((block) => sanitizeChatHistoryContentBlock(block, role));
     if (updated.some((item) => item.changed)) {
       entry.content = updated.map((item) => item.block);
       changed = true;
@@ -178,8 +198,9 @@ function sanitizeChatHistoryMessage(message: unknown): { message: unknown; chang
   if (typeof entry.text === "string") {
     const stripped = stripInlineDirectiveTagsForDisplay(entry.text);
     const res = truncateChatHistoryText(stripped.text);
-    entry.text = res.text;
-    changed ||= stripped.changed || res.truncated;
+    const silent = sanitizeSilentReplyTextForHistory({ role, text: res.text });
+    entry.text = silent.text;
+    changed ||= stripped.changed || res.truncated || silent.changed;
   }
 
   return { message: changed ? entry : message, changed };

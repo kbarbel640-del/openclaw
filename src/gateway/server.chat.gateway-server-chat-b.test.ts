@@ -334,6 +334,59 @@ describe("gateway server chat", () => {
     });
   });
 
+  test("chat.history strips assistant NO_REPLY silent token text", async () => {
+    await withGatewayChatHarness(async ({ ws, createSessionDir }) => {
+      await connectOk(ws);
+
+      const sessionDir = await createSessionDir();
+      await writeMainSessionStore();
+
+      const lines = [
+        JSON.stringify({
+          message: {
+            role: "assistant",
+            content: " NO_REPLY ",
+            timestamp: Date.now(),
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "assistant",
+            text: "NO_REPLY",
+            timestamp: Date.now() + 1,
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "\nNO_REPLY\t" }],
+            timestamp: Date.now() + 2,
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "user",
+            content: "NO_REPLY",
+            timestamp: Date.now() + 3,
+          },
+        }),
+      ];
+      await writeMainSessionTranscript(sessionDir, lines);
+      const messages = await fetchHistoryMessages(ws);
+      expect(messages.length).toBe(4);
+
+      const first = messages[0] as { content?: string };
+      const second = messages[1] as { text?: string };
+      const third = messages[2] as { content?: Array<{ text?: string }> };
+      const fourth = messages[3] as { content?: string };
+
+      expect(first.content).toBe("");
+      expect(second.text).toBe("");
+      expect(third.content?.[0]?.text).toBe("");
+      expect(fourth.content).toBe("NO_REPLY");
+    });
+  });
+
   test("smoke: supports abort and idempotent completion", async () => {
     await withGatewayChatHarness(async ({ ws, createSessionDir }) => {
       const spy = getReplyFromConfig;
