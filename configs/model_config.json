@@ -2,8 +2,9 @@
   "$schema": "https://open-claw.bot/schemas/openclaw-models.json",
   "_comment": [
     "Model provider configuration for Brock agent stack.",
-    "Three tiers: local GLM-5 (fast/free), z.ai API (strong/coding), OpenAI (backup/reasoning).",
-    "This file is a reference config — merge into your openclaw.json under 'models' and 'agents.defaults'."
+    "Four tiers: local Ollama (fast/free), z.ai API (strong/coding), OpenAI (backup), Anthropic (optional).",
+    "This file is a reference config — merge into your openclaw.json under 'models' and 'agents.defaults'.",
+    "Full strategy rationale: see CLOUD_STRATEGY.md in the repo root."
   ],
 
   "models": {
@@ -82,6 +83,34 @@
             "maxTokens": 100000
           }
         ]
+      },
+
+      "anthropic": {
+        "baseUrl": "https://api.anthropic.com",
+        "api": "anthropic-messages",
+        "auth": "api-key",
+        "apiKey": "${ANTHROPIC_API_KEY}",
+        "_comment": "Optional. Uncomment in openclaw.json if you have a Pro/Max subscription. Strong long-context and prompt-injection resistance.",
+        "models": [
+          {
+            "id": "claude-opus-4-6",
+            "name": "Claude Opus 4.6 (Anthropic)",
+            "reasoning": true,
+            "input": ["text", "image"],
+            "cost": { "input": 0.015, "output": 0.075, "cacheRead": 0.0075, "cacheWrite": 0.015 },
+            "contextWindow": 200000,
+            "maxTokens": 32000
+          },
+          {
+            "id": "claude-sonnet-4-6",
+            "name": "Claude Sonnet 4.6 (Anthropic)",
+            "reasoning": true,
+            "input": ["text", "image"],
+            "cost": { "input": 0.003, "output": 0.015, "cacheRead": 0.0015, "cacheWrite": 0.003 },
+            "contextWindow": 200000,
+            "maxTokens": 16384
+          }
+        ]
       }
     }
   },
@@ -92,12 +121,13 @@
         "primary": "zai/glm-5",
         "fallbacks": [
           "zai/glm-4.7",
-          "openai/gpt-4o"
+          "openai/gpt-4o",
+          "local/glm-5"
         ]
       },
       "imageModel": {
         "primary": "zai/glm-5",
-        "fallbacks": ["openai/gpt-4o"]
+        "fallbacks": ["openai/gpt-4o", "anthropic/claude-sonnet-4-6"]
       },
       "models": {
         "zai/glm-5": {
@@ -119,41 +149,22 @@
           "alias": "o3",
           "streaming": true,
           "params": {}
+        },
+        "anthropic/claude-opus-4-6": {
+          "alias": "opus",
+          "streaming": true,
+          "params": {}
+        },
+        "anthropic/claude-sonnet-4-6": {
+          "alias": "sonnet",
+          "streaming": true,
+          "params": {}
         }
       }
     }
   },
 
-  "_routing_notes": {
-    "fast_tier": {
-      "provider": "local/glm-5",
-      "use_for": "Routine tasks: briefings, job filtering, formatting, quick lookups",
-      "notes": [
-        "Free, low latency, runs on your hardware",
-        "Change baseUrl to match your local server (Ollama: 11434, vLLM: 8000, LM Studio: 1234)",
-        "If running via vLLM, change api to 'openai-completions'",
-        "GLM-5 is 744B params — needs significant GPU. Consider GLM-4.7 or a quantized variant if constrained"
-      ]
-    },
-    "strong_tier": {
-      "provider": "zai/glm-5",
-      "use_for": "Code tasks, deep research, complex analysis, agentic workflows",
-      "notes": [
-        "Uses z.ai Coding Plan endpoint (cheaper than general API for coding tasks)",
-        "Subscribe at z.ai console, get API key, set ZAI_API_KEY env var",
-        "GLM-4.7 included as fallback — still strong, lower cost"
-      ]
-    },
-    "backup_tier": {
-      "provider": "openai/gpt-4o (general) or openai/o3 (reasoning)",
-      "use_for": "Fallback when z.ai is down, or tasks that need different reasoning style",
-      "notes": [
-        "Set OPENAI_API_KEY env var",
-        "o3 is expensive but strong for complex reasoning — use sparingly",
-        "Can also add anthropic/claude-sonnet-4-6 here if you have an Anthropic key"
-      ]
-    }
-  },
+  "_routing_notes": "See CLOUD_STRATEGY.md for full tier descriptions, failover logic, cost analysis, and the openclaw/lobsterBucket boundary.",
 
   "_soul_md_note": "SOUL.md was written for Claude. For local models (especially smaller ones), persona instructions may need to be more direct and repeated. If Brock drifts back to generic assistant behavior on local, try: (1) repeating key behavioral rules in the system prompt, (2) adding negative examples ('DO NOT say Great question'), (3) using shorter, more imperative phrasing. The z.ai GLM models tend to follow persona directives well."
 }

@@ -101,3 +101,30 @@ package-lock.json
 apps/ios/LocalSigning.xcconfig
 # Generated protocol schema (produced via pnpm protocol:gen)
 dist/protocol.schema.json
+
+# lobsterBucket (separate repo — never nest inside openclaw)
+lobsterBucket/
+
+# Model weights and Ollama cache (large binaries)
+*.gguf
+*.ggml
+*.bin
+models/
+.ollama/
+
+# Auth profiles and session data (managed by openclaw runtime, never commit)
+auth-profiles.json
+**/auth-profiles.json
+**/sessions/
+
+# Secrets and credentials (beyond .env)
+*.pem
+*.key
+credentials.json
+client_secret*.json
+
+# Runtime workspace state (lives in ~/.openclaw, not in repo)
+workspace-state.json
+BOOTSTRAP.md
+MEMORY.md
+memory/*.md
