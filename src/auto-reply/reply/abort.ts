@@ -66,6 +66,8 @@ const ABORT_TRIGGERS = new Set([
   "do not do that",
   "please stop",
   "stop please",
+  "tama na",
+  "tama na yan",
 ]);
 const ABORT_MEMORY = new Map<string, boolean>();
 const ABORT_MEMORY_MAX = 2000;

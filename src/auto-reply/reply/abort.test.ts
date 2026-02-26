@@ -167,6 +167,8 @@ describe("abort detection", () => {
       "hoer auf",
       "stopp",
       "pare",
+      "tama na",
+      "tama na yan",
     ];
     for (const candidate of positives) {
       expect(isAbortTrigger(candidate)).toBe(true);
@@ -193,6 +195,8 @@ describe("abort detection", () => {
     expect(isAbortRequestText("halt")).toBe(true);
     expect(isAbortRequestText("stopp")).toBe(true);
     expect(isAbortRequestText("pare")).toBe(true);
+    expect(isAbortRequestText("tama na")).toBe(true);
+    expect(isAbortRequestText("tama na yan!!!")).toBe(true);
     expect(isAbortRequestText(" توقف ")).toBe(true);
     expect(isAbortRequestText("/stop@openclaw_bot", { botUsername: "openclaw_bot" })).toBe(true);
     expect(isAbortRequestText("/Stop@openclaw_bot", { botUsername: "openclaw_bot" })).toBe(true);
@@ -200,6 +204,7 @@ describe("abort detection", () => {
     expect(isAbortRequestText("/status")).toBe(false);
     expect(isAbortRequestText("do not do that")).toBe(true);
     expect(isAbortRequestText("please do not do that")).toBe(false);
+    expect(isAbortRequestText("uy tama na yan")).toBe(false);
     expect(isAbortRequestText("/abort")).toBe(false);
   });
 
