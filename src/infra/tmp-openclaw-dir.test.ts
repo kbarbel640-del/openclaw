@@ -209,3 +209,90 @@ describe("resolvePreferredOpenClawTmpDir", () => {
     expect(mkdirSync).toHaveBeenCalledWith(fallbackTmp(), { recursive: true, mode: 0o700 });
   });
 });
+
+describe("resolvePreferredOpenClawTmpDir chmod fix", () => {
+  it("fixes /tmp/openclaw permissions when directory exists with wrong mode", () => {
+    // First call returns invalid (0775), then after chmod returns valid
+    const chmodSync = vi.fn();
+    const lstatSync = vi
+      .fn<NonNullable<TmpDirOptions["lstatSync"]>>()
+      .mockImplementationOnce(() => ({
+        isDirectory: () => true,
+        isSymbolicLink: () => false,
+        uid: 501,
+        mode: 0o40775, // group-writable - invalid
+      }))
+      .mockImplementationOnce(() => ({
+        isDirectory: () => true,
+        isSymbolicLink: () => false,
+        uid: 501,
+        mode: 0o40700, // fixed - now valid
+      }));
+    const accessSync = vi.fn();
+    const mkdirSync = vi.fn();
+    const getuid = vi.fn(() => 501);
+    const tmpdir = vi.fn(() => "/var/fallback");
+
+    const resolved = resolvePreferredOpenClawTmpDir({
+      accessSync,
+      lstatSync,
+      mkdirSync,
+      getuid,
+      tmpdir,
+      // @ts-expect-error - test-only option
+      chmodSync,
+    });
+
+    expect(resolved).toBe(POSIX_OPENCLAW_TMP_DIR);
+    expect(chmodSync).toHaveBeenCalledWith(POSIX_OPENCLAW_TMP_DIR, 0o700);
+  });
+
+  it("fixes fallback dir permissions when directory exists with wrong mode", () => {
+    const chmodSync = vi.fn();
+    // /tmp/openclaw doesnt exist (ENOENT), then mkdir succeeds but results in invalid state,
+    // so it falls back to user-specific directory which has wrong permissions
+    const lstatSync = vi
+      .fn<NonNullable<TmpDirOptions["lstatSync"]>>()
+      // First check /tmp/openclaw - ENOENT (missing)
+      .mockImplementationOnce(() => {
+        throw nodeErrorWithCode("ENOENT");
+      })
+      // After mkdir, check /tmp/openclaw again - return invalid to trigger fallback
+      .mockImplementationOnce(() => ({
+        isDirectory: () => false,
+        isSymbolicLink: () => false,
+        uid: 501,
+        mode: 0o100644,
+      }))
+      // Check fallback - invalid (0775) - needs chmod
+      .mockImplementationOnce(() => ({
+        isDirectory: () => true,
+        isSymbolicLink: () => false,
+        uid: 501,
+        mode: 0o40775,
+      }))
+      // After chmod - valid (0700)
+      .mockImplementationOnce(() => ({
+        isDirectory: () => true,
+        isSymbolicLink: () => false,
+        uid: 501,
+        mode: 0o40700,
+      }));
+    const accessSync = vi.fn();
+    const mkdirSync = vi.fn();
+    const getuid = vi.fn(() => 501);
+    const tmpdir = vi.fn(() => "/var/fallback");
+
+    const resolved = resolvePreferredOpenClawTmpDir({
+      accessSync,
+      lstatSync,
+      mkdirSync,
+      getuid,
+      tmpdir,
+      chmodSync,
+    });
+
+    expect(resolved).toBe(fallbackTmp());
+    expect(chmodSync).toHaveBeenCalledWith(fallbackTmp(), 0o700);
+  });
+});
