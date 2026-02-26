@@ -88,6 +88,7 @@ export type SlackMonitorContext = {
   slashCommand: Required<import("../../config/config.js").SlackSlashCommandConfig>;
   textLimit: number;
   ackReactionScope: string;
+  typingReaction: string;
   mediaMaxBytes: number;
   removeAckAfterReply: boolean;
 
@@ -150,6 +151,7 @@ export function createSlackMonitorContext(params: {
   slashCommand: SlackMonitorContext["slashCommand"];
   textLimit: number;
   ackReactionScope: string;
+  typingReaction: string;
   mediaMaxBytes: number;
   removeAckAfterReply: boolean;
 }): SlackMonitorContext {
@@ -413,6 +415,7 @@ export function createSlackMonitorContext(params: {
     slashCommand: params.slashCommand,
     textLimit: params.textLimit,
     ackReactionScope: params.ackReactionScope,
+    typingReaction: params.typingReaction,
     mediaMaxBytes: params.mediaMaxBytes,
     removeAckAfterReply: params.removeAckAfterReply,
     logger,
