@@ -306,6 +306,76 @@ export const _probeThrottleInternals = {
   resolveProbeThrottleKey,
 } as const;
 
+type CooldownDecision =
+  | {
+      type: "skip";
+      reason: FailoverReason;
+      error: string;
+    }
+  | {
+      type: "attempt";
+      reason: FailoverReason;
+      markProbe: boolean;
+    };
+
+function resolveCooldownDecision(params: {
+  candidate: ModelCandidate;
+  isPrimary: boolean;
+  requestedModel: boolean;
+  hasFallbackCandidates: boolean;
+  now: number;
+  probeThrottleKey: string;
+  authStore: ReturnType<typeof ensureAuthProfileStore>;
+  profileIds: string[];
+}): CooldownDecision {
+  const shouldProbe = shouldProbePrimaryDuringCooldown({
+    isPrimary: params.isPrimary,
+    hasFallbackCandidates: params.hasFallbackCandidates,
+    now: params.now,
+    throttleKey: params.probeThrottleKey,
+    authStore: params.authStore,
+    profileIds: params.profileIds,
+  });
+
+  const inferredReason =
+    resolveProfilesUnavailableReason({
+      store: params.authStore,
+      profileIds: params.profileIds,
+      now: params.now,
+    }) ?? "rate_limit";
+  const isPersistentIssue =
+    inferredReason === "auth" ||
+    inferredReason === "auth_permanent" ||
+    inferredReason === "billing";
+  if (isPersistentIssue) {
+    return {
+      type: "skip",
+      reason: inferredReason,
+      error: `Provider ${params.candidate.provider} has ${inferredReason} issue (skipping all models)`,
+    };
+  }
+
+  // For primary: try when requested model or when probe allows.
+  // For same-provider fallbacks: only relax cooldown on rate_limit, which
+  // is commonly model-scoped and can recover on a sibling model.
+  const shouldAttemptDespiteCooldown =
+    (params.isPrimary && (!params.requestedModel || shouldProbe)) ||
+    (!params.isPrimary && inferredReason === "rate_limit");
+  if (!shouldAttemptDespiteCooldown) {
+    return {
+      type: "skip",
+      reason: inferredReason,
+      error: `Provider ${params.candidate.provider} is in cooldown (all profiles unavailable)`,
+    };
+  }
+
+  return {
+    type: "attempt",
+    reason: inferredReason,
+    markProbe: params.isPrimary && shouldProbe,
+  };
+}
+
 export async function runWithModelFallback<T>(params: {
   cfg: OpenClawConfig | undefined;
   provider: string;
@@ -347,51 +417,28 @@ export async function runWithModelFallback<T>(params: {
           params.provider === candidate.provider && params.model === candidate.model;
         const now = Date.now();
         const probeThrottleKey = resolveProbeThrottleKey(candidate.provider, params.agentDir);
-        const shouldProbe = shouldProbePrimaryDuringCooldown({
+        const decision = resolveCooldownDecision({
+          candidate,
           isPrimary,
+          requestedModel,
           hasFallbackCandidates,
           now,
-          throttleKey: probeThrottleKey,
+          probeThrottleKey,
           authStore,
           profileIds,
         });
 
-        const inferredReason =
-          resolveProfilesUnavailableReason({
-            store: authStore,
-            profileIds,
-            now,
-          }) ?? "rate_limit";
-        const isPersistentIssue =
-          inferredReason === "auth" ||
-          inferredReason === "auth_permanent" ||
-          inferredReason === "billing";
-        if (isPersistentIssue) {
+        if (decision.type === "skip") {
           attempts.push({
             provider: candidate.provider,
             model: candidate.model,
-            error: `Provider ${candidate.provider} has ${inferredReason} issue (skipping all models)`,
-            reason: inferredReason,
+            error: decision.error,
+            reason: decision.reason,
           });
           continue;
         }
 
-        // For primary: try when requested model or when probe allows.
-        // For same-provider fallbacks: only relax cooldown on rate_limit, which
-        // is commonly model-scoped and can recover on a sibling model.
-        const shouldAttemptDespiteCooldown =
-          (isPrimary && (!requestedModel || shouldProbe)) ||
-          (!isPrimary && inferredReason === "rate_limit");
-        if (!shouldAttemptDespiteCooldown) {
-          attempts.push({
-            provider: candidate.provider,
-            model: candidate.model,
-            error: `Provider ${candidate.provider} is in cooldown (all profiles unavailable)`,
-            reason: inferredReason,
-          });
-          continue;
-        }
-        if (isPrimary && shouldProbe) {
+        if (decision.markProbe) {
           lastProbeAttempt.set(probeThrottleKey, now);
         }
       }
