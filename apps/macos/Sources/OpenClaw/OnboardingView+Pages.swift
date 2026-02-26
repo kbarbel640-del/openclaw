@@ -32,7 +32,7 @@ extension OnboardingView {
     func welcomePage() -> some View {
         self.onboardingPage {
             VStack(spacing: 22) {
-                Text("Welcome to OpenClaw")
+                Text("欢迎使用 OpenClaw")
                     .font(.largeTitle.weight(.semibold))
                 Text("OpenClaw 是一款超好用的开源自动控制助手 AI。")
                     .font(.body)
@@ -51,14 +51,14 @@ extension OnboardingView {
                             .padding(.top, 1)
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Security notice")
+                            Text("安全须知")
                                 .font(.headline)
                             Text(
-                                "The connected AI agent (e.g. Claude) can trigger powerful actions on your Mac, " +
-                                    "including running commands, reading/writing files, and capturing screenshots — " +
-                                    "depending on the permissions you grant.\n\n" +
-                                    "Only enable OpenClaw if you understand the risks and trust the prompts and " +
-                                    "integrations you use.")
+                                "连接的 AI 助手（例如 Claude）可以在您的 Mac 上触发强大的操作，" +
+                                    "包括运行命令、读取/写入文件和捕捉屏幕截图 —— " +
+                                    "这一切取决于您授予它的权限。\n\n" +
+                                    "请仅在您了解风险并且信任您所使用的提示词和集成时，" +
+                                    "才启用 OpenClaw。")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
