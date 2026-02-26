@@ -330,7 +330,20 @@ describe("exec PATH handling", () => {
     });
 
     const text = normalizeText(result.content.find((c) => c.type === "text")?.text);
-    expect(text).toBe([...prepend, basePath].join(path.delimiter));
+    const entries = text.split(path.delimiter);
+    if (isWin) {
+      // On Windows, PowerShell may inject its own directory into PATH; verify
+      // that our prepend entries appear before basePath rather than exact match.
+      const baseIdx = entries.indexOf(basePath);
+      expect(baseIdx).toBeGreaterThan(-1);
+      for (const p of prepend) {
+        const idx = entries.indexOf(p);
+        expect(idx).toBeGreaterThan(-1);
+        expect(idx).toBeLessThan(baseIdx);
+      }
+    } else {
+      expect(text).toBe([...prepend, basePath].join(path.delimiter));
+    }
   });
 });
 
