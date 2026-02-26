@@ -12,7 +12,7 @@ Thanks for your interest in contributing! Here's how to get started.
 
 ## Development Setup
 
-```bash
+````bash
 git clone https://github.com/ianalloway/Money-maker-bot
 cd Money-maker-bot
 npm install      # or: pip install -r requirements.txt
@@ -82,7 +82,7 @@ legacy style:
 ```ts
 @state() foo = "bar";
 @property({ type: Number }) count = 0;
-```
+````
 
 ## Code Style
 
@@ -102,6 +102,7 @@ legacy style:
 ## Reporting Bugs
 
 Use the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.md). Include:
+
 - Steps to reproduce
 - Expected vs actual behavior
 - Environment info (OS, Node/Python version)

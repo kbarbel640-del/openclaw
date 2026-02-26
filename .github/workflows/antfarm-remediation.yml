@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       run-id:
-        description: 'Antfarm run ID to remediate'
+        description: "Antfarm run ID to remediate"
         required: true
       issue:
-        description: 'Issues to fix'
+        description: "Issues to fix"
         required: true
 
 jobs:

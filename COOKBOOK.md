@@ -25,6 +25,7 @@ Each recipe is a self-contained prompt or workflow you can run directly.
 Get a concise morning briefing covering crypto prices, key fear/greed reading, and any major overnight news.
 
 **Prompt:**
+
 ```
 Give me a morning market brief. Include:
 - BTC and ETH prices with 24h change
@@ -36,6 +37,7 @@ Give me a morning market brief. Include:
 **Skills used:** `market-sentiment`, `nft-tracker` (for on-chain data)
 
 **Tip:** Pin this to a morning cron or daily Telegram message using the OpenClaw cron plugin:
+
 ```yaml
 # Add to your openclaw config
 crons:
@@ -52,6 +54,7 @@ crons:
 Find the best value bets for tonight's slate by comparing your model's win probabilities against live sportsbook lines.
 
 **Prompt:**
+
 ```
 Tonight's NBA slate:
 - Celtics (-4.5) at Knicks
@@ -74,6 +77,7 @@ For each game:
 Run a complete diagnostic on your current holdings.
 
 **Prompt:**
+
 ```
 Here's my current portfolio:
 BTC: 0.5 (current price $X)
@@ -97,6 +101,7 @@ My targets are 60% BTC, 30% ETH, 10% SOL.
 Track whether any of your watched collections are showing unusual floor movement.
 
 **Prompt:**
+
 ```
 Check the following NFT collections and tell me:
 1. Current floor price
@@ -110,6 +115,7 @@ Collections: BAYC, Azuki, CryptoPunks, DeGods
 **Skills used:** `nft-tracker`
 
 **Pro tip:** Set a threshold alert so the bot only messages you when floors move significantly:
+
 ```
 Only alert me if any floor price moves more than 15% in 24 hours.
 Check every 6 hours and send a Telegram message if triggered.
@@ -122,6 +128,7 @@ Check every 6 hours and send a Telegram message if triggered.
 Quickly calculate optimal stake for any bet before you place it.
 
 **Prompt:**
+
 ```
 I want to bet on the Chiefs ML tonight.
 - My model gives them a 62% win probability
@@ -146,6 +153,7 @@ Calculate:
 Get a full read on current market conditions before making any moves.
 
 **Prompt:**
+
 ```
 Give me a full market sentiment snapshot:
 1. Current Fear & Greed reading with 7-day trend
@@ -165,6 +173,7 @@ Give me a full market sentiment snapshot:
 Build an optimal DraftKings NBA lineup for tonight's slate.
 
 **Prompt:**
+
 ```
 Build me a DraftKings NBA lineup for tonight.
 
@@ -190,6 +199,7 @@ Also tell me the best 2-player stack from the same game.
 Every Sunday, run this to understand where your edge is coming from.
 
 **Prompt:**
+
 ```
 Analyze my bet journal for the past 7 days and give me:
 1. Overall record, units won/lost, and ROI
@@ -209,6 +219,7 @@ Analyze my bet journal for the past 7 days and give me:
 Set and forget — run this monthly to keep your portfolio on target.
 
 **Prompt:**
+
 ```
 Monthly portfolio check. My targets haven't changed (60/30/10 BTC/ETH/SOL).
 
@@ -230,6 +241,7 @@ Current holdings: [paste your holdings]
 Find teams due for a turnaround before the market notices.
 
 **Prompt:**
+
 ```
 Screen tonight's NBA games for regression opportunities.
 
@@ -250,6 +262,7 @@ Tonight's games: [paste tonight's schedule]
 ## Combining Skills: Advanced Workflows
 
 ### The Full Pre-Bet Checklist
+
 ```
 Before I place this bet [describe bet], run through:
 1. Kelly sizing at my edge estimate
@@ -260,6 +273,7 @@ Before I place this bet [describe bet], run through:
 ```
 
 ### The Opportunistic NFT Buyer
+
 ```
 I have 0.5 ETH to deploy into NFTs.
 1. Show me the 3 lowest-floor collections with positive 7-day volume trend
@@ -269,7 +283,9 @@ I have 0.5 ETH to deploy into NFTs.
 ```
 
 ### The Daily Alpha Email
+
 Set up a daily digest combining all data sources into one Slack or Telegram message:
+
 ```yaml
 # openclaw cron config
 crons:
@@ -296,4 +312,4 @@ crons:
 
 ---
 
-*Built on [OpenClaw](https://github.com/openclaw/openclaw) — the personal AI assistant framework.*
+_Built on [OpenClaw](https://github.com/openclaw/openclaw) — the personal AI assistant framework._
