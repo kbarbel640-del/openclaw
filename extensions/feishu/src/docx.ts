@@ -76,9 +76,10 @@ function sortBlocksByFirstLevel(blocks: any[], firstLevelIds: string[]): any[] {
   return [...sorted, ...remaining];
 }
 
+const BATCH_SIZE = 1000; // Feishu API limit per request
+
 /**
- * Insert blocks using Descendant API.
- * Supports all block types including tables and nested structures.
+ * Insert blocks using Descendant API (single batch, <1000 blocks).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
 async function insertBlocksWithDescendant(
@@ -108,9 +109,87 @@ async function insertBlocksWithDescendant(
     throw new Error(`${res.msg} (code: ${res.code})`);
   }
 
-  // Return inserted blocks for compatibility with insertBlocks return type
   const children = res.data?.children ?? [];
   return { children, skipped: [] };
+}
+
+/**
+ * Collect all descendant block IDs for a given set of first-level block IDs.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
+function collectDescendants(blocks: any[], firstLevelIds: string[]): any[] {
+  const blockMap = new Map<string, any>();
+  for (const block of blocks) {
+    blockMap.set(block.block_id, block);
+  }
+
+  const result: any[] = [];
+  const visited = new Set<string>();
+
+  function collect(blockId: string) {
+    if (visited.has(blockId)) return;
+    visited.add(blockId);
+
+    const block = blockMap.get(blockId);
+    if (!block) return;
+
+    result.push(block);
+
+    // Recursively collect children
+    const children = block.children;
+    if (Array.isArray(children)) {
+      for (const childId of children) {
+        collect(childId);
+      }
+    } else if (typeof children === "string") {
+      collect(children);
+    }
+  }
+
+  for (const id of firstLevelIds) {
+    collect(id);
+  }
+
+  return result;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/**
+ * Insert blocks in batches (for >1000 blocks).
+ * Splits first-level blocks into batches and inserts each with its descendants.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
+async function insertBlocksInBatches(
+  client: Lark.Client,
+  docToken: string,
+  blocks: any[],
+  firstLevelBlockIds: string[],
+  logger?: Logger,
+): Promise<{ children: any[]; skipped: string[] }> {
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  const allChildren: any[] = [];
+  const totalBatches = Math.ceil(firstLevelBlockIds.length / BATCH_SIZE);
+
+  for (let i = 0; i < firstLevelBlockIds.length; i += BATCH_SIZE) {
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    const batchFirstLevelIds = firstLevelBlockIds.slice(i, i + BATCH_SIZE);
+    const batchBlocks = collectDescendants(blocks, batchFirstLevelIds);
+
+    logger?.info?.(
+      `feishu_doc: Inserting batch ${batchNum}/${totalBatches} (${batchBlocks.length} blocks)...`,
+    );
+
+    const { children } = await insertBlocksWithDescendant(
+      client,
+      docToken,
+      batchBlocks,
+      batchFirstLevelIds,
+    );
+
+    allChildren.push(...children);
+  }
+
+  return { children: allChildren, skipped: [] };
 }
 
 async function clearDocumentContent(client: Lark.Client, docToken: string) {
@@ -289,13 +368,11 @@ async function writeDoc(
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
   logger?.info?.(`feishu_doc: Converted to ${blocks.length} blocks, inserting...`);
-  // Use Descendant API - supports all block types including tables
-  const { children: inserted } = await insertBlocksWithDescendant(
-    client,
-    docToken,
-    sortedBlocks,
-    firstLevelBlockIds,
-  );
+  // Use batched insert for large documents (>1000 blocks)
+  const { children: inserted } =
+    blocks.length > BATCH_SIZE
+      ? await insertBlocksInBatches(client, docToken, sortedBlocks, firstLevelBlockIds, logger)
+      : await insertBlocksWithDescendant(client, docToken, sortedBlocks, firstLevelBlockIds);
 
   const imageUrls = extractImageUrls(markdown);
   if (imageUrls.length > 0) {
@@ -329,13 +406,11 @@ async function appendDoc(
   const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
 
   logger?.info?.(`feishu_doc: Converted to ${blocks.length} blocks, inserting...`);
-  // Use Descendant API - supports all block types including tables
-  const { children: inserted } = await insertBlocksWithDescendant(
-    client,
-    docToken,
-    sortedBlocks,
-    firstLevelBlockIds,
-  );
+  // Use batched insert for large documents (>1000 blocks)
+  const { children: inserted } =
+    blocks.length > BATCH_SIZE
+      ? await insertBlocksInBatches(client, docToken, sortedBlocks, firstLevelBlockIds, logger)
+      : await insertBlocksWithDescendant(client, docToken, sortedBlocks, firstLevelBlockIds);
 
   const imageUrls = extractImageUrls(markdown);
   if (imageUrls.length > 0) {
