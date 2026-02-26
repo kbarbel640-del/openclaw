@@ -81,12 +81,7 @@ export async function writeUrlToFile(filePath: string, url: string) {
 
   const res = await retryHttpAsync(() => fetch(url), {
     label: "camera-url-download",
-    onResponse: async (r) => {
-      if (!r.ok) {
-        throw new Error(`failed to download ${url}: ${r.status} ${r.statusText}`);
-      }
-      return r;
-    },
+    initialUrl: url,
   });
 
   const contentLengthRaw = res.headers.get("content-length");

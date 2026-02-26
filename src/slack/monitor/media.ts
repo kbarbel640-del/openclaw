@@ -65,6 +65,7 @@ function createSlackMediaFetch(token: string): FetchLike {
       return await retryHttpAsync(
         () => fetch(parsed.href, { ...rest, headers, redirect: "manual" }),
         {
+          initialUrl: parsed.href,
           label: "slack-media-fetch-auth",
         },
       );
@@ -72,6 +73,7 @@ function createSlackMediaFetch(token: string): FetchLike {
 
     headers.delete("Authorization");
     return await retryHttpAsync(() => fetch(url, { ...rest, headers, redirect: "manual" }), {
+      initialUrl: url,
       label: "slack-media-fetch",
     });
   };
@@ -94,6 +96,7 @@ export async function fetchWithSlackAuth(url: string, token: string): Promise<Re
         redirect: "manual",
       }),
     {
+      initialUrl: parsed.href,
       label: "slack-auth-initial",
       onResponse: (r) => Promise.resolve(r), // Don't throw on non-2xx
     },
@@ -121,6 +124,7 @@ export async function fetchWithSlackAuth(url: string, token: string): Promise<Re
   // Follow the redirect without the Authorization header
   // (Slack's CDN URLs are pre-signed and don't need it)
   return await retryHttpAsync(() => fetch(resolvedUrl.toString(), { redirect: "follow" }), {
+    initialUrl: resolvedUrl.toString(),
     label: "slack-auth-redirect",
   });
 }

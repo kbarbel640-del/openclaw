@@ -44,7 +44,7 @@ async function requestDeviceCode(params: { scope: string }): Promise<DeviceCodeR
     scope: params.scope,
   });
 
-  const res = await retryHttpAsync(
+  const json = await retryHttpAsync(
     () =>
       fetch(DEVICE_CODE_URL, {
         method: "POST",
@@ -54,10 +54,13 @@ async function requestDeviceCode(params: { scope: string }): Promise<DeviceCodeR
         },
         body,
       }),
-    { label: "github-copilot-device-code" },
+    {
+      initialUrl: DEVICE_CODE_URL,
+      label: "github-copilot-device-code",
+      transformResponse: async (res) => parseJsonResponse<DeviceCodeResponse>(await res.json()),
+    },
   );
 
-  const json = parseJsonResponse<DeviceCodeResponse>(await res.json());
   if (!json.device_code || !json.user_code || !json.verification_uri) {
     throw new Error("GitHub device code response missing fields");
   }
@@ -86,7 +89,7 @@ async function pollForAccessToken(params: {
           },
           body: bodyBase,
         }),
-      { label: "github-copilot-access-token" },
+      { initialUrl: ACCESS_TOKEN_URL, label: "github-copilot-access-token" },
     );
 
     const json = parseJsonResponse<DeviceTokenResponse>(await res.json());

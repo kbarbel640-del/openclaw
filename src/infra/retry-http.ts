@@ -6,10 +6,17 @@ export type RetryLogger = (msg: string) => void;
 
 type ResponseValidator = (res: Response) => Promise<Response>;
 
-export type RetryHttpOptions = RetryOptions & {
+type ResponseTransformer<T> = (res: Response) => Promise<T>;
+
+type ErrorFactory<T> = (res: Response, options: RetryHttpOptions<T>) => Promise<Error>;
+
+export type RetryHttpOptions<T> = RetryOptions & {
   label: string;
+  initialUrl?: string;
   logger?: RetryLogger;
   onResponse?: ResponseValidator;
+  transformResponse?: ResponseTransformer<T>;
+  createError?: ErrorFactory<T>;
 };
 
 // HTTP status codes that are safe to retry
@@ -63,40 +70,58 @@ export function isHttpRetryable(err: unknown): boolean {
   return false;
 }
 
-export async function retryHttpAsync(
+export async function retryHttpAsync<T>(
   fn: () => Promise<Response>,
-  options: RetryHttpOptions,
-): Promise<Response> {
+  options: RetryHttpOptions<T>,
+): Promise<T> {
   const {
     logger = console.warn,
-    onResponse: responseValidator = onResponse(options.label),
+    onResponse: validate = onResponse(options),
+    transformResponse: transform = defaultResponseTransformer,
     ...retryOptions
   } = options;
-  const response = await retryAsync(fn, {
+  return retryAsync(fn, {
     ...retryOptions,
     shouldRetry: (err) => isHttpRetryable(err),
     onRetry: (info) => onRetry(logger, info),
-  });
-  return responseValidator(response);
+  })
+    .then(validate)
+    .then(transform);
 }
 
-export function onRetry(logger: RetryLogger, info: RetryInfo) {
+function onRetry(logger: RetryLogger, info: RetryInfo) {
   const errMsg = info.err instanceof Error ? info.err.message : String(info.err);
   const labelPart = info.label ? `[${info.label}] ` : "";
   logger(`${labelPart}Retry ${info.attempt}/${info.maxAttempts} failed: ${errMsg}`);
 }
 
-export function onResponse(label: string): ResponseValidator {
+function onResponse(options: RetryHttpOptions<unknown>): ResponseValidator {
+  const { createError = defaultCreateError } = options;
   return async (res: Response) => {
     if (!res.ok) {
-      const text = await res
-        .text()
-        .then((v) => `: ${v}`)
-        .catch(() => "");
-      const err = new Error(`${label}: HTTP ${res.status} ${res.statusText}${text}`);
-      (err as Error & { status?: number }).status = res.status;
-      throw err;
+      throw await createError(res, options);
     }
     return res;
   };
+}
+
+async function defaultResponseTransformer(res: Response): Promise<Response> {
+  return Promise.resolve(res);
+}
+
+async function defaultCreateError(
+  res: Response,
+  options: RetryHttpOptions<unknown>,
+): Promise<Error> {
+  const { initialUrl, label } = options;
+  const initialUrlPart = initialUrl ? `${initialUrl} ` : "";
+  const textPart = await res
+    .text()
+    .then((text) => `: ${text}`)
+    .catch(() => "");
+  const err = new Error(
+    `${label}: HTTP ${initialUrlPart}${res.status} ${res.statusText}${textPart}`,
+  );
+  (err as Error & { status?: number }).status = res.status;
+  return err;
 }
