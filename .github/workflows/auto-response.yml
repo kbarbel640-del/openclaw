@@ -28,6 +28,12 @@ jobs:
             // Labels prefixed with "r:" are auto-response triggers.
             const rules = [
               {
+                label: "r: external-sensitive-path",
+                close: true,
+                message:
+                  "This PR touches restricted security/exec paths and was opened by a non-org contributor. For safety, only OpenClaw organization members can modify these files directly. Please open an issue/discussion for a maintainer-assisted path, or submit a PR that excludes these files.",
+              },
+              {
                 label: "r: skill",
                 close: true,
                 message:
