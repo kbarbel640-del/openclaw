@@ -7,7 +7,9 @@ import {
 import type { OpenClawConfig } from "../../config/config.js";
 import { withFileLock } from "../../infra/file-lock.js";
 import { refreshQwenPortalCredentials } from "../../providers/qwen-portal-oauth.js";
+import { sleep } from "../../utils.js";
 import { refreshChutesTokens } from "../chutes-oauth.js";
+import { readCodexCliCredentialsCached } from "../cli-credentials.js";
 import { AUTH_STORE_LOCK_OPTIONS, log } from "./constants.js";
 import { formatAuthDoctorHint } from "./doctor.js";
 import { ensureAuthStoreFile, resolveAuthStorePath } from "./paths.js";
@@ -22,6 +24,32 @@ const isOAuthProvider = (provider: string): provider is OAuthProvider =>
 
 const resolveOAuthProvider = (provider: string): OAuthProvider | null =>
   isOAuthProvider(provider) ? provider : null;
+
+const OAUTH_REFRESH_MAX_ATTEMPTS = 3;
+const OAUTH_REFRESH_RETRY_BASE_DELAY_MS = 150;
+const OAUTH_REFRESH_RETRY_MAX_DELAY_MS = 600;
+const RETRYABLE_OAUTH_REFRESH_ERROR_MARKERS = [
+  "refresh_token_reused",
+  "temporar",
+  "timeout",
+  "timed out",
+  "network",
+  "fetch",
+  "econn",
+  "etimedout",
+  "eai_again",
+  "rate limit",
+  "429",
+  "5xx",
+];
+const NON_RETRYABLE_OAUTH_REFRESH_ERROR_MARKERS = [
+  "invalid_grant",
+  "invalid_request",
+  "unauthorized",
+  "forbidden",
+  "not found",
+  "re-authenticate",
+];
 
 /** Bearer-token auth modes that are interchangeable (oauth tokens and raw tokens). */
 const BEARER_AUTH_MODES = new Set(["oauth", "token"]);
@@ -97,12 +125,130 @@ type ResolveApiKeyForProfileParams = {
   agentDir?: string;
 };
 
+type StoredOAuthCredential = OAuthCredentials & { type: "oauth"; provider: string; email?: string };
+
+function normalizeAccountId(accountId: unknown): string | null {
+  if (typeof accountId !== "string") {
+    return null;
+  }
+  const normalized = accountId.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function isMatchingAccountId(currentAccountId: unknown, externalAccountId: unknown): boolean {
+  const current = normalizeAccountId(currentAccountId);
+  const external = normalizeAccountId(externalAccountId);
+  if (!current && !external) {
+    return true;
+  }
+  if (!current || !external) {
+    return false;
+  }
+  return current === external;
+}
+
+function isNewerOAuthCredential(
+  currentExpires: number | undefined,
+  candidateExpires: number,
+): boolean {
+  const current =
+    typeof currentExpires === "number" && Number.isFinite(currentExpires)
+      ? currentExpires
+      : Number.NEGATIVE_INFINITY;
+  return Number.isFinite(candidateExpires) && candidateExpires > current;
+}
+
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return String(error);
+}
+
+function resolveOAuthRefreshRetryDelayMs(attempt: number): number {
+  const normalizedAttempt = Math.max(1, attempt);
+  return Math.min(
+    OAUTH_REFRESH_RETRY_MAX_DELAY_MS,
+    OAUTH_REFRESH_RETRY_BASE_DELAY_MS * 2 ** (normalizedAttempt - 1),
+  );
+}
+
+function shouldRetryOAuthRefreshFailure(provider: string, error: unknown): boolean {
+  if (provider === "openai-codex") {
+    // openai-codex failures can mask transient refresh_token races in upstream tooling.
+    return true;
+  }
+
+  const message = extractErrorMessage(error).toLowerCase();
+  if (!message) {
+    return false;
+  }
+
+  if (NON_RETRYABLE_OAUTH_REFRESH_ERROR_MARKERS.some((marker) => message.includes(marker))) {
+    return false;
+  }
+
+  if (/\b5\d\d\b/.test(message)) {
+    return true;
+  }
+
+  return RETRYABLE_OAUTH_REFRESH_ERROR_MARKERS.some((marker) => message.includes(marker));
+}
+
+function adoptNewerCodexExternalCredential(params: {
+  store: AuthProfileStore;
+  profileId: string;
+  agentDir?: string;
+  cred: StoredOAuthCredential;
+  phase: "before-refresh" | "after-refresh-failure";
+}): StoredOAuthCredential | null {
+  if (params.cred.provider !== "openai-codex") {
+    return null;
+  }
+
+  const externalCred = readCodexCliCredentialsCached({ ttlMs: 0 });
+  if (!externalCred) {
+    return null;
+  }
+
+  if (!isMatchingAccountId(params.cred.accountId, externalCred.accountId)) {
+    log.debug("skipped codex external credential sync due to account mismatch", {
+      profileId: params.profileId,
+      phase: params.phase,
+    });
+    return null;
+  }
+
+  if (!isNewerOAuthCredential(params.cred.expires, externalCred.expires)) {
+    return null;
+  }
+
+  const merged: StoredOAuthCredential = {
+    ...params.cred,
+    ...externalCred,
+    type: "oauth",
+    provider: "openai-codex",
+  };
+  params.store.profiles[params.profileId] = merged;
+  saveAuthProfileStore(params.store, params.agentDir);
+  log.info("adopted newer openai-codex credentials from external cli", {
+    profileId: params.profileId,
+    phase: params.phase,
+    expires: new Date(merged.expires).toISOString(),
+  });
+
+  return merged;
+}
+
 function adoptNewerMainOAuthCredential(params: {
   store: AuthProfileStore;
   profileId: string;
   agentDir?: string;
-  cred: OAuthCredentials & { type: "oauth"; provider: string; email?: string };
-}): (OAuthCredentials & { type: "oauth"; provider: string; email?: string }) | null {
+  cred: StoredOAuthCredential;
+}): StoredOAuthCredential | null {
   if (!params.agentDir) {
     return null;
   }
@@ -134,6 +280,32 @@ function adoptNewerMainOAuthCredential(params: {
   return null;
 }
 
+async function refreshOAuthCredential(
+  cred: StoredOAuthCredential,
+): Promise<{ apiKey: string; newCredentials: OAuthCredentials } | null> {
+  const oauthCreds: Record<string, OAuthCredentials> = {
+    [cred.provider]: cred,
+  };
+
+  if (String(cred.provider) === "chutes") {
+    const newCredentials = await refreshChutesTokens({
+      credential: cred,
+    });
+    return { apiKey: newCredentials.access, newCredentials };
+  }
+
+  if (String(cred.provider) === "qwen-portal") {
+    const newCredentials = await refreshQwenPortalCredentials(cred);
+    return { apiKey: newCredentials.access, newCredentials };
+  }
+
+  const oauthProvider = resolveOAuthProvider(cred.provider);
+  if (!oauthProvider) {
+    return null;
+  }
+  return getOAuthApiKey(oauthProvider, oauthCreds);
+}
+
 async function refreshOAuthTokenWithLock(params: {
   profileId: string;
   agentDir?: string;
@@ -148,48 +320,78 @@ async function refreshOAuthTokenWithLock(params: {
       return null;
     }
 
-    if (Date.now() < cred.expires) {
+    let activeCredential: StoredOAuthCredential = cred;
+    const syncedBeforeRefresh = adoptNewerCodexExternalCredential({
+      store,
+      profileId: params.profileId,
+      agentDir: params.agentDir,
+      cred: activeCredential,
+      phase: "before-refresh",
+    });
+    if (syncedBeforeRefresh) {
+      activeCredential = syncedBeforeRefresh;
+    }
+
+    if (Date.now() < activeCredential.expires) {
       return {
-        apiKey: buildOAuthApiKey(cred.provider, cred),
-        newCredentials: cred,
+        apiKey: buildOAuthApiKey(activeCredential.provider, activeCredential),
+        newCredentials: activeCredential,
       };
     }
 
-    const oauthCreds: Record<string, OAuthCredentials> = {
-      [cred.provider]: cred,
-    };
+    for (let attempt = 1; attempt <= OAUTH_REFRESH_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const result = await refreshOAuthCredential(activeCredential);
+        if (!result) {
+          return null;
+        }
+        const mergedCredential: StoredOAuthCredential = {
+          ...activeCredential,
+          ...result.newCredentials,
+          type: "oauth",
+        };
+        store.profiles[params.profileId] = mergedCredential;
+        saveAuthProfileStore(store, params.agentDir);
+        return {
+          apiKey: result.apiKey,
+          newCredentials: mergedCredential,
+        };
+      } catch (error) {
+        const syncedAfterFailure = adoptNewerCodexExternalCredential({
+          store,
+          profileId: params.profileId,
+          agentDir: params.agentDir,
+          cred: activeCredential,
+          phase: "after-refresh-failure",
+        });
+        if (syncedAfterFailure && Date.now() < syncedAfterFailure.expires) {
+          return {
+            apiKey: buildOAuthApiKey(syncedAfterFailure.provider, syncedAfterFailure),
+            newCredentials: syncedAfterFailure,
+          };
+        }
 
-    const result =
-      String(cred.provider) === "chutes"
-        ? await (async () => {
-            const newCredentials = await refreshChutesTokens({
-              credential: cred,
-            });
-            return { apiKey: newCredentials.access, newCredentials };
-          })()
-        : String(cred.provider) === "qwen-portal"
-          ? await (async () => {
-              const newCredentials = await refreshQwenPortalCredentials(cred);
-              return { apiKey: newCredentials.access, newCredentials };
-            })()
-          : await (async () => {
-              const oauthProvider = resolveOAuthProvider(cred.provider);
-              if (!oauthProvider) {
-                return null;
-              }
-              return await getOAuthApiKey(oauthProvider, oauthCreds);
-            })();
-    if (!result) {
-      return null;
+        if (
+          attempt >= OAUTH_REFRESH_MAX_ATTEMPTS ||
+          !shouldRetryOAuthRefreshFailure(activeCredential.provider, error)
+        ) {
+          throw error;
+        }
+
+        const delayMs = resolveOAuthRefreshRetryDelayMs(attempt);
+        log.warn("oauth token refresh failed; retrying", {
+          profileId: params.profileId,
+          provider: activeCredential.provider,
+          attempt,
+          maxAttempts: OAUTH_REFRESH_MAX_ATTEMPTS,
+          delayMs,
+          error: extractErrorMessage(error),
+        });
+        await sleep(delayMs);
+      }
     }
-    store.profiles[params.profileId] = {
-      ...cred,
-      ...result.newCredentials,
-      type: "oauth",
-    };
-    saveAuthProfileStore(store, params.agentDir);
 
-    return result;
+    return null;
   });
 }
 
