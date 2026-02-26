@@ -493,12 +493,19 @@ export async function startGatewayServer(
         }, skillsRefreshDelayMs);
       });
 
+  const mediaTtlHours = cfgAtStart.media?.ttlHours;
+  const mediaCleanupTtlMs =
+    typeof mediaTtlHours === "number" && Number.isFinite(mediaTtlHours)
+      ? Math.max(0, mediaTtlHours) * 60 * 60 * 1000
+      : 24 * 60 * 60 * 1000;
+
   const noopInterval = () => setInterval(() => {}, 1 << 30);
   let tickInterval = noopInterval();
   let healthInterval = noopInterval();
   let dedupeCleanup = noopInterval();
+  let mediaCleanup = noopInterval();
   if (!minimalTestGateway) {
-    ({ tickInterval, healthInterval, dedupeCleanup } = startGatewayMaintenanceTimers({
+    ({ tickInterval, healthInterval, dedupeCleanup, mediaCleanup } = startGatewayMaintenanceTimers({
       broadcast,
       nodeSendToAllSubscribed,
       getPresenceVersion,
@@ -513,6 +520,7 @@ export async function startGatewayServer(
       removeChatRun,
       agentRunSeq,
       nodeSendToSession,
+      mediaTtlMs: mediaCleanupTtlMs,
     }));
   }
 
@@ -764,6 +772,7 @@ export async function startGatewayServer(
     tickInterval,
     healthInterval,
     dedupeCleanup,
+    mediaCleanup,
     agentUnsub,
     heartbeatUnsub,
     chatRunState,
