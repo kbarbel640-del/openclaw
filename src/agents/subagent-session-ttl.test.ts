@@ -155,6 +155,30 @@ describe("subagent-session-ttl", () => {
       vi.useRealTimers();
     });
 
+    it("respects cleanupIntervalMs config override", () => {
+      vi.useFakeTimers();
+      configureSessionTtl({ cleanupIntervalMs: 10_000 });
+      const fn = vi.fn();
+      startPeriodicCleanup(fn);
+      vi.advanceTimersByTime(10_000);
+      expect(fn).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(10_000);
+      expect(fn).toHaveBeenCalledTimes(2);
+      stopPeriodicCleanup();
+      vi.useRealTimers();
+    });
+
+    it("catches errors from cleanupFn without unhandled rejection", () => {
+      vi.useFakeTimers();
+      const fn = vi.fn().mockRejectedValue(new Error("cleanup boom"));
+      startPeriodicCleanup(fn);
+      // Should not throw
+      vi.advanceTimersByTime(5 * 60_000);
+      expect(fn).toHaveBeenCalledTimes(1);
+      stopPeriodicCleanup();
+      vi.useRealTimers();
+    });
+
     it("does not start multiple timers", () => {
       vi.useFakeTimers();
       const fn = vi.fn();

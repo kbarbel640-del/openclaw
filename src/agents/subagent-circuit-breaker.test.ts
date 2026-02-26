@@ -98,11 +98,37 @@ describe("subagent-circuit-breaker", () => {
     expect(isCircuitOpen()).toBe(false);
   });
 
-  it("should count failures without error string", () => {
+  it("should NOT count failures without error string", () => {
     recordSpawnFailure();
     recordSpawnFailure();
     recordSpawnFailure();
+    expect(isCircuitOpen()).toBe(false);
+  });
+
+  it("should NOT count empty string as relevant", () => {
+    recordSpawnFailure("");
+    recordSpawnFailure("");
+    recordSpawnFailure("");
+    expect(isCircuitOpen()).toBe(false);
+  });
+
+  it("should handle concurrent isCircuitOpen + recordSpawnFailure interleaving", () => {
+    // Record 2 failures, check state, then add the 3rd
+    recordSpawnFailure("overloaded");
+    expect(isCircuitOpen()).toBe(false);
+    recordSpawnFailure("429");
+    expect(isCircuitOpen()).toBe(false);
+    recordSpawnFailure("rate limit");
     expect(isCircuitOpen()).toBe(true);
+    // Advancing part of cooldown shouldn't reset
+    vi.advanceTimersByTime(100_000);
+    expect(isCircuitOpen()).toBe(true);
+    // Recording more failures while open shouldn't change state
+    recordSpawnFailure("overloaded");
+    expect(isCircuitOpen()).toBe(true);
+    // Full cooldown resets
+    vi.advanceTimersByTime(80_000);
+    expect(isCircuitOpen()).toBe(false);
   });
 
   it("should show cooldown remaining", () => {

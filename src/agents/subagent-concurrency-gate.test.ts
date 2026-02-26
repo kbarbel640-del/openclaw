@@ -50,12 +50,13 @@ describe("subagent-concurrency-gate", () => {
   });
 
   it("should queue when max slots reached", async () => {
+    vi.useFakeTimers();
     configureConcurrencyGate({ maxGlobalConcurrent: 2 });
     await acquireConcurrencySlot("agent-a");
     await acquireConcurrencySlot("agent-b");
 
     let resolved = false;
-    const promise = acquireConcurrencySlot("agent-c").then(() => {
+    const _promise = acquireConcurrencySlot("agent-c").then(() => {
       resolved = true;
     });
 
@@ -63,12 +64,14 @@ describe("subagent-concurrency-gate", () => {
     expect(resolved).toBe(false);
 
     releaseConcurrencySlot("agent-a");
-    await promise;
+    await vi.advanceTimersByTimeAsync(0);
     expect(resolved).toBe(true);
     expect(getConcurrencyStats().active).toBe(2);
+    vi.useRealTimers();
   });
 
   it("should enforce fair share across agents", async () => {
+    vi.useFakeTimers();
     configureConcurrencyGate({ maxGlobalConcurrent: 2 });
     // Agent A takes 1 slot
     await acquireConcurrencySlot("agent-a");
@@ -79,12 +82,12 @@ describe("subagent-concurrency-gate", () => {
 
     // Now at max. Both agent-a and agent-b queue.
     let agentAQueued = false;
-    const promiseA = acquireConcurrencySlot("agent-a").then(() => {
+    const _promiseA = acquireConcurrencySlot("agent-a").then(() => {
       agentAQueued = true;
     });
 
     let agentBQueued = false;
-    const promiseB = acquireConcurrencySlot("agent-b").then(() => {
+    const _promiseB = acquireConcurrencySlot("agent-b").then(() => {
       agentBQueued = true;
     });
 
@@ -92,14 +95,15 @@ describe("subagent-concurrency-gate", () => {
 
     // Release one of agent-a's slots — agent-b should be preferred (under fair share)
     releaseConcurrencySlot("agent-a");
-    await promiseB;
+    await vi.advanceTimersByTimeAsync(0);
     expect(agentBQueued).toBe(true);
     expect(agentAQueued).toBe(false);
 
     // Release agent-a's other slot — now agent-a can proceed
     releaseConcurrencySlot("agent-a");
-    await promiseA;
+    await vi.advanceTimersByTimeAsync(0);
     expect(agentAQueued).toBe(true);
+    vi.useRealTimers();
   });
 
   it("should configure max slots", () => {
@@ -113,19 +117,42 @@ describe("subagent-concurrency-gate", () => {
   });
 
   it("should drain queue on release in FIFO order", async () => {
+    vi.useFakeTimers();
     configureConcurrencyGate({ maxGlobalConcurrent: 1 });
     await acquireConcurrencySlot("agent-a");
 
     const order: string[] = [];
-    const p1 = acquireConcurrencySlot("agent-b").then(() => order.push("b"));
-    const p2 = acquireConcurrencySlot("agent-c").then(() => order.push("c"));
+    const _p1 = acquireConcurrencySlot("agent-b").then(() => order.push("b"));
+    const _p2 = acquireConcurrencySlot("agent-c").then(() => order.push("c"));
 
     releaseConcurrencySlot("agent-a");
-    await p1;
+    await vi.advanceTimersByTimeAsync(0);
     releaseConcurrencySlot("agent-b");
-    await p2;
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(order).toEqual(["b", "c"]);
+    vi.useRealTimers();
+  });
+
+  it("should independently timeout queued entries after 30s", async () => {
+    vi.useFakeTimers();
+    configureConcurrencyGate({ maxGlobalConcurrent: 1 });
+    await acquireConcurrencySlot("agent-a");
+
+    let rejected = false;
+    let rejectionError = "";
+    const promise = acquireConcurrencySlot("agent-b").catch((err: Error) => {
+      rejected = true;
+      rejectionError = err.message;
+    });
+
+    // Advance past the 30s timeout without releasing
+    vi.advanceTimersByTime(31_000);
+    await promise;
+    expect(rejected).toBe(true);
+    expect(rejectionError).toContain("timeout");
+    expect(getConcurrencyStats().queued).toBe(0);
+    vi.useRealTimers();
   });
 
   it("should reset state for tests", async () => {

@@ -47,15 +47,18 @@ function pruneOldFailures(now: number): void {
 export function recordSpawnFailure(error?: string): void {
   const now = Date.now();
 
-  // Only count overload/rate-limit errors
-  const errorLower = (error ?? "").toLowerCase();
+  // Only count overload/rate-limit errors; undefined/empty = not relevant
+  if (!error) {
+    return;
+  }
+  const errorLower = error.toLowerCase();
   const isRelevant =
     errorLower.includes("overload") ||
     errorLower.includes("rate") ||
     errorLower.includes("429") ||
     errorLower.includes("503") ||
     errorLower.includes("too many");
-  if (!isRelevant && error) {
+  if (!isRelevant) {
     return;
   }
 

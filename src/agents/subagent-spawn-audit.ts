@@ -28,8 +28,9 @@ type SpawnEvent = {
   label?: string;
 };
 
-const spawnHistory: SpawnEvent[] = [];
-const MAX_HISTORY_SIZE = 1000;
+/** Per-agent index: agentId → array of events (sorted by timestamp). */
+const spawnByAgent = new Map<string, SpawnEvent[]>();
+const MAX_HISTORY_PER_AGENT = 500;
 
 /** Optional callback for alert delivery (e.g., Slack notification). */
 let alertCallback: ((message: string, agentId: string) => void | Promise<void>) | null = null;
@@ -49,16 +50,16 @@ export function setSpawnAlertCallback(
   alertCallback = cb;
 }
 
-function pruneHistory(now: number): void {
-  // Keep events within 1 hour for query purposes, but prune older ones
+function pruneAgentHistory(events: SpawnEvent[], now: number): SpawnEvent[] {
+  // Keep events within 1 hour
   const hourAgo = now - 3_600_000;
-  while (spawnHistory.length > 0 && spawnHistory[0].timestamp < hourAgo) {
-    spawnHistory.shift();
+  const cutIdx = events.findIndex((e) => e.timestamp >= hourAgo);
+  const pruned = cutIdx <= 0 ? events : events.slice(cutIdx);
+  // Hard cap per agent
+  if (pruned.length > MAX_HISTORY_PER_AGENT) {
+    return pruned.slice(pruned.length - MAX_HISTORY_PER_AGENT);
   }
-  // Hard cap
-  while (spawnHistory.length > MAX_HISTORY_SIZE) {
-    spawnHistory.shift();
-  }
+  return pruned;
 }
 
 export function recordSpawn(params: {
@@ -68,26 +69,42 @@ export function recordSpawn(params: {
   label?: string;
 }): void {
   const now = Date.now();
-  pruneHistory(now);
-
-  spawnHistory.push({
+  const event: SpawnEvent = {
     agentId: params.agentId,
     timestamp: now,
     runId: params.runId,
     childSessionKey: params.childSessionKey,
     label: params.label,
-  });
+  };
 
-  // Check rate for this agent
+  let agentEvents = spawnByAgent.get(params.agentId);
+  if (!agentEvents) {
+    agentEvents = [];
+    spawnByAgent.set(params.agentId, agentEvents);
+  }
+  agentEvents.push(event);
+
+  // Periodic prune for this agent
+  if (agentEvents.length > MAX_HISTORY_PER_AGENT * 1.5) {
+    spawnByAgent.set(params.agentId, pruneAgentHistory(agentEvents, now));
+    agentEvents = spawnByAgent.get(params.agentId)!;
+  }
+
+  // Check rate for this agent (scan only this agent's events)
   const windowStart = now - config.windowMs;
-  const recentForAgent = spawnHistory.filter(
-    (e) => e.agentId === params.agentId && e.timestamp >= windowStart,
-  );
+  let recentCount = 0;
+  for (let i = agentEvents.length - 1; i >= 0; i--) {
+    if (agentEvents[i].timestamp >= windowStart) {
+      recentCount++;
+    } else {
+      break; // Events are sorted by time, no need to go further
+    }
+  }
 
-  if (recentForAgent.length > config.threshold) {
+  if (recentCount > config.threshold) {
     const message =
       `[spawn-audit] RATE ALERT: Agent "${params.agentId}" has spawned ` +
-      `${recentForAgent.length} subagents in the last ${Math.round(config.windowMs / 1000)}s ` +
+      `${recentCount} subagents in the last ${Math.round(config.windowMs / 1000)}s ` +
       `(threshold: ${config.threshold}).`;
 
     defaultRuntime.log(message);
@@ -104,7 +121,19 @@ export function getSpawnRate(agentId: string, windowMs?: number): number {
   const now = Date.now();
   const window = windowMs ?? config.windowMs;
   const windowStart = now - window;
-  return spawnHistory.filter((e) => e.agentId === agentId && e.timestamp >= windowStart).length;
+  const agentEvents = spawnByAgent.get(agentId);
+  if (!agentEvents) {
+    return 0;
+  }
+  let count = 0;
+  for (let i = agentEvents.length - 1; i >= 0; i--) {
+    if (agentEvents[i].timestamp >= windowStart) {
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 }
 
 export type SpawnHistoryQuery = {
@@ -115,12 +144,19 @@ export type SpawnHistoryQuery = {
 
 export function querySpawnHistory(query?: SpawnHistoryQuery): SpawnEvent[] {
   const now = Date.now();
-  pruneHistory(now);
 
-  let results = [...spawnHistory];
+  let results: SpawnEvent[];
 
   if (query?.agentId) {
-    results = results.filter((e) => e.agentId === query.agentId);
+    const agentEvents = spawnByAgent.get(query.agentId);
+    results = agentEvents ? [...agentEvents] : [];
+  } else {
+    // Merge all agents
+    results = [];
+    for (const events of spawnByAgent.values()) {
+      results.push(...events);
+    }
+    results.sort((a, b) => a.timestamp - b.timestamp);
   }
 
   if (query?.windowMs) {
@@ -137,28 +173,34 @@ export function querySpawnHistory(query?: SpawnHistoryQuery): SpawnEvent[] {
 
 export function getSpawnSummary(): Record<string, { perMinute: number; perHour: number }> {
   const now = Date.now();
-  pruneHistory(now);
-
-  const agents = new Set(spawnHistory.map((e) => e.agentId));
+  const minuteStart = now - 60_000;
+  const hourStart = now - 3_600_000;
   const summary: Record<string, { perMinute: number; perHour: number }> = {};
 
-  for (const agentId of agents) {
-    const minuteStart = now - 60_000;
-    const hourStart = now - 3_600_000;
-    const perMinute = spawnHistory.filter(
-      (e) => e.agentId === agentId && e.timestamp >= minuteStart,
-    ).length;
-    const perHour = spawnHistory.filter(
-      (e) => e.agentId === agentId && e.timestamp >= hourStart,
-    ).length;
-    summary[agentId] = { perMinute, perHour };
+  for (const [agentId, events] of spawnByAgent.entries()) {
+    let perMinute = 0;
+    let perHour = 0;
+    for (let i = events.length - 1; i >= 0; i--) {
+      const ts = events[i].timestamp;
+      if (ts >= minuteStart) {
+        perMinute++;
+        perHour++;
+      } else if (ts >= hourStart) {
+        perHour++;
+      } else {
+        break;
+      }
+    }
+    if (perHour > 0) {
+      summary[agentId] = { perMinute, perHour };
+    }
   }
 
   return summary;
 }
 
 export function resetSpawnAuditForTests(): void {
-  spawnHistory.length = 0;
+  spawnByAgent.clear();
   alertCallback = null;
   config = {
     threshold: DEFAULT_THRESHOLD,

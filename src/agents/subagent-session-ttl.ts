@@ -47,12 +47,16 @@ export type SessionMetrics = {
 export function configureSessionTtl(partial: {
   completedTtlMinutes?: number;
   zombieInactivityMinutes?: number;
+  cleanupIntervalMs?: number;
 }): void {
   if (typeof partial.completedTtlMinutes === "number" && partial.completedTtlMinutes > 0) {
     config.completedTtlMs = Math.floor(partial.completedTtlMinutes) * 60_000;
   }
   if (typeof partial.zombieInactivityMinutes === "number" && partial.zombieInactivityMinutes > 0) {
     config.zombieInactivityMs = Math.floor(partial.zombieInactivityMinutes) * 60_000;
+  }
+  if (typeof partial.cleanupIntervalMs === "number" && partial.cleanupIntervalMs > 0) {
+    config.cleanupIntervalMs = Math.floor(partial.cleanupIntervalMs);
   }
 }
 
@@ -145,7 +149,9 @@ export function startPeriodicCleanup(cleanupFn: () => void | Promise<void>): voi
     return;
   }
   cleanupTimer = setInterval(() => {
-    void cleanupFn();
+    void Promise.resolve(cleanupFn()).catch((err) => {
+      defaultRuntime.log(`[session-ttl] Cleanup error: ${err}`);
+    });
   }, config.cleanupIntervalMs);
   cleanupTimer.unref?.();
 }

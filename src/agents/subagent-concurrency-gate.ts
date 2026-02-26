@@ -17,6 +17,7 @@ type QueueEntry = {
   resolve: () => void;
   reject: (err: Error) => void;
   enqueuedAt: number;
+  timer: ReturnType<typeof setTimeout>;
 };
 
 const DEFAULT_MAX_GLOBAL_CONCURRENT = 10;
@@ -52,8 +53,8 @@ export function getConcurrencyStats(): {
 }
 
 function computeFairShare(): number {
-  const uniqueAgents = new Set([...activeByAgent.keys(), ...queue.map((e) => e.agentId)]);
-  const agentCount = Math.max(1, uniqueAgents.size);
+  // Only count agents with active slots for a stable denominator
+  const agentCount = Math.max(1, activeByAgent.size);
   return Math.max(1, Math.floor(maxSlots / agentCount));
 }
 
@@ -62,29 +63,31 @@ function isAgentOverFairShare(agentId: string): boolean {
   return current >= computeFairShare();
 }
 
+function removeFromQueue(entry: QueueEntry): void {
+  const idx = queue.indexOf(entry);
+  if (idx !== -1) {
+    queue.splice(idx, 1);
+  }
+}
+
 function tryDrainQueue(): void {
-  const now = Date.now();
   while (queue.length > 0 && activeCount < maxSlots) {
-    // Prefer agents that are under their fair share
-    let idx = queue.findIndex((e) => !isAgentOverFairShare(e.agentId));
-    if (idx === -1) {
-      idx = 0; // Fall back to FIFO if all are over fair share
+    // Prefer the queued agent with the fewest active slots (fair-share priority).
+    // Among ties, FIFO order is preserved.
+    let bestIdx = 0;
+    let bestActive = activeByAgent.get(queue[0].agentId) ?? 0;
+    for (let i = 1; i < queue.length; i++) {
+      const a = activeByAgent.get(queue[i].agentId) ?? 0;
+      if (a < bestActive) {
+        bestIdx = i;
+        bestActive = a;
+      }
     }
-    const entry = queue.splice(idx, 1)[0];
-    if (now - entry.enqueuedAt > QUEUE_TIMEOUT_MS) {
-      entry.reject(new Error("Concurrency gate queue timeout exceeded"));
-      continue;
-    }
+    const entry = queue.splice(bestIdx, 1)[0];
+    clearTimeout(entry.timer);
     activeCount++;
     activeByAgent.set(entry.agentId, (activeByAgent.get(entry.agentId) ?? 0) + 1);
     entry.resolve();
-  }
-  // Expire remaining timed-out entries
-  for (let i = queue.length - 1; i >= 0; i--) {
-    if (now - queue[i].enqueuedAt > QUEUE_TIMEOUT_MS) {
-      const expired = queue.splice(i, 1)[0];
-      expired.reject(new Error("Concurrency gate queue timeout exceeded"));
-    }
   }
 }
 
@@ -99,7 +102,21 @@ export async function acquireConcurrencySlot(agentId: string): Promise<void> {
   }
 
   return new Promise<void>((resolve, reject) => {
-    queue.push({ agentId, resolve, reject, enqueuedAt: Date.now() });
+    const entry: QueueEntry = {
+      agentId,
+      resolve,
+      reject,
+      enqueuedAt: Date.now(),
+      timer: setTimeout(() => {
+        removeFromQueue(entry);
+        reject(new Error("Concurrency gate queue timeout exceeded"));
+      }, QUEUE_TIMEOUT_MS),
+    };
+    // Don't hold the process open for queue timeouts
+    if (typeof entry.timer === "object" && "unref" in entry.timer) {
+      entry.timer.unref();
+    }
+    queue.push(entry);
     defaultRuntime.log(
       `[concurrency-gate] Queued agent=${agentId} active=${activeCount}/${maxSlots} queued=${queue.length}`,
     );
@@ -123,6 +140,10 @@ export function releaseConcurrencySlot(agentId: string): void {
 }
 
 export function resetConcurrencyGateForTests(): void {
+  // Clear all pending timers
+  for (const entry of queue) {
+    clearTimeout(entry.timer);
+  }
   activeCount = 0;
   activeByAgent.clear();
   queue.length = 0;
