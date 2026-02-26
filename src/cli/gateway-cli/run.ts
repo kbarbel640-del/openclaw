@@ -19,6 +19,7 @@ import { formatPortDiagnostics, inspectPortUsage } from "../../infra/ports.js";
 import { setConsoleSubsystemFilter, setConsoleTimestampPrefix } from "../../logging/console.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { defaultRuntime } from "../../runtime.js";
+import { readSecretFromFile } from "../../acp/secret-file.js";
 import { formatCliCommand } from "../command-format.js";
 import { inheritOptionFromParent } from "../command-options.js";
 import { forceFreePortAndWait } from "../ports.js";
@@ -36,8 +37,10 @@ type GatewayRunOpts = {
   port?: unknown;
   bind?: unknown;
   token?: unknown;
+  tokenFile?: unknown;
   auth?: unknown;
   password?: unknown;
+  passwordFile?: unknown;
   tailscale?: unknown;
   tailscaleResetOnExit?: boolean;
   allowUnconfigured?: boolean;
@@ -236,8 +239,36 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     defaultRuntime.exit(1);
     return;
   }
-  const passwordRaw = toOptionString(opts.password);
-  const tokenRaw = toOptionString(opts.token);
+  const passwordDirect = toOptionString(opts.password);
+  const passwordFilePath = toOptionString(opts.passwordFile);
+  if (passwordDirect && passwordFilePath) {
+    defaultRuntime.error("Use either --password or --password-file, not both.");
+    defaultRuntime.exit(1);
+    return;
+  }
+  const tokenDirect = toOptionString(opts.token);
+  const tokenFilePath = toOptionString(opts.tokenFile);
+  if (tokenDirect && tokenFilePath) {
+    defaultRuntime.error("Use either --token or --token-file, not both.");
+    defaultRuntime.exit(1);
+    return;
+  }
+  if (passwordDirect) {
+    defaultRuntime.error(
+      "Warning: --password can be exposed via process listings. Prefer --password-file or OPENCLAW_GATEWAY_PASSWORD.",
+    );
+  }
+  if (tokenDirect) {
+    defaultRuntime.error(
+      "Warning: --token can be exposed via process listings. Prefer --token-file or OPENCLAW_GATEWAY_TOKEN.",
+    );
+  }
+  const passwordRaw = passwordFilePath
+    ? readSecretFromFile(passwordFilePath, "Gateway password")
+    : passwordDirect;
+  const tokenRaw = tokenFilePath
+    ? readSecretFromFile(tokenFilePath, "Gateway token")
+    : tokenDirect;
 
   const snapshot = await readConfigFileSnapshot().catch(() => null);
   const configExists = snapshot?.exists ?? fs.existsSync(CONFIG_PATH);
@@ -398,8 +429,10 @@ export function addGatewayRunCommand(cmd: Command): Command {
       "--token <token>",
       "Shared token required in connect.params.auth.token (default: OPENCLAW_GATEWAY_TOKEN env if set)",
     )
+    .option("--token-file <path>", "Read gateway token from file (avoids ps exposure)")
     .option("--auth <mode>", `Gateway auth mode (${formatModeChoices(GATEWAY_AUTH_MODES)})`)
     .option("--password <password>", "Password for auth mode=password")
+    .option("--password-file <path>", "Read gateway password from file (avoids ps exposure)")
     .option(
       "--tailscale <mode>",
       `Tailscale exposure mode (${formatModeChoices(GATEWAY_TAILSCALE_MODES)})`,
