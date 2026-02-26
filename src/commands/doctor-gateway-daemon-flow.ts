@@ -212,16 +212,26 @@ export async function maybeRepairGatewayDaemon(params: {
   }
 
   if (serviceRuntime?.status !== "running") {
-    const start = await params.prompter.confirmSkipInNonInteractive({
-      message: "Start gateway service now?",
-      initialValue: true,
-    });
+    const nonInteractiveAutoStart =
+      params.options.nonInteractive === true && params.cfg.gateway?.mode !== "remote";
+    const start = nonInteractiveAutoStart
+      ? true
+      : await params.prompter.confirmSkipInNonInteractive({
+          message: "Start gateway service now?",
+          initialValue: true,
+        });
     if (start) {
+      if (nonInteractiveAutoStart) {
+        params.runtime.log(
+          "Attempting automatic gateway start after non-interactive doctor repairs.",
+        );
+      }
       await service.restart({
         env: process.env,
         stdout: process.stdout,
       });
       await sleep(1500);
+      serviceRuntime = await service.readRuntime(process.env).catch(() => serviceRuntime);
     }
   }
 

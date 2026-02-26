@@ -12,12 +12,14 @@ export function sameFileIdentity(
   right: FileIdentityStat,
   platform: NodeJS.Platform = process.platform,
 ): boolean {
-  if (left.ino !== right.ino) {
+  if (platform !== "win32" && left.ino !== right.ino) {
     return false;
   }
 
-  // On Windows, path-based stat calls can report dev=0 while fd-based stat
-  // reports a real volume serial; treat either-side dev=0 as "unknown device".
+  // On Windows, inode values are not consistently stable across path-based and
+  // fd-based stat calls. Treat inode as advisory and anchor identity on device.
+  // Path-based stat calls can also report dev=0 while fd-based stat reports a
+  // real volume serial; treat either-side dev=0 as "unknown device".
   if (left.dev === right.dev) {
     return true;
   }
