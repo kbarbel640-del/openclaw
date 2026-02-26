@@ -42,6 +42,7 @@ import type {
   StatusSummary,
   UpdateAvailable,
 } from "./types.ts";
+import { CONTROL_UI_VERSION } from "./version.ts";
 
 type GatewayHost = {
   settings: UiSettings;
@@ -150,6 +151,7 @@ export function connectGateway(host: GatewayHost) {
     token: host.settings.token.trim() ? host.settings.token : undefined,
     password: host.password.trim() ? host.password : undefined,
     clientName: "openclaw-control-ui",
+    clientVersion: CONTROL_UI_VERSION,
     mode: "webchat",
     instanceId: host.clientInstanceId,
     onHello: (hello) => {
