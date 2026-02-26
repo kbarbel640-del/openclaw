@@ -45,6 +45,28 @@ describe("resolveOllamaApiBase", () => {
     }
   });
 
+  it("trims whitespace from OLLAMA_HOST", () => {
+    const prev = process.env.OLLAMA_HOST;
+    try {
+      process.env.OLLAMA_HOST = "  http://192.168.4.168:11434  ";
+      expect(resolveOllamaApiBase()).toBe("http://192.168.4.168:11434");
+    } finally {
+      if (prev === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prev;
+    }
+  });
+
+  it("treats whitespace-only OLLAMA_HOST as unset", () => {
+    const prev = process.env.OLLAMA_HOST;
+    try {
+      process.env.OLLAMA_HOST = "   ";
+      expect(resolveOllamaApiBase()).toBe("http://127.0.0.1:11434");
+    } finally {
+      if (prev === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prev;
+    }
+  });
+
   it("prefers explicit config over OLLAMA_HOST env var", () => {
     const prev = process.env.OLLAMA_HOST;
     try {

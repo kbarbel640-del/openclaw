@@ -232,7 +232,7 @@ export function resolveOllamaApiBase(configuredBaseUrl?: string): string {
   // 1. Explicit config (models.providers.ollama.baseUrl)
   // 2. OLLAMA_HOST env var (standard Ollama SDK/CLI convention)
   // 3. Hardcoded localhost fallback
-  const raw = configuredBaseUrl || process.env.OLLAMA_HOST || undefined;
+  const raw = (configuredBaseUrl || process.env.OLLAMA_HOST || "").trim() || undefined;
   if (!raw) {
     return OLLAMA_API_BASE_URL;
   }
