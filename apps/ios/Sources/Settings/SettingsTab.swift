@@ -21,6 +21,7 @@ struct SettingsTab: View {
     @AppStorage("voiceWake.enabled") private var voiceWakeEnabled: Bool = false
     @AppStorage("talk.enabled") private var talkEnabled: Bool = false
     @AppStorage("talk.button.enabled") private var talkButtonEnabled: Bool = true
+    @AppStorage("talk.provider.override") private var talkProviderOverride: String = ""
     @AppStorage("talk.background.enabled") private var talkBackgroundEnabled: Bool = false
     @AppStorage("camera.enabled") private var cameraEnabled: Bool = true
     @AppStorage("location.enabledMode") private var locationEnabledModeRaw: String = OpenClawLocationMode.off.rawValue
@@ -309,7 +310,18 @@ struct SettingsTab: View {
                                 Text("Talk Voice (Gateway)")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(.secondary)
-                                LabeledContent("Provider", value: "ElevenLabs")
+                                LabeledContent("Provider", value: self.talkProviderDisplayName(self.appModel.talkMode.gatewayTalkActiveProvider))
+                                Picker("Talk Provider", selection: self.$talkProviderOverride) {
+                                    Text("Gateway default").tag("")
+                                    ForEach(self.appModel.talkMode.gatewayTalkAvailableProviders, id: \.self) { provider in
+                                        Text(self.talkProviderDisplayName(provider)).tag(provider)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .onChange(of: self.talkProviderOverride) { _, newValue in
+                                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    self.appModel.talkMode.setTalkProviderOverride(trimmed.isEmpty ? nil : trimmed)
+                                }
                                 LabeledContent(
                                     "API Key",
                                     value: self.appModel.talkMode.gatewayTalkConfigLoaded
@@ -321,7 +333,7 @@ struct SettingsTab: View {
                                 LabeledContent(
                                     "Default Voice",
                                     value: self.appModel.talkMode.gatewayTalkDefaultVoiceId ?? "auto (first available)")
-                                Text("Configured on gateway via talk.apiKey, talk.modelId, and talk.voiceId.")
+                                Text("Configured on gateway via talk.provider + talk.providers.<provider> (apiKey/modelId/voiceId).")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
@@ -414,6 +426,8 @@ struct SettingsTab: View {
                 // Keep setup front-and-center when disconnected; keep things compact once connected.
                 self.gatewayExpanded = !self.isGatewayConnected
                 self.selectedAgentPickerId = self.appModel.selectedAgentId ?? ""
+                let trimmedTalkProviderOverride = self.talkProviderOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+                self.appModel.talkMode.setTalkProviderOverride(trimmedTalkProviderOverride.isEmpty ? nil : trimmedTalkProviderOverride)
                 if self.isGatewayConnected {
                     self.appModel.reloadTalkConfig()
                 }
@@ -577,6 +591,17 @@ struct SettingsTab: View {
         }
         let trimmed = self.appModel.gatewayStatusText.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Not connected" : trimmed
+    }
+
+    private func talkProviderDisplayName(_ provider: String) -> String {
+        switch provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "elevenlabs": return "ElevenLabs"
+        case "edge": return "Edge"
+        case "openai": return "OpenAI"
+        default:
+            let trimmed = provider.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? "Gateway default" : trimmed
+        }
     }
 
     private func featureToggle(

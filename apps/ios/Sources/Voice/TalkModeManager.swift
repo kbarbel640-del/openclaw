@@ -29,6 +29,9 @@ final class TalkModeManager: NSObject {
     var gatewayTalkApiKeyConfigured: Bool = false
     var gatewayTalkDefaultModelId: String?
     var gatewayTalkDefaultVoiceId: String?
+    var gatewayTalkActiveProvider: String = Self.defaultTalkProvider
+    var gatewayTalkAvailableProviders: [String] = [Self.defaultTalkProvider]
+    var gatewayTalkProviderOverride: String?
 
     private enum CaptureMode {
         case idle
@@ -1895,7 +1898,21 @@ extension TalkModeManager {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    static func selectTalkProviderConfig(_ talk: [String: Any]?) -> TalkProviderConfigSelection? {
+    private static func providerDisplayName(_ providerID: String) -> String {
+        switch providerID {
+        case "elevenlabs": return "ElevenLabs"
+        case "edge": return "Edge"
+        case "openai": return "OpenAI"
+        default: return providerID
+        }
+    }
+
+    func setTalkProviderOverride(_ provider: String?) {
+        self.gatewayTalkProviderOverride = Self.normalizedTalkProviderID(provider)
+        Task { await self.reloadConfig() }
+    }
+
+    static func selectTalkProviderConfig(_ talk: [String: Any]?, preferredProvider overrideProvider: String? = nil) -> TalkProviderConfigSelection? {
         guard let talk else { return nil }
         let rawProvider = talk["provider"] as? String
         let rawProviders = talk["providers"] as? [String: Any]
@@ -1909,6 +1926,7 @@ extension TalkModeManager {
             acc[providerID] = config
         }
         let providerID =
+            Self.normalizedTalkProviderID(overrideProvider) ??
             Self.normalizedTalkProviderID(rawProvider) ??
             normalizedProviders.keys.sorted().first ??
             Self.defaultTalkProvider
@@ -1924,12 +1942,17 @@ extension TalkModeManager {
             guard let json = try JSONSerialization.jsonObject(with: res) as? [String: Any] else { return }
             guard let config = json["config"] as? [String: Any] else { return }
             let talk = config["talk"] as? [String: Any]
-            let selection = Self.selectTalkProviderConfig(talk)
+            let selection = Self.selectTalkProviderConfig(talk, preferredProvider: self.gatewayTalkProviderOverride)
             if talk != nil, selection == nil {
                 GatewayDiagnostics.log(
                     "talk config ignored: legacy payload unsupported on iOS beta; expected talk.provider/providers")
             }
+            let providerIDs = ((talk?["providers"] as? [String: Any]) ?? [:]).keys.compactMap { Self.normalizedTalkProviderID($0) }
+            let sortedProviders = Array(Set(providerIDs)).sorted()
+            self.gatewayTalkAvailableProviders = sortedProviders.isEmpty ? [Self.defaultTalkProvider] : sortedProviders
+
             let activeProvider = selection?.provider ?? Self.defaultTalkProvider
+            self.gatewayTalkActiveProvider = activeProvider
             let activeConfig = selection?.config
             self.defaultVoiceId = (activeConfig?["voiceId"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1966,7 +1989,10 @@ extension TalkModeManager {
             } else {
                 self.apiKey = (localApiKey?.isEmpty == false) ? localApiKey : configApiKey
             }
-            if activeProvider != Self.defaultTalkProvider {
+            if activeProvider == "edge" {
+                self.apiKey = nil
+                GatewayDiagnostics.log("talk provider=edge on iOS; using system speech engine")
+            } else if activeProvider != Self.defaultTalkProvider {
                 self.apiKey = nil
                 GatewayDiagnostics.log(
                     "talk provider '\(activeProvider)' not yet supported on iOS; using system voice fallback")
@@ -1989,6 +2015,8 @@ extension TalkModeManager {
             self.gatewayTalkDefaultVoiceId = nil
             self.gatewayTalkDefaultModelId = nil
             self.gatewayTalkApiKeyConfigured = false
+            self.gatewayTalkActiveProvider = Self.defaultTalkProvider
+            self.gatewayTalkAvailableProviders = [Self.defaultTalkProvider]
             self.gatewayTalkConfigLoaded = false
         }
     }
