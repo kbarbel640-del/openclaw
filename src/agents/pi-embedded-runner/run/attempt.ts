@@ -920,6 +920,9 @@ export async function runEmbeddedAttempt(
       const subscription = subscribeEmbeddedPiSession({
         session: activeSession,
         runId: params.runId,
+        messageProvider: params.messageChannel ?? params.messageProvider,
+        originatingTo: params.messageTo ?? undefined,
+        accountId: params.agentAccountId ?? undefined,
         hookRunner: getGlobalHookRunner() ?? undefined,
         verboseLevel: params.verboseLevel,
         reasoningMode: params.reasoningLevel ?? "off",
