@@ -533,14 +533,23 @@ export function createMSTeamsMessageHandler(deps: MSTeamsMessageHandlerDeps) {
 
     log.info("dispatching to agent", { sessionKey: route.sessionKey });
     try {
-      const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
-        ctx: ctxPayload,
-        cfg,
-        dispatcher,
-        replyOptions,
-      });
+      let queuedFinal: boolean;
+      let counts: Record<string, number>;
+      try {
+        ({ queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
+          ctx: ctxPayload,
+          cfg,
+          dispatcher,
+          replyOptions,
+        }));
+      } finally {
+        // Match withReplyDispatcher: release reservation + await all deliveries
+        // before stopping typing. Without this, typing=false races message delivery.
+        dispatcher.markComplete();
+        await dispatcher.waitForIdle();
+        markDispatchIdle();
+      }
 
-      markDispatchIdle();
       log.info("dispatch complete", { queuedFinal, counts });
 
       if (!queuedFinal) {

@@ -808,18 +808,25 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
         },
       });
 
-    await core.channel.reply.dispatchReplyFromConfig({
-      ctx: ctxPayload,
-      cfg,
-      dispatcher,
-      replyOptions: {
-        ...replyOptions,
-        disableBlockStreaming:
-          typeof account.blockStreaming === "boolean" ? !account.blockStreaming : undefined,
-        onModelSelected,
-      },
-    });
-    markDispatchIdle();
+    try {
+      await core.channel.reply.dispatchReplyFromConfig({
+        ctx: ctxPayload,
+        cfg,
+        dispatcher,
+        replyOptions: {
+          ...replyOptions,
+          disableBlockStreaming:
+            typeof account.blockStreaming === "boolean" ? !account.blockStreaming : undefined,
+          onModelSelected,
+        },
+      });
+    } finally {
+      // Match withReplyDispatcher: release reservation + await all deliveries
+      // before stopping typing. Without this, typing=false races message delivery.
+      dispatcher.markComplete();
+      await dispatcher.waitForIdle();
+      markDispatchIdle();
+    }
     if (historyKey) {
       clearHistoryEntriesIfEnabled({
         historyMap: channelHistories,

@@ -235,7 +235,8 @@ export function createReplyDispatcherWithTyping(
     },
     markDispatchIdle: () => {
       typingController?.markDispatchIdle();
-      resolvedOnIdle?.();
+      // resolvedOnIdle fires from the dispatcher's internal onIdle callback
+      // (after all pending deliveries complete), not here.
     },
   };
 }

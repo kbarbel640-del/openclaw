@@ -894,14 +894,20 @@ export async function handleFeishuMessage(params: {
 
       log(`feishu[${account.accountId}]: dispatching permission error notification to agent`);
 
-      await core.channel.reply.dispatchReplyFromConfig({
-        ctx: permissionCtx,
-        cfg,
-        dispatcher: permDispatcher,
-        replyOptions: permReplyOptions,
-      });
-
-      markPermIdle();
+      try {
+        await core.channel.reply.dispatchReplyFromConfig({
+          ctx: permissionCtx,
+          cfg,
+          dispatcher: permDispatcher,
+          replyOptions: permReplyOptions,
+        });
+      } finally {
+        // Match withReplyDispatcher: release reservation + await all deliveries
+        // before stopping typing. Without this, typing=false races message delivery.
+        permDispatcher.markComplete();
+        await permDispatcher.waitForIdle();
+        markPermIdle();
+      }
     }
 
     const body = core.channel.reply.formatAgentEnvelope({
@@ -980,14 +986,22 @@ export async function handleFeishuMessage(params: {
 
     log(`feishu[${account.accountId}]: dispatching to agent (session=${route.sessionKey})`);
 
-    const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
-      ctx: ctxPayload,
-      cfg,
-      dispatcher,
-      replyOptions,
-    });
-
-    markDispatchIdle();
+    let queuedFinal: boolean;
+    let counts: Record<string, number>;
+    try {
+      ({ queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
+        ctx: ctxPayload,
+        cfg,
+        dispatcher,
+        replyOptions,
+      }));
+    } finally {
+      // Match withReplyDispatcher: release reservation + await all deliveries
+      // before stopping typing. Without this, typing=false races message delivery.
+      dispatcher.markComplete();
+      await dispatcher.waitForIdle();
+      markDispatchIdle();
+    }
 
     if (isGroup && historyKey && chatHistories) {
       clearHistoryEntriesIfEnabled({
