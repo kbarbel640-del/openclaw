@@ -364,36 +364,40 @@ export async function evaluateGuard(
 // ─── Response parsing ───────────────────────────────────────────────────────
 
 function parseGuardResponse(raw: string, config: GuardModelConfig): GuardResult {
-  // Try to extract the first complete JSON object from the response.
-  // Guard models may wrap JSON in markdown or include extra text.
-  const jsonContent = extractFirstJsonObject(raw);
-  if (!jsonContent) {
+  // Scan all JSON objects in the response and pick the first one that
+  // contains a boolean `safe` verdict. Guard models may prepend metadata
+  // objects before the actual verdict.
+  const jsonObjects = extractJsonObjects(raw);
+  if (jsonObjects.length === 0) {
     log.warn(`guard model did not return valid JSON: "${raw.slice(0, 200)}"`);
     return handleGuardError(config, "invalid JSON");
   }
 
-  try {
-    const parsed = JSON.parse(jsonContent) as {
-      safe?: unknown;
-      reason?: unknown;
-      categories?: unknown;
-    };
-    if (typeof parsed.safe !== "boolean") {
-      log.warn(`guard model returned non-boolean "safe" field: "${String(parsed.safe)}"`);
-      return handleGuardError(config, 'invalid "safe" field');
+  for (const jsonContent of jsonObjects) {
+    try {
+      const parsed = JSON.parse(jsonContent) as {
+        safe?: unknown;
+        reason?: unknown;
+        categories?: unknown;
+      };
+      if (typeof parsed.safe !== "boolean") {
+        continue;
+      }
+      return {
+        safe: parsed.safe,
+        reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
+        categories: Array.isArray(parsed.categories)
+          ? parsed.categories.filter((category): category is string => typeof category === "string")
+          : undefined,
+        source: "classification",
+      };
+    } catch {
+      continue;
     }
-    return {
-      safe: parsed.safe,
-      reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
-      categories: Array.isArray(parsed.categories)
-        ? parsed.categories.filter((category): category is string => typeof category === "string")
-        : undefined,
-      source: "classification",
-    };
-  } catch {
-    log.warn(`guard model JSON parse failed: "${raw.slice(0, 200)}"`);
-    return handleGuardError(config, "JSON parse error");
   }
+
+  log.warn(`guard model returned no verdict object with boolean "safe": "${raw.slice(0, 200)}"`);
+  return handleGuardError(config, 'invalid "safe" field');
 }
 
 // ─── Error handling ─────────────────────────────────────────────────────────
@@ -538,7 +542,8 @@ export async function applyGuardToPayloads(
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function extractFirstJsonObject(raw: string): string | null {
+function extractJsonObjects(raw: string): string[] {
+  const objects: string[] = [];
   let start = -1;
   let depth = 0;
   let inString = false;
@@ -584,12 +589,13 @@ function extractFirstJsonObject(raw: string): string | null {
     if (ch === "}") {
       depth -= 1;
       if (depth === 0) {
-        return raw.slice(start, i + 1);
+        objects.push(raw.slice(start, i + 1));
+        start = -1;
       }
     }
   }
 
-  return null;
+  return objects;
 }
 
 function parseGuardModelRef(raw: string): { provider: string; modelId: string } | null {

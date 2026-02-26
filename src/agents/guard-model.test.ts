@@ -361,7 +361,7 @@ describe("guard-model", () => {
       expect(vi.getTimerCount()).toBe(0);
     });
 
-    it("parses the first JSON object when response contains extra brace blocks", async () => {
+    it("parses a verdict JSON object when response contains extra JSON blocks", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
         jsonGuardReply('{"safe":false,"reason":"violence"}\n\ntrace: {"extra":"data"}'),
       );
@@ -372,6 +372,20 @@ describe("guard-model", () => {
 
       expect(res.safe).toBe(false);
       expect(res.reason).toBe("violence");
+      expect(res.source).toBe("classification");
+    });
+
+    it("skips leading metadata JSON and parses the later verdict object", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        jsonGuardReply('{"trace":"abc123","latencyMs":42}\n{"safe":false,"reason":"policy"}'),
+      );
+
+      const res = await evaluateGuard("reply text", BASE_GUARD_CONFIG, {
+        cfg: TEST_RUNTIME_CONFIG,
+      });
+
+      expect(res.safe).toBe(false);
+      expect(res.reason).toBe("policy");
       expect(res.source).toBe("classification");
     });
 
