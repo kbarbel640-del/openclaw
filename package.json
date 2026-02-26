@@ -58,7 +58,7 @@
     "check:docs": "pnpm format:docs:check && pnpm lint:docs && pnpm docs:check-links",
     "check:loc": "node --import tsx scripts/check-ts-max-loc.ts --max 500",
     "config-spec:check": "pnpm config-spec:gen && git diff --exit-code -- dist/config.schema.json dist/config.uihints.json dist/config.keys.json dist/config-http.openapi.json docs/openapi/config-http.openapi.json docs/gateway/config-http-api.md docs/gateway/configuration-schema-reference.md",
-    "config-spec:docs": "node --import tsx scripts/config-http-docs-gen.ts && node --import tsx scripts/config-reference-docs-gen.ts",
+    "config-spec:docs": "node --import tsx scripts/config-http-docs-gen.ts && node --import tsx scripts/config-reference-docs-gen.ts && oxfmt --write docs/gateway/config-http-api.md docs/gateway/configuration-schema-reference.md docs/openapi/config-http.openapi.json",
     "config-spec:gen": "node --import tsx scripts/config-spec-gen.ts && pnpm config-spec:docs",
     "deadcode:ci": "pnpm deadcode:report:ci:knip && pnpm deadcode:report:ci:ts-prune && pnpm deadcode:report:ci:ts-unused",
     "deadcode:knip": "pnpm dlx knip --no-progress",
