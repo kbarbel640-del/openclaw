@@ -10,6 +10,10 @@ import type { AuthProfileCredential, AuthProfileStore, ProfileUsageStats } from 
 
 type LegacyAuthStore = Record<string, AuthProfileCredential>;
 
+function isAuthStoreReadOnly(): boolean {
+  return process.env.OPENCLAW_AUTH_STORE_READONLY === "1";
+}
+
 function _syncAuthProfileStore(target: AuthProfileStore, source: AuthProfileStore): void {
   target.version = source.version;
   target.profiles = source.profiles;
@@ -80,6 +84,7 @@ function coerceAuthStore(raw: unknown): AuthProfileStore | null {
     }
     const typed = value as Partial<AuthProfileCredential>;
     const mode = (typed as { mode?: unknown }).mode;
+    const { mode: _mode, apiKey: legacyApiKey, ...rest } = typed as Record<string, unknown>;
     const credentialType =
       typed.type ?? (mode === "api_key" || mode === "oauth" || mode === "token" ? mode : undefined);
     if (credentialType !== "api_key" && credentialType !== "oauth" && credentialType !== "token") {
@@ -88,11 +93,19 @@ function coerceAuthStore(raw: unknown): AuthProfileStore | null {
     if (!typed.provider) {
       continue;
     }
-    normalized[key] = {
-      ...(typed as Record<string, unknown>),
+    const credential: Record<string, unknown> = {
+      ...rest,
       type: credentialType,
       provider: String(typed.provider),
-    } as AuthProfileCredential;
+    };
+    if (
+      credentialType === "api_key" &&
+      typeof credential.key !== "string" &&
+      typeof legacyApiKey === "string"
+    ) {
+      credential.key = legacyApiKey;
+    }
+    normalized[key] = credential as AuthProfileCredential;
   }
   const order =
     record.order && typeof record.order === "object"
@@ -234,7 +247,7 @@ export function loadAuthProfileStore(): AuthProfileStore {
   if (asStore) {
     // Sync from external CLI tools on every load
     const synced = syncExternalCliCredentials(asStore);
-    if (synced) {
+    if (synced && !isAuthStoreReadOnly()) {
       saveJsonFile(authPath, asStore);
     }
     return asStore;
@@ -267,7 +280,7 @@ function loadAuthProfileStoreForAgent(
   if (asStore) {
     // Sync from external CLI tools on every load
     const synced = syncExternalCliCredentials(asStore);
-    if (synced) {
+    if (synced && !isAuthStoreReadOnly()) {
       saveJsonFile(authPath, asStore);
     }
     return asStore;
@@ -342,9 +355,22 @@ export function ensureAuthProfileStore(
 
 export function saveAuthProfileStore(store: AuthProfileStore, agentDir?: string): void {
   const authPath = resolveAuthStorePath(agentDir);
+  const profiles = Object.fromEntries(
+    Object.entries(store.profiles).map(([profileId, credential]) => {
+      if (credential.type === "api_key" && credential.keyRef) {
+        const { key: _key, ...rest } = credential;
+        return [profileId, rest];
+      }
+      if (credential.type === "token" && credential.tokenRef) {
+        const { token: _token, ...rest } = credential;
+        return [profileId, rest];
+      }
+      return [profileId, credential];
+    }),
+  ) as AuthProfileStore["profiles"];
   const payload = {
     version: AUTH_STORE_VERSION,
-    profiles: store.profiles,
+    profiles,
     order: store.order ?? undefined,
     lastGood: store.lastGood ?? undefined,
     usageStats: store.usageStats ?? undefined,
