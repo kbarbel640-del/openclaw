@@ -1,7 +1,11 @@
 import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import type { WebSocket } from "ws";
-import { loadConfig, runWithTenantContextAsync, type TenantContext } from "../../../config/config.js";
+import {
+  loadConfig,
+  runWithTenantContextAsync,
+  type TenantContext,
+} from "../../../config/config.js";
 import {
   deriveDeviceIdFromPublicKey,
   normalizeDevicePublicKeyBase64Url,
@@ -420,7 +424,7 @@ export function attachGatewayWsMessageHandler(params: {
           close(1008, truncateCloseReason(authMessage));
         };
         const clearUnboundScopes = () => {
-          if (scopes.length > 0 && !controlUiAuthPolicy.allowBypass) {
+          if (scopes.length > 0 && !controlUiAuthPolicy.allowBypass && !sharedAuthOk) {
             scopes = [];
             connectParams.scopes = scopes;
           }
@@ -986,7 +990,9 @@ export function attachGatewayWsMessageHandler(params: {
   };
 
   socket.on("message", async (data) => {
-    if (isClosed()) return;
+    if (isClosed()) {
+      return;
+    }
     const text = rawDataToString(data);
 
     // Wrap message processing in tenant context for multi-tenant isolation

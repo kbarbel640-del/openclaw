@@ -7,6 +7,7 @@ export type CliOutboundSendSource = {
   sendMessageSlack: OutboundSendDeps["sendSlack"];
   sendMessageSignal: OutboundSendDeps["sendSignal"];
   sendMessageIMessage: OutboundSendDeps["sendIMessage"];
+  sendMessageWebchat?: OutboundSendDeps["sendWebchat"];
 };
 
 // Provider docking: extend this mapping when adding new outbound send deps.
@@ -18,5 +19,6 @@ export function createOutboundSendDepsFromCliSource(deps: CliOutboundSendSource)
     sendSlack: deps.sendMessageSlack,
     sendSignal: deps.sendMessageSignal,
     sendIMessage: deps.sendMessageIMessage,
+    sendWebchat: deps.sendMessageWebchat,
   };
 }

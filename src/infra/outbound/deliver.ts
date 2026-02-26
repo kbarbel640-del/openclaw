@@ -56,6 +56,7 @@ export type OutboundSendDeps = {
     text: string,
     opts?: { mediaUrl?: string },
   ) => Promise<{ messageId: string; conversationId: string }>;
+  sendWebchat?: (sessionKey: string, text: string) => Promise<{ messageId: string }>;
 };
 
 export type OutboundDeliveryResult = {

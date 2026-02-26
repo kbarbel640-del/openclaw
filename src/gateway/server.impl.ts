@@ -90,6 +90,7 @@ import {
 } from "./server/health-state.js";
 import { loadGatewayTlsRuntime } from "./server/tls.js";
 import { ensureGatewayStartupAuth } from "./startup-auth.js";
+import { createSendWebchat } from "./webchat-send.js";
 
 export { __resetModelCatalogCacheForTest } from "./server-model-catalog.js";
 
@@ -421,6 +422,11 @@ export async function startGatewayServer(
   };
   const hasMobileNodeConnected = () => hasConnectedMobileNode(nodeRegistry);
   applyGatewayLaneConcurrency(cfgAtStart);
+
+  // Inject webchat send closure into deps — this is a runtime closure over
+  // gateway state (broadcast, nodeSendToSession), unlike other send functions
+  // which are standalone API callers.
+  deps.sendMessageWebchat = createSendWebchat({ broadcast, nodeSendToSession });
 
   let cronState = buildGatewayCronService({
     cfg: cfgAtStart,

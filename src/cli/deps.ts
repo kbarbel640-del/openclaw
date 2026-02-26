@@ -14,6 +14,7 @@ export type CliDeps = {
   sendMessageSlack: typeof sendMessageSlack;
   sendMessageSignal: typeof sendMessageSignal;
   sendMessageIMessage: typeof sendMessageIMessage;
+  sendMessageWebchat?: (sessionKey: string, text: string) => Promise<{ messageId: string }>;
 };
 
 export function createDefaultDeps(): CliDeps {

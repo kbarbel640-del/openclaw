@@ -182,6 +182,11 @@ function inferDeliveryFromSessionKey(agentSessionKey?: string): CronDelivery | n
     (part) => part === "direct" || part === "dm" || part === "group" || part === "channel",
   );
   if (markerIndex === -1) {
+    // No channel markers found — check for webchat session pattern.
+    // Platform webchat session keys contain "tenant-" (e.g. agent:<slug>:tenant-<id>-<eid>).
+    if (head.startsWith("tenant-")) {
+      return { mode: "announce", channel: "webchat", to: rawSessionKey };
+    }
     return null;
   }
   const peerId = parts
