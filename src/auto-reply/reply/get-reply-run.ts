@@ -337,13 +337,12 @@ export async function runPreparedReply(
     prefixedBodyBase,
   });
   prefixedBodyBase = appendUntrustedContext(prefixedBodyBase, sessionCtx.UntrustedContext);
-  const threadStarterBody = ctx.ThreadStarterBody?.trim();
   const threadHistoryBody = ctx.ThreadHistoryBody?.trim();
+  // Only include thread history for context (full thread with replies)
+  // Thread starter wrapper is removed as redundant - the history already includes it
   const threadContextNote = threadHistoryBody
     ? `[Thread history - for context]\n${threadHistoryBody}`
-    : threadStarterBody
-      ? `[Thread starter - for context]\n${threadStarterBody}`
-      : undefined;
+    : undefined;
   const skillResult = await ensureSkillSnapshot({
     sessionEntry,
     sessionStore,
