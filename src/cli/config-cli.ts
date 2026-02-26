@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import JSON5 from "json5";
+import { addConfigAtomicCommands } from "../commands/config-atomic.js";
 import { readConfigFileSnapshot, writeConfigFile } from "../config/config.js";
 import { isBlockedObjectKey } from "../config/prototype-keys.js";
 import { redactConfigObject } from "../config/redact-snapshot.js";
@@ -361,4 +362,7 @@ export function registerConfigCli(program: Command) {
     .action(async (path: string) => {
       await runConfigUnset({ path });
     });
+
+  // Add atomic configuration management commands
+  addConfigAtomicCommands(cmd);
 }
