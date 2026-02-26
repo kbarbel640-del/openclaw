@@ -157,4 +157,15 @@ describe("config schema regressions", () => {
       expect(res.config.gateway?.customBindHost).toBe("0.0.0.0");
     }
   });
+
+  it("rejects legacy gateway.bind IPv4 when gateway.customBindHost conflicts", () => {
+    const res = validateConfigObject({
+      gateway: {
+        bind: "0.0.0.0",
+        customBindHost: "127.0.0.1",
+      },
+    });
+
+    expect(res.ok).toBe(false);
+  });
 });

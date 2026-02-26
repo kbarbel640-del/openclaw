@@ -513,9 +513,17 @@ export const OpenClawSchema = z
         // Back-compat: allow gateway.bind to be a raw IPv4 host (commonly 0.0.0.0).
         // Canonical form is gateway.bind="custom" + gateway.customBindHost="<ip>".
         if (typeof next.bind === "string" && isCanonicalDottedDecimalIPv4(next.bind)) {
-          if (typeof next.customBindHost !== "string" || next.customBindHost.trim().length === 0) {
-            next.customBindHost = next.bind;
+          const bindHost = next.bind;
+
+          if (typeof next.customBindHost === "string" && next.customBindHost.trim().length > 0) {
+            // Avoid silently ignoring conflicting user input.
+            if (next.customBindHost !== bindHost) {
+              next.customBindHost = `__openclaw_conflict__${bindHost}__${next.customBindHost}`;
+            }
+          } else {
+            next.customBindHost = bindHost;
           }
+
           next.bind = "custom";
         }
 
@@ -709,6 +717,17 @@ export const OpenClawSchema = z
             })
             .strict()
             .optional(),
+        })
+        .superRefine((gateway, ctx) => {
+          const host = gateway.customBindHost?.trim();
+          if (host?.startsWith("__openclaw_conflict__")) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["customBindHost"],
+              message:
+                "gateway.bind is an IPv4 literal and conflicts with gateway.customBindHost; remove one or make them match",
+            });
+          }
         })
         .strict()
         .optional(),
