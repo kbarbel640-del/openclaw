@@ -392,6 +392,9 @@ export function normalizeGoogleModelId(id: string): string {
 }
 
 function normalizeGoogleProvider(provider: ProviderConfig): ProviderConfig {
+  if (!provider.models) {
+    return provider;
+  }
   let mutated = false;
   const models = provider.models.map((model) => {
     const nextId = normalizeGoogleModelId(model.id);
