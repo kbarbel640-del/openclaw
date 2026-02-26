@@ -406,6 +406,25 @@ export function createOpenAIWebSocketStreamFn(
       // ── 4. Build & send response.create ──────────────────────────────────
       const tools = convertTools(context.tools);
 
+      // Forward generation options that the HTTP path (openai-responses provider) also uses.
+      // Cast to record since SimpleStreamOptions carries openai-specific fields as unknown.
+      const streamOpts = options as
+        | (Record<string, unknown> & { temperature?: number; maxTokens?: number })
+        | undefined;
+      const extraParams: Record<string, unknown> = {};
+      if (streamOpts?.temperature !== undefined) {
+        extraParams.temperature = streamOpts.temperature;
+      }
+      if (streamOpts?.maxTokens) {
+        extraParams.max_output_tokens = streamOpts.maxTokens;
+      }
+      if (streamOpts?.reasoningEffort || streamOpts?.reasoningSummary) {
+        extraParams.reasoning = {
+          effort: streamOpts.reasoningEffort ?? "medium",
+          summary: streamOpts.reasoningSummary ?? "auto",
+        };
+      }
+
       try {
         session.manager.send({
           type: "response.create",
@@ -415,11 +434,20 @@ export function createOpenAIWebSocketStreamFn(
           instructions: context.systemPrompt ?? undefined,
           tools: tools.length > 0 ? tools : undefined,
           ...(prevResponseId ? { previous_response_id: prevResponseId } : {}),
+          ...extraParams,
         });
       } catch (sendErr) {
         log.warn(
           `[ws-stream] send failed for session=${sessionId}; falling back to HTTP. error=${String(sendErr)}`,
         );
+        // Fully reset session state so the next WS turn doesn't use stale
+        // previous_response_id or lastContextLength from before the failure.
+        try {
+          session.manager.close();
+        } catch {
+          /* ignore */
+        }
+        wsRegistry.delete(sessionId);
         return fallbackToHttp(model, context, options, eventStream, opts.signal);
       }
 

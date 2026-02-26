@@ -40,8 +40,9 @@ const { MockManager } = vi.hoisted(() => {
     connectCallCount = 0;
     closeCallCount = 0;
 
-    // Allow tests to override connect behaviour
+    // Allow tests to override connect/send behaviour
     connectShouldFail = false;
+    sendShouldFail = false;
 
     get previousResponseId(): string | null {
       return this._previousResponseId;
@@ -62,6 +63,9 @@ const { MockManager } = vi.hoisted(() => {
     send(event: unknown): void {
       if (!this._connected) {
         throw new Error("cannot send — not connected");
+      }
+      if (this.sendShouldFail) {
+        throw new Error("Mock send failure");
       }
       this.sentEvents.push(event);
     }
@@ -780,6 +784,114 @@ describe("createOpenAIWebSocketStreamFn", () => {
     expect(sent.instructions).toBe("Be concise.");
     expect(Array.isArray(sent.tools)).toBe(true);
     expect((sent.tools ?? []).length).toBeGreaterThan(0);
+  });
+
+  it("resets session state and falls back to HTTP when send() throws", async () => {
+    const sessionId = "sess-send-fail-reset";
+    const streamFn = createOpenAIWebSocketStreamFn("sk-test", sessionId);
+
+    // 1. Run a successful first turn to populate the registry
+    const stream1 = streamFn(
+      modelStub as Parameters<typeof streamFn>[0],
+      contextStub as Parameters<typeof streamFn>[1],
+    );
+    await new Promise<void>((resolve, reject) => {
+      queueMicrotask(async () => {
+        try {
+          await new Promise((r) => setImmediate(r));
+          MockManager.lastInstance!.simulateEvent({
+            type: "response.completed",
+            response: makeResponseObject("resp-ok", "OK"),
+          });
+          for await (const _ of await resolveStream(stream1)) {
+            /* consume */
+          }
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    expect(hasWsSession(sessionId)).toBe(true);
+
+    // 2. Arm send failure and record pre-call streamSimpleCalls count
+    MockManager.lastInstance!.sendShouldFail = true;
+    const callsBefore = streamSimpleCalls.length;
+
+    // 3. Second call: send throws → must fall back to HTTP and clear registry
+    const stream2 = streamFn(
+      modelStub as Parameters<typeof streamFn>[0],
+      contextStub as Parameters<typeof streamFn>[1],
+    );
+    for await (const _ of await resolveStream(stream2)) {
+      /* consume */
+    }
+
+    // Registry cleared after send failure
+    expect(hasWsSession(sessionId)).toBe(false);
+    // HTTP fallback invoked
+    expect(streamSimpleCalls.length).toBeGreaterThan(callsBefore);
+  });
+
+  it("forwards temperature and maxTokens to response.create", async () => {
+    const streamFn = createOpenAIWebSocketStreamFn("sk-test", "sess-temp");
+    const opts = { temperature: 0.3, maxTokens: 256 };
+    const stream = streamFn(
+      modelStub as Parameters<typeof streamFn>[0],
+      contextStub as Parameters<typeof streamFn>[1],
+      opts as Parameters<typeof streamFn>[2],
+    );
+    await new Promise<void>((resolve, reject) => {
+      queueMicrotask(async () => {
+        try {
+          await new Promise((r) => setImmediate(r));
+          MockManager.lastInstance!.simulateEvent({
+            type: "response.completed",
+            response: makeResponseObject("resp-temp", "Done"),
+          });
+          for await (const _ of await resolveStream(stream)) {
+            /* consume */
+          }
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    const sent = MockManager.lastInstance!.sentEvents[0] as Record<string, unknown>;
+    expect(sent.type).toBe("response.create");
+    expect(sent.temperature).toBe(0.3);
+    expect(sent.max_output_tokens).toBe(256);
+  });
+
+  it("forwards reasoningEffort/reasoningSummary to response.create reasoning block", async () => {
+    const streamFn = createOpenAIWebSocketStreamFn("sk-test", "sess-reason");
+    const opts = { reasoningEffort: "high", reasoningSummary: "auto" };
+    const stream = streamFn(
+      modelStub as Parameters<typeof streamFn>[0],
+      contextStub as Parameters<typeof streamFn>[1],
+      opts as unknown as Parameters<typeof streamFn>[2],
+    );
+    await new Promise<void>((resolve, reject) => {
+      queueMicrotask(async () => {
+        try {
+          await new Promise((r) => setImmediate(r));
+          MockManager.lastInstance!.simulateEvent({
+            type: "response.completed",
+            response: makeResponseObject("resp-reason", "Deep thought"),
+          });
+          for await (const _ of await resolveStream(stream)) {
+            /* consume */
+          }
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    const sent = MockManager.lastInstance!.sentEvents[0] as Record<string, unknown>;
+    expect(sent.type).toBe("response.create");
+    expect(sent.reasoning).toEqual({ effort: "high", summary: "auto" });
   });
 });
 
