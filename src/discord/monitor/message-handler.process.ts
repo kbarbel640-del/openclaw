@@ -164,6 +164,17 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     void statusReactions.enterWaiting(claim.hasPriorPendingWork);
   }
   let dispatchResult: Awaited<ReturnType<typeof dispatchInboundMessage>> | null = null;
+  let statusLifecycleSettled = false;
+  const finalizeStatusReactions = async (succeeded: boolean): Promise<void> => {
+    if (!statusReactionsEnabled || statusLifecycleSettled) {
+      return;
+    }
+    statusLifecycleSettled = true;
+    await statusReactions.complete(succeeded);
+    if (removeAckAfterReply) {
+      statusReactions.clearAfterHold(DISCORD_STATUS_CLEAR_HOLD_MS);
+    }
+  };
 
   try {
     const mediaList = await resolveMediaList(message, mediaMaxBytes, discordRestFetch);
@@ -745,12 +756,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       } finally {
         markDispatchIdle();
       }
-      if (statusReactionsEnabled) {
-        await statusReactions.complete(!dispatchError);
-        if (removeAckAfterReply) {
-          statusReactions.clearAfterHold(DISCORD_STATUS_CLEAR_HOLD_MS);
-        }
-      }
+      await finalizeStatusReactions(!dispatchError);
     }
 
     if (!dispatchResult?.queuedFinal) {
@@ -777,6 +783,9 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       });
     }
   } finally {
+    if (statusQueueClaimed && !statusLifecycleSettled) {
+      await finalizeStatusReactions(false);
+    }
     if (statusQueueClaimed) {
       releaseDiscordStatusReactionQueue(messageChannelId, message.id);
     }
