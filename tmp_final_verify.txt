@@ -1,3 +1,0 @@
-Feb 22 17:22:03 VM-0-16-opencloudos node[2474541]: 2026-02-22T17:22:03.194+08:00 [feishu][history] SQLite opened at /root/.openclaw/feishu-history.db (FR-002 persistence enabled)
-Feb 22 17:22:03 VM-0-16-opencloudos node[2474541]: 2026-02-22T17:22:03.201+08:00 [feishu][history] Gateway startup timestamp set: 2026-02-22T09:22:03.195Z (db=persistent)
-Feb 22 17:22:03 VM-0-16-opencloudos node[2474541]: 2026-02-22T09:22:03.204Z [feishu] [history][FR-002] db=persistent, lastShutdownTs=none, chatIds=0

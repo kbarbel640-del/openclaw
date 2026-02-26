@@ -1,2 +1,0 @@
-Feb 23 17:51:03 VM-0-16-opencloudos node[2898061]: 2026-02-23T09:51:03.598Z [agent/embedded] Removed orphaned user message to prevent consecutive user turns. runId=9ddf25ad-3556-4e7c-a233-44e3f8cb4681 sessionId=4386ff06-f852-4f79-8de7-e4de3f7f6f22
-Feb 23 17:51:12 VM-0-16-opencloudos node[2898061]: 2026-02-23T17:51:12.075+08:00 [warn]: [ 'no im.chat.access_event.bot_p2p_chat_entered_v1 handle' ]
