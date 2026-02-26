@@ -69,9 +69,11 @@ function mergeProviderModels(implicit: ProviderConfig, explicit: ProviderConfig)
     mergedModels.push(implicitModel);
   }
 
+  // Agent-local (implicit) configuration should take precedence over
+  // main config (explicit) for per-agent customization (apiKey, baseUrl, etc.)
   return {
-    ...implicit,
     ...explicit,
+    ...implicit,
     models: mergedModels,
   };
 }
