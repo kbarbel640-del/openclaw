@@ -69,6 +69,10 @@ export type AgentRunLoopResult =
     }
   | { kind: "final"; payload: ReplyPayload };
 
+/** Message shown when we skip transient retry after partial send (avoids duplicate messages). Ref #23159 */
+export const PARTIAL_RESPONSE_FAILURE_MESSAGE =
+  "⚠️ Request failed after sending part of the response. Please try again.";
+
 export async function runAgentTurnWithFallback(params: {
   commandBody: string;
   followupRun: FollowupRun;
@@ -96,6 +100,8 @@ export async function runAgentTurnWithFallback(params: {
   activeSessionStore?: Record<string, SessionEntry>;
   storePath?: string;
   resolvedVerboseLevel: VerboseLevel;
+  /** Ref set by execution; called by pipeline/block handler when any block/tool is sent. Used to skip transient retry and avoid duplicate messages (ref #23159). */
+  markBlockSentRef?: { current: (() => void) | undefined };
 }): Promise<AgentRunLoopResult> {
   const TRANSIENT_HTTP_RETRY_DELAY_MS = 2_500;
   let didLogHeartbeatStrip = false;
@@ -125,9 +131,15 @@ export async function runAgentTurnWithFallback(params: {
   let fallbackAttempts: RuntimeFallbackAttempt[] = [];
   let didResetAfterCompactionFailure = false;
   let didRetryTransientHttpError = false;
+  let hasSentAnyReply = false;
 
   while (true) {
     try {
+      if (params.markBlockSentRef) {
+        params.markBlockSentRef.current = () => {
+          hasSentAnyReply = true;
+        };
+      }
       const normalizeStreamingText = (payload: ReplyPayload): { text?: string; skip: boolean } => {
         let text = payload.text;
         if (!params.isHeartbeat && text?.includes("HEARTBEAT_OK")) {
@@ -374,6 +386,7 @@ export async function runAgentTurnWithFallback(params: {
             onBlockReply: params.opts?.onBlockReply
               ? createBlockReplyDeliveryHandler({
                   onBlockReply: params.opts.onBlockReply,
+                  onBeforeDeliver: () => params.markBlockSentRef?.current?.(),
                   currentMessageId:
                     params.sessionCtx.MessageSidFull ?? params.sessionCtx.MessageSid,
                   normalizeStreamingText,
@@ -406,6 +419,7 @@ export async function runAgentTurnWithFallback(params: {
                         if (skip) {
                           return;
                         }
+                        hasSentAnyReply = true;
                         await params.typingSignals.signalTextDelta(text);
                         await onToolResult({
                           text,
@@ -549,6 +563,13 @@ export async function runAgentTurnWithFallback(params: {
       }
 
       if (isTransientHttp && !didRetryTransientHttpError) {
+        if (hasSentAnyReply) {
+          // Already sent block/tool content; retrying would duplicate messages (ref #23159).
+          return {
+            kind: "final",
+            payload: { text: PARTIAL_RESPONSE_FAILURE_MESSAGE },
+          };
+        }
         didRetryTransientHttpError = true;
         // Retry the full runWithModelFallback() cycle — transient errors
         // (502/521/etc.) typically affect the whole provider, so falling

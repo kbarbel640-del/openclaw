@@ -62,6 +62,8 @@ const hasRenderableMedia = (payload: ReplyPayload): boolean =>
 
 export function createBlockReplyDeliveryHandler(params: {
   onBlockReply: (payload: ReplyPayload, context?: BlockReplyContext) => Promise<void> | void;
+  /** Called once per payload immediately before delivering (block or pipeline send). Used to avoid duplicate sends on transient retry (ref #23159). */
+  onBeforeDeliver?: () => void;
   currentMessageId?: string;
   normalizeStreamingText: (payload: ReplyPayload) => { text?: string; skip: boolean };
   applyReplyToMode: (payload: ReplyPayload) => ReplyPayload;
@@ -125,6 +127,7 @@ export function createBlockReplyDeliveryHandler(params: {
       // Send directly when flushing before tool execution (no pipeline but streaming enabled).
       // Track sent key to avoid duplicate in final payloads.
       params.directlySentBlockKeys.add(createBlockReplyPayloadKey(blockPayload));
+      params.onBeforeDeliver?.();
       await params.onBlockReply(blockPayload);
     }
     // When streaming is disabled entirely, blocks are accumulated in final text instead.

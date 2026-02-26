@@ -202,10 +202,14 @@ export async function runReplyAgent(params: {
           chunking: blockReplyChunking,
         }).coalescing
       : undefined;
+  const markBlockSentRef: { current: (() => void) | undefined } = { current: undefined };
   const blockReplyPipeline =
     blockStreamingEnabled && opts?.onBlockReply
       ? createBlockReplyPipeline({
-          onBlockReply: opts.onBlockReply,
+          onBlockReply: (payload, options) => {
+            markBlockSentRef.current?.();
+            return opts.onBlockReply(payload, options);
+          },
           timeoutMs: blockReplyTimeoutMs,
           coalescing: blockReplyCoalescing,
           buffer: createAudioAsVoiceBuffer({ isAudioPayload }),
@@ -394,9 +398,11 @@ export async function runReplyAgent(params: {
       activeSessionStore,
       storePath,
       resolvedVerboseLevel,
+      markBlockSentRef,
     });
 
     if (runOutcome.kind === "final") {
+      // Single final payload (e.g. error or partial-failure message); no block flush here to avoid duplicate sends (ref #23159).
       return finalizeWithFollowup(runOutcome.payload, queueKey, runFollowupTurn);
     }
 
