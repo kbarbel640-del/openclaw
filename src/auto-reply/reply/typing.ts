@@ -189,6 +189,11 @@ export function createTypingController(params: {
 
   const markRunComplete = () => {
     runComplete = true;
+    // Stop the keepalive loop immediately so no further sendChatAction
+    // calls can reach the channel. The guard blocks triggers, but the
+    // setInterval still fires; stopping it avoids a window where a
+    // late tick could slip through on slow event loops.
+    typingLoop.stop();
     maybeStopOnIdle();
     if (!sealed && !dispatchIdle) {
       dispatchIdleTimer = setTimeout(() => {
