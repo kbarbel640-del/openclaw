@@ -2810,7 +2810,6 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
     public let id: String?
     public let command: String
     public let commandargv: [String]?
-    public let env: [String: AnyCodable]?
     public let cwd: AnyCodable?
     public let nodeid: AnyCodable?
     public let host: AnyCodable?
@@ -2819,10 +2818,6 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
     public let agentid: AnyCodable?
     public let resolvedpath: AnyCodable?
     public let sessionkey: AnyCodable?
-    public let turnsourcechannel: AnyCodable?
-    public let turnsourceto: AnyCodable?
-    public let turnsourceaccountid: AnyCodable?
-    public let turnsourcethreadid: AnyCodable?
     public let timeoutms: Int?
     public let twophase: Bool?
 
@@ -2830,7 +2825,6 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         id: String?,
         command: String,
         commandargv: [String]?,
-        env: [String: AnyCodable]?,
         cwd: AnyCodable?,
         nodeid: AnyCodable?,
         host: AnyCodable?,
@@ -2839,17 +2833,12 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         agentid: AnyCodable?,
         resolvedpath: AnyCodable?,
         sessionkey: AnyCodable?,
-        turnsourcechannel: AnyCodable?,
-        turnsourceto: AnyCodable?,
-        turnsourceaccountid: AnyCodable?,
-        turnsourcethreadid: AnyCodable?,
         timeoutms: Int?,
         twophase: Bool?)
     {
         self.id = id
         self.command = command
         self.commandargv = commandargv
-        self.env = env
         self.cwd = cwd
         self.nodeid = nodeid
         self.host = host
@@ -2858,10 +2847,6 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         self.agentid = agentid
         self.resolvedpath = resolvedpath
         self.sessionkey = sessionkey
-        self.turnsourcechannel = turnsourcechannel
-        self.turnsourceto = turnsourceto
-        self.turnsourceaccountid = turnsourceaccountid
-        self.turnsourcethreadid = turnsourcethreadid
         self.timeoutms = timeoutms
         self.twophase = twophase
     }
@@ -2870,7 +2855,6 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         case id
         case command
         case commandargv = "commandArgv"
-        case env
         case cwd
         case nodeid = "nodeId"
         case host
@@ -2879,10 +2863,6 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         case agentid = "agentId"
         case resolvedpath = "resolvedPath"
         case sessionkey = "sessionKey"
-        case turnsourcechannel = "turnSourceChannel"
-        case turnsourceto = "turnSourceTo"
-        case turnsourceaccountid = "turnSourceAccountId"
-        case turnsourcethreadid = "turnSourceThreadId"
         case timeoutms = "timeoutMs"
         case twophase = "twoPhase"
     }
@@ -2996,7 +2976,6 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
     public let publickey: String
     public let displayname: String?
     public let platform: String?
-    public let devicefamily: String?
     public let clientid: String?
     public let clientmode: String?
     public let role: String?
@@ -3013,7 +2992,6 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
         publickey: String,
         displayname: String?,
         platform: String?,
-        devicefamily: String?,
         clientid: String?,
         clientmode: String?,
         role: String?,
@@ -3029,7 +3007,6 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
         self.publickey = publickey
         self.displayname = displayname
         self.platform = platform
-        self.devicefamily = devicefamily
         self.clientid = clientid
         self.clientmode = clientmode
         self.role = role
@@ -3047,7 +3024,6 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
         case publickey = "publicKey"
         case displayname = "displayName"
         case platform
-        case devicefamily = "deviceFamily"
         case clientid = "clientId"
         case clientmode = "clientMode"
         case role
