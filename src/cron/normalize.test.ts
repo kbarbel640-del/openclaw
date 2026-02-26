@@ -360,6 +360,54 @@ describe("normalizeCronJobCreate", () => {
     expect(normalized.wakeMode).toBe("now");
   });
 
+  it("accepts custom named session target for agentTurn jobs", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "custom-session",
+      schedule: { kind: "cron", expr: "0 * * * *" },
+      sessionTarget: "scheduled",
+      payload: { kind: "agentTurn", message: "run scheduled task" },
+    }) as unknown as Record<string, unknown>;
+
+    expect(normalized.sessionTarget).toBe("scheduled");
+    expect((normalized.payload as Record<string, unknown>).kind).toBe("agentTurn");
+    // Custom named sessions should default to announce delivery like isolated sessions
+    expect((normalized.delivery as Record<string, unknown>)?.mode).toBe("announce");
+  });
+
+  it("normalizes custom session target casing and whitespace", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "custom-casing",
+      schedule: { kind: "cron", expr: "0 * * * *" },
+      sessionTarget: " Research ",
+      payload: { kind: "agentTurn", message: "hello" },
+    }) as unknown as Record<string, unknown>;
+
+    expect(normalized.sessionTarget).toBe("research");
+  });
+
+  it("rejects session targets containing colons to prevent canonical key injection", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "injection-attempt",
+      schedule: { kind: "cron", expr: "0 * * * *" },
+      sessionTarget: "agent:main:main",
+      payload: { kind: "agentTurn", message: "hello" },
+    }) as unknown as Record<string, unknown>;
+
+    // Should fall back to default "isolated" since the injected value is rejected
+    expect(normalized.sessionTarget).toBe("isolated");
+  });
+
+  it("rejects session targets with cron: prefix", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "cron-prefix",
+      schedule: { kind: "cron", expr: "0 * * * *" },
+      sessionTarget: "cron:fake-id",
+      payload: { kind: "agentTurn", message: "hello" },
+    }) as unknown as Record<string, unknown>;
+
+    expect(normalized.sessionTarget).toBe("isolated");
+  });
+
   it("strips invalid delivery mode from partial delivery objects", () => {
     const normalized = normalizeCronJobCreate({
       name: "delivery mode",

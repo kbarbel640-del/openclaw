@@ -200,8 +200,8 @@ export function registerCronAddCommand(cron: Command) {
           const inferredSessionTarget = payload.kind === "agentTurn" ? "isolated" : "main";
           const sessionTarget =
             sessionSource === "cli" ? sessionTargetRaw || "" : inferredSessionTarget;
-          if (sessionTarget !== "main" && sessionTarget !== "isolated") {
-            throw new Error("--session must be main or isolated");
+          if (!sessionTarget) {
+            throw new Error("--session is required (main, isolated, or a custom session name)");
           }
 
           if (opts.deleteAfterRun && opts.keepAfterRun) {
@@ -211,18 +211,18 @@ export function registerCronAddCommand(cron: Command) {
           if (sessionTarget === "main" && payload.kind !== "systemEvent") {
             throw new Error("Main jobs require --system-event (systemEvent).");
           }
-          if (sessionTarget === "isolated" && payload.kind !== "agentTurn") {
-            throw new Error("Isolated jobs require --message (agentTurn).");
+          if (sessionTarget !== "main" && payload.kind !== "agentTurn") {
+            throw new Error("Non-main jobs require --message (agentTurn).");
           }
           if (
             (opts.announce || typeof opts.deliver === "boolean") &&
-            (sessionTarget !== "isolated" || payload.kind !== "agentTurn")
+            (sessionTarget === "main" || payload.kind !== "agentTurn")
           ) {
-            throw new Error("--announce/--no-deliver require --session isolated.");
+            throw new Error("--announce/--no-deliver require a non-main session with --message.");
           }
 
           const deliveryMode =
-            sessionTarget === "isolated" && payload.kind === "agentTurn"
+            sessionTarget !== "main" && payload.kind === "agentTurn"
               ? hasAnnounce
                 ? "announce"
                 : hasNoDeliver

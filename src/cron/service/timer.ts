@@ -701,7 +701,7 @@ export async function executeJobCore(
   }
 
   if (job.payload.kind !== "agentTurn") {
-    return { status: "skipped", error: "isolated job requires payload.kind=agentTurn" };
+    return { status: "skipped", error: "non-main job requires payload.kind=agentTurn" };
   }
   if (abortSignal?.aborted) {
     return resolveAbortError();

@@ -11,7 +11,15 @@ export type CronSchedule =
       staggerMs?: number;
     };
 
-export type CronSessionTarget = "main" | "isolated";
+/**
+ * Session target for cron jobs.
+ *
+ * - `"main"` — inject systemEvent into the agent's main session (requires payload.kind="systemEvent").
+ * - `"isolated"` — run agentTurn in a fresh isolated session per execution (requires payload.kind="agentTurn").
+ * - Any other string — run agentTurn in a named persistent session (e.g. `"scheduled"` → `agent:<agentId>:scheduled`).
+ *   Named sessions preserve context across cron runs, similar to heartbeat's `session` config.
+ */
+export type CronSessionTarget = "main" | "isolated" | (string & {});
 export type CronWakeMode = "next-heartbeat" | "now";
 
 export type CronMessageChannel = ChannelId | "last";

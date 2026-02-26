@@ -25,4 +25,16 @@ describe("resolveCronAgentSessionKey", () => {
       "agent:main:hook:webhook:42",
     );
   });
+
+  it("resolves custom named session target to agent-scoped key", () => {
+    expect(resolveCronAgentSessionKey({ sessionKey: "scheduled", agentId: "myagent" })).toBe(
+      "agent:myagent:scheduled",
+    );
+  });
+
+  it("resolves custom named session target with mixed case", () => {
+    expect(resolveCronAgentSessionKey({ sessionKey: "Research", agentId: "main" })).toBe(
+      "agent:main:research",
+    );
+  });
 });

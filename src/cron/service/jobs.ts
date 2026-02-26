@@ -78,8 +78,9 @@ export function assertSupportedJobSpec(job: Pick<CronJob, "sessionTarget" | "pay
   if (job.sessionTarget === "main" && job.payload.kind !== "systemEvent") {
     throw new Error('main cron jobs require payload.kind="systemEvent"');
   }
-  if (job.sessionTarget === "isolated" && job.payload.kind !== "agentTurn") {
-    throw new Error('isolated cron jobs require payload.kind="agentTurn"');
+  // Any non-main session target (including "isolated" and custom names) requires agentTurn.
+  if (job.sessionTarget !== "main" && job.payload.kind !== "agentTurn") {
+    throw new Error('non-main cron jobs require payload.kind="agentTurn"');
   }
 }
 
@@ -112,8 +113,8 @@ function assertDeliverySupport(job: Pick<CronJob, "sessionTarget" | "delivery">)
     job.delivery.to = target;
     return;
   }
-  if (job.sessionTarget !== "isolated") {
-    throw new Error('cron channel delivery config is only supported for sessionTarget="isolated"');
+  if (job.sessionTarget === "main") {
+    throw new Error('cron channel delivery config is not supported for sessionTarget="main"');
   }
   if (job.delivery.channel === "telegram") {
     const telegramError = validateTelegramDeliveryTarget(job.delivery.to);
@@ -441,11 +442,7 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   if (!patch.delivery && patch.payload?.kind === "agentTurn") {
     // Back-compat: legacy clients still update delivery via payload fields.
     const legacyDeliveryPatch = buildLegacyDeliveryPatch(patch.payload);
-    if (
-      legacyDeliveryPatch &&
-      job.sessionTarget === "isolated" &&
-      job.payload.kind === "agentTurn"
-    ) {
+    if (legacyDeliveryPatch && job.sessionTarget !== "main" && job.payload.kind === "agentTurn") {
       job.delivery = mergeCronDelivery(job.delivery, legacyDeliveryPatch);
     }
   }
