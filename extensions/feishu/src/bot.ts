@@ -721,18 +721,27 @@ export async function handleFeishuMessage(params: {
     // get a separate session from the main group chat.
     let peerId = isGroup ? ctx.chatId : ctx.senderOpenId;
     let topicSessionMode: "enabled" | "disabled" = "disabled";
-    if (isGroup && ctx.rootId) {
-      const groupConfig = resolveFeishuGroupConfig({ cfg: feishuCfg, groupId: ctx.chatId });
-      topicSessionMode = groupConfig?.topicSessionMode ?? feishuCfg?.topicSessionMode ?? "disabled";
-      if (topicSessionMode === "enabled") {
-        // Use chatId:topic:rootId as peer ID for topic-scoped sessions
-        peerId = `${ctx.chatId}:topic:${ctx.rootId}`;
-        log(`feishu[${account.accountId}]: topic session isolation enabled, peer=${peerId}`);
-      }
-    }
 
     const replyInThread =
       (groupConfig?.replyInThread ?? feishuCfg?.replyInThread ?? "disabled") === "enabled";
+
+    if (isGroup) {
+      topicSessionMode = groupConfig?.topicSessionMode ?? feishuCfg?.topicSessionMode ?? "disabled";
+      if (topicSessionMode === "enabled") {
+        if (ctx.rootId) {
+          // Message is inside an existing topic thread
+          peerId = `${ctx.chatId}:topic:${ctx.rootId}`;
+        } else if (replyInThread) {
+          // First message in group (no topic yet), but replyInThread will create one
+          // using this message's ID as root_id. Use messageId so the session matches
+          // future messages within the created topic thread.
+          peerId = `${ctx.chatId}:topic:${ctx.messageId}`;
+        }
+        if (peerId !== ctx.chatId) {
+          log(`feishu[${account.accountId}]: topic session isolation enabled, peer=${peerId}`);
+        }
+      }
+    }
 
     let route = core.channel.routing.resolveAgentRoute({
       cfg,
