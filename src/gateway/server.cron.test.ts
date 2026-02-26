@@ -393,6 +393,14 @@ describe("gateway server cron", () => {
       expect(disableUpdateRes.ok).toBe(true);
       const disabled = disableUpdateRes.payload as { enabled?: unknown } | undefined;
       expect(disabled?.enabled).toBe(false);
+
+      const missingJobUpdateRes = await rpcReq(ws, "cron.update", {
+        id: "missing-cron-job-id",
+        patch: { enabled: false },
+      });
+      expect(missingJobUpdateRes.ok).toBe(false);
+      expect(missingJobUpdateRes.error?.code).toBe("INVALID_REQUEST");
+      expect(missingJobUpdateRes.error?.message).toContain("unknown cron job id");
     } finally {
       await cleanupCronTestRun({
         ws,

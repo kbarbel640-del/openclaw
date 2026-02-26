@@ -176,14 +176,15 @@ export const cronHandlers: GatewayRequestHandlers = {
         normalized.includes("invalid") ||
         normalized.includes("cannot use") ||
         normalized.includes("must use") ||
-        normalized.includes("not found");
+        normalized.includes("not found") ||
+        normalized.includes("unknown");
+      if (!isClientPatchError) {
+        throw error instanceof Error ? error : new Error(message);
+      }
       respond(
         false,
         undefined,
-        errorShape(
-          isClientPatchError ? ErrorCodes.INVALID_REQUEST : ErrorCodes.UNAVAILABLE,
-          `cron.update failed: ${message}`,
-        ),
+        errorShape(ErrorCodes.INVALID_REQUEST, `cron.update failed: ${message}`),
       );
     }
   },
