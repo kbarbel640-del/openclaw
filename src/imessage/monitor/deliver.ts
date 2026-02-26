@@ -7,7 +7,7 @@ import type { RuntimeEnv } from "../../runtime.js";
 import type { createIMessageRpcClient } from "../client.js";
 import { sendMessageIMessage } from "../send.js";
 import { buildDeliveryEchoScope } from "./echo-scope.js";
-import type { SentMessageCache } from "./echo-cache.js";
+import type { SentMessageCache } from "./sent-message-cache.js";
 
 export async function deliverReplies(params: {
   replies: ReplyPayload[];
