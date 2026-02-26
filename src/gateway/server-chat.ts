@@ -184,6 +184,7 @@ type ToolRecipientEntry = {
 
 const TOOL_EVENT_RECIPIENT_TTL_MS = 10 * 60 * 1000;
 const TOOL_EVENT_RECIPIENT_FINAL_GRACE_MS = 30 * 1000;
+const LIFECYCLE_ERROR_RETRY_GRACE_MS = 750;
 
 export function createToolEventRecipientRegistry(): ToolEventRecipientRegistry {
   const recipients = new Map<string, ToolRecipientEntry>();
@@ -389,6 +390,67 @@ export function createAgentEventHandler({
     }
   };
 
+  const pendingLifecycleErrorFinalizers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  const clearPendingLifecycleError = (runId: string) => {
+    const timer = pendingLifecycleErrorFinalizers.get(runId);
+    if (!timer) {
+      return;
+    }
+    clearTimeout(timer);
+    pendingLifecycleErrorFinalizers.delete(runId);
+  };
+
+  const cleanupRunTracking = (runId: string, clientRunId: string) => {
+    toolEventRecipients.markFinal(runId);
+    clearAgentRunContext(runId);
+    agentRunSeq.delete(runId);
+    agentRunSeq.delete(clientRunId);
+  };
+
+  const scheduleLifecycleErrorFinalization = (params: {
+    runId: string;
+    clientRunId: string;
+    sessionKey?: string;
+    seq: number;
+    error: unknown;
+    chatLinked: boolean;
+  }) => {
+    clearPendingLifecycleError(params.runId);
+    const timer = setTimeout(() => {
+      pendingLifecycleErrorFinalizers.delete(params.runId);
+
+      if (params.chatLinked) {
+        const linked = chatRunState.registry.peek(params.runId);
+        if (linked) {
+          const finished = chatRunState.registry.shift(params.runId);
+          if (finished) {
+            emitChatFinal(
+              finished.sessionKey,
+              finished.clientRunId,
+              params.runId,
+              params.seq,
+              "error",
+              params.error,
+            );
+          }
+        }
+      } else if (params.sessionKey) {
+        emitChatFinal(
+          params.sessionKey,
+          params.clientRunId,
+          params.runId,
+          params.seq,
+          "error",
+          params.error,
+        );
+      }
+
+      cleanupRunTracking(params.runId, params.clientRunId);
+    }, LIFECYCLE_ERROR_RETRY_GRACE_MS);
+    pendingLifecycleErrorFinalizers.set(params.runId, timer);
+  };
+
   return (evt: AgentEventPayload) => {
     const chatLink = chatRunState.registry.peek(evt.runId);
     const eventSessionKey =
@@ -447,6 +509,10 @@ export function createAgentEventHandler({
     const lifecyclePhase =
       evt.stream === "lifecycle" && typeof evt.data?.phase === "string" ? evt.data.phase : null;
 
+    if (evt.stream !== "lifecycle" || lifecyclePhase !== "error") {
+      clearPendingLifecycleError(evt.runId);
+    }
+
     if (sessionKey) {
       // Send tool events to node/channel subscribers only when verbose is enabled;
       // WS clients already received the event above via broadcastToConnIds.
@@ -455,11 +521,11 @@ export function createAgentEventHandler({
       }
       if (!isAborted && evt.stream === "assistant" && typeof evt.data?.text === "string") {
         emitChatDelta(sessionKey, clientRunId, evt.runId, evt.seq, evt.data.text);
-      } else if (!isAborted && (lifecyclePhase === "end" || lifecyclePhase === "error")) {
+      } else if (!isAborted && lifecyclePhase === "end") {
         if (chatLink) {
           const finished = chatRunState.registry.shift(evt.runId);
           if (!finished) {
-            clearAgentRunContext(evt.runId);
+            cleanupRunTracking(evt.runId, clientRunId);
             return;
           }
           emitChatFinal(
@@ -467,20 +533,24 @@ export function createAgentEventHandler({
             finished.clientRunId,
             evt.runId,
             evt.seq,
-            lifecyclePhase === "error" ? "error" : "done",
+            "done",
             evt.data?.error,
           );
         } else {
-          emitChatFinal(
-            sessionKey,
-            eventRunId,
-            evt.runId,
-            evt.seq,
-            lifecyclePhase === "error" ? "error" : "done",
-            evt.data?.error,
-          );
+          emitChatFinal(sessionKey, eventRunId, evt.runId, evt.seq, "done", evt.data?.error);
         }
+        cleanupRunTracking(evt.runId, clientRunId);
+      } else if (!isAborted && lifecyclePhase === "error") {
+        scheduleLifecycleErrorFinalization({
+          runId: evt.runId,
+          clientRunId,
+          sessionKey,
+          seq: evt.seq,
+          error: evt.data?.error,
+          chatLinked: Boolean(chatLink),
+        });
       } else if (isAborted && (lifecyclePhase === "end" || lifecyclePhase === "error")) {
+        clearPendingLifecycleError(evt.runId);
         chatRunState.abortedRuns.delete(clientRunId);
         chatRunState.abortedRuns.delete(evt.runId);
         chatRunState.buffers.delete(clientRunId);
@@ -488,14 +558,14 @@ export function createAgentEventHandler({
         if (chatLink) {
           chatRunState.registry.remove(evt.runId, clientRunId, sessionKey);
         }
+        cleanupRunTracking(evt.runId, clientRunId);
       }
+      return;
     }
 
     if (lifecyclePhase === "end" || lifecyclePhase === "error") {
-      toolEventRecipients.markFinal(evt.runId);
-      clearAgentRunContext(evt.runId);
-      agentRunSeq.delete(evt.runId);
-      agentRunSeq.delete(clientRunId);
+      clearPendingLifecycleError(evt.runId);
+      cleanupRunTracking(evt.runId, clientRunId);
     }
   };
 }

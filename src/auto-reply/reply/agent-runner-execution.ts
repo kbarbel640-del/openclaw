@@ -5,6 +5,7 @@ import { getCliSessionId } from "../../agents/cli-session.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
 import { isCliProvider } from "../../agents/model-selection.js";
 import {
+  classifyFailoverReason,
   isCompactionFailureError,
   isContextOverflowError,
   isLikelyContextOverflowError,
@@ -169,8 +170,37 @@ export async function runAgentTurnWithFallback(params: {
       };
       const blockReplyPipeline = params.blockReplyPipeline;
       const onToolResult = params.opts?.onToolResult;
+      const summarizeFailoverReason = (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        const classified = classifyFailoverReason(message);
+        if (classified) {
+          return classified.replaceAll("_", " ");
+        }
+        const compact = message.replace(/\s+/g, " ").trim();
+        return compact ? compact.slice(0, 120) : "error";
+      };
       const fallbackResult = await runWithModelFallback({
         ...resolveModelFallbackOptions(params.followupRun.run),
+        onError: ({ provider, model, error, nextProvider, nextModel }) => {
+          if (!nextProvider || !nextModel) {
+            return;
+          }
+          const reasonSummary = summarizeFailoverReason(error);
+          emitAgentEvent({
+            runId,
+            sessionKey: params.sessionKey,
+            stream: "lifecycle",
+            data: {
+              phase: "fallback",
+              selectedProvider: params.followupRun.run.provider,
+              selectedModel: params.followupRun.run.model,
+              activeProvider: nextProvider,
+              activeModel: nextModel,
+              reasonSummary,
+              attemptSummaries: [`${provider}/${model}: ${reasonSummary}`],
+            },
+          });
+        },
         run: (provider, model) => {
           // Notify that model selection is complete (including after fallback).
           // This allows responsePrefix template interpolation with the actual model.

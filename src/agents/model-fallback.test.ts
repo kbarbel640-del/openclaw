@@ -231,6 +231,29 @@ describe("runWithModelFallback", () => {
     expect(onError.mock.calls[0]?.[0]?.error).toBe(unknownError);
   });
 
+  it("includes next candidate metadata in onError callbacks", async () => {
+    const cfg = makeCfg();
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("rate limited"))
+      .mockResolvedValueOnce("ok");
+    const onError = vi.fn();
+
+    await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      run,
+      onError,
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0]?.[0]).toMatchObject({
+      nextProvider: "anthropic",
+      nextModel: "claude-haiku-3-5",
+    });
+  });
+
   it("throws unrecognized error on last candidate", async () => {
     const cfg = makeCfg();
     const run = vi.fn().mockRejectedValueOnce(new Error("something weird"));

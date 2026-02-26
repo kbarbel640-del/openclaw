@@ -100,6 +100,8 @@ type ModelFallbackErrorHandler = (attempt: {
   error: unknown;
   attempt: number;
   total: number;
+  nextProvider?: string;
+  nextModel?: string;
 }) => void | Promise<void>;
 
 type ModelFallbackRunResult<T> = {
@@ -494,6 +496,8 @@ export async function runWithModelFallback<T>(params: {
         error: isKnownFailover ? normalized : err,
         attempt: i + 1,
         total: candidates.length,
+        nextProvider: candidates[i + 1]?.provider,
+        nextModel: candidates[i + 1]?.model,
       });
     }
   }

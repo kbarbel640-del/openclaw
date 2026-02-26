@@ -249,6 +249,83 @@ describe("agent event handler", () => {
     nowSpy?.mockRestore();
   });
 
+  it("does not finalize chat on lifecycle error when the run resumes", () => {
+    vi.useFakeTimers();
+    try {
+      const { broadcast, chatRunState, handler } = createHarness();
+      chatRunState.registry.add("run-retry", {
+        sessionKey: "session-retry",
+        clientRunId: "client-retry",
+      });
+
+      handler({
+        runId: "run-retry",
+        seq: 1,
+        stream: "lifecycle",
+        ts: Date.now(),
+        data: { phase: "error", error: "rate limited" },
+      });
+      expect(chatBroadcastCalls(broadcast)).toHaveLength(0);
+
+      handler({
+        runId: "run-retry",
+        seq: 2,
+        stream: "assistant",
+        ts: Date.now(),
+        data: { text: "Recovered" },
+      });
+      handler({
+        runId: "run-retry",
+        seq: 3,
+        stream: "lifecycle",
+        ts: Date.now(),
+        data: { phase: "end" },
+      });
+
+      vi.advanceTimersByTime(2_000);
+
+      const calls = chatBroadcastCalls(broadcast);
+      expect(calls).toHaveLength(2);
+      const firstPayload = calls[0]?.[1] as { state?: string } | undefined;
+      const secondPayload = calls[1]?.[1] as { state?: string } | undefined;
+      expect(firstPayload?.state).toBe("delta");
+      expect(secondPayload?.state).toBe("final");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("finalizes lifecycle error after grace period when the run does not resume", () => {
+    vi.useFakeTimers();
+    try {
+      const { broadcast, agentRunSeq, chatRunState, handler } = createHarness();
+      chatRunState.registry.add("run-error-grace", {
+        sessionKey: "session-error-grace",
+        clientRunId: "client-error-grace",
+      });
+
+      handler({
+        runId: "run-error-grace",
+        seq: 1,
+        stream: "lifecycle",
+        ts: Date.now(),
+        data: { phase: "error", error: "rate limited" },
+      });
+      expect(chatBroadcastCalls(broadcast)).toHaveLength(0);
+
+      vi.advanceTimersByTime(2_000);
+
+      const calls = chatBroadcastCalls(broadcast);
+      expect(calls).toHaveLength(1);
+      const payload = calls[0]?.[1] as { state?: string };
+      expect(payload.state).toBe("error");
+      expect(agentRunSeq.has("run-error-grace")).toBe(false);
+      expect(agentRunSeq.has("client-error-grace")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("routes tool events only to registered recipients when verbose is enabled", () => {
     const { broadcast, broadcastToConnIds, toolEventRecipients, handler } = createHarness({
       resolveSessionKeyForRun: () => "session-1",
