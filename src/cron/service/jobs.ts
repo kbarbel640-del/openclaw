@@ -442,11 +442,7 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   if (!patch.delivery && patch.payload?.kind === "agentTurn") {
     // Back-compat: legacy clients still update delivery via payload fields.
     const legacyDeliveryPatch = buildLegacyDeliveryPatch(patch.payload);
-    if (
-      legacyDeliveryPatch &&
-      job.sessionTarget === "isolated" &&
-      job.payload.kind === "agentTurn"
-    ) {
+    if (legacyDeliveryPatch && job.sessionTarget !== "main" && job.payload.kind === "agentTurn") {
       job.delivery = mergeCronDelivery(job.delivery, legacyDeliveryPatch);
     }
   }
