@@ -8,6 +8,9 @@ import {
   DEFAULT_IDENTITY_FILENAME,
   DEFAULT_MEMORY_ALT_FILENAME,
   DEFAULT_MEMORY_FILENAME,
+  DEFAULT_SAFETY_FILENAME,
+  DEFAULT_CLI_QUICK_REFERENCE_FILENAME,
+  DEFAULT_SYSTEM_TIPS_FILENAME,
   DEFAULT_TOOLS_FILENAME,
   DEFAULT_USER_FILENAME,
   ensureAgentWorkspace,
@@ -142,6 +145,46 @@ describe("loadWorkspaceBootstrapFiles", () => {
     const files = await loadWorkspaceBootstrapFiles(tempDir);
     expect(getMemoryEntries(files)).toHaveLength(0);
   });
+
+  it("includes optional prompt override files when present", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_SYSTEM_TIPS_FILENAME,
+      content: "tips",
+    });
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_SAFETY_FILENAME,
+      content: "safety",
+    });
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_CLI_QUICK_REFERENCE_FILENAME,
+      content: "cli",
+    });
+
+    const files = await loadWorkspaceBootstrapFiles(tempDir);
+    expect(files.find((file) => file.name === DEFAULT_SYSTEM_TIPS_FILENAME)?.missing).toBe(false);
+    expect(files.find((file) => file.name === DEFAULT_SYSTEM_TIPS_FILENAME)?.content).toBe("tips");
+    expect(files.find((file) => file.name === DEFAULT_SAFETY_FILENAME)?.missing).toBe(false);
+    expect(files.find((file) => file.name === DEFAULT_SAFETY_FILENAME)?.content).toBe("safety");
+    expect(files.find((file) => file.name === DEFAULT_CLI_QUICK_REFERENCE_FILENAME)?.missing).toBe(
+      false,
+    );
+    expect(files.find((file) => file.name === DEFAULT_CLI_QUICK_REFERENCE_FILENAME)?.content).toBe(
+      "cli",
+    );
+  });
+
+  it("omits optional prompt override entries when files are absent", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    const files = await loadWorkspaceBootstrapFiles(tempDir);
+
+    expect(files.some((file) => file.name === DEFAULT_SYSTEM_TIPS_FILENAME)).toBe(false);
+    expect(files.some((file) => file.name === DEFAULT_SAFETY_FILENAME)).toBe(false);
+    expect(files.some((file) => file.name === DEFAULT_CLI_QUICK_REFERENCE_FILENAME)).toBe(false);
+  });
 });
 
 describe("filterBootstrapFilesForSession", () => {
@@ -151,6 +194,14 @@ describe("filterBootstrapFilesForSession", () => {
     { name: "TOOLS.md", path: "/w/TOOLS.md", content: "", missing: false },
     { name: "IDENTITY.md", path: "/w/IDENTITY.md", content: "", missing: false },
     { name: "USER.md", path: "/w/USER.md", content: "", missing: false },
+    { name: "SYSTEM_TIPS.md", path: "/w/SYSTEM_TIPS.md", content: "", missing: false },
+    { name: "SAFETY.md", path: "/w/SAFETY.md", content: "", missing: false },
+    {
+      name: "CLI_QUICK_REFERENCE.md",
+      path: "/w/CLI_QUICK_REFERENCE.md",
+      content: "",
+      missing: false,
+    },
     { name: "HEARTBEAT.md", path: "/w/HEARTBEAT.md", content: "", missing: false },
     { name: "BOOTSTRAP.md", path: "/w/BOOTSTRAP.md", content: "", missing: false },
     { name: "MEMORY.md", path: "/w/MEMORY.md", content: "", missing: false },
@@ -174,6 +225,9 @@ describe("filterBootstrapFilesForSession", () => {
     expect(names).toContain("SOUL.md");
     expect(names).toContain("IDENTITY.md");
     expect(names).toContain("USER.md");
+    expect(names).toContain("SYSTEM_TIPS.md");
+    expect(names).toContain("SAFETY.md");
+    expect(names).toContain("CLI_QUICK_REFERENCE.md");
     expect(names).not.toContain("HEARTBEAT.md");
     expect(names).not.toContain("BOOTSTRAP.md");
     expect(names).not.toContain("MEMORY.md");
@@ -187,6 +241,9 @@ describe("filterBootstrapFilesForSession", () => {
     expect(names).toContain("SOUL.md");
     expect(names).toContain("IDENTITY.md");
     expect(names).toContain("USER.md");
+    expect(names).toContain("SYSTEM_TIPS.md");
+    expect(names).toContain("SAFETY.md");
+    expect(names).toContain("CLI_QUICK_REFERENCE.md");
     expect(names).not.toContain("HEARTBEAT.md");
     expect(names).not.toContain("BOOTSTRAP.md");
     expect(names).not.toContain("MEMORY.md");

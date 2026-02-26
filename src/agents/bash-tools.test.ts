@@ -526,10 +526,9 @@ describe("exec PATH handling", () => {
   it("prepends configured path entries", async () => {
     const basePath = isWin ? "C:\\Windows\\System32" : "/usr/bin";
     const prepend = isWin ? ["C:\\custom\\bin", "C:\\oss\\bin"] : ["/custom/bin", "/opt/oss/bin"];
-    process.env.PATH = basePath;
 
     const tool = createTestExecTool({ pathPrepend: prepend });
-    const result = await executeExecCommand(tool, COMMAND_PRINT_PATH);
+    const result = await executeExecCommand(tool, COMMAND_PRINT_PATH, { env: { PATH: basePath } });
 
     const text = readNormalizedTextContent(result.content);
     const entries = text.split(path.delimiter);

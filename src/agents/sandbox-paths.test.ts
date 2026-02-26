@@ -71,23 +71,24 @@ async function withOutsideHardlinkInOpenClawTmp<T>(
 
 describe("resolveSandboxedMediaSource", () => {
   const openClawTmpDir = resolvePreferredOpenClawTmpDir();
+  const openClawTmpPath = (...segments: string[]) => path.resolve(openClawTmpDir, ...segments);
 
   // Group 1: /tmp paths (the bug fix)
   it.each([
     {
       name: "absolute paths under preferred OpenClaw tmp root",
-      media: path.join(openClawTmpDir, "image.png"),
-      expected: path.join(openClawTmpDir, "image.png"),
+      media: openClawTmpPath("image.png"),
+      expected: openClawTmpPath("image.png"),
     },
     {
       name: "file:// URLs pointing to preferred OpenClaw tmp root",
-      media: pathToFileURL(path.join(openClawTmpDir, "photo.png")).href,
-      expected: path.join(openClawTmpDir, "photo.png"),
+      media: pathToFileURL(openClawTmpPath("photo.png")).href,
+      expected: openClawTmpPath("photo.png"),
     },
     {
       name: "nested paths under preferred OpenClaw tmp root",
-      media: path.join(openClawTmpDir, "subdir", "deep", "file.png"),
-      expected: path.join(openClawTmpDir, "subdir", "deep", "file.png"),
+      media: openClawTmpPath("subdir", "deep", "file.png"),
+      expected: openClawTmpPath("subdir", "deep", "file.png"),
     },
   ])("allows $name", async ({ media, expected }) => {
     await withSandboxRoot(async (sandboxDir) => {
