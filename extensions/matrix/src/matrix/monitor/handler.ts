@@ -505,7 +505,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         previousTimestamp,
         envelope: envelopeOptions,
         body: textWithId,
-        chatType: threadRootId ? "thread" : isDirectMessage ? "direct" : "channel",
+        chatType: isDirectMessage ? "direct" : "channel",
         sender: { name: senderName, username: senderId.split(":")[0]?.replace(/^@/, "") },
       });
 
