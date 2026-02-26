@@ -68,6 +68,7 @@ export function calculateAdaptiveColumnWidths(
   }
 
   // Calculate weighted length (CJK chars count as 2)
+  // CJK (Chinese/Japanese/Korean) characters render ~2x wider than ASCII
   function getWeightedLength(text: string): number {
     return [...text].reduce((sum, char) => {
       return sum + (char.charCodeAt(0) > 255 ? 2 : 1);
