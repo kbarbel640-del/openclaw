@@ -1,3 +1,4 @@
+import type { Message } from "@grammyjs/types";
 import type { Bot, Context } from "grammy";
 import { resolveChunkMode } from "../auto-reply/chunk.js";
 import type { CommandArgs } from "../auto-reply/commands-registry.js";
@@ -135,7 +136,7 @@ type RegisterTelegramNativeCommandsParams = {
 };
 
 async function resolveTelegramCommandAuth(params: {
-  msg: NonNullable<TelegramNativeCommandContext["message"]>;
+  msg: Message;
   bot: Bot;
   cfg: OpenClawConfig;
   accountId: string;
@@ -183,8 +184,13 @@ async function resolveTelegramCommandAuth(params: {
     effectiveGroupAllow,
     hasGroupAllowOverride,
   } = groupAllowContext;
-  const senderId = msg.from?.id ? String(msg.from.id) : "";
-  const senderUsername = msg.from?.username ?? "";
+  // channel_post messages may lack `from`; fall back to sender_chat (the posting channel/bot)
+  const senderId = msg.from?.id
+    ? String(msg.from.id)
+    : msg.sender_chat?.id
+      ? String(msg.sender_chat.id)
+      : "";
+  const senderUsername = msg.from?.username ?? msg.sender_chat?.username ?? "";
 
   const sendAuthMessage = async (text: string) => {
     await withTelegramApiErrorLogging({
@@ -261,11 +267,16 @@ async function resolveTelegramCommandAuth(params: {
     senderId,
     senderUsername,
   });
-  const commandAuthorized = resolveCommandAuthorizedFromAuthorizers({
-    useAccessGroups,
-    authorizers: [{ configured: dmAllow.hasEntries, allowed: senderAllowed }],
-    modeWhenAccessGroupsOff: "configured",
-  });
+  // Channel posts are inherently authorized — only channel admins can post,
+  // and the bot is intentionally subscribed to the channel.
+  const isChannel = msg.chat.type === "channel";
+  const commandAuthorized =
+    isChannel ||
+    resolveCommandAuthorizedFromAuthorizers({
+      useAccessGroups,
+      authorizers: [{ configured: dmAllow.hasEntries, allowed: senderAllowed }],
+      modeWhenAccessGroupsOff: "configured",
+    });
   if (requireAuth && !commandAuthorized) {
     return await rejectNotAuthorized();
   }
@@ -382,7 +393,7 @@ export const registerTelegramNativeCommands = ({
   syncTelegramMenuCommands({ bot, runtime, commandsToRegister });
 
   const resolveCommandRuntimeContext = (params: {
-    msg: NonNullable<TelegramNativeCommandContext["message"]>;
+    msg: Message;
     isGroup: boolean;
     isForum: boolean;
     resolvedThreadId?: number;
@@ -442,7 +453,9 @@ export const registerTelegramNativeCommands = ({
       for (const command of nativeCommands) {
         const normalizedCommandName = normalizeTelegramCommandName(command.name);
         bot.command(normalizedCommandName, async (ctx: TelegramNativeCommandContext) => {
-          const msg = ctx.message;
+          // grammY matches bot.command() on channel_post updates too;
+          // fall back to channelPost so channel commands are not silently dropped.
+          const msg = ctx.message ?? ctx.channelPost;
           if (!msg) {
             return;
           }
@@ -664,7 +677,9 @@ export const registerTelegramNativeCommands = ({
 
       for (const pluginCommand of pluginCatalog.commands) {
         bot.command(pluginCommand.command, async (ctx: TelegramNativeCommandContext) => {
-          const msg = ctx.message;
+          // grammY matches bot.command() on channel_post updates too;
+          // fall back to channelPost so channel commands are not silently dropped.
+          const msg = ctx.message ?? ctx.channelPost;
           if (!msg) {
             return;
           }
