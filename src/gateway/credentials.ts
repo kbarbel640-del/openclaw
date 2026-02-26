@@ -116,7 +116,7 @@ export function resolveGatewayCredentialsFromConfig(params: {
 
   const mode: GatewayCredentialMode =
     params.modeOverride ?? (params.cfg.gateway?.mode === "remote" ? "remote" : "local");
-  const remote = mode === "remote" ? params.cfg.gateway?.remote : undefined;
+  const remote = params.cfg.gateway?.remote;
   const envToken = readGatewayTokenEnv(env, includeLegacyEnv);
   const envPassword = readGatewayPasswordEnv(env, includeLegacyEnv);
 
