@@ -14,6 +14,7 @@ import type {
 } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { getAgentScopedMediaLocalRoots } from "../../media/local-roots.js";
+import { buildChannelAccountBindings } from "../../routing/bindings.js";
 import {
   isDeliverableMessageChannel,
   normalizeMessageChannel,
@@ -222,6 +223,19 @@ async function resolveChannel(cfg: OpenClawConfig, params: Record<string, unknow
     channel: channelHint,
   });
   return selection.channel;
+}
+
+function resolveAgentBoundAccountId(params: {
+  cfg: OpenClawConfig;
+  channel: ChannelId;
+  agentId?: string;
+}): string | undefined {
+  const agentId = params.agentId?.trim();
+  if (!agentId) {
+    return undefined;
+  }
+  const byAgent = buildChannelAccountBindings(params.cfg).get(params.channel);
+  return byAgent?.get(agentId)?.[0];
 }
 
 async function resolveActionTarget(params: {
@@ -753,7 +767,16 @@ export async function runMessageAction(
   }
 
   const channel = await resolveChannel(cfg, params);
-  const accountId = readStringParam(params, "accountId") ?? input.defaultAccountId;
+  const explicitAccountId = readStringParam(params, "accountId");
+  const agentBoundAccountId =
+    !explicitAccountId && resolvedAgentId
+      ? resolveAgentBoundAccountId({
+          cfg,
+          channel,
+          agentId: resolvedAgentId,
+        })
+      : undefined;
+  const accountId = explicitAccountId ?? agentBoundAccountId ?? input.defaultAccountId;
   if (accountId) {
     params.accountId = accountId;
   }
