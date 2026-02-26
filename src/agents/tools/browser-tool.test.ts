@@ -422,3 +422,46 @@ describe("browser tool external content wrapping", () => {
     });
   });
 });
+
+describe("browser tool url → targetUrl aliasing", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("accepts 'url' as alias for 'targetUrl' in open action", async () => {
+    const tool = createBrowserTool();
+    await tool.execute?.("call-1", { action: "open", url: "https://example.com" });
+
+    expect(browserClientMocks.browserOpenTab).toHaveBeenCalledWith(
+      undefined,
+      "https://example.com",
+      expect.anything(),
+    );
+  });
+
+  it("still accepts 'targetUrl' directly in open action", async () => {
+    const tool = createBrowserTool();
+    await tool.execute?.("call-1", { action: "open", targetUrl: "https://example.com" });
+
+    expect(browserClientMocks.browserOpenTab).toHaveBeenCalledWith(
+      undefined,
+      "https://example.com",
+      expect.anything(),
+    );
+  });
+
+  it("prefers 'targetUrl' when both 'url' and 'targetUrl' are provided", async () => {
+    const tool = createBrowserTool();
+    await tool.execute?.("call-1", {
+      action: "open",
+      url: "https://wrong.com",
+      targetUrl: "https://correct.com",
+    });
+
+    expect(browserClientMocks.browserOpenTab).toHaveBeenCalledWith(
+      undefined,
+      "https://correct.com",
+      expect.anything(),
+    );
+  });
+});
