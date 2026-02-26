@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { createServer } from "node:http";
 import { delimiter, dirname, join } from "node:path";
-import { isWSL2Sync } from "openclaw/plugin-sdk";
+import { fetchWithSsrFGuard, isWSL2Sync } from "openclaw/plugin-sdk";
 
 const CLIENT_ID_KEYS = ["OPENCLAW_GEMINI_OAUTH_CLIENT_ID", "GEMINI_CLI_OAUTH_CLIENT_ID"];
 const CLIENT_SECRET_KEYS = [
@@ -239,13 +239,20 @@ async function fetchWithTimeout(
   init: RequestInit,
   timeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  timeout.unref?.();
+  const { response, release } = await fetchWithSsrFGuard({
+    url,
+    init,
+    timeoutMs,
+  });
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    const body = await response.arrayBuffer();
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
   } finally {
-    clearTimeout(timeout);
+    await release();
   }
 }
 
