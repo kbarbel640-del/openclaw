@@ -601,6 +601,11 @@ function createGoogleThinkingPayloadWrapper(
  *
  * @see https://docs.z.ai/api-reference#streaming
  */
+function isZaiToolStreamDefaultDisabledModel(modelId: string): boolean {
+  const normalized = modelId.trim().toLowerCase();
+  return normalized === "glm-4.7-flash";
+}
+
 function createZaiToolStreamWrapper(
   baseStreamFn: StreamFn | undefined,
   enabled: boolean,
@@ -694,12 +699,18 @@ export function applyExtraParamsToAgent(
   }
 
   // Enable Z.AI tool_stream for real-time tool call streaming.
-  // Enabled by default for Z.AI provider, can be disabled via params.tool_stream: false
+  // Enabled by default for Z.AI provider, can be disabled via params.tool_stream: false.
+  // `glm-4.7-flash` currently returns provider-side failures when tool_stream is enabled,
+  // so default it off unless the user explicitly opts in with tool_stream: true.
   if (provider === "zai" || provider === "z-ai") {
-    const toolStreamEnabled = merged?.tool_stream !== false;
+    const defaultEnabled = !isZaiToolStreamDefaultDisabledModel(modelId);
+    const toolStreamEnabled =
+      typeof merged?.tool_stream === "boolean" ? merged.tool_stream : defaultEnabled;
     if (toolStreamEnabled) {
       log.debug(`enabling Z.AI tool_stream for ${provider}/${modelId}`);
       agent.streamFn = createZaiToolStreamWrapper(agent.streamFn, true);
+    } else {
+      log.debug(`disabling Z.AI tool_stream for ${provider}/${modelId}`);
     }
   }
 

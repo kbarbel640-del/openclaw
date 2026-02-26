@@ -50,6 +50,20 @@ describe("extra-params: Z.AI tool_stream support", () => {
     expect(payload.tool_stream).toBe(true);
   });
 
+  it("does not inject tool_stream by default for glm-4.7-flash", () => {
+    const payload = runToolStreamCase({
+      applyProvider: "zai",
+      applyModelId: "glm-4.7-flash",
+      model: {
+        api: "openai-completions",
+        provider: "zai",
+        id: "glm-4.7-flash",
+      } as Model<"openai-completions">,
+    });
+
+    expect(payload).not.toHaveProperty("tool_stream");
+  });
+
   it("does not inject tool_stream for non-zai providers", () => {
     const payload = runToolStreamCase({
       applyProvider: "openai",
@@ -89,5 +103,32 @@ describe("extra-params: Z.AI tool_stream support", () => {
     });
 
     expect(payload).not.toHaveProperty("tool_stream");
+  });
+
+  it("allows forcing tool_stream=true for glm-4.7-flash via params", () => {
+    const payload = runToolStreamCase({
+      applyProvider: "zai",
+      applyModelId: "glm-4.7-flash",
+      model: {
+        api: "openai-completions",
+        provider: "zai",
+        id: "glm-4.7-flash",
+      } as Model<"openai-completions">,
+      cfg: {
+        agents: {
+          defaults: {
+            models: {
+              "zai/glm-4.7-flash": {
+                params: {
+                  tool_stream: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(payload.tool_stream).toBe(true);
   });
 });
