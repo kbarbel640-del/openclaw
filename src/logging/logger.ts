@@ -8,6 +8,7 @@ import type { ConsoleStyle } from "./console.js";
 import { resolveEnvLogLevelOverride } from "./env-log-level.js";
 import { type LogLevel, levelToMinLevel, normalizeLogLevel } from "./levels.js";
 import { resolveNodeRequireFromMeta } from "./node-require.js";
+import { redactIdentifier } from "./redact-identifier.js";
 import { loggingState } from "./state.js";
 
 export const DEFAULT_LOG_DIR = resolvePreferredOpenClawTmpDir();
@@ -29,6 +30,99 @@ export type LoggerSettings = {
 };
 
 type LogObj = { date?: Date } & Record<string, unknown>;
+
+/** Format: [YYYY-MM-DD HH:mm:ss.SSS] [pid] [subsystem] level: message */
+function formatFileLogLine(logObj: LogObj): string {
+  const d = logObj.date ?? new Date();
+  const timeStr =
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ` +
+    `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+  const meta = logObj._meta as Record<string, unknown> | undefined;
+  const level = typeof meta?.logLevelName === "string" ? meta.logLevelName : "INFO";
+  const levelLower = level.toLowerCase();
+  let subsystem = "main";
+  let parsedName: Record<string, unknown> | undefined;
+  const nameCandidates = [
+    typeof meta?.name === "string" ? meta.name : null,
+    typeof (logObj as Record<string, unknown>)["0"] === "string"
+      ? (logObj as Record<string, unknown>)["0"]
+      : null,
+  ].filter(Boolean) as string[];
+  for (const candidate of nameCandidates) {
+    try {
+      const parsed = JSON.parse(candidate) as Record<string, unknown>;
+      if (typeof parsed.module === "string" || typeof parsed.subsystem === "string") {
+        parsedName = parsed;
+        if (typeof parsed.subsystem === "string") {
+          subsystem = parsed.subsystem;
+        } else if (typeof parsed.module === "string") {
+          subsystem = parsed.module;
+        }
+        break;
+      }
+    } catch {
+      continue;
+    }
+  }
+  const parts: string[] = [];
+  const nameStr = typeof meta?.name === "string" ? meta.name : undefined;
+  for (const key of Object.keys(logObj).toSorted((a, b) => Number(a) - Number(b))) {
+    if (!/^\d+$/.test(key)) {
+      continue;
+    }
+    const item = (logObj as Record<string, unknown>)[key];
+    let s: string;
+    if (typeof item === "string") {
+      s = item;
+    } else if (item != null && typeof item === "object" && !Array.isArray(item)) {
+      const obj = item as Record<string, unknown>;
+      const redacted = { ...obj };
+      if (typeof redacted.jid === "string") {
+        redacted.jid = redactIdentifier(redacted.jid);
+      }
+      if (typeof redacted.to === "string") {
+        redacted.to = redactIdentifier(redacted.to);
+      }
+      s = JSON.stringify(redacted);
+    } else if (item != null) {
+      s = JSON.stringify(item);
+    } else {
+      s = "";
+    }
+    if (!s || s === nameStr) {
+      continue;
+    }
+    parts.push(s);
+  }
+  let message = parts.join(" ").trim();
+  if (parsedName && typeof parsedName === "object") {
+    const redacts: string[] = [];
+    for (const v of Object.values(parsedName)) {
+      if (typeof v !== "string") {
+        continue;
+      }
+      const s = v.trim();
+      if (!s) {
+        continue;
+      }
+      if (s.startsWith("sha256:")) {
+        redacts.push(s);
+        continue;
+      }
+      if (!s.startsWith("+") && !s.includes("@")) {
+        continue;
+      }
+      redacts.push(redactIdentifier(s));
+      if (s.includes("@")) {
+        redacts.push(redactIdentifier("+" + s.split("@")[0]));
+      }
+    }
+    if (redacts.length > 0) {
+      message = `${[...new Set(redacts)].join(" ")} ${message}`;
+    }
+  }
+  return `[${timeStr}] [${process.pid}] [${subsystem}] ${levelLower}: ${message}`;
+}
 
 type ResolvedSettings = {
   level: LogLevel;
@@ -113,21 +207,22 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
 
   logger.attachTransport((logObj: LogObj) => {
     try {
-      const time = logObj.date?.toISOString?.() ?? new Date().toISOString();
-      const line = JSON.stringify({ ...logObj, time });
+      const line = formatFileLogLine(logObj);
       const payload = `${line}\n`;
       const payloadBytes = Buffer.byteLength(payload, "utf8");
       const nextBytes = currentFileBytes + payloadBytes;
       if (nextBytes > settings.maxFileBytes) {
         if (!warnedAboutSizeCap) {
           warnedAboutSizeCap = true;
-          const warningLine = JSON.stringify({
-            time: new Date().toISOString(),
-            level: "warn",
-            subsystem: "logging",
-            message: `log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}`,
+          const warningLine = formatFileLogLine({
+            date: new Date(),
+            _meta: { logLevelName: "WARN", name: '{"subsystem":"logging"}' },
+            0: `log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}`,
           });
-          appendLogLine(settings.file, `${warningLine}\n`);
+          const warningPayload = `${warningLine}\n`;
+          if (appendLogLine(settings.file, warningPayload)) {
+            currentFileBytes += Buffer.byteLength(warningPayload, "utf8");
+          }
           process.stderr.write(
             `[openclaw] log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}\n`,
           );
