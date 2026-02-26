@@ -187,8 +187,8 @@ describe("compaction hook wiring", () => {
 
     const assistantOne = messages[1] as { usage?: unknown };
     const assistantTwo = messages[2] as { usage?: unknown };
-    expect(assistantOne.usage).toBeUndefined();
-    expect(assistantTwo.usage).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(assistantOne, "usage")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(assistantTwo, "usage")).toBe(false);
   });
 
   it("does not clear assistant usage while compaction is retrying", () => {
