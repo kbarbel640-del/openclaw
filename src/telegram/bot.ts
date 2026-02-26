@@ -152,6 +152,12 @@ export function createTelegramBot(opts: TelegramBotOptions) {
   const initialUpdateId =
     typeof opts.updateOffset?.lastUpdateId === "number" ? opts.updateOffset.lastUpdateId : null;
 
+  // Log the initial offset value for diagnostic purposes
+  const telegramLogger = createSubsystemLogger("telegram");
+  if (initialUpdateId !== null) {
+    telegramLogger.info(`Telegram update offset initialized: ${initialUpdateId}`);
+  }
+
   // Track update_ids that have entered the middleware pipeline but have not completed yet.
   // This includes updates that are "queued" behind sequentialize(...) for a chat/topic key.
   // We only persist a watermark that is strictly less than the smallest pending update_id,
@@ -189,6 +195,8 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     const updateId = resolveTelegramUpdateId(ctx);
     const skipCutoff = highestPersistedUpdateId ?? initialUpdateId;
     if (typeof updateId === "number" && skipCutoff !== null && updateId <= skipCutoff) {
+      // Log skipped updates due to offset cutoff for diagnostic purposes
+      telegramLogger.info(`Skipping Telegram update ${updateId} (cutoff: ${skipCutoff})`);
       return true;
     }
     const key = buildTelegramUpdateKey(ctx);
