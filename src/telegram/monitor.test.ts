@@ -432,7 +432,7 @@ describe("monitorTelegramProvider (grammY)", () => {
     expect(runSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("passes configured webhookHost to webhook listener (legacy mode)", async () => {
+  it("passes configured webhookHost/webhookPort to webhook listener (legacy mode)", async () => {
     await monitorTelegramProvider({
       token: "tok",
       useWebhook: true,
@@ -443,6 +443,7 @@ describe("monitorTelegramProvider (grammY)", () => {
         channels: {
           telegram: {
             webhookHost: "0.0.0.0",
+            webhookPort: 8999,
           },
         },
       },
@@ -451,6 +452,7 @@ describe("monitorTelegramProvider (grammY)", () => {
     expect(startTelegramWebhookSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         host: "0.0.0.0",
+        port: 8999,
       }),
     );
     expect(runSpy).not.toHaveBeenCalled();
