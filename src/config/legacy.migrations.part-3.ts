@@ -218,4 +218,30 @@ export const LEGACY_CONFIG_MIGRATIONS_PART_3: LegacyConfigMigration[] = [
       delete raw.identity;
     },
   },
+  {
+    id: "models.providers.deepseek-web.api",
+    describe: "Fix api type for built-in web providers (deepseek-web, qwen-web)",
+    apply: (raw, changes) => {
+      const models = getRecord(raw.models);
+      if (!models) {
+        return;
+      }
+      const providers = getRecord(models.providers);
+      if (!providers) {
+        return;
+      }
+
+      const deepseekWeb = getRecord(providers["deepseek-web"]);
+      if (deepseekWeb && deepseekWeb.api !== "deepseek-web") {
+        deepseekWeb.api = "deepseek-web";
+        changes.push('Updated models.providers["deepseek-web"].api → "deepseek-web"');
+      }
+
+      const qwenWeb = getRecord(providers["qwen-web"]);
+      if (qwenWeb && qwenWeb.api !== "qwen-web") {
+        qwenWeb.api = "qwen-web";
+        changes.push('Updated models.providers["qwen-web"].api → "qwen-web"');
+      }
+    },
+  },
 ];
