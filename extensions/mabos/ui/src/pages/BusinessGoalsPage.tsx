@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePanels } from "@/contexts/PanelContext";
 import { useGoalModel } from "@/hooks/useGoalModel";
-import type { BusinessGoal, GoalLevel, GoalPerspective, GoalType } from "@/lib/types";
+import type { BusinessGoal, GoalLevel, GoalPerspective, GoalState, GoalType } from "@/lib/types";
 
 const BUSINESS_ID = "vividwalls";
 
@@ -114,13 +114,30 @@ const levelTabs: { value: GoalLevel | "all"; label: string }[] = [
   { value: "operational", label: "Operational" },
 ];
 
-/* ─── Type tabs ─── */
+/* ─── Type tabs (Tropos + BDI) ─── */
 const typeTabs: { value: GoalType | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "hardgoal", label: "Hard Goal" },
   { value: "softgoal", label: "Soft Goal" },
   { value: "task", label: "Task" },
   { value: "resource", label: "Resource" },
+  { value: "achieve" as GoalType, label: "Achieve" },
+  { value: "maintain" as GoalType, label: "Maintain" },
+  { value: "cease" as GoalType, label: "Cease" },
+  { value: "avoid" as GoalType, label: "Avoid" },
+  { value: "query" as GoalType, label: "Query" },
+];
+
+/* ─── State tabs ─── */
+const stateTabs: { value: GoalState | "all"; label: string }[] = [
+  { value: "all", label: "All States" },
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "achieved", label: "Achieved" },
+  { value: "failed", label: "Failed" },
+  { value: "suspended", label: "Suspended" },
+  { value: "abandoned", label: "Abandoned" },
 ];
 
 /* ════════════════════════════════════════════════════════ */
@@ -129,6 +146,7 @@ export function BusinessGoalsPage() {
   const { data: goalModel, isLoading, error } = useGoalModel(BUSINESS_ID);
   const [levelFilter, setLevelFilter] = useState<GoalLevel | "all">("all");
   const [typeFilter, setTypeFilter] = useState<GoalType | "all">("all");
+  const [stateFilter, setStateFilter] = useState<GoalState | "all">("all");
   const [viewMode, setViewMode] = useState<GoalViewMode>("grid");
   const [perspective, setPerspective] = useState<GoalPerspective>("level");
   const { openDetailPanel } = usePanels();
@@ -175,6 +193,7 @@ export function BusinessGoalsPage() {
       domain: g.domain,
       parentGoalId: g.parentGoalId,
       actor: g.actor,
+      goalState: (g as any).goalState ?? undefined,
     }));
   }, [goalModel]);
 
@@ -182,9 +201,10 @@ export function BusinessGoalsPage() {
     return goals.filter((g) => {
       if (levelFilter !== "all" && g.level !== levelFilter) return false;
       if (typeFilter !== "all" && g.type !== typeFilter) return false;
+      if (stateFilter !== "all" && (g.goalState ?? "active") !== stateFilter) return false;
       return true;
     });
-  }, [goals, levelFilter, typeFilter]);
+  }, [goals, levelFilter, typeFilter, stateFilter]);
 
   // Banner stats
   const avgPriority =
@@ -290,6 +310,7 @@ export function BusinessGoalsPage() {
         <div className="space-y-2">
           <TabBar tabs={levelTabs} active={levelFilter} onChange={setLevelFilter} />
           <TabBar tabs={typeTabs} active={typeFilter} onChange={setTypeFilter} />
+          <TabBar tabs={stateTabs} active={stateFilter} onChange={setStateFilter} />
         </div>
       )}
 
