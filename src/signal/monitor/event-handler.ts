@@ -74,6 +74,7 @@ export function createSignalEventHandler(
     senderDisplay: string;
     senderRecipient: string;
     senderPeerId: string;
+    senderUuid?: string;
     groupId?: string;
     groupName?: string;
     isGroup: boolean;
@@ -172,7 +173,8 @@ export function createSignalEventHandler(
       ConversationLabel: fromLabel,
       GroupSubject: entry.isGroup ? (entry.groupName ?? undefined) : undefined,
       SenderName: entry.senderName,
-      SenderId: entry.senderDisplay,
+      SenderId: entry.senderUuid ? `uuid:${entry.senderUuid}` : entry.senderDisplay,
+      SenderE164: entry.senderDisplay,
       Provider: "signal" as const,
       Surface: "signal" as const,
       MessageSid: entry.messageId,
@@ -736,6 +738,7 @@ export function createSignalEventHandler(
       senderDisplay,
       senderRecipient,
       senderPeerId,
+      senderUuid: sender.kind === "phone" ? sender.uuid : undefined,
       groupId,
       groupName,
       isGroup,
