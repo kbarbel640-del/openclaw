@@ -92,7 +92,7 @@ describe("status-reaction-lifecycle", () => {
   });
 });
 
-it("queues terminal transition behind an active interruption", async () => {
+it("requires a completed active transition before terminal transition", async () => {
   __testing.resetTraceEntriesForTests();
   const releaseActiveRef: { current?: () => void } = {};
   const setReaction = vi.fn((emoji: string) => {
@@ -115,13 +115,14 @@ it("queues terminal transition behind an active interruption", async () => {
   await Promise.resolve();
   expect(setReaction.mock.calls.map((call) => call[0])).toEqual(["👀", "🤔"]);
 
-  const completePromise = lifecycle.complete(true);
+  const blockedComplete = lifecycle.complete(true);
   await Promise.resolve();
   expect(setReaction.mock.calls.map((call) => call[0])).toEqual(["👀", "🤔"]);
 
   releaseActiveRef.current?.();
   await activePromise;
-  await completePromise;
+  await blockedComplete;
+  await lifecycle.complete(true);
 
   expect(setReaction.mock.calls.map((call) => call[0])).toEqual(["👀", "🤔", "✅"]);
 });

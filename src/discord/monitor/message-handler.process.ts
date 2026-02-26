@@ -695,7 +695,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
 
     let dispatchError = false;
     try {
-      void statusReactions.enterActive();
+      await statusReactions.enterActive();
       dispatchResult = await dispatchInboundMessage({
         ctx: ctxPayload,
         cfg,

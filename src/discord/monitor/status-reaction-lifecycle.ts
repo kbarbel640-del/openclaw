@@ -176,8 +176,7 @@ export function createDiscordStatusReactionLifecycle(params: {
       });
       return chain;
     }
-    const transitionSource = lastRequestedState ?? state;
-    if (!canTransition(transitionSource, nextState)) {
+    if (!canTransition(state, nextState)) {
       trackTransition({
         messageId,
         state: nextState,
