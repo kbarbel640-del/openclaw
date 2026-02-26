@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
 import { formatCliCommand } from "../../cli/command-format.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { logVerbose } from "../../globals.js";
@@ -271,6 +272,24 @@ function resolveSearchConfig(cfg?: OpenClawConfig): WebSearchConfig {
     return undefined;
   }
   return search as WebSearchConfig;
+}
+
+function resolveSearchProxy(search?: WebSearchConfig): typeof fetch | undefined {
+  const proxyUrl =
+    search && "proxy" in search && typeof search.proxy === "string" ? search.proxy.trim() : "";
+  if (!proxyUrl) {
+    return undefined;
+  }
+  try {
+    const agent = new ProxyAgent(proxyUrl);
+    return ((input: RequestInfo | URL, init?: RequestInit) =>
+      undiciFetch(input as string | URL, {
+        ...(init as Record<string, unknown>),
+        dispatcher: agent,
+      }) as unknown as Promise<Response>) as typeof fetch;
+  } catch {
+    return undefined;
+  }
 }
 
 function resolveSearchEnabled(params: { search?: WebSearchConfig; sandboxed?: boolean }): boolean {
@@ -605,10 +624,12 @@ async function runGeminiSearch(params: {
   apiKey: string;
   model: string;
   timeoutSeconds: number;
+  fetchImpl?: typeof fetch;
 }): Promise<{ content: string; citations: Array<{ url: string; title?: string }> }> {
+  const fetchFn = params.fetchImpl ?? fetch;
   const endpoint = `${GEMINI_API_BASE}/models/${params.model}:generateContent`;
 
-  const res = await fetch(endpoint, {
+  const res = await fetchFn(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -851,7 +872,9 @@ async function runPerplexitySearch(params: {
   model: string;
   timeoutSeconds: number;
   freshness?: string;
+  fetchImpl?: typeof fetch;
 }): Promise<{ content: string; citations: string[] }> {
+  const fetchFn = params.fetchImpl ?? fetch;
   const baseUrl = params.baseUrl.trim().replace(/\/$/, "");
   const endpoint = `${baseUrl}/chat/completions`;
   const model = resolvePerplexityRequestModel(baseUrl, params.model);
@@ -871,7 +894,7 @@ async function runPerplexitySearch(params: {
     body.search_recency_filter = recencyFilter;
   }
 
-  const res = await fetch(endpoint, {
+  const res = await fetchFn(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -900,11 +923,13 @@ async function runGrokSearch(params: {
   model: string;
   timeoutSeconds: number;
   inlineCitations: boolean;
+  fetchImpl?: typeof fetch;
 }): Promise<{
   content: string;
   citations: string[];
   inlineCitations?: GrokSearchResponse["inline_citations"];
 }> {
+  const fetchFn = params.fetchImpl ?? fetch;
   const body: Record<string, unknown> = {
     model: params.model,
     input: [
@@ -921,7 +946,7 @@ async function runGrokSearch(params: {
   // citations are returned automatically when available — we just parse
   // them from the response without requesting them explicitly (#12910).
 
-  const res = await fetch(XAI_API_ENDPOINT, {
+  const res = await fetchFn(XAI_API_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1001,7 +1026,9 @@ async function runKimiSearch(params: {
   baseUrl: string;
   model: string;
   timeoutSeconds: number;
+  fetchImpl?: typeof fetch;
 }): Promise<{ content: string; citations: string[] }> {
+  const fetchFn = params.fetchImpl ?? fetch;
   const baseUrl = params.baseUrl.trim().replace(/\/$/, "");
   const endpoint = `${baseUrl}/chat/completions`;
   const messages: Array<Record<string, unknown>> = [
@@ -1014,7 +1041,7 @@ async function runKimiSearch(params: {
   const MAX_ROUNDS = 3;
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
-    const res = await fetch(endpoint, {
+    const res = await fetchFn(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1100,6 +1127,7 @@ async function runWebSearch(params: {
   geminiModel?: string;
   kimiBaseUrl?: string;
   kimiModel?: string;
+  fetchImpl?: typeof fetch;
 }): Promise<Record<string, unknown>> {
   const cacheKey = normalizeCacheKey(
     params.provider === "brave"
@@ -1127,6 +1155,7 @@ async function runWebSearch(params: {
       model: params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL,
       timeoutSeconds: params.timeoutSeconds,
       freshness: params.freshness,
+      fetchImpl: params.fetchImpl,
     });
 
     const payload = {
@@ -1154,6 +1183,7 @@ async function runWebSearch(params: {
       model: params.grokModel ?? DEFAULT_GROK_MODEL,
       timeoutSeconds: params.timeoutSeconds,
       inlineCitations: params.grokInlineCitations ?? false,
+      fetchImpl: params.fetchImpl,
     });
 
     const payload = {
@@ -1182,6 +1212,7 @@ async function runWebSearch(params: {
       baseUrl: params.kimiBaseUrl ?? DEFAULT_KIMI_BASE_URL,
       model: params.kimiModel ?? DEFAULT_KIMI_MODEL,
       timeoutSeconds: params.timeoutSeconds,
+      fetchImpl: params.fetchImpl,
     });
 
     const payload = {
@@ -1208,6 +1239,7 @@ async function runWebSearch(params: {
       apiKey: params.apiKey,
       model: params.geminiModel ?? DEFAULT_GEMINI_MODEL,
       timeoutSeconds: params.timeoutSeconds,
+      fetchImpl: params.fetchImpl,
     });
 
     const payload = {
@@ -1248,7 +1280,8 @@ async function runWebSearch(params: {
     url.searchParams.set("freshness", params.freshness);
   }
 
-  const res = await fetch(url.toString(), {
+  const fetchFn = params.fetchImpl ?? fetch;
+  const res = await fetchFn(url.toString(), {
     method: "GET",
     headers: {
       Accept: "application/json",
@@ -1389,6 +1422,7 @@ export function createWebSearchTool(options?: {
           docs: "https://docs.openclaw.ai/tools/web",
         });
       }
+      const searchFetch = resolveSearchProxy(search);
       const result = await runWebSearch({
         query,
         count: resolveSearchCount(count, DEFAULT_SEARCH_COUNT),
@@ -1411,6 +1445,7 @@ export function createWebSearchTool(options?: {
         geminiModel: resolveGeminiModel(geminiConfig),
         kimiBaseUrl: resolveKimiBaseUrl(kimiConfig),
         kimiModel: resolveKimiModel(kimiConfig),
+        fetchImpl: searchFetch,
       });
       return jsonResult(result);
     },
@@ -1435,4 +1470,5 @@ export const __testing = {
   resolveKimiBaseUrl,
   extractKimiCitations,
   resolveRedirectUrl,
+  resolveSearchProxy,
 } as const;
