@@ -206,11 +206,13 @@ export const en: TranslationMap = {
       payloadKind: "What should run?",
       payloadSystem: "Post message to main timeline",
       payloadAgent: "Run assistant task (isolated)",
-      payloadHelpSystem: "Sends your text to the gateway main timeline (good for reminders/triggers).",
+      payloadHelpSystem:
+        "Sends your text to the gateway main timeline (good for reminders/triggers).",
       payloadHelpAgent: "Starts an assistant run in its own session using your prompt.",
       timeout: "Timeout (seconds)",
       timeoutPlaceholder: "Optional, e.g. 90",
-      timeoutHelp: "Optional. Leave blank to use the gateway default timeout behavior for this run.",
+      timeoutHelp:
+        "Optional. Leave blank to use the gateway default timeout behavior for this run.",
       payloadTextSystem: "Main timeline message",
       payloadTextAgent: "Assistant task prompt",
       delivery: "Delivery",
@@ -230,7 +232,8 @@ export const en: TranslationMap = {
       toPlaceholder: "+1555... or chat id",
       toHelp: "Optional recipient override (chat id, phone, or user id).",
       advanced: "Advanced",
-      advancedSub: "Optional overrides for delivery guarantees, schedule jitter, and model controls.",
+      advancedSub:
+        "Optional overrides for delivery guarantees, schedule jitter, and model controls.",
       deleteAfterRun: "Delete after run",
       deleteAfterRunHelp: "Best for one-shot reminders that should auto-clean up.",
       clearAgent: "Clear agent override",
@@ -252,7 +255,6 @@ export const en: TranslationMap = {
       bestEffort: "Best effort delivery",
       bestEffortHelp: "Do not fail the job if delivery itself fails.",
       runAt: "Run at",
-      every: "Every",
       everyPlaceholder: "30",
       cronExpr: "Expression",
       cronExprPlaceholder: "0 7 * * *",
@@ -329,7 +331,8 @@ export const en: TranslationMap = {
     loading: "Loading…",
     viewChanges: "View {count} pending change{plural}",
     loadingSchema: "Loading schema…",
-    formUnsafeWarning: "Form view can't safely edit some fields. Use Raw to avoid losing config entries.",
+    formUnsafeWarning:
+      "Form view can't safely edit some fields. Use Raw to avoid losing config entries.",
     rawJson: "Raw JSON5",
     sections: {
       env: "Environment",

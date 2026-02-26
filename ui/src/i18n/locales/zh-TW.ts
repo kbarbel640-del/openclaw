@@ -251,7 +251,6 @@ export const zh_TW: TranslationMap = {
       bestEffort: "盡力投遞",
       bestEffortHelp: "如果投遞本身失敗，不要讓任務失敗。",
       runAt: "運行時間",
-      every: "每隔",
       everyPlaceholder: "30",
       cronExpr: "表達式",
       cronExprPlaceholder: "0 7 * * *",

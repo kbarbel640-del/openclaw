@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import { ifDefined } from "lit/directives/if-defined.js";
+import { t } from "../../i18n/index.ts";
 import type { CronFieldErrors, CronFieldKey } from "../controllers/cron.ts";
 import { formatRelativeTimestamp, formatMs } from "../format.ts";
 import { pathForTab } from "../navigation.ts";
@@ -15,7 +16,6 @@ import type {
   CronSortDir,
 } from "../types.ts";
 import type { CronFormState } from "../ui-types.ts";
-import { t } from "../../i18n/index.ts";
 
 export type CronProps = {
   basePath: string;
@@ -107,7 +107,7 @@ function toggleSelection<T extends string>(selected: T[], value: T, checked: boo
 
 function summarizeSelection(selectedLabels: string[], allLabelKey: string) {
   if (selectedLabels.length === 0) {
-    return t(allLabelKey as any);
+    return t(allLabelKey);
   }
   if (selectedLabels.length <= 2) {
     return selectedLabels.join(", ");
@@ -244,7 +244,9 @@ function fieldLabelForKey(
   deliveryMode: CronFormState["deliveryMode"],
 ) {
   if (key === "payloadText") {
-    return form.payloadKind === "systemEvent" ? t("cron.form.payloadTextSystem") : t("cron.form.payloadTextAgent");
+    return form.payloadKind === "systemEvent"
+      ? t("cron.form.payloadTextSystem")
+      : t("cron.form.payloadTextAgent");
   }
   if (key === "deliveryTo") {
     return deliveryMode === "webhook" ? t("cron.form.webhookUrl") : t("cron.form.to");
@@ -336,12 +338,12 @@ export function renderCron(props: CronProps) {
   const runs = props.runs;
   const runStatusOptions = getRunStatusOptions();
   const runDeliveryOptions = getRunDeliveryOptions();
-  const selectedStatusLabels = runStatusOptions.filter((option) =>
-    props.runsStatuses.includes(option.value),
-  ).map((option) => option.label);
-  const selectedDeliveryLabels = runDeliveryOptions.filter((option) =>
-    props.runsDeliveryStatuses.includes(option.value),
-  ).map((option) => option.label);
+  const selectedStatusLabels = runStatusOptions
+    .filter((option) => props.runsStatuses.includes(option.value))
+    .map((option) => option.label);
+  const selectedDeliveryLabels = runDeliveryOptions
+    .filter((option) => props.runsDeliveryStatuses.includes(option.value))
+    .map((option) => option.label);
   const statusSummary = summarizeSelection(selectedStatusLabels, "cron.runs.allStatuses");
   const deliverySummary = summarizeSelection(selectedDeliveryLabels, "cron.runs.allDelivery");
   const supportsAnnounce =
