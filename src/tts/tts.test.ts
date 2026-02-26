@@ -402,6 +402,17 @@ describe("tts", () => {
           env: {
             OPENAI_API_KEY: undefined,
             ELEVENLABS_API_KEY: undefined,
+            DASHSCOPE_API_KEY: "test-qwen-key",
+            XI_API_KEY: undefined,
+          },
+          prefsPath: "/tmp/tts-prefs-qwen.json",
+          expected: "qwen",
+        },
+        {
+          env: {
+            OPENAI_API_KEY: undefined,
+            ELEVENLABS_API_KEY: undefined,
+            DASHSCOPE_API_KEY: undefined,
             XI_API_KEY: undefined,
           },
           prefsPath: "/tmp/tts-prefs-edge.json",

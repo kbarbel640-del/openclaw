@@ -39,6 +39,7 @@ import {
   parseTtsDirectives,
   scheduleCleanup,
   summarizeText,
+  qwenTTS,
 } from "./tts-core.js";
 export { OPENAI_TTS_MODELS, OPENAI_TTS_VOICES } from "./tts-core.js";
 
@@ -115,6 +116,13 @@ export type ResolvedTtsConfig = {
     model: string;
     voice: string;
   };
+  qwen: {
+    apiKey?: string;
+    model: string;
+    voice: string;
+    language: string;
+    instruction?: string;
+  };
   edge: {
     enabled: boolean;
     voice: string;
@@ -140,6 +148,7 @@ type TtsUserPrefs = {
     provider?: TtsProvider;
     maxLength?: number;
     summarize?: boolean;
+    lastAttempt?: TtsStatusEntry;
   };
 };
 
@@ -209,7 +218,7 @@ type TtsStatusEntry = {
   error?: string;
 };
 
-let lastTtsAttempt: TtsStatusEntry | undefined;
+// Variable tracking previously in-memory attempt removed from here
 
 export function normalizeTtsAutoMode(value: unknown): TtsAutoMode | undefined {
   if (typeof value !== "string") {
@@ -289,6 +298,13 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
       apiKey: raw.openai?.apiKey,
       model: raw.openai?.model ?? DEFAULT_OPENAI_MODEL,
       voice: raw.openai?.voice ?? DEFAULT_OPENAI_VOICE,
+    },
+    qwen: {
+      apiKey: raw.qwen?.apiKey,
+      model: raw.qwen?.model ?? "qwen3-tts-flash",
+      voice: raw.qwen?.voice ?? "Cherry",
+      language: raw.qwen?.language ?? "Auto",
+      instruction: raw.qwen?.instruction,
     },
     edge: {
       enabled: raw.edge?.enabled ?? true,
@@ -441,6 +457,9 @@ export function getTtsProvider(config: ResolvedTtsConfig, prefsPath: string): Tt
   if (resolveTtsApiKey(config, "elevenlabs")) {
     return "elevenlabs";
   }
+  if (resolveTtsApiKey(config, "qwen")) {
+    return "qwen";
+  }
   return "edge";
 }
 
@@ -472,12 +491,15 @@ export function setSummarizationEnabled(prefsPath: string, enabled: boolean): vo
   });
 }
 
-export function getLastTtsAttempt(): TtsStatusEntry | undefined {
-  return lastTtsAttempt;
+export function getLastTtsAttempt(prefsPath: string): TtsStatusEntry | undefined {
+  const prefs = readPrefs(prefsPath);
+  return prefs.tts?.lastAttempt;
 }
 
-export function setLastTtsAttempt(entry: TtsStatusEntry | undefined): void {
-  lastTtsAttempt = entry;
+export function setLastTtsAttempt(prefsPath: string, entry: TtsStatusEntry | undefined): void {
+  updatePrefs(prefsPath, (prefs) => {
+    prefs.tts = { ...prefs.tts, lastAttempt: entry };
+  });
 }
 
 function resolveOutputFormat(channelId?: string | null) {
@@ -505,10 +527,13 @@ export function resolveTtsApiKey(
   if (provider === "openai") {
     return config.openai.apiKey || process.env.OPENAI_API_KEY;
   }
+  if (provider === "qwen") {
+    return config.qwen.apiKey || process.env.DASHSCOPE_API_KEY;
+  }
   return undefined;
 }
 
-export const TTS_PROVIDERS = ["openai", "elevenlabs", "edge"] as const;
+export const TTS_PROVIDERS = ["openai", "elevenlabs", "qwen", "edge"] as const;
 
 export function resolveTtsProviderOrder(primary: TtsProvider): TtsProvider[] {
   return [primary, ...TTS_PROVIDERS.filter((provider) => provider !== primary)];
@@ -658,7 +683,7 @@ export async function textToSpeech(params: {
           voiceSettings,
           timeoutMs: config.timeoutMs,
         });
-      } else {
+      } else if (provider === "openai") {
         const openaiModelOverride = params.overrides?.openai?.model;
         const openaiVoiceOverride = params.overrides?.openai?.voice;
         audioBuffer = await openaiTTS({
@@ -667,6 +692,17 @@ export async function textToSpeech(params: {
           model: openaiModelOverride ?? config.openai.model,
           voice: openaiVoiceOverride ?? config.openai.voice,
           responseFormat: output.openai,
+          timeoutMs: config.timeoutMs,
+        });
+      } else {
+        // qwen
+        audioBuffer = await qwenTTS({
+          text: params.text,
+          apiKey,
+          model: config.qwen.model,
+          voice: config.qwen.voice,
+          language: config.qwen.language,
+          instruction: config.qwen.instruction,
           timeoutMs: config.timeoutMs,
         });
       }
@@ -685,11 +721,14 @@ export async function textToSpeech(params: {
         audioPath,
         latencyMs,
         provider,
-        outputFormat: provider === "openai" ? output.openai : output.elevenlabs,
-        voiceCompatible: output.voiceCompatible,
+        outputFormat:
+          provider === "openai" ? output.openai : provider === "qwen" ? "wav" : output.elevenlabs,
+        voiceCompatible: provider === "qwen" ? true : output.voiceCompatible,
       };
     } catch (err) {
-      errors.push(formatTtsProviderError(provider, err));
+      const errMsg = formatTtsProviderError(provider, err);
+      logVerbose(`TTS: provider ${provider} failed, falling back. Error: ${errMsg}`);
+      errors.push(errMsg);
     }
   }
 
@@ -760,6 +799,29 @@ export async function textToSpeechTelephony(params: {
       }
 
       const output = TELEPHONY_OUTPUT.openai;
+
+      if (provider === "qwen") {
+        const audioBuffer = await qwenTTS({
+          text: params.text,
+          apiKey,
+          model: config.qwen.model,
+          voice: config.qwen.voice,
+          language: config.qwen.language,
+          instruction: config.qwen.instruction,
+          timeoutMs: config.timeoutMs,
+        });
+
+        return {
+          success: true,
+          audioBuffer,
+          latencyMs: Date.now() - providerStart,
+          provider,
+          outputFormat: "wav",
+          sampleRate: output.sampleRate,
+        };
+      }
+
+      // openai (default)
       const audioBuffer = await openaiTTS({
         text: params.text,
         apiKey,
@@ -778,7 +840,9 @@ export async function textToSpeechTelephony(params: {
         sampleRate: output.sampleRate,
       };
     } catch (err) {
-      errors.push(formatTtsProviderError(provider, err));
+      const errMsg = formatTtsProviderError(provider, err);
+      logVerbose(`TTS telephony: provider ${provider} failed, falling back. Error: ${errMsg}`);
+      errors.push(errMsg);
     }
   }
 
@@ -901,14 +965,14 @@ export async function maybeApplyTtsToPayload(params: {
   });
 
   if (result.success && result.audioPath) {
-    lastTtsAttempt = {
+    setLastTtsAttempt(prefsPath, {
       timestamp: Date.now(),
       success: true,
       textLength: text.length,
       summarized: wasSummarized,
       provider: result.provider,
       latencyMs: result.latencyMs,
-    };
+    });
 
     const channelId = resolveChannelId(params.channel);
     const shouldVoice = channelId === "telegram" && result.voiceCompatible === true;
@@ -920,13 +984,13 @@ export async function maybeApplyTtsToPayload(params: {
     return finalPayload;
   }
 
-  lastTtsAttempt = {
+  setLastTtsAttempt(prefsPath, {
     timestamp: Date.now(),
     success: false,
     textLength: text.length,
     summarized: wasSummarized,
     error: result.error,
-  };
+  });
 
   const latency = Date.now() - ttsStart;
   logVerbose(`TTS: conversion failed after ${latency}ms (${result.error ?? "unknown"}).`);
