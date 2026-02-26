@@ -282,6 +282,7 @@ Docs: https://docs.openclaw.ai
 - CLI/Doctor: correct stale recovery hints to use valid commands (`openclaw gateway status --deep` and `openclaw configure --section model`). (#24485) Thanks @chilu18.
 - CLI/Memory search: accept `--query <text>` for `openclaw memory search` (while keeping positional query support), and emit a clear error when neither form is provided. (#25904, #25857) Thanks @niceysam and @stakeswky.
 - Security/Sandbox: canonicalize bind-mount source paths via existing-ancestor realpath so symlink-parent + non-existent-leaf paths cannot bypass allowed-source-roots or blocked-path checks. Thanks @tdjackey.
+- Sandbox/Path resolution: add fallback to map container-internal paths (`/workspace/...`) to host when mount lookup misses, preventing false "Path escapes sandbox root" in edge cases. (#9560)
 
 ## 2026.2.23
 
