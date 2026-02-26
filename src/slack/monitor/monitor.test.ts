@@ -107,6 +107,7 @@ const baseParams = () => ({
   reactionMode: "off" as const,
   reactionAllowlist: [],
   replyToMode: "off" as const,
+  resolveReplyToMode: () => "off" as const,
   slashCommand: {
     enabled: false,
     name: "openclaw",

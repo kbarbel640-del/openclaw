@@ -200,8 +200,11 @@ export async function prepareSlackMessage(params: {
     },
   });
 
+  const chatType = isDirectMessage ? "direct" : isGroupDm ? "group" : "channel";
+  const effectiveReplyToMode = ctx.resolveReplyToMode(chatType);
+
   const baseSessionKey = route.sessionKey;
-  const threadContext = resolveSlackThreadContext({ message, replyToMode: ctx.replyToMode });
+  const threadContext = resolveSlackThreadContext({ message, replyToMode: effectiveReplyToMode });
   const threadTs = threadContext.incomingThreadTs;
   const isThreadReply = threadContext.isThreadReply;
   const threadKeys = resolveThreadSessionKeys({
@@ -696,6 +699,7 @@ export async function prepareSlackMessage(params: {
     isRoomish,
     historyKey,
     preview,
+    replyToMode: effectiveReplyToMode,
     ackReactionMessageTs,
     ackReactionValue,
     ackReactionPromise,
