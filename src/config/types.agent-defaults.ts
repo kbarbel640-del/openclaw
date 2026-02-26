@@ -128,6 +128,8 @@ export type AgentDefaultsConfig = {
   guardModelAction?: "block" | "redact" | "warn";
   /** Guard model behavior on API failure (default: "allow" — fail open). */
   guardModelOnError?: "allow" | "block";
+  /** Max characters sent to guard model for screening before truncation (default: 32000). */
+  guardModelMaxInputChars?: number;
   /** Model catalog with optional aliases (full provider/model keys). */
   models?: Record<string, AgentModelEntryConfig>;
   /** Agent working directory (preferred). Used as the default cwd for agent runs. */

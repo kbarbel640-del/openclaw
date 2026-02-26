@@ -402,6 +402,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.guardModel.fallbacks": "Guard Model Fallbacks",
   "agents.defaults.guardModelAction": "Guard Model Action",
   "agents.defaults.guardModelOnError": "Guard Model On Error",
+  "agents.defaults.guardModelMaxInputChars": "Guard Model Max Input Characters",
   "agents.defaults.imageMaxDimensionPx": "Image Max Dimension (px)",
   "agents.defaults.humanDelay.mode": "Human Delay Mode",
   "agents.defaults.humanDelay.minMs": "Human Delay Min (ms)",

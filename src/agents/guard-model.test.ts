@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import {
   applyGuardToPayloads,
+  DEFAULT_GUARD_MAX_INPUT_CHARS,
   evaluateGuard,
   resolveGuardModelConfig,
   type GuardModelConfig,
@@ -37,6 +38,18 @@ function jsonGuardReply(content: string): Response {
       headers: { "Content-Type": "application/json" },
     },
   );
+}
+
+function parseJsonRequestBody(init: RequestInit | undefined): {
+  messages?: Array<{ role?: string; content?: string }>;
+} {
+  const body = init?.body;
+  if (typeof body !== "string") {
+    return {};
+  }
+  return JSON.parse(body) as {
+    messages?: Array<{ role?: string; content?: string }>;
+  };
 }
 
 afterEach(() => {
@@ -79,6 +92,7 @@ describe("guard-model", () => {
             },
             guardModelAction: "warn" as const,
             guardModelOnError: "block" as const,
+            guardModelMaxInputChars: 64_000,
           },
         },
       };
@@ -89,6 +103,7 @@ describe("guard-model", () => {
         fallbacks: [{ provider: "openai", modelId: "gpt-4.1-mini" }],
         action: "warn",
         onError: "block",
+        maxInputChars: 64_000,
       });
     });
 
@@ -254,6 +269,57 @@ describe("guard-model", () => {
       expect(res[0]?.text).toContain("blocked by the content safety guard");
       expect(res[0]?.text).toContain("hate");
     });
+
+    it("caps oversized guard input with trailing [truncated] marker and warns on fail-open", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementationOnce(async (_url, init) => {
+        const request = parseJsonRequestBody(init);
+        const userMessage =
+          request.messages?.find((message) => message.role === "user")?.content ?? "";
+        const guardContent = userMessage.split("Evaluate this assistant reply:\n\n")[1] ?? "";
+        expect(guardContent.length).toBeLessThanOrEqual(64);
+        expect(guardContent.endsWith("[truncated]")).toBe(true);
+        return new Response("upstream error", { status: 500 });
+      });
+      const oversized = "A".repeat(320);
+      const payloads: ReplyPayload[] = [{ text: oversized }];
+
+      const res = await applyGuardToPayloads(
+        payloads,
+        {
+          ...BASE_GUARD_CONFIG,
+          onError: "allow",
+          maxInputChars: 64,
+        },
+        { cfg: TEST_RUNTIME_CONFIG },
+      );
+
+      expect(res).toHaveLength(2);
+      expect(res[0]?.text).toBe(oversized);
+      expect(res[1]?.isError).toBe(true);
+      expect(res[1]?.text).toContain("truncated to 64 characters");
+    });
+
+    it("keeps fail-closed blocking behavior for oversized input when onError is block", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response("upstream error", { status: 500 }),
+      );
+      const payloads: ReplyPayload[] = [{ text: "B".repeat(320) }];
+
+      const res = await applyGuardToPayloads(
+        payloads,
+        {
+          ...BASE_GUARD_CONFIG,
+          onError: "block",
+          maxInputChars: 64,
+        },
+        { cfg: TEST_RUNTIME_CONFIG },
+      );
+
+      expect(res).toHaveLength(1);
+      expect(res[0]?.isError).toBe(true);
+      expect(res[0]?.text).toContain("content safety guard is unavailable");
+      expect(res[0]?.text).not.toContain("truncated to 64 characters");
+    });
   });
 
   describe("evaluateGuard", () => {
@@ -307,6 +373,28 @@ describe("guard-model", () => {
       expect(res.safe).toBe(false);
       expect(res.reason).toBe("violence");
       expect(res.source).toBe("classification");
+    });
+
+    it("uses default max guard input chars when no override is configured", async () => {
+      vi.spyOn(globalThis, "fetch").mockImplementationOnce(async (_url, init) => {
+        const request = parseJsonRequestBody(init);
+        const userMessage =
+          request.messages?.find((message) => message.role === "user")?.content ?? "";
+        const guardContent = userMessage.split("Evaluate this assistant reply:\n\n")[1] ?? "";
+        expect(guardContent.length).toBeLessThanOrEqual(DEFAULT_GUARD_MAX_INPUT_CHARS);
+        return jsonGuardReply('{"safe":true}');
+      });
+
+      const res = await evaluateGuard(
+        "C".repeat(DEFAULT_GUARD_MAX_INPUT_CHARS + 250),
+        BASE_GUARD_CONFIG,
+        {
+          cfg: TEST_RUNTIME_CONFIG,
+        },
+      );
+
+      expect(res.safe).toBe(true);
+      expect(res.inputTruncated).toBe(true);
     });
   });
 });

@@ -913,6 +913,8 @@ export const FIELD_HELP: Record<string, string> = {
     'Action when guard flags content as unsafe: "block" (suppress reply, default), "redact" (replace with safe message), or "warn" (annotate reply with warning).',
   "agents.defaults.guardModelOnError":
     'Behavior on guard model API failure: "allow" (fail-open, default) or "block" (fail-closed).',
+  "agents.defaults.guardModelMaxInputChars":
+    "Maximum characters sent to guard model before truncation with a trailing [truncated] marker (default: 32000).",
   "agents.defaults.imageMaxDimensionPx":
     "Max image side length in pixels when sanitizing transcript/tool-result image payloads (default: 1200).",
   "agents.defaults.cliBackends": "Optional CLI backends for text-only fallback (claude-cli, etc.).",

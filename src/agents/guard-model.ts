@@ -35,6 +35,7 @@ export type GuardModelConfig = {
   fallbacks?: Array<{ provider: string; modelId: string }>;
   action: GuardModelAction;
   onError: GuardModelOnError;
+  maxInputChars?: number;
   compatibilityError?: string;
 };
 
@@ -43,6 +44,7 @@ export type GuardResult = {
   reason?: string;
   categories?: string[];
   source?: "classification" | "error";
+  inputTruncated?: boolean;
 };
 
 export type ReplyPayload = {
@@ -164,6 +166,7 @@ export function resolveGuardModelConfig(cfg: OpenClawConfig | undefined): GuardM
 
   const provider = primary.slice(0, slashIdx);
   const modelId = primary.slice(slashIdx + 1);
+  const maxInputChars = resolveGuardMaxInputChars(cfg.agents?.defaults?.guardModelMaxInputChars);
   const primaryCompatibility = resolveGuardModelCompatibility({ provider, modelId, cfg });
   if (!primaryCompatibility.compatible) {
     const compatibilityError = `Guard model "${primary}" is not compatible: ${primaryCompatibility.reason ?? "unsupported API"}`;
@@ -173,6 +176,7 @@ export function resolveGuardModelConfig(cfg: OpenClawConfig | undefined): GuardM
       modelId,
       action: cfg.agents?.defaults?.guardModelAction ?? "block",
       onError: "block",
+      ...(maxInputChars !== undefined ? { maxInputChars } : {}),
       compatibilityError,
     };
   }
@@ -210,6 +214,7 @@ export function resolveGuardModelConfig(cfg: OpenClawConfig | undefined): GuardM
     ...(fallbacks.length > 0 ? { fallbacks } : {}),
     action: cfg.agents?.defaults?.guardModelAction ?? "block",
     onError: cfg.agents?.defaults?.guardModelOnError ?? "allow",
+    ...(maxInputChars !== undefined ? { maxInputChars } : {}),
   };
 }
 
@@ -220,24 +225,32 @@ Respond ONLY with a JSON object: {"safe": true} or {"safe": false, "reason": "br
 Do not include any other text.`;
 
 const GUARD_TIMEOUT_MS = 5_000;
-export const GUARD_MAX_INPUT_CHARS = 12_000;
-const GUARD_TRUNCATION_MARKER = "\n\n[Guard input truncated]\n\n";
+export const DEFAULT_GUARD_MAX_INPUT_CHARS = 32_000;
+const GUARD_TRUNCATION_MARKER = "\n\n[truncated]";
 
-function truncateGuardInput(content: string): { content: string; truncated: boolean } {
-  if (content.length <= GUARD_MAX_INPUT_CHARS) {
+function resolveGuardMaxInputChars(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  const parsed = Math.floor(value);
+  return parsed > 0 ? parsed : undefined;
+}
+
+function truncateGuardInput(
+  content: string,
+  maxChars: number,
+): { content: string; truncated: boolean } {
+  if (content.length <= maxChars) {
     return { content, truncated: false };
   }
-  const budget = Math.max(0, GUARD_MAX_INPUT_CHARS - GUARD_TRUNCATION_MARKER.length);
-  if (budget === 0) {
+  if (maxChars <= GUARD_TRUNCATION_MARKER.length) {
     return {
-      content: GUARD_TRUNCATION_MARKER.slice(0, GUARD_MAX_INPUT_CHARS),
+      content: GUARD_TRUNCATION_MARKER.slice(0, maxChars),
       truncated: true,
     };
   }
-  const headChars = Math.ceil(budget * 0.6);
-  const tailChars = Math.max(0, budget - headChars);
   return {
-    content: `${content.slice(0, headChars)}${GUARD_TRUNCATION_MARKER}${tailChars > 0 ? content.slice(-tailChars) : ""}`,
+    content: `${content.slice(0, maxChars - GUARD_TRUNCATION_MARKER.length)}${GUARD_TRUNCATION_MARKER}`,
     truncated: true,
   };
 }
@@ -253,13 +266,6 @@ export async function evaluateGuard(
     agentDir?: string;
   },
 ): Promise<GuardResult> {
-  const guardInput = truncateGuardInput(content);
-  if (guardInput.truncated) {
-    log.warn(
-      `guard model input truncated from ${content.length} to ${guardInput.content.length} chars`,
-    );
-  }
-
   if (config.compatibilityError) {
     log.warn(`guard model compatibility error: ${config.compatibilityError}`);
     return handleGuardError({ ...config, onError: "block" }, config.compatibilityError);
@@ -282,6 +288,13 @@ export async function evaluateGuard(
     getCustomProviderBaseUrl(params?.cfg, config.provider) ??
     KNOWN_BASE_URLS[config.provider] ??
     `https://api.${config.provider}.com/v1`;
+
+  const maxInputChars =
+    resolveGuardMaxInputChars(config.maxInputChars) ?? DEFAULT_GUARD_MAX_INPUT_CHARS;
+  const guardInput = truncateGuardInput(content, maxInputChars);
+  if (guardInput.truncated) {
+    log.warn(`guard model input truncated from ${content.length} to ${guardInput.content.length}`);
+  }
 
   const url = `${baseUrl}/chat/completions`;
 
@@ -312,7 +325,10 @@ export async function evaluateGuard(
       if (!response.ok) {
         const errorText = await response.text().catch(() => "unknown");
         log.warn(`guard model API returned ${response.status}: ${errorText.slice(0, 200)}`);
-        return handleGuardError(config, `HTTP ${response.status}`);
+        return {
+          ...handleGuardError(config, `HTTP ${response.status}`),
+          inputTruncated: guardInput.truncated,
+        };
       }
 
       const json = (await response.json()) as {
@@ -322,17 +338,26 @@ export async function evaluateGuard(
       const replyText = json.choices?.[0]?.message?.content?.trim();
       if (!replyText) {
         log.warn("guard model returned empty response");
-        return handleGuardError(config, "empty response");
+        return {
+          ...handleGuardError(config, "empty response"),
+          inputTruncated: guardInput.truncated,
+        };
       }
 
-      return parseGuardResponse(replyText, config);
+      return {
+        ...parseGuardResponse(replyText, config),
+        inputTruncated: guardInput.truncated,
+      };
     } finally {
       clearTimeout(timer);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.warn(`guard model call failed: ${msg}`);
-    return handleGuardError(config, msg);
+    return {
+      ...handleGuardError(config, msg),
+      inputTruncated: guardInput.truncated,
+    };
   }
 }
 
@@ -389,6 +414,7 @@ const BLOCKED_MESSAGE = "⚠️ This response was blocked by the content safety 
 const REDACTED_MESSAGE = "⚠️ This response was redacted by the content safety guard.";
 const GUARD_UNAVAILABLE_BLOCKED_MESSAGE =
   "⚠️ This response was blocked because the content safety guard is unavailable.";
+const GUARD_TRUNCATED_WARNING_PREFIX = "⚠️ Guard model input was truncated to ";
 
 function buildBlockedPayload(reason?: string): ReplyPayload[] {
   return [
@@ -406,6 +432,13 @@ function buildGuardErrorPayload(): ReplyPayload[] {
       isError: true,
     },
   ];
+}
+
+function buildGuardTruncationWarningPayload(maxChars: number): ReplyPayload {
+  return {
+    text: `${GUARD_TRUNCATED_WARNING_PREFIX}${maxChars} characters before safety screening.`,
+    isError: true,
+  };
 }
 
 /**
@@ -431,9 +464,15 @@ export async function applyGuardToPayloads(
 
   const combinedText = textParts.join("\n\n---\n\n");
   const result = await evaluateGuardWithFallbacks(combinedText, config, params);
+  const maxInputChars =
+    resolveGuardMaxInputChars(config.maxInputChars) ?? DEFAULT_GUARD_MAX_INPUT_CHARS;
+  const shouldEmitTruncationWarning = Boolean(result.inputTruncated && config.onError === "allow");
 
   if (result.safe) {
-    return payloads;
+    if (!shouldEmitTruncationWarning) {
+      return payloads;
+    }
+    return [...payloads, buildGuardTruncationWarningPayload(maxInputChars)];
   }
 
   if (result.source === "error") {
@@ -446,48 +485,55 @@ export async function applyGuardToPayloads(
       (result.categories?.length ? ` [${result.categories.join(", ")}]` : ""),
   );
 
-  switch (config.action) {
-    case "block":
-      // Replace all non-error, non-reasoning payloads with a blocked message
-      return buildBlockedPayload(result.reason);
+  const screenedPayloads = (() => {
+    switch (config.action) {
+      case "block":
+        // Replace all non-error, non-reasoning payloads with a blocked message
+        return buildBlockedPayload(result.reason);
 
-    case "redact":
-      // Replace text content but keep media/error payloads
-      return payloads.map((p) => {
-        if (p.text && !p.isError && !p.isReasoning) {
-          return {
-            ...p,
-            text: REDACTED_MESSAGE + (result.reason ? `\nReason: ${result.reason}` : ""),
+      case "redact":
+        // Replace text content but keep media/error payloads
+        return payloads.map((p) => {
+          if (p.text && !p.isError && !p.isReasoning) {
+            return {
+              ...p,
+              text: REDACTED_MESSAGE + (result.reason ? `\nReason: ${result.reason}` : ""),
+            };
+          }
+          return p;
+        });
+
+      case "warn": {
+        // Keep payload order stable for downstream delivery paths that pick
+        // the last deliverable payload (for example isolated cron delivery).
+        // Annotate the last user-facing text payload instead of appending one.
+        const warningText =
+          `⚠️ Content safety warning: ${result.reason ?? "potential safety concern"}` +
+          (result.categories?.length ? ` [${result.categories.join(", ")}]` : "");
+        const nextPayloads = payloads.slice();
+        for (let i = nextPayloads.length - 1; i >= 0; i -= 1) {
+          const payload = nextPayloads[i];
+          if (!payload?.text || payload.isError || payload.isReasoning) {
+            continue;
+          }
+          nextPayloads[i] = {
+            ...payload,
+            text: `${payload.text}\n\n${warningText}`,
           };
+          return nextPayloads;
         }
-        return p;
-      });
-
-    case "warn": {
-      // Keep payload order stable for downstream delivery paths that pick
-      // the last deliverable payload (for example isolated cron delivery).
-      // Annotate the last user-facing text payload instead of appending one.
-      const warningText =
-        `⚠️ Content safety warning: ${result.reason ?? "potential safety concern"}` +
-        (result.categories?.length ? ` [${result.categories.join(", ")}]` : "");
-      const nextPayloads = payloads.slice();
-      for (let i = nextPayloads.length - 1; i >= 0; i -= 1) {
-        const payload = nextPayloads[i];
-        if (!payload?.text || payload.isError || payload.isReasoning) {
-          continue;
-        }
-        nextPayloads[i] = {
-          ...payload,
-          text: `${payload.text}\n\n${warningText}`,
-        };
-        return nextPayloads;
+        return payloads;
       }
-      return payloads;
-    }
 
-    default:
-      return payloads;
+      default:
+        return payloads;
+    }
+  })();
+
+  if (!shouldEmitTruncationWarning) {
+    return screenedPayloads;
   }
+  return [...screenedPayloads, buildGuardTruncationWarningPayload(maxInputChars)];
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
