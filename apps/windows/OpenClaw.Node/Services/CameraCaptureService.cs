@@ -577,9 +577,11 @@ try {
 
             using var p = new Process { StartInfo = psi };
             p.Start();
-            var so = await p.StandardOutput.ReadToEndAsync();
-            var se = await p.StandardError.ReadToEndAsync();
+            var soTask = p.StandardOutput.ReadToEndAsync();
+            var seTask = p.StandardError.ReadToEndAsync();
             await p.WaitForExitAsync();
+            var so = await soTask;
+            var se = await seTask;
             return (p.ExitCode, so, se);
         }
 
@@ -612,9 +614,11 @@ try {
 
             using var p = new Process { StartInfo = psi };
             p.Start();
-            var so = await p.StandardOutput.ReadToEndAsync();
-            var se = await p.StandardError.ReadToEndAsync();
+            var soTask = p.StandardOutput.ReadToEndAsync();
+            var seTask = p.StandardError.ReadToEndAsync();
             await p.WaitForExitAsync();
+            var so = await soTask;
+            var se = await seTask;
             return (p.ExitCode, so, se);
         }
     }
