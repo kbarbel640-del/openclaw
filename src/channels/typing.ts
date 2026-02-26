@@ -42,7 +42,9 @@ export function createTypingCallbacks(params: {
     stopSent = false;
     keepaliveLoop.stop();
     await fireStart();
-    keepaliveLoop.start();
+    if (!closed) {
+      keepaliveLoop.start();
+    }
   };
 
   const fireStop = () => {
