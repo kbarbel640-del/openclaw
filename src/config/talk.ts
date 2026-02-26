@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { TalkConfig, TalkProviderConfig } from "./types.gateway.js";
 import type { OpenClawConfig } from "./types.js";
+import type { TtsConfig } from "./types.tts.js";
 
 type TalkApiKeyDeps = {
   fs?: typeof fs;
@@ -180,6 +181,9 @@ export function normalizeTalkSection(value: TalkConfig | undefined): TalkConfig 
   if (typeof source.interruptOnSpeech === "boolean") {
     normalized.interruptOnSpeech = source.interruptOnSpeech;
   }
+  if (isPlainObject(source.tts)) {
+    normalized.tts = source.tts as TtsConfig;
+  }
 
   if (hasNormalizedShape) {
     const providers = normalizeTalkProviders(source.providers);
@@ -256,6 +260,9 @@ export function buildTalkConfigResponse(value: unknown): TalkConfig | undefined 
   }
   if (typeof normalized.provider === "string") {
     payload.provider = normalized.provider;
+  }
+  if (normalized.tts) {
+    payload.tts = normalized.tts;
   }
 
   const activeProvider = activeProviderFromTalk(normalized);
