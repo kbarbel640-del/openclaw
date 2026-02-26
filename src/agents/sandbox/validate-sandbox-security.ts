@@ -136,10 +136,22 @@ function normalizeAllowedRoots(roots: string[] | undefined): string[] {
 }
 
 function isPathInsidePosix(root: string, target: string): boolean {
-  if (root === "/") {
+  const normalizeComparablePath = (value: string): string => {
+    const normalized = normalizeHostPath(value.replace(/\\/g, "/"));
+    const drivePrefixed = normalized.match(/^[A-Za-z]:(\/.*)$/);
+    if (drivePrefixed?.[1]) {
+      return normalizeHostPath(drivePrefixed[1]);
+    }
+    return normalized;
+  };
+
+  const normalizedRoot = normalizeComparablePath(root);
+  const normalizedTarget = normalizeComparablePath(target);
+
+  if (normalizedRoot === "/") {
     return true;
   }
-  return target === root || target.startsWith(`${root}/`);
+  return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(`${normalizedRoot}/`);
 }
 
 function getOutsideAllowedRootsReason(

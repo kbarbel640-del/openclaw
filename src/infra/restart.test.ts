@@ -56,6 +56,11 @@ describe("findGatewayPidsOnPortSync", () => {
 
     const pids = findGatewayPidsOnPortSync(18789);
 
+    if (process.platform === "win32") {
+      expect(pids).toEqual([]);
+      return;
+    }
+
     expect(pids).toEqual([4100, 4300]);
     expect(spawnSyncMock).toHaveBeenCalledWith(
       "/usr/sbin/lsof",
@@ -86,6 +91,12 @@ describe("cleanStaleGatewayProcessesSync", () => {
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
 
     const killed = cleanStaleGatewayProcessesSync();
+
+    if (process.platform === "win32") {
+      expect(killed).toEqual([]);
+      expect(killSpy).not.toHaveBeenCalled();
+      return;
+    }
 
     expect(killed).toEqual([6001, 6002]);
     expect(resolveGatewayPortMock).toHaveBeenCalledWith(undefined, process.env);
