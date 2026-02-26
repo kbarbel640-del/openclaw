@@ -4,7 +4,11 @@ import { createFeishuClient } from "./client.js";
 import type { MentionTarget } from "./mention.js";
 import { buildMentionedMessage, buildMentionedCardContent } from "./mention.js";
 import { getFeishuRuntime } from "./runtime.js";
-import { assertFeishuMessageApiSuccess, toFeishuSendResult } from "./send-result.js";
+import {
+  assertFeishuMessageApiSuccess,
+  isFeishuMessageGoneError,
+  toFeishuSendResult,
+} from "./send-result.js";
 import { resolveFeishuSendTarget } from "./send-target.js";
 import type { FeishuSendResult } from "./types.js";
 
@@ -151,6 +155,15 @@ export async function sendMessageFeishu(
         msg_type: msgType,
       },
     });
+    // Fall back to a direct send when the target message was withdrawn or deleted.
+    if (isFeishuMessageGoneError(response)) {
+      const fallback = await client.im.message.create({
+        params: { receive_id_type: receiveIdType },
+        data: { receive_id: receiveId, content, msg_type: msgType },
+      });
+      assertFeishuMessageApiSuccess(fallback, "Feishu send failed");
+      return toFeishuSendResult(fallback, receiveId);
+    }
     assertFeishuMessageApiSuccess(response, "Feishu reply failed");
     return toFeishuSendResult(response, receiveId);
   }
@@ -188,6 +201,14 @@ export async function sendCardFeishu(params: SendFeishuCardParams): Promise<Feis
         msg_type: "interactive",
       },
     });
+    if (isFeishuMessageGoneError(response)) {
+      const fallback = await client.im.message.create({
+        params: { receive_id_type: receiveIdType },
+        data: { receive_id: receiveId, content, msg_type: "interactive" },
+      });
+      assertFeishuMessageApiSuccess(fallback, "Feishu card send failed");
+      return toFeishuSendResult(fallback, receiveId);
+    }
     assertFeishuMessageApiSuccess(response, "Feishu card reply failed");
     return toFeishuSendResult(response, receiveId);
   }

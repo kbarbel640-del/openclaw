@@ -6,7 +6,11 @@ import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { normalizeFeishuExternalKey } from "./external-keys.js";
 import { getFeishuRuntime } from "./runtime.js";
-import { assertFeishuMessageApiSuccess, toFeishuSendResult } from "./send-result.js";
+import {
+  assertFeishuMessageApiSuccess,
+  isFeishuMessageGoneError,
+  toFeishuSendResult,
+} from "./send-result.js";
 import { resolveFeishuSendTarget } from "./send-target.js";
 
 export type DownloadImageResult = {
@@ -283,6 +287,14 @@ export async function sendImageFeishu(params: {
         msg_type: "image",
       },
     });
+    if (isFeishuMessageGoneError(response)) {
+      const fallback = await client.im.message.create({
+        params: { receive_id_type: receiveIdType },
+        data: { receive_id: receiveId, content, msg_type: "image" },
+      });
+      assertFeishuMessageApiSuccess(fallback, "Feishu image send failed");
+      return toFeishuSendResult(fallback, receiveId);
+    }
     assertFeishuMessageApiSuccess(response, "Feishu image reply failed");
     return toFeishuSendResult(response, receiveId);
   }
@@ -328,6 +340,14 @@ export async function sendFileFeishu(params: {
         msg_type: msgType,
       },
     });
+    if (isFeishuMessageGoneError(response)) {
+      const fallback = await client.im.message.create({
+        params: { receive_id_type: receiveIdType },
+        data: { receive_id: receiveId, content, msg_type: msgType },
+      });
+      assertFeishuMessageApiSuccess(fallback, "Feishu file send failed");
+      return toFeishuSendResult(fallback, receiveId);
+    }
     assertFeishuMessageApiSuccess(response, "Feishu file reply failed");
     return toFeishuSendResult(response, receiveId);
   }
