@@ -1080,6 +1080,7 @@
                   "providers/bedrock",
                   "providers/vercel-ai-gateway",
                   "providers/moonshot",
+                  "providers/stepfun",
                   "providers/mistral",
                   "providers/minimax",
                   "providers/opencode",
