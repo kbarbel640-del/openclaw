@@ -107,6 +107,19 @@ import {
 } from "../../pairing/pairing-store.js";
 import { runCommandWithTimeout } from "../../process/exec.js";
 import { resolveAgentRoute } from "../../routing/resolve-route.js";
+import {
+  listSignalContacts,
+  listSignalGroups,
+  updateContactSignal,
+} from "../../signal/directory.js";
+import {
+  addGroupMemberSignal,
+  joinGroupSignal,
+  listGroupMembersSignal,
+  quitGroupSignal,
+  removeGroupMemberSignal,
+  updateGroupSignal,
+} from "../../signal/groups.js";
 import { monitorSignalProvider } from "../../signal/index.js";
 import { probeSignal } from "../../signal/probe.js";
 import { sendMessageSignal } from "../../signal/send.js";
@@ -391,6 +404,15 @@ function createRuntimeChannel(): PluginRuntime["channel"] {
     signal: {
       probeSignal,
       sendMessageSignal,
+      listSignalGroups,
+      listSignalContacts,
+      updateContactSignal,
+      listGroupMembersSignal,
+      addGroupMemberSignal,
+      removeGroupMemberSignal,
+      updateGroupSignal,
+      joinGroupSignal,
+      quitGroupSignal,
       monitorSignalProvider,
       messageActions: signalMessageActions,
     },
