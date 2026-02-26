@@ -176,9 +176,9 @@ If no base URL is set, OpenClaw chooses a default based on the API key source:
 
 ## Getting a Baidu Search API key
 
-1.  Visit the [Baidu AI Search Console](https://console.bce.baidu.com/ai-search/qianfan/ais/console/apiKey)
-2.  Generate a new API key or select an existing one (format: `bce-v3/ALTAK-...`)
-3.  Copy the API key and use it with OpenClaw
+1. Visit the [Baidu AI Search Console](https://console.bce.baidu.com/ai-search/qianfan/ais/console/apiKey)
+2. Generate a new API key or select an existing one (format: `bce-v3/ALTAK-...`)
+3. Copy the API key and use it with OpenClaw
 
 ## Using Gemini (Google Search grounding)
 
