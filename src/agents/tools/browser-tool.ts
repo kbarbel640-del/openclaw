@@ -391,6 +391,11 @@ export function createBrowserTool(opts?: {
             return formatTabsToolResult(tabs);
           }
         case "open": {
+          // Accept both "url" and "targetUrl" — LLMs naturally use "url"
+          // but the schema field is named "targetUrl". Coerce before reading.
+          if (params.url !== undefined && params.targetUrl === undefined) {
+            params.targetUrl = params.url;
+          }
           const targetUrl = readStringParam(params, "targetUrl", {
             required: true,
           });
@@ -621,6 +626,10 @@ export function createBrowserTool(opts?: {
           });
         }
         case "navigate": {
+          // Accept both "url" and "targetUrl" — same alias as open action.
+          if (params.url !== undefined && params.targetUrl === undefined) {
+            params.targetUrl = params.url;
+          }
           const targetUrl = readStringParam(params, "targetUrl", {
             required: true,
           });
