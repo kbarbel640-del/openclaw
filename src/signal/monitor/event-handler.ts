@@ -441,6 +441,22 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     }
 
     const dataMessage = envelope.dataMessage ?? envelope.editMessage?.dataMessage;
+
+    // Signal sends expiration timer changes (disappearing messages) as dataMessages with
+    // expiresInSeconds set but no actual content. Skip these to avoid confusing the agent.
+    if (
+      dataMessage &&
+      typeof dataMessage.expiresInSeconds === "number" &&
+      !dataMessage.message &&
+      !dataMessage.attachments?.length &&
+      !dataMessage.reaction
+    ) {
+      logVerbose(
+        `signal: ignoring expiration timer update (${dataMessage.expiresInSeconds}s) from ${formatSignalSenderDisplay(sender)}`,
+      );
+      return;
+    }
+
     const reaction = deps.isSignalReactionMessage(envelope.reactionMessage)
       ? envelope.reactionMessage
       : deps.isSignalReactionMessage(dataMessage?.reaction)
