@@ -14,6 +14,7 @@ type ResolvePreferredOpenClawTmpDirOptions = {
     uid?: number;
   };
   mkdirSync?: (path: string, opts: { recursive: boolean; mode?: number }) => void;
+  chmodSync?: (path: string, mode: number) => void;
   getuid?: () => number | undefined;
   tmpdir?: () => string;
 };
@@ -35,6 +36,7 @@ export function resolvePreferredOpenClawTmpDir(
   const accessSync = options.accessSync ?? fs.accessSync;
   const lstatSync = options.lstatSync ?? fs.lstatSync;
   const mkdirSync = options.mkdirSync ?? fs.mkdirSync;
+  const chmodSync = options.chmodSync ?? fs.chmodSync;
   const getuid =
     options.getuid ??
     (() => {
@@ -99,6 +101,17 @@ export function resolvePreferredOpenClawTmpDir(
       return fallbackPath;
     }
     if (state === "invalid") {
+      // Directory exists but has wrong permissions (e.g., created with umask 0002).
+      // Try to fix the permissions instead of throwing.
+      try {
+        chmodSync(fallbackPath, 0o700);
+      } catch {
+        throw new Error(`Unsafe fallback OpenClaw temp dir: ${fallbackPath}`);
+      }
+      // Re-check after chmod
+      if (resolveDirState(fallbackPath) === "available") {
+        return fallbackPath;
+      }
       throw new Error(`Unsafe fallback OpenClaw temp dir: ${fallbackPath}`);
     }
     try {
@@ -117,6 +130,18 @@ export function resolvePreferredOpenClawTmpDir(
     return POSIX_OPENCLAW_TMP_DIR;
   }
   if (existingPreferredState === "invalid") {
+    // Directory exists but has wrong permissions (e.g., created with umask 0002).
+    // Try to fix the permissions instead of immediately falling back.
+    try {
+      chmodSync(POSIX_OPENCLAW_TMP_DIR, 0o700);
+    } catch {
+      // Couldn't fix, fall back to user-specific directory
+      return ensureTrustedFallbackDir();
+    }
+    // Re-check after chmod
+    if (resolveDirState(POSIX_OPENCLAW_TMP_DIR) === "available") {
+      return POSIX_OPENCLAW_TMP_DIR;
+    }
     return ensureTrustedFallbackDir();
   }
 

@@ -466,6 +466,11 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         publicKey: "a",
         token,
         autoDeploy: false,
+        // Increase listener timeout from default 30s to 120s for AI responses
+        // See: https://github.com/openclaw/openclaw/issues/27851
+        eventQueue: {
+          listenerTimeout: 120_000,
+        },
       },
       {
         commands,
