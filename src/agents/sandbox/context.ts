@@ -7,7 +7,13 @@ import { defaultRuntime } from "../../runtime.js";
 import { resolveUserPath } from "../../utils.js";
 import { listAgentIds, resolveAgentWorkspaceDir } from "../agent-scope.js";
 import { syncSkillsToWorkspace } from "../skills.js";
+import {
+  isBundledSkillAllowed,
+  resolveBundledAllowlist,
+  resolveSkillConfig,
+} from "../skills/config.js";
 import { resolveSkillDeclaredEnvKeys } from "../skills/env-overrides.js";
+import { resolveSkillKey } from "../skills/frontmatter.js";
 import { loadWorkspaceSkillEntries } from "../skills/workspace.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "../workspace.js";
 import { ensureSandboxBrowser } from "./browser.js";
@@ -157,13 +163,22 @@ export async function resolveSandboxContext(params: {
           : params.config
             ? resolveAgentWorkspaceDir(params.config, agentId)
             : agentWorkspaceDir;
-      // Load raw skill entries WITHOUT eligibility filtering to avoid a bootstrap
-      // deadlock: eligibility checks `requires.env` against the host environment,
-      // but the env var may only exist in sandbox.docker.env. Using unfiltered
-      // entries ensures declared keys reach the allowlist regardless.
+      // Load raw skill entries and apply config-level filters (enabled flag,
+      // bundled allowlist) but skip runtime eligibility checks to avoid a
+      // bootstrap deadlock: eligibility checks `requires.env` against the host
+      // environment, but the env var may only exist in sandbox.docker.env.
       const entries = loadWorkspaceSkillEntries(wsDir, { config: params.config });
+      const allowBundled = resolveBundledAllowlist(params.config);
+      const activeEntries = entries.filter((e) => {
+        const skillKey = resolveSkillKey(e.skill, e);
+        const skillCfg = resolveSkillConfig(params.config, skillKey);
+        if (skillCfg?.enabled === false) {
+          return false;
+        }
+        return isBundledSkillAllowed(e, allowBundled);
+      });
       const declaredKeys = resolveSkillDeclaredEnvKeys(
-        entries.map((e) => ({
+        activeEntries.map((e) => ({
           primaryEnv: e.metadata?.primaryEnv,
           requiredEnv: e.metadata?.requires?.env?.slice(),
         })),
