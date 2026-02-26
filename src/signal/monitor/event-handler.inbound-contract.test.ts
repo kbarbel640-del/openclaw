@@ -143,4 +143,61 @@ describe("signal createSignalEventHandler inbound contract", () => {
       expect.any(Object),
     );
   });
+
+  it("passes reply context (quote) fields to finalizeInboundContext when signal-cli quote is present", async () => {
+    const handler = createSignalEventHandler(
+      createBaseSignalEventHandlerDeps({
+        // oxlint-disable-next-line typescript/no-explicit-any
+        cfg: { messages: { inbound: { debounceMs: 0 } } } as any,
+        historyLimit: 0,
+      }),
+    );
+
+    await handler(
+      createSignalReceiveEvent({
+        dataMessage: {
+          message: "I agree with that",
+          attachments: [],
+          quote: {
+            id: 1699999990000,
+            author: "+15550009999",
+            text: "Original quoted message",
+          },
+        },
+      }),
+    );
+
+    expect(capture.ctx).toBeTruthy();
+    const ctx = capture.ctx!;
+    expect(ctx.ReplyToBody).toBe("Original quoted message");
+    expect(ctx.ReplyToId).toBe("1699999990000");
+    expect(ctx.ReplyToSender).toBe("+15550009999");
+    expect(ctx.ReplyToIsQuote).toBe(true);
+  });
+
+  it("leaves reply context fields undefined when no quote is present", async () => {
+    const handler = createSignalEventHandler(
+      createBaseSignalEventHandlerDeps({
+        // oxlint-disable-next-line typescript/no-explicit-any
+        cfg: { messages: { inbound: { debounceMs: 0 } } } as any,
+        historyLimit: 0,
+      }),
+    );
+
+    await handler(
+      createSignalReceiveEvent({
+        dataMessage: {
+          message: "plain message without quote",
+          attachments: [],
+        },
+      }),
+    );
+
+    expect(capture.ctx).toBeTruthy();
+    const ctx = capture.ctx!;
+    expect(ctx.ReplyToBody).toBeUndefined();
+    expect(ctx.ReplyToId).toBeUndefined();
+    expect(ctx.ReplyToSender).toBeUndefined();
+    expect(ctx.ReplyToIsQuote).toBeUndefined();
+  });
 });
