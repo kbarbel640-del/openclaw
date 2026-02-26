@@ -34,6 +34,7 @@ import {
   DOUBAO_CODING_BASE_URL,
   DOUBAO_CODING_MODEL_CATALOG,
 } from "./doubao-models.js";
+import { discoverEternalAIModels, ETERNALAI_BASE_URL } from "./eternalai-models.js";
 import {
   discoverHuggingfaceModels,
   HUGGINGFACE_BASE_URL,
@@ -662,6 +663,15 @@ async function buildVeniceProvider(): Promise<ProviderConfig> {
   };
 }
 
+async function buildEternalAIProvider(): Promise<ProviderConfig> {
+  const models = await discoverEternalAIModels();
+  return {
+    baseUrl: ETERNALAI_BASE_URL,
+    api: "openai-completions",
+    models,
+  };
+}
+
 async function buildOllamaProvider(configuredBaseUrl?: string): Promise<ProviderConfig> {
   const models = await discoverOllamaModels(configuredBaseUrl);
   return {
@@ -864,6 +874,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "venice", store: authStore });
   if (veniceKey) {
     providers.venice = { ...(await buildVeniceProvider()), apiKey: veniceKey };
+  }
+
+  const eternalaiKey =
+    resolveEnvApiKeyVarName("eternalai") ??
+    resolveApiKeyFromProfiles({ provider: "eternalai", store: authStore });
+  if (eternalaiKey) {
+    providers.eternalai = { ...(await buildEternalAIProvider()), apiKey: eternalaiKey };
   }
 
   const qwenProfiles = listProfilesForProvider(authStore, "qwen-portal");
