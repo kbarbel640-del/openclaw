@@ -114,3 +114,7 @@ dist/protocol.schema.json
 
 # Synthing
 **/.stfolder/
+
+# Untracked local skills
+skills/automation/
+skills/puppeteer/
