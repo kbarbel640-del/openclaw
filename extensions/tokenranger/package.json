@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/tokenranger",
+  "version": "2026.2.26",
+  "private": true,
+  "description": "TokenRanger — context compression extension for OpenClaw. Reduces cloud LLM token costs by 50-80% via local SLM summarization.",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
