@@ -1,4 +1,3 @@
-import { Readable } from "stream";
 import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
@@ -158,8 +157,11 @@ async function uploadImageToDocx(
       parent_type: "docx_image",
       parent_node: blockId,
       size: imageBuffer.length,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK stream type
-      file: Readable.from(imageBuffer) as any,
+      // Pass Buffer directly so form-data can calculate Content-Length correctly.
+      // Readable.from() produces a stream with unknown length, causing upload failures
+      // for larger images (Content-Length mismatch → "Error when parsing request").
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK file type
+      file: imageBuffer as any,
       // Required for multi-region routing (e.g. JP cluster): tells the drive service
       // which document the image block belongs to, enabling correct datacenter routing.
       ...(docToken ? { extra: JSON.stringify({ drive_route_token: docToken }) } : {}),
