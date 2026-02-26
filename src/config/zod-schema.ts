@@ -103,6 +103,7 @@ const MemoryQmdSchema = z
     update: MemoryQmdUpdateSchema.optional(),
     limits: MemoryQmdLimitsSchema.optional(),
     scope: SessionSendPolicySchema.optional(),
+    weights: z.record(z.string(), z.number().positive()).optional(),
   })
   .strict();
 

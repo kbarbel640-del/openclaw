@@ -633,6 +633,8 @@ export class QmdMemoryManager implements MemorySearchManager {
     }
     const qmdSearchCommand = this.qmd.searchMode;
     const mcporterEnabled = this.qmd.mcporter.enabled;
+    // When weights are enabled, defer minScore filtering until after re-ranking
+    const upstreamMinScore = hasWeights ? 0 : (opts?.minScore ?? 0);
     const runSearchAttempt = async (
       allowMissingCollectionRepair: boolean,
     ): Promise<QmdQueryResult[]> => {
@@ -644,13 +646,12 @@ export class QmdMemoryManager implements MemorySearchManager {
               : qmdSearchCommand === "vsearch"
                 ? "vector_search"
                 : "deep_search";
-          const minScore = opts?.minScore ?? 0;
           if (collectionNames.length > 1) {
             return await this.runMcporterAcrossCollections({
               tool,
               query: trimmed,
               limit: fetchLimit,
-              minScore,
+              minScore: upstreamMinScore,
               collectionNames,
             });
           }
@@ -659,7 +660,7 @@ export class QmdMemoryManager implements MemorySearchManager {
             tool,
             query: trimmed,
             limit: fetchLimit,
-            minScore,
+            minScore: upstreamMinScore,
             collection: collectionNames[0],
             timeoutMs: this.qmd.limits.timeoutMs,
           });
@@ -740,11 +741,12 @@ export class QmdMemoryManager implements MemorySearchManager {
       const lines = this.extractSnippetLines(snippet);
       let score = typeof entry.score === "number" ? entry.score : 0;
 
-      // Apply weights
+      // Apply weights (first matching pattern wins)
       if (hasWeights) {
         for (const [pattern, weight] of Object.entries(weights)) {
           if (this.matchesPath(doc.rel, pattern)) {
             score *= weight;
+            break;
           }
         }
       }
