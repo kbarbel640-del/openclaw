@@ -88,8 +88,8 @@ async function insertBatch(
 /**
  * Insert blocks in batches for large documents (>1000 blocks).
  *
- * Splits first-level blocks into batches of up to 1000, collecting
- * all descendants for each batch to maintain block relationships.
+ * Batches are split to ensure BOTH children_id AND descendants
+ * arrays stay under the 1000 block API limit.
  *
  * @param client - Feishu API client
  * @param docToken - Document ID
@@ -107,18 +107,46 @@ export async function insertBlocksInBatches(
   logger?: Logger,
 ): Promise<{ children: any[]; skipped: string[] }> {
   const allChildren: any[] = [];
-  const totalBatches = Math.ceil(firstLevelBlockIds.length / BATCH_SIZE);
 
-  for (let i = 0; i < firstLevelBlockIds.length; i += BATCH_SIZE) {
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    const batchFirstLevelIds = firstLevelBlockIds.slice(i, i + BATCH_SIZE);
-    const batchBlocks = collectDescendants(blocks, batchFirstLevelIds);
+  // Build batches ensuring each batch has ≤1000 total descendants
+  const batches: { firstLevelIds: string[]; blocks: any[] }[] = [];
+  let currentBatch: { firstLevelIds: string[]; blocks: any[] } = { firstLevelIds: [], blocks: [] };
+  const usedBlockIds = new Set<string>();
 
+  for (const firstLevelId of firstLevelBlockIds) {
+    const descendants = collectDescendants(blocks, [firstLevelId]);
+    const newBlocks = descendants.filter((b) => !usedBlockIds.has(b.block_id));
+
+    // If adding this first-level block would exceed limit, start new batch
+    if (
+      currentBatch.blocks.length + newBlocks.length > BATCH_SIZE &&
+      currentBatch.blocks.length > 0
+    ) {
+      batches.push(currentBatch);
+      currentBatch = { firstLevelIds: [], blocks: [] };
+    }
+
+    // Add to current batch
+    currentBatch.firstLevelIds.push(firstLevelId);
+    for (const block of newBlocks) {
+      currentBatch.blocks.push(block);
+      usedBlockIds.add(block.block_id);
+    }
+  }
+
+  // Don't forget the last batch
+  if (currentBatch.blocks.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  // Insert each batch
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
     logger?.info?.(
-      `feishu_doc: Inserting batch ${batchNum}/${totalBatches} (${batchBlocks.length} blocks)...`,
+      `feishu_doc: Inserting batch ${i + 1}/${batches.length} (${batch.blocks.length} blocks)...`,
     );
 
-    const children = await insertBatch(client, docToken, batchBlocks, batchFirstLevelIds);
+    const children = await insertBatch(client, docToken, batch.blocks, batch.firstLevelIds);
     allChildren.push(...children);
   }
 
