@@ -269,10 +269,11 @@ export function createLaneTextDeliverer(params: CreateLaneTextDelivererParams) {
         return "preview-finalized";
       }
     }
-    // Only delete empty/placeholder previews. Previews with meaningful text
-    // were already visible to the user and should be kept as standalone messages
-    // rather than silently removed when a media payload follows.
-    if (!archivedPreview.textSnapshot?.trim()) {
+    // When the edit path was attempted but failed, delete the old preview to
+    // avoid duplication with the fallback send below. Only preserve previews
+    // with meaningful text when editing was not possible (media payload) —
+    // those messages are already visible to the user and should not be removed.
+    if (canEditViaPreview || !archivedPreview.textSnapshot?.trim()) {
       try {
         await params.deletePreviewMessage(archivedPreview.messageId);
       } catch (err) {
