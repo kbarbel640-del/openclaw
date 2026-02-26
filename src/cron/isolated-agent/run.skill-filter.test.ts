@@ -257,6 +257,40 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
     process.env.OPENCLAW_TEST_FAST = previousFastTestEnv;
   });
 
+  it("forces fresh sessions for cron keys by default", async () => {
+    const result = await runCronIsolatedAgentTurn(makeParams({ sessionKey: "cron:test-job" }));
+
+    expect(result.status).toBe("ok");
+    expect(resolveCronSessionMock).toHaveBeenCalledOnce();
+    expect(resolveCronSessionMock.mock.calls[0][0]).toMatchObject({ forceNew: true });
+  });
+
+  it("allows cron session reuse when job.sessionReuse is true", async () => {
+    const result = await runCronIsolatedAgentTurn(
+      makeParams({
+        sessionKey: "cron:test-job",
+        job: makeJob({ sessionReuse: true }),
+      }),
+    );
+
+    expect(result.status).toBe("ok");
+    expect(resolveCronSessionMock).toHaveBeenCalledOnce();
+    expect(resolveCronSessionMock.mock.calls[0][0]).toMatchObject({ forceNew: false });
+  });
+
+  it("does not force new sessions for webhook-like keys", async () => {
+    const result = await runCronIsolatedAgentTurn(
+      makeParams({
+        sessionKey: "hook:gmail:test-hook",
+        job: makeJob({ sessionReuse: false }),
+      }),
+    );
+
+    expect(result.status).toBe("ok");
+    expect(resolveCronSessionMock).toHaveBeenCalledOnce();
+    expect(resolveCronSessionMock.mock.calls[0][0]).toMatchObject({ forceNew: false });
+  });
+
   it("passes agent-level skillFilter to buildWorkspaceSkillSnapshot", async () => {
     resolveAgentSkillsFilterMock.mockReturnValue(["meme-factory", "weather"]);
 
@@ -338,16 +372,6 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
     expect(buildWorkspaceSkillSnapshotMock.mock.calls[0][1]).toHaveProperty("skillFilter", [
       "weather",
     ]);
-  });
-
-  it("forces a fresh session for isolated cron runs", async () => {
-    const result = await runCronIsolatedAgentTurn(makeParams());
-
-    expect(result.status).toBe("ok");
-    expect(resolveCronSessionMock).toHaveBeenCalledOnce();
-    expect(resolveCronSessionMock.mock.calls[0]?.[0]).toMatchObject({
-      forceNew: true,
-    });
   });
 
   it("reuses cached snapshot when version and normalized skillFilter are unchanged", async () => {

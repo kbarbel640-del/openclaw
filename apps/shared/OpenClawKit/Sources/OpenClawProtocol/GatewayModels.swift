@@ -2381,6 +2381,7 @@ public struct CronJob: Codable, Sendable {
     public let schedule: AnyCodable
     public let sessiontarget: AnyCodable
     public let wakemode: AnyCodable
+    public let sessionreuse: Bool?
     public let payload: AnyCodable
     public let delivery: AnyCodable?
     public let state: [String: AnyCodable]
@@ -2398,6 +2399,7 @@ public struct CronJob: Codable, Sendable {
         schedule: AnyCodable,
         sessiontarget: AnyCodable,
         wakemode: AnyCodable,
+        sessionreuse: Bool?,
         payload: AnyCodable,
         delivery: AnyCodable?,
         state: [String: AnyCodable])
@@ -2414,6 +2416,7 @@ public struct CronJob: Codable, Sendable {
         self.schedule = schedule
         self.sessiontarget = sessiontarget
         self.wakemode = wakemode
+        self.sessionreuse = sessionreuse
         self.payload = payload
         self.delivery = delivery
         self.state = state
@@ -2432,6 +2435,7 @@ public struct CronJob: Codable, Sendable {
         case schedule
         case sessiontarget = "sessionTarget"
         case wakemode = "wakeMode"
+        case sessionreuse = "sessionReuse"
         case payload
         case delivery
         case state
@@ -2485,6 +2489,7 @@ public struct CronAddParams: Codable, Sendable {
     public let description: String?
     public let enabled: Bool?
     public let deleteafterrun: Bool?
+    public let sessionreuse: Bool?
     public let schedule: AnyCodable
     public let sessiontarget: AnyCodable
     public let wakemode: AnyCodable
@@ -2498,6 +2503,7 @@ public struct CronAddParams: Codable, Sendable {
         description: String?,
         enabled: Bool?,
         deleteafterrun: Bool?,
+        sessionreuse: Bool?,
         schedule: AnyCodable,
         sessiontarget: AnyCodable,
         wakemode: AnyCodable,
@@ -2510,6 +2516,7 @@ public struct CronAddParams: Codable, Sendable {
         self.description = description
         self.enabled = enabled
         self.deleteafterrun = deleteafterrun
+        self.sessionreuse = sessionreuse
         self.schedule = schedule
         self.sessiontarget = sessiontarget
         self.wakemode = wakemode
@@ -2524,6 +2531,7 @@ public struct CronAddParams: Codable, Sendable {
         case description
         case enabled
         case deleteafterrun = "deleteAfterRun"
+        case sessionreuse = "sessionReuse"
         case schedule
         case sessiontarget = "sessionTarget"
         case wakemode = "wakeMode"

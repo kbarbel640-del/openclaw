@@ -80,16 +80,21 @@ export function supportsAnnounceDelivery(
 }
 
 export function normalizeCronFormState(form: CronFormState): CronFormState {
-  if (form.deliveryMode !== "announce") {
-    return form;
+  const supportsAnnounce = supportsAnnounceDelivery(form);
+  let changed = false;
+  const next: CronFormState = { ...form };
+
+  if (form.deliveryMode === "announce" && !supportsAnnounce) {
+    next.deliveryMode = "none";
+    changed = true;
   }
-  if (supportsAnnounceDelivery(form)) {
-    return form;
+
+  if (!supportsAnnounce && form.sessionReuse) {
+    next.sessionReuse = false;
+    changed = true;
   }
-  return {
-    ...form,
-    deliveryMode: "none",
-  };
+
+  return changed ? next : form;
 }
 
 export function validateCronForm(form: CronFormState): CronFieldErrors {
@@ -514,6 +519,7 @@ export async function addCronJob(state: CronState) {
     const schedule = buildCronSchedule(form);
     const payload = buildCronPayload(form);
     const selectedDeliveryMode = form.deliveryMode;
+    const sessionReuse = supportsAnnounceDelivery(form) && form.sessionReuse ? true : undefined;
     const delivery =
       selectedDeliveryMode && selectedDeliveryMode !== "none"
         ? {
@@ -536,6 +542,7 @@ export async function addCronJob(state: CronState) {
       schedule,
       sessionTarget: form.sessionTarget,
       wakeMode: form.wakeMode,
+      ...(sessionReuse === true ? { sessionReuse: true } : {}),
       payload,
       delivery,
     };

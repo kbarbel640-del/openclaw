@@ -721,6 +721,25 @@ export function renderCron(props: CronProps) {
                 </select>
                 <div class="cron-help">Now triggers immediately. Next heartbeat waits for the next cycle.</div>
               </label>
+              ${
+                supportsAnnounce
+                  ? html`
+                      <label class="field checkbox cron-checkbox">
+                        <input
+                          id="cron-session-reuse"
+                          type="checkbox"
+                          .checked=${props.form.sessionReuse}
+                          @change=${(e: Event) =>
+                            props.onFormChange({
+                              sessionReuse: (e.target as HTMLInputElement).checked,
+                            })}
+                        />
+                        <span class="field-checkbox__label">Session reuse</span>
+                        <div class="cron-help">Reuse the same isolated session across runs.</div>
+                      </label>
+                    `
+                  : nothing
+              }
               <label class="field ${isAgentTurn ? "" : "cron-span-2"}">
                 ${renderFieldLabel("What should run?")}
                 <select
@@ -1238,6 +1257,11 @@ function renderJob(job: CronJob, props: CronProps) {
           </span>
           <span class="chip">${job.sessionTarget}</span>
           <span class="chip">${job.wakeMode}</span>
+          ${
+            job.sessionTarget === "isolated"
+              ? html`<span class="chip">${job.sessionReuse === true ? "reuse" : "fresh"}</span>`
+              : nothing
+          }
         </div>
         <div class="row cron-job-actions">
           <button
