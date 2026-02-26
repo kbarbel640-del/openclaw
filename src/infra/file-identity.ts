@@ -7,19 +7,12 @@ function isZero(value: number | bigint): boolean {
   return value === 0 || value === 0n;
 }
 
-function isUnknownIdentity(value: number | bigint): boolean {
-  return isZero(value);
-}
-
 export function sameFileIdentity(
   left: FileIdentityStat,
   right: FileIdentityStat,
   platform: NodeJS.Platform = process.platform,
 ): boolean {
-  const inodeMatches =
-    left.ino === right.ino ||
-    (platform === "win32" && (isUnknownIdentity(left.ino) || isUnknownIdentity(right.ino)));
-  if (!inodeMatches) {
+  if (left.ino !== right.ino) {
     return false;
   }
 
@@ -28,5 +21,5 @@ export function sameFileIdentity(
   if (left.dev === right.dev) {
     return true;
   }
-  return platform === "win32" && (isUnknownIdentity(left.dev) || isUnknownIdentity(right.dev));
+  return platform === "win32" && (isZero(left.dev) || isZero(right.dev));
 }
