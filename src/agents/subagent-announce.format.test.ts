@@ -476,6 +476,35 @@ describe("subagent announce formatting", () => {
     expect(agentSpy).not.toHaveBeenCalled();
   });
 
+  it("chunks oversized telegram completion messages instead of dropping announce", async () => {
+    sendSpy
+      .mockRejectedValueOnce(new Error("400: Bad Request: message is too long"))
+      .mockResolvedValue({ runId: "send-main", status: "ok" });
+
+    const veryLongReply = "A".repeat(4_500) + "\n\n" + "B".repeat(4_500);
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-direct-completion-telegram-chunk",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      requesterOrigin: { channel: "telegram", to: "telegram:1234" },
+      ...defaultOutcomeAnnounce,
+      expectsCompletionMessage: true,
+      roundOneReply: veryLongReply,
+    });
+
+    expect(didAnnounce).toBe(true);
+    expect(sendSpy.mock.calls.length).toBeGreaterThan(1);
+    expect(agentSpy).not.toHaveBeenCalled();
+    const sentMessages = sendSpy.mock.calls
+      .map((call) => (call?.[0] as { params?: { message?: unknown } })?.params?.message)
+      .filter((message): message is string => typeof message === "string");
+    expect(sentMessages.length).toBeGreaterThan(1);
+    const chunkMessages = sentMessages.slice(1);
+    expect(chunkMessages.length).toBeGreaterThan(1);
+    expect(chunkMessages.every((message) => message.length <= 4096)).toBe(true);
+  });
+
   it("retries direct agent announce on transient channel-unavailable errors", async () => {
     agentSpy
       .mockRejectedValueOnce(new Error("No active WhatsApp Web listener (account: default)"))
