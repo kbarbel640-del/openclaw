@@ -38,7 +38,7 @@ function expectFallbackUsed(
 ) {
   expect(result.result).toBe("ok");
   expect(run).toHaveBeenCalledTimes(1);
-  expect(run).toHaveBeenCalledWith("anthropic", "claude-haiku-3-5");
+  expect(run).toHaveBeenCalledWith("anthropic", "claude-haiku-4-5");
   expect(result.attempts[0]?.reason).toBe("rate_limit");
 }
 
@@ -135,7 +135,7 @@ describe("runWithModelFallback – probe logic", () => {
 
     expect(result.result).toBe("ok");
     expect(run).toHaveBeenCalledTimes(1);
-    expect(run).toHaveBeenCalledWith("anthropic", "claude-haiku-3-5");
+    expect(run).toHaveBeenCalledWith("anthropic", "claude-haiku-4-5");
     expect(result.attempts[0]?.reason).toBe("billing");
   });
 
@@ -198,7 +198,7 @@ describe("runWithModelFallback – probe logic", () => {
     expect(result.result).toBe("fallback-ok");
     expect(run).toHaveBeenCalledTimes(2);
     expect(run).toHaveBeenNthCalledWith(1, "openai", "gpt-4.1-mini");
-    expect(run).toHaveBeenNthCalledWith(2, "anthropic", "claude-haiku-3-5");
+    expect(run).toHaveBeenNthCalledWith(2, "anthropic", "claude-haiku-4-5");
   });
 
   it("throttles probe when called within 30s interval", async () => {
