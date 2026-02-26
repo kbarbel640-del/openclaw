@@ -1,8 +1,5 @@
-import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
-import { listChannelPlugins } from "../../channels/plugins/index.js";
 import {
   CONFIG_PATH,
-  loadConfig,
   parseConfigJson5,
   readConfigFileSnapshot,
   readConfigFileSnapshotForWrite,
@@ -17,7 +14,7 @@ import {
   redactConfigSnapshot,
   restoreRedactedValues,
 } from "../../config/redact-snapshot.js";
-import { buildConfigSchema, type ConfigSchemaResponse } from "../../config/schema.js";
+import type { ConfigSchemaResponse } from "../../config/schema.js";
 import { extractDeliveryInfo } from "../../config/sessions.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import {
@@ -26,8 +23,8 @@ import {
   writeRestartSentinel,
 } from "../../infra/restart-sentinel.js";
 import { scheduleGatewaySigusr1Restart } from "../../infra/restart.js";
-import { loadOpenClawPlugins } from "../../plugins/loader.js";
 import { diffConfigPaths } from "../config-reload.js";
+import { loadConfigSchemaWithPlugins } from "../config-schema-loader.js";
 import {
   formatControlPlaneActor,
   resolveControlPlaneActor,
@@ -208,40 +205,7 @@ async function tryWriteRestartSentinelPayload(
   }
 }
 
-function loadSchemaWithPlugins(): ConfigSchemaResponse {
-  const cfg = loadConfig();
-  const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
-  const pluginRegistry = loadOpenClawPlugins({
-    config: cfg,
-    cache: true,
-    workspaceDir,
-    logger: {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-      debug: () => {},
-    },
-  });
-  // Note: We can't easily cache this, as there are no callback that can invalidate
-  // our cache. However, both loadConfig() and loadOpenClawPlugins() already cache
-  // their results, and buildConfigSchema() is just a cheap transformation.
-  return buildConfigSchema({
-    plugins: pluginRegistry.plugins.map((plugin) => ({
-      id: plugin.id,
-      name: plugin.name,
-      description: plugin.description,
-      configUiHints: plugin.configUiHints,
-      configSchema: plugin.configJsonSchema,
-    })),
-    channels: listChannelPlugins().map((entry) => ({
-      id: entry.id,
-      label: entry.meta.label,
-      description: entry.meta.blurb,
-      configSchema: entry.configSchema?.schema,
-      configUiHints: entry.configSchema?.uiHints,
-    })),
-  });
-}
+const loadSchemaWithPlugins = (): ConfigSchemaResponse => loadConfigSchemaWithPlugins();
 
 export const configHandlers: GatewayRequestHandlers = {
   "config.get": async ({ params, respond }) => {
