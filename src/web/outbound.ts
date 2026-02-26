@@ -6,6 +6,7 @@ import { redactIdentifier } from "../logging/redact-identifier.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { convertMarkdownTables } from "../markdown/tables.js";
 import { markdownToWhatsApp } from "../markdown/whatsapp.js";
+import { readChannelAllowFromStoreSync } from "../pairing/pairing-store.js";
 import { normalizePollInput, type PollInput } from "../polls.js";
 import { toWhatsappJid } from "../utils.js";
 import { resolveWhatsAppOutboundTarget } from "../whatsapp/resolve-outbound-target.js";
@@ -35,14 +36,17 @@ export async function sendMessageWhatsApp(
   const cfg = loadConfig();
 
   // Enforce allowFrom at the lowest outbound level.
+  // Merge configured allowFrom with pairing-store entries so that paired
+  // devices are not silently blocked (mirrors resolveDeliveryTarget logic).
   // resolveWhatsAppOutboundTarget handles groups internally (always allowed).
-  const account = resolveWhatsAppAccount({
-    cfg,
-    accountId: resolvedAccountId ?? options.accountId,
-  });
+  const effectiveAccountId = resolvedAccountId ?? options.accountId;
+  const account = resolveWhatsAppAccount({ cfg, accountId: effectiveAccountId });
+  const configuredAllowFrom = account.allowFrom ?? [];
+  const storeAllowFrom = readChannelAllowFromStoreSync("whatsapp", process.env, effectiveAccountId);
+  const mergedAllowFrom = [...configuredAllowFrom.map(String), ...storeAllowFrom];
   const outboundCheck = resolveWhatsAppOutboundTarget({
     to,
-    allowFrom: account.allowFrom ?? [],
+    allowFrom: mergedAllowFrom,
     mode: "explicit",
   });
   if (!outboundCheck.ok) {
@@ -141,13 +145,14 @@ export async function sendReactionWhatsApp(
 
   // Enforce allowFrom — reactions are also outbound sends.
   const cfg = loadConfig();
-  const account = resolveWhatsAppAccount({
-    cfg,
-    accountId: resolvedAccountId ?? options.accountId,
-  });
+  const effectiveAccountId = resolvedAccountId ?? options.accountId;
+  const account = resolveWhatsAppAccount({ cfg, accountId: effectiveAccountId });
+  const configuredAllowFrom = account.allowFrom ?? [];
+  const storeAllowFrom = readChannelAllowFromStoreSync("whatsapp", process.env, effectiveAccountId);
+  const mergedAllowFrom = [...configuredAllowFrom.map(String), ...storeAllowFrom];
   const outboundCheck = resolveWhatsAppOutboundTarget({
     to: chatJid,
-    allowFrom: account.allowFrom ?? [],
+    allowFrom: mergedAllowFrom,
     mode: "explicit",
   });
   if (!outboundCheck.ok) {
@@ -200,13 +205,14 @@ export async function sendPollWhatsApp(
 
   // Enforce allowFrom — polls are also outbound sends.
   const cfg = loadConfig();
-  const account = resolveWhatsAppAccount({
-    cfg,
-    accountId: resolvedAccountId ?? options.accountId,
-  });
+  const effectiveAccountId = resolvedAccountId ?? options.accountId;
+  const account = resolveWhatsAppAccount({ cfg, accountId: effectiveAccountId });
+  const configuredAllowFrom = account.allowFrom ?? [];
+  const storeAllowFrom = readChannelAllowFromStoreSync("whatsapp", process.env, effectiveAccountId);
+  const mergedAllowFrom = [...configuredAllowFrom.map(String), ...storeAllowFrom];
   const outboundCheck = resolveWhatsAppOutboundTarget({
     to,
-    allowFrom: account.allowFrom ?? [],
+    allowFrom: mergedAllowFrom,
     mode: "explicit",
   });
   if (!outboundCheck.ok) {
