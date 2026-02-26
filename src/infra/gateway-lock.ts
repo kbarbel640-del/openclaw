@@ -133,18 +133,18 @@ async function checkPortFree(port: number, host = "127.0.0.1"): Promise<boolean>
 }
 
 /**
- * Check if any gateway process is running on the system (any port).
- * This catches cases where multiple gateways start on different ports
- * (e.g., via env var OPENCLAW_GATEWAY_PORT vs config).
+ * Get list of running gateway process PIDs.
+ * Uses stricter pattern to avoid false positives (e.g., matching "vim gateway-lock.ts").
  */
-async function isAnyGatewayProcessRunning(): Promise<boolean> {
+async function getRunningGatewayPids(): Promise<number[]> {
   if (process.platform !== "linux") {
-    return false;
+    return [];
   }
 
   try {
-    // Check for any openclaw-gateway process
-    const output = execSync("pgrep -f 'openclaw-gateway' 2>/dev/null", {
+    // Use stricter pattern: openclaw followed by anything, then gateway
+    // This avoids matching processes like "vim gateway-lock.ts"
+    const output = execSync("pgrep -f 'openclaw.*gateway' 2>/dev/null", {
       encoding: "utf8",
       timeout: 2000,
     });
@@ -152,13 +152,15 @@ async function isAnyGatewayProcessRunning(): Promise<boolean> {
       .trim()
       .split("\n")
       .filter(Boolean)
-      .map((p) => parseInt(p, 10));
-    // Filter out current process
-    const otherPids = pids.filter((pid) => pid !== process.pid);
-    return otherPids.length > 0;
+      .map((p) => {
+        const pid = parseInt(p.trim(), 10);
+        return Number.isFinite(pid) ? pid : null;
+      })
+      .filter((pid): pid is number => pid !== null);
+    return pids;
   } catch {
     // pgrep returns non-zero if no matches, which is fine
-    return false;
+    return [];
   }
 }
 
@@ -168,13 +170,15 @@ async function resolveGatewayOwnerStatus(
   platform: NodeJS.Platform,
   port: number | undefined,
 ): Promise<LockOwnerStatus> {
-  // First, check if ANY gateway is running (regardless of port).
-  // This catches cases where gateways start on different ports.
+  // Check if the lock owner PID is among running gateway processes.
+  // This catches cases where gateways start on different ports with the same config.
   if (platform === "linux") {
-    const anyGatewayRunning = await isAnyGatewayProcessRunning();
-    if (anyGatewayRunning) {
+    const gatewayPids = await getRunningGatewayPids();
+    if (gatewayPids.includes(pid)) {
       return "alive";
     }
+    // If lock owner not in running gateways but other gateways exist,
+    // continue to port check (allows different profiles to run)
   }
 
   if (port != null) {
