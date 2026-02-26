@@ -518,6 +518,9 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                 return json({ error: `Unknown action: ${(p as any).action}` });
             }
           } catch (err) {
+            api.logger.error?.(
+              `feishu_doc error: ${err instanceof Error ? err.message : String(err)}`,
+            );
             return json({ error: err instanceof Error ? err.message : String(err) });
           }
         },
