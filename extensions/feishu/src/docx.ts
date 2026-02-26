@@ -438,6 +438,105 @@ async function getBlock(client: Lark.Client, docToken: string, blockId: string) 
   };
 }
 
+// ============ Table Operations ============
+
+async function insertTableRow(
+  client: Lark.Client,
+  docToken: string,
+  blockId: string,
+  rowIndex: number = -1,
+) {
+  const res = await client.docx.documentBlock.patch({
+    path: { document_id: docToken, block_id: blockId },
+    data: { insert_table_row: { row_index: rowIndex } },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return { success: true, block: res.data?.block };
+}
+
+async function insertTableColumn(
+  client: Lark.Client,
+  docToken: string,
+  blockId: string,
+  columnIndex: number = -1,
+) {
+  const res = await client.docx.documentBlock.patch({
+    path: { document_id: docToken, block_id: blockId },
+    data: { insert_table_column: { column_index: columnIndex } },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return { success: true, block: res.data?.block };
+}
+
+async function deleteTableRows(
+  client: Lark.Client,
+  docToken: string,
+  blockId: string,
+  rowStart: number,
+  rowCount: number = 1,
+) {
+  const res = await client.docx.documentBlock.patch({
+    path: { document_id: docToken, block_id: blockId },
+    data: { delete_table_rows: { row_start_index: rowStart, row_end_index: rowStart + rowCount } },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return { success: true, rows_deleted: rowCount, block: res.data?.block };
+}
+
+async function deleteTableColumns(
+  client: Lark.Client,
+  docToken: string,
+  blockId: string,
+  columnStart: number,
+  columnCount: number = 1,
+) {
+  const res = await client.docx.documentBlock.patch({
+    path: { document_id: docToken, block_id: blockId },
+    data: {
+      delete_table_columns: {
+        column_start_index: columnStart,
+        column_end_index: columnStart + columnCount,
+      },
+    },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return { success: true, columns_deleted: columnCount, block: res.data?.block };
+}
+
+async function mergeTableCells(
+  client: Lark.Client,
+  docToken: string,
+  blockId: string,
+  rowStart: number,
+  rowEnd: number,
+  columnStart: number,
+  columnEnd: number,
+) {
+  const res = await client.docx.documentBlock.patch({
+    path: { document_id: docToken, block_id: blockId },
+    data: {
+      merge_table_cells: {
+        row_start_index: rowStart,
+        row_end_index: rowEnd,
+        column_start_index: columnStart,
+        column_end_index: columnEnd,
+      },
+    },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return { success: true, block: res.data?.block };
+}
+
 async function listAppScopes(client: Lark.Client) {
   const res = await client.application.scope.list({});
   if (res.code !== 0) {
@@ -486,7 +585,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         name: "feishu_doc",
         label: "Feishu Doc",
         description:
-          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block",
+          "Feishu document operations. Actions: read, write, append, create, list_blocks, get_block, update_block, delete_block, insert_table_row, insert_table_column, delete_table_rows, delete_table_columns, merge_table_cells",
         parameters: FeishuDocSchema,
         async execute(_toolCallId, params) {
           const p = params as FeishuDocParams;
@@ -513,6 +612,38 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                 return json(await updateBlock(client, p.doc_token, p.block_id, p.content));
               case "delete_block":
                 return json(await deleteBlock(client, p.doc_token, p.block_id));
+              case "insert_table_row":
+                return json(await insertTableRow(client, p.doc_token, p.block_id, p.row_index));
+              case "insert_table_column":
+                return json(
+                  await insertTableColumn(client, p.doc_token, p.block_id, p.column_index),
+                );
+              case "delete_table_rows":
+                return json(
+                  await deleteTableRows(client, p.doc_token, p.block_id, p.row_start, p.row_count),
+                );
+              case "delete_table_columns":
+                return json(
+                  await deleteTableColumns(
+                    client,
+                    p.doc_token,
+                    p.block_id,
+                    p.column_start,
+                    p.column_count,
+                  ),
+                );
+              case "merge_table_cells":
+                return json(
+                  await mergeTableCells(
+                    client,
+                    p.doc_token,
+                    p.block_id,
+                    p.row_start,
+                    p.row_end,
+                    p.column_start,
+                    p.column_end,
+                  ),
+                );
               default:
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
                 return json({ error: `Unknown action: ${(p as any).action}` });
