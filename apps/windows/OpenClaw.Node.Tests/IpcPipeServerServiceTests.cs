@@ -416,6 +416,52 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task IpcInvalidTimeout_ShouldReturnBadRequest_AndKeepSessionAlive()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var pipeName = "openclaw.node.test." + Guid.NewGuid().ToString("N");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var svc = new IpcPipeServerService(pipeName, version: "test-ver");
+            svc.Start(cts.Token);
+
+            await using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            await client.ConnectAsync(5000, cts.Token);
+
+            using var reader = new StreamReader(client, Encoding.UTF8, false, 4096, leaveOpen: true);
+            await using var writer = new StreamWriter(client, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
+
+            await writer.WriteLineAsync("{\"id\":\"bad-timeout\",\"method\":\"ipc.ping\",\"params\":{\"timeoutMs\":120.5}}");
+            var badLine = await reader.ReadLineAsync(cts.Token);
+
+            Assert.False(string.IsNullOrWhiteSpace(badLine));
+            using (var doc = JsonDocument.Parse(badLine!))
+            {
+                var root = doc.RootElement;
+                Assert.False(root.GetProperty("ok").GetBoolean());
+                Assert.Equal("BAD_REQUEST", root.GetProperty("error").GetProperty("code").GetString());
+                Assert.Contains("timeoutMs", root.GetProperty("error").GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
+            }
+
+            // Ensure malformed timeout does not tear down the client session.
+            await writer.WriteLineAsync("{\"id\":\"after-bad\",\"method\":\"ipc.ping\",\"params\":{}}");
+            var goodLine = await reader.ReadLineAsync(cts.Token);
+            Assert.False(string.IsNullOrWhiteSpace(goodLine));
+            using (var doc = JsonDocument.Parse(goodLine!))
+            {
+                var root = doc.RootElement;
+                Assert.True(root.GetProperty("ok").GetBoolean());
+                Assert.Equal("after-bad", root.GetProperty("id").GetString());
+            }
+
+            cts.Cancel();
+            await svc.StopAsync();
+        }
+
+        [Fact]
         public async Task IpcPing_ShouldHandleConcurrentClients()
         {
             if (!OperatingSystem.IsWindows())

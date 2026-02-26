@@ -173,7 +173,17 @@ namespace OpenClaw.Node.Services
                         continue;
                     }
 
-                    var timeoutMs = ResolveRequestTimeoutMs(req);
+                    if (!TryResolveRequestTimeoutMs(req, out var timeoutMs, out var timeoutError))
+                    {
+                        await writer.WriteLineAsync(JsonSerializer.Serialize(new IpcResponse
+                        {
+                            Id = req.Id ?? string.Empty,
+                            Ok = false,
+                            Error = new IpcError { Code = "BAD_REQUEST", Message = timeoutError ?? "Invalid timeoutMs" }
+                        }, JsonOptions));
+                        continue;
+                    }
+
                     var res = await DispatchWithTimeoutAsync(req, timeoutMs, ct);
                     await writer.WriteLineAsync(JsonSerializer.Serialize(res, JsonOptions));
                 }
@@ -198,16 +208,25 @@ namespace OpenClaw.Node.Services
             return string.Equals(req.AuthToken, _authToken, StringComparison.Ordinal);
         }
 
-        private static int ResolveRequestTimeoutMs(IpcRequest req)
+        private static bool TryResolveRequestTimeoutMs(IpcRequest req, out int timeoutMs, out string? error)
         {
-            var timeoutMs = DefaultRequestTimeoutMs;
+            timeoutMs = DefaultRequestTimeoutMs;
+            error = null;
+
             var p = req.Params ?? default;
-            if (p.ValueKind == JsonValueKind.Object && p.TryGetProperty("timeoutMs", out var t) && t.ValueKind == JsonValueKind.Number)
+            if (p.ValueKind != JsonValueKind.Object || !p.TryGetProperty("timeoutMs", out var t))
             {
-                timeoutMs = t.GetInt32();
+                return true;
             }
 
-            return Math.Clamp(timeoutMs, MinRequestTimeoutMs, MaxRequestTimeoutMs);
+            if (t.ValueKind != JsonValueKind.Number || !t.TryGetInt32(out var parsed))
+            {
+                error = "params.timeoutMs must be an integer";
+                return false;
+            }
+
+            timeoutMs = Math.Clamp(parsed, MinRequestTimeoutMs, MaxRequestTimeoutMs);
+            return true;
         }
 
         private async Task<IpcResponse> DispatchWithTimeoutAsync(IpcRequest req, int timeoutMs, CancellationToken serverToken)
