@@ -430,8 +430,7 @@ export class OpenAIWebSocketManager extends EventEmitter<InternalEvents> {
       return;
     }
     if (this.retryCount >= this.maxRetries) {
-      this.emit(
-        "error",
+      this._safeEmitError(
         new Error(`OpenAIWebSocketManager: max reconnect retries (${this.maxRetries}) exceeded.`),
       );
       return;
@@ -451,6 +450,14 @@ export class OpenAIWebSocketManager extends EventEmitter<InternalEvents> {
         this._scheduleReconnect();
       });
     }, delayMs);
+  }
+
+  /** Emit an error only if there are listeners; prevents Node.js from crashing
+   *  with "unhandled 'error' event" when no one is listening. */
+  private _safeEmitError(err: Error): void {
+    if (this.listenerCount("error") > 0) {
+      this.emit("error", err);
+    }
   }
 
   private _cancelRetryTimer(): void {
@@ -477,16 +484,14 @@ export class OpenAIWebSocketManager extends EventEmitter<InternalEvents> {
     try {
       parsed = JSON.parse(text);
     } catch {
-      this.emit(
-        "error",
+      this._safeEmitError(
         new Error(`OpenAIWebSocketManager: failed to parse message: ${text.slice(0, 200)}`),
       );
       return;
     }
 
     if (!parsed || typeof parsed !== "object" || !("type" in parsed)) {
-      this.emit(
-        "error",
+      this._safeEmitError(
         new Error(
           `OpenAIWebSocketManager: unexpected message shape (no "type" field): ${text.slice(0, 200)}`,
         ),
