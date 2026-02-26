@@ -13,3 +13,24 @@ export function makeProxyFetch(proxyUrl: string): typeof fetch {
   // should opt into resolveFetch/wrapFetchWithAbortSignal once at the edge.
   return fetcher;
 }
+
+/**
+ * Resolve proxy URL from standard environment variables.
+ * Precedence: HTTPS_PROXY > HTTP_PROXY > ALL_PROXY (case-insensitive).
+ * Returns undefined when no proxy is configured.
+ */
+export function resolveProxyUrlFromEnv(): string | undefined {
+  const candidates = [
+    process.env.HTTPS_PROXY,
+    process.env.https_proxy,
+    process.env.HTTP_PROXY,
+    process.env.http_proxy,
+    process.env.ALL_PROXY,
+    process.env.all_proxy,
+  ];
+  for (const val of candidates) {
+    const trimmed = val?.trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
