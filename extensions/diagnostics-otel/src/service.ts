@@ -11,7 +11,13 @@ import { ParentBasedSampler, TraceIdRatioBasedSampler } from "@opentelemetry/sdk
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import type { DiagnosticEventPayload, OpenClawPluginService } from "openclaw/plugin-sdk";
 import { onDiagnosticEvent, redactSensitiveText, registerLogTransport } from "openclaw/plugin-sdk";
-import { checkTokenAnomaly, runSecurityChecks, tokenAnomalyTracker } from "./security.js";
+import {
+  SEVERITY_ORDER,
+  checkTokenAnomaly,
+  runSecurityChecks,
+  tokenAnomalyTracker,
+} from "./security.js";
+import type { SecuritySeverity } from "./security.js";
 
 const DEFAULT_SERVICE_NAME = "openclaw";
 
@@ -601,12 +607,9 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         if (securityResults.length > 0) {
           spanAttrs["security.detected"] = 1;
           spanAttrs["security.category"] = securityResults.map((r) => r.category).join(",");
-          spanAttrs["security.severity"] = securityResults.reduce(
-            (max, r) => {
-              const order = { low: 0, medium: 1, high: 2, critical: 3 };
-              return order[r.severity] > order[max] ? r.severity : max;
-            },
-            "low" as "low" | "medium" | "high" | "critical",
+          spanAttrs["security.severity"] = securityResults.reduce<SecuritySeverity>(
+            (max, r) => (SEVERITY_ORDER[r.severity] > SEVERITY_ORDER[max] ? r.severity : max),
+            "low",
           );
           spanAttrs["security.detail"] = securityResults.map((r) => r.detail).join("; ");
         }

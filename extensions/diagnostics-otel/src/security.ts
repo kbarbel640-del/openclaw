@@ -17,8 +17,8 @@ const SENSITIVE_FILE_PATTERNS: { pattern: RegExp; label: string; severity: Secur
   { pattern: /private[_-]?key/i, label: "private key reference", severity: "high" },
   { pattern: /\.env\b/, label: ".env file", severity: "medium" },
   { pattern: /credentials/i, label: "credentials file", severity: "medium" },
-  { pattern: /\.pem$/i, label: ".pem file", severity: "high" },
-  { pattern: /\.key$/i, label: ".key file", severity: "high" },
+  { pattern: /\.pem\b/i, label: ".pem file", severity: "high" },
+  { pattern: /\.key\b/i, label: ".key file", severity: "high" },
 ];
 
 const PROMPT_INJECTION_PATTERNS: { pattern: RegExp; label: string }[] = [
@@ -52,19 +52,34 @@ function extractTextFields(event: Record<string, unknown>): string[] {
   return texts;
 }
 
+export const SEVERITY_ORDER: Record<SecuritySeverity, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+  critical: 3,
+};
+
 function detectSensitiveFileAccess(texts: string[]): SecurityDetection {
   const joined = texts.join(" ");
+  const matchedLabels: string[] = [];
+  let maxSeverity: SecuritySeverity = "low";
   for (const { pattern, label, severity } of SENSITIVE_FILE_PATTERNS) {
     if (pattern.test(joined)) {
-      return {
-        detected: true,
-        severity,
-        detail: redactSensitiveText(`sensitive file access: ${label}`),
-        category: "sensitive_file_access",
-      };
+      matchedLabels.push(label);
+      if (SEVERITY_ORDER[severity] > SEVERITY_ORDER[maxSeverity]) {
+        maxSeverity = severity;
+      }
     }
   }
-  return { detected: false, severity: "low", detail: "", category: "sensitive_file_access" };
+  if (matchedLabels.length === 0) {
+    return { detected: false, severity: "low", detail: "", category: "sensitive_file_access" };
+  }
+  return {
+    detected: true,
+    severity: maxSeverity,
+    detail: redactSensitiveText(`sensitive file access: ${matchedLabels.join(", ")}`),
+    category: "sensitive_file_access",
+  };
 }
 
 function detectPromptInjection(texts: string[]): SecurityDetection {
@@ -84,17 +99,25 @@ function detectPromptInjection(texts: string[]): SecurityDetection {
 
 function detectDangerousCommand(texts: string[]): SecurityDetection {
   const joined = texts.join(" ");
+  const matchedLabels: string[] = [];
+  let maxSeverity: SecuritySeverity = "low";
   for (const { pattern, label, severity } of DANGEROUS_COMMAND_PATTERNS) {
     if (pattern.test(joined)) {
-      return {
-        detected: true,
-        severity,
-        detail: redactSensitiveText(`dangerous command: ${label}`),
-        category: "dangerous_command",
-      };
+      matchedLabels.push(label);
+      if (SEVERITY_ORDER[severity] > SEVERITY_ORDER[maxSeverity]) {
+        maxSeverity = severity;
+      }
     }
   }
-  return { detected: false, severity: "low", detail: "", category: "dangerous_command" };
+  if (matchedLabels.length === 0) {
+    return { detected: false, severity: "low", detail: "", category: "dangerous_command" };
+  }
+  return {
+    detected: true,
+    severity: maxSeverity,
+    detail: redactSensitiveText(`dangerous command: ${matchedLabels.join(", ")}`),
+    category: "dangerous_command",
+  };
 }
 
 /**

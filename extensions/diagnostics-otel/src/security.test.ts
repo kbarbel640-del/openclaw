@@ -47,6 +47,15 @@ describe("security detections", () => {
       expect(results[0]?.severity).toBe("critical");
     });
 
+    test("escalates to highest severity when multiple patterns match", () => {
+      // /etc/passwd is high, /etc/shadow is critical — must return critical
+      const results = runSecurityChecks(messageEvent("diff /etc/passwd /etc/shadow"));
+      expect(results).toHaveLength(1);
+      expect(results[0]?.severity).toBe("critical");
+      expect(results[0]?.detail).toContain("/etc/passwd");
+      expect(results[0]?.detail).toContain("/etc/shadow");
+    });
+
     test("detects .ssh directory access", () => {
       const results = runSecurityChecks(messageEvent("reading ~/.ssh/id_rsa"));
       expect(results).toHaveLength(1);
@@ -68,6 +77,18 @@ describe("security detections", () => {
 
     test("detects credentials file access", () => {
       const results = runSecurityChecks(messageEvent("loading credentials.json"));
+      expect(results).toHaveLength(1);
+      expect(results[0]?.category).toBe("sensitive_file_access");
+    });
+
+    test("detects .pem file mid-string (word boundary)", () => {
+      const results = runSecurityChecks(messageEvent("loaded server.pem from disk"));
+      expect(results).toHaveLength(1);
+      expect(results[0]?.category).toBe("sensitive_file_access");
+    });
+
+    test("detects .key file mid-string (word boundary)", () => {
+      const results = runSecurityChecks(messageEvent("reading tls.key config"));
       expect(results).toHaveLength(1);
       expect(results[0]?.category).toBe("sensitive_file_access");
     });
@@ -155,10 +176,20 @@ describe("security detections", () => {
     });
 
     test("detects sudo usage", () => {
-      const results = runSecurityChecks(messageEvent("sudo rm file.txt"));
-      // May detect both sudo and rm patterns; at least one should be dangerous_command
+      const results = runSecurityChecks(messageEvent("sudo cat /tmp/log"));
       const dangerousResults = results.filter((r) => r.category === "dangerous_command");
-      expect(dangerousResults.length).toBeGreaterThanOrEqual(1);
+      expect(dangerousResults).toHaveLength(1);
+      expect(dangerousResults[0]?.severity).toBe("medium");
+    });
+
+    test("escalates severity with multiple dangerous patterns", () => {
+      // sudo is medium, rm -rf is critical — must return critical
+      const results = runSecurityChecks(messageEvent("sudo rm -rf /var/data"));
+      const dangerousResults = results.filter((r) => r.category === "dangerous_command");
+      expect(dangerousResults).toHaveLength(1);
+      expect(dangerousResults[0]?.severity).toBe("critical");
+      expect(dangerousResults[0]?.detail).toContain("sudo");
+      expect(dangerousResults[0]?.detail).toContain("rm -rf");
     });
 
     test("returns empty for safe commands", () => {
