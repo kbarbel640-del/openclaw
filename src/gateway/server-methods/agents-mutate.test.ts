@@ -507,6 +507,8 @@ describe("agents.files.list", () => {
 });
 
 describe("agents.files.get/set symlink safety", () => {
+  const normalizePath = (value: string) => value.replaceAll("\\", "/");
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.loadConfigReturn = {};
@@ -517,16 +519,17 @@ describe("agents.files.get/set symlink safety", () => {
     const workspace = "/workspace/test-agent";
     const candidate = `${workspace}/AGENTS.md`;
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      if (p === workspace) {
+      const normalized = normalizePath(p);
+      if (normalized === workspace) {
         return workspace;
       }
-      if (p === candidate) {
+      if (normalized === candidate) {
         return "/outside/secret.txt";
       }
       return p;
     });
     mocks.fsLstat.mockImplementation(async (...args: unknown[]) => {
-      const p = typeof args[0] === "string" ? args[0] : "";
+      const p = normalizePath(typeof args[0] === "string" ? args[0] : "");
       if (p === candidate) {
         return makeSymlinkStat();
       }
@@ -550,16 +553,17 @@ describe("agents.files.get/set symlink safety", () => {
     const workspace = "/workspace/test-agent";
     const candidate = `${workspace}/AGENTS.md`;
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      if (p === workspace) {
+      const normalized = normalizePath(p);
+      if (normalized === workspace) {
         return workspace;
       }
-      if (p === candidate) {
+      if (normalized === candidate) {
         return "/outside/secret.txt";
       }
       return p;
     });
     mocks.fsLstat.mockImplementation(async (...args: unknown[]) => {
-      const p = typeof args[0] === "string" ? args[0] : "";
+      const p = normalizePath(typeof args[0] === "string" ? args[0] : "");
       if (p === candidate) {
         return makeSymlinkStat();
       }
@@ -588,16 +592,17 @@ describe("agents.files.get/set symlink safety", () => {
     const targetStat = makeFileStat({ size: 7, mtimeMs: 1700, dev: 9, ino: 42 });
 
     mocks.fsRealpath.mockImplementation(async (p: string) => {
-      if (p === workspace) {
+      const normalized = normalizePath(p);
+      if (normalized === workspace) {
         return workspace;
       }
-      if (p === candidate) {
+      if (normalized === candidate) {
         return target;
       }
       return p;
     });
     mocks.fsLstat.mockImplementation(async (...args: unknown[]) => {
-      const p = typeof args[0] === "string" ? args[0] : "";
+      const p = normalizePath(typeof args[0] === "string" ? args[0] : "");
       if (p === candidate) {
         return makeSymlinkStat({ dev: 9, ino: 41 });
       }
@@ -607,7 +612,7 @@ describe("agents.files.get/set symlink safety", () => {
       throw createEnoentError();
     });
     mocks.fsStat.mockImplementation(async (...args: unknown[]) => {
-      const p = typeof args[0] === "string" ? args[0] : "";
+      const p = normalizePath(typeof args[0] === "string" ? args[0] : "");
       if (p === target) {
         return targetStat;
       }
