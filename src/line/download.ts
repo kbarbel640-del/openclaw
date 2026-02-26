@@ -1,6 +1,7 @@
-import fs from "node:fs";
 import { messagingApi } from "@line/bot-sdk";
+import fs from "node:fs";
 import { logVerbose } from "../globals.js";
+import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
 import { buildRandomTempFilePath } from "../plugin-sdk/temp-path.js";
 
 interface DownloadResult {
@@ -38,8 +39,16 @@ export async function downloadLineMedia(
   const contentType = detectContentType(buffer);
   const ext = getExtensionForContentType(contentType);
 
+  // Use a safe temp directory root that is also included in OpenClaw's default
+  // local media allowlist. Do not rely on process env TMPDIR for correctness.
+  const tmpDir = resolvePreferredOpenClawTmpDir();
+
   // Use random temp names; never derive paths from external message identifiers.
-  const filePath = buildRandomTempFilePath({ prefix: "line-media", extension: ext });
+  const filePath = buildRandomTempFilePath({
+    prefix: "line-media",
+    extension: ext,
+    tmpDir,
+  });
 
   await fs.promises.writeFile(filePath, buffer);
 
