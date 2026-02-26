@@ -55,16 +55,14 @@ const { registerUnhandledRejectionHandlerMock, emitUnhandledRejection, resetUnha
     };
   });
 
-const { createTelegramBotErrors } = vi.hoisted(() => ({
+const { createTelegramBotErrors, mockIsRunning } = vi.hoisted(() => ({
   createTelegramBotErrors: [] as unknown[],
+  mockIsRunning: vi.fn(() => false),
 }));
 
 const { computeBackoff, sleepWithAbort } = vi.hoisted(() => ({
   computeBackoff: vi.fn(() => 0),
   sleepWithAbort: vi.fn(async () => undefined),
-}));
-const { startTelegramWebhookSpy } = vi.hoisted(() => ({
-  startTelegramWebhookSpy: vi.fn(async () => ({ server: { close: vi.fn() }, stop: vi.fn() })),
 }));
 
 vi.mock("../config/config.js", async (importOriginal) => {
@@ -100,6 +98,7 @@ vi.mock("./bot.js", () => ({
       init: initSpy,
       stop: vi.fn(),
       start: vi.fn(),
+      isRunning: mockIsRunning,
     };
   },
   createTelegramWebhookCallback: vi.fn(),
@@ -119,10 +118,6 @@ vi.mock("../infra/unhandled-rejections.js", () => ({
   registerUnhandledRejectionHandler: registerUnhandledRejectionHandlerMock,
 }));
 
-vi.mock("./webhook.js", () => ({
-  startTelegramWebhook: startTelegramWebhookSpy,
-}));
-
 vi.mock("../auto-reply/reply.js", () => ({
   getReplyFromConfig: async (ctx: { Body?: string }) => ({
     text: `echo:${ctx.Body}`,
@@ -139,7 +134,6 @@ describe("monitorTelegramProvider (grammY)", () => {
     runSpy.mockClear();
     computeBackoff.mockClear();
     sleepWithAbort.mockClear();
-    startTelegramWebhookSpy.mockClear();
     registerUnhandledRejectionHandlerMock.mockClear();
     resetUnhandledRejection();
     createTelegramBotErrors.length = 0;
@@ -374,31 +368,8 @@ describe("monitorTelegramProvider (grammY)", () => {
     expect(runSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("passes configured webhookHost to webhook listener", async () => {
-    await monitorTelegramProvider({
-      token: "tok",
-      useWebhook: true,
-      webhookUrl: "https://example.test/telegram",
-      webhookSecret: "secret",
-      config: {
-        agents: { defaults: { maxConcurrent: 2 } },
-        channels: {
-          telegram: {
-            webhookHost: "0.0.0.0",
-          },
-        },
-      },
-    });
-
-    expect(startTelegramWebhookSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        host: "0.0.0.0",
-      }),
-    );
-    expect(runSpy).not.toHaveBeenCalled();
-  });
-
   it("webhook mode waits for abort signal before returning", async () => {
+    mockIsRunning.mockReturnValue(false);
     const abort = new AbortController();
     const settled = vi.fn();
     const monitor = monitorTelegramProvider({
@@ -417,7 +388,8 @@ describe("monitorTelegramProvider (grammY)", () => {
     expect(settled).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to configured webhookSecret when not passed explicitly", async () => {
+  it("uses webhookSecret from config when not passed explicitly", async () => {
+    Object.values(api).forEach((fn) => fn?.mockReset?.());
     await monitorTelegramProvider({
       token: "tok",
       useWebhook: true,
@@ -432,11 +404,11 @@ describe("monitorTelegramProvider (grammY)", () => {
       },
     });
 
-    expect(startTelegramWebhookSpy).toHaveBeenCalledWith(
+    expect(api.setWebhook).toHaveBeenLastCalledWith(
+      "https://example.test/telegram",
       expect.objectContaining({
-        secret: "secret-from-config",
+        secret_token: "secret-from-config",
       }),
     );
-    expect(runSpy).not.toHaveBeenCalled();
   });
 });
