@@ -3,11 +3,11 @@ import type { OpenClawConfig } from "../config/config.js";
 import { createEmptyPluginRegistry } from "../plugins/registry.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
-import { setDefaultChannelPluginRegistryForTests } from "./channel-test-helpers.js";
+import {
+  patchChannelOnboardingAdapter,
+  setDefaultChannelPluginRegistryForTests,
+} from "./channel-test-helpers.js";
 import { setupChannels } from "./onboard-channels.js";
-import type { ChannelChoice } from "./onboard-types.js";
-import { getChannelOnboardingAdapter } from "./onboarding/registry.js";
-import type { ChannelOnboardingAdapter } from "./onboarding/types.js";
 import { createExitThrowingRuntime, createWizardPrompter } from "./test-wizard-helpers.js";
 
 function createPrompter(overrides: Partial<WizardPrompter>): WizardPrompter {
@@ -28,27 +28,6 @@ function createUnexpectedPromptGuards() {
     text: vi.fn(async ({ message }: { message: string }) => {
       throw new Error(`unexpected text prompt: ${message}`);
     }) as unknown as WizardPrompter["text"],
-  };
-}
-
-function patchOnboardingAdapter<K extends keyof ChannelOnboardingAdapter>(
-  channel: ChannelChoice,
-  patch: Pick<ChannelOnboardingAdapter, K>,
-): () => void {
-  const adapter = getChannelOnboardingAdapter(channel);
-  if (!adapter) {
-    throw new Error(`missing onboarding adapter for ${channel}`);
-  }
-  const keys = Object.keys(patch) as K[];
-  const previous = {} as Pick<ChannelOnboardingAdapter, K>;
-  for (const key of keys) {
-    previous[key] = adapter[key];
-    adapter[key] = patch[key];
-  }
-  return () => {
-    for (const key of keys) {
-      adapter[key] = previous[key];
-    }
   };
 }
 
@@ -284,7 +263,7 @@ describe("setupChannels", () => {
     const selection = vi.fn();
     const onAccountId = vi.fn();
     const configureInteractive = vi.fn(async () => "skip" as const);
-    const restore = patchOnboardingAdapter("telegram", {
+    const restore = patchChannelOnboardingAdapter("telegram", {
       getStatus: vi.fn(async ({ cfg }) => ({
         channel: "telegram",
         configured: Boolean(cfg.channels?.telegram?.botToken),
@@ -342,7 +321,7 @@ describe("setupChannels", () => {
     const configure = vi.fn(async () => {
       throw new Error("configure should not be called when configureInteractive is present");
     });
-    const restore = patchOnboardingAdapter("telegram", {
+    const restore = patchChannelOnboardingAdapter("telegram", {
       getStatus: vi.fn(async ({ cfg }) => ({
         channel: "telegram",
         configured: Boolean(cfg.channels?.telegram?.botToken),
@@ -402,7 +381,7 @@ describe("setupChannels", () => {
         "configure should not be called when configureWhenConfigured handles updates",
       );
     });
-    const restore = patchOnboardingAdapter("telegram", {
+    const restore = patchChannelOnboardingAdapter("telegram", {
       getStatus: vi.fn(async ({ cfg }) => ({
         channel: "telegram",
         configured: Boolean(cfg.channels?.telegram?.botToken),
@@ -441,6 +420,9 @@ describe("setupChannels", () => {
       );
 
       expect(configureWhenConfigured).toHaveBeenCalledTimes(1);
+      expect(configureWhenConfigured).toHaveBeenCalledWith(
+        expect.objectContaining({ configured: true, label: expect.any(String) }),
+      );
       expect(configure).not.toHaveBeenCalled();
       expect(selection).toHaveBeenCalledWith(["telegram"]);
       expect(onAccountId).toHaveBeenCalledWith("telegram", "acct-2");

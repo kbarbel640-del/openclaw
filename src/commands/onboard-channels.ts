@@ -540,6 +540,8 @@ export async function setupChannels(
         accountOverrides,
         shouldPromptAccountIds,
         forceAllowFrom: forceAllowFromChannels.has(channel),
+        configured: true,
+        label,
       });
       if (!(await applyCustomOnboardingResult(channel, custom))) {
         return;
