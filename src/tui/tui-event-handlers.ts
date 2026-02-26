@@ -1,3 +1,4 @@
+import { isSilentReplyText } from "../auto-reply/tokens.js";
 import {
   asString,
   extractTextFromMessage,
@@ -214,6 +215,17 @@ export function createEventHandlers(context: EventHandlerContext) {
           : "";
 
       const finalText = streamAssembler.finalize(evt.runId, evt.message, state.showThinking);
+
+      if (isSilentReplyText(finalText)) {
+        chatLog.dropAssistant(evt.runId);
+        noteFinalizedRun(evt.runId);
+        state.activeChatRunId = null;
+        setActivityStatus("idle");
+        void refreshSessionInfo?.();
+        tui.requestRender();
+        return;
+      }
+
       const suppressEmptyExternalPlaceholder =
         finalText === "(no output)" && !isLocalRunId?.(evt.runId);
       if (suppressEmptyExternalPlaceholder) {
