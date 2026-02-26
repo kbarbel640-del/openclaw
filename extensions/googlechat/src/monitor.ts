@@ -222,6 +222,9 @@ export async function handleGoogleChatWebhookRequest(
       audienceType,
       audience,
     });
+    if (!verification.ok && verification.reason) {
+      target.runtime.error?.(`[${target.account.accountId}] auth failed: ${verification.reason}`);
+    }
     return verification.ok;
   });
 

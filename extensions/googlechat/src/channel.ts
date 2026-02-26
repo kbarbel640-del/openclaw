@@ -563,14 +563,22 @@ export const googlechatPlugin: ChannelPlugin<ResolvedGoogleChatAccount> = {
         webhookUrl: account.config.webhookUrl,
         statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
       });
-      return () => {
-        unregister?.();
-        ctx.setStatus({
-          accountId: account.accountId,
-          running: false,
-          lastStopAt: Date.now(),
-        });
-      };
+      // Keep alive until abort so the framework doesn't treat this as "stopped"
+      await new Promise<void>((resolve) => {
+        ctx.abortSignal.addEventListener(
+          "abort",
+          () => {
+            unregister?.();
+            ctx.setStatus({
+              accountId: account.accountId,
+              running: false,
+              lastStopAt: Date.now(),
+            });
+            resolve();
+          },
+          { once: true },
+        );
+      });
     },
   },
 };
