@@ -186,6 +186,11 @@ describe("createTelegramBot", () => {
     ).toBe("telegram:123:control");
     expect(
       getTelegramSequentialKey({
+        message: mockMessage({ chat: mockChat({ id: 123 }), text: "do not do that" }),
+      }),
+    ).toBe("telegram:123:control");
+    expect(
+      getTelegramSequentialKey({
         message: mockMessage({ chat: mockChat({ id: 123 }), text: "остановись" }),
       }),
     ).toBe("telegram:123:control");
@@ -202,6 +207,11 @@ describe("createTelegramBot", () => {
     expect(
       getTelegramSequentialKey({
         message: mockMessage({ chat: mockChat({ id: 123 }), text: "/abort now" }),
+      }),
+    ).toBe("telegram:123");
+    expect(
+      getTelegramSequentialKey({
+        message: mockMessage({ chat: mockChat({ id: 123 }), text: "please do not do that" }),
       }),
     ).toBe("telegram:123");
   });
@@ -802,6 +812,29 @@ describe("createTelegramBot", () => {
         date: 1736380800,
       },
       expectedReplyCount: 1,
+    },
+    {
+      name: "blocks group messages when per-group allowFrom override is explicitly empty",
+      config: {
+        channels: {
+          telegram: {
+            groupPolicy: "open",
+            groups: {
+              "-100123456789": {
+                allowFrom: [],
+                requireMention: false,
+              },
+            },
+          },
+        },
+      },
+      message: {
+        chat: { id: -100123456789, type: "group", title: "Test Group" },
+        from: { id: 999999, username: "random" },
+        text: "hello",
+        date: 1736380800,
+      },
+      expectedReplyCount: 0,
     },
     {
       name: "allows all group messages when groupPolicy is 'open'",
