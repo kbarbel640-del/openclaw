@@ -341,6 +341,26 @@ export function createAgentEventHandler({
     const toolVerbose = isToolEvent ? resolveToolVerboseLevel(evt.runId, sessionKey) : "off";
     if (isToolEvent && toolVerbose === "off") {
       agentRunSeq.set(evt.runId, evt.seq);
+      // Still broadcast minimal tool summary for webchat thinking notes (name + phase only).
+      // Detailed tool results are suppressed; only start/end/error phase transitions are sent.
+      const phase = typeof evt.data?.phase === "string" ? evt.data.phase : null;
+      if (phase === "start" || phase === "end" || phase === "error") {
+        const summaryData: Record<string, unknown> = { phase };
+        if (evt.data?.name) summaryData.name = evt.data.name;
+        if (evt.data?.toolCallId) summaryData.toolCallId = evt.data.toolCallId;
+        const summaryPayload = {
+          runId: evt.runId,
+          stream: evt.stream,
+          seq: evt.seq,
+          ts: evt.ts,
+          ...(sessionKey ? { sessionKey } : {}),
+          data: summaryData,
+        };
+        broadcast("agent", summaryPayload, { dropIfSlow: true });
+        if (sessionKey) {
+          nodeSendToSession(sessionKey, "agent", summaryPayload);
+        }
+      }
       return;
     }
     const toolPayload =

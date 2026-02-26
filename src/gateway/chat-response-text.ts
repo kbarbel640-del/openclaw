@@ -4,7 +4,8 @@ export const EMPTY_ASSISTANT_TEXT_FALLBACK =
   "Run completed without assistant text. Please retry or check model/provider health.";
 
 export function sanitizeAssistantText(raw: string): string {
-  let text = raw.replace(/<\/?final>/g, "");
+  // Match both complete tags (<final>, </final>) and partial streaming tags (<final, </final)
+  let text = raw.replace(/<\/?final>?/g, "");
   while (LOOP_DONE_SENTINEL_REGEX.test(text)) {
     text = text.replace(LOOP_DONE_SENTINEL_REGEX, "");
   }

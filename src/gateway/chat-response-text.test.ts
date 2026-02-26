@@ -6,6 +6,15 @@ describe("chat response text helpers", () => {
     expect(sanitizeAssistantText("<final>Hello world</final>\nLOOP_DONE")).toBe("Hello world");
   });
 
+  it("removes partial final tags from streaming chunks", () => {
+    // Partial closing tag (missing >)
+    expect(sanitizeAssistantText("✓</final")).toBe("✓");
+    // Partial opening tag (missing >)
+    expect(sanitizeAssistantText("<final✓</final>")).toBe("✓");
+    // Both partial
+    expect(sanitizeAssistantText("<final✓</final")).toBe("✓");
+  });
+
   it("merges chunk deltas and ignores empty incoming text", () => {
     const merged = mergeAssistantTextBuffer("Hello ", "world");
     expect(merged).toBe("Hello world");

@@ -145,7 +145,7 @@ describe("agent event handler", () => {
     resetAgentRunContextForTest();
   });
 
-  it("suppresses tool events when verbose is off", () => {
+  it("suppresses detailed tool events when verbose is off but broadcasts summary", () => {
     const broadcast = vi.fn();
     const broadcastToConnIds = vi.fn();
     const nodeSendToSession = vi.fn();
@@ -175,7 +175,18 @@ describe("agent event handler", () => {
       data: { phase: "start", name: "read", toolCallId: "t2" },
     });
 
+    // Detailed tool events not sent to specific recipients
     expect(broadcastToConnIds).not.toHaveBeenCalled();
+    // But minimal summary is broadcast for webchat thinking notes
+    expect(broadcast).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        runId: "run-tool-off",
+        stream: "tool",
+        data: { phase: "start", name: "read", toolCallId: "t2" },
+      }),
+      { dropIfSlow: true },
+    );
     resetAgentRunContextForTest();
   });
 
