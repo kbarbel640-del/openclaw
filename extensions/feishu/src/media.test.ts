@@ -190,6 +190,38 @@ describe("sendMediaFeishu msg_type routing", () => {
     expect(messageCreateMock).not.toHaveBeenCalled();
   });
 
+  it("passes reply_in_thread when replyInThread is true", async () => {
+    await sendMediaFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      mediaBuffer: Buffer.from("video"),
+      fileName: "reply.mp4",
+      replyToMessageId: "om_parent",
+      replyInThread: true,
+    });
+
+    expect(messageReplyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { message_id: "om_parent" },
+        data: expect.objectContaining({ msg_type: "media", reply_in_thread: true }),
+      }),
+    );
+  });
+
+  it("omits reply_in_thread when replyInThread is false", async () => {
+    await sendMediaFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      mediaBuffer: Buffer.from("video"),
+      fileName: "reply.mp4",
+      replyToMessageId: "om_parent",
+      replyInThread: false,
+    });
+
+    const callData = messageReplyMock.mock.calls[0][0].data;
+    expect(callData).not.toHaveProperty("reply_in_thread");
+  });
+
   it("fails closed when media URL fetch is blocked", async () => {
     loadWebMediaMock.mockRejectedValueOnce(
       new Error("Blocked: resolves to private/internal IP address"),
