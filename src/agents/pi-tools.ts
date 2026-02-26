@@ -432,6 +432,9 @@ export function createOpenClawCodingTools(options?: {
               : undefined,
           workspaceOnly: applyPatchWorkspaceOnly,
         });
+  const mutationLockingEnabled =
+    options?.config?.agents?.defaults?.sharedWorkspaceLocking?.enabled === true;
+
   const tools: AnyAgentTool[] = [
     ...base,
     ...(sandboxRoot
@@ -439,22 +442,38 @@ export function createOpenClawCodingTools(options?: {
         ? [
             workspaceOnly
               ? wrapToolWorkspaceRootGuardWithOptions(
-                  createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+                  createSandboxedEditTool({
+                    root: sandboxRoot,
+                    bridge: sandboxFsBridge!,
+                    mutationLockingEnabled,
+                  }),
                   sandboxRoot,
                   {
                     containerWorkdir: sandbox.containerWorkdir,
                   },
                 )
-              : createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+              : createSandboxedEditTool({
+                  root: sandboxRoot,
+                  bridge: sandboxFsBridge!,
+                  mutationLockingEnabled,
+                }),
             workspaceOnly
               ? wrapToolWorkspaceRootGuardWithOptions(
-                  createSandboxedWriteTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+                  createSandboxedWriteTool({
+                    root: sandboxRoot,
+                    bridge: sandboxFsBridge!,
+                    mutationLockingEnabled,
+                  }),
                   sandboxRoot,
                   {
                     containerWorkdir: sandbox.containerWorkdir,
                   },
                 )
-              : createSandboxedWriteTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+              : createSandboxedWriteTool({
+                  root: sandboxRoot,
+                  bridge: sandboxFsBridge!,
+                  mutationLockingEnabled,
+                }),
           ]
         : []
       : []),

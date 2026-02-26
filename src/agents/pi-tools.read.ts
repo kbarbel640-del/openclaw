@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { createEditTool, createReadTool, createWriteTool } from "@mariozechner/pi-coding-agent";
+import { withWorkspaceLock } from "../infra/workspace-lock-manager.js";
 import { detectMime } from "../media/mime.js";
 import { sniffMimeFromBase64 } from "../media/sniff-mime-from-base64.js";
 import type { ImageSanitizationLimits } from "./image-sanitization.js";
@@ -332,6 +333,8 @@ type RequiredParamGroup = {
   label?: string;
 };
 
+const workspaceMutationLocks = new Map<string, Promise<void>>();
+
 const RETRY_GUIDANCE_SUFFIX = " Supply correct parameters before retrying.";
 
 function parameterValidationError(message: string): Error {
@@ -550,6 +553,42 @@ export function wrapToolParamNormalization(
   };
 }
 
+export function wrapToolMutationLock(tool: AnyAgentTool, root: string): AnyAgentTool {
+  return {
+    ...tool,
+    execute: async (toolCallId, params, signal, onUpdate) => {
+      const normalized = normalizeToolParams(params);
+      const record =
+        normalized ??
+        (params && typeof params === "object" ? (params as Record<string, unknown>) : undefined);
+      const filePathRaw = record?.path;
+      if (typeof filePathRaw !== "string" || !filePathRaw.trim()) {
+        return tool.execute(toolCallId, params, signal, onUpdate);
+      }
+
+      const lockKey = path.resolve(root, filePathRaw);
+      const previous = workspaceMutationLocks.get(lockKey) ?? Promise.resolve();
+      let release: (() => void) | undefined;
+      const current = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      workspaceMutationLocks.set(lockKey, current);
+
+      await previous;
+      try {
+        return await withWorkspaceLock(lockKey, { kind: "file" }, async () => {
+          return await tool.execute(toolCallId, params, signal, onUpdate);
+        });
+      } finally {
+        release?.();
+        if (workspaceMutationLocks.get(lockKey) === current) {
+          workspaceMutationLocks.delete(lockKey);
+        }
+      }
+    },
+  };
+}
+
 export function wrapToolWorkspaceRootGuard(tool: AnyAgentTool, root: string): AnyAgentTool {
   return wrapToolWorkspaceRootGuardWithOptions(tool, root);
 }
@@ -639,6 +678,7 @@ type SandboxToolParams = {
   bridge: SandboxFsBridge;
   modelContextWindowTokens?: number;
   imageSanitization?: ImageSanitizationLimits;
+  mutationLockingEnabled?: boolean;
 };
 
 export function createSandboxedReadTool(params: SandboxToolParams) {
@@ -655,14 +695,16 @@ export function createSandboxedWriteTool(params: SandboxToolParams) {
   const base = createWriteTool(params.root, {
     operations: createSandboxWriteOperations(params),
   }) as unknown as AnyAgentTool;
-  return wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.write);
+  const normalized = wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.write);
+  return params.mutationLockingEnabled ? wrapToolMutationLock(normalized, params.root) : normalized;
 }
 
 export function createSandboxedEditTool(params: SandboxToolParams) {
   const base = createEditTool(params.root, {
     operations: createSandboxEditOperations(params),
   }) as unknown as AnyAgentTool;
-  return wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.edit);
+  const normalized = wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.edit);
+  return params.mutationLockingEnabled ? wrapToolMutationLock(normalized, params.root) : normalized;
 }
 
 export function createOpenClawReadTool(
