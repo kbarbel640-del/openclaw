@@ -1021,4 +1021,77 @@ describe("runMessageAction accountId defaults", () => {
     expect(ctx.accountId).toBe("ops");
     expect(ctx.params.accountId).toBe("ops");
   });
+
+  it("prefers agent-bound account over inherited defaultAccountId", async () => {
+    await runMessageAction({
+      cfg: {
+        bindings: [
+          {
+            agentId: "codeagent",
+            match: {
+              channel: "discord",
+              accountId: "codeagent",
+            },
+          },
+        ],
+      } as OpenClawConfig,
+      action: "send",
+      params: {
+        channel: "discord",
+        target: "channel:123",
+        message: "hi",
+      },
+      agentId: "codeagent",
+      defaultAccountId: "main",
+    });
+
+    const ctx = (handleAction.mock.calls as unknown as Array<[unknown]>)[0]?.[0] as
+      | {
+          accountId?: string | null;
+          params: Record<string, unknown>;
+        }
+      | undefined;
+    if (!ctx) {
+      throw new Error("expected action context");
+    }
+    expect(ctx.accountId).toBe("codeagent");
+    expect(ctx.params.accountId).toBe("codeagent");
+  });
+
+  it("keeps explicit accountId even when an agent binding exists", async () => {
+    await runMessageAction({
+      cfg: {
+        bindings: [
+          {
+            agentId: "codeagent",
+            match: {
+              channel: "discord",
+              accountId: "codeagent",
+            },
+          },
+        ],
+      } as OpenClawConfig,
+      action: "send",
+      params: {
+        channel: "discord",
+        target: "channel:123",
+        message: "hi",
+        accountId: "ops",
+      },
+      agentId: "codeagent",
+      defaultAccountId: "main",
+    });
+
+    const ctx = (handleAction.mock.calls as unknown as Array<[unknown]>)[0]?.[0] as
+      | {
+          accountId?: string | null;
+          params: Record<string, unknown>;
+        }
+      | undefined;
+    if (!ctx) {
+      throw new Error("expected action context");
+    }
+    expect(ctx.accountId).toBe("ops");
+    expect(ctx.params.accountId).toBe("ops");
+  });
 });
