@@ -118,6 +118,8 @@ export abstract class MemoryManagerSyncOps {
     loadError?: string;
   } = { enabled: false, available: false };
   protected vectorReady: Promise<boolean> | null = null;
+  // Set during safe reindex to prevent concurrent operations from using the temp db.
+  protected reindexing = false;
   protected watcher: FSWatcher | null = null;
   protected watchTimer: NodeJS.Timeout | null = null;
   protected sessionWatchTimer: NodeJS.Timeout | null = null;
@@ -156,6 +158,13 @@ export abstract class MemoryManagerSyncOps {
 
   protected async ensureVectorReady(dimensions?: number): Promise<boolean> {
     if (!this.vector.enabled) {
+      return false;
+    }
+    // During safe reindex, this.db points to a temp database that will be closed
+    // when the reindex completes. Returning false here causes search to use the
+    // non-vec0 fallback (cosine similarity on chunks table) instead of risking
+    // operations on a database that may be closed mid-query.
+    if (this.reindexing) {
       return false;
     }
     if (!this.vectorReady) {
@@ -214,7 +223,11 @@ export abstract class MemoryManagerSyncOps {
     if (this.vector.dims === dimensions) {
       return;
     }
-    if (this.vector.dims && this.vector.dims !== dimensions) {
+    // Drop the old vec0 table when dimensions change (e.g. embedding model switch).
+    // Use explicit undefined check — a falsy check would skip the drop when dims
+    // is reset to undefined during safe reindex, leaving a stale table whose
+    // schema doesn't match the new embedding dimensions.
+    if (this.vector.dims !== undefined && this.vector.dims !== dimensions) {
       this.dropVectorTable();
     }
     this.db.exec(
@@ -231,7 +244,7 @@ export abstract class MemoryManagerSyncOps {
       this.db.exec(`DROP TABLE IF EXISTS ${VECTOR_TABLE}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      log.debug(`Failed to drop ${VECTOR_TABLE}: ${message}`);
+      log.warn(`Failed to drop ${VECTOR_TABLE}: ${message}`);
     }
   }
 
@@ -1027,6 +1040,7 @@ export abstract class MemoryManagerSyncOps {
       this.vectorReady = originalDbClosed ? null : originalState.vectorReady;
     };
 
+    this.reindexing = true;
     this.db = tempDb;
     this.vectorReady = null;
     this.vector.available = null;
@@ -1092,12 +1106,14 @@ export abstract class MemoryManagerSyncOps {
       this.vector.loadError = undefined;
       this.ensureSchema();
       this.vector.dims = nextMeta?.vectorDims;
+      this.reindexing = false;
     } catch (err) {
       try {
         this.db.close();
       } catch {}
       await this.removeIndexFiles(tempDbPath);
       restoreOriginalState();
+      this.reindexing = false;
       throw err;
     }
   }

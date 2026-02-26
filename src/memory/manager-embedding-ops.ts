@@ -771,10 +771,16 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
       if (vectorReady && embedding.length > 0) {
         try {
           this.db.prepare(`DELETE FROM ${VECTOR_TABLE} WHERE id = ?`).run(id);
-        } catch {}
-        this.db
-          .prepare(`INSERT INTO ${VECTOR_TABLE} (id, embedding) VALUES (?, ?)`)
-          .run(id, vectorToBlob(embedding));
+          this.db
+            .prepare(`INSERT INTO ${VECTOR_TABLE} (id, embedding) VALUES (?, ?)`)
+            .run(id, vectorToBlob(embedding));
+        } catch (err) {
+          // vec0 dimension mismatch or db state error — log and continue
+          // so the rest of the indexing pipeline isn't corrupted.
+          log.debug(
+            `vec0 insert failed for ${id}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
       }
       if (this.fts.enabled && this.fts.available) {
         this.db
