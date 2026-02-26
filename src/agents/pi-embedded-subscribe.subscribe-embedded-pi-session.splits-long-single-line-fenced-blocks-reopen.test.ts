@@ -39,7 +39,6 @@ describe("subscribeEmbeddedPiSession", () => {
     } as unknown as Parameters<typeof subscribeEmbeddedPiSession>[0]["session"];
 
     const subscription = subscribeEmbeddedPiSession({
-      enforceFinalTag: false,
       session,
       runId: "run-1",
     });
@@ -90,7 +89,6 @@ describe("subscribeEmbeddedPiSession", () => {
     } as unknown as Parameters<typeof subscribeEmbeddedPiSession>[0]["session"];
 
     const subscription = subscribeEmbeddedPiSession({
-      enforceFinalTag: false,
       session,
       runId: "run-2",
     });
