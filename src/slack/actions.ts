@@ -254,6 +254,10 @@ export async function listSlackThreads(
   } = {},
 ): Promise<{ threads: SlackMessageSummary[]; hasMore: boolean }> {
   const client = await getClient(opts);
+  
+  // Note: limit applies to the underlying message fetch, not the filtered thread count.
+  // The actual number of threads returned may be less than limit since we filter
+  // client-side for messages with replies.
   const result = await client.conversations.history({
     channel: channelId,
     limit: opts.limit,

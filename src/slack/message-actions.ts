@@ -45,7 +45,7 @@ export function listSlackMessageActions(cfg: OpenClawConfig): ChannelMessageActi
     actions.add("emoji-list");
   }
   if (isActionEnabled("threads")) {
-    actions.add("list-threads");
+    actions.add("thread-list");
   }
   return Array.from(actions);
 }
