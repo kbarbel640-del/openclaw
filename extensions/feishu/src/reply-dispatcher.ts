@@ -14,7 +14,12 @@ import { getFeishuRuntime } from "./runtime.js";
 import { sendMarkdownCardFeishu, sendMessageFeishu } from "./send.js";
 import { FeishuStreamingSession } from "./streaming-card.js";
 import { resolveReceiveIdType } from "./targets.js";
-import { addTypingIndicator, removeTypingIndicator, type TypingIndicatorState } from "./typing.js";
+import {
+  addTypingIndicator,
+  isFeishuMessageNotFoundError,
+  removeTypingIndicator,
+  type TypingIndicatorState,
+} from "./typing.js";
 
 /** Detect if text contains markdown elements that benefit from card rendering */
 function shouldUseCard(text: string): boolean {
@@ -38,9 +43,19 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
   const prefixContext = createReplyPrefixContext({ cfg, agentId });
 
   let typingState: TypingIndicatorState | null = null;
+  // Set to true when the message is no longer available (Feishu error 231003).
+  // Once disabled, all subsequent typing-start attempts are skipped so the
+  // keepalive loop does not produce repeated 400 errors in the logs.
+  let typingDisabled = false;
   const typingCallbacks = createTypingCallbacks({
     start: async () => {
-      if (!replyToMessageId) {
+      if (!replyToMessageId || typingDisabled) {
+        return;
+      }
+      // Skip if we already hold a valid reaction ID — the keepalive should
+      // not try to add duplicate reactions on every tick, which would
+      // overwrite `typingState` with null and leave the emoji stuck.
+      if (typingState?.reactionId) {
         return;
       }
       typingState = await addTypingIndicator({ cfg, messageId: replyToMessageId, accountId });
@@ -49,16 +64,24 @@ export function createFeishuReplyDispatcher(params: CreateFeishuReplyDispatcherP
       if (!typingState) {
         return;
       }
-      await removeTypingIndicator({ cfg, state: typingState, accountId });
+      const stateToRemove = typingState;
       typingState = null;
+      await removeTypingIndicator({ cfg, state: stateToRemove, accountId });
     },
-    onStartError: (err) =>
+    onStartError: (err) => {
+      if (isFeishuMessageNotFoundError(err)) {
+        // Message was deleted or expired — disable the typing indicator for
+        // this session to prevent log spam on every keepalive tick.
+        typingDisabled = true;
+        return;
+      }
       logTypingFailure({
         log: (message) => params.runtime.log?.(message),
         channel: "feishu",
         action: "start",
         error: err,
-      }),
+      });
+    },
     onStopError: (err) =>
       logTypingFailure({
         log: (message) => params.runtime.log?.(message),
