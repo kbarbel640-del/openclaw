@@ -26,10 +26,12 @@ export type SubagentRunRecord = {
   archiveAtMs?: number;
   cleanupCompletedAt?: number;
   cleanupHandled?: boolean;
+  /** Timestamp (ms) when the internal subagent hook was successfully emitted. Used for exactly-once deduplication. */
+  internalHookEmittedAt?: number;
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
-const internalHookEmittedRunIds = new Set<string>();
+const internalHookInFlightRunIds = new Set<string>();
 let sweeper: NodeJS.Timeout | null = null;
 let listenerStarted = false;
 let listenerStop: (() => void) | null = null;
@@ -61,10 +63,16 @@ async function emitSubagentInternalHookOnce(params: {
   outcome: SubagentRunOutcome;
 }): Promise<boolean> {
   const runId = params.entry.runId.trim();
-  if (!runId || internalHookEmittedRunIds.has(runId)) {
+  if (!runId) {
     return false;
   }
-  internalHookEmittedRunIds.add(runId);
+  if (params.entry.internalHookEmittedAt) {
+    return false;
+  }
+  if (internalHookInFlightRunIds.has(runId)) {
+    return false;
+  }
+  internalHookInFlightRunIds.add(runId);
   try {
     const status = params.outcome.status;
     const action: string =
@@ -84,74 +92,8 @@ async function emitSubagentInternalHookOnce(params: {
         ...(runtimeMs != null ? { runtimeMs } : {}),
       }),
     );
-    return true;
-  } catch {
-    internalHookEmittedRunIds.delete(runId);
-    return false;
-  }
-}
-function resolveInternalSubagentAction(params: {
-  outcome: SubagentRunOutcome;
-}): "complete" | "error" | "timeout" {
-  if (params.outcome.status === "error") {
-    return "error";
-  }
-  if (params.outcome.status === "timeout") {
-    return "timeout";
-  }
-  return "complete";
-}
-
-function resolveInternalSubagentRuntimeMs(entry: SubagentRunRecord): number | undefined {
-  if (
-    typeof entry.startedAt === "number" &&
-    Number.isFinite(entry.startedAt) &&
-    typeof entry.endedAt === "number" &&
-    Number.isFinite(entry.endedAt)
-  ) {
-    const runtimeMs = Math.max(0, Math.trunc(entry.endedAt - entry.startedAt));
-    return runtimeMs;
-  }
-  return undefined;
-}
-
-async function emitSubagentInternalHookOnce(params: {
-  entry: SubagentRunRecord;
-  outcome: SubagentRunOutcome;
-}): Promise<boolean> {
-  const runId = params.entry.runId.trim();
-  if (!runId) {
-    return false;
-  }
-  if (internalHookEmittedRunIds.has(runId)) {
-    return false;
-  }
-  if (internalHookInFlightRunIds.has(runId)) {
-    return false;
-  }
-  internalHookInFlightRunIds.add(runId);
-  try {
-    const action = resolveInternalSubagentAction({ outcome: params.outcome });
-    const runtimeMs = resolveInternalSubagentRuntimeMs(params.entry);
-    const error =
-      params.outcome.status === "error" ? (params.outcome.error ?? undefined) : undefined;
-    await triggerInternalHook(
-      createInternalHookEvent("subagent", action, params.entry.requesterSessionKey, {
-        childSessionKey: params.entry.childSessionKey,
-        requesterSessionKey: params.entry.requesterSessionKey,
-        runId: params.entry.runId,
-        label: params.entry.label,
-        task: params.entry.task,
-        outcome: {
-          status: params.outcome.status,
-          ...(error ? { error } : {}),
-        },
-        startedAt: params.entry.startedAt,
-        endedAt: params.entry.endedAt,
-        ...(runtimeMs != null ? { runtimeMs } : {}),
-      }),
-    );
-    internalHookEmittedRunIds.add(runId);
+    params.entry.internalHookEmittedAt = Date.now();
+    persistSubagentRuns();
     return true;
   } catch {
     return false;
@@ -282,7 +224,6 @@ async function sweepSubagentRuns() {
       continue;
     }
     subagentRuns.delete(runId);
-    internalHookEmittedRunIds.delete(runId);
     mutated = true;
     try {
       await callGateway({
@@ -337,7 +278,6 @@ function ensureListener() {
     }
     persistSubagentRuns();
 
-    // Emit exactly-once internal hook event for this subagent lifecycle end.
     void emitSubagentInternalHookOnce({
       entry,
       outcome: entry.outcome ?? { status: "unknown" },
@@ -376,7 +316,6 @@ function finalizeSubagentCleanup(runId: string, cleanup: "delete" | "keep", didA
   }
   if (cleanup === "delete") {
     subagentRuns.delete(runId);
-    internalHookEmittedRunIds.delete(runId);
     persistSubagentRuns();
     return;
   }
@@ -491,7 +430,6 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
       persistSubagentRuns();
     }
 
-    // Emit exactly-once internal hook event (agent.wait path).
     void emitSubagentInternalHookOnce({
       entry,
       outcome: entry.outcome ?? { status: "unknown" },
@@ -528,7 +466,7 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
 export function resetSubagentRegistryForTests() {
   subagentRuns.clear();
   resumedRuns.clear();
-  internalHookEmittedRunIds.clear();
+  internalHookInFlightRunIds.clear();
   stopSweeper();
   restoreAttempted = false;
   if (listenerStop) {
@@ -547,7 +485,6 @@ export function addSubagentRunForTests(entry: SubagentRunRecord) {
 export function releaseSubagentRun(runId: string) {
   const didDelete = subagentRuns.delete(runId);
   if (didDelete) {
-    internalHookEmittedRunIds.delete(runId);
     persistSubagentRuns();
   }
   if (subagentRuns.size === 0) {
