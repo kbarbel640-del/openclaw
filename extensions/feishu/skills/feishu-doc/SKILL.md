@@ -99,6 +99,128 @@ Returns full block data including tables, images. Use this to read structured co
 { "action": "delete_block", "doc_token": "ABC123def", "block_id": "doxcnXXX" }
 ```
 
+## Table Row/Column Operations
+
+Get the table `block_id` first via `list_blocks` (block_type 31 = Table).
+
+### Insert Row
+
+```json
+{
+  "action": "insert_table_row",
+  "doc_token": "ABC123def",
+  "block_id": "tableBlockId",
+  "row_index": -1
+}
+```
+
+`row_index`: position to insert (`-1` = end, `0` = before first row).
+
+### Insert Column
+
+```json
+{
+  "action": "insert_table_column",
+  "doc_token": "ABC123def",
+  "block_id": "tableBlockId",
+  "column_index": -1
+}
+```
+
+`column_index`: position to insert (`-1` = end, `0` = before first column).
+
+### Delete Rows
+
+```json
+{
+  "action": "delete_table_rows",
+  "doc_token": "ABC123def",
+  "block_id": "tableBlockId",
+  "row_start": 2,
+  "row_count": 1
+}
+```
+
+`row_start`: 0-based index. `row_count`: number of rows to delete (default: 1).
+
+### Delete Columns
+
+```json
+{
+  "action": "delete_table_columns",
+  "doc_token": "ABC123def",
+  "block_id": "tableBlockId",
+  "column_start": 1,
+  "column_count": 1
+}
+```
+
+### Merge Cells
+
+```json
+{
+  "action": "merge_table_cells",
+  "doc_token": "ABC123def",
+  "block_id": "tableBlockId",
+  "row_start": 0,
+  "row_end": 2,
+  "column_start": 0,
+  "column_end": 2
+}
+```
+
+`row_end` / `column_end` are exclusive (like Python slice notation).
+
+## Colored Text
+
+Update a text block with colored segments. Use `list_blocks` to get the `block_id` first.
+
+### Syntax
+
+Wrap text with `[color]...[/color]` tags:
+
+```json
+{
+  "action": "color_text",
+  "doc_token": "ABC123def",
+  "block_id": "doxcnXXX",
+  "content": "Revenue [green]+15%[/green] YoY, Costs [red]-3%[/red]"
+}
+```
+
+### Supported Tags
+
+| Tag           | Effect                                 |
+| ------------- | -------------------------------------- |
+| `[red]`       | Red text (use for declines, negatives) |
+| `[green]`     | Green text (use for growth, positives) |
+| `[orange]`    | Orange text                            |
+| `[yellow]`    | Yellow text                            |
+| `[blue]`      | Blue text                              |
+| `[purple]`    | Purple text                            |
+| `[grey]`      | Grey text                              |
+| `[bold]`      | Bold text                              |
+| `[bg:yellow]` | Yellow background (any color works)    |
+
+Combine tags: `[green bold]+25%[/green]`
+
+### Data Report Example
+
+```json
+{
+  "action": "color_text",
+  "doc_token": "ABC123def",
+  "block_id": "doxcnXXX",
+  "content": "Q4 Revenue [green]+18%[/green]  Net Profit [green]+12%[/green]  Costs [red]-3%[/red]  Note: [bg:yellow]Q4 anomaly detected[/bg]"
+}
+```
+
+**Workflow for data reports:**
+
+1. `write` - create document structure with markdown
+2. `list_blocks` - find block IDs for rows containing metrics
+3. `color_text` - apply red/green colors to each metric block
+
 ## Reading Workflow
 
 1. Start with `action: "read"` - get plain text + statistics
