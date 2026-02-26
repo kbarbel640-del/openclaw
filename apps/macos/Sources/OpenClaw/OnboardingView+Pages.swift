@@ -76,8 +76,8 @@ extension OnboardingView {
             Text("选择网关")
                 .font(.largeTitle.weight(.semibold))
             Text(
-                "OpenClaw uses a single Gateway that stays running. Pick this Mac, " +
-                    "connect to a discovered gateway nearby, or configure later.")
+                "OpenClaw 需要连接到一个后台运行的网关（Gateway）。\n" +
+                    "对于新用户，请直接选择【在这台电脑上运行】，我们将自动为您安装和启动。")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -89,16 +89,16 @@ extension OnboardingView {
                 VStack(alignment: .leading, spacing: 10) {
                     let localSubtitle: String = {
                         guard let probe = self.localGatewayProbe else {
-                            return "Gateway starts automatically on this Mac."
+                            return "初次使用？我们将自动为您下载安装并在后台启动网关。"
                         }
                         let base = probe.expected
-                            ? "Existing gateway detected"
-                            : "Port \(probe.port) already in use"
+                            ? "已检测到运行中的本地网关"
+                            : "端口 \(probe.port) 已被占用"
                         let command = probe.command.isEmpty ? "" : " (\(probe.command) pid \(probe.pid))"
-                        return "\(base)\(command). Will attach."
+                        return "\(base)\(command)。即将连接。"
                     }()
                     self.connectionChoiceButton(
-                        title: "This Mac",
+                        title: "在这台电脑上运行 (推荐新用户)",
                         subtitle: localSubtitle,
                         selected: self.state.connectionMode == .local)
                     {
@@ -126,7 +126,7 @@ extension OnboardingView {
                     }
 
                     if self.gatewayDiscovery.gateways.isEmpty {
-                        Text("Searching for nearby gateways…")
+                        Text("正在搜索附近的网关…")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.leading, 4)
@@ -153,14 +153,14 @@ extension OnboardingView {
                     }
 
                     self.connectionChoiceButton(
-                        title: "Configure later",
-                        subtitle: "Don’t start the Gateway yet.",
+                        title: "稍后配置",
+                        subtitle: "暂时不启动或连接任何网关。",
                         selected: self.state.connectionMode == .unconfigured)
                     {
                         self.selectUnconfiguredGateway()
                     }
 
-                    Button(self.showAdvancedConnection ? "Hide Advanced" : "Advanced…") {
+                    Button(self.showAdvancedConnection ? "隐藏高级选项" : "高级选项…") {
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
                             self.showAdvancedConnection.toggle()
                         }
@@ -199,7 +199,7 @@ extension OnboardingView {
                                 }
                                 if self.state.remoteTransport == .ssh {
                                     GridRow {
-                                        Text("SSH target")
+                                        Text("SSH 目标地址")
                                             .font(.callout.weight(.semibold))
                                             .frame(width: labelWidth, alignment: .leading)
                                         TextField("user@host[:port]", text: self.$state.remoteTarget)
@@ -248,8 +248,8 @@ extension OnboardingView {
                             }
 
                             Text(self.state.remoteTransport == .direct
-                                ? "Tip: use Tailscale Serve so the gateway has a valid HTTPS cert."
-                                : "Tip: keep Tailscale enabled so your gateway stays reachable.")
+                                ? "提示：推荐使用 Tailscale Serve 服务，以确保网关具备有效的 HTTPS 证书。"
+                                : "提示：请保持 Tailscale 开启以确保您的网关可随时访问。")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -263,13 +263,13 @@ extension OnboardingView {
 
     func gatewaySubtitle(for gateway: GatewayDiscoveryModel.DiscoveredGateway) -> String? {
         if self.state.remoteTransport == .direct {
-            return GatewayDiscoveryHelpers.directUrl(for: gateway) ?? "Gateway pairing only"
+            return GatewayDiscoveryHelpers.directUrl(for: gateway) ?? "仅进行网关配对"
         }
         if let host = GatewayDiscoveryHelpers.sanitizedTailnetHost(gateway.tailnetDns) ?? gateway.lanHost {
             let portSuffix = gateway.sshPort != 22 ? " · ssh \(gateway.sshPort)" : ""
             return "\(host)\(portSuffix)"
         }
-        return "Gateway pairing only"
+        return "仅进行网关配对"
     }
 
     func isSelectedGateway(_ gateway: GatewayDiscoveryModel.DiscoveredGateway) -> Bool {
