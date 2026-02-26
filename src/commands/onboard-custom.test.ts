@@ -227,6 +227,21 @@ describe("promptCustomApiConfig", () => {
 });
 
 describe("applyCustomApiConfig", () => {
+  it("uses a 16000-token default context window for new custom models", () => {
+    const result = applyCustomApiConfig({
+      config: {},
+      baseUrl: "https://llm.example.com/v1",
+      modelId: "foo-large",
+      compatibility: "openai",
+    });
+
+    const model = result.config.models?.providers?.["custom-llm-example-com"]?.models?.find(
+      (entry) => entry.id === "foo-large",
+    );
+    expect(model?.contextWindow).toBe(16000);
+    expect(model?.maxTokens).toBe(4096);
+  });
+
   it.each([
     {
       name: "invalid compatibility values at runtime",
