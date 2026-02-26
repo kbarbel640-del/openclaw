@@ -151,6 +151,8 @@ export type SlackAccountConfig = {
   mediaMaxMb?: number;
   /** Reaction notification mode (off|own|all|allowlist). Default: own. */
   reactionNotifications?: SlackReactionNotificationMode;
+  /** When set, reaction events also trigger an agent turn via heartbeat wake. Default: off. */
+  reactionTrigger?: SlackReactionNotificationMode;
   /** Allowlist for reaction notifications when mode is allowlist. */
   reactionAllowlist?: Array<string | number>;
   /** Control reply threading when reply tags are present (off|first|all). */

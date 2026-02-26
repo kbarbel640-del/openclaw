@@ -26,6 +26,8 @@ export type SignalAccountConfig = CommonChannelMessagingConfig & {
   textChunkLimit?: number;
   /** Reaction notification mode (off|own|all|allowlist). Default: own. */
   reactionNotifications?: SignalReactionNotificationMode;
+  /** When set, reaction events also trigger an agent turn via heartbeat wake. Default: off. */
+  reactionTrigger?: SignalReactionNotificationMode;
   /** Allowlist for reaction notifications when mode is allowlist. */
   reactionAllowlist?: Array<string | number>;
   /** Action toggles for message tool capabilities. */

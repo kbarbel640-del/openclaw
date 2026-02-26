@@ -209,6 +209,7 @@ export const TelegramAccountSchemaBase = z
       .strict()
       .optional(),
     reactionNotifications: z.enum(["off", "own", "all"]).optional(),
+    reactionTrigger: z.enum(["off", "own", "all"]).optional(),
     reactionLevel: z.enum(["off", "ack", "minimal", "extensive"]).optional(),
     heartbeat: ChannelHeartbeatVisibilitySchema,
     linkPreview: z.boolean().optional(),
@@ -315,6 +316,7 @@ export const DiscordGuildSchema = z
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
+    reactionTrigger: z.enum(["off", "own", "all", "allowlist"]).optional(),
     users: DiscordIdListSchema.optional(),
     roles: DiscordIdListSchema.optional(),
     channels: z.record(z.string(), DiscordGuildChannelSchema.optional()).optional(),
@@ -665,6 +667,7 @@ export const SlackAccountSchema = z
     streamMode: z.enum(["replace", "status_final", "append"]).optional(),
     mediaMaxMb: z.number().positive().optional(),
     reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
+    reactionTrigger: z.enum(["off", "own", "all", "allowlist"]).optional(),
     reactionAllowlist: z.array(z.union([z.string(), z.number()])).optional(),
     replyToMode: ReplyToModeSchema.optional(),
     replyToModeByChatType: SlackReplyToModeByChatTypeSchema.optional(),
@@ -793,6 +796,7 @@ export const SignalAccountSchemaBase = z
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     mediaMaxMb: z.number().int().positive().optional(),
     reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
+    reactionTrigger: z.enum(["off", "own", "all", "allowlist"]).optional(),
     reactionAllowlist: z.array(z.union([z.string(), z.number()])).optional(),
     actions: z
       .object({

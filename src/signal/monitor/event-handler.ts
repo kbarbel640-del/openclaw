@@ -28,6 +28,7 @@ import { createTypingCallbacks } from "../../channels/typing.js";
 import { resolveChannelGroupRequireMention } from "../../config/group-policy.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../globals.js";
+import { requestHeartbeatNow } from "../../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { mediaKindFromMime } from "../../media/constants.js";
 import { buildPairingReply } from "../../pairing/pairing-messages.js";
@@ -401,6 +402,22 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       .filter(Boolean)
       .join(":");
     enqueueSystemEvent(text, { sessionKey: route.sessionKey, contextKey });
+
+    // When reactionTrigger is enabled, wake the agent session immediately.
+    const reactionTrigger = deps.cfg.channels?.signal?.reactionTrigger ?? "off";
+    if (reactionTrigger !== "off") {
+      const shouldTrigger =
+        reactionTrigger === "all" ||
+        reactionTrigger === "allowlist" ||
+        (reactionTrigger === "own" && targets.some((t) => t.isSelf));
+      if (shouldTrigger) {
+        requestHeartbeatNow({
+          reason: "reaction",
+          sessionKey: route.sessionKey,
+        });
+      }
+    }
+
     return true;
   }
 

@@ -144,6 +144,8 @@ export type TelegramAccountConfig = {
    * - "all": notify agent of all reactions
    */
   reactionNotifications?: "off" | "own" | "all";
+  /** When set, reaction events also trigger an agent turn via heartbeat wake. Default: off. */
+  reactionTrigger?: "off" | "own" | "all";
   /**
    * Controls agent's reaction capability:
    * - "off": agent cannot react

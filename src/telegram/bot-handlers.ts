@@ -20,6 +20,7 @@ import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
 import type { DmPolicy } from "../config/types.base.js";
 import type { TelegramGroupConfig, TelegramTopicConfig } from "../config/types.js";
 import { danger, logVerbose, warn } from "../globals.js";
+import { requestHeartbeatNow } from "../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import { MediaFetchError } from "../media/fetch.js";
 import { readChannelAllowFromStore } from "../pairing/pairing-store.js";
@@ -739,6 +740,22 @@ export const registerTelegramHandlers = ({
           contextKey: `telegram:reaction:add:${chatId}:${messageId}:${user?.id ?? "anon"}:${emoji}`,
         });
         logVerbose(`telegram: reaction event enqueued: ${text}`);
+      }
+
+      // When reactionTrigger is enabled, wake the agent session so it can
+      // process the reaction immediately instead of waiting for the next turn.
+      const reactionTrigger = telegramCfg.reactionTrigger ?? "off";
+      if (reactionTrigger !== "off") {
+        const isBotMessage = wasSentByBot(chatId, messageId);
+        const shouldTrigger =
+          reactionTrigger === "all" || (reactionTrigger === "own" && isBotMessage);
+        if (shouldTrigger) {
+          logVerbose(`telegram: reaction trigger wake for session ${sessionKey}`);
+          requestHeartbeatNow({
+            reason: "reaction",
+            sessionKey,
+          });
+        }
       }
     } catch (err) {
       runtime.error?.(danger(`telegram reaction handler failed: ${String(err)}`));
