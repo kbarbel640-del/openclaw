@@ -35,6 +35,7 @@ const WORKSPACE_STATE_VERSION = 1;
 
 const workspaceTemplateCache = new Map<string, Promise<string>>();
 let gitAvailabilityPromise: Promise<boolean> | null = null;
+const BRIDGE_DEREFERENCE_MAX_DEPTH = 8;
 
 // File content cache with mtime invalidation to avoid redundant reads
 const workspaceFileCache = new Map<string, { content: string; mtimeMs: number }>();
@@ -62,6 +63,86 @@ async function readFileWithCache(filePath: string): Promise<string> {
     // Remove from cache if file doesn't exist or is unreadable
     workspaceFileCache.delete(filePath);
     throw error;
+  }
+}
+
+function parseBridgeTarget(content: string): string | null {
+  const pointerLineMatch = content.trim().match(/^→\s+(.+)$/);
+  if (pointerLineMatch?.[1]) {
+    return pointerLineMatch[1].trim();
+  }
+
+  const frontmatterMatch = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)/);
+  if (!frontmatterMatch?.[1]) {
+    return null;
+  }
+
+  const frontmatter = new Map<string, string>();
+  for (const rawLine of frontmatterMatch[1].split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const separator = line.indexOf(":");
+    if (separator <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separator).trim().toLowerCase();
+    let value = line.slice(separator + 1).trim();
+    value = value.replace(/^(["'])(.*)\1$/, "$2");
+    frontmatter.set(key, value);
+  }
+
+  if (frontmatter.get("type")?.toLowerCase() !== "bridge") {
+    return null;
+  }
+  const target = frontmatter.get("target")?.trim();
+  return target ? target : null;
+}
+
+function normalizeBridgeVisitKey(filePath: string): string {
+  const normalized = path.resolve(filePath);
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+async function dereferenceBootstrapBridge(params: {
+  filePath: string;
+  content: string;
+  depth?: number;
+  seen?: Set<string>;
+}): Promise<string> {
+  const depth = params.depth ?? 0;
+  if (depth >= BRIDGE_DEREFERENCE_MAX_DEPTH) {
+    return params.content;
+  }
+
+  const targetRaw = parseBridgeTarget(params.content);
+  if (!targetRaw) {
+    return params.content;
+  }
+
+  const targetPath =
+    path.isAbsolute(targetRaw) || targetRaw.startsWith("~")
+      ? resolveUserPath(targetRaw)
+      : path.resolve(path.dirname(params.filePath), targetRaw);
+
+  const seen = params.seen ?? new Set<string>();
+  const targetKey = normalizeBridgeVisitKey(targetPath);
+  if (seen.has(targetKey)) {
+    return params.content;
+  }
+  seen.add(targetKey);
+
+  try {
+    const targetContent = await readFileWithCache(targetPath);
+    return await dereferenceBootstrapBridge({
+      filePath: targetPath,
+      content: targetContent,
+      depth: depth + 1,
+      seen,
+    });
+  } catch {
+    return params.content;
   }
 }
 
@@ -481,10 +562,15 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
   for (const entry of entries) {
     try {
       const content = await readFileWithCache(entry.filePath);
+      const resolvedContent = await dereferenceBootstrapBridge({
+        filePath: entry.filePath,
+        content,
+        seen: new Set([normalizeBridgeVisitKey(entry.filePath)]),
+      });
       result.push({
         name: entry.name,
         path: entry.filePath,
-        content,
+        content: resolvedContent,
         missing: false,
       });
     } catch {
