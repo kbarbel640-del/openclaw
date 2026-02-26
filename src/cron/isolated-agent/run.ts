@@ -226,14 +226,15 @@ export async function runCronIsolatedAgentTurn(params: {
     forceNew: params.job.sessionTarget === "isolated",
   });
   const runSessionId = cronSession.sessionEntry.sessionId;
-  // Isolated sessions get a unique run key per execution to prevent context bleed.
-  // Custom named sessions and hook sessions use the agent session key directly
-  // for context preservation. Decision is based on sessionTarget semantics,
-  // not key prefix, to avoid edge cases with custom names like "cron:foo".
-  const runSessionKey =
-    params.job.sessionTarget === "isolated"
-      ? `${agentSessionKey}:run:${runSessionId}`
-      : agentSessionKey;
+  // Isolated cron sessions get a unique :run: key per execution to prevent context bleed.
+  // We check both sessionTarget AND the cron: prefix to preserve hook behavior:
+  // hooks use sessionTarget="isolated" with "hook:*" session keys, and their run keys
+  // must NOT get the :run: suffix — the cron session reaper (isCronRunSessionKey) only
+  // prunes "cron:*:run:*" shaped keys, so hook :run: keys would leak unbounded.
+  // Custom named sessions use the agent session key directly for context preservation.
+  const isCronIsolated =
+    params.job.sessionTarget === "isolated" && baseSessionKey.startsWith("cron:");
+  const runSessionKey = isCronIsolated ? `${agentSessionKey}:run:${runSessionId}` : agentSessionKey;
   const persistSessionEntry = async () => {
     if (isFastTestEnv) {
       return;
@@ -256,7 +257,7 @@ export async function runCronIsolatedAgentTurn(params: {
     sessionId: runSessionId,
     sessionKey: runSessionKey,
   });
-  if (!cronSession.sessionEntry.label?.trim() && params.job.sessionTarget === "isolated") {
+  if (!cronSession.sessionEntry.label?.trim() && isCronIsolated) {
     const labelSuffix =
       typeof params.job.name === "string" && params.job.name.trim()
         ? params.job.name.trim()

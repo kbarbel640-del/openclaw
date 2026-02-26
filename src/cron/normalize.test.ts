@@ -385,6 +385,29 @@ describe("normalizeCronJobCreate", () => {
     expect(normalized.sessionTarget).toBe("research");
   });
 
+  it("rejects session targets containing colons to prevent canonical key injection", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "injection-attempt",
+      schedule: { kind: "cron", expr: "0 * * * *" },
+      sessionTarget: "agent:main:main",
+      payload: { kind: "agentTurn", message: "hello" },
+    }) as unknown as Record<string, unknown>;
+
+    // Should fall back to default "isolated" since the injected value is rejected
+    expect(normalized.sessionTarget).toBe("isolated");
+  });
+
+  it("rejects session targets with cron: prefix", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "cron-prefix",
+      schedule: { kind: "cron", expr: "0 * * * *" },
+      sessionTarget: "cron:fake-id",
+      payload: { kind: "agentTurn", message: "hello" },
+    }) as unknown as Record<string, unknown>;
+
+    expect(normalized.sessionTarget).toBe("isolated");
+  });
+
   it("strips invalid delivery mode from partial delivery objects", () => {
     const normalized = normalizeCronJobCreate({
       name: "delivery mode",

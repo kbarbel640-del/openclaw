@@ -204,6 +204,14 @@ function normalizeSessionTarget(raw: unknown) {
   if (!trimmed) {
     return undefined;
   }
+  // Reject values that look like canonical session keys (e.g. "agent:main:main")
+  // to prevent custom targets from bypassing session isolation boundaries.
+  if (trimmed.includes(":")) {
+    if (trimmed === "main" || trimmed === "isolated") {
+      return trimmed;
+    }
+    return undefined;
+  }
   return trimmed;
 }
 
