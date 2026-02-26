@@ -65,6 +65,20 @@ type WebhookTarget = {
 
 const webhookTargets = new Map<string, WebhookTarget[]>();
 
+function removeGoogleChatWebhookTargetsForAccount(accountId: string) {
+  for (const [path, targets] of webhookTargets.entries()) {
+    const filtered = targets.filter((entry) => entry.account.accountId !== accountId);
+    if (filtered.length === targets.length) {
+      continue;
+    }
+    if (filtered.length > 0) {
+      webhookTargets.set(path, filtered);
+      continue;
+    }
+    webhookTargets.delete(path);
+  }
+}
+// updated
 function logVerbose(core: GoogleChatCoreRuntime, runtime: GoogleChatRuntimeEnv, message: string) {
   if (core.logging.shouldLogVerbose()) {
     runtime.log?.(`[googlechat] ${message}`);
@@ -97,6 +111,8 @@ function warnDeprecatedUsersEmailEntries(
 }
 
 export function registerGoogleChatWebhookTarget(target: WebhookTarget): () => void {
+  // Replace stale registrations for the same account (for example after crash-loop restarts).
+  removeGoogleChatWebhookTargetsForAccount(target.account.accountId);
   return registerWebhookTarget(webhookTargets, target).unregister;
 }
 
@@ -213,6 +229,7 @@ export async function handleGoogleChatWebhookRequest(
   const effectiveBearer = authHeaderNow.toLowerCase().startsWith("bearer ")
     ? authHeaderNow.slice("bearer ".length)
     : bearer;
+  const verificationFailures: Array<{ accountId: string; reason: string }> = [];
 
   const matchedTarget = await resolveSingleWebhookTargetAsync(targets, async (target) => {
     const audienceType = target.audienceType;
@@ -222,10 +239,26 @@ export async function handleGoogleChatWebhookRequest(
       audienceType,
       audience,
     });
+    if (!verification.ok) {
+      verificationFailures.push({
+        accountId: target.account.accountId,
+        reason: verification.reason ?? "unknown verification failure",
+      });
+    }
     return verification.ok;
   });
 
   if (matchedTarget.kind === "none") {
+    const details = Array.from(
+      new Set(verificationFailures.map((entry) => `[${entry.accountId}] ${entry.reason}`)),
+    ).join(" | ");
+    const message =
+      details.length > 0
+        ? `[googlechat] webhook auth failed: ${details}`
+        : "[googlechat] webhook auth failed: no targets matched";
+    for (const target of targets) {
+      target.runtime.error?.(message);
+    }
     res.statusCode = 401;
     res.end("unauthorized");
     return true;
@@ -919,8 +952,9 @@ export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): ()
     defaultPath: "/googlechat",
   });
   if (!webhookPath) {
-    options.runtime.error?.(`[${options.account.accountId}] invalid webhook path`);
-    return () => {};
+    const message = `[${options.account.accountId}] invalid webhook path`;
+    options.runtime.error?.(message);
+    throw new Error(message);
   }
 
   const audienceType = normalizeAudienceType(options.account.config.audienceType);
@@ -942,10 +976,22 @@ export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): ()
   return unregister;
 }
 
-export async function startGoogleChatMonitor(
-  params: GoogleChatMonitorOptions,
-): Promise<() => void> {
-  return monitorGoogleChatProvider(params);
+export async function startGoogleChatMonitor(params: GoogleChatMonitorOptions): Promise<void> {
+  const unregister = monitorGoogleChatProvider(params);
+  const abortSignal = params.abortSignal;
+  try {
+    if (!abortSignal.aborted) {
+      await new Promise<void>((resolve) => {
+        const onAbort = () => {
+          abortSignal.removeEventListener("abort", onAbort);
+          resolve();
+        };
+        abortSignal.addEventListener("abort", onAbort, { once: true });
+      });
+    }
+  } finally {
+    unregister();
+  }
 }
 
 export function resolveGoogleChatWebhookPath(params: {
