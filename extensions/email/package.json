@@ -8,6 +8,7 @@
     "nodemailer": "^7.0.10"
   },
   "devDependencies": {
+    "@types/nodemailer": "^7.0.11",
     "openclaw": "workspace:*"
   },
   "openclaw": {
