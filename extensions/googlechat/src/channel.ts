@@ -21,6 +21,7 @@ import {
   type OpenClawConfig,
 } from "openclaw/plugin-sdk";
 import { GoogleChatConfigSchema } from "openclaw/plugin-sdk";
+import { waitForAbortSignal } from "../../../src/infra/abort-signal.js";
 import {
   listGoogleChatAccountIds,
   resolveDefaultGoogleChatAccountId,
@@ -566,9 +567,7 @@ export const googlechatPlugin: ChannelPlugin<ResolvedGoogleChatAccount> = {
 
       // Block until shutdown signal — webhook channels don't need a long-running
       // subscription, but the framework expects the promise to stay pending.
-      await new Promise<void>((resolve) => {
-        ctx.abortSignal.addEventListener("abort", resolve, { once: true });
-      });
+      await waitForAbortSignal(ctx.abortSignal);
 
       unregister?.();
       ctx.setStatus({
