@@ -40,6 +40,7 @@ import {
 import {
   createDedupeCache,
   formatInboundFromLabel,
+  resolveAutoThreadRootId,
   resolveThreadSessionKeys,
 } from "./monitor-helpers.js";
 import { resolveOncharPrefixes, stripOncharPrefix } from "./monitor-onchar.js";
@@ -529,7 +530,12 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
     });
 
     const baseSessionKey = route.sessionKey;
-    const threadRootId = post.root_id?.trim() || undefined;
+    const threadRootId = resolveAutoThreadRootId({
+      postId: post.id,
+      rawRootId: post.root_id,
+      chatKind: channelChatType(kind),
+      autoThread: account.config.autoThread === true,
+    });
     const threadKeys = resolveThreadSessionKeys({
       baseSessionKey,
       threadId: threadRootId,

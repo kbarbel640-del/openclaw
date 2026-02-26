@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Mattermost/autoThread: add `autoThread` config option to automatically reply inside a thread on inbound channel messages, keeping channels clean. Mirrors Discord's existing `autoThread` behavior. (#22328)
 - Agents/Routing CLI: add `openclaw agents bindings`, `openclaw agents bind`, and `openclaw agents unbind` for account-scoped route management, including channel-only to account-scoped binding upgrades, role-aware binding identity handling, plugin-resolved binding account IDs, and optional account-binding prompts in `openclaw channels add`. (#27195) thanks @gumadeiras.
 
 ### Fixes
