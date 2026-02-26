@@ -1,0 +1,182 @@
+[
+  {
+    "source": "OpenClaw",
+    "target": "OpenClaw"
+  },
+  {
+    "source": "Gateway",
+    "target": "Gateway (шлюз)"
+  },
+  {
+    "source": "Pi",
+    "target": "Pi"
+  },
+  {
+    "source": "Skills",
+    "target": "Skills (навыки)"
+  },
+  {
+    "source": "Skills config",
+    "target": "конфигурация Skills"
+  },
+  {
+    "source": "Skills Config",
+    "target": "конфигурация Skills"
+  },
+  {
+    "source": "local loopback",
+    "target": "local loopback"
+  },
+  {
+    "source": "Tailscale",
+    "target": "Tailscale"
+  },
+  {
+    "source": "Getting Started",
+    "target": "Начало работы"
+  },
+  {
+    "source": "Getting started",
+    "target": "Начало работы"
+  },
+  {
+    "source": "Quick start",
+    "target": "Быстрый старт"
+  },
+  {
+    "source": "Quick Start",
+    "target": "Быстрый старт"
+  },
+  {
+    "source": "Docs directory",
+    "target": "Каталог документации"
+  },
+  {
+    "source": "Credits",
+    "target": "Благодарности"
+  },
+  {
+    "source": "Features",
+    "target": "Возможности"
+  },
+  {
+    "source": "DMs",
+    "target": "личные сообщения"
+  },
+  {
+    "source": "DM",
+    "target": "личное сообщение"
+  },
+  {
+    "source": "sandbox",
+    "target": "песочница"
+  },
+  {
+    "source": "Sandbox",
+    "target": "Песочница"
+  },
+  {
+    "source": "sandboxing",
+    "target": "изоляция в песочнице"
+  },
+  {
+    "source": "Sandboxing",
+    "target": "Изоляция в песочнице"
+  },
+  {
+    "source": "sandboxed",
+    "target": "изолированный"
+  },
+  {
+    "source": "Sandboxed",
+    "target": "Изолированный"
+  },
+  {
+    "source": "Companion apps",
+    "target": "Сопутствующие приложения"
+  },
+  {
+    "source": "expected keys",
+    "target": "ожидаемые ключи"
+  },
+  {
+    "source": "block streaming",
+    "target": "потоковая передача блоков"
+  },
+  {
+    "source": "Block streaming",
+    "target": "Потоковая передача блоков"
+  },
+  {
+    "source": "Discovery",
+    "target": "Обнаружение"
+  },
+  {
+    "source": "Network model",
+    "target": "Сетевая модель"
+  },
+  {
+    "source": "agent",
+    "target": "агент"
+  },
+  {
+    "source": "channel",
+    "target": "канал"
+  },
+  {
+    "source": "session",
+    "target": "сессия"
+  },
+  {
+    "source": "provider",
+    "target": "провайдер"
+  },
+  {
+    "source": "model",
+    "target": "модель"
+  },
+  {
+    "source": "tool",
+    "target": "инструмент"
+  },
+  {
+    "source": "CLI",
+    "target": "CLI"
+  },
+  {
+    "source": "troubleshooting",
+    "target": "устранение неполадок"
+  },
+  {
+    "source": "FAQ",
+    "target": "FAQ (часто задаваемые вопросы)"
+  },
+  {
+    "source": "onboarding",
+    "target": "начальная настройка"
+  },
+  {
+    "source": "Onboarding",
+    "target": "Начальная настройка"
+  },
+  {
+    "source": "wizard",
+    "target": "мастер настройки"
+  },
+  {
+    "source": "environment variables",
+    "target": "переменные окружения"
+  },
+  {
+    "source": "environment variable",
+    "target": "переменная окружения"
+  },
+  {
+    "source": "env vars",
+    "target": "переменные окружения"
+  },
+  {
+    "source": "env var",
+    "target": "переменная окружения"
+  }
+]

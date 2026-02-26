@@ -1887,6 +1887,24 @@
             ]
           }
         ]
+      },
+      {
+        "language": "ru",
+        "tabs": [
+          {
+            "tab": "Начало работы",
+            "groups": [
+              {
+                "group": "Обзор",
+                "pages": ["ru/index"]
+              },
+              {
+                "group": "Первые шаги",
+                "pages": ["ru/start/getting-started"]
+              }
+            ]
+          }
+        ]
       }
     ]
   }
