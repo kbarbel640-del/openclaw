@@ -431,4 +431,128 @@ describe("setupChannels", () => {
       restore();
     }
   });
+
+  it("respects configureWhenConfigured skip without mutating selection or account state", async () => {
+    const select = vi.fn(async ({ message }: { message: string }) => {
+      if (message === "Select channel (QuickStart)") {
+        return "telegram";
+      }
+      throw new Error(`unexpected select prompt: ${message}`);
+    });
+    const selection = vi.fn();
+    const onAccountId = vi.fn();
+    const configureWhenConfigured = vi.fn(async () => "skip" as const);
+    const configure = vi.fn(async () => {
+      throw new Error("configure should not run when configureWhenConfigured handles skip");
+    });
+    const restore = patchChannelOnboardingAdapter("telegram", {
+      getStatus: vi.fn(async ({ cfg }) => ({
+        channel: "telegram",
+        configured: Boolean(cfg.channels?.telegram?.botToken),
+        statusLines: [],
+      })),
+      configureInteractive: undefined,
+      configureWhenConfigured,
+      configure,
+    });
+    const { multiselect, text } = createUnexpectedPromptGuards();
+
+    const prompter = createPrompter({
+      select: select as unknown as WizardPrompter["select"],
+      multiselect,
+      text,
+    });
+
+    const runtime = createExitThrowingRuntime();
+    try {
+      const cfg = await setupChannels(
+        {
+          channels: {
+            telegram: {
+              botToken: "old-token",
+            },
+          },
+        } as OpenClawConfig,
+        runtime,
+        prompter,
+        {
+          skipConfirm: true,
+          quickstartDefaults: true,
+          onSelection: selection,
+          onAccountId,
+        },
+      );
+
+      expect(configureWhenConfigured).toHaveBeenCalledWith(
+        expect.objectContaining({ configured: true, label: expect.any(String) }),
+      );
+      expect(configure).not.toHaveBeenCalled();
+      expect(selection).toHaveBeenCalledWith([]);
+      expect(onAccountId).not.toHaveBeenCalled();
+      expect(cfg.channels?.telegram?.botToken).toBe("old-token");
+    } finally {
+      restore();
+    }
+  });
+
+  it("prefers configureInteractive over configureWhenConfigured when both hooks exist", async () => {
+    const select = vi.fn(async ({ message }: { message: string }) => {
+      if (message === "Select channel (QuickStart)") {
+        return "telegram";
+      }
+      throw new Error(`unexpected select prompt: ${message}`);
+    });
+    const selection = vi.fn();
+    const onAccountId = vi.fn();
+    const configureInteractive = vi.fn(async () => "skip" as const);
+    const configureWhenConfigured = vi.fn(async () => {
+      throw new Error("configureWhenConfigured should not run when configureInteractive exists");
+    });
+    const restore = patchChannelOnboardingAdapter("telegram", {
+      getStatus: vi.fn(async ({ cfg }) => ({
+        channel: "telegram",
+        configured: Boolean(cfg.channels?.telegram?.botToken),
+        statusLines: [],
+      })),
+      configureInteractive,
+      configureWhenConfigured,
+    });
+    const { multiselect, text } = createUnexpectedPromptGuards();
+
+    const prompter = createPrompter({
+      select: select as unknown as WizardPrompter["select"],
+      multiselect,
+      text,
+    });
+
+    const runtime = createExitThrowingRuntime();
+    try {
+      await setupChannels(
+        {
+          channels: {
+            telegram: {
+              botToken: "old-token",
+            },
+          },
+        } as OpenClawConfig,
+        runtime,
+        prompter,
+        {
+          skipConfirm: true,
+          quickstartDefaults: true,
+          onSelection: selection,
+          onAccountId,
+        },
+      );
+
+      expect(configureInteractive).toHaveBeenCalledWith(
+        expect.objectContaining({ configured: true, label: expect.any(String) }),
+      );
+      expect(configureWhenConfigured).not.toHaveBeenCalled();
+      expect(selection).toHaveBeenCalledWith([]);
+      expect(onAccountId).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
 });
