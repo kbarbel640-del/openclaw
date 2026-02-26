@@ -4,7 +4,7 @@ import {
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
 } from "../../config/runtime-group-policy.js";
-import { logVerbose } from "../../globals.js";
+import { logVerbose, warn } from "../../globals.js";
 import { buildPairingReply } from "../../pairing/pairing-messages.js";
 import {
   readChannelAllowFromStore,
@@ -124,7 +124,11 @@ export async function checkInboundAccessControl(params: {
   }
   if (params.group && groupPolicy === "allowlist") {
     if (!groupAllowFrom || groupAllowFrom.length === 0) {
-      logVerbose("Blocked group message (groupPolicy: allowlist, no groupAllowFrom)");
+      // Use a visible log level so users know why their group messages are
+      // being dropped. Previously logVerbose was invisible by default.
+      warn(
+        "Blocked group message (groupPolicy: allowlist, no groupAllowFrom — add allowFrom or set groupPolicy: disabled)",
+      );
       return {
         allowed: false,
         shouldMarkRead: false,
