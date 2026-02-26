@@ -3,9 +3,10 @@ import { LogService } from "@vector-im/matrix-bot-sdk";
 import { normalizeAccountId } from "openclaw/plugin-sdk/account-id";
 import type { CoreConfig } from "../../types.js";
 import { resolveMatrixAuth } from "./config.js";
-import { createMatrixClient } from "./create-client.js";
 import { DEFAULT_ACCOUNT_KEY } from "./storage.js";
 import type { MatrixAuth } from "./types.js";
+
+type CreateMatrixClientFn = (typeof import("./create-client.js"))["createMatrixClient"];
 
 type SharedMatrixClientState = {
   client: MatrixClient;
@@ -35,6 +36,8 @@ async function createSharedMatrixClient(params: {
   timeoutMs?: number;
   accountId?: string | null;
 }): Promise<SharedMatrixClientState> {
+  const createMatrixClient: CreateMatrixClientFn = (await import("./create-client.js"))
+    .createMatrixClient;
   const client = await createMatrixClient({
     homeserver: params.auth.homeserver,
     userId: params.auth.userId,

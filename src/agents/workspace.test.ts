@@ -142,6 +142,91 @@ describe("loadWorkspaceBootstrapFiles", () => {
     const files = await loadWorkspaceBootstrapFiles(tempDir);
     expect(getMemoryEntries(files)).toHaveLength(0);
   });
+
+  it("dereferences single-line bridge pointers in bootstrap files", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    const identityTarget = path.join(tempDir, "identity", "agent.identity.md");
+    await fs.mkdir(path.dirname(identityTarget), { recursive: true });
+    await fs.writeFile(identityTarget, "- Name: Pointer Agent\n", "utf-8");
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_IDENTITY_FILENAME,
+      content: "\u2192 identity/agent.identity.md",
+    });
+
+    const files = await loadWorkspaceBootstrapFiles(tempDir);
+    const identity = files.find((file) => file.name === DEFAULT_IDENTITY_FILENAME);
+    expect(identity?.missing).toBe(false);
+    expect(identity?.content).toBe("- Name: Pointer Agent\n");
+  });
+
+  it("dereferences frontmatter bridge pointers in bootstrap files", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    const externalDir = await makeTempWorkspace("openclaw-workspace-bridge-");
+    const sharedPath = path.join(externalDir, "shared-agents.md");
+    await fs.writeFile(sharedPath, "# Shared\n- Rule: Always verify\n", "utf-8");
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_AGENTS_FILENAME,
+      content: `---\ntype: bridge\ntarget: ${sharedPath}\n---\n`,
+    });
+
+    const files = await loadWorkspaceBootstrapFiles(tempDir);
+    const agents = files.find((file) => file.name === DEFAULT_AGENTS_FILENAME);
+    expect(agents?.missing).toBe(false);
+    expect(agents?.content).toBe("# Shared\n- Rule: Always verify\n");
+  });
+
+  it("keeps original content when bridge target is missing", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    const bridgeContent = "---\ntype: bridge\ntarget: ./missing-identity.md\n---\n";
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_IDENTITY_FILENAME,
+      content: bridgeContent,
+    });
+
+    const files = await loadWorkspaceBootstrapFiles(tempDir);
+    const identity = files.find((file) => file.name === DEFAULT_IDENTITY_FILENAME);
+    expect(identity?.missing).toBe(false);
+    expect(identity?.content).toBe(bridgeContent);
+  });
+
+  it("dereferences chained bridge pointers", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    const pointerA = path.join(tempDir, "identity-a.md");
+    const pointerB = path.join(tempDir, "identity-b.md");
+    const finalTarget = path.join(tempDir, "identity-final.md");
+    await fs.writeFile(pointerA, "\u2192 ./identity-b.md\n", "utf-8");
+    await fs.writeFile(pointerB, "\u2192 ./identity-final.md\n", "utf-8");
+    await fs.writeFile(finalTarget, "- Name: Chained Agent\n", "utf-8");
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_IDENTITY_FILENAME,
+      content: "\u2192 ./identity-a.md\n",
+    });
+
+    const files = await loadWorkspaceBootstrapFiles(tempDir);
+    const identity = files.find((file) => file.name === DEFAULT_IDENTITY_FILENAME);
+    expect(identity?.missing).toBe(false);
+    expect(identity?.content).toBe("- Name: Chained Agent\n");
+  });
+
+  it("stops on bridge cycles without crashing", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    await fs.writeFile(path.join(tempDir, "identity-a.md"), "\u2192 ./identity-b.md\n", "utf-8");
+    await fs.writeFile(path.join(tempDir, "identity-b.md"), "\u2192 ./identity-a.md\n", "utf-8");
+    await writeWorkspaceFile({
+      dir: tempDir,
+      name: DEFAULT_IDENTITY_FILENAME,
+      content: "\u2192 ./identity-a.md\n",
+    });
+
+    const files = await loadWorkspaceBootstrapFiles(tempDir);
+    const identity = files.find((file) => file.name === DEFAULT_IDENTITY_FILENAME);
+    expect(identity?.missing).toBe(false);
+    expect(identity?.content).toBe("\u2192 ./identity-a.md\n");
+  });
 });
 
 describe("filterBootstrapFilesForSession", () => {

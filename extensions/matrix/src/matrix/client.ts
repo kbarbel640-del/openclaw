@@ -1,3 +1,5 @@
+type CreateMatrixClientFn = (typeof import("./client/create-client.js"))["createMatrixClient"];
+
 export type { MatrixAuth, MatrixResolvedConfig } from "./client/types.js";
 export { isBunRuntime } from "./client/runtime.js";
 export {
@@ -5,7 +7,14 @@ export {
   resolveMatrixConfigForAccount,
   resolveMatrixAuth,
 } from "./client/config.js";
-export { createMatrixClient } from "./client/create-client.js";
+
+export async function createMatrixClient(
+  ...args: Parameters<CreateMatrixClientFn>
+): ReturnType<CreateMatrixClientFn> {
+  const mod = await import("./client/create-client.js");
+  return mod.createMatrixClient(...args);
+}
+
 export {
   resolveSharedMatrixClient,
   waitForMatrixSync,
