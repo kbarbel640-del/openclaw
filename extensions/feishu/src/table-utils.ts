@@ -16,18 +16,19 @@ const DEFAULT_TABLE_WIDTH = 730; // Approximate Feishu page content width
  * 2. Weight CJK characters as 2x width (they render wider)
  * 3. Calculate proportional widths based on content length
  * 4. Apply min/max constraints
- * 5. Adjust to fit total table width
+ * 5. Redistribute remaining space to fill total table width
+ *
+ * Total width is derived from the original column_width values returned
+ * by the Convert API, ensuring tables match Feishu's expected dimensions.
  *
  * @param blocks - Array of blocks from Convert API
  * @param tableBlockId - The block_id of the table block
- * @param totalWidth - Total table width in pixels (default: 730)
  * @returns Array of column widths in pixels
  */
 export function calculateAdaptiveColumnWidths(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   blocks: any[],
   tableBlockId: string,
-  totalWidth: number = DEFAULT_TABLE_WIDTH,
 ): number[] {
   // Find the table block
   const tableBlock = blocks.find((b) => b.block_id === tableBlockId && b.block_type === 31);
@@ -36,7 +37,13 @@ export function calculateAdaptiveColumnWidths(
     return [];
   }
 
-  const { row_size, column_size } = tableBlock.table.property;
+  const { row_size, column_size, column_width: originalWidths } = tableBlock.table.property;
+
+  // Use original total width from Convert API, or fall back to default
+  const totalWidth =
+    originalWidths && originalWidths.length > 0
+      ? originalWidths.reduce((a: number, b: number) => a + b, 0)
+      : DEFAULT_TABLE_WIDTH;
   const cellIds: string[] = tableBlock.children || [];
 
   // Build block lookup map
