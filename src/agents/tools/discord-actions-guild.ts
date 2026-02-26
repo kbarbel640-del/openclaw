@@ -40,6 +40,25 @@ function readParentIdParam(params: Record<string, unknown>): string | null | und
   return readStringParam(params, "parentId");
 }
 
+/**
+ * Coerces a value that may be a boolean or string ("true"/"false") to an actual boolean.
+ * Returns undefined for invalid inputs.
+ */
+function coerceBool(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+  }
+  return undefined;
+}
+
 type DiscordRoleMutation = (params: {
   guildId: string;
   userId: string;
@@ -290,7 +309,7 @@ export async function handleDiscordGuildAction(
       const parentId = readParentIdParam(params);
       const topic = readStringParam(params, "topic");
       const position = readNumberParam(params, "position", { integer: true });
-      const nsfw = params.nsfw as boolean | undefined;
+      const nsfw = coerceBool(params.nsfw);
       const channel = accountId
         ? await createChannelDiscord(
             {
@@ -326,12 +345,12 @@ export async function handleDiscordGuildAction(
       const topic = readStringParam(params, "topic");
       const position = readNumberParam(params, "position", { integer: true });
       const parentId = readParentIdParam(params);
-      const nsfw = params.nsfw as boolean | undefined;
+      const nsfw = coerceBool(params.nsfw);
       const rateLimitPerUser = readNumberParam(params, "rateLimitPerUser", {
         integer: true,
       });
-      const archived = typeof params.archived === "boolean" ? params.archived : undefined;
-      const locked = typeof params.locked === "boolean" ? params.locked : undefined;
+      const archived = coerceBool(params.archived);
+      const locked = coerceBool(params.locked);
       const autoArchiveDuration = readNumberParam(params, "autoArchiveDuration", {
         integer: true,
       });
