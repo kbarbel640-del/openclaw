@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { CliDeps } from "../../cli/deps.js";
+import { agentCommand } from "../../commands/agent.js";
 import { loadConfig } from "../../config/config.js";
 import { resolveMainSessionKeyFromConfig } from "../../config/sessions.js";
 import { runCronIsolatedAgentTurn } from "../../cron/isolated-agent.js";
@@ -27,6 +28,28 @@ export function createGatewayHooksRequestHandler(params: {
     if (value.mode === "now") {
       requestHeartbeatNow({ reason: "hook:wake" });
     }
+  };
+
+  const dispatchMessageHook = (value: { text: string; mode: "now" | "next-heartbeat" }) => {
+    const sessionKey = resolveMainSessionKeyFromConfig();
+    const runId = randomUUID();
+    void (async () => {
+      try {
+        await agentCommand(
+          {
+            message: value.text,
+            sessionKey,
+            runId,
+            messageChannel: "hook",
+          },
+          undefined,
+          deps,
+        );
+      } catch (err) {
+        logHooks.warn(`hook message failed: ${String(err)}`);
+      }
+    })();
+    return runId;
   };
 
   const dispatchAgentHook = (value: {
@@ -113,5 +136,6 @@ export function createGatewayHooksRequestHandler(params: {
     logHooks,
     dispatchAgentHook,
     dispatchWakeHook,
+    dispatchMessageHook,
   });
 }

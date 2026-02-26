@@ -219,6 +219,19 @@ export function normalizeWakePayload(
   return { ok: true, value: { text, mode } };
 }
 
+export function normalizeMessagePayload(
+  payload: Record<string, unknown>,
+):
+  | { ok: true; value: { text: string; mode: "now" | "next-heartbeat" } }
+  | { ok: false; error: string } {
+  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+  if (!text) {
+    return { ok: false, error: "text required" };
+  }
+  const mode = payload.mode === "next-heartbeat" ? "next-heartbeat" : "now";
+  return { ok: true, value: { text, mode } };
+}
+
 export type HookAgentPayload = {
   message: string;
   name: string;

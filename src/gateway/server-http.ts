@@ -41,6 +41,7 @@ import {
   isHookAgentAllowed,
   normalizeAgentPayload,
   normalizeHookHeaders,
+  normalizeMessagePayload,
   normalizeWakePayload,
   readJsonBody,
   resolveHookSessionKey,
@@ -65,6 +66,7 @@ const HOOK_AUTH_FAILURE_TRACK_MAX = 2048;
 
 type HookDispatchers = {
   dispatchWakeHook: (value: { text: string; mode: "now" | "next-heartbeat" }) => void;
+  dispatchMessageHook: (value: { text: string; mode: "now" | "next-heartbeat" }) => string;
   dispatchAgentHook: (value: {
     message: string;
     name: string;
@@ -195,7 +197,15 @@ export function createHooksRequestHandler(
     logHooks: SubsystemLogger;
   } & HookDispatchers,
 ): HooksRequestHandler {
-  const { getHooksConfig, bindHost, port, logHooks, dispatchAgentHook, dispatchWakeHook } = opts;
+  const {
+    getHooksConfig,
+    bindHost,
+    port,
+    logHooks,
+    dispatchAgentHook,
+    dispatchWakeHook,
+    dispatchMessageHook,
+  } = opts;
   const hookAuthFailures = new Map<string, HookAuthFailure>();
 
   const resolveHookClientKey = (req: IncomingMessage): string => {
@@ -332,6 +342,17 @@ export function createHooksRequestHandler(
       return true;
     }
 
+    if (subPath === "message") {
+      const normalized = normalizeMessagePayload(payload as Record<string, unknown>);
+      if (!normalized.ok) {
+        sendJson(res, 400, { ok: false, error: normalized.error });
+        return true;
+      }
+      const runId = dispatchMessageHook(normalized.value);
+      sendJson(res, 202, { ok: true, runId });
+      return true;
+    }
+
     if (subPath === "agent") {
       const normalized = normalizeAgentPayload(payload as Record<string, unknown>);
       if (!normalized.ok) {
@@ -384,6 +405,14 @@ export function createHooksRequestHandler(
               mode: mapped.action.mode,
             });
             sendJson(res, 200, { ok: true, mode: mapped.action.mode });
+            return true;
+          }
+          if (mapped.action.kind === "message") {
+            const runId = dispatchMessageHook({
+              text: mapped.action.text,
+              mode: mapped.action.mode,
+            });
+            sendJson(res, 202, { ok: true, runId });
             return true;
           }
           const channel = resolveHookChannel(mapped.action.channel);
