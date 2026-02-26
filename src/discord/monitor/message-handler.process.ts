@@ -117,8 +117,9 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     return;
   }
 
-  if (ctx.threadBinding?.threadId) {
-    threadBindings.touchThread({ threadId: ctx.threadBinding.threadId });
+  const boundThreadId = ctx.threadBinding?.conversation?.conversationId?.trim();
+  if (boundThreadId && typeof threadBindings.touchThread === "function") {
+    threadBindings.touchThread({ threadId: boundThreadId });
   }
   const ackReaction = resolveAckReaction(cfg, route.agentId, {
     channel: "discord",

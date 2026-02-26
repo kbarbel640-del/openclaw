@@ -20,6 +20,7 @@ export type DiscordThreadBindingLookupRecord = {
 
 export type DiscordThreadBindingLookup = {
   listBySessionKey: (targetSessionKey: string) => DiscordThreadBindingLookupRecord[];
+  touchThread?: (params: { threadId: string; at?: number; persist?: boolean }) => unknown;
 };
 
 function resolveTargetChannelId(target: string): string | undefined {
@@ -272,6 +273,6 @@ export async function deliverDiscordReply(params: {
   }
 
   if (binding && deliveredAny) {
-    params.threadBindings?.touchThread({ threadId: binding.threadId });
+    params.threadBindings?.touchThread?.({ threadId: binding.threadId });
   }
 }
