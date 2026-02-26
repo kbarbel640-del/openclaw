@@ -12,6 +12,7 @@ import {
   sanitizeUserFacingText,
 } from "../../agents/pi-embedded-helpers.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import {
   resolveGroupSessionKey,
   resolveSessionTranscriptPath,
@@ -63,6 +64,36 @@ export type AgentRunLoopResult =
       directlySentBlockKeys?: Set<string>;
     }
   | { kind: "final"; payload: ReplyPayload };
+
+type UserFacingErrorMode = "silent" | "friendly" | "raw";
+
+function resolveMessageErrorMode(config: OpenClawConfig): UserFacingErrorMode {
+  const configured = config.messages?.errorMode;
+  if (configured === "silent" || configured === "friendly" || configured === "raw") {
+    return configured;
+  }
+  if (config.messages?.suppressErrors === true) {
+    return "silent";
+  }
+  return "friendly";
+}
+
+function isToolResultTurnMismatchError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("toolresult") &&
+    lower.includes("tooluse") &&
+    lower.includes("exceeds the number") &&
+    lower.includes("previous turn")
+  );
+}
+
+function buildFriendlyRunFailureText(message: string): string {
+  if (isToolResultTurnMismatchError(message)) {
+    return "⚠️ Session history got out of sync. Please try again, or use /new to start a fresh session.";
+  }
+  return "⚠️ Something went wrong while processing your request. Please try again, or use /new to start a fresh session.";
+}
 
 export async function runAgentTurnWithFallback(params: {
   commandBody: string;
@@ -461,6 +492,7 @@ export async function runAgentTurnWithFallback(params: {
       break;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const errorMode = resolveMessageErrorMode(params.followupRun.run.config);
       const isContextOverflow = isLikelyContextOverflowError(message);
       const isCompactionFailure = isCompactionFailureError(message);
       const isSessionCorruption = /function call turn comes immediately after/i.test(message);
@@ -553,15 +585,22 @@ export async function runAgentTurnWithFallback(params: {
       }
 
       defaultRuntime.error(`Embedded agent failed before reply: ${message}`);
-      const safeMessage = isTransientHttp
-        ? sanitizeUserFacingText(message, { errorContext: true })
-        : message;
-      const trimmedMessage = safeMessage.replace(/\.\s*$/, "");
-      const fallbackText = isContextOverflow
-        ? "⚠️ Context overflow — prompt too large for this model. Try a shorter message or a larger-context model."
-        : isRoleOrderingError
-          ? "⚠️ Message ordering conflict - please try again. If this persists, use /new to start a fresh session."
-          : `⚠️ Agent failed before reply: ${trimmedMessage}.\nLogs: openclaw logs --follow`;
+      const fallbackText =
+        errorMode === "silent"
+          ? SILENT_REPLY_TOKEN
+          : isContextOverflow
+            ? "⚠️ Context overflow — prompt too large for this model. Try a shorter message or a larger-context model."
+            : isRoleOrderingError
+              ? "⚠️ Message ordering conflict - please try again. If this persists, use /new to start a fresh session."
+              : errorMode === "friendly"
+                ? buildFriendlyRunFailureText(message)
+                : (() => {
+                    const safeMessage = isTransientHttp
+                      ? sanitizeUserFacingText(message, { errorContext: true })
+                      : message;
+                    const trimmedMessage = safeMessage.replace(/\.\s*$/, "");
+                    return `⚠️ Agent failed before reply: ${trimmedMessage}.\nLogs: openclaw logs --follow`;
+                  })();
 
       return {
         kind: "final",

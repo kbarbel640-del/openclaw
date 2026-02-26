@@ -82,6 +82,8 @@ export type StatusReactionsConfig = {
   timing?: StatusReactionsTimingConfig;
 };
 
+export type MessageErrorMode = "silent" | "friendly" | "raw";
+
 export type MessagesConfig = {
   /** @deprecated Use `whatsapp.messagePrefix` (WhatsApp-only inbound prefix). */
   messagePrefix?: string;
@@ -119,6 +121,16 @@ export type MessagesConfig = {
   statusReactions?: StatusReactionsConfig;
   /** When true, suppress ⚠️ tool-error warnings from being shown to the user. Default: false. */
   suppressToolErrors?: boolean;
+  /**
+   * Controls how provider/runtime errors are delivered to chat users.
+   * - "silent": do not send an error message
+   * - "friendly": send a generic, user-friendly message
+   * - "raw": include the raw provider/runtime error details
+   * Default: "friendly"
+   */
+  errorMode?: MessageErrorMode;
+  /** @deprecated Use `messages.errorMode: "silent"` instead. */
+  suppressErrors?: boolean;
   /** Text-to-speech settings for outbound replies. */
   tts?: TtsConfig;
 };

@@ -1300,6 +1300,10 @@ export const FIELD_HELP: Record<string, string> = {
     "Additional Telegram bot menu commands (merged with native; conflicts ignored).",
   "messages.suppressToolErrors":
     "When true, suppress ⚠️ tool-error warnings from being shown to the user. The agent already sees errors in context and can retry. Default: false.",
+  "messages.errorMode":
+    'Controls how provider/runtime failures are shown in chat: "silent" sends nothing, "friendly" sends a generic retry hint, and "raw" includes original error details. Default: "friendly".',
+  "messages.suppressErrors":
+    'Deprecated alias for silencing errors. Prefer setting messages.errorMode to "silent".',
   "messages.ackReaction": "Emoji reaction used to acknowledge inbound messages (empty disables).",
   "messages.ackReactionScope":
     'When to send ack reactions ("group-mentions", "group-all", "direct", "all").',

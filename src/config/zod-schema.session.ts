@@ -183,6 +183,8 @@ export const MessagesSchema = z
       .strict()
       .optional(),
     suppressToolErrors: z.boolean().optional(),
+    errorMode: z.enum(["silent", "friendly", "raw"]).optional(),
+    suppressErrors: z.boolean().optional(),
     tts: TtsConfigSchema,
   })
   .strict()
