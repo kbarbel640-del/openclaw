@@ -3,6 +3,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
+import { execSync } from "node:child_process";
 import { resolveConfigPath, resolveGatewayLockDir, resolveStateDir } from "../config/paths.js";
 import { isPidAlive } from "../shared/pid-alive.js";
 
@@ -131,12 +132,47 @@ async function checkPortFree(port: number, host = "127.0.0.1"): Promise<boolean>
   });
 }
 
+/**
+ * Check if any gateway process is running on the system (any port).
+ * This catches cases where multiple gateways start on different ports
+ * (e.g., via env var OPENCLAW_GATEWAY_PORT vs config).
+ */
+async function isAnyGatewayProcessRunning(): Promise<boolean> {
+  if (process.platform !== "linux") {
+    return false;
+  }
+
+  try {
+    // Check for any openclaw-gateway process
+    const output = execSync("pgrep -f 'openclaw-gateway' 2>/dev/null", {
+      encoding: "utf8",
+      timeout: 2000,
+    });
+    const pids = output.trim().split("\n").filter(Boolean).map((p) => parseInt(p, 10));
+    // Filter out current process
+    const otherPids = pids.filter((pid) => pid !== process.pid);
+    return otherPids.length > 0;
+  } catch {
+    // pgrep returns non-zero if no matches, which is fine
+    return false;
+  }
+}
+
 async function resolveGatewayOwnerStatus(
   pid: number,
   payload: LockPayload | null,
   platform: NodeJS.Platform,
   port: number | undefined,
 ): Promise<LockOwnerStatus> {
+  // First, check if ANY gateway is running (regardless of port).
+  // This catches cases where gateways start on different ports.
+  if (platform === "linux") {
+    const anyGatewayRunning = await isAnyGatewayProcessRunning();
+    if (anyGatewayRunning) {
+      return "alive";
+    }
+  }
+
   if (port != null) {
     const portFree = await checkPortFree(port);
     if (portFree) {
