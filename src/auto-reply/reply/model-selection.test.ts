@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../config/config.js";
-import { createModelSelectionState } from "./model-selection.js";
+import { createModelSelectionState, resolveContextTokens } from "./model-selection.js";
 
 vi.mock("../../agents/model-catalog.js", () => ({
   loadModelCatalog: vi.fn(async () => [
@@ -294,5 +294,106 @@ describe("createModelSelectionState resolveDefaultReasoningLevel", () => {
       hasModelDirective: false,
     });
     await expect(state.resolveDefaultReasoningLevel()).resolves.toBe("off");
+  });
+});
+
+describe("resolveContextTokens", () => {
+  it("returns explicit agentCfg.contextTokens when set", () => {
+    const result = resolveContextTokens({
+      agentCfg: { contextTokens: 500_000 } as unknown as NonNullable<
+        NonNullable<OpenClawConfig["agents"]>["defaults"]
+      >,
+      cfg: {} as OpenClawConfig,
+      provider: "anthropic",
+      model: "claude-sonnet-4-5",
+    });
+    expect(result).toBe(500_000);
+  });
+
+  it("returns 1M when context1m is configured for an Anthropic model", () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          models: {
+            "anthropic/claude-sonnet-4-5": {
+              params: { context1m: true },
+            },
+          },
+        },
+      },
+    } as unknown as OpenClawConfig;
+
+    const result = resolveContextTokens({
+      agentCfg: cfg.agents!.defaults,
+      cfg,
+      provider: "anthropic",
+      model: "claude-sonnet-4-5",
+    });
+    expect(result).toBe(1_048_576);
+  });
+
+  it("returns catalog fallback (200k) when context1m is not configured", () => {
+    const cfg = {
+      agents: {
+        defaults: {},
+      },
+    } as unknown as OpenClawConfig;
+
+    const result = resolveContextTokens({
+      agentCfg: cfg.agents!.defaults,
+      cfg,
+      provider: "anthropic",
+      model: "claude-sonnet-4-5",
+    });
+    // Should fall back to lookupContextTokens or DEFAULT_CONTEXT_TOKENS (200k)
+    expect(result).toBeLessThanOrEqual(200_000);
+  });
+
+  it("context1m takes precedence over catalog fallback", () => {
+    // This is the regression case: without the fix, session accounting
+    // would persist 200k from lookupContextTokens, and /status would
+    // read that persisted value as an override, showing 200k instead of 1M.
+    const cfg = {
+      agents: {
+        defaults: {
+          models: {
+            "anthropic/claude-opus-4-6": {
+              params: { context1m: true },
+            },
+          },
+        },
+      },
+    } as unknown as OpenClawConfig;
+
+    const result = resolveContextTokens({
+      agentCfg: cfg.agents!.defaults,
+      cfg,
+      provider: "anthropic",
+      model: "claude-opus-4-6",
+    });
+    expect(result).toBe(1_048_576);
+  });
+
+  it("does not return 1M for non-Anthropic models even with context1m", () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          models: {
+            "openai/gpt-4o": {
+              params: { context1m: true },
+            },
+          },
+        },
+      },
+    } as unknown as OpenClawConfig;
+
+    const result = resolveContextTokens({
+      agentCfg: cfg.agents!.defaults,
+      cfg,
+      provider: "openai",
+      model: "gpt-4o",
+    });
+    // Should NOT be 1M — context1m only applies to Anthropic models
+    expect(result).not.toBe(1_048_576);
   });
 });
