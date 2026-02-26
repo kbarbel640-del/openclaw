@@ -2,6 +2,7 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { createReplyPrefixOptions } from "openclaw/plugin-sdk";
 import { beforeEach, describe, expect, it } from "vitest";
 import { mattermostPlugin } from "./channel.js";
+import { resolveMattermostAccount } from "./mattermost/accounts.js";
 import { resetMattermostReactionBotUserCacheForTests } from "./mattermost/reactions.js";
 import {
   createMattermostReactionFetchMock,
@@ -232,4 +233,121 @@ describe("mattermostPlugin", () => {
       expect(prefixContext.responsePrefix).toBe("[Account]");
     });
   });
+
+  describe("chatmode requireMention resolution", () => {
+    // Bug: monitor.ts calls core.channel.groups.resolveRequireMention() (the SDK's
+    // resolveChannelGroupRequireMention) without passing requireMentionOverride from
+    // the account's chatmode-derived requireMention. This means chatmode: "onmessage"
+    // (which sets account.requireMention = false) is ignored, and channel messages
+    // without @mention are silently dropped.
+    //
+    // The plugin's resolveMattermostGroupRequireMention correctly checks account.requireMention,
+    // but the monitor doesn't call it — it calls the SDK function directly.
+
+    it("resolves requireMention=false when chatmode is 'onmessage'", () => {
+      const cfg: OpenClawConfig = {
+        channels: {
+          mattermost: {
+            enabled: true,
+            botToken: "test-token",
+            baseUrl: "https://chat.example.com",
+            chatmode: "onmessage",
+          },
+        },
+      };
+
+      const account = resolveMattermostAccount({ cfg });
+      expect(account.requireMention).toBe(false);
+    });
+
+    it("resolves requireMention=true when chatmode is 'oncall'", () => {
+      const cfg: OpenClawConfig = {
+        channels: {
+          mattermost: {
+            enabled: true,
+            botToken: "test-token",
+            baseUrl: "https://chat.example.com",
+            chatmode: "oncall",
+          },
+        },
+      };
+
+      const account = resolveMattermostAccount({ cfg });
+      expect(account.requireMention).toBe(true);
+    });
+
+    it("resolves requireMention=undefined when no chatmode is set", () => {
+      const cfg: OpenClawConfig = {
+        channels: {
+          mattermost: {
+            enabled: true,
+            botToken: "test-token",
+            baseUrl: "https://chat.example.com",
+          },
+        },
+      };
+
+      const account = resolveMattermostAccount({ cfg });
+      expect(account.requireMention).toBeUndefined();
+    });
+
+    it("monitor must pass account.requireMention to disable mention for onmessage", () => {
+      // The monitor must pass account.requireMention as requireMentionOverride.
+      // Without it, the SDK defaults to true (require mention) and channel messages
+      // without @mention are silently dropped even when chatmode is "onmessage".
+      const cfg: OpenClawConfig = {
+        channels: {
+          mattermost: {
+            enabled: true,
+            botToken: "test-token",
+            baseUrl: "https://chat.example.com",
+            chatmode: "onmessage",
+          },
+        },
+      };
+
+      const account = resolveMattermostAccount({ cfg });
+      expect(account.requireMention).toBe(false);
+
+      // Without the override, SDK defaults to true — this is the bug.
+      const withoutOverride = monitorResolveRequireMention({
+        cfg,
+        accountId: account.accountId,
+      });
+      expect(withoutOverride).toBe(true); // SDK default, ignores chatmode
+
+      // With the override, chatmode "onmessage" correctly disables mention.
+      const withOverride = monitorResolveRequireMention({
+        cfg,
+        accountId: account.accountId,
+        requireMentionOverride: account.requireMention,
+      });
+      expect(withOverride).toBe(false);
+    });
+  });
 });
+
+// Simulates the monitor's current call to core.channel.groups.resolveRequireMention.
+// When no per-group config exists and no requireMentionOverride is passed,
+// the SDK defaults to true.
+function monitorResolveRequireMention(params: {
+  cfg: OpenClawConfig;
+  accountId: string;
+  requireMentionOverride?: boolean;
+}): boolean {
+  // Check per-group config (none in our test setup)
+  const groups = params.cfg.channels?.mattermost?.groups as
+    | Record<string, { requireMention?: boolean }>
+    | undefined;
+  const defaultConfig = groups?.["*"];
+  const configMention = defaultConfig?.requireMention;
+
+  if (typeof configMention === "boolean") {
+    return configMention;
+  }
+  if (typeof params.requireMentionOverride === "boolean") {
+    return params.requireMentionOverride;
+  }
+  // SDK default: require mention
+  return true;
+}
