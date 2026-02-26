@@ -41,6 +41,13 @@ export type SessionEntry = {
   spawnDepth?: number;
   systemSent?: boolean;
   abortedLastRun?: boolean;
+  /**
+   * Session-level stop cutoff captured when /stop is received.
+   * Messages at/before this boundary are skipped to avoid replaying queued backlog.
+   */
+  abortCutoffMessageSid?: string;
+  /** Epoch ms cutoff paired with abortCutoffMessageSid when available. */
+  abortCutoffTimestamp?: number;
   chatType?: SessionChatType;
   thinkingLevel?: string;
   verboseLevel?: string;
