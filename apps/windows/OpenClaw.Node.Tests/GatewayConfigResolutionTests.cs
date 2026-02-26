@@ -39,4 +39,28 @@ public class GatewayConfigResolutionTests
         Assert.Null(url);
         Assert.Equal("gateway.host must be a string", error);
     }
+
+    [Fact]
+    public void BuildGatewayUrlFromGatewaySection_ReturnsError_ForNonIntegerPort()
+    {
+        using var doc = JsonDocument.Parse("{\"gateway\":{\"host\":\"127.0.0.1\",\"port\":18789.5}}\n");
+        var gateway = doc.RootElement.GetProperty("gateway");
+
+        var url = Program.BuildGatewayUrlFromGatewaySection(gateway, out var error);
+
+        Assert.Null(url);
+        Assert.Equal("gateway.port must be an integer in range 1..65535", error);
+    }
+
+    [Fact]
+    public void BuildGatewayUrlFromGatewaySection_ReturnsError_ForOutOfRangePort()
+    {
+        using var doc = JsonDocument.Parse("{\"gateway\":{\"host\":\"127.0.0.1\",\"port\":70000}}\n");
+        var gateway = doc.RootElement.GetProperty("gateway");
+
+        var url = Program.BuildGatewayUrlFromGatewaySection(gateway, out var error);
+
+        Assert.Null(url);
+        Assert.Equal("gateway.port must be in range 1..65535", error);
+    }
 }

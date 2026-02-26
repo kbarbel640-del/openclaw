@@ -513,7 +513,19 @@ namespace OpenClaw.Node
                     return null;
                 }
 
-                port = portEl.GetInt32();
+                if (!portEl.TryGetInt32(out var parsedPort))
+                {
+                    error = "gateway.port must be an integer in range 1..65535";
+                    return null;
+                }
+
+                if (parsedPort is < 1 or > 65535)
+                {
+                    error = "gateway.port must be in range 1..65535";
+                    return null;
+                }
+
+                port = parsedPort;
             }
 
             var normalizedHost = host.Contains(':') && !(host.StartsWith("[") && host.EndsWith("]"))
