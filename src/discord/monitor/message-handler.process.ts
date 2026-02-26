@@ -118,7 +118,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   }
 
   if (ctx.threadBinding?.threadId) {
-    threadBindings.touchThread({ threadId: ctx.threadBinding.threadId, persist: false });
+    threadBindings.touchThread({ threadId: ctx.threadBinding.threadId });
   }
   const ackReaction = resolveAckReaction(cfg, route.agentId, {
     channel: "discord",

@@ -21,6 +21,8 @@ export type ThreadBindingRecord = {
 
 export type PersistedThreadBindingRecord = ThreadBindingRecord & {
   sessionKey?: string;
+  /** @deprecated Legacy absolute expiry timestamp; migrated on load. */
+  expiresAt?: number;
 };
 
 export type PersistedThreadBindingsPayload = {

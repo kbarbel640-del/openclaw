@@ -44,6 +44,7 @@ import {
   resolveThreadBindingsPath,
   saveBindingsToDisk,
   setBindingRecord,
+  THREAD_BINDING_TOUCH_PERSIST_MIN_INTERVAL_MS,
   shouldDefaultPersist,
   resetThreadBindingsForTests,
 } from "./thread-bindings.state.js";
@@ -262,7 +263,9 @@ export function createThreadBindingManager(
       };
       setBindingRecord(nextRecord);
       if (touchParams.persist ?? persist) {
-        saveBindingsToDisk();
+        saveBindingsToDisk({
+          minIntervalMs: THREAD_BINDING_TOUCH_PERSIST_MIN_INTERVAL_MS,
+        });
       }
       return nextRecord;
     },

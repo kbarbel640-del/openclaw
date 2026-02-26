@@ -392,6 +392,66 @@ describe("thread binding lifecycle", () => {
     }
   });
 
+  it("persists touched activity timestamps across restart when persistence is enabled", async () => {
+    vi.useFakeTimers();
+    const previousStateDir = process.env.OPENCLAW_STATE_DIR;
+    const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-thread-bindings-"));
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    try {
+      __testing.resetThreadBindingsForTests();
+      vi.setSystemTime(new Date("2026-02-20T00:00:00.000Z"));
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: true,
+        enableSweeper: false,
+        idleTimeoutMs: 60_000,
+        maxAgeMs: 0,
+      });
+
+      await manager.bindTarget({
+        threadId: "thread-1",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:child",
+        agentId: "main",
+        webhookId: "wh-1",
+        webhookToken: "tok-1",
+      });
+
+      const touchedAt = new Date("2026-02-20T00:00:30.000Z").getTime();
+      vi.setSystemTime(touchedAt);
+      manager.touchThread({ threadId: "thread-1" });
+
+      __testing.resetThreadBindingsForTests();
+      const reloaded = createThreadBindingManager({
+        accountId: "default",
+        persist: true,
+        enableSweeper: false,
+        idleTimeoutMs: 60_000,
+        maxAgeMs: 0,
+      });
+
+      const record = reloaded.getByThreadId("thread-1");
+      expect(record).toBeDefined();
+      expect(record?.lastActivityAt).toBe(touchedAt);
+      expect(
+        resolveThreadBindingInactivityExpiresAt({
+          record: record!,
+          defaultIdleTimeoutMs: reloaded.getIdleTimeoutMs(),
+        }),
+      ).toBe(new Date("2026-02-20T00:01:30.000Z").getTime());
+    } finally {
+      __testing.resetThreadBindingsForTests();
+      if (previousStateDir === undefined) {
+        delete process.env.OPENCLAW_STATE_DIR;
+      } else {
+        process.env.OPENCLAW_STATE_DIR = previousStateDir;
+      }
+      fs.rmSync(stateDir, { recursive: true, force: true });
+      vi.useRealTimers();
+    }
+  });
+
   it("reuses webhook credentials after unbind when rebinding in the same channel", async () => {
     const manager = createThreadBindingManager({
       accountId: "default",
@@ -744,6 +804,104 @@ describe("thread binding lifecycle", () => {
     expect(result.removed).toBe(0);
     expect(result.staleSessionKeys).toEqual([]);
     expect(manager.getByThreadId("thread-acp-uncertain")).toBeDefined();
+  });
+
+  it("migrates legacy expiresAt bindings to idle/max-age semantics", () => {
+    const previousStateDir = process.env.OPENCLAW_STATE_DIR;
+    const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-thread-bindings-"));
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    try {
+      __testing.resetThreadBindingsForTests();
+      const bindingsPath = __testing.resolveThreadBindingsPath();
+      fs.mkdirSync(path.dirname(bindingsPath), { recursive: true });
+      const boundAt = Date.now() - 10_000;
+      const expiresAt = boundAt + 60_000;
+      fs.writeFileSync(
+        bindingsPath,
+        JSON.stringify(
+          {
+            version: 1,
+            bindings: {
+              "thread-legacy-active": {
+                accountId: "default",
+                channelId: "parent-1",
+                threadId: "thread-legacy-active",
+                targetKind: "subagent",
+                targetSessionKey: "agent:main:subagent:legacy-active",
+                agentId: "main",
+                boundBy: "system",
+                boundAt,
+                expiresAt,
+              },
+              "thread-legacy-disabled": {
+                accountId: "default",
+                channelId: "parent-1",
+                threadId: "thread-legacy-disabled",
+                targetKind: "subagent",
+                targetSessionKey: "agent:main:subagent:legacy-disabled",
+                agentId: "main",
+                boundBy: "system",
+                boundAt,
+                expiresAt: 0,
+              },
+            },
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: false,
+        enableSweeper: false,
+        idleTimeoutMs: 24 * 60 * 60 * 1000,
+        maxAgeMs: 0,
+      });
+
+      const active = manager.getByThreadId("thread-legacy-active");
+      expect(active).toBeDefined();
+      expect(active?.idleTimeoutMs).toBe(0);
+      expect(active?.maxAgeMs).toBe(expiresAt - boundAt);
+      expect(
+        resolveThreadBindingMaxAgeExpiresAt({
+          record: active!,
+          defaultMaxAgeMs: manager.getMaxAgeMs(),
+        }),
+      ).toBe(expiresAt);
+      expect(
+        resolveThreadBindingInactivityExpiresAt({
+          record: active!,
+          defaultIdleTimeoutMs: manager.getIdleTimeoutMs(),
+        }),
+      ).toBeUndefined();
+
+      const disabled = manager.getByThreadId("thread-legacy-disabled");
+      expect(disabled).toBeDefined();
+      expect(disabled?.idleTimeoutMs).toBe(0);
+      expect(disabled?.maxAgeMs).toBe(0);
+      expect(
+        resolveThreadBindingMaxAgeExpiresAt({
+          record: disabled!,
+          defaultMaxAgeMs: manager.getMaxAgeMs(),
+        }),
+      ).toBeUndefined();
+      expect(
+        resolveThreadBindingInactivityExpiresAt({
+          record: disabled!,
+          defaultIdleTimeoutMs: manager.getIdleTimeoutMs(),
+        }),
+      ).toBeUndefined();
+    } finally {
+      __testing.resetThreadBindingsForTests();
+      if (previousStateDir === undefined) {
+        delete process.env.OPENCLAW_STATE_DIR;
+      } else {
+        process.env.OPENCLAW_STATE_DIR = previousStateDir;
+      }
+      fs.rmSync(stateDir, { recursive: true, force: true });
+    }
   });
 
   it("persists unbinds even when no manager is active", () => {

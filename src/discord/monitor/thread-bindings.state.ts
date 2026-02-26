@@ -24,6 +24,7 @@ type ThreadBindingsGlobalState = {
   reusableWebhooksByAccountChannel: Map<string, { webhookId: string; webhookToken: string }>;
   persistByAccountId: Map<string, boolean>;
   loadedBindings: boolean;
+  lastPersistedAtMs: number;
 };
 
 // Plugin hooks can load this module via Jiti while core imports it via ESM.
@@ -46,6 +47,7 @@ function createThreadBindingsGlobalState(): ThreadBindingsGlobalState {
     >(),
     persistByAccountId: new Map<string, boolean>(),
     loadedBindings: false,
+    lastPersistedAtMs: 0,
   };
 }
 
@@ -70,6 +72,7 @@ export const RECENT_UNBOUND_WEBHOOK_ECHOES_BY_BINDING_KEY =
 export const REUSABLE_WEBHOOKS_BY_ACCOUNT_CHANNEL =
   THREAD_BINDINGS_STATE.reusableWebhooksByAccountChannel;
 export const PERSIST_BY_ACCOUNT_ID = THREAD_BINDINGS_STATE.persistByAccountId;
+export const THREAD_BINDING_TOUCH_PERSIST_MIN_INTERVAL_MS = 15_000;
 
 export function rememberThreadBindingToken(params: { accountId?: string; token?: string }) {
   const normalizedAccountId = normalizeAccountId(params.accountId);
@@ -177,6 +180,29 @@ function normalizePersistedBinding(threadIdKey: string, raw: unknown): ThreadBin
     typeof value.maxAgeMs === "number" && Number.isFinite(value.maxAgeMs)
       ? Math.max(0, Math.floor(value.maxAgeMs))
       : undefined;
+  const legacyExpiresAt =
+    typeof (value as { expiresAt?: unknown }).expiresAt === "number" &&
+    Number.isFinite((value as { expiresAt?: unknown }).expiresAt)
+      ? Math.max(0, Math.floor((value as { expiresAt?: number }).expiresAt ?? 0))
+      : undefined;
+
+  let migratedIdleTimeoutMs = idleTimeoutMs;
+  let migratedMaxAgeMs = maxAgeMs;
+  if (
+    migratedIdleTimeoutMs === undefined &&
+    migratedMaxAgeMs === undefined &&
+    legacyExpiresAt != null
+  ) {
+    if (legacyExpiresAt <= 0) {
+      migratedIdleTimeoutMs = 0;
+      migratedMaxAgeMs = 0;
+    } else {
+      const baseBoundAt = boundAt > 0 ? boundAt : lastActivityAt;
+      // Legacy expiresAt represented an absolute timestamp; map it to max-age and disable idle timeout.
+      migratedIdleTimeoutMs = 0;
+      migratedMaxAgeMs = Math.max(1, legacyExpiresAt - Math.max(0, baseBoundAt));
+    }
+  }
 
   return {
     accountId,
@@ -191,8 +217,8 @@ function normalizePersistedBinding(threadIdKey: string, raw: unknown): ThreadBin
     boundBy,
     boundAt,
     lastActivityAt,
-    idleTimeoutMs,
-    maxAgeMs,
+    idleTimeoutMs: migratedIdleTimeoutMs,
+    maxAgeMs: migratedMaxAgeMs,
   };
 }
 
@@ -405,8 +431,21 @@ export function shouldPersistBindingMutations(): boolean {
   return fs.existsSync(resolveThreadBindingsPath());
 }
 
-export function saveBindingsToDisk(params: { force?: boolean } = {}) {
+export function saveBindingsToDisk(params: { force?: boolean; minIntervalMs?: number } = {}) {
   if (!params.force && !shouldPersistAnyBindingState()) {
+    return;
+  }
+  const minIntervalMs =
+    typeof params.minIntervalMs === "number" && Number.isFinite(params.minIntervalMs)
+      ? Math.max(0, Math.floor(params.minIntervalMs))
+      : 0;
+  const now = Date.now();
+  if (
+    !params.force &&
+    minIntervalMs > 0 &&
+    THREAD_BINDINGS_STATE.lastPersistedAtMs > 0 &&
+    now - THREAD_BINDINGS_STATE.lastPersistedAtMs < minIntervalMs
+  ) {
     return;
   }
   const bindings: Record<string, PersistedThreadBindingRecord> = {};
@@ -418,6 +457,7 @@ export function saveBindingsToDisk(params: { force?: boolean } = {}) {
     bindings,
   };
   saveJsonFile(resolveThreadBindingsPath(), payload);
+  THREAD_BINDINGS_STATE.lastPersistedAtMs = now;
 }
 
 export function ensureBindingsLoaded() {
@@ -496,4 +536,5 @@ export function resetThreadBindingsForTests() {
   TOKENS_BY_ACCOUNT_ID.clear();
   PERSIST_BY_ACCOUNT_ID.clear();
   THREAD_BINDINGS_STATE.loadedBindings = false;
+  THREAD_BINDINGS_STATE.lastPersistedAtMs = 0;
 }
