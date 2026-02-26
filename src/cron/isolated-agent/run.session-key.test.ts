@@ -1,0 +1,22 @@
+import { describe, expect, it } from "vitest";
+import { resolveCronAgentSessionKey } from "./run.js";
+
+describe("resolveCronAgentSessionKey", () => {
+  it("builds an agent-scoped key for legacy aliases", () => {
+    expect(resolveCronAgentSessionKey({ sessionKey: "main", agentId: "main" })).toBe(
+      "agent:main:main",
+    );
+  });
+
+  it("preserves canonical agent keys instead of prefixing twice", () => {
+    expect(resolveCronAgentSessionKey({ sessionKey: "agent:main:main", agentId: "main" })).toBe(
+      "agent:main:main",
+    );
+  });
+
+  it("keeps hook keys scoped under the target agent", () => {
+    expect(resolveCronAgentSessionKey({ sessionKey: "hook:webhook:42", agentId: "main" })).toBe(
+      "agent:main:hook:webhook:42",
+    );
+  });
+});
