@@ -8,7 +8,10 @@ import {
 import { getCustomProviderApiKey, resolveEnvApiKey } from "./model-auth.js";
 import { normalizeProviderId } from "./model-selection.js";
 
-function formatApiKeySnippet(_apiKey: string): string {
+function formatApiKeySnippet(apiKey: string): string {
+  if (!apiKey.replace(/\s+/g, "")) {
+    return "unknown";
+  }
   return "****";
 }
 
