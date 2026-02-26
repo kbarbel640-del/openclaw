@@ -165,5 +165,6 @@ x-i18n:
 - 子智能体仍然共享相同的 Gateway 网关进程资源；将 `maxConcurrent` 视为安全阀。
 - `sessions_spawn` 始终是非阻塞的：它立即返回 `{ status: "accepted", runId, childSessionKey }`。
 - 默认情况下，子智能体上下文仅注入最小化的工作区引导文件：
-+  - 包含：`AGENTS.md`、`TOOLS.md`、`SOUL.md`、`IDENTITY.md`、`USER.md`
-+  - 不包含：`HEARTBEAT.md`、`BOOTSTRAP.md` 以及工作区中的其它文件
+
+* - 包含：`AGENTS.md`、`TOOLS.md`、`SOUL.md`、`IDENTITY.md`、`USER.md`
+* - 不包含：`HEARTBEAT.md`、`BOOTSTRAP.md` 以及工作区中的其它文件
