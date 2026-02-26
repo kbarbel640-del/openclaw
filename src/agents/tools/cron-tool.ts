@@ -228,7 +228,7 @@ JOB SCHEMA (for add action):
   "schedule": { ... },      // Required: when to run
   "payload": { ... },       // Required: what to execute
   "delivery": { ... },      // Optional: announce summary or webhook POST
-  "sessionTarget": "main" | "isolated",  // Required
+  "sessionTarget": "main" | "isolated" | "<custom-name>",  // Required
   "enabled": true | false   // Optional, default true
 }
 
@@ -245,21 +245,24 @@ ISO timestamps without an explicit timezone are treated as UTC.
 PAYLOAD TYPES (payload.kind):
 - "systemEvent": Injects text as system event into session
   { "kind": "systemEvent", "text": "<message>" }
-- "agentTurn": Runs agent with message (isolated sessions only)
+- "agentTurn": Runs agent with message (any non-main session)
   { "kind": "agentTurn", "message": "<prompt>", "model": "<optional>", "thinking": "<optional>", "timeoutSeconds": <optional, 0 means no timeout> }
 
 DELIVERY (top-level):
   { "mode": "none|announce|webhook", "channel": "<optional>", "to": "<optional>", "bestEffort": <optional-bool> }
-  - Default for isolated agentTurn jobs (when delivery omitted): "announce"
+  - Default for non-main agentTurn jobs (when delivery omitted): "announce"
   - announce: send to chat channel (optional channel/to target)
   - webhook: send finished-run event as HTTP POST to delivery.to (URL required)
   - If the task needs to send to a specific chat/recipient, set announce delivery.channel/to; do not call messaging tools inside the run.
 
-CRITICAL CONSTRAINTS:
-- sessionTarget="main" REQUIRES payload.kind="systemEvent"
-- sessionTarget="isolated" REQUIRES payload.kind="agentTurn"
+SESSION TARGETS:
+- sessionTarget="main" REQUIRES payload.kind="systemEvent". Injects into the agent's main session.
+- sessionTarget="isolated" REQUIRES payload.kind="agentTurn". Fresh session per execution (no context preserved).
+- sessionTarget="<custom-name>" (e.g. "scheduled", "research") REQUIRES payload.kind="agentTurn".
+  Creates a named persistent session (agent:<agentId>:<name>). Context is preserved across runs,
+  similar to heartbeat's session config. Useful for TUI observation and persistent agent workflows.
 - For webhook callbacks, use delivery.mode="webhook" with delivery.to set to a URL.
-Default: prefer isolated agentTurn jobs unless the user explicitly wants a main-session system event.
+Default: prefer isolated agentTurn jobs unless the user explicitly wants a main-session system event or a named persistent session.
 
 WAKE MODES (for wake action):
 - "next-heartbeat" (default): Wake on next heartbeat

@@ -19,7 +19,15 @@ function cronAgentTurnPayloadSchema(params: { message: TSchema }) {
   );
 }
 
-const CronSessionTargetSchema = Type.Union([Type.Literal("main"), Type.Literal("isolated")]);
+/**
+ * Session target for cron jobs.
+ *
+ * - "main" — systemEvent injected into the agent's main session.
+ * - "isolated" — agentTurn in a fresh session per execution.
+ * - Any other non-empty string — agentTurn in a named persistent session
+ *   (e.g. "scheduled" → agent:<agentId>:scheduled), preserving context across runs.
+ */
+const CronSessionTargetSchema = Type.String({ minLength: 1 });
 const CronWakeModeSchema = Type.Union([Type.Literal("next-heartbeat"), Type.Literal("now")]);
 const CronRunStatusSchema = Type.Union([
   Type.Literal("ok"),

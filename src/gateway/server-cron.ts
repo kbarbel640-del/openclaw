@@ -192,6 +192,12 @@ export function buildGatewayCronService(params: {
     },
     runIsolatedAgentJob: async ({ job, message, abortSignal }) => {
       const { agentId, cfg: runtimeConfig } = resolveCronAgent(job.agentId);
+      // Custom named session targets (not "main" or "isolated") use the target
+      // name as the session key, producing `agent:<agentId>:<name>` — a persistent
+      // named session similar to heartbeat's `session` config. "isolated" jobs
+      // continue to use the per-job `cron:<jobId>` key for fresh sessions.
+      const isCustomNamedSession = job.sessionTarget !== "isolated" && job.sessionTarget !== "main";
+      const sessionKey = isCustomNamedSession ? job.sessionTarget : `cron:${job.id}`;
       return await runCronIsolatedAgentTurn({
         cfg: runtimeConfig,
         deps: params.deps,
@@ -199,7 +205,7 @@ export function buildGatewayCronService(params: {
         message,
         abortSignal,
         agentId,
-        sessionKey: `cron:${job.id}`,
+        sessionKey,
         lane: "cron",
       });
     },

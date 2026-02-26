@@ -430,12 +430,12 @@ export async function ensureLoaded(
       payloadRecord && typeof payloadRecord.kind === "string" ? payloadRecord.kind : "";
     const sessionTarget =
       typeof raw.sessionTarget === "string" ? raw.sessionTarget.trim().toLowerCase() : "";
-    const isIsolatedAgentTurn =
-      sessionTarget === "isolated" || (sessionTarget === "" && payloadKind === "agentTurn");
+    const isNonMainAgentTurn =
+      sessionTarget !== "main" && (sessionTarget !== "" || payloadKind === "agentTurn");
     const hasDelivery = delivery && typeof delivery === "object" && !Array.isArray(delivery);
     const hasLegacyDelivery = payloadRecord ? hasLegacyDeliveryHints(payloadRecord) : false;
 
-    if (isIsolatedAgentTurn && payloadKind === "agentTurn") {
+    if (isNonMainAgentTurn && payloadKind === "agentTurn") {
       if (!hasDelivery) {
         raw.delivery =
           payloadRecord && hasLegacyDelivery

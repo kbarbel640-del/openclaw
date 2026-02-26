@@ -201,10 +201,10 @@ function normalizeSessionTarget(raw: unknown) {
     return undefined;
   }
   const trimmed = raw.trim().toLowerCase();
-  if (trimmed === "main" || trimmed === "isolated") {
-    return trimmed;
+  if (!trimmed) {
+    return undefined;
   }
-  return undefined;
+  return trimmed;
 }
 
 function normalizeWakeMode(raw: unknown) {
@@ -444,11 +444,12 @@ export function normalizeCronJobInput(
     const payload = isRecord(next.payload) ? next.payload : null;
     const payloadKind = payload && typeof payload.kind === "string" ? payload.kind : "";
     const sessionTarget = typeof next.sessionTarget === "string" ? next.sessionTarget : "";
-    const isIsolatedAgentTurn =
-      sessionTarget === "isolated" || (sessionTarget === "" && payloadKind === "agentTurn");
+    // Any non-main agentTurn job (isolated, custom named, or unset) defaults to announce delivery.
+    const isNonMainAgentTurn =
+      sessionTarget !== "main" && (sessionTarget !== "" || payloadKind === "agentTurn");
     const hasDelivery = "delivery" in next && next.delivery !== undefined;
     const hasLegacyDelivery = payload ? hasLegacyDeliveryHints(payload) : false;
-    if (!hasDelivery && isIsolatedAgentTurn && payloadKind === "agentTurn") {
+    if (!hasDelivery && isNonMainAgentTurn && payloadKind === "agentTurn") {
       if (payload && hasLegacyDelivery) {
         next.delivery = buildDeliveryFromLegacyPayload(payload);
         stripLegacyDeliveryFields(payload);
