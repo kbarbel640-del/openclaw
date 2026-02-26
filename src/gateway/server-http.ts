@@ -1,7 +1,3 @@
-import type { TlsOptions } from "node:tls";
-import type { WebSocketServer } from "ws";
-import { rateLimit } from "express-rate-limit";
-import helmet from "helmet";
 import {
   createServer as createHttpServer,
   type Server as HttpServer,
@@ -10,6 +6,8 @@ import {
 } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import type { TlsOptions } from "node:tls";
+import { rateLimit } from "express-rate-limit";
+import helmet from "helmet";
 import type { WebSocketServer } from "ws";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import {
@@ -60,7 +58,7 @@ import {
 } from "./hooks.js";
 import { sendGatewayAuthFailure, setDefaultSecurityHeaders } from "./http-common.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
-import { resolveGatewayClientIp } from "./net.js";
+import { resolveClientIp } from "./net.js";
 import { initObservability } from "./observability.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
@@ -77,13 +75,17 @@ const HOOK_AUTH_FAILURE_LIMIT = 20;
 const HOOK_AUTH_FAILURE_WINDOW_MS = 60_000;
 
 // Helper to run express middleware on native node http server
-function runMiddleware(req: IncomingMessage, res: ServerResponse, fn: any): Promise<void> {
+function runMiddleware(
+  req: IncomingMessage,
+  res: ServerResponse,
+  fn: (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void,
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    fn(req, res, (result: any) => {
+    fn(req, res, (result: unknown) => {
       if (result instanceof Error) {
         return reject(result);
       }
-      return resolve(result);
+      return resolve();
     });
   });
 }
@@ -99,7 +101,7 @@ const limiter = rateLimit({
     const config = loadConfig();
     const trustedProxies = config.gateway?.trustedProxies ?? [];
     return (
-      resolveGatewayClientIp({
+      resolveClientIp({
         remoteAddr: req.socket?.remoteAddress ?? "",
         forwardedFor: getHeader(req, "x-forwarded-for"),
         realIp: getHeader(req, "x-real-ip"),
@@ -484,11 +486,11 @@ export function createGatewayHttpServer(opts: {
   } = opts;
   const httpServer: HttpServer = opts.tlsOptions
     ? createHttpsServer(opts.tlsOptions, (req, res) => {
-      void handleRequest(req, res);
-    })
+        void handleRequest(req, res);
+      })
     : createHttpServer((req, res) => {
-      void handleRequest(req, res);
-    });
+        void handleRequest(req, res);
+      });
 
   async function handleRequest(req: IncomingMessage, res: ServerResponse) {
     setDefaultSecurityHeaders(res, {
@@ -508,7 +510,9 @@ export function createGatewayHttpServer(opts: {
       await runMiddleware(req, res, limiter);
     } catch (err) {
       // If headers already sent (e.g. rate limit hit), just return
-      if (res.headersSent) return;
+      if (res.headersSent) {
+        return;
+      }
 
       console.error("[Security] Middleware error:", err);
       res.statusCode = 500;

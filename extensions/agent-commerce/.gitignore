@@ -8,3 +8,7 @@ dist/
 wallet.json
 trades.json
 marketplace.json
+
+# Hardhat
+cache/
+artifacts/
