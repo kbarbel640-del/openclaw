@@ -2,10 +2,10 @@ export type ReasoningTagMode = "strict" | "preserve";
 export type ReasoningTagTrim = "none" | "start" | "both";
 
 const QUICK_TAG_RE =
-  /(?:<\s*\/?\s*(?:think(?:ing)?|thought|antthinking|final)\b|\[\[reply_to_current\]\]|\n?think\s*>)/i;
+  /(?:<\s*\/?\s*(?:think(?:ing)?|thought|antthinking|final)\b|\[\[reply_to_current\]\]|\n?think\s*>|\[\(\s*\/?\s*(?:deep_)?think\s*\)\])/i;
 const FINAL_TAG_RE = /(?:<\s*\/?\s*final\b[^<>]*>|\[\[reply_to_current\]\])/gi;
 const THINKING_TAG_RE =
-  /(?:<\s*(\/?)\s*(?:think(?:ing)?|thought|antthinking)\b[^<>]*>)|(?:\n?think\s*>)/gi;
+  /(?:<\s*(\/?)\s*(?:think(?:ing)?|thought|antthinking)\b[^<>]*>)|(?:\n?think\s*>)|(?:\[\(\s*(\/?)\s*(?:deep_)?think\s*\)\])/gi;
 
 interface CodeRegion {
   start: number;
@@ -105,7 +105,7 @@ export function stripReasoningTagsFromText(
 
   for (const match of cleaned.matchAll(THINKING_TAG_RE)) {
     const idx = match.index ?? 0;
-    const isClose = match[1] === "/";
+    const isClose = match[1] === "/" || match[2] === "/";
 
     if (isInsideCode(idx, codeRegions)) {
       continue;

@@ -15,6 +15,7 @@ export type UiSettings = {
   navCollapsed: boolean; // Collapsible sidebar state
   navGroupsCollapsed: Record<string, boolean>; // Which nav groups are collapsed
   locale?: string;
+  chatWebSearchEnabled?: boolean;
 };
 
 export function loadSettings(): UiSettings {
@@ -34,6 +35,7 @@ export function loadSettings(): UiSettings {
     splitRatio: 0.6,
     navCollapsed: false,
     navGroupsCollapsed: {},
+    chatWebSearchEnabled: true,
   };
 
   try {
@@ -79,6 +81,10 @@ export function loadSettings(): UiSettings {
         typeof parsed.navGroupsCollapsed === "object" && parsed.navGroupsCollapsed !== null
           ? parsed.navGroupsCollapsed
           : defaults.navGroupsCollapsed,
+      chatWebSearchEnabled:
+        typeof parsed.chatWebSearchEnabled === "boolean"
+          ? parsed.chatWebSearchEnabled
+          : defaults.chatWebSearchEnabled,
       locale: isSupportedLocale(parsed.locale) ? parsed.locale : undefined,
     };
   } catch {

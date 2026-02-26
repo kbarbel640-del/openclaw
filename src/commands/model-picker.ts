@@ -165,10 +165,14 @@ async function promptManualModel(params: {
   initialValue?: string;
 }): Promise<PromptDefaultModelResult> {
   const modelInput = await params.prompter.text({
-    message: params.allowBlank ? "Default model (blank to keep)" : "Default model",
+    message: params.allowBlank
+      ? "默认模型 (Default model - 留空则保持现状)"
+      : "默认模型 (Default model)",
     initialValue: params.initialValue,
     placeholder: "provider/model",
-    validate: params.allowBlank ? undefined : (value) => (value?.trim() ? undefined : "Required"),
+    validate: params.allowBlank
+      ? undefined
+      : (value) => (value?.trim() ? undefined : "必填项 (Required)"),
   });
   const model = String(modelInput ?? "").trim();
   if (!model) {
@@ -239,15 +243,15 @@ export async function promptDefaultModel(
     !hasPreferredProvider && providers.length > 1 && models.length > PROVIDER_FILTER_THRESHOLD;
   if (shouldPromptProvider) {
     const selection = await params.prompter.select({
-      message: "Filter models by provider",
+      message: "按提供商筛选模型 (Filter models by provider)",
       options: [
-        { value: "*", label: "All providers" },
+        { value: "*", label: "所有提供商 (All providers)" },
         ...providers.map((provider) => {
           const count = models.filter((entry) => entry.provider === provider).length;
           return {
             value: provider,
             label: provider,
-            hint: `${count} model${count === 1 ? "" : "s"}`,
+            hint: `${count} 个模型`,
           };
         }),
       ],
@@ -272,14 +276,13 @@ export async function promptDefaultModel(
     options.push({
       value: KEEP_VALUE,
       label: configuredRaw
-        ? `Keep current (${configuredRaw})`
-        : `Keep current (default: ${resolvedKey})`,
-      hint:
-        configuredRaw && configuredRaw !== resolvedKey ? `resolves to ${resolvedKey}` : undefined,
+        ? `保持当前 (Keep current: ${configuredRaw})`
+        : `保持当前 (默认: ${resolvedKey})`,
+      hint: configuredRaw && configuredRaw !== resolvedKey ? `解析为 ${resolvedKey}` : undefined,
     });
   }
   if (includeManual) {
-    options.push({ value: MANUAL_VALUE, label: "Enter model manually" });
+    options.push({ value: MANUAL_VALUE, label: "手动输入模型名称 (Enter model manually)" });
   }
   if (includeVllm && agentDir) {
     options.push({
@@ -317,7 +320,7 @@ export async function promptDefaultModel(
   }
 
   const selection = await params.prompter.select({
-    message: params.message ?? "Default model",
+    message: params.message ?? "默认模型 (Default model)",
     options,
     initialValue,
   });
@@ -334,10 +337,7 @@ export async function promptDefaultModel(
   }
   if (selection === VLLM_VALUE) {
     if (!agentDir) {
-      await params.prompter.note(
-        "vLLM setup requires an agent directory context.",
-        "vLLM not available",
-      );
+      await params.prompter.note("vLLM 设置需要指定 agent 目录上下文。", "vLLM 不可用");
       return {};
     }
     const { config: nextConfig, modelRef } = await promptAndConfigureVllm({
@@ -381,9 +381,7 @@ export async function promptModelAllowlist(params: {
   const catalog = await loadModelCatalog({ config: cfg, useCache: false });
   if (catalog.length === 0 && allowedKeys.length === 0) {
     const raw = await params.prompter.text({
-      message:
-        params.message ??
-        "Allowlist models (comma-separated provider/model; blank to keep current)",
+      message: params.message ?? "配置模型白名单 (逗号分隔的 provider/model; 留空保持现状)",
       initialValue: existingKeys.join(", "),
       placeholder: `${OPENAI_CODEX_DEFAULT_MODEL}, anthropic/claude-opus-4-6`,
     });
@@ -432,7 +430,7 @@ export async function promptModelAllowlist(params: {
   }
 
   const selection = await params.prompter.multiselect({
-    message: params.message ?? "Models in /model picker (multi-select)",
+    message: params.message ?? "选择允许使用的模型 (多选; /model picker 中可见)",
     options,
     initialValues: initialKeys.length > 0 ? initialKeys : undefined,
     searchable: true,
@@ -445,7 +443,7 @@ export async function promptModelAllowlist(params: {
     return { models: [] };
   }
   const confirmClear = await params.prompter.confirm({
-    message: "Clear the model allowlist? (shows all models)",
+    message: "清空模型白名单吗？(清空后将显示所有模型)",
     initialValue: false,
   });
   if (!confirmClear) {

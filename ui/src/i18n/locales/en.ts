@@ -105,6 +105,7 @@ export const en: TranslationMap = {
     refreshTitle: "Refresh chat data",
     thinkingToggle: "Toggle assistant thinking/working output",
     focusToggle: "Toggle focus mode (hide sidebar + page header)",
+    webSearchToggle: "Toggle web search (deep search)",
     onboardingDisabled: "Disabled during onboarding",
   },
   languages: {

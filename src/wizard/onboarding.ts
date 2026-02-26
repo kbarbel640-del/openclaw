@@ -28,36 +28,36 @@ async function requireRiskAcknowledgement(params: {
 
   await params.prompter.note(
     [
-      "Security warning — please read.",
+      "安全警告 — 请阅读。",
       "",
-      "OpenClaw is a hobby project and still in beta. Expect sharp edges.",
-      "This bot can read files and run actions if tools are enabled.",
-      "A bad prompt can trick it into doing unsafe things.",
+      "OpenClaw 仍处于测试阶段。请注意潜在的风险。",
+      "如果启用了工具，此机器人可以在您的设备上读取文件和执行操作。",
+      "恶意的提示词可能会诱使它执行不安全的操作。",
       "",
-      "If you’re not comfortable with basic security and access control, don’t run OpenClaw.",
-      "Ask someone experienced to help before enabling tools or exposing it to the internet.",
+      "如果您对基本的安全机制和访问控制不熟悉，请不要运行 OpenClaw。",
+      "在启用工具或将其暴露到公网之前，请寻求有经验的人士帮助。",
       "",
-      "Recommended baseline:",
-      "- Pairing/allowlists + mention gating.",
-      "- Sandbox + least-privilege tools.",
-      "- Keep secrets out of the agent’s reachable filesystem.",
-      "- Use the strongest available model for any bot with tools or untrusted inboxes.",
+      "建议的安全基准：",
+      "- Pairing/allowlists + 仅被 @ 时响应。",
+      "- 沙箱环境 + 最低权限原则。",
+      "- 让包含机密信息的文件远离 Agent 能访问到的目录。",
+      "- 任何带有工具或暴露给不受信任来源的机器人，应使用最强力的模型 (如 Qwen3-Max / GPT-4 等)。",
       "",
-      "Run regularly:",
+      "请定期运行以核查安全状态：",
       "openclaw security audit --deep",
       "openclaw security audit --fix",
       "",
-      "Must read: https://docs.openclaw.ai/gateway/security",
+      "必读指南: https://docs.openclaw.ai/gateway/security",
     ].join("\n"),
-    "Security",
+    "安全警告 (Security)",
   );
 
   const ok = await params.prompter.confirm({
-    message: "I understand this is powerful and inherently risky. Continue?",
+    message: "我已了解这是一款强大的工具且存在固有的安全风险。继续吗？",
     initialValue: false,
   });
   if (!ok) {
-    throw new WizardCancelledError("risk not accepted");
+    throw new WizardCancelledError("风险确认未通过");
   }
 }
 
@@ -68,14 +68,17 @@ export async function runOnboardingWizard(
 ) {
   const onboardHelpers = await import("../commands/onboard-helpers.js");
   onboardHelpers.printWizardHeader(runtime);
-  await prompter.intro("OpenClaw onboarding");
+  await prompter.intro("OpenClaw 初始化配置 (Onboarding)");
   await requireRiskAcknowledgement({ opts, prompter });
 
   const snapshot = await readConfigFileSnapshot();
   let baseConfig: OpenClawConfig = snapshot.valid ? snapshot.config : {};
 
   if (snapshot.exists && !snapshot.valid) {
-    await prompter.note(onboardHelpers.summarizeExistingConfig(baseConfig), "Invalid config");
+    await prompter.note(
+      onboardHelpers.summarizeExistingConfig(baseConfig),
+      "配置无效 (Invalid config)",
+    );
     if (snapshot.issues.length > 0) {
       await prompter.note(
         [
@@ -83,18 +86,18 @@ export async function runOnboardingWizard(
           "",
           "Docs: https://docs.openclaw.ai/gateway/configuration",
         ].join("\n"),
-        "Config issues",
+        "配置问题 (Config issues)",
       );
     }
     await prompter.outro(
-      `Config invalid. Run \`${formatCliCommand("openclaw doctor")}\` to repair it, then re-run onboarding.`,
+      `配置无效。请运行 \`${formatCliCommand("openclaw doctor")}\` 修复，然后再重新运行 onboarding。`,
     );
     runtime.exit(1);
     return;
   }
 
-  const quickstartHint = `Configure details later via ${formatCliCommand("openclaw configure")}.`;
-  const manualHint = "Configure port, network, Tailscale, and auth options.";
+  const quickstartHint = `稍后可以通过 ${formatCliCommand("openclaw configure")} 配置详情。`;
+  const manualHint = "手动配置端口、网络、Tailscale 以及相关鉴权选项。";
   const explicitFlowRaw = opts.flow?.trim();
   const normalizedExplicitFlow = explicitFlowRaw === "manual" ? "advanced" : explicitFlowRaw;
   if (
@@ -102,7 +105,7 @@ export async function runOnboardingWizard(
     normalizedExplicitFlow !== "quickstart" &&
     normalizedExplicitFlow !== "advanced"
   ) {
-    runtime.error("Invalid --flow (use quickstart, manual, or advanced).");
+    runtime.error("无效的 --flow 参数 (请使用 quickstart, manual, 或 advanced)。");
     runtime.exit(1);
     return;
   }
@@ -113,18 +116,18 @@ export async function runOnboardingWizard(
   let flow: WizardFlow =
     explicitFlow ??
     (await prompter.select({
-      message: "Onboarding mode",
+      message: "选择配置模式 (Onboarding mode)",
       options: [
-        { value: "quickstart", label: "QuickStart", hint: quickstartHint },
-        { value: "advanced", label: "Manual", hint: manualHint },
+        { value: "quickstart", label: "快速启动 (QuickStart)", hint: quickstartHint },
+        { value: "advanced", label: "手动设置 (Manual)", hint: manualHint },
       ],
       initialValue: "quickstart",
     }));
 
   if (opts.mode === "remote" && flow === "quickstart") {
     await prompter.note(
-      "QuickStart only supports local gateways. Switching to Manual mode.",
-      "QuickStart",
+      "快速启动(QuickStart)目前仅支持本地网关。正在为您切换到手动模式(Manual)。",
+      "快速启动说明",
     );
     flow = "advanced";
   }
@@ -132,15 +135,15 @@ export async function runOnboardingWizard(
   if (snapshot.exists) {
     await prompter.note(
       onboardHelpers.summarizeExistingConfig(baseConfig),
-      "Existing config detected",
+      "检测到已存在的配置文件",
     );
 
     const action = await prompter.select({
-      message: "Config handling",
+      message: "配置文件处理方式",
       options: [
-        { value: "keep", label: "Use existing values" },
-        { value: "modify", label: "Update values" },
-        { value: "reset", label: "Reset" },
+        { value: "keep", label: "保留当前值 (Use existing values)" },
+        { value: "modify", label: "修改配置 (Update values)" },
+        { value: "reset", label: "重置 (Reset)" },
       ],
     });
 
@@ -148,16 +151,16 @@ export async function runOnboardingWizard(
       const workspaceDefault =
         baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE;
       const resetScope = (await prompter.select({
-        message: "Reset scope",
+        message: "选择重置范围 (Reset scope)",
         options: [
-          { value: "config", label: "Config only" },
+          { value: "config", label: "仅配置项 (Config only)" },
           {
             value: "config+creds+sessions",
-            label: "Config + creds + sessions",
+            label: "配置项 + 凭证 + 对话会话",
           },
           {
             value: "full",
-            label: "Full reset (config + creds + sessions + workspace)",
+            label: "彻底清理 (配置项 + 凭证 + 会话 + 工作区文件)",
           },
         ],
       })) as ResetScope;
@@ -220,28 +223,28 @@ export async function runOnboardingWizard(
   if (flow === "quickstart") {
     const formatBind = (value: "loopback" | "lan" | "auto" | "custom" | "tailnet") => {
       if (value === "loopback") {
-        return "Loopback (127.0.0.1)";
+        return "本地回环 (127.0.0.1)";
       }
       if (value === "lan") {
-        return "LAN";
+        return "局域网 (LAN)";
       }
       if (value === "custom") {
-        return "Custom IP";
+        return "自定义 IP";
       }
       if (value === "tailnet") {
         return "Tailnet (Tailscale IP)";
       }
-      return "Auto";
+      return "自动分配 (Auto)";
     };
     const formatAuth = (value: GatewayAuthChoice) => {
       if (value === "token") {
-        return "Token (default)";
+        return "Token (默认)";
       }
-      return "Password";
+      return "密码 (Password)";
     };
     const formatTailscale = (value: "off" | "serve" | "funnel") => {
       if (value === "off") {
-        return "Off";
+        return "关闭 (Off)";
       }
       if (value === "serve") {
         return "Serve";
@@ -250,24 +253,24 @@ export async function runOnboardingWizard(
     };
     const quickstartLines = quickstartGateway.hasExisting
       ? [
-          "Keeping your current gateway settings:",
-          `Gateway port: ${quickstartGateway.port}`,
-          `Gateway bind: ${formatBind(quickstartGateway.bind)}`,
+          "保持您当前的网关设置：",
+          `网关端口: ${quickstartGateway.port}`,
+          `网关绑定: ${formatBind(quickstartGateway.bind)}`,
           ...(quickstartGateway.bind === "custom" && quickstartGateway.customBindHost
-            ? [`Gateway custom IP: ${quickstartGateway.customBindHost}`]
+            ? [`网关自定义 IP: ${quickstartGateway.customBindHost}`]
             : []),
-          `Gateway auth: ${formatAuth(quickstartGateway.authMode)}`,
-          `Tailscale exposure: ${formatTailscale(quickstartGateway.tailscaleMode)}`,
-          "Direct to chat channels.",
+          `网关认证方式: ${formatAuth(quickstartGateway.authMode)}`,
+          `Tailscale 暴露模式: ${formatTailscale(quickstartGateway.tailscaleMode)}`,
+          "将直接进入聊天频道 (Direct to chat channels)。",
         ]
       : [
-          `Gateway port: ${DEFAULT_GATEWAY_PORT}`,
-          "Gateway bind: Loopback (127.0.0.1)",
-          "Gateway auth: Token (default)",
-          "Tailscale exposure: Off",
-          "Direct to chat channels.",
+          `网关端口: ${DEFAULT_GATEWAY_PORT}`,
+          "网关绑定: 本地回环 (127.0.0.1)",
+          "网关认证方式: Token (默认)",
+          "Tailscale 暴露模式: 关闭 (Off)",
+          "将直接进入聊天频道 (Direct to chat channels)。",
         ];
-    await prompter.note(quickstartLines.join("\n"), "QuickStart");
+    await prompter.note(quickstartLines.join("\n"), "快速启动配置 (QuickStart)");
   }
 
   const localPort = resolveGatewayPort(baseConfig);
@@ -290,23 +293,21 @@ export async function runOnboardingWizard(
     (flow === "quickstart"
       ? "local"
       : ((await prompter.select({
-          message: "What do you want to set up?",
+          message: "您希望设置哪种网关?",
           options: [
             {
               value: "local",
-              label: "Local gateway (this machine)",
-              hint: localProbe.ok
-                ? `Gateway reachable (${localUrl})`
-                : `No gateway detected (${localUrl})`,
+              label: "本地网关 (Local gateway - 当前机器)",
+              hint: localProbe.ok ? `网关已就绪 (${localUrl})` : `未检测到网关 (${localUrl})`,
             },
             {
               value: "remote",
-              label: "Remote gateway (info-only)",
+              label: "远程网关 (Remote gateway - 仅限信息读取)",
               hint: !remoteUrl
-                ? "No remote URL configured yet"
+                ? "尚未配置远程 URL"
                 : remoteProbe?.ok
-                  ? `Gateway reachable (${remoteUrl})`
-                  : `Configured but unreachable (${remoteUrl})`,
+                  ? `网关已就绪 (${remoteUrl})`
+                  : `已配置但无法连接 (${remoteUrl})`,
             },
           ],
         })) as OnboardMode));
@@ -318,7 +319,7 @@ export async function runOnboardingWizard(
     nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
     await writeConfigFile(nextConfig);
     logConfigUpdated(runtime);
-    await prompter.outro("Remote gateway configured.");
+    await prompter.outro("远程网关配置已完成 (Remote gateway configured)。");
     return;
   }
 
@@ -327,7 +328,7 @@ export async function runOnboardingWizard(
     (flow === "quickstart"
       ? (baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE)
       : await prompter.text({
-          message: "Workspace directory",
+          message: "工作区目录 (Workspace directory)",
           initialValue: baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE,
         }));
 
@@ -411,7 +412,7 @@ export async function runOnboardingWizard(
   const settings = gateway.settings;
 
   if (opts.skipChannels ?? opts.skipProviders) {
-    await prompter.note("Skipping channel setup.", "Channels");
+    await prompter.note("跳过频道配置拉取 (Skipping channel setup)。", "频道配置 (Channels)");
   } else {
     const { listChannelPlugins } = await import("../channels/plugins/index.js");
     const { setupChannels } = await import("../commands/onboard-channels.js");
@@ -438,7 +439,7 @@ export async function runOnboardingWizard(
   });
 
   if (opts.skipSkills) {
-    await prompter.note("Skipping skills setup.", "Skills");
+    await prompter.note("跳过插件安装 (Skipping skills setup)。", "能力插件 (Skills)");
   } else {
     const { setupSkills } = await import("../commands/onboard-skills.js");
     nextConfig = await setupSkills(nextConfig, workspaceDir, runtime, prompter);

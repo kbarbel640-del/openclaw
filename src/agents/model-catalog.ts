@@ -136,8 +136,71 @@ export async function loadModelCatalog(params?: {
             ? entry.contextWindow
             : undefined;
         const reasoning = typeof entry?.reasoning === "boolean" ? entry.reasoning : undefined;
-        const input = Array.isArray(entry?.input) ? entry.input : undefined;
+        const input = Array.isArray(entry?.input)
+          ? entry.input
+          : (undefined as Array<"text" | "image"> | undefined);
         models.push({ id, name, provider, contextWindow, reasoning, input });
+      }
+
+      // Manual fallback: pi-coding-agent's ModelRegistry might filter out providers
+      // with custom API types (like deepseek-web/qwen-web). Fill them from models.json.
+      try {
+        const { readFile } = await import("node:fs/promises");
+        const modelsJsonPath = join(agentDir, "models.json");
+        const raw = await readFile(modelsJsonPath, "utf8");
+        const data = JSON.parse(raw);
+        if (data && typeof data.providers === "object") {
+          for (const [providerId, providerConfig] of Object.entries(data.providers)) {
+            if (!providerConfig || typeof providerConfig !== "object") {
+              continue;
+            }
+            const providerModels = (providerConfig as { models?: unknown[] }).models;
+            if (!Array.isArray(providerModels)) {
+              continue;
+            }
+            for (const m of providerModels) {
+              if (!m || typeof m !== "object") {
+                continue;
+              }
+              const modelId = String((m as { id?: string }).id ?? "").trim();
+              if (!modelId) {
+                continue;
+              }
+              const exists = models.some(
+                (existing) =>
+                  existing.provider.toLowerCase() === providerId.toLowerCase() &&
+                  existing.id.toLowerCase() === modelId.toLowerCase(),
+              );
+              if (!exists) {
+                const name = String((m as { name?: string }).name ?? modelId).trim() || modelId;
+                const contextWindow =
+                  typeof (m as { contextWindow?: number }).contextWindow === "number" &&
+                  (m as { contextWindow?: number }).contextWindow! > 0
+                    ? (m as { contextWindow?: number }).contextWindow
+                    : undefined;
+                const reasoning =
+                  typeof (m as { reasoning?: boolean }).reasoning === "boolean"
+                    ? (m as { reasoning?: boolean }).reasoning
+                    : undefined;
+                const input = Array.isArray((m as { input?: string[] }).input)
+                  ? ((m as { input?: string[] }).input as Array<"text" | "image">)
+                  : undefined;
+                models.push({
+                  id: modelId,
+                  name,
+                  provider: providerId,
+                  contextWindow,
+                  reasoning,
+                  input,
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(
+          `[model-catalog] Failed to merge missing models from models.json: ${String(e)}`,
+        );
       }
       applyOpenAICodexSparkFallback(models);
 

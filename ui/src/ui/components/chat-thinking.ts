@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from "lit";
+import { LitElement, html, css, nothing, PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { icons } from "../icons.ts";
@@ -8,7 +8,27 @@ import { toSanitizedMarkdownHtml } from "../markdown.ts";
 export class ChatThinking extends LitElement {
   @property({ type: String }) content = "";
   @property({ type: Number }) duration?: number;
+  @property({ type: Boolean }) isStreaming = false;
   @state() private isExpanded = false;
+
+  connectedCallback() {
+    super.connectedCallback();
+    // Expand by default if currently streaming
+    if (this.isStreaming) {
+      this.isExpanded = true;
+    }
+  }
+
+  updated(changedProperties: PropertyValues<this>) {
+    if (
+      changedProperties.has("isStreaming") &&
+      this.isStreaming &&
+      !changedProperties.get("isStreaming")
+    ) {
+      // If it just started streaming, auto-expand
+      this.isExpanded = true;
+    }
+  }
 
   static styles = css`
     :host {
@@ -17,36 +37,59 @@ export class ChatThinking extends LitElement {
     }
 
     .thinking-box {
-      border: 1px solid var(--border-subtle, #e0e0e0);
-      background: var(--bg-subtle, #f9f9f9);
-      border-radius: 8px;
+      border: 1px solid var(--border-subtle, rgba(224, 224, 224, 0.4));
+      background: var(--bg-surface-glass, rgba(249, 249, 249, 0.05));
+      backdrop-filter: blur(8px);
+      border-radius: 12px;
       overflow: hidden;
-      transition: all 0.2s ease-in-out;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      margin: 4px 0 12px 0;
     }
 
     .thinking-header {
-      padding: 8px 12px;
+      padding: 10px 14px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       cursor: pointer;
       user-select: none;
       font-size: 0.85rem;
-      color: var(--text-muted, #666);
-      background: var(--bg-subtle, #f9f9f9);
+      font-weight: 500;
+      color: var(--text-muted, rgba(255, 255, 255, 0.6));
+      background: transparent;
     }
 
     .thinking-header:hover {
-      background: var(--bg-hover, #f0f0f0);
+      background: var(--bg-hover, rgba(255, 255, 255, 0.05));
     }
 
     .thinking-icon {
-      color: #2b6cb0; /* DeepSeek-like blue */
+      color: var(--accent-thinking, #818cf8); /* Soft indigo */
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
+    }
+
+    .thinking-icon.streaming {
+      animation: pulse-brain 2s infinite ease-in-out;
+    }
+
+    @keyframes pulse-brain {
+      0% {
+        transform: scale(1);
+        opacity: 0.8;
+      }
+      50% {
+        transform: scale(1.15);
+        opacity: 1;
+        filter: drop-shadow(0 0 4px var(--accent-thinking));
+      }
+      100% {
+        transform: scale(1);
+        opacity: 0.8;
+      }
     }
 
     .thinking-icon svg {
@@ -58,13 +101,24 @@ export class ChatThinking extends LitElement {
       flex: 1;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    .thinking-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-thinking);
+      display: inline-block;
     }
 
     .thinking-chevron {
-      transition: transform 0.2s ease;
+      transition: transform 0.3s var(--ease-out);
       display: flex;
       align-items: center;
+      color: var(--text-muted);
+      opacity: 0.7;
     }
 
     .thinking-chevron.expanded {
@@ -72,22 +126,39 @@ export class ChatThinking extends LitElement {
     }
 
     .thinking-content {
-      padding: 0 12px 12px 12px;
+      padding: 0 14px 14px 14px;
       font-size: 0.9rem;
-      line-height: 1.5;
-      color: var(--text-main, #333);
+      line-height: 1.6;
+      color: var(--text-main, rgba(255, 255, 255, 0.85));
       border-top: 1px solid transparent;
       max-height: 0;
       opacity: 0;
       overflow: hidden;
-      transition: all 0.2s ease-in-out;
+      transition: all 0.3s var(--ease-out);
+      position: relative;
+    }
+
+    .thinking-content::before {
+      content: "";
+      position: absolute;
+      left: 14px;
+      top: 12px;
+      bottom: 12px;
+      width: 2px;
+      background: var(--accent-thinking);
+      opacity: 0.15;
+      border-radius: 1px;
+    }
+
+    .thinking-content-inner {
+      padding-left: 16px;
     }
 
     .thinking-content.expanded {
-      max-height: 2000px; /* Large enough to accommodate most content */
+      max-height: 3000px;
       opacity: 1;
-      padding-top: 8px;
-      border-top-color: var(--border-subtle, #e0e0e0);
+      padding-top: 12px;
+      border-top-color: var(--border-subtle, rgba(255, 255, 255, 0.05));
     }
 
     .thinking-content :first-child {
@@ -108,14 +179,16 @@ export class ChatThinking extends LitElement {
       return nothing;
     }
 
-    const durationText = this.duration !== undefined ? ` (用时 ${this.duration} 秒)` : "";
+    const durationText = this.duration !== undefined ? `${this.duration}s` : "";
+    const label = this.isStreaming
+      ? "深度思考中 (Deep Thinking...)"
+      : `思考过程 (Thought Process) ${durationText ? `(${durationText})` : ""}`;
 
     return html`
       <div class="thinking-box">
-        <div class="thinking-header" @click=${this.toggle}>
-          <span class="thinking-icon">${
+        <div class="thinking-header" @click=${() => this.toggle()}>
+          <span class="thinking-icon ${this.isStreaming ? "streaming" : ""}">${
             icons.brain ||
-            icons.cpu ||
             html`
               <svg
                 viewBox="0 0 24 24"
@@ -131,27 +204,33 @@ export class ChatThinking extends LitElement {
               </svg>
             `
           }</span>
-          <span class="thinking-label">已思考${durationText}</span>
-          <span class="thinking-chevron ${this.isExpanded ? "expanded" : ""}">
+          <span class="thinking-label">
             ${
-              icons.chevronDown ||
-              html`
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              `
+              this.isStreaming
+                ? html`
+                    <span class="thinking-status-dot"></span>
+                  `
+                : nothing
             }
+            ${label}
+          </span>
+          <span class="thinking-chevron ${this.isExpanded ? "expanded" : ""}">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
           </span>
         </div>
         <div class="thinking-content ${this.isExpanded ? "expanded" : ""}">
-          ${unsafeHTML(toSanitizedMarkdownHtml(this.content))}
+          <div class="thinking-content-inner">
+            ${unsafeHTML(toSanitizedMarkdownHtml(this.content))}
+          </div>
         </div>
       </div>
     `;

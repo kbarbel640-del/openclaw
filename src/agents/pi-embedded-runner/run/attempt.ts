@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import os from "node:os";
-import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
@@ -52,6 +52,7 @@ import {
 } from "../../pi-settings.js";
 import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
 import { createOpenClawCodingTools, resolveToolLoopDetectionConfig } from "../../pi-tools.js";
+import { createQwenWebStreamFn } from "../../qwen-web-stream.js";
 import { resolveSandboxContext } from "../../sandbox.js";
 import { resolveSandboxRuntimeStatus } from "../../sandbox/runtime-status.js";
 import { repairSessionFileIfNeeded } from "../../session-file-repair.js";
@@ -637,7 +638,10 @@ export async function runEmbeddedAttempt(
         activeSession.agent.streamFn = createOllamaStreamFn(ollamaBaseUrl);
       } else if (params.model.api === "deepseek-web") {
         const cookie = (await params.authStorage.getApiKey("deepseek-web")) || "";
-        activeSession.agent.streamFn = createDeepseekWebStreamFn(cookie) as StreamFn;
+        activeSession.agent.streamFn = createDeepseekWebStreamFn(cookie);
+      } else if (params.model.api === "qwen-web") {
+        const credentials = (await params.authStorage.getApiKey("qwen-web")) || "";
+        activeSession.agent.streamFn = createQwenWebStreamFn(credentials, params.streamParams);
       } else {
         // Force a stable streamFn reference so vitest can reliably mock @mariozechner/pi-ai.
         activeSession.agent.streamFn = streamSimple;

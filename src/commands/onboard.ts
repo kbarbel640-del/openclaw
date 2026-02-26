@@ -59,10 +59,10 @@ export async function onboardCommand(opts: OnboardOptions, runtime: RuntimeEnv =
   if (process.platform === "win32") {
     runtime.log(
       [
-        "Windows detected — OpenClaw runs great on WSL2!",
-        "Native Windows might be trickier.",
-        "Quick setup: wsl --install (one command, one reboot)",
-        "Guide: https://docs.openclaw.ai/windows",
+        "检测到 Windows 系统 — OpenClaw 在 WSL2 上的运行效果最佳！",
+        "原生的 Windows 支持可能还会遇到一些问题。",
+        "推荐的快速安装方式：使用 wsl --install (只需一条命令并重启一次)",
+        "参考指南：https://docs.openclaw.ai/windows",
       ].join("\n"),
     );
   }

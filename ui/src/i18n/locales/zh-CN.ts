@@ -104,6 +104,7 @@ export const zh_CN: TranslationMap = {
     refreshTitle: "刷新聊天数据",
     thinkingToggle: "切换助手思考/工作输出",
     focusToggle: "切换专注模式 (隐藏侧边栏 + 页面页眉)",
+    webSearchToggle: "切换联网搜索 (深度搜索)",
     onboardingDisabled: "引导期间禁用",
   },
   languages: {

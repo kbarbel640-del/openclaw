@@ -279,6 +279,7 @@ export {
   SILICONFLOW_GLOBAL_DEFAULT_MODEL_REF,
   SILICONFLOW_CN_DEFAULT_MODEL_REF,
   DEEPSEEK_WEB_DEFAULT_MODEL_REF,
+  QWEN_WEB_DEFAULT_MODEL_REF,
 } from "./onboard-auth.models.js";
 
 export async function setSiliconFlowGlobalApiKey(key: string, agentDir?: string) {
@@ -315,6 +316,21 @@ export async function setDeepseekWebCookie(
     credential: {
       type: "api_key",
       provider: "deepseek-web",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+export async function setQwenWebCredentials(
+  options: { cookie: string; xsrfToken: string; userAgent?: string; ut?: string },
+  agentDir?: string,
+) {
+  const key = JSON.stringify(options);
+  upsertAuthProfile({
+    profileId: "qwen-web:default",
+    credential: {
+      type: "api_key",
+      provider: "qwen-web",
       key,
     },
     agentDir: resolveAuthAgentDir(agentDir),

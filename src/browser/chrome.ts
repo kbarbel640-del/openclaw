@@ -163,6 +163,7 @@ export async function isChromeCdpReady(
 export async function launchOpenClawChrome(
   resolved: ResolvedBrowserConfig,
   profile: ResolvedBrowserProfile,
+  opts?: { initialUrl?: string },
 ): Promise<RunningChrome> {
   if (!profile.cdpIsLoopback) {
     throw new Error(`Profile "${profile.name}" is remote; cannot launch local Chrome.`);
@@ -222,8 +223,8 @@ export async function launchOpenClawChrome(
       args.push(...resolved.extraArgs);
     }
 
-    // Always open a blank tab to ensure a target exists.
-    args.push("about:blank");
+    // Always open a target URL (or blank tab) to ensure a stable browsing context.
+    args.push(opts?.initialUrl ?? "about:blank");
 
     return spawn(exe.path, args, {
       stdio: "pipe",

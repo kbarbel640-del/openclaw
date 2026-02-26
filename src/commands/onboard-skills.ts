@@ -65,16 +65,16 @@ export async function setupSkills(
 
   await prompter.note(
     [
-      `Eligible: ${eligible.length}`,
-      `Missing requirements: ${missing.length}`,
-      `Unsupported on this OS: ${unsupportedOs.length}`,
-      `Blocked by allowlist: ${blocked.length}`,
+      `满足条件 (Eligible): ${eligible.length}`,
+      `缺失依赖 (Missing requirements): ${missing.length}`,
+      `暂不支持当前系统 (Unsupported on this OS): ${unsupportedOs.length}`,
+      `被白名单拦截 (Blocked by allowlist): ${blocked.length}`,
     ].join("\n"),
-    "Skills status",
+    "能力插件状态 (Skills status)",
   );
 
   const shouldConfigure = await prompter.confirm({
-    message: "Configure skills now? (recommended)",
+    message: "现在配置技能插件吗？ (Configure skills now? - 推荐)",
     initialValue: true,
   });
   if (!shouldConfigure) {
@@ -87,12 +87,12 @@ export async function setupSkills(
   let next: OpenClawConfig = cfg;
   if (installable.length > 0) {
     const toInstall = await prompter.multiselect({
-      message: "Install missing skill dependencies",
+      message: "安装缺失的插件依赖 (Install missing skill dependencies)",
       options: [
         {
           value: "__skip__",
-          label: "Skip for now",
-          hint: "Continue without installing dependencies",
+          label: "暂时跳过 (Skip for now)",
+          hint: "不安装依赖继续 (Continue without installing dependencies)",
         },
         ...installable.map((skill) => ({
           value: skill.name,
@@ -116,13 +116,13 @@ export async function setupSkills(
     if (needsBrewPrompt) {
       await prompter.note(
         [
-          "Many skill dependencies are shipped via Homebrew.",
-          "Without brew, you'll need to build from source or download releases manually.",
+          "许多技能插件依赖通过 Homebrew 发布。",
+          "如果没有 brew，您可能需要手动从源码编译或下载发布版。",
         ].join("\n"),
-        "Homebrew recommended",
+        "推荐安装 Homebrew (Homebrew recommended)",
       );
       const showBrewInstall = await prompter.confirm({
-        message: "Show Homebrew install command?",
+        message: "显示 Homebrew 安装命令？ (Show Homebrew install command?)",
         initialValue: true,
       });
       if (showBrewInstall) {
@@ -145,13 +145,13 @@ export async function setupSkills(
     if (needsScoopPrompt) {
       await prompter.note(
         [
-          "Scoop is a great package manager for Windows that can install many skill dependencies.",
-          "Without scoop, you may need to download releases manually.",
+          "Scoop 是一个适用于 Windows 的优秀包管理器，可安装许多技能插件依赖。",
+          "如果没有 scoop，您可能需要手动下载发布版。",
         ].join("\n"),
-        "Scoop recommended",
+        "推荐安装 Scoop (Scoop recommended)",
       );
       const showScoopInstall = await prompter.confirm({
-        message: "Show Scoop install command?",
+        message: "显示 Scoop 安装命令？ (Show Scoop install command?)",
         initialValue: true,
       });
       if (showScoopInstall) {
@@ -171,7 +171,7 @@ export async function setupSkills(
     );
     if (needsNodeManagerPrompt) {
       const nodeManager = (await prompter.select({
-        message: "Preferred node manager for skill installs",
+        message: "首选的 Node 包管理器 (Preferred node manager for skill installs)",
         options: resolveNodeManagerOptions(),
       })) as "npm" | "pnpm" | "bun";
       next = {
@@ -193,15 +193,23 @@ export async function setupSkills(
       }
       const options = target.install;
       const getBestInstallId = (opts: typeof options) => {
-        if (opts.length === 0) {return undefined;}
+        if (opts.length === 0) {
+          return undefined;
+        }
         if (process.platform === "win32") {
           const scoop = opts.find((o) => o.kind === "scoop");
-          if (scoop) {return scoop.id ?? "scoop";}
+          if (scoop) {
+            return scoop.id ?? "scoop";
+          }
           const go = opts.find((o) => o.kind === "go");
-          if (go) {return go.id ?? "go";}
+          if (go) {
+            return go.id ?? "go";
+          }
         } else if (process.platform === "darwin" || process.platform === "linux") {
           const brew = opts.find((o) => o.kind === "brew");
-          if (brew) {return brew.id ?? "brew";}
+          if (brew) {
+            return brew.id ?? "brew";
+          }
         }
         return opts[0]?.id;
       };
@@ -248,7 +256,7 @@ export async function setupSkills(
       continue;
     }
     const wantsKey = await prompter.confirm({
-      message: `Set ${skill.primaryEnv} for ${skill.name}?`,
+      message: `要为 ${skill.name} 设置 ${skill.primaryEnv} 吗?`,
       initialValue: false,
     });
     if (!wantsKey) {
@@ -256,8 +264,8 @@ export async function setupSkills(
     }
     const apiKey = String(
       await prompter.text({
-        message: `Enter ${skill.primaryEnv}`,
-        validate: (value) => (value?.trim() ? undefined : "Required"),
+        message: `输入 ${skill.primaryEnv} (Enter ${skill.primaryEnv})`,
+        validate: (value) => (value?.trim() ? undefined : "必填项 (Required)"),
       }),
     );
     next = upsertSkillEntry(next, skill.skillKey, { apiKey: normalizeSecretInput(apiKey) });

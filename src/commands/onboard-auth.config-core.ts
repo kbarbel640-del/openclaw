@@ -5,9 +5,11 @@ import {
 } from "../agents/huggingface-models.js";
 import {
   buildDeepseekWebProvider,
+  buildQwenWebProvider,
   buildQianfanProvider,
   buildXiaomiProvider,
   DEEPSEEK_WEB_DEFAULT_MODEL_ID,
+  QWEN_WEB_DEFAULT_MODEL_ID,
   QIANFAN_DEFAULT_MODEL_ID,
   XIAOMI_DEFAULT_MODEL_ID,
 } from "../agents/models-config.providers.js";
@@ -38,6 +40,7 @@ import {
   ZAI_DEFAULT_MODEL_REF,
   XAI_DEFAULT_MODEL_REF,
   DEEPSEEK_WEB_DEFAULT_MODEL_REF,
+  QWEN_WEB_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
 export {
   applyCloudflareAiGatewayConfig,
@@ -566,4 +569,26 @@ export async function applyDeepseekWebProviderConfig(cfg: OpenClawConfig): Promi
 export async function applyDeepseekWebConfig(cfg: OpenClawConfig): Promise<OpenClawConfig> {
   const next = await applyDeepseekWebProviderConfig(cfg);
   return applyAgentDefaultModelPrimary(next, DEEPSEEK_WEB_DEFAULT_MODEL_REF);
+}
+
+export async function applyQwenWebProviderConfig(cfg: OpenClawConfig): Promise<OpenClawConfig> {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[QWEN_WEB_DEFAULT_MODEL_REF] = {
+    ...models[QWEN_WEB_DEFAULT_MODEL_REF],
+    alias: models[QWEN_WEB_DEFAULT_MODEL_REF]?.alias ?? "Qwen Browser",
+  };
+  const defaultProvider = await buildQwenWebProvider();
+  return applyProviderConfigWithDefaultModels(cfg, {
+    agentModels: models,
+    providerId: "qwen-web",
+    api: "qwen-web",
+    baseUrl: defaultProvider.baseUrl,
+    defaultModels: defaultProvider.models ?? [],
+    defaultModelId: QWEN_WEB_DEFAULT_MODEL_ID,
+  });
+}
+
+export async function applyQwenWebConfig(cfg: OpenClawConfig): Promise<OpenClawConfig> {
+  const next = await applyQwenWebProviderConfig(cfg);
+  return applyAgentDefaultModelPrimary(next, QWEN_WEB_DEFAULT_MODEL_REF);
 }

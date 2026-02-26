@@ -72,6 +72,8 @@ export function renderStreamingGroup(
   startedAt: number,
   onOpenSidebar?: (content: string) => void,
   assistant?: AssistantIdentity,
+  thinking?: string,
+  showReasoning?: boolean,
 ) {
   const timestamp = new Date(startedAt).toLocaleTimeString([], {
     hour: "numeric",
@@ -86,10 +88,13 @@ export function renderStreamingGroup(
         ${renderGroupedMessage(
           {
             role: "assistant",
-            content: [{ type: "text", text }],
+            content: [
+              ...(thinking?.trim() ? [{ type: "thinking", thinking }] : []),
+              ...(text?.trim() ? [{ type: "text", text }] : []),
+            ],
             timestamp: startedAt,
           },
-          { isStreaming: true, showReasoning: false },
+          { isStreaming: true, showReasoning: Boolean(showReasoning) },
           onOpenSidebar,
         )}
         <div class="chat-group-footer">
@@ -262,7 +267,7 @@ function renderGroupedMessage(
       ${renderMessageImages(images)}
       ${
         extractedThinking && opts.showReasoning
-          ? html`<chat-thinking .content=${extractedThinking}></chat-thinking>`
+          ? html`<chat-thinking .content=${extractedThinking} .isStreaming=${opts.isStreaming}></chat-thinking>`
           : nothing
       }
       ${

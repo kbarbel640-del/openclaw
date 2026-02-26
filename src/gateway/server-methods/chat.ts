@@ -726,6 +726,7 @@ export const chatHandlers: GatewayRequestHandlers = {
       }>;
       timeoutMs?: number;
       idempotencyKey: string;
+      modelOptions?: Record<string, unknown>;
     };
     const sanitizedMessageResult = sanitizeChatSendMessageInput(p.message);
     if (!sanitizedMessageResult.ok) {
@@ -897,6 +898,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         replyOptions: {
           runId: clientRunId,
           abortSignal: abortController.signal,
+          modelOptions: p.modelOptions,
           images: parsedImages.length > 0 ? parsedImages : undefined,
           onAgentRunStart: (runId) => {
             agentRunStarted = true;

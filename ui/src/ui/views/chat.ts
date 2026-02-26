@@ -33,6 +33,7 @@ export type ChatProps = {
   messages: unknown[];
   toolMessages: unknown[];
   stream: string | null;
+  streamThinking?: string | null;
   streamStartedAt: number | null;
   assistantAvatarUrl?: string | null;
   draft: string;
@@ -69,6 +70,8 @@ export type ChatProps = {
   onCloseSidebar?: () => void;
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
+  webSearchEnabled?: boolean;
+  onToggleWebSearch?: (enabled: boolean) => void;
 };
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
@@ -245,6 +248,8 @@ export function renderChat(props: ChatProps) {
               item.startedAt,
               props.onOpenSidebar,
               assistantIdentity,
+              item.thinking,
+              showReasoning,
             );
           }
 
@@ -531,6 +536,15 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
         kind: "stream",
         key,
         text: props.stream,
+        thinking: props.streamThinking ?? undefined,
+        startedAt: props.streamStartedAt ?? Date.now(),
+      });
+    } else if (props.streamThinking?.trim()) {
+      items.push({
+        kind: "stream",
+        key,
+        text: "",
+        thinking: props.streamThinking,
         startedAt: props.streamStartedAt ?? Date.now(),
       });
     } else {

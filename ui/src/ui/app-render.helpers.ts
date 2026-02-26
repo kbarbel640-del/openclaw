@@ -210,6 +210,15 @@ export function renderChatControls(state: AppViewState) {
         ${icons.brain}
       </button>
       <button
+        class="btn btn--sm btn--icon ${state.chatWebSearchEnabled ? "active" : ""}"
+        ?disabled=${!state.connected}
+        @click=${() => state.handleToggleWebSearch(!state.chatWebSearchEnabled)}
+        aria-pressed=${state.chatWebSearchEnabled}
+        title=${t("chat.webSearchToggle")}
+      >
+        ${icons.globe}
+      </button>
+      <button
         class="btn btn--sm btn--icon ${focusActive ? "active" : ""}"
         ?disabled=${disableFocusToggle}
         @click=${() => {

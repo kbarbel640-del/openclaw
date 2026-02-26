@@ -24,7 +24,7 @@ export async function promptAuthChoiceGrouped(params: {
     ];
 
     const providerSelection = (await params.prompter.select({
-      message: "Model/auth provider",
+      message: "模型/验证服务端 (Model/auth provider)",
       options: providerOptions,
     })) as string;
 
@@ -36,8 +36,8 @@ export async function promptAuthChoiceGrouped(params: {
 
     if (!group || group.options.length === 0) {
       await params.prompter.note(
-        "No auth methods available for that provider.",
-        "Model/auth choice",
+        "该提供商没有可用的验证方式。",
+        "模型/验证选择 (Model/auth choice)",
       );
       continue;
     }
@@ -47,8 +47,8 @@ export async function promptAuthChoiceGrouped(params: {
     }
 
     const methodSelection = await params.prompter.select({
-      message: `${group.label} auth method`,
-      options: [...group.options, { value: BACK_VALUE, label: "Back" }],
+      message: `${group.label} 验证方式 (auth method)`,
+      options: [...group.options, { value: BACK_VALUE, label: "返回 (Back)" }],
     });
 
     if (methodSelection === BACK_VALUE) {

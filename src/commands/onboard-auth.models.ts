@@ -214,3 +214,6 @@ export function buildSiliconFlowModelDefinition(params: {
 
 export const DEEPSEEK_WEB_DEFAULT_MODEL_ID = "deepseek-chat";
 export const DEEPSEEK_WEB_DEFAULT_MODEL_REF = `deepseek-web/${DEEPSEEK_WEB_DEFAULT_MODEL_ID}`;
+
+export const QWEN_WEB_DEFAULT_MODEL_ID = "Qwen3-Max";
+export const QWEN_WEB_DEFAULT_MODEL_REF = `qwen-web/${QWEN_WEB_DEFAULT_MODEL_ID}`;

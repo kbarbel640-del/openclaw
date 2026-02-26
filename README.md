@@ -119,6 +119,14 @@ Default behavior on Telegram/WhatsApp/Signal/iMessage/Microsoft Teams/Discord/Go
 
 Run `openclaw doctor` to surface risky/misconfigured DM policies.
 
+## 🚀 最近更新 (Recent Updates)
+
+**Qwen Web API 流式深度整合与 CLI 中国本地化 (v2026.2.19)**
+
+- **Qwen 思考过程全解析**：修复了 Qwen-Web 在深度推理 (`[(deep_think)]`) 时的文本溢出问题。现在流式输出会默认在 UI 中展开“深度思考中 (Deep Thinking...)”面板。
+- **本地工具强制关联**：针对长时间对话 Qwen 容易忘记工具调用格式的问题，在持续对话上下文中注入了强制的 `<tool_call>` XML 约束机制，确保其能稳定调用开启独立浏览器 (`openclaw` Profile) 或执行 Bash 命令。
+- **CLI 界面深度中文化**：对 `openclaw onboard` 终端向导进行了全面的中文润色（覆盖 Auth、Channels、Skills 等所有配置流程），同时保留了 Lobster 专属的高级色彩美学风格，提供更友好的本土上手体验。
+
 ## Highlights
 
 - **[Local-first Gateway](https://docs.openclaw.ai/gateway)** — single control plane for sessions, channels, tools, and events.

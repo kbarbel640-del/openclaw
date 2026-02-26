@@ -58,6 +58,7 @@ export type AppViewState = {
   chatMessages: unknown[];
   chatToolMessages: unknown[];
   chatStream: string | null;
+  chatStreamThinking: string | null;
   chatStreamStartedAt: number | null;
   chatRunId: string | null;
   compactionStatus: CompactionStatus | null;
@@ -65,6 +66,7 @@ export type AppViewState = {
   chatThinkingLevel: string | null;
   chatQueue: ChatQueueItem[];
   chatManualRefreshInFlight: boolean;
+  chatWebSearchEnabled: boolean;
   nodesLoading: boolean;
   nodes: Array<Record<string, unknown>>;
   chatNewMessagesBelow: boolean;
@@ -285,4 +287,5 @@ export type AppViewState = {
   handleOpenSidebar: (content: string) => void;
   handleCloseSidebar: () => void;
   handleSplitRatioChange: (ratio: number) => void;
+  handleToggleWebSearch: (enabled: boolean) => void;
 };

@@ -265,8 +265,7 @@
   width: var(--theme-item);
   height: var(--theme-item);
   border-radius: var(--radius-full);
-  transform: translateY(-50%)
-    translateX(calc(var(--theme-index, 0) * (var(--theme-item) + var(--theme-gap))));
+  transform: translateY(-50%) translateX(calc(var(--theme-index, 0) * (var(--theme-item) + var(--theme-gap))));
   background: var(--accent);
   transition: transform var(--duration-normal) var(--ease-out);
   z-index: 0;
@@ -424,6 +423,17 @@
   border-color: var(--accent);
   background: var(--accent-subtle);
   color: var(--accent);
+}
+
+.btn--icon.active {
+  background: var(--accent);
+  color: var(--primary-foreground);
+  box-shadow: 0 0 15px var(--accent-glow);
+  border-color: var(--accent);
+}
+
+.btn--icon.active svg {
+  stroke: var(--primary-foreground);
 }
 
 .btn.danger {
@@ -1294,10 +1304,12 @@
 }
 
 @keyframes chatStreamPulse {
+
   0%,
   100% {
     border-color: var(--border);
   }
+
   50% {
     border-color: var(--accent);
   }
@@ -1327,7 +1339,7 @@
   height: 12px;
 }
 
-.chat-reading-indicator__dots > span {
+.chat-reading-indicator__dots>span {
   display: inline-block;
   width: 6px;
   height: 6px;
@@ -1339,21 +1351,23 @@
   will-change: transform, opacity;
 }
 
-.chat-reading-indicator__dots > span:nth-child(2) {
+.chat-reading-indicator__dots>span:nth-child(2) {
   animation-delay: 0.15s;
 }
 
-.chat-reading-indicator__dots > span:nth-child(3) {
+.chat-reading-indicator__dots>span:nth-child(3) {
   animation-delay: 0.3s;
 }
 
 @keyframes chatReadingDot {
+
   0%,
   80%,
   100% {
     opacity: 0.4;
     transform: translateY(0);
   }
+
   40% {
     opacity: 1;
     transform: translateY(-3px);
@@ -1361,7 +1375,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chat-reading-indicator__dots > span {
+  .chat-reading-indicator__dots>span {
     animation: none;
     opacity: 0.6;
   }
@@ -1886,7 +1900,7 @@
   min-width: 0;
 }
 
-.agent-kv > div {
+.agent-kv>div {
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -2066,7 +2080,7 @@
   gap: 8px;
 }
 
-.agent-skills-header > span:last-child {
+.agent-skills-header>span:last-child {
   margin-left: auto;
 }
 

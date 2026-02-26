@@ -79,8 +79,8 @@ const AUTH_CHOICE_GROUP_DEFS: {
   {
     value: "qwen",
     label: "Qwen",
-    hint: "OAuth",
-    choices: ["qwen-portal"],
+    hint: "OAuth + Browser/Cookies",
+    choices: ["qwen-portal", "qwen-web"],
   },
   {
     value: "zai",
@@ -328,6 +328,11 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     value: "deepseek-web",
     label: "DeepSeek Browser (Cookie auth)",
     hint: "Access DeepSeek V3/R1 via logged-in session",
+  },
+  {
+    value: "qwen-web",
+    label: "Qwen Browser (Cookie auth)",
+    hint: "Access Qwen 3.5 via logged-in session",
   },
   { value: "custom-api-key", label: "Custom Provider" },
 ];

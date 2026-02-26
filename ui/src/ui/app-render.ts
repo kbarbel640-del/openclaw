@@ -828,6 +828,7 @@ export function renderApp(state: AppViewState) {
                 messages: state.chatMessages,
                 toolMessages: state.chatToolMessages,
                 stream: state.chatStream,
+                streamThinking: state.chatStreamThinking,
                 streamStartedAt: state.chatStreamStartedAt,
                 draft: state.chatMessage,
                 queue: state.chatQueue,
@@ -871,6 +872,8 @@ export function renderApp(state: AppViewState) {
                 onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
                 assistantName: state.assistantName,
                 assistantAvatar: state.assistantAvatar,
+                webSearchEnabled: state.chatWebSearchEnabled,
+                onToggleWebSearch: (enabled: boolean) => state.handleToggleWebSearch(enabled),
               })
             : nothing
         }

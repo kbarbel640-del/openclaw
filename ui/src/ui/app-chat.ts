@@ -21,6 +21,7 @@ export type ChatHost = {
   basePath: string;
   hello: GatewayHelloOk | null;
   chatAvatarUrl: string | null;
+  chatWebSearchEnabled: boolean;
   refreshSessionsAfterChat: Set<string>;
 };
 
@@ -104,7 +105,9 @@ async function sendChatMessageNow(
   },
 ) {
   resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
-  const runId = await sendChatMessage(host as unknown as OpenClawApp, message, opts?.attachments);
+  const runId = await sendChatMessage(host as unknown as OpenClawApp, message, opts?.attachments, {
+    webSearchEnabled: host.chatWebSearchEnabled,
+  });
   const ok = Boolean(runId);
   if (!ok && opts?.previousDraft != null) {
     host.chatMessage = opts.previousDraft;

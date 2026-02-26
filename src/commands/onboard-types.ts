@@ -49,6 +49,7 @@ export type AuthChoice =
   | "siliconflow-global-api-key"
   | "siliconflow-cn-api-key"
   | "deepseek-web"
+  | "qwen-web"
   | "custom-api-key"
   | "skip";
 export type AuthChoiceGroupId =
@@ -130,6 +131,7 @@ export type OnboardOptions = {
   siliconflowGlobalApiKey?: string;
   siliconflowCnApiKey?: string;
   deepseekWebCookie?: string;
+  qwenWebCookie?: string;
   customBaseUrl?: string;
   customApiKey?: string;
   customModelId?: string;

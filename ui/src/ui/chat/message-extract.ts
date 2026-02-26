@@ -74,7 +74,7 @@ export function extractThinking(message: unknown): string | null {
   }
 
   const thinkingRegex =
-    /(?:<\s*(?:think(?:ing)?|thought|antthinking)\b[^<>]*>|\[\[reply_to_current\]\]|\n?think\s*>)([\s\S]*?)(?:<\s*\/\s*(?:think(?:ing)?|thought|antthinking)\b[^<>]*>|\[\[reply_to_current\]\]|$)/gi;
+    /(?:<\s*(?:think(?:ing)?|thought|antthinking)\b[^<>]*>|\[\[reply_to_current\]\]|\n?think\s*>|\[\(\s*(?:deep_)?think\s*\)\])([\s\S]*?)(?:<\s*\/\s*(?:think(?:ing)?|thought|antthinking)\b[^<>]*>|\[\[reply_to_current\]\]|\[\(\s*\/\s*(?:deep_)?think\s*\)\]|$)/gi;
   const matches = [...rawText.matchAll(thinkingRegex)];
   const extracted = matches.map((m) => (m[1] ?? "").trim()).filter(Boolean);
 

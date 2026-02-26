@@ -29,7 +29,10 @@ import type { NodeManagerChoice, OnboardMode, ResetScope } from "./onboard-types
 
 export function guardCancel<T>(value: T | symbol, runtime: RuntimeEnv): T {
   if (isCancel(value)) {
-    cancel(stylePromptTitle("Setup cancelled.") ?? "Setup cancelled.");
+    cancel(
+      stylePromptTitle("设置操作已取消 (Setup cancelled)。") ??
+        "设置操作已取消 (Setup cancelled)。",
+    );
     runtime.exit(0);
     throw new Error("unreachable");
   }
@@ -214,12 +217,12 @@ export function formatControlUiSshHint(params: {
     : undefined;
   const sshTarget = resolveSshTargetHint();
   return [
-    "No GUI detected. Open from your computer:",
+    "未检测到图形界面 (No GUI detected)。请在您的电脑上通过以下方式打开：",
     `ssh -N -L ${params.port}:127.0.0.1:${params.port} ${sshTarget}`,
-    "Then open:",
+    "然后在浏览器中打开：",
     localUrl,
     authedUrl,
-    "Docs:",
+    "相关文档 (Docs)：",
     "https://docs.openclaw.ai/gateway/remote",
     "https://docs.openclaw.ai/web/control-ui",
   ]

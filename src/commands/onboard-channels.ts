@@ -54,19 +54,19 @@ async function promptConfiguredAction(params: {
   const { prompter, label, supportsDisable, supportsDelete } = params;
   const updateOption: WizardSelectOption<ConfiguredChannelAction> = {
     value: "update",
-    label: "Modify settings",
+    label: "修改设置 (Modify settings)",
   };
   const disableOption: WizardSelectOption<ConfiguredChannelAction> = {
     value: "disable",
-    label: "Disable (keeps config)",
+    label: "禁用功能 (保留配置)",
   };
   const deleteOption: WizardSelectOption<ConfiguredChannelAction> = {
     value: "delete",
-    label: "Delete config",
+    label: "删除配置 (Delete config)",
   };
   const skipOption: WizardSelectOption<ConfiguredChannelAction> = {
     value: "skip",
-    label: "Skip (leave as-is)",
+    label: "跳过 (保持现状)",
   };
   const options: Array<WizardSelectOption<ConfiguredChannelAction>> = [
     updateOption,
@@ -75,7 +75,7 @@ async function promptConfiguredAction(params: {
     skipOption,
   ];
   return await prompter.select({
-    message: `${label} already configured. What do you want to do?`,
+    message: `${label} 已经配置过了。您想怎么做?`,
     options,
     initialValue: "update",
   });
@@ -191,17 +191,17 @@ async function noteChannelPrimer(
   );
   await prompter.note(
     [
-      "DM security: default is pairing; unknown DMs get a pairing code.",
-      `Approve with: ${formatCliCommand("openclaw pairing approve <channel> <code>")}`,
-      'Public DMs require dmPolicy="open" + allowFrom=["*"].',
-      "Multi-user DMs: run: " +
+      "私聊安全机制 (DM security): 默认开启配对(pairing)模式; 未知私聊将收到配对码。",
+      `批准配对命令: ${formatCliCommand("openclaw pairing approve <channel> <code>")}`,
+      '完全公开私聊需设置 dmPolicy="open" + allowFrom=["*"]。',
+      "多用户私聊(群组功能): 运行: " +
         formatCliCommand('openclaw config set session.dmScope "per-channel-peer"') +
-        ' (or "per-account-channel-peer" for multi-account channels) to isolate sessions.',
-      `Docs: ${formatDocsLink("/start/pairing", "start/pairing")}`,
+        ' (或者 "per-account-channel-peer" 处理多账号) 来将对话上下文隔离。',
+      `文档参考: ${formatDocsLink("/start/pairing", "start/pairing")}`,
       "",
       ...channelLines,
     ].join("\n"),
-    "How channels work",
+    "聊天渠道的工作原理 (How channels work)",
   );
 }
 
@@ -235,7 +235,7 @@ async function maybeConfigureDmPolicies(params: {
   }
 
   const wants = await prompter.confirm({
-    message: "Configure DM access policies now? (default: pairing)",
+    message: "现在配置私聊访问策略吗? (Configure DM access policies now? 默认为配对模式)",
     initialValue: false,
   });
   if (!wants) {
@@ -258,12 +258,12 @@ async function maybeConfigureDmPolicies(params: {
       `${policy.label} DM access`,
     );
     return (await prompter.select({
-      message: `${policy.label} DM policy`,
+      message: `${policy.label} 私聊策略 (DM policy)`,
       options: [
-        { value: "pairing", label: "Pairing (recommended)" },
-        { value: "allowlist", label: "Allowlist (specific users only)" },
-        { value: "open", label: "Open (public inbound DMs)" },
-        { value: "disabled", label: "Disabled (ignore DMs)" },
+        { value: "pairing", label: "配对模式 (Pairing - 推荐)" },
+        { value: "allowlist", label: "白名单模式 (Allowlist - 仅限特定用户)" },
+        { value: "open", label: "公开模式 (Open - 允许所有呼入私聊)" },
+        { value: "disabled", label: "禁用模式 (Disabled - 忽略所有私聊)" },
       ],
     })) as DmPolicy;
   };
@@ -312,7 +312,7 @@ export async function setupChannels(
   const shouldConfigure = options?.skipConfirm
     ? true
     : await prompter.confirm({
-        message: "Configure chat channels now?",
+        message: "现在开始配置聊天渠道吗? (Configure chat channels now?)",
         initialValue: true,
       });
   if (!shouldConfigure) {
@@ -546,7 +546,7 @@ export async function setupChannels(
 
     if (action === "delete") {
       const confirmed = await prompter.confirm({
-        message: `Delete ${label} account "${accountLabel}"?`,
+        message: `确认删除 ${label} 的账号 "${accountLabel}" 吗?`,
         initialValue: false,
       });
       if (!confirmed) {
@@ -614,13 +614,13 @@ export async function setupChannels(
   if (options?.quickstartDefaults) {
     const { entries } = getChannelEntries();
     const choice = (await prompter.select({
-      message: "Select channel (QuickStart)",
+      message: "选择渠道 (Select channel - 快速启动)",
       options: [
         ...buildSelectionOptions(entries),
         {
           value: "__skip__",
-          label: "Skip for now",
-          hint: `You can add channels later via \`${formatCliCommand("openclaw channels add")}\``,
+          label: "暂时跳过 (Skip for now)",
+          hint: `稍后可通过 \`${formatCliCommand("openclaw channels add")}\` 继续添加`,
         },
       ],
       initialValue: quickstartDefault,
@@ -634,13 +634,13 @@ export async function setupChannels(
     while (true) {
       const { entries } = getChannelEntries();
       const choice = (await prompter.select({
-        message: "Select a channel",
+        message: "选择一个渠道 (Select a channel)",
         options: [
           ...buildSelectionOptions(entries),
           {
             value: doneValue,
-            label: "Finished",
-            hint: selection.length > 0 ? "Done" : "Skip for now",
+            label: "完成 (Finished)",
+            hint: selection.length > 0 ? "已完成" : "暂时跳过",
           },
         ],
         initialValue,

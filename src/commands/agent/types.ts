@@ -13,6 +13,8 @@ export type AgentStreamParams = {
   /** Provider stream params override (best-effort). */
   temperature?: number;
   maxTokens?: number;
+  /** Whether web search is enabled for this run (best-effort). */
+  webSearchEnabled?: boolean;
 };
 
 export type AgentRunContext = {

@@ -144,6 +144,17 @@ const QIANFAN_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+export const QWEN_WEB_BASE_URL = "https://www.qianwen.com";
+export const QWEN_WEB_DEFAULT_MODEL_ID = "Qwen3.5-Plus";
+const QWEN_WEB_DEFAULT_CONTEXT_WINDOW = 128000;
+const QWEN_WEB_DEFAULT_MAX_TOKENS = 4096;
+const QWEN_WEB_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 export const DEEPSEEK_WEB_BASE_URL = "https://chat.deepseek.com";
 export const DEEPSEEK_WEB_DEFAULT_MODEL_ID = "deepseek-chat";
 const DEEPSEEK_WEB_DEFAULT_CONTEXT_WINDOW = 64000;
@@ -644,7 +655,7 @@ export async function discoverDeepseekWebModels(params?: {
       const auth = JSON.parse(params.apiKey);
       const { DeepSeekWebClient } = await import("../providers/deepseek-web-client.js");
       const client = new DeepSeekWebClient(auth);
-      return (await client.discoverModels()) as ModelDefinitionConfig[];
+      return await client.discoverModels();
     } catch (e) {
       console.warn("[DeepSeekWeb] Dynamic discovery failed, falling back to built-in list:", e);
     }
@@ -697,6 +708,78 @@ export async function buildDeepseekWebProvider(params?: {
   return {
     baseUrl: DEEPSEEK_WEB_BASE_URL,
     api: "deepseek-web",
+    models,
+  };
+}
+
+export async function discoverQwenWebModels(params?: {
+  apiKey?: string;
+}): Promise<ModelDefinitionConfig[]> {
+  if (params?.apiKey) {
+    try {
+      const auth = JSON.parse(params.apiKey);
+      const { QwenWebClient } = await import("../providers/qwen-web-client.js");
+      const client = new QwenWebClient(auth);
+      return await client.discoverModels();
+    } catch (e) {
+      console.warn("[QwenWeb] Dynamic discovery failed, falling back to built-in list:", e);
+    }
+  }
+
+  return [
+    {
+      id: "Qwen3.5-Plus",
+      name: "Qwen 3.5 Plus (Web)",
+      reasoning: false,
+      input: ["text"],
+      cost: QWEN_WEB_DEFAULT_COST,
+      contextWindow: QWEN_WEB_DEFAULT_CONTEXT_WINDOW,
+      maxTokens: QWEN_WEB_DEFAULT_MAX_TOKENS,
+    },
+    {
+      id: "Qwen3.5-Plus-Thinking",
+      name: "Qwen 3.5 Plus Thinking (Web)",
+      reasoning: true,
+      input: ["text"],
+      cost: QWEN_WEB_DEFAULT_COST,
+      contextWindow: QWEN_WEB_DEFAULT_CONTEXT_WINDOW,
+      maxTokens: QWEN_WEB_DEFAULT_MAX_TOKENS,
+    },
+    {
+      id: "Qwen-Deep-Research",
+      name: "Qwen Deep Research (Web)",
+      reasoning: true,
+      input: ["text"],
+      cost: QWEN_WEB_DEFAULT_COST,
+      contextWindow: QWEN_WEB_DEFAULT_CONTEXT_WINDOW,
+      maxTokens: QWEN_WEB_DEFAULT_MAX_TOKENS,
+    },
+    {
+      id: "Qwen-Code-Agent",
+      name: "Qwen Code Assistant (Web)",
+      reasoning: false,
+      input: ["text"],
+      cost: QWEN_WEB_DEFAULT_COST,
+      contextWindow: QWEN_WEB_DEFAULT_CONTEXT_WINDOW,
+      maxTokens: QWEN_WEB_DEFAULT_MAX_TOKENS,
+    },
+    {
+      id: "Qwen-Image-Gen",
+      name: "Qwen Image Generation (Web)",
+      reasoning: false,
+      input: ["text"],
+      cost: QWEN_WEB_DEFAULT_COST,
+      contextWindow: QWEN_WEB_DEFAULT_CONTEXT_WINDOW,
+      maxTokens: QWEN_WEB_DEFAULT_MAX_TOKENS,
+    },
+  ];
+}
+
+export async function buildQwenWebProvider(params?: { apiKey?: string }): Promise<ProviderConfig> {
+  const models = await discoverQwenWebModels(params);
+  return {
+    baseUrl: QWEN_WEB_BASE_URL,
+    api: "qwen-web",
     models,
   };
 }
@@ -938,6 +1021,15 @@ export async function resolveImplicitProviders(params: {
   providers["deepseek-web"] = {
     ...(await buildDeepseekWebProvider({ apiKey: deepseekWebKey })),
     apiKey: deepseekWebKey,
+  };
+
+  const qwenWebKey =
+    resolveEnvApiKeyVarName("qwen-web") ??
+    resolveApiKeyFromProfiles({ provider: "qwen-web", store: authStore });
+
+  providers["qwen-web"] = {
+    ...(await buildQwenWebProvider({ apiKey: qwenWebKey })),
+    apiKey: qwenWebKey,
   };
 
   return providers;
