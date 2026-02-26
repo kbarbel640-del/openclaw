@@ -351,7 +351,7 @@ export async function prepareSlackMessage(params: {
     maxBytes: ctx.mediaMaxBytes,
   });
 
-  // Resolve forwarded message content (text + media) from Slack attachments
+  // Resolve attachment content (text + media), including forwarded shares
   const attachmentContent = await resolveSlackAttachmentContent({
     attachments: message.attachments,
     token: ctx.botToken,
@@ -383,6 +383,7 @@ export async function prepareSlackMessage(params: {
       .filter(Boolean)
       .join("\n") || "";
   if (!rawBody) {
+    logVerbose("slack: drop message (empty body after attachment/media normalization)");
     return null;
   }
 

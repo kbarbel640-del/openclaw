@@ -446,7 +446,7 @@ describe("resolveSlackAttachmentContent", () => {
     vi.restoreAllMocks();
   });
 
-  it("ignores non-forwarded attachments", async () => {
+  it("extracts text from non-forwarded attachments", async () => {
     const result = await resolveSlackAttachmentContent({
       attachments: [
         {
@@ -459,7 +459,10 @@ describe("resolveSlackAttachmentContent", () => {
       maxBytes: 1024 * 1024,
     });
 
-    expect(result).toBeNull();
+    expect(result).toEqual({
+      text: "[Slack attachment]\nunfurl text",
+      media: [],
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -477,7 +480,35 @@ describe("resolveSlackAttachmentContent", () => {
     });
 
     expect(result).toEqual({
-      text: "[Forwarded message from Bob]\nPlease review this",
+      text: "[Slack attachment from Bob]\nPlease review this",
+      media: [],
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("extracts pretext/fallback/fields from generic Slack attachments", async () => {
+    const result = await resolveSlackAttachmentContent({
+      attachments: [
+        {
+          title: "Vercel deploy",
+          pretext: "Deployment to Preview - tideflow-app",
+          fallback: "Status: Completed",
+          fields: [{ title: "Commit", value: "e6be351" }, { value: "Environment: Preview" }],
+          is_msg_unfurl: true,
+        },
+      ],
+      token: "xoxb-test-token",
+      maxBytes: 1024 * 1024,
+    });
+
+    expect(result).toEqual({
+      text: [
+        "[Slack attachment: Vercel deploy]",
+        "Deployment to Preview - tideflow-app",
+        "Status: Completed",
+        "Commit: e6be351",
+        "Environment: Preview",
+      ].join("\n"),
       media: [],
     });
     expect(mockFetch).not.toHaveBeenCalled();
