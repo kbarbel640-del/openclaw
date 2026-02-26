@@ -7,6 +7,7 @@ import {
   applyMessageDefaults,
   applyTalkApiKey,
 } from "./defaults.js";
+import { setMetadataConfig } from "./io.js";
 import { normalizeConfigPaths } from "./normalize-paths.js";
 import type { ConfigFileSnapshot } from "./types.openclaw.js";
 import type { OpenClawConfig } from "./types.openclaw.js";
@@ -140,6 +141,9 @@ export class HttpConfigSource implements ConfigSource {
         ),
       ),
     );
+
+    // Update loadConfig() cache so runtime callers see reloaded config
+    setMetadataConfig(config);
 
     return {
       path: `<${this.label}>`,

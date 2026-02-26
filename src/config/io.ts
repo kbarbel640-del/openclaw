@@ -1296,11 +1296,33 @@ function shouldUseConfigCache(env: NodeJS.ProcessEnv): boolean {
   return resolveConfigCacheMs(env) > 0;
 }
 
+let _metadataConfig: OpenClawConfig | null = null;
+
+export function setMetadataConfig(config: OpenClawConfig): void {
+  _metadataConfig = config;
+}
+
 export function clearConfigCache(): void {
   configCache = null;
+  _metadataConfig = null;
 }
 
 export function loadConfig(): OpenClawConfig {
+  if (
+    process.env.OCM_CONFIG_SOURCE === "metadata" ||
+    process.env.OPENCLAW_CONFIG_SOURCE === "http"
+  ) {
+    if (_metadataConfig) {
+      return applyConfigOverrides(_metadataConfig);
+    }
+    // Fallback before startup completes (CLI preflight)
+    const token =
+      process.env.OPENCLAW_GATEWAY_TOKEN?.trim() ||
+      process.env.OCM_GATEWAY_TOKEN?.trim() ||
+      undefined;
+    return (token ? { gateway: { auth: { token } } } : {}) as OpenClawConfig;
+  }
+
   const io = createConfigIO();
   const configPath = io.configPath;
   const now = Date.now();

@@ -8,7 +8,7 @@ import type { CanvasHostServer } from "../canvas-host/server.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { isRestartEnabled } from "../config/commands.js";
-import { isNixMode, loadConfig } from "../config/config.js";
+import { isNixMode, loadConfig, setMetadataConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { createConfigSource } from "../config/create-config-source.js";
 import { clearAgentRunContext, onAgentEvent } from "../infra/agent-events.js";
@@ -192,6 +192,15 @@ export async function startGatewayServer(
     persist: cfgSource.persistConfig,
   });
   cfgAtStart = authBootstrap.cfg;
+
+  // Populate loadConfig() cache so runtime callers get the full config
+  if (
+    process.env.OCM_CONFIG_SOURCE === "metadata" ||
+    process.env.OPENCLAW_CONFIG_SOURCE === "http"
+  ) {
+    setMetadataConfig(cfgAtStart);
+  }
+
   if (authBootstrap.generatedToken) {
     if (authBootstrap.persistedGeneratedToken) {
       log.info(
