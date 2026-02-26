@@ -294,7 +294,7 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
     job.updatedAtMs = now;
     if (scheduleChanged || enabledChanged) {
       if (job.enabled) {
-        job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+        job.state.nextRunAtMs = computeJobNextRunAtMs(job, now, state.deps.cronConfig?.timezone);
       } else {
         job.state.nextRunAtMs = undefined;
         job.state.runningAtMs = undefined;
@@ -304,7 +304,7 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
       // missing/corrupt nextRunAtMs for the updated job.
       const nextRun = job.state.nextRunAtMs;
       if (typeof nextRun !== "number" || !Number.isFinite(nextRun)) {
-        job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+        job.state.nextRunAtMs = computeJobNextRunAtMs(job, now, state.deps.cronConfig?.timezone);
       }
     }
 

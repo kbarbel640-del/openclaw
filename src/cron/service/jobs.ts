@@ -402,7 +402,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
   };
   assertSupportedJobSpec(job);
   assertDeliverySupport(job);
-  job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+  job.state.nextRunAtMs = computeJobNextRunAtMs(job, now, state.deps.cronConfig?.timezone);
   return job;
 }
 
