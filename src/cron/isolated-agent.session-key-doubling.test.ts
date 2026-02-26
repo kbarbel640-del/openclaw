@@ -125,6 +125,7 @@ describe("runCronIsolatedAgentTurn session key doubling regression (#27289)", ()
         deps: {} as never,
         job,
         message: "hello",
+        sessionKey: " ",
         lane: "cron",
         // no sessionKey — should fall back to "agent:main:cron:job-1"
       });
