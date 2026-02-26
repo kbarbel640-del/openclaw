@@ -23,6 +23,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { TelegramMessageContext } from "./bot-message-context.js";
 import type { TelegramBotOptions } from "./bot.js";
 import { deliverReplies } from "./bot/delivery.js";
+import { buildTypingThreadParams } from "./bot/helpers.js";
 import type { TelegramStreamMode } from "./bot/types.js";
 import type { TelegramInlineButtons } from "./button-types.js";
 import { createTelegramDraftStream } from "./draft-stream.js";
@@ -420,6 +421,15 @@ export const dispatchTelegramMessage = async ({
 
   const typingCallbacks = createTypingCallbacks({
     start: sendTyping,
+    stop: async () => {
+      try {
+        const replyThreadId = threadSpec?.id;
+        await bot.api.sendChatAction(chatId, "typing", buildTypingThreadParams(replyThreadId));
+      } catch {
+        // Ignore errors when stopping typing indicator.
+        // Telegram will automatically clear typing after a few seconds anyway.
+      }
+    },
     onStartError: (err) => {
       logTypingFailure({
         log: logVerbose,

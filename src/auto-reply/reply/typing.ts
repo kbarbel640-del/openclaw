@@ -99,6 +99,12 @@ export function createTypingController(params: {
     if (sealed) {
       return;
     }
+    // Prevent typing loop from restarting after run completes.
+    // Between markRunComplete() and markDispatchIdle(), the typingLoop can fire
+    // and restart the keepalive via onReplyStart. This check blocks that.
+    if (runComplete) {
+      return;
+    }
     await onReplyStart?.();
   };
 
