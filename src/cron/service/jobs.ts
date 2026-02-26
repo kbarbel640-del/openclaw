@@ -447,7 +447,8 @@ function mergeCronPayload(existing: CronPayload, patch: CronPayloadPatch): CronP
       return buildPayloadFromPatch(patch);
     }
     const text = typeof patch.text === "string" ? patch.text : existing.text;
-    return { kind: "systemEvent", text };
+    const relayPrompt = "relayPrompt" in patch ? patch.relayPrompt : existing.relayPrompt;
+    return { kind: "systemEvent", text, relayPrompt };
   }
 
   if (existing.kind !== "agentTurn") {
@@ -531,7 +532,7 @@ function buildPayloadFromPatch(patch: CronPayloadPatch): CronPayload {
     if (typeof patch.text !== "string" || patch.text.length === 0) {
       throw new Error('cron.update payload.kind="systemEvent" requires text');
     }
-    return { kind: "systemEvent", text: patch.text };
+    return { kind: "systemEvent", text: patch.text, relayPrompt: patch.relayPrompt };
   }
 
   if (typeof patch.message !== "string" || patch.message.length === 0) {

@@ -587,7 +587,7 @@ export async function runHeartbeatOnce(opts: {
         (isCronEventReason || event.contextKey?.startsWith("cron:")) &&
         isCronSystemEvent(event.text),
     )
-    .map((event) => event.text);
+    .map((event) => ({ text: event.text, relayPrompt: event.relayPrompt }));
   const hasExecCompletion = pendingEvents.some(isExecCompletionEvent);
   const hasCronEvents = cronEvents.length > 0;
   const prompt = hasExecCompletion

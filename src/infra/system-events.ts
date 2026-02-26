@@ -2,7 +2,13 @@
 // prefixed to the next prompt. We intentionally avoid persistence to keep
 // events ephemeral. Events are session-scoped and require an explicit key.
 
-export type SystemEvent = { text: string; ts: number; contextKey?: string | null };
+export type SystemEvent = {
+  text: string;
+  ts: number;
+  contextKey?: string | null;
+  /** Custom relay prompt suffix. If undefined, uses default behavior. If null, no relay instruction. */
+  relayPrompt?: string | null;
+};
 
 const MAX_EVENTS = 20;
 
@@ -17,6 +23,8 @@ const queues = new Map<string, SessionQueue>();
 type SystemEventOptions = {
   sessionKey: string;
   contextKey?: string | null;
+  /** Custom relay prompt suffix. If undefined, uses default behavior. If null, no relay instruction. */
+  relayPrompt?: string | null;
 };
 
 function requireSessionKey(key?: string | null): string {
@@ -75,6 +83,7 @@ export function enqueueSystemEvent(text: string, options: SystemEventOptions) {
     text: cleaned,
     ts: Date.now(),
     contextKey: normalizedContextKey,
+    relayPrompt: options?.relayPrompt,
   });
   if (entry.queue.length > MAX_EVENTS) {
     entry.queue.shift();

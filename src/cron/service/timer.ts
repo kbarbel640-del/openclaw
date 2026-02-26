@@ -472,6 +472,7 @@ async function executeJobCore(
       agentId: job.agentId,
       sessionKey: job.sessionKey,
       contextKey: `cron:${job.id}`,
+      relayPrompt: job.payload.kind === "systemEvent" ? job.payload.relayPrompt : undefined,
     });
     if (job.wakeMode === "now" && state.deps.runHeartbeatOnce) {
       const reason = `cron:${job.id}`;

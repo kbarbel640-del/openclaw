@@ -52,7 +52,7 @@ export type CronRunOutcome = {
 };
 
 export type CronPayload =
-  | { kind: "systemEvent"; text: string }
+  | { kind: "systemEvent"; text: string; relayPrompt?: string | null }
   | {
       kind: "agentTurn";
       message: string;
@@ -68,7 +68,7 @@ export type CronPayload =
     };
 
 export type CronPayloadPatch =
-  | { kind: "systemEvent"; text?: string }
+  | { kind: "systemEvent"; text?: string; relayPrompt?: string | null }
   | {
       kind: "agentTurn";
       message?: string;

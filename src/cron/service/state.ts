@@ -45,7 +45,12 @@ export type CronServiceDeps = {
   sessionStorePath?: string;
   enqueueSystemEvent: (
     text: string,
-    opts?: { agentId?: string; sessionKey?: string; contextKey?: string },
+    opts?: {
+      agentId?: string;
+      sessionKey?: string;
+      contextKey?: string;
+      relayPrompt?: string | null;
+    },
   ) => void;
   requestHeartbeatNow: (opts?: { reason?: string; agentId?: string; sessionKey?: string }) => void;
   runHeartbeatOnce?: (opts?: {

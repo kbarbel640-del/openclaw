@@ -1,21 +1,42 @@
 import { HEARTBEAT_TOKEN } from "../auto-reply/tokens.js";
 
+type CronEventWithRelayPrompt = {
+  text: string;
+  relayPrompt?: string | null;
+};
+
 // Build a dynamic prompt for cron events by embedding the actual event content.
 // This ensures the model sees the reminder text directly instead of relying on
 // "shown in the system messages above" which may not be visible in context.
-export function buildCronEventPrompt(pendingEvents: string[]): string {
-  const eventText = pendingEvents.join("\n").trim();
+export function buildCronEventPrompt(pendingEvents: CronEventWithRelayPrompt[]): string {
+  // Extract relayPrompt from first event (all events from same cron job have same relayPrompt)
+  const relayPrompt = pendingEvents[0]?.relayPrompt;
+
+  const eventText = pendingEvents
+    .map((e) => (typeof e === "string" ? e : e.text))
+    .join("\n")
+    .trim();
   if (!eventText) {
     return (
       "A scheduled cron event was triggered, but no event content was found. " +
       "Reply HEARTBEAT_OK."
     );
   }
-  return (
-    "A scheduled reminder has been triggered. The reminder content is:\n\n" +
-    eventText +
-    "\n\nPlease relay this reminder to the user in a helpful and friendly way."
-  );
+
+  const base = "A scheduled reminder has been triggered. The reminder content is:\n\n" + eventText;
+
+  // If relayPrompt is explicitly null, no relay instruction
+  if (relayPrompt === null) {
+    return base;
+  }
+
+  // If relayPrompt is a custom string, use it
+  if (typeof relayPrompt === "string") {
+    return base + "\n\n" + relayPrompt;
+  }
+
+  // Default behavior: relay to user
+  return base + "\n\nPlease relay this reminder to the user in a helpful and friendly way.";
 }
 
 const HEARTBEAT_OK_PREFIX = HEARTBEAT_TOKEN.toLowerCase();
