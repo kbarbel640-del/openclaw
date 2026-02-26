@@ -676,6 +676,16 @@ function renderSelect(params: {
     (opt) => opt === resolvedValue || String(opt) === String(resolvedValue),
   );
   const unset = "__unset__";
+  // Use -2 as a special index to identify custom values not in the predefined options list.
+  // This avoids collision with valid option indices (0+) and the unset sentinel (-1 conceptual).
+  const customValueIndex = -2;
+  // Check if we have a custom value: defined, not null, and not found in options list.
+  // typeof check ensures we don't treat null as a custom value (enum schemas use primitives).
+  const hasCustomValue = resolvedValue != null && currentIndex < 0;
+  // Format custom value for display. For primitives (string/number), use String().
+  // For objects (unlikely in enum schemas but handled defensively), use JSON.stringify.
+  const customValueDisplay =
+    typeof resolvedValue === "object" ? JSON.stringify(resolvedValue) : String(resolvedValue);
 
   return html`
     <div class="cfg-field">
@@ -685,13 +695,26 @@ function renderSelect(params: {
       <select
         class="cfg-select"
         ?disabled=${disabled}
-        .value=${currentIndex >= 0 ? String(currentIndex) : unset}
+        .value=${currentIndex >= 0 ? String(currentIndex) : hasCustomValue ? String(customValueIndex) : unset}
         @change=${(e: Event) => {
           const val = (e.target as HTMLSelectElement).value;
-          onPatch(path, val === unset ? undefined : options[Number(val)]);
+          const numVal = Number(val);
+          if (val === unset) {
+            onPatch(path, undefined);
+          } else if (numVal === customValueIndex && hasCustomValue) {
+            // Keep current custom value when selecting the custom option
+            onPatch(path, resolvedValue);
+          } else {
+            onPatch(path, options[numVal]);
+          }
         }}
       >
         <option value=${unset}>Select...</option>
+        ${
+          hasCustomValue
+            ? html`<option value=${String(customValueIndex)}>${customValueDisplay}</option>`
+            : nothing
+        }
         ${options.map(
           (opt, idx) => html`
           <option value=${String(idx)}>${String(opt)}</option>

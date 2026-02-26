@@ -363,4 +363,92 @@ describe("config form renderer", () => {
     const analysis = analyzeConfigSchema(schema);
     expect(analysis.unsupportedPaths).toContain("extra");
   });
+
+  it("renders custom value in select when value not in options list", () => {
+    const onPatch = vi.fn();
+    const container = document.createElement("div");
+    // Schema with predefined enum options
+    const schema = {
+      type: "object",
+      properties: {
+        adapter: {
+          type: "string",
+          enum: ["openai", "anthropic"],
+        },
+      },
+    };
+    const analysis = analyzeConfigSchema(schema);
+    // Value is set to a custom value not in the enum list
+    render(
+      renderConfigForm({
+        schema: analysis.schema,
+        uiHints: {},
+        unsupportedPaths: analysis.unsupportedPaths,
+        value: { adapter: "custom-adapter" },
+        onPatch,
+      }),
+      container,
+    );
+
+    // Should show the custom value instead of "Select..."
+    const select: HTMLSelectElement | null = container.querySelector("select.cfg-select");
+    expect(select).not.toBeNull();
+    if (!select) {
+      return;
+    }
+
+    // Custom value should be visible as an option
+    const options = Array.from(select.querySelectorAll("option")).map((opt) =>
+      opt.textContent?.trim(),
+    );
+    expect(options).toContain("custom-adapter");
+
+    // Should have the predefined options too
+    expect(options).toContain("openai");
+    expect(options).toContain("anthropic");
+  });
+
+  it("preserves custom value when re-selected in dropdown", () => {
+    const onPatch = vi.fn();
+    const container = document.createElement("div");
+    const schema = {
+      type: "object",
+      properties: {
+        adapter: {
+          type: "string",
+          enum: ["openai", "anthropic"],
+        },
+      },
+    };
+    const analysis = analyzeConfigSchema(schema);
+    render(
+      renderConfigForm({
+        schema: analysis.schema,
+        uiHints: {},
+        unsupportedPaths: analysis.unsupportedPaths,
+        value: { adapter: "custom-adapter" },
+        onPatch,
+      }),
+      container,
+    );
+
+    const select: HTMLSelectElement | null = container.querySelector("select.cfg-select");
+    expect(select).not.toBeNull();
+    if (!select) {
+      return;
+    }
+
+    // Find and select the custom value option
+    const customOption = Array.from(select.querySelectorAll("option")).find(
+      (opt) => opt.textContent?.trim() === "custom-adapter",
+    );
+    expect(customOption).not.toBeUndefined();
+
+    // Select the custom value
+    select.value = customOption?.value ?? "";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+
+    // Should preserve the custom value, not set to undefined
+    expect(onPatch).toHaveBeenCalledWith(["adapter"], "custom-adapter");
+  });
 });
