@@ -2,9 +2,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GATEWAY_EVENT_UPDATE_AVAILABLE } from "../../../src/gateway/events.js";
 import { connectGateway } from "./app-gateway.ts";
 
+vi.hoisted(() => {
+  const store = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size;
+    },
+  });
+});
+
 type GatewayClientMock = {
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
+  clientVersion?: string;
   emitClose: (info: {
     code: number;
     reason?: string;
@@ -34,6 +55,7 @@ vi.mock("./gateway.ts", () => {
 
     constructor(
       private opts: {
+        clientVersion?: string;
         onClose?: (info: {
           code: number;
           reason: string;
@@ -46,6 +68,7 @@ vi.mock("./gateway.ts", () => {
       gatewayClientInstances.push({
         start: this.start,
         stop: this.stop,
+        clientVersion: this.opts.clientVersion,
         emitClose: (info) => {
           this.opts.onClose?.({
             code: info.code,
@@ -65,6 +88,10 @@ vi.mock("./gateway.ts", () => {
 
   return { GatewayBrowserClient, resolveGatewayErrorDetailCode };
 });
+
+vi.mock("./version.ts", () => ({
+  CONTROL_UI_VERSION: "2026.2.26-test",
+}));
 
 function createHost() {
   return {
@@ -132,6 +159,14 @@ describe("connectGateway", () => {
     expect(host.lastError).toBe(
       "event gap detected (expected seq 20, got 24); refresh recommended",
     );
+  });
+
+  it("passes the control UI version to the gateway client", () => {
+    const host = createHost();
+
+    connectGateway(host);
+
+    expect(gatewayClientInstances[0]?.clientVersion).toBe("2026.2.26-test");
   });
 
   it("ignores stale client onEvent callbacks after reconnect", () => {
