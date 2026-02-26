@@ -8,6 +8,7 @@ import {
   withModelsTempHome as withTempHome,
 } from "./models-config.e2e-harness.js";
 import { ensureOpenClawModelsJson } from "./models-config.js";
+import { makeModel } from "./pi-embedded-runner/model.test-harness.js";
 
 installModelsConfigTestHooks();
 
@@ -29,7 +30,7 @@ describe("models-config", () => {
                 baseUrl: "https://custom-api.example.com/",
                 apiKey: "agent_specific_key_12345",
                 api: "openai-completions",
-                models: [{ id: "claude-4-sonnet", name: "Claude 4 Sonnet" }],
+                models: [makeModel("claude-4-sonnet")],
               },
             },
           },
@@ -47,7 +48,7 @@ describe("models-config", () => {
               baseUrl: "https://main-api.example.com/",
               apiKey: "main_config_key_67890",
               api: "openai-completions",
-              models: [{ id: "claude-4-sonnet", name: "Claude 4 Sonnet" }],
+              models: [makeModel("claude-4-sonnet")],
             },
           },
         },
