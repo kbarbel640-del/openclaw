@@ -1,12 +1,14 @@
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { isPidAlive } from "../shared/pid-alive.js";
+import { getBootId, getProcessStartTime, isPidAlive } from "../shared/pid-alive.js";
 import { resolveProcessScopedMap } from "../shared/process-scoped-map.js";
 
 type LockFilePayload = {
   pid?: number;
   createdAt?: string;
+  bootId?: string;
+  pidStartTime?: string;
 };
 
 type HeldLock = {
@@ -276,6 +278,12 @@ async function readLockPayload(lockPath: string): Promise<LockFilePayload | null
     if (typeof parsed.createdAt === "string") {
       payload.createdAt = parsed.createdAt;
     }
+    if (typeof parsed.bootId === "string") {
+      payload.bootId = parsed.bootId;
+    }
+    if (typeof parsed.pidStartTime === "string") {
+      payload.pidStartTime = parsed.pidStartTime;
+    }
     return payload;
   } catch {
     return null;
@@ -299,6 +307,30 @@ function inspectLockPayload(
   } else if (!pidAlive) {
     staleReasons.push("dead-pid");
   }
+
+  // Detect PID namespace recycling (e.g., Docker container restart).
+  // If the lock file contains a bootId that differs from the current one,
+  // the lock was created by a previous boot/container and is definitely stale,
+  // even if the PID happens to be alive (recycled in the new namespace).
+  const lockBootId = typeof payload?.bootId === "string" ? payload.bootId : null;
+  const currentBootId = getBootId();
+  if (lockBootId && currentBootId && lockBootId !== currentBootId) {
+    staleReasons.push("boot-id-mismatch");
+  }
+
+  // If boot IDs match but the PID's start time differs from what was recorded,
+  // the PID was recycled within the same boot (rare but possible).
+  if (pid !== null && pidAlive && !staleReasons.includes("boot-id-mismatch")) {
+    const lockPidStartTime =
+      typeof payload?.pidStartTime === "string" ? payload.pidStartTime : null;
+    if (lockPidStartTime) {
+      const currentPidStartTime = getProcessStartTime(pid);
+      if (currentPidStartTime && lockPidStartTime !== currentPidStartTime) {
+        staleReasons.push("pid-start-time-mismatch");
+      }
+    }
+  }
+
   if (ageMs === null) {
     staleReasons.push("invalid-createdAt");
   } else if (ageMs > staleMs) {
@@ -447,7 +479,12 @@ export async function acquireSessionWriteLock(params: {
     try {
       handle = await fs.open(lockPath, "wx");
       const createdAt = new Date().toISOString();
-      await handle.writeFile(JSON.stringify({ pid: process.pid, createdAt }, null, 2), "utf8");
+      const bootId = getBootId();
+      const pidStartTime = getProcessStartTime(process.pid);
+      await handle.writeFile(
+        JSON.stringify({ pid: process.pid, createdAt, bootId, pidStartTime }, null, 2),
+        "utf8",
+      );
       const createdHeld: HeldLock = {
         count: 1,
         handle,

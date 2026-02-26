@@ -1,6 +1,6 @@
 import fsSync from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { isPidAlive } from "./pid-alive.js";
+import { getBootId, getProcessStartTime, isPidAlive } from "./pid-alive.js";
 
 describe("isPidAlive", () => {
   it("returns true for the current running process", () => {
@@ -49,5 +49,39 @@ describe("isPidAlive", () => {
       Object.defineProperty(process, "platform", originalPlatformDescriptor);
       vi.restoreAllMocks();
     }
+  });
+});
+
+describe("getBootId", () => {
+  it("returns a non-empty string on Linux", () => {
+    if (process.platform !== "linux") {
+      expect(getBootId()).toBeUndefined();
+      return;
+    }
+    const bootId = getBootId();
+    expect(typeof bootId).toBe("string");
+    expect(bootId!.length).toBeGreaterThan(0);
+  });
+
+  it("returns the same value on subsequent calls (cached)", () => {
+    const first = getBootId();
+    const second = getBootId();
+    expect(first).toBe(second);
+  });
+});
+
+describe("getProcessStartTime", () => {
+  it("returns a string for the current process on Linux", () => {
+    if (process.platform !== "linux") {
+      expect(getProcessStartTime(process.pid)).toBeUndefined();
+      return;
+    }
+    const startTime = getProcessStartTime(process.pid);
+    expect(typeof startTime).toBe("string");
+    expect(startTime!.length).toBeGreaterThan(0);
+  });
+
+  it("returns undefined for a non-existent PID", () => {
+    expect(getProcessStartTime(2 ** 30)).toBeUndefined();
   });
 });
