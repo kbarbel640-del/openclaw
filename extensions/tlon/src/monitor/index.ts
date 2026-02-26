@@ -1,5 +1,5 @@
-import { format } from "node:util";
 import type { RuntimeEnv, ReplyPayload, OpenClawConfig } from "openclaw/plugin-sdk";
+import { createLoggerBackedRuntime, createReplyPrefixOptions } from "openclaw/plugin-sdk";
 import { getTlonRuntime } from "../runtime.js";
 import { createSettingsManager, type TlonSettingsStore } from "../settings.js";
 import { normalizeShip, parseChannelNest } from "../targets.js";
@@ -87,18 +87,11 @@ export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<v
   }
 
   const logger = core.logging.getChildLogger({ module: "tlon-auto-reply" });
-  const formatRuntimeMessage = (...args: Parameters<RuntimeEnv["log"]>) => format(...args);
-  const runtime: RuntimeEnv = opts.runtime ?? {
-    log: (...args) => {
-      logger.info(formatRuntimeMessage(...args));
-    },
-    error: (...args) => {
-      logger.error(formatRuntimeMessage(...args));
-    },
-    exit: (code: number): never => {
-      throw new Error(`exit ${code}`);
-    },
-  };
+  const runtime: RuntimeEnv =
+    opts.runtime ??
+    createLoggerBackedRuntime({
+      logger,
+    });
 
   const account = resolveTlonAccount(cfg, opts.accountId ?? undefined);
   if (!account.enabled) {
