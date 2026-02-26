@@ -110,13 +110,15 @@ namespace OpenClaw.Node.Protocol
         private async Task ConnectAndReceiveLoopAsync(CancellationToken cancellationToken)
         {
             _connected = false;
-            _webSocket = new ClientWebSocket();
-            _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {_token}");
-            
+
+            var socket = new ClientWebSocket();
+            socket.Options.SetRequestHeader("Authorization", $"Bearer {_token}");
+            _webSocket = socket;
+
             OnLog?.Invoke($"[Gateway] Connecting to {_serverUri}...");
             try
             {
-                await _webSocket.ConnectAsync(_serverUri, cancellationToken);
+                await socket.ConnectAsync(_serverUri, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -125,37 +127,72 @@ namespace OpenClaw.Node.Protocol
                 {
                     OnConnectRejected?.Invoke($"connect-failed: {ex.Message}");
                 }
+
+                await CleanupSocketAfterFailedAttemptAsync(socket);
                 throw;
             }
-            
-            var buffer = new byte[16384];
-            while (_webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
-            {
-                using var ms = new System.IO.MemoryStream();
-                WebSocketReceiveResult result;
-                do
-                {
-                    result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-                    if (result.MessageType == WebSocketMessageType.Close) break;
-                    ms.Write(buffer, 0, result.Count);
-                } while (!result.EndOfMessage);
 
-                if (result.MessageType == WebSocketMessageType.Close)
+            try
+            {
+                var buffer = new byte[16384];
+                while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                 {
-                    var code = result.CloseStatus?.ToString() ?? "n/a";
-                    var reason = result.CloseStatusDescription ?? "n/a";
-                    OnLog?.Invoke($"[Gateway] Socket closed by server. code={code} reason={reason}");
-                    if (!_connected)
+                    using var ms = new System.IO.MemoryStream();
+                    WebSocketReceiveResult result;
+                    do
                     {
-                        OnConnectRejected?.Invoke($"pre-connect-close code={code} reason={reason}");
+                        result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                        if (result.MessageType == WebSocketMessageType.Close) break;
+                        ms.Write(buffer, 0, result.Count);
+                    } while (!result.EndOfMessage);
+
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        var code = result.CloseStatus?.ToString() ?? "n/a";
+                        var reason = result.CloseStatusDescription ?? "n/a";
+                        OnLog?.Invoke($"[Gateway] Socket closed by server. code={code} reason={reason}");
+                        if (!_connected)
+                        {
+                            OnConnectRejected?.Invoke($"pre-connect-close code={code} reason={reason}");
+                        }
+
+                        await DisconnectAsync();
+                        break;
                     }
 
-                    await DisconnectAsync();
-                    break;
+                    var message = Encoding.UTF8.GetString(ms.ToArray());
+                    _ = Task.Run(() => ProcessMessageAsync(message, cancellationToken), cancellationToken);
                 }
+            }
+            catch
+            {
+                await CleanupSocketAfterFailedAttemptAsync(socket);
+                throw;
+            }
+        }
 
-                var message = Encoding.UTF8.GetString(ms.ToArray());
-                _ = Task.Run(() => ProcessMessageAsync(message, cancellationToken), cancellationToken);
+        private async Task CleanupSocketAfterFailedAttemptAsync(ClientWebSocket socket)
+        {
+            await _sendLock.WaitAsync(CancellationToken.None);
+            try
+            {
+                if (ReferenceEquals(_webSocket, socket))
+                {
+                    _webSocket = null;
+                }
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+
+            try
+            {
+                socket.Dispose();
+            }
+            catch
+            {
+                // best effort
             }
         }
 
