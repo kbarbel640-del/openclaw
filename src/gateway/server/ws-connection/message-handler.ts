@@ -226,6 +226,7 @@ export function attachGatewayWsMessageHandler(params: {
   gatewayMethods: string[];
   events: string[];
   extraHandlers: GatewayRequestHandlers;
+  getTailscaleOrigin?: () => string | null;
   buildRequestContext: () => GatewayRequestContext;
   send: (obj: unknown) => void;
   close: (code?: number, reason?: string) => void;
@@ -258,6 +259,7 @@ export function attachGatewayWsMessageHandler(params: {
     gatewayMethods,
     events,
     extraHandlers,
+    getTailscaleOrigin,
     buildRequestContext,
     send,
     close,
@@ -468,10 +470,15 @@ export function attachGatewayWsMessageHandler(params: {
         const isControlUi = connectParams.client.id === GATEWAY_CLIENT_IDS.CONTROL_UI;
         const isWebchat = isWebchatConnect(connectParams);
         if (enforceOriginCheckForAnyClient || isControlUi || isWebchat) {
+          const fileAllowedOrigins = configSnapshot.gateway?.controlUi?.allowedOrigins;
+          const tsOrigin = getTailscaleOrigin?.();
+          const mergedOrigins = tsOrigin
+            ? [...(fileAllowedOrigins ?? []), tsOrigin]
+            : fileAllowedOrigins;
           const originCheck = checkBrowserOrigin({
             requestHost,
             origin: requestOrigin,
-            allowedOrigins: configSnapshot.gateway?.controlUi?.allowedOrigins,
+            allowedOrigins: mergedOrigins,
             allowHostHeaderOriginFallback:
               configSnapshot.gateway?.controlUi?.dangerouslyAllowHostHeaderOriginFallback === true,
           });
