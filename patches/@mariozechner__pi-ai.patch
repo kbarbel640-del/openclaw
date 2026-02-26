@@ -1,0 +1,77 @@
+diff --git a/dist/providers/anthropic.js b/dist/providers/anthropic.js
+index 0bf2b894799bbc9ef5fda07bc44ea4301c9f395a..4aef99079685d6fc5b045ff2f27e516eacc49fe6 100644
+--- a/dist/providers/anthropic.js
++++ b/dist/providers/anthropic.js
+@@ -152,14 +152,17 @@ export const streamAnthropic = (model, context, options) => {
+                 if (event.type === "message_start") {
+                     // Capture initial token usage from message_start event
+                     // This ensures we have input token counts even if the stream is aborted early
+-                    output.usage.input = event.message.usage.input_tokens || 0;
+-                    output.usage.output = event.message.usage.output_tokens || 0;
+-                    output.usage.cacheRead = event.message.usage.cache_read_input_tokens || 0;
+-                    output.usage.cacheWrite = event.message.usage.cache_creation_input_tokens || 0;
+-                    // Anthropic doesn't provide total_tokens, compute from components
+-                    output.usage.totalTokens =
+-                        output.usage.input + output.usage.output + output.usage.cacheRead + output.usage.cacheWrite;
+-                    calculateCost(model, output.usage);
++                    const msgUsage = event.message?.usage;
++                    if (msgUsage) {
++                        output.usage.input = msgUsage.input_tokens || 0;
++                        output.usage.output = msgUsage.output_tokens || 0;
++                        output.usage.cacheRead = msgUsage.cache_read_input_tokens || 0;
++                        output.usage.cacheWrite = msgUsage.cache_creation_input_tokens || 0;
++                        // Anthropic doesn't provide total_tokens, compute from components
++                        output.usage.totalTokens =
++                            output.usage.input + output.usage.output + output.usage.cacheRead + output.usage.cacheWrite;
++                        calculateCost(model, output.usage);
++                    }
+                 }
+                 else if (event.type === "content_block_start") {
+                     if (event.content_block.type === "text") {
+@@ -280,27 +283,30 @@ export const streamAnthropic = (model, context, options) => {
+                     }
+                 }
+                 else if (event.type === "message_delta") {
+-                    if (event.delta.stop_reason) {
++                    if (event.delta?.stop_reason) {
+                         output.stopReason = mapStopReason(event.delta.stop_reason);
+                     }
+                     // Only update usage fields if present (not null).
+                     // Preserves input_tokens from message_start when proxies omit it in message_delta.
+-                    if (event.usage.input_tokens != null) {
+-                        output.usage.input = event.usage.input_tokens;
+-                    }
+-                    if (event.usage.output_tokens != null) {
+-                        output.usage.output = event.usage.output_tokens;
+-                    }
+-                    if (event.usage.cache_read_input_tokens != null) {
+-                        output.usage.cacheRead = event.usage.cache_read_input_tokens;
+-                    }
+-                    if (event.usage.cache_creation_input_tokens != null) {
+-                        output.usage.cacheWrite = event.usage.cache_creation_input_tokens;
++                    const deltaUsage = event.usage;
++                    if (deltaUsage) {
++                        if (deltaUsage.input_tokens != null) {
++                            output.usage.input = deltaUsage.input_tokens;
++                        }
++                        if (deltaUsage.output_tokens != null) {
++                            output.usage.output = deltaUsage.output_tokens;
++                        }
++                        if (deltaUsage.cache_read_input_tokens != null) {
++                            output.usage.cacheRead = deltaUsage.cache_read_input_tokens;
++                        }
++                        if (deltaUsage.cache_creation_input_tokens != null) {
++                            output.usage.cacheWrite = deltaUsage.cache_creation_input_tokens;
++                        }
++                        // Anthropic doesn't provide total_tokens, compute from components
++                        output.usage.totalTokens =
++                            output.usage.input + output.usage.output + output.usage.cacheRead + output.usage.cacheWrite;
++                        calculateCost(model, output.usage);
+                     }
+-                    // Anthropic doesn't provide total_tokens, compute from components
+-                    output.usage.totalTokens =
+-                        output.usage.input + output.usage.output + output.usage.cacheRead + output.usage.cacheWrite;
+-                    calculateCost(model, output.usage);
+                 }
+             }
+             if (options?.signal?.aborted) {
