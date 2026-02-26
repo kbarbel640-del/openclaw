@@ -466,7 +466,7 @@ export async function runCronIsolatedAgentTurn(params: {
           verboseLevel: resolvedVerboseLevel,
           timeoutMs,
           runId: cronSession.sessionEntry.sessionId,
-          requireExplicitMessageTarget: true,
+          requireExplicitMessageTarget: deliveryRequested,
           disableMessageTool: deliveryRequested,
           abortSignal,
         });
