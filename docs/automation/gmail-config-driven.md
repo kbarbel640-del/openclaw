@@ -13,6 +13,7 @@ The standard `openclaw webhooks gmail setup` wizard requires interactive authent
 
 - Use **GCP Service Account** credentials instead of user OAuth
 - Inject **gog credentials** via refresh token
+- Configure **Google API services** — Gmail, Sheets, Drive, Calendar, Docs
 - Use **Tailscale auth key** for automated connection
 - **Auto-create** Pub/Sub topics and subscriptions on startup
 
@@ -36,7 +37,17 @@ The standard `openclaw webhooks gmail setup` wizard requires interactive authent
       "gog": {
         "clientId": "${GOG_CLIENT_ID}",
         "clientSecret": "${GOG_CLIENT_SECRET}",
-        "refreshToken": "${GOG_REFRESH_TOKEN}"
+        "refreshToken": "${GOG_REFRESH_TOKEN}",
+        "services": ["gmail", "sheets", "drive", "calendar", "docs"],
+        "scopes": [
+          "https://www.googleapis.com/auth/gmail.modify",
+          "https://www.googleapis.com/auth/gmail.settings.basic",
+          "https://www.googleapis.com/auth/userinfo.email",
+          "https://www.googleapis.com/auth/spreadsheets",
+          "https://www.googleapis.com/auth/drive",
+          "https://www.googleapis.com/auth/calendar",
+          "https://www.googleapis.com/auth/documents"
+        ]
       },
       "tailscale": {
         "mode": "funnel",
@@ -61,12 +72,52 @@ The standard `openclaw webhooks gmail setup` wizard requires interactive authent
 
 ### gog Credentials (`gog`)
 
-| Field             | Type   | Description                                       |
-| ----------------- | ------ | ------------------------------------------------- |
-| `clientId`        | string | OAuth client ID from your GCP project             |
-| `clientSecret`    | string | OAuth client secret                               |
-| `refreshToken`    | string | OAuth refresh token (from local `gog auth login`) |
-| `credentialsFile` | string | Path to existing gog credentials.json to copy     |
+| Field             | Type     | Description                                                                                      |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `clientId`        | string   | OAuth client ID from your GCP project                                                            |
+| `clientSecret`    | string   | OAuth client secret                                                                              |
+| `refreshToken`    | string   | OAuth refresh token (from local `gog auth login`)                                                |
+| `credentialsFile` | string   | Path to existing gog credentials.json to copy                                                    |
+| `services`        | string[] | Google API services to enable (default: `["gmail"]`). Add `"sheets"`, `"drive"`, `"docs"` etc.   |
+| `scopes`          | string[] | OAuth scopes to request (default: Gmail scopes only). See [Scopes](#google-api-scopes) for list. |
+
+### Google API Scopes
+
+When adding Sheets, Drive, or Docs access, include the relevant scopes in `gog.scopes` and services in `gog.services`. Your refresh token must have been granted these scopes during `gog auth login`.
+
+```json
+{
+  "gog": {
+    "services": ["gmail", "sheets", "drive"],
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify",
+      "https://www.googleapis.com/auth/gmail.settings.basic",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/documents"
+    ]
+  }
+}
+```
+
+Common scopes:
+
+| Scope                                                   | Service | Access                    |
+| ------------------------------------------------------- | ------- | ------------------------- |
+| `https://www.googleapis.com/auth/gmail.modify`          | Gmail   | Read/write messages       |
+| `https://www.googleapis.com/auth/gmail.settings.basic`  | Gmail   | Manage labels and filters |
+| `https://www.googleapis.com/auth/spreadsheets`          | Sheets  | Read/write spreadsheets   |
+| `https://www.googleapis.com/auth/spreadsheets.readonly` | Sheets  | Read-only spreadsheets    |
+| `https://www.googleapis.com/auth/drive`                 | Drive   | Full Drive access         |
+| `https://www.googleapis.com/auth/drive.readonly`        | Drive   | Read-only Drive access    |
+| `https://www.googleapis.com/auth/drive.file`            | Drive   | Files created by the app  |
+| `https://www.googleapis.com/auth/documents`             | Docs    | Read/write documents      |
+| `https://www.googleapis.com/auth/documents.readonly`    | Docs    | Read-only documents       |
+
+<Tip>
+Your refresh token must include all requested scopes. If adding new scopes, re-run `gog auth login` locally with the additional scopes, then update the refresh token in your secrets.
+</Tip>
 
 ### Tailscale Configuration (`tailscale`)
 
@@ -104,17 +155,18 @@ fly secrets set GCP_SERVICE_ACCOUNT_JSON="$(cat sa-key.json)" -a your-app
 
 ### 2. Get gog OAuth Credentials
 
-Run this **locally once** to get the refresh token:
+Run this **locally once** to get the refresh token. Include all services you need:
 
 ```bash
 # Install gog
 curl -fsSL https://gogcli.sh/install.sh | bash
 
-# Authorize (opens browser)
-gog auth login --account your-email@gmail.com
+# Authorize with desired services (opens browser)
+gog auth login --account your-email@gmail.com \
+  --services "gmail,sheets,drive,calendar,docs" --force-consent
 
-# Extract refresh token
-cat ~/.config/gogcli/tokens/your-email@gmail.com.json
+# Export refresh token
+gog auth tokens export your-email@gmail.com --out /tmp/gog-token.json
 ```
 
 Store the credentials:

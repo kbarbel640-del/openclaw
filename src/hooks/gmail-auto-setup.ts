@@ -165,16 +165,19 @@ async function setupGogCredentials(
         process.env.GOG_KEYRING_PASSWORD = "openclaw-auto";
       }
 
+      const DEFAULT_SERVICES = ["gmail"];
+      const DEFAULT_SCOPES = [
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.settings.basic",
+        "https://www.googleapis.com/auth/userinfo.email",
+      ];
+
       // Import refresh token into gog's keyring via CLI
       const tokenData = {
         email: account,
         refresh_token: gog.refreshToken,
-        services: ["gmail"],
-        scopes: [
-          "https://www.googleapis.com/auth/gmail.modify",
-          "https://www.googleapis.com/auth/gmail.settings.basic",
-          "https://www.googleapis.com/auth/userinfo.email",
-        ],
+        services: gog.services ?? DEFAULT_SERVICES,
+        scopes: gog.scopes ?? DEFAULT_SCOPES,
       };
       const tmpTokenPath = path.join(os.tmpdir(), "gog-token-" + crypto.randomUUID() + ".json");
       fs.writeFileSync(tmpTokenPath, JSON.stringify(tokenData, null, 2), { mode: 0o600 });

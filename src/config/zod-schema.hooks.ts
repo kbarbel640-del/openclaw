@@ -135,6 +135,8 @@ const HooksGmailGogSchema = z
     credentialsFile: z.string().optional(),
     clientId: z.string().optional(),
     clientSecret: z.string().optional(),
+    services: z.array(z.string()).optional(),
+    scopes: z.array(z.string()).optional(),
   })
   .strict()
   .optional();

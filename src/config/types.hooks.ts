@@ -65,6 +65,10 @@ export type HooksGmailGogConfig = {
   clientId?: string;
   /** OAuth client secret (required with refreshToken) */
   clientSecret?: string;
+  /** Google API services to enable (default: ["gmail"]) */
+  services?: string[];
+  /** OAuth scopes to request (default: Gmail scopes only). Add Sheets/Drive/Docs scopes as needed. */
+  scopes?: string[];
 };
 
 export type HooksGmailConfig = {
