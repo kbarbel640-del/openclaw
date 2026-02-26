@@ -1,8 +1,8 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { Type } from "@sinclair/typebox";
-import type { FeishuConfig } from "./types.js";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts, resolveToolClient } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
+import type { FeishuConfig } from "./types.js";
 
 // ============ Helpers ============
 

@@ -1,12 +1,12 @@
 import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";
+import { createFeishuClient } from "./client.js";
 import type {
   FeishuConfig,
   FeishuAccountConfig,
   FeishuDomain,
   ResolvedFeishuAccount,
 } from "./types.js";
-import { createFeishuClient } from "./client.js";
 
 /**
  * List all configured account IDs from the accounts field.
