@@ -250,6 +250,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
           },
           filePathHint: fileId,
           maxBytes: mediaMaxBytes,
+          ssrfPolicy: { allowPrivateNetwork: true },
         });
         const saved = await core.channel.media.saveMediaBuffer(
           fetched.buffer,
