@@ -97,7 +97,7 @@ describe("DiscordMessageListener", () => {
     expect(resolved).toBe(false);
   }
 
-  it("awaits the handler before returning", async () => {
+  it("returns immediately without awaiting handler (fire-and-forget)", async () => {
     let handlerResolved = false;
     const deferred = createDeferred();
     const handler = vi.fn(async () => {
@@ -114,17 +114,18 @@ describe("DiscordMessageListener", () => {
     // Handler should be called but not yet resolved
     expect(handler).toHaveBeenCalledOnce();
     expect(handlerResolved).toBe(false);
-    await expectPending(handlePromise);
 
-    // Release the handler
-    deferred.resolve();
-
-    // Now await handle() - it should complete only after handler resolves
+    // handle() should return immediately (fire-and-forget)
     await handlePromise;
+    expect(handlerResolved).toBe(false);
+
+    // Release the handler - it completes in background
+    deferred.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(handlerResolved).toBe(true);
   });
 
-  it("logs handler failures", async () => {
+  it("logs handler failures asynchronously", async () => {
     const logger = {
       warn: vi.fn(),
       error: vi.fn(),
@@ -134,16 +135,19 @@ describe("DiscordMessageListener", () => {
     });
     const listener = new DiscordMessageListener(handler, logger);
 
+    // handle() returns immediately (fire-and-forget)
     await listener.handle(
       {} as unknown as import("./monitor/listeners.js").DiscordMessageEvent,
       {} as unknown as import("@buape/carbon").Client,
     );
-    await Promise.resolve();
+
+    // Error logging happens asynchronously - wait for it
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("discord handler failed"));
   });
 
-  it("logs slow handlers after the threshold", async () => {
+  it("logs slow handlers after the threshold (asynchronously)", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
 
@@ -156,21 +160,24 @@ describe("DiscordMessageListener", () => {
       } as unknown as ReturnType<typeof import("../logging/subsystem.js").createSubsystemLogger>;
       const listener = new DiscordMessageListener(handler, logger);
 
-      // Start handle() but don't await yet
+      // handle() returns immediately (fire-and-forget)
       const handlePromise = listener.handle(
         {} as unknown as import("./monitor/listeners.js").DiscordMessageEvent,
         {} as unknown as import("@buape/carbon").Client,
       );
-      await expectPending(handlePromise);
+
+      // handle() should resolve immediately
+      await handlePromise;
 
       // Advance time past the slow listener threshold
       vi.setSystemTime(31_000);
 
-      // Release the handler
+      // Release the handler - slow listener log fires asynchronously
       deferred.resolve();
 
-      // Now await handle() - it should complete and log the slow listener
-      await handlePromise;
+      // Wait for async logging to complete (use real timers for this)
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(logger.warn).toHaveBeenCalled();
       const warnMock = logger.warn as unknown as { mock: { calls: unknown[][] } };
