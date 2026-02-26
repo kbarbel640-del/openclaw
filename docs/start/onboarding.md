@@ -34,6 +34,7 @@ Security trust model:
 
 - By default, OpenClaw is a personal agent: one trusted operator boundary.
 - Shared/multi-user setups require lock-down (split trust boundaries, keep tool access minimal, and follow [Security](/gateway/security)).
+
 </Step>
 <Step title="Local vs Remote">
 <Frame>
