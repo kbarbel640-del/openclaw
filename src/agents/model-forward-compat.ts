@@ -28,11 +28,12 @@ function buildGeminiTemplateIds(modelId: string): string[] {
     ids.add(lower.replace("gemini-3.1-", "gemini-2.5-"));
   }
 
-  for (const candidate of ids) {
-    if (candidate.startsWith("gemini-3-pro")) {
+  const candidates = [...ids];
+  for (const candidate of candidates) {
+    if (candidate.startsWith("gemini-3-pro") && !candidate.startsWith("gemini-3-pro-preview")) {
       ids.add(candidate.replace("gemini-3-pro", "gemini-3-pro-preview"));
     }
-    if (candidate.startsWith("gemini-3-flash")) {
+    if (candidate.startsWith("gemini-3-flash") && !candidate.startsWith("gemini-3-flash-preview")) {
       ids.add(candidate.replace("gemini-3-flash", "gemini-3-flash-preview"));
     }
   }
