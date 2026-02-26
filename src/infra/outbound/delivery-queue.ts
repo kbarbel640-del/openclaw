@@ -250,6 +250,21 @@ export async function recoverPendingDeliveries(opts: {
       continue;
     }
 
+    // Early-exit for entries whose last attempt hit a permanent error —
+    // no point waiting through backoff only to fail identically.
+    if (entry.lastError && isPermanentDeliveryError(entry.lastError)) {
+      opts.log.warn(
+        `Delivery ${entry.id} previously hit permanent error — moving to failed/: ${entry.lastError}`,
+      );
+      try {
+        await moveToFailed(entry.id, opts.stateDir);
+      } catch (err) {
+        opts.log.error(`Failed to move entry ${entry.id} to failed/: ${String(err)}`);
+      }
+      failed += 1;
+      continue;
+    }
+
     const backoff = computeBackoffMs(entry.retryCount + 1);
     if (backoff > 0) {
       if (now + backoff >= deadline) {
