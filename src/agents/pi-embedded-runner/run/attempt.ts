@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import os from "node:os";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
 import {
@@ -127,6 +127,27 @@ type PromptBuildHookRunner = {
     ctx: PluginHookAgentContext,
   ) => Promise<PluginHookBeforeAgentStartResult | undefined>;
 };
+
+function isOllamaCompatProvider(model: { provider?: string; baseUrl?: string }): boolean {
+  if (model.provider === "ollama") return true;
+  const base = typeof model.baseUrl === "string" ? model.baseUrl.toLowerCase() : "";
+  return base.includes(":11434") || base.includes("/ollama");
+}
+
+function wrapOllamaCompatNumCtx(baseFn: StreamFn | undefined, numCtx: number): StreamFn {
+  const underlying = baseFn ?? streamSimple;
+  return (model, context, options) =>
+    underlying(model, context, {
+      ...options,
+      onPayload: (payload: Record<string, unknown>) => {
+        if (!payload.options || typeof payload.options !== "object") {
+          payload.options = {};
+        }
+        (payload.options as Record<string, unknown>).num_ctx = numCtx;
+        options?.onPayload?.(payload);
+      },
+    });
+}
 
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
@@ -747,6 +768,16 @@ export async function runEmbeddedAttempt(
       } else {
         // Force a stable streamFn reference so vitest can reliably mock @mariozechner/pi-ai.
         activeSession.agent.streamFn = streamSimple;
+      }
+
+      // Ollama with OpenAI-compat API: inject num_ctx so the server doesn't
+      // default to its built-in 4096 token context (#27278).
+      if (params.model.api !== "ollama" && isOllamaCompatProvider(params.model)) {
+        const numCtx = params.model.contextWindow ?? 65536;
+        activeSession.agent.streamFn = wrapOllamaCompatNumCtx(
+          activeSession.agent.streamFn,
+          numCtx,
+        );
       }
 
       applyExtraParamsToAgent(
