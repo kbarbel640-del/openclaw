@@ -11,6 +11,12 @@ import { sanitizeImageBlocks } from "../../tool-images.js";
 import { log } from "../logger.js";
 
 /**
+ * Marker text inserted when image data is pruned from history to reduce cache tokens.
+ * Used by detectImagesFromHistory to skip already-processed messages.
+ */
+export const IMAGE_PRUNED_MARKER = "[image data removed — already processed by model]";
+
+/**
  * Common image file extensions for detection.
  */
 const IMAGE_EXTENSIONS = new Set([
@@ -307,7 +313,7 @@ function detectImagesFromHistory(messages: unknown[]): DetectedImageRef[] {
   const allRefs: DetectedImageRef[] = [];
   const seen = new Set<string>();
 
-  const messageHasImageContent = (msg: unknown): boolean => {
+  const messageHasImageContentOrPrunedMarker = (msg: unknown): boolean => {
     if (!msg || typeof msg !== "object") {
       return false;
     }
@@ -317,7 +323,11 @@ function detectImagesFromHistory(messages: unknown[]): DetectedImageRef[] {
     }
     return content.some(
       (part) =>
-        part != null && typeof part === "object" && (part as { type?: string }).type === "image",
+        part != null &&
+        typeof part === "object" &&
+        ((part as { type?: string }).type === "image" ||
+          ((part as { type?: string }).type === "text" &&
+            (part as { text?: string }).text === IMAGE_PRUNED_MARKER)),
     );
   };
 
@@ -331,8 +341,8 @@ function detectImagesFromHistory(messages: unknown[]): DetectedImageRef[] {
     if (message.role !== "user") {
       continue;
     }
-    // Skip if message already has image content (prevents reloading each turn)
-    if (messageHasImageContent(msg)) {
+    // Skip if message already has image content or was pruned (prevents reloading each turn)
+    if (messageHasImageContentOrPrunedMarker(msg)) {
       continue;
     }
 

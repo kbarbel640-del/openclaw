@@ -113,7 +113,7 @@ import {
   selectCompactionTimeoutSnapshot,
   shouldFlagCompactionTimeout,
 } from "./compaction-timeout.js";
-import { detectAndLoadPromptImages } from "./images.js";
+import { detectAndLoadPromptImages, IMAGE_PRUNED_MARKER } from "./images.js";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 
 type PromptBuildHookRunner = {
@@ -171,6 +171,60 @@ export function injectHistoryImagesIntoMessages(
         }
       }
     }
+  }
+
+  return didMutate;
+}
+
+/**
+ * Prune base64 image data from history messages the model has already responded to.
+ *
+ * Once an assistant message follows a user message with injected images, the model
+ * has already processed those images. Keeping the base64 data in history wastes
+ * cache tokens on every subsequent API call (reported as 26-33M cache read tokens
+ * in busy group chats). This replaces image blocks with a lightweight text marker.
+ */
+export function pruneProcessedHistoryImages(messages: AgentMessage[]): boolean {
+  let didMutate = false;
+
+  // Find the last assistant message index to determine which user messages
+  // have been fully processed (any user message before the last assistant reply).
+  let lastAssistantIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "assistant") {
+      lastAssistantIndex = i;
+      break;
+    }
+  }
+
+  if (lastAssistantIndex < 0) {
+    return false;
+  }
+
+  for (let i = 0; i < lastAssistantIndex; i++) {
+    const msg = messages[i];
+    if (!msg || msg.role !== "user" || !Array.isArray(msg.content)) {
+      continue;
+    }
+    const imageIndices: number[] = [];
+    for (let j = 0; j < msg.content.length; j++) {
+      const part = msg.content[j];
+      if (
+        part != null &&
+        typeof part === "object" &&
+        (part as { type?: string }).type === "image"
+      ) {
+        imageIndices.push(j);
+      }
+    }
+    if (imageIndices.length === 0) {
+      continue;
+    }
+    // Replace image blocks with a lightweight text marker (in reverse to preserve indices).
+    for (let k = imageIndices.length - 1; k >= 0; k--) {
+      msg.content.splice(imageIndices[k], 1, { type: "text", text: IMAGE_PRUNED_MARKER } as never);
+    }
+    didMutate = true;
   }
 
   return didMutate;
@@ -1092,6 +1146,17 @@ export async function runEmbeddedAttempt(
         }
 
         try {
+          // Prune base64 image data from history messages the model has already responded to.
+          // This prevents unbounded cache token growth in sessions with many images.
+          const didPruneImages = pruneProcessedHistoryImages(activeSession.messages);
+          if (didPruneImages) {
+            activeSession.agent.replaceMessages(activeSession.messages);
+            log.debug(
+              `Pruned processed image data from history to reduce cache tokens. ` +
+                `runId=${params.runId} sessionId=${params.sessionId}`,
+            );
+          }
+
           // Detect and load images referenced in the prompt for vision-capable models.
           // This eliminates the need for an explicit "view" tool call by injecting
           // images directly into the prompt when the model supports it.

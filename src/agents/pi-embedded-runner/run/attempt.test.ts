@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../../config/config.js";
 import {
   injectHistoryImagesIntoMessages,
+  pruneProcessedHistoryImages,
   resolveAttemptFsWorkspaceOnly,
   resolvePromptBuildHookResult,
   resolvePromptModeForSession,
 } from "./attempt.js";
+import { IMAGE_PRUNED_MARKER } from "./images.js";
 
 describe("injectHistoryImagesIntoMessages", () => {
   const image: ImageContent = { type: "image", data: "abc", mimeType: "image/png" };
@@ -118,6 +120,82 @@ describe("resolvePromptModeForSession", () => {
   it("uses full mode for cron sessions", () => {
     expect(resolvePromptModeForSession("agent:main:cron:job-1")).toBe("full");
     expect(resolvePromptModeForSession("agent:main:cron:job-1:run:run-abc")).toBe("full");
+  });
+});
+
+describe("pruneProcessedHistoryImages", () => {
+  const image: ImageContent = { type: "image", data: "base64data", mimeType: "image/png" };
+
+  it("replaces image blocks with pruned marker for messages before an assistant reply", () => {
+    const messages: AgentMessage[] = [
+      {
+        role: "user",
+        content: [{ type: "text", text: "See /tmp/photo.png" }, { ...image }],
+      } as AgentMessage,
+      {
+        role: "assistant",
+        content: "I see the image",
+      } as unknown as AgentMessage,
+    ];
+
+    const didMutate = pruneProcessedHistoryImages(messages);
+
+    expect(didMutate).toBe(true);
+    const userMsg = messages[0] as Extract<AgentMessage, { role: "user" }>;
+    const content = userMsg.content as Array<{ type: string; text?: string }>;
+    expect(content).toHaveLength(2);
+    expect(content[0]).toMatchObject({ type: "text", text: "See /tmp/photo.png" });
+    expect(content[1]).toMatchObject({ type: "text", text: IMAGE_PRUNED_MARKER });
+  });
+
+  it("does not prune images from the most recent user message (no assistant reply after)", () => {
+    const messages: AgentMessage[] = [
+      {
+        role: "user",
+        content: [{ type: "text", text: "See /tmp/photo.png" }, { ...image }],
+      } as AgentMessage,
+    ];
+
+    const didMutate = pruneProcessedHistoryImages(messages);
+
+    expect(didMutate).toBe(false);
+    const userMsg = messages[0] as Extract<AgentMessage, { role: "user" }>;
+    const content = userMsg.content as Array<{ type: string; data?: string }>;
+    expect(content[1]).toMatchObject({ type: "image", data: "base64data" });
+  });
+
+  it("prunes multiple image blocks from a single message", () => {
+    const image2: ImageContent = { type: "image", data: "other", mimeType: "image/jpeg" };
+    const messages: AgentMessage[] = [
+      {
+        role: "user",
+        content: [{ type: "text", text: "Two images" }, { ...image }, { ...image2 }],
+      } as AgentMessage,
+      {
+        role: "assistant",
+        content: "Got them",
+      } as unknown as AgentMessage,
+    ];
+
+    const didMutate = pruneProcessedHistoryImages(messages);
+
+    expect(didMutate).toBe(true);
+    const content = (messages[0] as Extract<AgentMessage, { role: "user" }>).content as Array<{
+      type: string;
+      text?: string;
+    }>;
+    expect(content).toHaveLength(3);
+    expect(content[1]).toMatchObject({ type: "text", text: IMAGE_PRUNED_MARKER });
+    expect(content[2]).toMatchObject({ type: "text", text: IMAGE_PRUNED_MARKER });
+  });
+
+  it("returns false when no messages have image content", () => {
+    const messages: AgentMessage[] = [
+      { role: "user", content: "hello" } as AgentMessage,
+      { role: "assistant", content: "hi" } as unknown as AgentMessage,
+    ];
+
+    expect(pruneProcessedHistoryImages(messages)).toBe(false);
   });
 });
 
