@@ -529,6 +529,7 @@ SecretRef details (including `secrets.providers` for `env`/`file`/`exec`) are in
 </Accordion>
 
 See [Environment](/help/environment) for full precedence and sources.
+For current secret substitution behavior (`${VAR_NAME}`), see [Secrets in config values](/gateway/secrets-providers).
 
 ## Full reference
 
