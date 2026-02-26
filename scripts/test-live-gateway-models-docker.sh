@@ -13,7 +13,9 @@ if [[ -f "$PROFILE_FILE" ]]; then
 fi
 
 echo "==> Build image: $IMAGE_NAME"
-docker build -t "$IMAGE_NAME" -f "$ROOT_DIR/Dockerfile" "$ROOT_DIR"
+docker build \
+  --build-arg OPENCLAW_DOCKER_DONT_PRUNE=1 \
+  -t "$IMAGE_NAME" -f "$ROOT_DIR/Dockerfile" "$ROOT_DIR"
 
 echo "==> Run gateway live model tests (profile keys)"
 docker run --rm -t \
