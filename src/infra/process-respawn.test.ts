@@ -53,12 +53,14 @@ describe("restartGatewayProcessWithFreshPid", () => {
     const result = restartGatewayProcessWithFreshPid();
 
     expect(result).toEqual({ mode: "spawned", pid: 4242 });
+    // On Windows stdio is "ignore" to avoid EBADF; elsewhere "inherit"
+    const expectedStdio = process.platform === "win32" ? "ignore" : "inherit";
     expect(spawnMock).toHaveBeenCalledWith(
       process.execPath,
       ["--import", "tsx", "/repo/dist/index.js", "gateway", "run"],
       expect.objectContaining({
         detached: true,
-        stdio: "inherit",
+        stdio: expectedStdio,
       }),
     );
   });
