@@ -71,7 +71,7 @@ describe("loginOpenAICodexOAuth", () => {
   });
 
   it("adds required API scopes to the OpenAI Codex auth URL", async () => {
-    const onAuthInner = vi.fn(async () => {});
+    const onAuthInner = vi.fn(async (_event: { url: string }) => {});
     mocks.createVpsAwareOAuthHandlers.mockReturnValue({
       onAuth: onAuthInner,
       onPrompt: vi.fn(),
@@ -93,7 +93,7 @@ describe("loginOpenAICodexOAuth", () => {
     });
 
     expect(onAuthInner).toHaveBeenCalledOnce();
-    const authEvent = onAuthInner.mock.calls[0]?.[0] as { url: string };
+    const authEvent = onAuthInner.mock.calls[0]![0];
     const scope = new URL(authEvent.url).searchParams.get("scope") ?? "";
     const scopes = Array.from(new Set(scope.split(/\s+/).filter(Boolean)));
     expect(scopes).toEqual(
