@@ -396,10 +396,8 @@ export async function monitorSignalProvider(opts: MonitorSignalOpts = {}): Promi
       ignoreStories: opts.ignoreStories ?? accountInfo.config.ignoreStories,
       sendReadReceipts,
       runtime,
+      ...(configPath ? { configPath } : {}),
     };
-    if (configPath) {
-      daemonOpts.configPath = configPath;
-    }
     daemonHandle = spawnSignalDaemon(daemonOpts);
     daemonLifecycle.attach(daemonHandle);
   }
