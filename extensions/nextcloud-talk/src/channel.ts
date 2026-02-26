@@ -324,15 +324,15 @@ export const nextcloudTalkPlugin: ChannelPlugin<ResolvedNextcloudTalkAccount> = 
 
       ctx.log?.info(`[${account.accountId}] starting Nextcloud Talk webhook server`);
 
-      const { stop } = await monitorNextcloudTalkProvider({
+      // monitorNextcloudTalkProvider blocks until the server closes (abortSignal
+      // drives shutdown). The gateway treats the resolved promise as "account stopped".
+      await monitorNextcloudTalkProvider({
         accountId: account.accountId,
         config: ctx.cfg as CoreConfig,
         runtime: ctx.runtime,
         abortSignal: ctx.abortSignal,
         statusSink: (patch) => ctx.setStatus({ accountId: ctx.accountId, ...patch }),
       });
-
-      return { stop };
     },
     logoutAccount: async ({ accountId, cfg }) => {
       const nextCfg = { ...cfg } as OpenClawConfig;
