@@ -1,6 +1,6 @@
 # Contributing to OpenClaw
 
-Welcome to the lobster tank! 🦞
+Welcome to the lobster tank!
 
 ## Quick Links
 
@@ -12,43 +12,43 @@ Welcome to the lobster tank! 🦞
 ## Maintainers
 
 - **Peter Steinberger** - Benevolent Dictator
-  - GitHub: [@steipete](https://github.com/steipete) · X: [@steipete](https://x.com/steipete)
+  - GitHub: [@steipete](https://github.com/steipete) / X: [@steipete](https://x.com/steipete)
 
 - **Shadow** - Discord subsystem, Discord admin, Clawhub, all community moderation
-  - GitHub: [@thewilloftheshadow](https://github.com/thewilloftheshadow) · X: [@4shad0wed](https://x.com/4shad0wed)
+  - GitHub: [@thewilloftheshadow](https://github.com/thewilloftheshadow) / X: [@4shad0wed](https://x.com/4shad0wed)
 
 - **Vignesh** - Memory (QMD), formal modeling, TUI, IRC, and Lobster
-  - GitHub: [@vignesh07](https://github.com/vignesh07) · X: [@\_vgnsh](https://x.com/_vgnsh)
+  - GitHub: [@vignesh07](https://github.com/vignesh07) / X: [@\_vgnsh](https://x.com/_vgnsh)
 
 - **Jos** - Telegram, API, Nix mode
-  - GitHub: [@joshp123](https://github.com/joshp123) · X: [@jjpcodes](https://x.com/jjpcodes)
+  - GitHub: [@joshp123](https://github.com/joshp123) / X: [@jjpcodes](https://x.com/jjpcodes)
 
 - **Ayaan Zaidi** - Telegram subsystem, iOS app
-  - GitHub: [@obviyus](https://github.com/obviyus) · X: [@0bviyus](https://x.com/0bviyus)
+  - GitHub: [@obviyus](https://github.com/obviyus) / X: [@0bviyus](https://x.com/0bviyus)
 
 - **Tyler Yust** - Agents/subagents, cron, BlueBubbles, macOS app
-  - GitHub: [@tyler6204](https://github.com/tyler6204) · X: [@tyleryust](https://x.com/tyleryust)
+  - GitHub: [@tyler6204](https://github.com/tyler6204) / X: [@tyleryust](https://x.com/tyleryust)
 
 - **Mariano Belinky** - iOS app, Security
-  - GitHub: [@mbelinky](https://github.com/mbelinky) · X: [@belimad](https://x.com/belimad)
+  - GitHub: [@mbelinky](https://github.com/mbelinky) / X: [@belimad](https://x.com/belimad)
 
 - **Vincent Koc** - Agents, Telemetry, Hooks, Security
-  - GitHub: [@vincentkoc](https://github.com/vincentkoc) · X: [@vincent_koc](https://x.com/vincent_koc)
+  - GitHub: [@vincentkoc](https://github.com/vincentkoc) / X: [@vincent_koc](https://x.com/vincent_koc)
 
 - **Val Alexander** - UI/UX, Docs, and Agent DevX
-  - GitHub: [@BunsDev](https://github.com/BunsDev) · X: [@BunsDev](https://x.com/BunsDev)
+  - GitHub: [@BunsDev](https://github.com/BunsDev) / X: [@BunsDev](https://x.com/BunsDev)
 
 - **Seb Slight** - Docs, Agent Reliability, Runtime Hardening
-  - GitHub: [@sebslight](https://github.com/sebslight) · X: [@sebslig](https://x.com/sebslig)
+  - GitHub: [@sebslight](https://github.com/sebslight) / X: [@sebslig](https://x.com/sebslig)
 
 - **Christoph Nakazawa** - JS Infra
-  - GitHub: [@cpojer](https://github.com/cpojer) · X: [@cnakazawa](https://x.com/cnakazawa)
+  - GitHub: [@cpojer](https://github.com/cpojer) / X: [@cnakazawa](https://x.com/cnakazawa)
 
 - **Gustavo Madeira Santana** - Multi-agents, CLI, web UI
-  - GitHub: [@gumadeiras](https://github.com/gumadeiras) · X: [@gumadeiras](https://x.com/gumadeiras)
+  - GitHub: [@gumadeiras](https://github.com/gumadeiras) / X: [@gumadeiras](https://x.com/gumadeiras)
 
 - **Onur Solmaz** - Agents, dev workflows, ACP integrations, MS Teams
-  - GitHub: [@onutc](https://github.com/onutc), [@osolmaz](https://github.com/osolmaz) · X: [@onusoz](https://x.com/onusoz)
+  - GitHub: [@onutc](https://github.com/onutc), [@osolmaz](https://github.com/osolmaz) / X: [@onusoz](https://x.com/onusoz)
 
 ## How to Contribute
 
