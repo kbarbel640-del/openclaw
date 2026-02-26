@@ -320,6 +320,52 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task IpcInputClick_NonIntegerCoordinates_ShouldReturnBadRequest_AndKeepSessionAlive()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var pipeName = "openclaw.node.test." + Guid.NewGuid().ToString("N");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var svc = new IpcPipeServerService(pipeName, version: "test-ver");
+            svc.Start(cts.Token);
+
+            await using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            await client.ConnectAsync(5000, cts.Token);
+
+            using var reader = new StreamReader(client, Encoding.UTF8, false, 4096, leaveOpen: true);
+            await using var writer = new StreamWriter(client, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true };
+
+            await writer.WriteLineAsync("{\"id\":\"10a\",\"method\":\"ipc.input.click\",\"params\":{\"x\":10.5,\"y\":20}}");
+            var badLine = await reader.ReadLineAsync(cts.Token);
+
+            Assert.False(string.IsNullOrWhiteSpace(badLine));
+            using (var doc = JsonDocument.Parse(badLine!))
+            {
+                var root = doc.RootElement;
+                Assert.False(root.GetProperty("ok").GetBoolean());
+                Assert.Equal("BAD_REQUEST", root.GetProperty("error").GetProperty("code").GetString());
+                Assert.Contains("integers", root.GetProperty("error").GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
+            }
+
+            await writer.WriteLineAsync("{\"id\":\"10b\",\"method\":\"ipc.ping\",\"params\":{}}");
+            var goodLine = await reader.ReadLineAsync(cts.Token);
+
+            Assert.False(string.IsNullOrWhiteSpace(goodLine));
+            using (var doc = JsonDocument.Parse(goodLine!))
+            {
+                var root = doc.RootElement;
+                Assert.True(root.GetProperty("ok").GetBoolean());
+                Assert.Equal("10b", root.GetProperty("id").GetString());
+            }
+
+            cts.Cancel();
+            await svc.StopAsync();
+        }
+
+        [Fact]
         public async Task IpcInputScroll_MissingDelta_ShouldReturnBadRequest()
         {
             if (!OperatingSystem.IsWindows())

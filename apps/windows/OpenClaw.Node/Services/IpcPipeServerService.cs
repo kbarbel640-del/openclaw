@@ -498,8 +498,15 @@ namespace OpenClaw.Node.Services
                     };
                 }
 
-                var x = xEl.GetInt32();
-                var y = yEl.GetInt32();
+                if (!xEl.TryGetInt32(out var x) || !yEl.TryGetInt32(out var y))
+                {
+                    return new IpcResponse
+                    {
+                        Id = req.Id ?? string.Empty,
+                        Ok = false,
+                        Error = new IpcError { Code = "BAD_REQUEST", Message = "ipc.input.click params.x and params.y must be integers" }
+                    };
+                }
                 var button = p.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
                     ? (bEl.GetString() ?? "primary")
                     : "primary";
