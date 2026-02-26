@@ -11,6 +11,8 @@ export const DEFAULT_TOOLS_CONFIG: Required<FeishuToolsConfig> = {
   drive: true,
   perm: false,
   scopes: true,
+  // calendar is disabled by default to avoid accidental event creation
+  calendar: false,
 };
 
 /**
