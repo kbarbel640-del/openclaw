@@ -102,6 +102,10 @@ export function createTypingController(params: {
     if (sealed) {
       return;
     }
+    // Prevent typing loop from restarting after run completes.
+    if (runComplete) {
+      return;
+    }
     await onReplyStart?.();
   };
 

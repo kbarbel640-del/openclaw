@@ -256,6 +256,21 @@ export const buildTelegramMessageContext = async ({
     });
   };
 
+  const stopTyping = async () => {
+    try {
+      // Using "cancel" action to stop typing indicator.
+      // TypeScript doesn't know about this action but Telegram API supports it.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (bot.api.sendChatAction as any)(
+        chatId,
+        "cancel",
+        buildTypingThreadParams(replyThreadId),
+      );
+    } catch {
+      // Ignore errors when stopping typing (e.g., chat not found).
+    }
+  };
+
   const sendRecordVoice = async () => {
     try {
       await withTelegramApiErrorLogging({
@@ -829,6 +844,7 @@ export const buildTelegramMessageContext = async ({
     route,
     skillFilter,
     sendTyping,
+    stopTyping,
     sendRecordVoice,
     ackReactionPromise,
     reactionApi,

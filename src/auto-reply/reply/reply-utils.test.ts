@@ -118,8 +118,8 @@ describe("typing controller", () => {
   it("stops only after both run completion and dispatcher idle are set (any order)", async () => {
     vi.useFakeTimers();
     const cases = [
-      { name: "run-complete first", first: "run", second: "idle" },
-      { name: "dispatch-idle first", first: "idle", second: "run" },
+      { name: "run-complete first", first: "run", second: "idle", expectedAfterFirst: 3 },
+      { name: "dispatch-idle first", first: "idle", second: "run", expectedAfterFirst: 5 },
     ] as const;
 
     for (const testCase of cases) {
@@ -141,8 +141,12 @@ describe("typing controller", () => {
       } else {
         typing.markDispatchIdle();
       }
+      // After runComplete is set, triggerTyping no longer calls onReplyStart.
+      // So even though the typing interval timer is still running, onReplyStart
+      // won't be called until cleanup completes (when both runComplete and dispatchIdle are set).
+      // For "dispatch-idle first", runComplete is still false so typing loop continues.
       vi.advanceTimersByTime(2_000);
-      expect(onReplyStart, testCase.name).toHaveBeenCalledTimes(5);
+      expect(onReplyStart, testCase.name).toHaveBeenCalledTimes(testCase.expectedAfterFirst);
 
       if (testCase.second === "run") {
         typing.markRunComplete();
@@ -150,7 +154,8 @@ describe("typing controller", () => {
         typing.markDispatchIdle();
       }
       vi.advanceTimersByTime(2_000);
-      expect(onReplyStart, testCase.name).toHaveBeenCalledTimes(5);
+      // After cleanup (both flags set), triggerTyping returns early due to runComplete check.
+      expect(onReplyStart, testCase.name).toHaveBeenCalledTimes(testCase.expectedAfterFirst);
     }
   });
 

@@ -120,6 +120,7 @@ export const dispatchTelegramMessage = async ({
     route,
     skillFilter,
     sendTyping,
+    stopTyping,
     sendRecordVoice,
     ackReactionPromise,
     reactionApi,
@@ -508,6 +509,7 @@ export const dispatchTelegramMessage = async ({
         },
         onReplyStart: createTypingCallbacks({
           start: sendTyping,
+          stop: stopTyping,
           onStartError: (err) => {
             logTypingFailure({
               log: logVerbose,
