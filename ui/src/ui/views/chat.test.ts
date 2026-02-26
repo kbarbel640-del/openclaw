@@ -49,6 +49,12 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
   };
 }
 
+function senderNames(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll(".chat-group-footer .chat-sender-name"))
+    .map((el) => el.textContent?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
 describe("chat view", () => {
   it("renders compacting indicator as a badge", () => {
     const container = document.createElement("div");
@@ -223,5 +229,78 @@ describe("chat view", () => {
     newSessionButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onNewSession).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain("Stop");
+  });
+
+  it("keeps tool cards chronologically between surrounding messages after final reply", () => {
+    const container = document.createElement("div");
+    const userMessage = { id: "u1", role: "user", content: "Question", timestamp: 1_000 };
+    const toolMessage = {
+      id: "t1",
+      role: "toolResult",
+      timestamp: 2_000,
+      content: [{ type: "tool_result", name: "search", text: "Found context" }],
+    };
+
+    render(
+      renderChat(
+        createProps({
+          showThinking: true,
+          messages: [userMessage],
+          toolMessages: [toolMessage],
+          stream: "Draft answer...",
+          streamStartedAt: 2_500,
+        }),
+      ),
+      container,
+    );
+    expect(senderNames(container)).toEqual(["You", "tool", "OpenClaw"]);
+
+    const finalAssistant = {
+      id: "a1",
+      role: "assistant",
+      content: "Final answer",
+      timestamp: 3_000,
+    };
+    render(
+      renderChat(
+        createProps({
+          showThinking: true,
+          messages: [userMessage, finalAssistant],
+          toolMessages: [toolMessage],
+          stream: null,
+          streamStartedAt: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(senderNames(container)).toEqual(["You", "tool", "OpenClaw"]);
+  });
+
+  it("uses deterministic ordering for equal or missing timestamps", () => {
+    const container = document.createElement("div");
+    const props = createProps({
+      showThinking: true,
+      messages: [
+        { id: "u1", role: "user", content: "First" },
+        { id: "a1", role: "assistant", content: "Second" },
+      ],
+      toolMessages: [
+        {
+          id: "t1",
+          role: "toolResult",
+          content: [{ type: "tool_result", name: "search", text: "Tool output" }],
+        },
+      ],
+    });
+
+    render(renderChat(props), container);
+    const firstOrder = senderNames(container);
+
+    render(renderChat(props), container);
+    const secondOrder = senderNames(container);
+
+    expect(firstOrder).toEqual(["You", "OpenClaw", "tool"]);
+    expect(secondOrder).toEqual(firstOrder);
   });
 });
