@@ -191,6 +191,28 @@ async function readWorkspaceContextForSummary(): Promise<string> {
 export default function compactionSafeguardExtension(api: ExtensionAPI): void {
   api.on("session_before_compact", async (event, ctx) => {
     const { preparation, customInstructions, signal } = event;
+
+    // Guard: Cancel compaction if there are no real conversation messages to summarize.
+    // This prevents "double compaction" where a stale usage.totalTokens from a kept
+    // assistant message (preserved across a compaction boundary) triggers an immediate
+    // re-compaction on an already-compacted session. In that scenario,
+    // messagesToSummarize is empty (only custom/compaction entries remain), and
+    // proceeding would destroy all messages the first compaction preserved.
+    // See: https://github.com/openclaw/openclaw/issues/26458
+    const hasRealMessages = preparation.messagesToSummarize.some(
+      (msg: AgentMessage) =>
+        msg.role === "user" || msg.role === "assistant" || msg.role === "toolResult",
+    );
+    if (!hasRealMessages) {
+      log.warn(
+        "Compaction safeguard: cancelling compaction — no real conversation messages to summarize " +
+          `(messagesToSummarize has ${preparation.messagesToSummarize.length} entries, ` +
+          `turnPrefixMessages has ${(preparation.turnPrefixMessages ?? []).length} entries). ` +
+          "This likely indicates a spurious re-compaction triggered by stale usage data.",
+      );
+      return { cancel: true };
+    }
+
     const { readFiles, modifiedFiles } = computeFileLists(preparation.fileOps);
     const fileOpsSummary = formatFileOperations(readFiles, modifiedFiles);
     const toolFailures = collectToolFailures([
