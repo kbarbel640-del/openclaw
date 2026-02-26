@@ -439,10 +439,13 @@ export function createOpenAIWebSocketStreamFn(
         extraParams.tool_choice = streamOpts.toolChoice;
       }
       if (streamOpts?.reasoningEffort || streamOpts?.reasoningSummary) {
-        extraParams.reasoning = {
-          effort: streamOpts.reasoningEffort ?? "medium",
-          summary: streamOpts.reasoningSummary ?? "auto",
-        };
+        extraParams.reasoning = {};
+        if (streamOpts.reasoningEffort !== undefined) {
+          extraParams.reasoning.effort = streamOpts.reasoningEffort;
+        }
+        if (streamOpts.reasoningSummary !== undefined) {
+          extraParams.reasoning.summary = streamOpts.reasoningSummary;
+        }
       }
 
       try {
