@@ -1,5 +1,6 @@
 export type AllowlistMatchSource =
   | "wildcard"
+  | "domain"
   | "id"
   | "name"
   | "tag"
@@ -26,8 +27,9 @@ export function resolveAllowlistMatchSimple(params: {
   allowFrom: Array<string | number>;
   senderId: string;
   senderName?: string | null;
+  senderEmail?: string | null;
   allowNameMatching?: boolean;
-}): AllowlistMatch<"wildcard" | "id" | "name"> {
+}): AllowlistMatch<"wildcard" | "domain" | "id" | "name"> {
   const allowFrom = params.allowFrom
     .map((entry) => String(entry).trim().toLowerCase())
     .filter(Boolean);
@@ -37,6 +39,14 @@ export function resolveAllowlistMatchSimple(params: {
   }
   if (allowFrom.includes("*")) {
     return { allowed: true, matchKey: "*", matchSource: "wildcard" };
+  }
+
+  const normalizedEmail = params.senderEmail?.trim().toLowerCase() ?? "";
+  if (normalizedEmail) {
+    const domainEntry = allowFrom.find((d) => d.startsWith("@") && normalizedEmail.endsWith(d));
+    if (domainEntry) {
+      return { allowed: true, matchKey: domainEntry, matchSource: "domain" };
+    }
   }
 
   const senderId = params.senderId.toLowerCase();
