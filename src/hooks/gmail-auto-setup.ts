@@ -9,6 +9,7 @@
  * - Auto-creation of Pub/Sub topic and subscription
  */
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -67,7 +68,7 @@ async function authenticateWithServiceAccount(
   if (keyJsonOrPath.trim().startsWith("{")) {
     // It's JSON - write to temp file
     const tempDir = os.tmpdir();
-    keyPath = path.join(tempDir, `gcloud-sa-key-${Date.now()}.json`);
+    keyPath = path.join(tempDir, "gcloud-sa-key-" + crypto.randomUUID() + ".json");
     try {
       fs.writeFileSync(keyPath, keyJsonOrPath, { mode: 0o600 });
       tempFile = true;
@@ -175,7 +176,7 @@ async function setupGogCredentials(
           "https://www.googleapis.com/auth/userinfo.email",
         ],
       };
-      const tmpTokenPath = path.join(os.tmpdir(), `gog-token-${Date.now()}.json`);
+      const tmpTokenPath = path.join(os.tmpdir(), "gog-token-" + crypto.randomUUID() + ".json");
       fs.writeFileSync(tmpTokenPath, JSON.stringify(tokenData, null, 2), { mode: 0o600 });
 
       const importResult = await runCommandWithTimeout(
