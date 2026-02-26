@@ -201,8 +201,16 @@ describe("argv helpers", () => {
         expected: ["node-22.2.exe", "openclaw", "status"],
       },
       {
+        rawArgs: ["node24", "openclaw", "status"],
+        expected: ["node24", "openclaw", "status"],
+      },
+      {
         rawArgs: ["/usr/bin/node-22.2.0", "openclaw", "status"],
         expected: ["/usr/bin/node-22.2.0", "openclaw", "status"],
+      },
+      {
+        rawArgs: ["/usr/bin/node24", "openclaw", "status"],
+        expected: ["/usr/bin/node24", "openclaw", "status"],
       },
       {
         rawArgs: ["nodejs", "openclaw", "status"],
