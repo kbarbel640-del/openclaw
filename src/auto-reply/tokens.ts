@@ -11,11 +11,17 @@ export function isSilentReplyText(
     return false;
   }
   const escaped = escapeRegExp(token);
-  const prefix = new RegExp(`^\\s*${escaped}(?=$|\\W)`);
+  // Only treat as silent if the token appears at the start (with optional leading whitespace)
+  // followed by end-of-string or ASCII non-word char (not CJK/unicode content).
+  const prefix = new RegExp(`^\\s*${escaped}(?=$|[\\s\\p{P}])`, "u");
   if (prefix.test(text)) {
     return true;
   }
-  const suffix = new RegExp(`\\b${escaped}\\b\\W*$`);
+  // Only treat as silent if the token appears at the end, followed only by
+  // whitespace or ASCII punctuation — NOT CJK or other unicode content.
+  // Previous regex used \W*$ which incorrectly matched CJK characters as non-word,
+  // causing false positives for messages discussing the token in non-Latin scripts.
+  const suffix = new RegExp(`\\b${escaped}\\b[\\s.!?,;:…]*$`);
   return suffix.test(text);
 }
 
