@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../../../config/config.js";
+import type { ChannelMessageActionName } from "../types.js";
 
 const handleDiscordAction = vi.fn(async (..._args: unknown[]) => ({ details: { ok: true } }));
 const handleTelegramAction = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
@@ -157,7 +158,7 @@ async function expectSignalActionRejected(
   params: Record<string, unknown>,
   error: RegExp,
   cfg: OpenClawConfig,
-  action: string = "react",
+  action: ChannelMessageActionName = "react",
 ) {
   const handleAction = signalMessageActions.handleAction;
   if (!handleAction) {
