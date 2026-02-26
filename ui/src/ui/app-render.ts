@@ -637,10 +637,12 @@ export function renderApp(state: AppViewState) {
                   void saveAgentFile(state, resolvedAgentId, name, content);
                 },
                 onToolsProfileChange: (agentId, profile, clearAllow) => {
-                  if (!configValue) {
+                  // Fix: Use state.configForm directly instead of configValue to ensure we always get the latest form data
+                  const formValue = state.configForm ?? configValue;
+                  if (!formValue) {
                     return;
                   }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  const list = (formValue as { agents?: { list?: unknown[] } }).agents?.list;
                   if (!Array.isArray(list)) {
                     return;
                   }
@@ -665,10 +667,12 @@ export function renderApp(state: AppViewState) {
                   }
                 },
                 onToolsOverridesChange: (agentId, alsoAllow, deny) => {
-                  if (!configValue) {
+                  // Fix: Use state.configForm directly instead of configValue to ensure we always get the latest form data
+                  const formValue = state.configForm ?? configValue;
+                  if (!formValue) {
                     return;
                   }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  const list = (formValue as { agents?: { list?: unknown[] } }).agents?.list;
                   if (!Array.isArray(list)) {
                     return;
                   }
@@ -705,10 +709,12 @@ export function renderApp(state: AppViewState) {
                   }
                 },
                 onAgentSkillToggle: (agentId, skillName, enabled) => {
-                  if (!configValue) {
+                  // Fix: Use state.configForm directly instead of configValue to ensure we always get the latest form data
+                  const formValue = state.configForm ?? configValue;
+                  if (!formValue) {
                     return;
                   }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  const list = (formValue as { agents?: { list?: unknown[] } }).agents?.list;
                   if (!Array.isArray(list)) {
                     return;
                   }
@@ -743,10 +749,12 @@ export function renderApp(state: AppViewState) {
                   updateConfigFormValue(state, ["agents", "list", index, "skills"], [...next]);
                 },
                 onAgentSkillsClear: (agentId) => {
-                  if (!configValue) {
+                  // Fix: Use state.configForm directly instead of configValue to ensure we always get the latest form data
+                  const formValue = state.configForm ?? configValue;
+                  if (!formValue) {
                     return;
                   }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  const list = (formValue as { agents?: { list?: unknown[] } }).agents?.list;
                   if (!Array.isArray(list)) {
                     return;
                   }
@@ -763,10 +771,12 @@ export function renderApp(state: AppViewState) {
                   removeConfigFormValue(state, ["agents", "list", index, "skills"]);
                 },
                 onAgentSkillsDisableAll: (agentId) => {
-                  if (!configValue) {
+                  // Fix: Use state.configForm directly instead of configValue to ensure we always get the latest form data
+                  const formValue = state.configForm ?? configValue;
+                  if (!formValue) {
                     return;
                   }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  const list = (formValue as { agents?: { list?: unknown[] } }).agents?.list;
                   if (!Array.isArray(list)) {
                     return;
                   }
@@ -783,10 +793,12 @@ export function renderApp(state: AppViewState) {
                   updateConfigFormValue(state, ["agents", "list", index, "skills"], []);
                 },
                 onModelChange: (agentId, modelId) => {
-                  if (!configValue) {
+                  // Fix: Use state.configForm directly instead of configValue to ensure we always get the latest form data
+                  const formValue = state.configForm ?? configValue;
+                  if (!formValue) {
                     return;
                   }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  const list = (formValue as { agents?: { list?: unknown[] } }).agents?.list;
                   if (!Array.isArray(list)) {
                     return;
                   }
@@ -819,10 +831,12 @@ export function renderApp(state: AppViewState) {
                   }
                 },
                 onModelFallbacksChange: (agentId, fallbacks) => {
-                  if (!configValue) {
+                  // Fix: Use state.configForm directly instead of configValue to ensure we always get the latest form data
+                  const formValue = state.configForm ?? configValue;
+                  if (!formValue) {
                     return;
                   }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
+                  const list = (formValue as { agents?: { list?: unknown[] } }).agents?.list;
                   if (!Array.isArray(list)) {
                     return;
                   }
