@@ -486,6 +486,7 @@ export function attachGatewayWsMessageHandler(params: {
             connectParams.scopes = scopes;
           }
         };
+
         const handleMissingDeviceIdentity = (): boolean => {
           if (!device) {
             clearUnboundScopes();
@@ -511,7 +512,6 @@ export function attachGatewayWsMessageHandler(params: {
           if (decision.kind === "allow") {
             return true;
           }
-
           if (decision.kind === "reject-control-ui-insecure-auth") {
             const errorMessage =
               "control ui requires device identity (use HTTPS or localhost secure context)";
@@ -524,12 +524,10 @@ export function attachGatewayWsMessageHandler(params: {
             close(1008, errorMessage);
             return false;
           }
-
           if (decision.kind === "reject-unauthorized") {
             rejectUnauthorized(authResult);
             return false;
           }
-
           markHandshakeFailure("device-required");
           sendHandshakeErrorResponse(ErrorCodes.NOT_PAIRED, "device identity required", {
             details: { code: ConnectErrorDetailCodes.DEVICE_IDENTITY_REQUIRED },
