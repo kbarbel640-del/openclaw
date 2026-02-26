@@ -12,6 +12,7 @@ Docs: https://docs.openclaw.ai
 - Onboarding/Plugins: let channel plugins own interactive onboarding flows with optional `configureInteractive` and `configureWhenConfigured` hooks while preserving the generic fallback path. (#27191) thanks @gumadeiras.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Auth/Auth profiles: normalize `auth-profiles.json` alias fields (`mode -> type`, `apiKey -> key`) before credential validation so entries copied from `openclaw.json` auth examples are no longer silently dropped. (#26950) thanks @byungsker.
 - Cron/Hooks isolated routing: preserve canonical `agent:*` session keys in isolated runs so already-qualified keys are not double-prefixed (for example `agent:main:main` no longer becomes `agent:main:agent:main:main`). Landed from contributor PR #27333 by @MaheshBhushan. (#27289, #27282)
@@ -74,6 +75,7 @@ Docs: https://docs.openclaw.ai
 - **BREAKING:** Heartbeat direct/DM delivery default is now `allow` again. To keep DM-blocked behavior from `2026.2.24`, set `agents.defaults.heartbeat.directPolicy: "block"` (or per-agent override).
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Agents/Subagents delivery: refactor subagent completion announce dispatch into an explicit queue/direct/fallback state machine, recover outbound channel-plugin resolution in cold/stale plugin-registry states across announce/message/gateway send paths, finalize cleanup bookkeeping when announce flow rejects, and treat Telegram sends without `message_id` as delivery failures (instead of false-success `"unknown"` IDs). (#26867, #25961, #26803, #25069, #26741) Thanks @SmithLabsLLC and @docaohieu2808.
 - Telegram/Webhook: pre-initialize webhook bots, switch webhook processing to callback-mode JSON handling, and preserve full near-limit payload reads under delayed handlers to prevent webhook request hangs and dropped updates. (#26156)
@@ -145,6 +147,7 @@ Docs: https://docs.openclaw.ai
 - **BREAKING:** Security/Sandbox: block Docker `network: "container:<id>"` namespace-join mode by default for sandbox and sandbox-browser containers. To keep that behavior intentionally, set `agents.defaults.sandbox.docker.dangerouslyAllowContainerNamespaceJoin: true` (break-glass). Thanks @tdjackey for reporting.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Routing/Session isolation: harden followup routing so explicit cross-channel origin replies never fall back to the active dispatcher on route failure, preserve queued overflow summary routing metadata (`channel`/`to`/`thread`) across followup drain, and prefer originating channel context over internal provider tags for embedded followup runs. This prevents webchat/control-ui context from hijacking Discord-targeted replies in shared sessions. (#25864) Thanks @Gamedesigner.
 - Security/Routing: fail closed for shared-session cross-channel replies by binding outbound target resolution to the current turn’s source channel metadata (instead of stale session route fallbacks), and wire those turn-source fields through gateway + command delivery planners with regression coverage. (#24571) Thanks @brandonwise.
@@ -261,6 +264,7 @@ Docs: https://docs.openclaw.ai
 - **BREAKING:** browser SSRF policy now defaults to trusted-network mode (`browser.ssrfPolicy.dangerouslyAllowPrivateNetwork=true` when unset), and canonical config uses `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` instead of `browser.ssrfPolicy.allowPrivateNetwork`. `openclaw doctor --fix` migrates the legacy key automatically.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Security/Config: redact sensitive-looking dynamic catchall keys in `config.get` snapshots (for example `env.*` and `skills.entries.*.env.*`) and preserve round-trip restore behavior for those redacted sentinels. Thanks @merc1305.
 - Tests/Vitest: tier local parallel worker defaults by host memory, keep gateway serial by default on non-high-memory hosts, and document a low-profile fallback command for memory-constrained land/gate runs to prevent local OOMs. (#24719) Thanks @ngutman.
@@ -337,6 +341,7 @@ Docs: https://docs.openclaw.ai
 - **BREAKING:** remove legacy Gateway device-auth signature `v1`. Device-auth clients must now sign `v2` payloads with the per-connection `connect.challenge` nonce and send `device.nonce`; nonce-less connects are rejected.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Sessions/Resilience: ignore invalid persisted `sessionFile` metadata and fall back to the derived safe transcript path instead of aborting session resolution for handlers and tooling. (#16061) Thanks @haoyifan and @vincentkoc.
 - Sessions/Paths: resolve symlinked state-dir aliases during transcript-path validation while preserving safe cross-agent/state-root compatibility for valid `agents/<id>/sessions/**` paths. (#18593) Thanks @EpaL and @vincentkoc.
@@ -589,6 +594,7 @@ Docs: https://docs.openclaw.ai
 - Dependencies/A2UI: harden dependency resolution after root cleanup (resolve `lit`, `@lit/context`, `@lit-labs/signals`, and `signal-utils` from workspace/root) and simplify bundling fallback behavior, including `pnpm dlx rolldown` compatibility. (#22481, #22507) Thanks @vincentkoc.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Agents/Bootstrap: skip malformed bootstrap files with missing/invalid paths instead of crashing agent sessions; hooks using `filePath` (or non-string `path`) are skipped with a warning. (#22693, #22698) Thanks @arosstale.
 - Security/Agents: cap embedded Pi runner outer retry loop with a higher profile-aware dynamic limit (32-160 attempts) and return an explicit `retry_limit` error payload when retries never converge, preventing unbounded internal retry cycles (`GHSA-76m6-pj3w-v7mf`).
@@ -721,6 +727,7 @@ Docs: https://docs.openclaw.ai
 - Dev tooling: align `oxfmt` local/CI formatting behavior. (#12579) Thanks @vincentkoc.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Security: strip hidden text from `web_fetch` extracted content to prevent indirect prompt injection, covering CSS-hidden elements, class-based hiding (sr-only, d-none, etc.), invisible Unicode, color:transparent, offscreen transforms, and non-content tags. (#8027, #21074) Thanks @hydro13 for the fix and @LucasAIBuilder for reporting.
 - Agents/Streaming: keep assistant partial streaming active during reasoning streams, handle native `thinking_*` stream events consistently, dedupe mixed reasoning-end signals, and clear stale mutating tool errors after same-target retry success. (#20635) Thanks @obviyus.
@@ -844,6 +851,7 @@ Docs: https://docs.openclaw.ai
 - Docker: add optional `OPENCLAW_INSTALL_BROWSER` build arg to preinstall Chromium + Xvfb in the Docker image, avoiding runtime Playwright installs. (#18449)
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Agents/Antigravity: preserve unsigned Claude thinking blocks as plain text instead of dropping them during transcript sanitization, preventing reasoning context loss while avoiding `thinking.signature` request rejections.
 - Agents/Google: clean tool JSON Schemas for `google-antigravity` the same as `google-gemini-cli` before Cloud Code Assist requests, preventing Claude tool calls from failing with `patternProperties` 400 errors. (#19860)
@@ -994,6 +1002,7 @@ Docs: https://docs.openclaw.ai
 - Memory: add opt-in temporal decay for hybrid search scoring, with configurable half-life via `memorySearch.query.hybrid.temporalDecay`. Thanks @rodrigouroz.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Discord: send initial content when creating non-forum threads so `thread-create` content is delivered. (#18117) Thanks @zerone0x.
 - Security: replace deprecated SHA-1 sandbox configuration hashing with SHA-256 for deterministic sandbox cache identity and recreation checks. Thanks @kexinoh.
@@ -1058,6 +1067,7 @@ Docs: https://docs.openclaw.ai
 - Agents: add optional `messages.suppressToolErrors` config to hide non-mutating tool-failure warnings from user-facing chat while still surfacing mutating failures. (#16620) Thanks @vai-oro.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - CLI/Installation: fix Docker installation hangs on macOS. (#12972) Thanks @vincentkoc.
 - Models: fix antigravity opus 4.6 availability follow-up. (#12845) Thanks @vincentkoc.
@@ -1214,6 +1224,7 @@ Docs: https://docs.openclaw.ai
 - Config/State: removed legacy `.moltbot` auto-detection/migration and `moltbot.json` config candidates. If you still have state/config under `~/.moltbot`, move it to `~/.openclaw` (recommended) or set `OPENCLAW_STATE_DIR` / `OPENCLAW_CONFIG_PATH` explicitly.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Gateway/Auth: add trusted-proxy mode hardening follow-ups by keeping `OPENCLAW_GATEWAY_*` env compatibility, auto-normalizing invalid setup combinations in interactive `gateway configure` (trusted-proxy forces `bind=lan` and disables Tailscale serve/funnel), and suppressing shared-secret/rate-limit audit findings that do not apply to trusted-proxy deployments. (#15940) Thanks @nickytonline.
 - Docs/Hooks: update hooks documentation URLs to the new `/automation/hooks` location. (#16165) Thanks @nicholascyh.
@@ -1331,6 +1342,7 @@ Docs: https://docs.openclaw.ai
 - Hooks: `POST /hooks/agent` now rejects payload `sessionKey` overrides by default. To keep fixed hook context, set `hooks.defaultSessionKey` (recommended with `hooks.allowedSessionKeyPrefixes: ["hook:"]`). If you need legacy behavior, explicitly set `hooks.allowRequestSessionKey: true`. Thanks @alpernae for reporting.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Gateway/OpenResponses: harden URL-based `input_file`/`input_image` handling with explicit SSRF deny policy, hostname allowlists (`files.urlAllowlist` / `images.urlAllowlist`), per-request URL input caps (`maxUrlParts`), blocked-fetch audit logging, and regression coverage/docs updates.
 - Sessions: guard `withSessionStoreLock` against undefined `storePath` to prevent `path.dirname` crash. (#14717)
@@ -1434,6 +1446,7 @@ Docs: https://docs.openclaw.ai
 - Hooks: route webhook agent runs to specific `agentId`s, add `hooks.allowedAgentIds` controls, and fall back to default agent when unknown IDs are provided. (#13672) Thanks @BillChirico.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Cron: prevent one-shot `at` jobs from re-firing on gateway restart when previously skipped or errored. (#13845)
 - Discord: add exec approval cleanup option to delete DMs after approval/denial/timeout. (#13205) Thanks @thewilloftheshadow.
@@ -1523,6 +1536,7 @@ Docs: https://docs.openclaw.ai
 - Cron: legacy payload field compatibility (`deliver`, `channel`, `to`, `bestEffortDeliver`) in schema. (#10776) Thanks @tyler6204.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - TTS: add missing OpenAI voices (ballad, cedar, juniper, marin, verse) to the allowlist so they are recognized instead of silently falling back to Edge TTS. (#2393)
 - Cron: scheduler reliability (timer drift, restart catch-up, lock contention, stale running markers). (#10776) Thanks @tyler6204.
@@ -1560,6 +1574,7 @@ Docs: https://docs.openclaw.ai
 - Cron: avoid duplicate deliveries when isolated runs send messages directly.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Control UI: add hardened fallback for asset resolution in global npm installs. (#4855) Thanks @anapivirtua.
 - Update: remove dead restore control-ui step that failed on gitignored dist/ output.
@@ -1597,6 +1612,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.2.2-3
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Update: ship legacy daemon-cli shim for pre-tsdown update imports (fixes daemon restart after npm update).
 
@@ -1607,12 +1623,14 @@ Docs: https://docs.openclaw.ai
 - Docs: promote BlueBubbles as the recommended iMessage integration; mark imsg channel as legacy. (#8415) Thanks @tyler6204.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - CLI status: resolve build-info from bundled dist output (fixes "unknown" commit in npm builds).
 
 ## 2026.2.2-1
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - CLI status: fall back to build-info for version detection (fixes "unknown" in beta builds). Thanks @gumadeira.
 
@@ -1630,6 +1648,7 @@ Docs: https://docs.openclaw.ai
 - Docs: add zh-CN i18n guardrails to avoid editing generated translations. (#8416) Thanks @joshp123.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Docs: finish renaming the QMD memory docs to reference the OpenClaw state dir.
 - Onboarding: keep TUI flow exclusive (skip completion prompt + background Web UI seed).
@@ -1675,6 +1694,7 @@ Docs: https://docs.openclaw.ai
 - CI: add formal conformance + alias consistency checks. (#5723, #5807)
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Security: guard remote media fetches with SSRF protections (block private/localhost, DNS pinning).
 - Updates: clean stale global install rename dirs and extend gateway update timeouts to avoid npm ENOTEMPTY failures.
@@ -1734,6 +1754,7 @@ Docs: https://docs.openclaw.ai
 - CI: add formal conformance + alias consistency checks. (#5723, #5807)
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Security: guard remote media fetches with SSRF protections (block private/localhost, DNS pinning).
 - Updates: clean stale global install rename dirs and extend gateway update timeouts to avoid npm ENOTEMPTY failures.
@@ -1791,6 +1812,7 @@ Docs: https://docs.openclaw.ai
 - Docker E2E: stabilize gateway readiness, plugin installs/manifests, and cleanup/doctor switch entrypoint checks.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Security: restrict local path extraction in media parser to prevent LFI. (#4880)
 - Gateway: prevent token defaults from becoming the literal "undefined". (#4873) Thanks @Hisleren.
@@ -1881,6 +1903,7 @@ Docs: https://docs.openclaw.ai
 - **BREAKING:** Gateway auth mode "none" is removed; gateway now requires token/password (Tailscale Serve identity still allowed).
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Skills: update session-logs paths to use ~/.openclaw. (#4502) Thanks @bonald.
 - Telegram: avoid silent empty replies by tracking normalization skips before fallback. (#3796)
@@ -1935,6 +1958,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.24-3
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Slack: fix image downloads failing due to missing Authorization header on cross-origin redirects. (#1936) Thanks @sanderhelgesen.
 - Gateway: harden reverse proxy handling for local-client detection and unauthenticated proxied connects. (#1795) Thanks @orlyjamie.
@@ -1944,12 +1968,14 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.24-2
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Packaging: include dist/link-understanding output in npm tarball (fixes missing apply.js import on install).
 
 ## 2026.1.24-1
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Packaging: include dist/shared output in npm tarball (fixes missing reasoning-tags import on install).
 
@@ -1983,6 +2009,7 @@ Docs: https://docs.openclaw.ai
 - Dev: add prek pre-commit hooks + dependabot config for weekly updates. (#1720) Thanks @dguido.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Web UI: fix config/debug layout overflow, scrolling, and code block sizing. (#1715) Thanks @saipreetham589.
 - Web UI: show Stop button during active runs, swap back to New session when idle. (#1664) Thanks @ndbroadbent.
@@ -2027,6 +2054,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.23-1
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Packaging: include dist/tts output in npm tarball (fixes missing dist/tts/tts.js).
 
@@ -2056,6 +2084,7 @@ Docs: https://docs.openclaw.ai
 - Docs: clarify HEARTBEAT.md empty file skips heartbeats, missing file still runs. (#1535) Thanks @JustYannicc. https://docs.openclaw.ai/gateway/heartbeat
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Sessions: accept non-UUID sessionIds for history/send/status while preserving agent scoping. (#1518)
 - Heartbeat: accept plugin channel ids for heartbeat target validation + UI hints.
@@ -2103,6 +2132,7 @@ Docs: https://docs.openclaw.ai
 - Onboarding: add hatch choice (TUI/Web/Later), token explainer, background dashboard seed on macOS, and showcase link.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - BlueBubbles: stop typing indicator on idle/no-reply. (#1439) Thanks @Nicell.
 - Message tool: keep path/filePath as-is for send; hydrate buffers only for sendAttachment. (#1444) Thanks @hopyky.
@@ -2134,6 +2164,7 @@ Docs: https://docs.openclaw.ai
 ## 2026.1.21-2
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Control UI: ignore bootstrap identity placeholder text for avatar values and fall back to the default avatar. https://docs.openclaw.ai/cli/agents https://docs.openclaw.ai/web/control-ui
 - Slack: remove deprecated `filetype` field from `files.uploadV2` to eliminate API warnings. (#1447)
@@ -2169,6 +2200,7 @@ Docs: https://docs.openclaw.ai
 - **BREAKING:** Envelope and system event timestamps now default to host-local time (was UTC) so agents don’t have to constantly convert.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Nodes/macOS: prompt on allowlist miss for node exec approvals, persist allowlist decisions, and flatten node invoke errors. (#1394) Thanks @ngutman.
 - Gateway: keep auto bind loopback-first and add explicit tailnet binding to avoid Tailscale taking over local UI. (#1380)
@@ -2275,6 +2307,7 @@ Docs: https://docs.openclaw.ai
 - **BREAKING:** Reject invalid/unknown config entries and refuse to start the gateway for safety. Run `openclaw doctor --fix` to repair, then update plugins (`openclaw plugins update`) if you use any.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Discovery: shorten Bonjour DNS-SD service type to `_moltbot-gw._tcp` and update discovery clients/docs.
 - Diagnostics: export OTLP logs, correct queue depth tracking, and document message-flow telemetry.
@@ -2436,6 +2469,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Plugins: add zip installs and `--link` to avoid copying local paths.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - macOS: drain subprocess pipes before waiting to avoid deadlocks. (#1081) — thanks @thesash.
 - Verbose: wrap tool summaries/output in markdown only for markdown-capable channels.
@@ -2545,6 +2579,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Discord: allow emoji/sticker uploads + channel actions in config defaults. (#870) — thanks @JDIVE.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Messages: make `/stop` clear queued followups and pending session lane work for a hard abort.
 - Messages: make `/stop` abort active sub-agent runs spawned from the requester session and report how many were stopped.
@@ -2606,6 +2641,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Browser: add Chrome extension relay takeover mode (toolbar button), plus `openclaw browser extension install/path` and remote browser control (standalone server + token auth).
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Sessions: refactor session store updates to lock + mutate per-entry, add chat.inject, and harden subagent cleanup flow. (#944) — thanks @tyler6204.
 - Browser: add tests for snapshot labels/efficient query params and labeled image responses.
@@ -2636,6 +2672,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Config: add `channels.<provider>.configWrites` gating for channel-initiated config writes; migrate Slack channel IDs.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Mac: pass auth token/password to dashboard URL for authenticated access. (#918) — thanks @rahthakor.
 - UI: use application-defined WebSocket close code (browser compatibility). (#918) — thanks @rahthakor.
@@ -2678,6 +2715,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 ## 2026.1.13
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Postinstall: treat already-applied pnpm patches as no-ops to avoid npm/bun install failures.
 - Packaging: pin `@mariozechner/pi-ai` to 0.45.7 and refresh patched dependency to match npm resolution.
@@ -2685,6 +2723,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 ## 2026.1.12-2
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Packaging: include `dist/memory/**` in the npm tarball (fixes `ERR_MODULE_NOT_FOUND` for `dist/memory/index.js`).
 - Agents: persist sub-agent registry across gateway restarts and resume announce flow safely. (#831) — thanks @roshanasingh4.
@@ -2693,6 +2732,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 ## 2026.1.12-1
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Packaging: include `dist/channels/**` in the npm tarball (fixes `ERR_MODULE_NOT_FOUND` for `dist/channels/registry.js`).
 
@@ -2726,6 +2766,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Install: run `openclaw doctor --non-interactive` after git installs/updates and nudge daemon restarts when detected.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Doctor: warn on pnpm workspace mismatches, missing Control UI assets, and missing tsx binaries; offer UI rebuilds.
 - Tools: apply global tool allow/deny even when agent-specific tool policy is set.
@@ -2811,6 +2852,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Installer UX: add `--install-method git|npm` and auto-detect source checkouts (prompt to update git checkout vs migrate to npm).
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Models/Onboarding: configure MiniMax (minimax.io) via Anthropic-compatible `/anthropic` endpoint by default (keep `minimax-api` as a legacy alias).
 - Models: normalize Gemini 3 Pro/Flash IDs to preview names for live model lookups. (#769) — thanks @steipete.
@@ -2872,6 +2914,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Docker: allow optional home volume + extra bind mounts in `docker-setup.sh`. (#679) — thanks @gabriel-trigo.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Auto-reply: suppress draft/typing streaming for `NO_REPLY` (silent system ops) so it doesn’t leak partial output.
 - CLI/Status: expand tables to full terminal width; clarify provider setup vs runtime warnings; richer per-provider detail; token previews in `status` while keeping `status --all` redacted; add troubleshooting link footer; keep log tails pasteable; show gateway auth used when reachable; surface provider runtime errors (Signal/iMessage/Slack); harden `tailscale status --json` parsing; make `status --all` scan progress determinate; and replace the footer with a 3-line “Next steps” recommendation (share/debug/probe).
@@ -2984,6 +3027,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Apps/Branding: refreshed iOS/Android/macOS icons (#521) — thanks @fishfisher.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Packaging: include MS Teams send module in npm tarball.
 - Sandbox/Browser: auto-start CDP endpoint; proxy CDP out of container for attachOnly; relax Bun fetch typing; align sandbox list output with config images.
@@ -3036,6 +3080,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - CLI: remove `update`, `gateway-daemon`, `gateway {install|uninstall|start|stop|restart|daemon status|wake|send|agent}`, and `telegram` commands; move `login/logout` to `providers login/logout` (top-level aliases hidden); use `daemon` for service control, `send`/`agent`/`wake` for RPC, and `nodes canvas` for canvas ops.
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - **CLI/Gateway/Doctor:** daemon runtime selection + improved logs/status/health/errors; auth/password handling for local CLI; richer close/timeout details; auto-migrate legacy config/sessions/state; integrity checks + repair prompts; `--yes`/`--non-interactive`; `--deep` gateway scans; better restart/service hints.
 - **Agent loop + compaction:** compaction/pruning tuning, overflow handling, safer bootstrap context, and per-provider threading/confirmations; opt-in tool-result pruning + compact tracking.
@@ -3063,6 +3108,7 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Bun: optional local install/build workflow without maintaining a Bun lockfile (see `docs/bun.md`).
 
 ### Fixes
+- Process/Windows: use stdio ignore for SIGUSR1 in-process restart to prevent EBADF errors when inherited stdio handles are closed. (#24830) Thanks @arosstale.
 
 - Control UI: render Markdown in tool result cards.
 - Control UI: prevent overlapping action buttons in Discord guild rules on narrow layouts.
