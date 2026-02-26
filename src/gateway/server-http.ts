@@ -385,6 +385,7 @@ export function createHooksRequestHandler(
             agentId: resolveHookTargetAgentId(hooksConfig, mapped.action.agentId),
             wakeMode: mapped.action.wakeMode,
             sessionKey: sessionKey.value,
+            sessionMode: mapped.action.sessionMode,
             deliver: resolveHookDeliver(mapped.action.deliver),
             channel,
             to: mapped.action.to,
