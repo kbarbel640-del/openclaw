@@ -1395,6 +1395,7 @@ describe("createTelegramBot", () => {
         config: {
           channels: {
             telegram: {
+              groupPolicy: "allowlist",
               groups: {
                 "123": { requireMention: false },
               },
