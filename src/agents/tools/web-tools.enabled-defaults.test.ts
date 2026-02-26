@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withFetchPreconnect } from "../../test-utils/fetch-mock.js";
+import { isToolResultError } from "../pi-embedded-subscribe.tools.js";
 import { createWebFetchTool, createWebSearchTool } from "./web-tools.js";
 
 function installMockFetch(payload: unknown) {
@@ -37,6 +38,24 @@ function createKimiSearchTool(kimiConfig?: { apiKey?: string; baseUrl?: string; 
           search: {
             provider: "kimi",
             ...(kimiConfig ? { kimi: kimiConfig } : {}),
+          },
+        },
+      },
+    },
+    sandboxed: true,
+  });
+}
+
+function createDuckDuckGoSearchTool(
+  duckduckgoConfig?: { endpoint?: string },
+) {
+  return createWebSearchTool({
+    config: {
+      tools: {
+        web: {
+          search: {
+            provider: "duckduckgo",
+            ...(duckduckgoConfig ? { duckduckgo: duckduckgoConfig } : {}),
           },
         },
       },
@@ -141,7 +160,91 @@ describe("web_search country and language parameters", () => {
     const result = await tool?.execute?.("call-1", { query: "test", freshness: "yesterday" });
 
     expect(mockFetch).not.toHaveBeenCalled();
-    expect(result?.details).toMatchObject({ error: "invalid_freshness" });
+    expect(result?.details).toMatchObject({ error: "invalid_freshness", status: "error" });
+    expect(isToolResultError(result)).toBe(true);
+  });
+});
+
+describe("web_search normalized errors", () => {
+  it("returns structured missing_brave_api_key errors with isError semantics", async () => {
+    const tool = createWebSearchTool({
+      config: { tools: { web: { search: { provider: "brave" } } } },
+      sandboxed: true,
+    });
+    const result = await tool?.execute?.("call-1", { query: "test" });
+    expect(result?.details).toMatchObject({
+      status: "error",
+      tool: "web_search",
+      code: "missing_brave_api_key",
+      provider: "brave",
+      recoverable: true,
+      retryable: false,
+    });
+    expect(result?.isError).toBe(true);
+    expect(isToolResultError(result)).toBe(true);
+  });
+
+  it("does not require API key for duckduckgo instant answers", async () => {
+    const mockFetch = installMockFetch({ RelatedTopics: [] });
+    const tool = createDuckDuckGoSearchTool();
+    const result = await tool?.execute?.("call-1", { query: "test" });
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(result?.details).toMatchObject({ provider: "duckduckgo" });
+  });
+});
+
+describe("web_search duckduckgo provider", () => {
+  const priorFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = priorFetch;
+  });
+
+  it("uses DuckDuckGo endpoint and returns normalized result list", async () => {
+    const mockFetch = installMockFetch({
+      Heading: "OpenClaw",
+      AbstractText: "OpenClaw summary",
+      AbstractURL: "https://openclaw.ai",
+      RelatedTopics: [
+        {
+          Text: "Docs",
+          FirstURL: "https://docs.openclaw.ai",
+        },
+      ],
+    });
+    const tool = createDuckDuckGoSearchTool();
+    const result = await tool?.execute?.("call-1", { query: "openclaw", count: 2 });
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const url = new URL(mockFetch.mock.calls[0]?.[0] as string);
+    expect(url.hostname).toBe("api.duckduckgo.com");
+    expect(url.searchParams.get("q")).toBe("openclaw");
+    expect(url.searchParams.get("format")).toBe("json");
+    expect(url.searchParams.get("no_html")).toBe("1");
+    expect(url.searchParams.get("no_redirect")).toBe("1");
+    expect(result?.details).toMatchObject({
+      provider: "duckduckgo",
+      count: 2,
+      results: [
+        { url: "https://openclaw.ai" },
+        { url: "https://docs.openclaw.ai" },
+      ],
+    });
+  });
+
+  it("switches provider endpoint between brave and duckduckgo", async () => {
+    vi.stubEnv("BRAVE_API_KEY", "test-key");
+    const braveFetch = installMockFetch({ web: { results: [] } });
+    const braveTool = createWebSearchTool({ config: undefined, sandboxed: true });
+    await braveTool?.execute?.("call-brave", { query: "openclaw" });
+    const braveUrl = new URL(braveFetch.mock.calls[0]?.[0] as string);
+    expect(braveUrl.hostname).toBe("api.search.brave.com");
+
+    const duckFetch = installMockFetch({ RelatedTopics: [] });
+    const duckTool = createDuckDuckGoSearchTool();
+    await duckTool?.execute?.("call-duck", { query: "openclaw" });
+    const duckUrl = new URL(duckFetch.mock.calls[0]?.[0] as string);
+    expect(duckUrl.hostname).toBe("api.duckduckgo.com");
+    vi.unstubAllEnvs();
   });
 });
 
@@ -235,7 +338,12 @@ describe("web_search kimi provider", () => {
     vi.stubEnv("MOONSHOT_API_KEY", "");
     const tool = createKimiSearchTool();
     const result = await tool?.execute?.("call-1", { query: "test" });
-    expect(result?.details).toMatchObject({ error: "missing_kimi_api_key" });
+    expect(result?.details).toMatchObject({
+      status: "error",
+      tool: "web_search",
+      code: "search_provider_unavailable",
+      provider: "kimi",
+    });
   });
 
   it("runs the Kimi web_search tool flow and echoes tool results", async () => {

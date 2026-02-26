@@ -258,7 +258,9 @@ export const ToolsWebSearchSchema = z
     enabled: z.boolean().optional(),
     provider: z
       .union([
+        z.literal("auto"),
         z.literal("brave"),
+        z.literal("duckduckgo"),
         z.literal("perplexity"),
         z.literal("grok"),
         z.literal("gemini"),
@@ -297,6 +299,12 @@ export const ToolsWebSearchSchema = z
         apiKey: z.string().optional().register(sensitive),
         baseUrl: z.string().optional(),
         model: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    duckduckgo: z
+      .object({
+        endpoint: z.string().optional(),
       })
       .strict()
       .optional(),
