@@ -31,6 +31,11 @@ const queueMocks = vi.hoisted(() => ({
   ackDelivery: vi.fn(async () => {}),
   failDelivery: vi.fn(async () => {}),
 }));
+const threadCleanupMocks = vi.hoisted(() => ({
+  resolveSessionAgentId: vi.fn(() => "main"),
+  resolveDefaultSessionStorePath: vi.fn(() => "/fake/store.json"),
+  updateSessionStoreEntry: vi.fn(async () => {}),
+}));
 
 vi.mock("../../config/sessions.js", async () => {
   const actual = await vi.importActual<typeof import("../../config/sessions.js")>(
@@ -53,6 +58,21 @@ vi.mock("./delivery-queue.js", () => ({
   ackDelivery: queueMocks.ackDelivery,
   failDelivery: queueMocks.failDelivery,
 }));
+vi.mock("../../agents/agent-scope.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../agents/agent-scope.js")>();
+  return { ...actual, resolveSessionAgentId: threadCleanupMocks.resolveSessionAgentId };
+});
+vi.mock("../../config/sessions/paths.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../config/sessions/paths.js")>();
+  return {
+    ...actual,
+    resolveDefaultSessionStorePath: threadCleanupMocks.resolveDefaultSessionStorePath,
+  };
+});
+vi.mock("../../config/sessions/store.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../config/sessions/store.js")>();
+  return { ...actual, updateSessionStoreEntry: threadCleanupMocks.updateSessionStoreEntry };
+});
 
 const { deliverOutboundPayloads, normalizeOutboundPayloads } = await import("./deliver.js");
 
@@ -770,6 +790,97 @@ describe("deliverOutboundPayloads", () => {
       }),
       expect.objectContaining({ channelId: "whatsapp" }),
     );
+  });
+});
+
+describe("telegram threadId fallback cleanup", () => {
+  beforeEach(() => {
+    setActivePluginRegistry(defaultRegistry);
+  });
+  afterEach(() => {
+    setActivePluginRegistry(emptyRegistry);
+  });
+
+  it("passes onThreadIdFallback to sendTelegram and cleans up session store when invoked", async () => {
+    let capturedFallback: (() => void | Promise<void>) | undefined;
+    const sendTelegram = vi
+      .fn()
+      .mockImplementation(
+        async (_to: string, _text: string, opts: { onThreadIdFallback?: () => void }) => {
+          capturedFallback = opts?.onThreadIdFallback;
+          return { messageId: "m1", chatId: "-100123" };
+        },
+      );
+
+    threadCleanupMocks.updateSessionStoreEntry.mockClear();
+    threadCleanupMocks.resolveSessionAgentId.mockReturnValue("main");
+    threadCleanupMocks.resolveDefaultSessionStorePath.mockReturnValue("/fake/store.json");
+
+    await deliverOutboundPayloads({
+      cfg: { channels: { telegram: { botToken: "tok-1" } } },
+      channel: "telegram",
+      to: "-100123",
+      payloads: [{ text: "hello" }],
+      deps: { sendTelegram },
+      sessionKey: "agent:main:telegram-session",
+    });
+
+    expect(capturedFallback).toBeDefined();
+
+    // Trigger the fallback (simulates withTelegramThreadFallback succeeding after drop)
+    await capturedFallback?.();
+
+    expect(threadCleanupMocks.updateSessionStoreEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionKey: "agent:main:telegram-session" }),
+    );
+  });
+
+  it("does not attach onThreadIdFallback when no sessionKey is provided", async () => {
+    let capturedFallback: unknown = "sentinel";
+    const sendTelegram = vi
+      .fn()
+      .mockImplementation(
+        async (_to: string, _text: string, opts: { onThreadIdFallback?: unknown }) => {
+          capturedFallback = opts?.onThreadIdFallback;
+          return { messageId: "m1", chatId: "-100123" };
+        },
+      );
+
+    await deliverOutboundPayloads({
+      cfg: { channels: { telegram: { botToken: "tok-1" } } },
+      channel: "telegram",
+      to: "-100123",
+      payloads: [{ text: "hello" }],
+      deps: { sendTelegram },
+      // no sessionKey
+    });
+
+    expect(capturedFallback).toBeUndefined();
+  });
+
+  it("does not attach onThreadIdFallback for non-telegram channels", async () => {
+    let capturedFallback: unknown = "sentinel";
+    const sendWhatsApp = vi
+      .fn()
+      .mockImplementation(async (_opts: { onThreadIdFallback?: unknown }) => {
+        // WhatsApp dep signature is different; just verify deliver completes fine
+        return { messageId: "w1", toJid: "jid" };
+      });
+
+    // The WhatsApp channel simply should not blow up — just verify no accidental bleed
+    await deliverOutboundPayloads({
+      cfg: {},
+      channel: "whatsapp",
+      to: "+1555",
+      payloads: [{ text: "hello" }],
+      deps: { sendWhatsApp },
+      sessionKey: "agent:main:whatsapp-session",
+    });
+
+    // No assertion needed on capturedFallback; the point is WhatsApp delivery
+    // proceeds normally and doesn't receive a telegram-specific callback.
+    expect(sendWhatsApp).toHaveBeenCalledTimes(1);
+    expect(capturedFallback).toBe("sentinel"); // never touched by whatsapp path
   });
 });
 

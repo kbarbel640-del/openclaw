@@ -102,7 +102,9 @@ function normalizeSessionEntryDelivery(entry: SessionEntry): SessionEntry {
   };
 }
 
-function removeThreadFromDeliveryContext(context?: DeliveryContext): DeliveryContext | undefined {
+export function removeThreadFromDeliveryContext(
+  context?: DeliveryContext,
+): DeliveryContext | undefined {
   if (!context || context.threadId == null) {
     return context;
   }

@@ -13,6 +13,7 @@ function resolveTelegramSendContext(params: {
   accountId?: string | null;
   replyToId?: string | null;
   threadId?: string | number | null;
+  onThreadIdFallback?: () => void | Promise<void>;
 }): {
   send: typeof sendMessageTelegram;
   baseOpts: {
@@ -21,6 +22,7 @@ function resolveTelegramSendContext(params: {
     messageThreadId?: number;
     replyToMessageId?: number;
     accountId?: string;
+    onThreadIdFallback?: () => void | Promise<void>;
   };
 } {
   const send = params.deps?.sendTelegram ?? sendMessageTelegram;
@@ -32,6 +34,7 @@ function resolveTelegramSendContext(params: {
       messageThreadId: parseTelegramThreadId(params.threadId),
       replyToMessageId: parseTelegramReplyToMessageId(params.replyToId),
       accountId: params.accountId ?? undefined,
+      onThreadIdFallback: params.onThreadIdFallback,
     },
   };
 }
@@ -41,12 +44,13 @@ export const telegramOutbound: ChannelOutboundAdapter = {
   chunker: markdownToTelegramHtmlChunks,
   chunkerMode: "markdown",
   textChunkLimit: 4000,
-  sendText: async ({ to, text, accountId, deps, replyToId, threadId }) => {
+  sendText: async ({ to, text, accountId, deps, replyToId, threadId, onThreadIdFallback }) => {
     const { send, baseOpts } = resolveTelegramSendContext({
       deps,
       accountId,
       replyToId,
       threadId,
+      onThreadIdFallback,
     });
     const result = await send(to, text, {
       ...baseOpts,
@@ -62,12 +66,14 @@ export const telegramOutbound: ChannelOutboundAdapter = {
     deps,
     replyToId,
     threadId,
+    onThreadIdFallback,
   }) => {
     const { send, baseOpts } = resolveTelegramSendContext({
       deps,
       accountId,
       replyToId,
       threadId,
+      onThreadIdFallback,
     });
     const result = await send(to, text, {
       ...baseOpts,
@@ -76,12 +82,22 @@ export const telegramOutbound: ChannelOutboundAdapter = {
     });
     return { channel: "telegram", ...result };
   },
-  sendPayload: async ({ to, payload, mediaLocalRoots, accountId, deps, replyToId, threadId }) => {
+  sendPayload: async ({
+    to,
+    payload,
+    mediaLocalRoots,
+    accountId,
+    deps,
+    replyToId,
+    threadId,
+    onThreadIdFallback,
+  }) => {
     const { send, baseOpts: contextOpts } = resolveTelegramSendContext({
       deps,
       accountId,
       replyToId,
       threadId,
+      onThreadIdFallback,
     });
     const telegramData = payload.channelData?.telegram as
       | { buttons?: TelegramInlineButtons; quoteText?: string }
