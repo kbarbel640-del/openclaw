@@ -16,6 +16,29 @@ const ANTHROPIC_SONNET_TEMPLATE_MODEL_IDS = ["claude-sonnet-4-5", "claude-sonnet
 
 const ZAI_GLM5_MODEL_ID = "glm-5";
 const ZAI_GLM5_TEMPLATE_MODEL_IDS = ["glm-4.7"] as const;
+const GOOGLE_ANTIGRAVITY_PROVIDER_ID = "google-antigravity";
+
+function buildGeminiTemplateIds(modelId: string): string[] {
+  const ids = new Set<string>();
+  const lower = modelId.toLowerCase();
+  ids.add(lower);
+
+  if (lower.startsWith("gemini-3.1-")) {
+    ids.add(lower.replace("gemini-3.1-", "gemini-3-"));
+    ids.add(lower.replace("gemini-3.1-", "gemini-2.5-"));
+  }
+
+  for (const candidate of ids) {
+    if (candidate.startsWith("gemini-3-pro")) {
+      ids.add(candidate.replace("gemini-3-pro", "gemini-3-pro-preview"));
+    }
+    if (candidate.startsWith("gemini-3-flash")) {
+      ids.add(candidate.replace("gemini-3-flash", "gemini-3-flash-preview"));
+    }
+  }
+
+  return [...ids];
+}
 
 function cloneFirstTemplateModel(params: {
   normalizedProvider: string;
@@ -84,6 +107,7 @@ function resolveAnthropic46ForwardCompatModel(params: {
   provider: string;
   modelId: string;
   modelRegistry: ModelRegistry;
+  acceptedProviders: readonly string[];
   dashModelId: string;
   dotModelId: string;
   dashTemplateId: string;
@@ -92,7 +116,7 @@ function resolveAnthropic46ForwardCompatModel(params: {
 }): Model<Api> | undefined {
   const { provider, modelId, modelRegistry, dashModelId, dotModelId } = params;
   const normalizedProvider = normalizeProviderId(provider);
-  if (normalizedProvider !== "anthropic") {
+  if (!params.acceptedProviders.includes(normalizedProvider)) {
     return undefined;
   }
 
@@ -133,6 +157,7 @@ function resolveAnthropicOpus46ForwardCompatModel(
     provider,
     modelId,
     modelRegistry,
+    acceptedProviders: ["anthropic", GOOGLE_ANTIGRAVITY_PROVIDER_ID],
     dashModelId: ANTHROPIC_OPUS_46_MODEL_ID,
     dotModelId: ANTHROPIC_OPUS_46_DOT_MODEL_ID,
     dashTemplateId: "claude-opus-4-5",
@@ -150,11 +175,36 @@ function resolveAnthropicSonnet46ForwardCompatModel(
     provider,
     modelId,
     modelRegistry,
+    acceptedProviders: ["anthropic", GOOGLE_ANTIGRAVITY_PROVIDER_ID],
     dashModelId: ANTHROPIC_SONNET_46_MODEL_ID,
     dotModelId: ANTHROPIC_SONNET_46_DOT_MODEL_ID,
     dashTemplateId: "claude-sonnet-4-5",
     dotTemplateId: "claude-sonnet-4.5",
     fallbackTemplateIds: ANTHROPIC_SONNET_TEMPLATE_MODEL_IDS,
+  });
+}
+
+function resolveGoogleAntigravityGemini31ForwardCompatModel(
+  provider: string,
+  modelId: string,
+  modelRegistry: ModelRegistry,
+): Model<Api> | undefined {
+  const normalizedProvider = normalizeProviderId(provider);
+  if (normalizedProvider !== GOOGLE_ANTIGRAVITY_PROVIDER_ID) {
+    return undefined;
+  }
+
+  const trimmed = modelId.trim();
+  const lower = trimmed.toLowerCase();
+  if (!lower.startsWith("gemini-3.1-")) {
+    return undefined;
+  }
+
+  return cloneFirstTemplateModel({
+    normalizedProvider,
+    trimmedModelId: trimmed,
+    templateIds: buildGeminiTemplateIds(trimmed),
+    modelRegistry,
   });
 }
 
@@ -209,6 +259,7 @@ export function resolveForwardCompatModel(
     resolveOpenAICodexGpt53FallbackModel(provider, modelId, modelRegistry) ??
     resolveAnthropicOpus46ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveAnthropicSonnet46ForwardCompatModel(provider, modelId, modelRegistry) ??
+    resolveGoogleAntigravityGemini31ForwardCompatModel(provider, modelId, modelRegistry) ??
     resolveZaiGlm5ForwardCompatModel(provider, modelId, modelRegistry)
   );
 }
