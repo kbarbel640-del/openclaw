@@ -13,6 +13,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Agents/Tools: convert array-format tool parameters to JSON Schema objects in `normalizeToolParameters()`, fixing Gemini API 400 errors for plugins/skills that register tools with array params. (#27570) Thanks @arosstale.
 - Auth/Auth profiles: normalize `auth-profiles.json` alias fields (`mode -> type`, `apiKey -> key`) before credential validation so entries copied from `openclaw.json` auth examples are no longer silently dropped. (#26950) thanks @byungsker.
 - Cron/Hooks isolated routing: preserve canonical `agent:*` session keys in isolated runs so already-qualified keys are not double-prefixed (for example `agent:main:main` no longer becomes `agent:main:agent:main:main`). Landed from contributor PR #27333 by @MaheshBhushan. (#27289, #27282)
 - iOS/Talk mode: stop injecting the voice directive hint into iOS Talk prompts and remove the Voice Directive Hint setting, reducing model bias toward tool-style TTS directives and keeping relay responses text-first by default. (#27543) thanks @ngutman.
