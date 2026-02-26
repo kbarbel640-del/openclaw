@@ -329,6 +329,48 @@ describe("describeReplyTarget", () => {
     expect(result?.forwardedFrom?.fromId).toBe("123");
     expect(result?.forwardedFrom?.date).toBe(700);
   });
+
+  it("ignores non-string reply text and uses string caption", () => {
+    const result = describeReplyTarget({
+      message_id: 6,
+      date: 1400,
+      chat: { id: 1, type: "private" },
+      reply_to_message: {
+        message_id: 5,
+        date: 1300,
+        chat: { id: 1, type: "private" },
+        text: { raw: "not-string" },
+        caption: " Caption from reply ",
+        from: { id: 44, first_name: "Bob", is_bot: false },
+      },
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
+
+    expect(result).not.toBeNull();
+    expect(result?.body).toBe("Caption from reply");
+    expect(result?.id).toBe("5");
+  });
+
+  it("ignores non-string reply text/caption and falls back to media placeholder", () => {
+    const result = describeReplyTarget({
+      message_id: 7,
+      date: 1500,
+      chat: { id: 1, type: "private" },
+      reply_to_message: {
+        message_id: 6,
+        date: 1400,
+        chat: { id: 1, type: "private" },
+        text: { raw: "not-string" },
+        caption: { raw: "also-not-string" },
+        photo: [{ file_id: "abc", file_unique_id: "uniq", width: 1, height: 1 }],
+      },
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
+
+    expect(result).not.toBeNull();
+    expect(result?.body).toBe("<media:image>");
+    expect(result?.id).toBe("6");
+  });
 });
 
 describe("expandTextLinks", () => {
