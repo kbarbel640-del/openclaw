@@ -16,6 +16,7 @@ import {
   type OutboundDeliveryResult,
   type OutboundSendDeps,
 } from "./deliver.js";
+import { resolveAgentOutboundIdentity } from "./identity.js";
 import { normalizeReplyPayloadsForDelivery } from "./payloads.js";
 import { resolveOutboundTarget } from "./targets.js";
 
@@ -208,11 +209,14 @@ export async function sendMessage(params: MessageSendParams): Promise<MessageSen
       throw resolvedTarget.error;
     }
 
+    const identity = params.agentId ? resolveAgentOutboundIdentity(cfg, params.agentId) : undefined;
+
     const results = await deliverOutboundPayloads({
       cfg,
       channel: outboundChannel,
       to: resolvedTarget.to,
       agentId: params.agentId,
+      identity,
       accountId: params.accountId,
       payloads: normalizedPayloads,
       replyToId: params.replyToId,
