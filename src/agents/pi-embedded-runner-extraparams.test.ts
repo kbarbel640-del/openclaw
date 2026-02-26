@@ -557,6 +557,86 @@ describe("applyExtraParamsToAgent", () => {
     expect(calls[0]?.cacheRetention).toBe("long");
   });
 
+  it("passes through explicit cacheRetention for OpenAI provider", () => {
+    const { calls, agent } = createOptionsCaptureAgent();
+    const cfg = {
+      agents: {
+        defaults: {
+          models: {
+            "openai/gpt-5.2": {
+              params: {
+                cacheRetention: "long",
+              },
+            },
+          },
+        },
+      },
+    };
+
+    applyExtraParamsToAgent(agent, cfg, "openai", "gpt-5.2");
+
+    const model = {
+      api: "openai-responses",
+      provider: "openai",
+      id: "gpt-5.2",
+    } as Model<"openai-responses">;
+    const context: Context = { messages: [] };
+
+    void agent.streamFn?.(model, context, {});
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.cacheRetention).toBe("long");
+  });
+
+  it("passes through explicit cacheRetention for OpenAI Codex provider", () => {
+    const { calls, agent } = createOptionsCaptureAgent();
+    const cfg = {
+      agents: {
+        defaults: {
+          models: {
+            "openai-codex/gpt-5.1-codex": {
+              params: {
+                cacheRetention: "long",
+              },
+            },
+          },
+        },
+      },
+    };
+
+    applyExtraParamsToAgent(agent, cfg, "openai-codex", "gpt-5.1-codex");
+
+    const model = {
+      api: "openai-responses",
+      provider: "openai-codex",
+      id: "gpt-5.1-codex",
+    } as Model<"openai-responses">;
+    const context: Context = { messages: [] };
+
+    void agent.streamFn?.(model, context, {});
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.cacheRetention).toBe("long");
+  });
+
+  it("does not apply cacheRetention for OpenAI when not explicitly configured", () => {
+    const { calls, agent } = createOptionsCaptureAgent();
+
+    applyExtraParamsToAgent(agent, undefined, "openai", "gpt-5.2");
+
+    const model = {
+      api: "openai-responses",
+      provider: "openai",
+      id: "gpt-5.2",
+    } as Model<"openai-responses">;
+    const context: Context = { messages: [] };
+
+    void agent.streamFn?.(model, context, {});
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.cacheRetention).toBeUndefined();
+  });
+
   it("adds Anthropic 1M beta header when context1m is enabled for Opus/Sonnet", () => {
     const { calls, agent } = createOptionsCaptureAgent();
     const cfg = buildAnthropicModelConfig("anthropic/claude-opus-4-6", { context1m: true });
