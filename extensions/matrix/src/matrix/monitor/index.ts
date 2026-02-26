@@ -19,6 +19,7 @@ import {
   resolveSharedMatrixClient,
   stopSharedClientForAccount,
 } from "../client.js";
+import { SasVerificationHandler } from "../verification/sas-handler.js";
 import { normalizeMatrixUserId } from "./allowlist.js";
 import { registerMatrixAutoJoin } from "./auto-join.js";
 import { createDirectRoomTracker } from "./direct.js";
@@ -300,6 +301,16 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     accountId: opts.accountId,
   });
 
+  // Initialize SAS verification handler when E2E encryption is enabled
+  let verificationHandler: SasVerificationHandler | null = null;
+  if (auth.encryption) {
+    verificationHandler = new SasVerificationHandler({
+      client,
+      logVerboseMessage,
+    });
+    logVerboseMessage("matrix: SAS verification handler initialized");
+  }
+
   registerMatrixMonitorEvents({
     client,
     auth,
@@ -309,6 +320,7 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     logger,
     formatNativeDependencyHint: core.system.formatNativeDependencyHint,
     onRoomMessage: handleRoomMessage,
+    verificationHandler,
   });
 
   logVerboseMessage("matrix: starting client");
