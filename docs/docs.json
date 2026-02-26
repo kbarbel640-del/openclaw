@@ -897,6 +897,7 @@
                   "channels/feishu",
                   "channels/googlechat",
                   "channels/mattermost",
+                  "channels/email",
                   "channels/signal",
                   "channels/imessage",
                   "channels/bluebubbles",

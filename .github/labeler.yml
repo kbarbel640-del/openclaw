@@ -46,6 +46,11 @@
       - any-glob-to-any-file:
           - "extensions/mattermost/**"
           - "docs/channels/mattermost.md"
+"channel: email":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/email/**"
+          - "docs/channels/email.md"
 "channel: msteams":
   - changed-files:
       - any-glob-to-any-file:
