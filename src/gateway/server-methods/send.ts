@@ -110,6 +110,7 @@ export const sendHandlers: GatewayRequestHandlers = {
       agentId?: string;
       threadId?: string;
       sessionKey?: string;
+      fileName?: string;
       idempotencyKey: string;
     };
     const idem = request.idempotencyKey;
@@ -165,6 +166,10 @@ export const sendHandlers: GatewayRequestHandlers = {
     const threadId =
       typeof request.threadId === "string" && request.threadId.trim().length
         ? request.threadId.trim()
+        : undefined;
+    const fileName =
+      typeof request.fileName === "string" && request.fileName.trim().length
+        ? request.fileName.trim()
         : undefined;
     const outboundChannel = channel;
     const plugin = resolveOutboundChannelPlugin({ channel, cfg });
@@ -245,6 +250,7 @@ export const sendHandlers: GatewayRequestHandlers = {
           payloads: [{ text: message, mediaUrl, mediaUrls }],
           agentId: effectiveAgentId,
           gifPlayback: request.gifPlayback,
+          fileName,
           threadId: threadId ?? null,
           deps: outboundDeps,
           mirror: providedSessionKey

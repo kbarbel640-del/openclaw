@@ -22,6 +22,7 @@ export async function sendMessageWhatsApp(
     mediaLocalRoots?: readonly string[];
     gifPlayback?: boolean;
     accountId?: string;
+    fileName?: string;
   },
 ): Promise<{ messageId: string; toJid: string }> {
   let text = body;
@@ -69,7 +70,7 @@ export async function sendMessageWhatsApp(
         text = caption ?? "";
       } else {
         text = caption ?? "";
-        documentFileName = media.fileName;
+        documentFileName = options.fileName || media.fileName;
       }
     }
     outboundLog.info(`Sending message -> ${redactedJid}${options.mediaUrl ? " (media)" : ""}`);

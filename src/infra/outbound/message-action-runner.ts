@@ -474,6 +474,7 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
     throw new Error("send requires text or media");
   }
   params.message = message;
+  const fileName = readStringParam(params, "filename");
   const gifPlayback = readBooleanParam(params, "gifPlayback") ?? false;
   const bestEffort = readBooleanParam(params, "bestEffort");
   const silent = readBooleanParam(params, "silent");
@@ -547,6 +548,7 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
     bestEffort: bestEffort ?? undefined,
     replyToId: replyToId ?? undefined,
     threadId: resolvedThreadId ?? undefined,
+    fileName: fileName ?? undefined,
   });
 
   return {

@@ -91,6 +91,7 @@ export async function executeSendAction(params: {
   bestEffort?: boolean;
   replyToId?: string;
   threadId?: string | number;
+  fileName?: string;
 }): Promise<{
   handledBy: "plugin" | "core";
   payload: unknown;
@@ -137,6 +138,7 @@ export async function executeSendAction(params: {
     gifPlayback: params.gifPlayback,
     dryRun: params.ctx.dryRun,
     bestEffort: params.bestEffort ?? undefined,
+    fileName: params.fileName,
     deps: params.ctx.deps,
     gateway: params.ctx.gateway,
     mirror: params.ctx.mirror,

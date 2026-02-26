@@ -45,6 +45,7 @@ type MessageSendParams = {
   threadId?: string | number;
   dryRun?: boolean;
   bestEffort?: boolean;
+  fileName?: string;
   deps?: OutboundSendDeps;
   cfg?: OpenClawConfig;
   gateway?: MessageGatewayOptions;
@@ -224,6 +225,7 @@ export async function sendMessage(params: MessageSendParams): Promise<MessageSen
       gifPlayback: params.gifPlayback,
       deps: params.deps,
       bestEffort: params.bestEffort,
+      fileName: params.fileName,
       abortSignal: params.abortSignal,
       silent: params.silent,
       mirror: params.mirror
@@ -258,6 +260,7 @@ export async function sendMessage(params: MessageSendParams): Promise<MessageSen
       agentId: params.agentId,
       channel,
       sessionKey: params.mirror?.sessionKey,
+      fileName: params.fileName,
       idempotencyKey: params.idempotencyKey ?? randomIdempotencyKey(),
     },
   });
