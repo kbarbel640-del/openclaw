@@ -36,6 +36,7 @@ namespace OpenClaw.Node.Protocol
         public event Func<BridgeInvokeRequest, Task<BridgeInvokeResponse>>? OnNodeInvoke;
 
         private readonly ConcurrentDictionary<string, Func<RequestFrame, Task<object?>>> _methodHandlers = new();
+        private readonly SemaphoreSlim _sendLock = new(1, 1);
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -462,9 +463,18 @@ namespace OpenClaw.Node.Protocol
 
         public async Task SendRawAsync(string message, CancellationToken cancellationToken)
         {
-            if (_webSocket?.State != WebSocketState.Open) return;
-            var bytes = Encoding.UTF8.GetBytes(message);
-            await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cancellationToken);
+            await _sendLock.WaitAsync(cancellationToken);
+            try
+            {
+                var socket = _webSocket;
+                if (socket?.State != WebSocketState.Open) return;
+                var bytes = Encoding.UTF8.GetBytes(message);
+                await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cancellationToken);
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
         }
 
         public async Task SendResponseAsync(ResponseFrame response, CancellationToken cancellationToken)
@@ -476,15 +486,27 @@ namespace OpenClaw.Node.Protocol
         public async Task DisconnectAsync()
         {
             _connected = false;
-            if (_webSocket != null)
+
+            ClientWebSocket? socket;
+            await _sendLock.WaitAsync(CancellationToken.None);
+            try
             {
-                if (_webSocket.State == WebSocketState.Open)
+                socket = _webSocket;
+                _webSocket = null;
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+
+            if (socket != null)
+            {
+                if (socket.State == WebSocketState.Open)
                 {
-                    try { await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None); }
+                    try { await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None); }
                     catch { }
                 }
-                _webSocket.Dispose();
-                _webSocket = null;
+                socket.Dispose();
                 OnDisconnected?.Invoke();
             }
         }
@@ -497,7 +519,21 @@ namespace OpenClaw.Node.Protocol
         public void Dispose()
         {
             _cts.Cancel();
-            _webSocket?.Dispose();
+
+            ClientWebSocket? socket = null;
+            _sendLock.Wait();
+            try
+            {
+                socket = _webSocket;
+                _webSocket = null;
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+
+            socket?.Dispose();
+            _sendLock.Dispose();
         }
     }
 }
