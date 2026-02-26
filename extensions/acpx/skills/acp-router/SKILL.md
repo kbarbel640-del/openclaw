@@ -88,8 +88,9 @@ Required behavior when ACP backend is unavailable:
 2. First attempt automatic local repair:
    - ensure plugin-local pinned acpx is installed in `extensions/acpx`
    - verify `${ACPX_CMD} --version`
-3. Retry ACP thread spawn once after repair.
-4. Only if repair+retry fails, report the concrete error and then offer fallback options.
+3. After reinstall/repair, restart the gateway and explicitly offer to run that restart for the user.
+4. Retry ACP thread spawn once after repair.
+5. Only if repair+retry fails, report the concrete error and then offer fallback options.
 
 When offering fallback, keep ACP first:
 
@@ -110,7 +111,8 @@ For this repo, direct `acpx` calls must follow the same pinned policy as the `@o
    - `cd extensions/acpx && npm install --omit=dev --no-save acpx@<pinnedVersion>`
 4. Verify before use:
    - `./extensions/acpx/node_modules/.bin/acpx --version`
-5. Do not run `npm install -g acpx` unless the user explicitly asks for global install.
+5. If install/repair changed ACPX artifacts, restart the gateway and offer to run the restart.
+6. Do not run `npm install -g acpx` unless the user explicitly asks for global install.
 
 Set and reuse:
 
@@ -190,7 +192,9 @@ If `~/.acpx/config.json` overrides `agents`, those overrides replace defaults.
 ### Failure handling
 
 - `acpx: command not found`:
-  - for thread-spawn ACP requests, install plugin-local pinned acpx in `extensions/acpx` immediately and retry once
+  - for thread-spawn ACP requests, install plugin-local pinned acpx in `extensions/acpx` immediately
+  - restart gateway after install and offer to run the restart automatically
+  - then retry once
   - do not ask for install permission first unless policy explicitly requires it
   - do not install global `acpx` unless explicitly requested
 - adapter command missing (for example `claude-agent-acp` not found):
