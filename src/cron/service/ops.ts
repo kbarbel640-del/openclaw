@@ -116,11 +116,16 @@ export async function start(state: CronServiceState) {
     recomputeNextRuns(state);
     await persist(state);
     armTimer(state);
+    // Log the effective default timezone so operators can diagnose
+    // cron jobs firing at unexpected times in containers/VMs.
+    const effectiveTimezone =
+      state.deps.cronConfig?.timezone?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone;
     state.deps.log.info(
       {
         enabled: true,
         jobs: state.store?.jobs.length ?? 0,
         nextWakeAtMs: nextWakeAtMs(state) ?? null,
+        timezone: effectiveTimezone,
       },
       "cron: started",
     );

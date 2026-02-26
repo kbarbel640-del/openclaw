@@ -23,4 +23,12 @@ export type CronConfig = {
     maxBytes?: number | string;
     keepLines?: number;
   };
+  /**
+   * Default IANA timezone for cron expressions that do not specify an explicit
+   * tz field (e.g. "America/New_York", "Europe/Paris", "Asia/Tokyo").
+   * Falls back to the gateway process timezone when not set.
+   * Common cause of "hours-off" scheduling: containers default to UTC while
+   * the operator writes cron expressions in their local timezone.
+   */
+  timezone?: string;
 };

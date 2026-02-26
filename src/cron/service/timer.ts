@@ -174,7 +174,11 @@ export function applyJobResult(
     } else if (result.status === "error" && job.enabled) {
       // Apply exponential backoff for errored jobs to prevent retry storms.
       const backoff = errorBackoffMs(job.state.consecutiveErrors ?? 1);
-      const normalNext = computeJobNextRunAtMs(job, result.endedAt);
+      const normalNext = computeJobNextRunAtMs(
+        job,
+        result.endedAt,
+        state.deps.cronConfig?.timezone,
+      );
       const backoffNext = result.endedAt + backoff;
       // Use whichever is later: the natural next run or the backoff delay.
       job.state.nextRunAtMs =
@@ -189,7 +193,11 @@ export function applyJobResult(
         "cron: applying error backoff",
       );
     } else if (job.enabled) {
-      const naturalNext = computeJobNextRunAtMs(job, result.endedAt);
+      const naturalNext = computeJobNextRunAtMs(
+        job,
+        result.endedAt,
+        state.deps.cronConfig?.timezone,
+      );
       if (job.schedule.kind === "cron") {
         // Safety net: ensure the next fire is at least MIN_REFIRE_GAP_MS
         // after the current run ended.  Prevents spin-loops when the
