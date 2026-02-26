@@ -1,3 +1,5 @@
+import fsPromises from "node:fs/promises";
+import nodePath from "node:path";
 import { formatCliCommand } from "../cli/command-format.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { readConfigFileSnapshot, resolveGatewayPort, writeConfigFile } from "../config/config.js";
@@ -332,6 +334,36 @@ export async function runConfigureWizard(
         runtime,
       );
       workspaceDir = resolveUserPath(String(workspaceInput ?? "").trim() || DEFAULT_WORKSPACE);
+
+      // Safety check: warn if workspace already contains user content (#27314).
+      // This prevents silent data loss when configure re-runs after config corruption.
+      const userContentIndicators = ["MEMORY.md", "memory", "SOUL.md"].map((f) =>
+        nodePath.join(workspaceDir, f),
+      );
+      const hasExistingContent = (
+        await Promise.all(
+          userContentIndicators.map(async (p) => {
+            try {
+              await fsPromises.access(p);
+              return true;
+            } catch {
+              return false;
+            }
+          }),
+        )
+      ).some(Boolean);
+
+      if (hasExistingContent && !snapshot.exists) {
+        note(
+          [
+            `Existing workspace detected at ${workspaceDir}`,
+            "Your SOUL.md, MEMORY.md, and other files will be preserved.",
+            "Template files will only be created if missing (never overwritten).",
+          ].join("\n"),
+          "Existing workspace",
+        );
+      }
+
       nextConfig = {
         ...nextConfig,
         agents: {
