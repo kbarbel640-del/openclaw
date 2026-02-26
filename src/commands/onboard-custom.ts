@@ -391,15 +391,46 @@ async function promptBaseUrlAndKey(params: {
   };
 }
 
-type CustomApiRetryChoice = "baseUrl" | "model" | "both";
+type CustomApiRetryChoice = "baseUrl" | "model" | "both" | "compatibility";
 
-async function promptCustomApiRetryChoice(prompter: WizardPrompter): Promise<CustomApiRetryChoice> {
-  return await prompter.select({
+async function promptCustomApiRetryChoice(params: {
+  prompter: WizardPrompter;
+  includeCompatibilityOption?: boolean;
+}): Promise<CustomApiRetryChoice> {
+  const options: Array<{ value: CustomApiRetryChoice; label: string }> = [
+    { value: "baseUrl", label: "Change base URL" },
+    { value: "model", label: "Change model" },
+    { value: "both", label: "Change base URL and model" },
+  ];
+  if (params.includeCompatibilityOption) {
+    options.push({
+      value: "compatibility",
+      label: "Select endpoint type manually",
+    });
+  }
+
+  return await params.prompter.select({
     message: "What would you like to change?",
+    options,
+  });
+}
+
+async function promptManualCompatibility(
+  prompter: WizardPrompter,
+): Promise<CustomApiCompatibility> {
+  return await prompter.select({
+    message: "Endpoint compatibility",
     options: [
-      { value: "baseUrl", label: "Change base URL" },
-      { value: "model", label: "Change model" },
-      { value: "both", label: "Change base URL and model" },
+      {
+        value: "openai",
+        label: "OpenAI-compatible",
+        hint: "Uses /chat/completions",
+      },
+      {
+        value: "anthropic",
+        label: "Anthropic-compatible",
+        hint: "Uses /messages",
+      },
     ],
   });
 }
@@ -688,7 +719,14 @@ export async function promptCustomApiConfig(params: {
             "This endpoint did not respond to OpenAI or Anthropic style requests.",
             "Endpoint detection",
           );
-          const retryChoice = await promptCustomApiRetryChoice(prompter);
+          const retryChoice = await promptCustomApiRetryChoice({
+            prompter,
+            includeCompatibilityOption: true,
+          });
+          if (retryChoice === "compatibility") {
+            compatibility = await promptManualCompatibility(prompter);
+            continue;
+          }
           ({ baseUrl, apiKey, resolvedApiKey, modelId } = await applyCustomApiRetryChoice({
             prompter,
             config,
@@ -719,7 +757,7 @@ export async function promptCustomApiConfig(params: {
     } else {
       verifySpinner.stop(`Verification failed: ${formatVerificationError(result.error)}`);
     }
-    const retryChoice = await promptCustomApiRetryChoice(prompter);
+    const retryChoice = await promptCustomApiRetryChoice({ prompter });
     ({ baseUrl, apiKey, resolvedApiKey, modelId } = await applyCustomApiRetryChoice({
       prompter,
       config,

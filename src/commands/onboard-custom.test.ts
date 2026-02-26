@@ -168,6 +168,18 @@ describe("promptCustomApiConfig", () => {
     );
   });
 
+  it("allows manual endpoint type selection after auto-detect fails", async () => {
+    const prompter = createTestPrompter({
+      text: ["https://proxy.example.com/v1", "proxy-key", "claude-proxy", "custom", ""],
+      select: ["unknown", "compatibility", "anthropic"],
+    });
+    stubFetchSequence([{ ok: false, status: 404 }, { ok: false, status: 404 }, { ok: true }]);
+    const result = await runPromptCustomApi(prompter);
+
+    expect(prompter.select).toHaveBeenCalledTimes(3);
+    expect(result.config.models?.providers?.custom?.api).toBe("anthropic-messages");
+  });
+
   it("renames provider id when baseUrl differs", async () => {
     const prompter = createTestPrompter({
       text: ["http://localhost:11434/v1", "", "llama3", "custom", ""],
