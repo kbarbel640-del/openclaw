@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { BusinessGoal, GoalLevel, GoalState } from "@/lib/types";
+import type { BusinessGoal, GoalLevel } from "@/lib/types";
 import { WorkflowSteps } from "./WorkflowSteps";
 
 const levelColors: Record<GoalLevel, string> = {
@@ -9,97 +9,105 @@ const levelColors: Record<GoalLevel, string> = {
   operational: "var(--accent-orange)",
 };
 
-const stateColors: Record<GoalState, string> = {
-  pending: "var(--text-muted, #6b7280)",
-  active: "var(--accent-green, #22c55e)",
-  in_progress: "var(--accent-blue, #3b82f6)",
-  achieved: "var(--accent-green, #22c55e)",
-  failed: "var(--accent-red, #ef4444)",
-  suspended: "var(--accent-orange, #f59e0b)",
-  abandoned: "var(--text-muted, #6b7280)",
-};
-
-const stateLabels: Record<GoalState, string> = {
-  pending: "Pending",
-  active: "Active",
-  in_progress: "In Progress",
-  achieved: "Achieved",
-  failed: "Failed",
-  suspended: "Suspended",
-  abandoned: "Abandoned",
-};
-
 type GoalCardProps = {
   goal: BusinessGoal;
   onSelect?: (goalId: string) => void;
 };
 
+function PriorityRing({ value, size = 52 }: { value: number; size?: number }) {
+  const strokeWidth = 5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const filled = circumference * value;
+  const gap = circumference - filled;
+  const gradientId = `ring-grad-${Math.random().toString(36).slice(2, 8)}`;
+
+  return (
+    <div
+      className="relative flex items-center justify-center shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <svg width={size} height={size} className="block -rotate-90">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#3B82F6" />
+            <stop offset="100%" stopColor="#10B981" />
+          </linearGradient>
+        </defs>
+        {/* Background track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#E5E7EB"
+          strokeWidth={strokeWidth}
+        />
+        {/* Filled arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={`url(#${gradientId})`}
+          strokeWidth={strokeWidth}
+          strokeDasharray={`${filled} ${gap}`}
+          strokeLinecap="round"
+        />
+      </svg>
+      <span
+        className="absolute font-bold text-[var(--text-primary)]"
+        style={{ fontSize: size * 0.28 }}
+      >
+        {(value * 100).toFixed(0)}%
+      </span>
+    </div>
+  );
+}
+
 export function GoalCard({ goal, onSelect }: GoalCardProps) {
   const borderColor = levelColors[goal.level];
-  const goalState = goal.goalState ?? "active";
-  const stateColor = stateColors[goalState] ?? stateColors.active;
 
   return (
     <Card
       className="bg-[var(--bg-card)] border-[var(--border-mabos)] py-4 cursor-pointer hover:border-[var(--border-hover)] transition-colors"
-      style={{ borderLeftWidth: 3, borderLeftColor: borderColor }}
       onClick={() => onSelect?.(goal.id)}
     >
       <CardContent className="space-y-3">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-medium text-[var(--text-primary)]">{goal.name}</h3>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Badge
-              variant="outline"
-              className="text-[10px] capitalize"
-              style={{
-                borderColor: `color-mix(in srgb, ${stateColor} 40%, transparent)`,
-                color: stateColor,
-              }}
-            >
-              {stateLabels[goalState] ?? goalState}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="text-[10px] capitalize"
-              style={{
-                borderColor: `color-mix(in srgb, ${borderColor} 40%, transparent)`,
-                color: borderColor,
-              }}
-            >
-              {goal.level}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="text-[10px] border-[var(--border-mabos)] text-[var(--text-muted)]"
-            >
-              {goal.type}
-            </Badge>
+        {/* Header row with ring chart */}
+        <div className="flex items-start gap-3">
+          <PriorityRing value={goal.priority} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-sm font-medium text-[var(--text-primary)]">{goal.name}</h3>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] capitalize"
+                  style={{
+                    borderColor: `color-mix(in srgb, ${borderColor} 40%, transparent)`,
+                    color: borderColor,
+                  }}
+                >
+                  {goal.level}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-[var(--border-mabos)] text-[var(--text-muted)]"
+                >
+                  {goal.type}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Description */}
+            {goal.description && (
+              <p className="text-xs text-[var(--text-secondary)] line-clamp-2 mt-1">
+                {goal.description}
+              </p>
+            )}
           </div>
         </div>
-
-        {/* Priority */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[var(--text-muted)]">Priority</span>
-          <div className="flex-1 h-1.5 rounded-full bg-[var(--bg-tertiary)]">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${goal.priority * 100}%`,
-                backgroundColor: borderColor,
-              }}
-            />
-          </div>
-          <span className="text-[10px] text-[var(--text-secondary)]">
-            {(goal.priority * 100).toFixed(0)}%
-          </span>
-        </div>
-
-        {/* Description */}
-        {goal.description && (
-          <p className="text-xs text-[var(--text-secondary)] line-clamp-2">{goal.description}</p>
-        )}
 
         {/* Desires */}
         {goal.desires && goal.desires.length > 0 && (
@@ -113,29 +121,6 @@ export function GoalCard({ goal, onSelect }: GoalCardProps) {
                 }}
               >
                 {desire}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Preconditions */}
-        {goal.preconditions && goal.preconditions.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {goal.preconditions.map((pc) => (
-              <span
-                key={pc.id}
-                className="px-2 py-0.5 text-[10px] rounded-full inline-flex items-center gap-1"
-                style={{
-                  color: pc.satisfied
-                    ? "var(--accent-green, #22c55e)"
-                    : "var(--accent-orange, #f59e0b)",
-                  backgroundColor: pc.satisfied
-                    ? "color-mix(in srgb, var(--accent-green, #22c55e) 10%, transparent)"
-                    : "color-mix(in srgb, var(--accent-orange, #f59e0b) 10%, transparent)",
-                }}
-              >
-                <span>{pc.satisfied ? "\u2713" : "\u25CB"}</span>
-                {pc.name}
               </span>
             ))}
           </div>
