@@ -535,6 +535,7 @@ export async function initSessionState(params: {
             {
               sessionId: previousSessionEntry.sessionId,
               agentId: resolveSessionAgentId({ sessionKey, config: cfg }),
+              sessionKey,
             },
           )
           .catch(() => {});
@@ -552,6 +553,7 @@ export async function initSessionState(params: {
           {
             sessionId: effectiveSessionId,
             agentId: resolveSessionAgentId({ sessionKey, config: cfg }),
+            sessionKey,
           },
         )
         .catch(() => {});
