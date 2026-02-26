@@ -47,7 +47,11 @@ curl -fsSL https://raw.githubusercontent.com/luolin-ai/openclawWeComzh/main/inst
 
 - **🍎 macOS**: 原生支持。脚本会自动检查系统依赖并引导是否安装 `cmake/brew` 等底层编译工具（用于本地大模型加速计算等扩展模块）。
 - **🐧 Linux**: 广泛兼容各大主流发行版 (Ubuntu/Debian, CentOS/RHEL, Arch, Alpine等)。自动判断并提权安装例如 `build-essential` 等 C++ 编译环境。
-- **🪟 Windows**: 请务必在 **WSL2** (Windows Subsystem for Linux) 环境下执行上述脚本，暂不支持直接使用 PowerShell 或 CMD 原生安装运行。
+- **🪟 Windows**: 提供原生的 PowerShell 一键安装支持！请确保以**管理员身份**打开 PowerShell 并执行以下指令：
+  ```powershell
+  iwr -useb https://raw.githubusercontent.com/luolin-ai/openclawWeComzh/main/install.ps1 | iex
+  ```
+  _(注: 仍强烈推荐硬核极客在 WSL2 子系统下通过 bash 脚本体验最完整的本地化能力)_
 
 ---
 
