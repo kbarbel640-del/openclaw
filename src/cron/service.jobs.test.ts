@@ -235,6 +235,46 @@ describe("applyJobPatch", () => {
   });
 });
 
+describe("delivery mode none with sessionTarget main", () => {
+  it("allows delivery mode none on main session (createJob)", () => {
+    const now = Date.now();
+    const state = {
+      deps: { nowMs: () => now },
+    } as unknown as CronServiceState;
+
+    expect(() =>
+      createJob(state, {
+        name: "reminder",
+        enabled: true,
+        schedule: { kind: "at", atMs: now + 300_000 },
+        sessionTarget: "main",
+        wakeMode: "now",
+        payload: { kind: "systemEvent", text: "meeting reminder" },
+        delivery: { mode: "none" },
+      }),
+    ).not.toThrow();
+  });
+
+  it("allows delivery mode none on main session (applyJobPatch)", () => {
+    const now = Date.now();
+    const job: CronJob = {
+      id: "job-none-main",
+      name: "job-none-main",
+      enabled: true,
+      createdAtMs: now,
+      updatedAtMs: now,
+      schedule: { kind: "every", everyMs: 60_000 },
+      sessionTarget: "main",
+      wakeMode: "now",
+      payload: { kind: "systemEvent", text: "ping" },
+      delivery: { mode: "none" },
+      state: {},
+    };
+
+    expect(() => applyJobPatch(job, { enabled: false })).not.toThrow();
+  });
+});
+
 function createMockState(now: number): CronServiceState {
   return {
     deps: {
