@@ -137,7 +137,10 @@ function splitToolExecuteArgs(args: ToolExecuteArgsAny): {
 }
 
 export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
-  return tools.map((tool) => {
+  // Snapshot: iterate a defensive copy so runtime mutations to the source
+  // array cannot remove entries mid-iteration (#27205).
+  const snapshot = Array.from(tools);
+  return snapshot.map((tool) => {
     const name = tool.name || "tool";
     const normalizedName = normalizeToolName(name);
     const beforeHookWrapped = isToolWrappedWithBeforeToolCallHook(tool);
@@ -249,7 +252,9 @@ export function toClientToolDefinitions(
   onClientToolCall?: (toolName: string, params: Record<string, unknown>) => void,
   hookContext?: HookContext,
 ): ToolDefinition[] {
-  return tools.map((tool) => {
+  // Snapshot the source array to prevent runtime mutation side-effects (#27205).
+  const snapshot = Array.from(tools);
+  return snapshot.map((tool) => {
     const func = tool.function;
     return {
       name: func.name,
