@@ -17,6 +17,23 @@
  *   Type.Enum      → z.enum([...])
  *   Type.Literal   → z.literal(V)
  *   Type.Unsafe (with enum) → z.enum([...])  [used by stringEnum()]
+ *
+ * Why hand-rolled instead of @sinclair/typemap?
+ *
+ * `@sinclair/typemap` is the canonical TypeBox → Zod adapter, but as of
+ * February 2026 it declares a peer dependency of `zod: "^3.24.1"` while
+ * OpenClaw uses Zod v4. Two additional gaps block a clean swap:
+ *
+ *   1. Zod v4 API drift — typemap generates v3-style calls (e.g. `.passthrough()`
+ *      instead of `z.looseObject()`), so `additionalProperties: true` objects
+ *      would not produce the correct Zod v4 output.
+ *
+ *   2. Type.Unsafe / stringEnum — OpenClaw uses `Type.Unsafe({type:"string", enum:[...]})
+ *      to emit a flat JSON Schema enum and avoid `anyOf` (which some providers reject).
+ *      typemap treats Unsafe as z.unknown(); we need z.enum() here.
+ *
+ * When @sinclair/typemap ships Zod v4 support, revisit: the existing tests
+ * already serve as the behavioral contract for a drop-in swap.
  */
 
 import { Kind, OptionalKind, type TSchema } from "@sinclair/typebox";
