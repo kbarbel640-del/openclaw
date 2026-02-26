@@ -11,11 +11,26 @@ export type ConversationEntry = {
  * (e.g. [{type:"text", text:"hello"}]) that would serialize as
  * [object Object] if used directly in a template literal.
  */
+function normalizePromptBodyText(text: string): string {
+  return text
+    .replaceAll("\r\n", "\n")
+    .replaceAll("\r", "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
+    .join("\n")
+    .trim();
+}
+
 function safeBody(body: unknown): string {
   if (typeof body === "string") {
-    return body;
+    return normalizePromptBodyText(body);
   }
-  return extractTextFromChatContent(body) ?? "";
+  return (
+    extractTextFromChatContent(body, {
+      joinWith: "\n",
+      normalizeText: normalizePromptBodyText,
+    }) ?? ""
+  );
 }
 
 export function buildAgentMessageFromConversationEntries(entries: ConversationEntry[]): string {
