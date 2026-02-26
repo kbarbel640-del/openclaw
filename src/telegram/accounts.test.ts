@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import { withEnv } from "../test-utils/env.js";
-import { listTelegramAccountIds, resolveTelegramAccount } from "./accounts.js";
+import {
+  listTelegramAccountIds,
+  resolveDefaultTelegramAccountId,
+  resolveTelegramAccount,
+} from "./accounts.js";
 
 const { warnMock } = vi.hoisted(() => ({
   warnMock: vi.fn(),
@@ -65,6 +69,39 @@ describe("resolveTelegramAccount", () => {
       expect(account.token).toBe("tok-config");
       expect(account.tokenSource).toBe("config");
     });
+  });
+
+  it("prefers named account over default when both exist", () => {
+    const cfg: OpenClawConfig = {
+      channels: {
+        telegram: {
+          botToken: "tok-default",
+          accounts: {
+            default: { botToken: "tok-default" },
+            mybot: { botToken: "tok-mybot" },
+          },
+        },
+      },
+    };
+
+    const accountId = resolveDefaultTelegramAccountId(cfg);
+    expect(accountId).toBe("mybot");
+  });
+
+  it("returns default when it is the only account", () => {
+    const cfg: OpenClawConfig = {
+      channels: {
+        telegram: {
+          botToken: "tok-default",
+          accounts: {
+            default: { botToken: "tok-default" },
+          },
+        },
+      },
+    };
+
+    const accountId = resolveDefaultTelegramAccountId(cfg);
+    expect(accountId).toBe("default");
   });
 
   it("does not fall back when accountId is explicitly provided", () => {
