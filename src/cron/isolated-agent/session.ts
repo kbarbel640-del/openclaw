@@ -65,6 +65,16 @@ export function resolveCronSession(params: {
     sessionId,
     updatedAt: params.nowMs,
     systemSent,
+    // Clear delivery routing context for new sessions so isolated cron jobs
+    // don't inherit threadId/channel targets from prior conversations (#27751).
+    ...(isNewSession
+      ? {
+          lastThreadId: undefined,
+          lastTo: undefined,
+          lastChannel: undefined,
+          lastAccountId: undefined,
+        }
+      : {}),
   };
   return { storePath, store, sessionEntry, systemSent, isNewSession };
 }
