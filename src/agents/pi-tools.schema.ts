@@ -1,6 +1,19 @@
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import { cleanSchemaForGemini } from "./schema/clean-for-gemini.js";
 
+/**
+ * Check if a schema uses composite keywords (oneOf, anyOf, allOf).
+ * These keywords allow a property to match one of several sub-schemas,
+ * and need special handling during normalization.
+ */
+function hasCompositeSchema(schema: unknown): boolean {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    return false;
+  }
+  const record = schema as Record<string, unknown>;
+  return Array.isArray(record.oneOf) || Array.isArray(record.anyOf) || Array.isArray(record.allOf);
+}
+
 function extractEnumValues(schema: unknown): unknown[] | undefined {
   if (!schema || typeof schema !== "object") {
     return undefined;
@@ -74,6 +87,12 @@ export function normalizeToolParameters(
     return tool;
   }
 
+  // Handle composite schema keywords (oneOf/anyOf/allOf) gracefully.
+  // When these keywords appear in nested property definitions, they don't have
+  // a direct 'properties' key. Instead, they define variants that each may have
+  // their own 'properties'. We pass these through to cleanSchemaForGemini which
+  // recursively processes each variant.
+  //
   // Provider quirks:
   // - Gemini rejects several JSON Schema keywords, so we scrub those.
   // - OpenAI rejects function tool schemas unless the *top-level* is `type: "object"`.
@@ -129,6 +148,12 @@ export function normalizeToolParameters(
 
   for (const entry of variants) {
     if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    // Skip entries that use composite schema keywords (oneOf/anyOf/allOf) at the variant level.
+    // These are handled by cleanSchemaForGemini when processing nested properties,
+    // and don't have a direct 'properties' field to merge.
+    if (hasCompositeSchema(entry)) {
       continue;
     }
     const props = (entry as { properties?: unknown }).properties;
