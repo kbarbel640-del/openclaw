@@ -1,5 +1,6 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ClaudeSdkConfig } from "../../config/zod-schema.agent-runtime.js";
+import type { ModelCostConfig } from "../../utils/usage-format.js";
 import type { AgentRuntime, AgentRuntimeHints } from "../agent-runtime.js";
 import type { ResolvedProviderAuth } from "../model-auth.js";
 import type { EmbeddedPiSubscribeEvent } from "../pi-embedded-subscribe.handlers.types.js";
@@ -29,10 +30,12 @@ export type ClaudeSdkSessionParams = {
   workspaceDir: string;
   agentDir?: string;
   sessionId: string;
+  sessionFile?: string;
   modelId: string;
   tools: ClaudeSdkCompatibleTool[];
   customTools: ClaudeSdkCompatibleTool[];
   systemPrompt: string;
+  modelCost?: ModelCostConfig;
   thinkLevel?: string;
   extraParams?: Record<string, unknown>;
   /** Additional MCP servers to expose to the Claude Agent SDK alongside the
@@ -76,8 +79,13 @@ export type ClaudeSdkEventAdapterState = {
   streaming: boolean;
   compacting: boolean;
   abortController: AbortController | null;
+  systemPrompt: string;
   pendingSteer: string[];
+  pendingToolUses: Array<{ id: string; name: string; input: unknown }>;
+  toolNameByUseId: Map<string, string>;
   messages: AgentMessage[];
+  messageIdCounter: number;
+  streamingMessageId: string | null;
   claudeSdkSessionId: string | undefined;
   /** Set when the SDK yields a result message with an error subtype. The
    *  prompt() method throws this after the for-await loop so callers receive
@@ -105,8 +113,9 @@ export type ClaudeSdkEventAdapterState = {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     appendMessage?: (message: any) => string;
   };
-  /** Whether to enable Claude Code built-in web search tool. */
-  enableClaudeWebSearch?: boolean;
+  transcriptProvider: string;
+  transcriptApi: string;
+  modelCost?: ModelCostConfig;
 };
 
 // ---------------------------------------------------------------------------
@@ -117,6 +126,8 @@ export type ClaudeSdkMcpToolServerParams = {
   tools: ClaudeSdkCompatibleTool[];
   emitEvent: (evt: EmbeddedPiSubscribeEvent) => void;
   getAbortSignal: () => AbortSignal | undefined;
+  consumePendingToolUse: () => { id: string; name: string; input: unknown } | undefined;
+  appendRuntimeMessage?: (message: AgentMessage) => void;
   sessionManager?: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     appendMessage?: (message: any) => string;

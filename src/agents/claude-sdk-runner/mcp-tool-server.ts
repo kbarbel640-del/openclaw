@@ -13,7 +13,12 @@
  */
 
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { TSchema } from "@sinclair/typebox";
+import {
+  HARD_MAX_TOOL_RESULT_CHARS,
+  truncateToolResultText,
+} from "../pi-embedded-runner/tool-result-truncation.js";
 import { typeboxToZod } from "./schema-adapter.js";
 import type { ClaudeSdkMcpToolServerParams } from "./types.js";
 
@@ -30,17 +35,22 @@ type McpToolResult = {
   isError?: boolean;
 };
 
+type ToolPairingFailure = {
+  kind: "tool_pairing_error";
+  code: "missing_tool_use_id";
+  toolName: string;
+  message: string;
+};
+
 /**
  * Formats an OpenClaw tool result into MCP-protocol format.
  * Handles text, image (mediaUrls), and object results.
  */
 function formatToolResultForMcp(result: unknown): McpToolResult {
-  // String result → text
   if (typeof result === "string") {
     return { content: [{ type: "text", text: result }] };
   }
 
-  // Object with AgentToolResult shape (content array)
   if (
     result &&
     typeof result === "object" &&
@@ -62,7 +72,6 @@ function formatToolResultForMcp(result: unknown): McpToolResult {
       if (item.type === "image" || item.type === "image_url") {
         const data = item.data ?? item.url ?? "";
         const mimeType = item.mediaType ?? "image/png";
-        // Handle data URLs
         if (data.startsWith("data:")) {
           const [header, base64] = data.split(",", 2);
           const mime = header.split(":")[1]?.split(";")[0] ?? mimeType;
@@ -77,7 +86,6 @@ function formatToolResultForMcp(result: unknown): McpToolResult {
     return { content: content.length > 0 ? content : [{ type: "text", text: "" }] };
   }
 
-  // Object with mediaUrls → image content blocks
   if (result && typeof result === "object") {
     const obj = result as { text?: string; mediaUrls?: string[] };
     if (Array.isArray(obj.mediaUrls) && obj.mediaUrls.length > 0) {
@@ -98,8 +106,14 @@ function formatToolResultForMcp(result: unknown): McpToolResult {
     }
   }
 
-  // Fallback: JSON serialize
   return { content: [{ type: "text", text: JSON.stringify(result) }] };
+}
+
+function formatToolPairingFailureForMcp(failure: ToolPairingFailure): McpToolResult {
+  return {
+    content: [{ type: "text", text: JSON.stringify({ error: failure }) }],
+    isError: true,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +135,6 @@ export function createClaudeSdkMcpToolServer(
     try {
       zodSchema = typeboxToZod(openClawTool.parameters as TSchema);
     } catch {
-      // Fallback to passthrough schema if conversion fails
       zodSchema = {};
     }
 
@@ -129,16 +142,48 @@ export function createClaudeSdkMcpToolServer(
       openClawTool.name,
       openClawTool.description ?? "",
       zodSchema,
-      async (args: Record<string, unknown>, extra: unknown) => {
-        // Derive a toolCallId from the MCP call metadata
-        const extraRecord =
-          extra && typeof extra === "object" ? (extra as Record<string, unknown>) : {};
-        const toolCallId =
-          typeof extraRecord.toolCallId === "string" ? extraRecord.toolCallId : crypto.randomUUID();
+      async (args: Record<string, unknown>, _extra: unknown) => {
+        // Tool call IDs must come from SDK assistant tool_use messages.
+        // Do not use handler "extra" metadata or synthetic/by-name fallbacks.
+        const pendingToolUse = params.consumePendingToolUse();
+        if (!pendingToolUse) {
+          const fallbackToolCallId = `missing_tool_use_id:${crypto.randomUUID()}`;
+          const failure: ToolPairingFailure = {
+            kind: "tool_pairing_error",
+            code: "missing_tool_use_id",
+            toolName: openClawTool.name,
+            message: `Missing SDK tool_use id for tool "${openClawTool.name}"`,
+          };
+          emitEvent({
+            type: "tool_execution_start",
+            toolName: openClawTool.name,
+            toolCallId: fallbackToolCallId,
+            args,
+          } as never);
+          emitEvent({
+            type: "tool_execution_end",
+            toolCallId: fallbackToolCallId,
+            toolName: openClawTool.name,
+            result: failure.message,
+            isError: true,
+          } as never);
+          const toolResultMessage = {
+            role: "toolResult",
+            toolCallId: fallbackToolCallId,
+            toolName: openClawTool.name,
+            content: [{ type: "text", text: JSON.stringify({ error: failure }) }],
+            isError: true,
+            timestamp: Date.now(),
+          } as AgentMessage;
+          params.appendRuntimeMessage?.(toolResultMessage);
+          try {
+            params.sessionManager?.appendMessage?.(toolResultMessage);
+          } catch {}
+          return formatToolPairingFailureForMcp(failure);
+        }
+        const toolCallId = pendingToolUse.id;
         const signal = getAbortSignal();
 
-        // Emit tool_execution_start BEFORE calling .execute()
-        // Fields match the Pi AgentEvent type: toolCallId, toolName, args
         emitEvent({
           type: "tool_execution_start",
           toolName: openClawTool.name,
@@ -146,14 +191,12 @@ export function createClaudeSdkMcpToolServer(
           args,
         } as never);
 
+        // Yield once so block-reply handlers can flush before heavy tool execution.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
         try {
-          // Call the wrapped .execute() method.
-          // The before_tool_call hook wrapper fires automatically here because
-          // wrapToolWithBeforeToolCallHook() was applied upstream at pi-tools.ts:492-497.
           const result = await openClawTool.execute(toolCallId, args, signal, (update: unknown) => {
-            // Emit tool_execution_update for any progress notifications.
-            // Spread update payload first, then override type/toolCallId/toolName so
-            // a payload with its own `type` field cannot corrupt the event type.
+            // Override type/tool IDs after spreading update payload to prevent clobbering.
             emitEvent({
               ...(update && typeof update === "object" ? update : {}),
               type: "tool_execution_update",
@@ -162,8 +205,6 @@ export function createClaudeSdkMcpToolServer(
             } as never);
           });
 
-          // Emit tool_execution_end with result.
-          // Fields match the Pi AgentEvent type: toolCallId, toolName, result, isError
           emitEvent({
             type: "tool_execution_end",
             toolCallId,
@@ -174,30 +215,39 @@ export function createClaudeSdkMcpToolServer(
 
           const mcpResult = formatToolResultForMcp(result);
 
-          // Persist toolResult to session transcript so the session-tool-result-guard
-          // does not insert synthetic "missing tool result" error messages.
+          // Guard against oversized tool results.
+          mcpResult.content = mcpResult.content.map((block) => {
+            if (block.type === "text") {
+              return {
+                ...block,
+                text: truncateToolResultText(block.text, HARD_MAX_TOOL_RESULT_CHARS),
+              };
+            }
+            return block;
+          });
+
+          const toolResultMessage = {
+            role: "toolResult",
+            toolCallId,
+            toolName: openClawTool.name,
+            content: mcpResult.content.map((block) =>
+              block.type === "text"
+                ? { type: "text", text: block.text }
+                : { type: "text", text: JSON.stringify(block) },
+            ),
+            isError: false,
+            timestamp: Date.now(),
+          } as AgentMessage;
+          params.appendRuntimeMessage?.(toolResultMessage);
+
           try {
-            params.sessionManager?.appendMessage?.({
-              role: "toolResult",
-              toolCallId,
-              toolName: openClawTool.name,
-              content: mcpResult.content.map((block) =>
-                block.type === "text"
-                  ? { type: "text", text: block.text }
-                  : { type: "text", text: JSON.stringify(block) },
-              ),
-              isError: false,
-              timestamp: Date.now(),
-            });
-          } catch {
-            // Non-fatal — toolResult persistence failure
-          }
+            params.sessionManager?.appendMessage?.(toolResultMessage);
+          } catch {}
 
           return mcpResult;
         } catch (err) {
           const errorText = err instanceof Error ? err.message : String(err);
 
-          // Emit tool_execution_end with error (isError: true, result is the error message string)
           emitEvent({
             type: "tool_execution_end",
             toolCallId,
@@ -206,21 +256,20 @@ export function createClaudeSdkMcpToolServer(
             isError: true,
           } as never);
 
-          // Persist error toolResult to session transcript.
-          try {
-            params.sessionManager?.appendMessage?.({
-              role: "toolResult",
-              toolCallId,
-              toolName: openClawTool.name,
-              content: [{ type: "text", text: errorText }],
-              isError: true,
-              timestamp: Date.now(),
-            });
-          } catch {
-            // Non-fatal — toolResult persistence failure
-          }
+          const toolResultMessage = {
+            role: "toolResult",
+            toolCallId,
+            toolName: openClawTool.name,
+            content: [{ type: "text", text: errorText }],
+            isError: true,
+            timestamp: Date.now(),
+          } as AgentMessage;
+          params.appendRuntimeMessage?.(toolResultMessage);
 
-          // Return MCP error result so SDK can continue
+          try {
+            params.sessionManager?.appendMessage?.(toolResultMessage);
+          } catch {}
+
           return {
             content: [{ type: "text" as const, text: errorText }],
             isError: true,
