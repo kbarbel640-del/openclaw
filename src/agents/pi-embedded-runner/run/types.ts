@@ -52,4 +52,6 @@ export type EmbeddedRunAttemptResult = {
   compactionCount?: number;
   /** Client tool call detected (OpenResponses hosted tools). */
   clientToolCall?: { name: string; params: Record<string, unknown> };
+  /** True if we've attempted an in-place session repair for a corrupted signature. */
+  retryRepaired?: boolean;
 };

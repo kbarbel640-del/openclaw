@@ -708,6 +708,17 @@ export function isTimeoutErrorMessage(raw: string): boolean {
   return matchesErrorPatterns(raw, ERROR_PATTERNS.timeout);
 }
 
+export function isCorruptedThoughtSignatureError(raw: string): boolean {
+  if (!raw) {
+    return false;
+  }
+  const lower = raw.toLowerCase();
+  return (
+    lower.includes("corrupted thought signature") ||
+    (lower.includes("invalid_argument") && lower.includes("thought_signature"))
+  );
+}
+
 /**
  * Maximum character length for a string to be considered a billing error message.
  * Real API billing errors are short, structured messages (typically under 300 chars).
@@ -902,6 +913,9 @@ export function classifyFailoverReason(raw: string): FailoverReason | null {
   }
   if (isAuthErrorMessage(raw)) {
     return "auth";
+  }
+  if (isCorruptedThoughtSignatureError(raw)) {
+    return "format";
   }
   return null;
 }

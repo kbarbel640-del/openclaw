@@ -48,6 +48,8 @@ import {
   pickFallbackThinkingLevel,
   type FailoverReason,
 } from "../pi-embedded-helpers.js";
+import { isCorruptedThoughtSignatureError } from "../pi-embedded-helpers/errors.js";
+import { dropThinkingBlocksFromSession } from "../pi-embedded-runner/thinking.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../usage.js";
 import { redactRunIdentifier, resolveRunWorkspaceDir } from "../workspace-run.js";
 import { compactEmbeddedPiSessionDirect } from "./compact.js";
@@ -926,12 +928,39 @@ export async function runEmbeddedPiAgent(
               thinkLevel = fallbackThinking;
               continue;
             }
+            const isSignatureError = isCorruptedThoughtSignatureError(errorText);
+
+            // OPTIMIZATION: In-place repair for Gemini signature errors
+            // If we hit a signature error, we try to strip thinking blocks from the session
+            // and retry with the SAME model once before failing over.
+            if (isSignatureError && !attempt.retryRepaired) {
+              log.info(
+                `[session-repair] Detected corrupted thought signature for ${provider}/${modelId}. Attempting in-place cleanup...`,
+              );
+              const dropResult = await dropThinkingBlocksFromSession({
+                sessionFile: params.sessionFile,
+              });
+              if (dropResult.droppedCount > 0) {
+                log.info(
+                  `[session-repair] Dropped ${dropResult.droppedCount} thinking blocks. Retrying prompt.`,
+                );
+                attempt.retryRepaired = true;
+                continue;
+              } else {
+                log.warn(
+                  `[session-repair] No thinking blocks found to drop for ${provider}/${modelId}. Proceeding to failover.`,
+                );
+              }
+            }
+
             // FIX: Throw FailoverError for prompt errors when fallbacks configured
             // This enables model fallback for quota/rate limit errors during prompt submission
             // AND general provider errors like "Corrupted thought signature" (400)
             if (
               fallbackConfigured &&
-              (isFailoverErrorMessage(errorText) || /400|provider returned error/i.test(errorText))
+              (isFailoverErrorMessage(errorText) ||
+                isSignatureError ||
+                /400|provider returned error/i.test(errorText))
             ) {
               throw new FailoverError(errorText, {
                 reason: promptFailoverReason ?? "unknown",
