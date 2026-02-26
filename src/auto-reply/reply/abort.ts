@@ -30,27 +30,55 @@ const ABORT_TRIGGERS = new Set([
   "wait",
   "exit",
   "interrupt",
+  // Italian
   "detente",
-  "deten",
-  "detén",
-  "arrete",
+  "ferma",
+  "fermare",
+  "basta",
+  "fermo",
+  // French
   "arrête",
+  "arrete",
+  "arrêter",
+  "arreter",
+  "stoppe",
+  "cesser",
+  // Spanish
+  "detén",
+  "deten",
+  "detener",
+  "para",
+  "parar",
+  // Chinese
   "停止",
+  "停",
+  "等等",
+  "等一下",
+  // Japanese
   "やめて",
   "止めて",
+  "やめる",
+  // Hindi
   "रुको",
+  "रोक",
+  // Arabic
   "توقف",
+  "قف",
+  // Russian
   "стоп",
   "остановись",
   "останови",
   "остановить",
   "прекрати",
+  // German
   "halt",
   "anhalten",
   "aufhören",
-  "hoer auf",
   "stopp",
+  // Portuguese
   "pare",
+  "parar",
+  // English phrases
   "stop openclaw",
   "openclaw stop",
   "stop action",

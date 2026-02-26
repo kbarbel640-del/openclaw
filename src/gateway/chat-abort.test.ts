@@ -48,13 +48,32 @@ describe("isChatStopCommandText", () => {
     expect(isChatStopCommandText(" /STOP!!! ")).toBe(true);
     expect(isChatStopCommandText("stop please")).toBe(true);
     expect(isChatStopCommandText("do not do that")).toBe(true);
+    // Chinese
     expect(isChatStopCommandText("停止")).toBe(true);
+    expect(isChatStopCommandText("停")).toBe(true);
+    expect(isChatStopCommandText("等等")).toBe(true);
+    // Japanese
     expect(isChatStopCommandText("やめて")).toBe(true);
+    expect(isChatStopCommandText("止めて")).toBe(true);
+    // Arabic
     expect(isChatStopCommandText("توقف")).toBe(true);
+    // Russian
     expect(isChatStopCommandText("остановись")).toBe(true);
+    // German
     expect(isChatStopCommandText("halt")).toBe(true);
     expect(isChatStopCommandText("stopp")).toBe(true);
+    // Portuguese
     expect(isChatStopCommandText("pare")).toBe(true);
+    // Italian
+    expect(isChatStopCommandText("basta")).toBe(true);
+    expect(isChatStopCommandText("ferma")).toBe(true);
+    // French
+    expect(isChatStopCommandText("arrête")).toBe(true);
+    expect(isChatStopCommandText("stoppe")).toBe(true);
+    // Spanish
+    expect(isChatStopCommandText("para")).toBe(true);
+    expect(isChatStopCommandText("detener")).toBe(true);
+    // Negative cases
     expect(isChatStopCommandText("/status")).toBe(false);
     expect(isChatStopCommandText("please do not do that")).toBe(false);
     expect(isChatStopCommandText("keep going")).toBe(false);
