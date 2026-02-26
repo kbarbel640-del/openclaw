@@ -88,6 +88,12 @@ export type ChannelOutboundContext = {
   identity?: OutboundIdentity;
   deps?: OutboundSendDeps;
   silent?: boolean;
+  /**
+   * Callback invoked when a Telegram send succeeds only after falling back
+   * from a stale forum-topic thread id ("message thread not found").
+   * The delivery layer uses this to clear the threadId from the session store.
+   */
+  onThreadIdFallback?: () => void | Promise<void>;
 };
 
 export type ChannelOutboundPayloadContext = ChannelOutboundContext & {

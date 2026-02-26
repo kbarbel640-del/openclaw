@@ -65,6 +65,12 @@ type TelegramSendOpts = {
   messageThreadId?: number;
   /** Inline keyboard buttons (reply markup). */
   buttons?: TelegramInlineButtons;
+  /**
+   * Callback invoked when a send succeeds only after falling back from a
+   * "message thread not found" error (stale forum-topic thread id).
+   * Callers can use this to clear the persisted threadId from the session store.
+   */
+  onThreadIdFallback?: () => void | Promise<void>;
 };
 
 type TelegramSendResult = {
@@ -398,6 +404,7 @@ async function withTelegramThreadFallback<T>(
     effectiveParams: Record<string, unknown> | undefined,
     effectiveLabel: string,
   ) => Promise<T>,
+  onThreadIdFallback?: () => void | Promise<void>,
 ): Promise<T> {
   try {
     return await attempt(params, label);
@@ -413,7 +420,15 @@ async function withTelegramThreadFallback<T>(
       );
     }
     const retriedParams = removeMessageThreadIdParam(params);
-    return await attempt(retriedParams, `${label}-threadless`);
+    const result = await attempt(retriedParams, `${label}-threadless`);
+    // Notify caller that we fell back from a stale thread id so they can
+    // clear it from the persistent session store.
+    try {
+      await onThreadIdFallback?.();
+    } catch {
+      // Best-effort — never block delivery on cleanup failures.
+    }
+    return result;
   }
 }
 
@@ -554,6 +569,7 @@ export async function sendMessageTelegram(
           },
         });
       },
+      opts.onThreadIdFallback,
     );
   };
 
@@ -608,6 +624,7 @@ export async function sendMessageTelegram(
         opts.verbose,
         async (effectiveParams, retryLabel) =>
           requestWithChatNotFound(() => sender(effectiveParams), retryLabel),
+        opts.onThreadIdFallback,
       );
 
     const mediaSender = (() => {
@@ -963,6 +980,8 @@ type TelegramStickerOpts = {
   replyToMessageId?: number;
   /** Forum topic thread ID (for forum supergroups) */
   messageThreadId?: number;
+  /** Callback when thread-not-found fallback succeeds (stale topic cleanup). */
+  onThreadIdFallback?: () => void | Promise<void>;
 };
 
 /**
@@ -1019,6 +1038,7 @@ export async function sendStickerTelegram(
     opts.verbose,
     async (effectiveParams, label) =>
       requestWithChatNotFound(() => api.sendSticker(chatId, fileId.trim(), effectiveParams), label),
+    opts.onThreadIdFallback,
   );
 
   const messageId = resolveTelegramMessageIdOrThrow(result, "sticker send");
@@ -1047,6 +1067,8 @@ type TelegramPollOpts = {
   silent?: boolean;
   /** Whether votes are anonymous. Defaults to true (Telegram default). */
   isAnonymous?: boolean;
+  /** Callback when thread-not-found fallback succeeds (stale topic cleanup). */
+  onThreadIdFallback?: () => void | Promise<void>;
 };
 
 /**
@@ -1125,6 +1147,7 @@ export async function sendPollTelegram(
         () => api.sendPoll(chatId, normalizedPoll.question, pollOptions, effectiveParams),
         label,
       ),
+    opts.onThreadIdFallback,
   );
 
   const messageId = resolveTelegramMessageIdOrThrow(result, "poll send");

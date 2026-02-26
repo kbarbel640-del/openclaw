@@ -1009,6 +1009,40 @@ describe("sendMessageTelegram", () => {
     }
   });
 
+  it("invokes onThreadIdFallback when thread-not-found fallback succeeds", async () => {
+    const threadErr = new Error("400: Bad Request: message thread not found");
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(threadErr)
+      .mockResolvedValueOnce({ message_id: 58, chat: { id: "-100123" } });
+    const api = { sendMessage } as unknown as { sendMessage: typeof sendMessage };
+    const onThreadIdFallback = vi.fn();
+
+    await sendMessageTelegram("-100123", "hello", {
+      token: "tok",
+      api,
+      messageThreadId: 271,
+      onThreadIdFallback,
+    });
+
+    expect(onThreadIdFallback).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not invoke onThreadIdFallback when send succeeds without fallback", async () => {
+    const sendMessage = vi.fn().mockResolvedValueOnce({ message_id: 58, chat: { id: "-100123" } });
+    const api = { sendMessage } as unknown as { sendMessage: typeof sendMessage };
+    const onThreadIdFallback = vi.fn();
+
+    await sendMessageTelegram("-100123", "hello", {
+      token: "tok",
+      api,
+      messageThreadId: 271,
+      onThreadIdFallback,
+    });
+
+    expect(onThreadIdFallback).not.toHaveBeenCalled();
+  });
+
   it("does not retry on non-retriable thread/chat errors", async () => {
     const cases: Array<{
       chatId: string;
@@ -1279,6 +1313,26 @@ describe("sendStickerTelegram", () => {
     });
     expect(sendSticker).toHaveBeenNthCalledWith(2, chatId, "fileId123", undefined);
     expect(res.messageId).toBe("109");
+  });
+
+  it("invokes onThreadIdFallback when sticker thread-not-found fallback succeeds", async () => {
+    const chatId = "-100123";
+    const threadErr = new Error("400: Bad Request: message thread not found");
+    const sendSticker = vi
+      .fn()
+      .mockRejectedValueOnce(threadErr)
+      .mockResolvedValueOnce({ message_id: 109, chat: { id: chatId } });
+    const api = { sendSticker } as unknown as { sendSticker: typeof sendSticker };
+    const onThreadIdFallback = vi.fn();
+
+    await sendStickerTelegram(chatId, "fileId123", {
+      token: "tok",
+      api,
+      messageThreadId: 271,
+      onThreadIdFallback,
+    });
+
+    expect(onThreadIdFallback).toHaveBeenCalledTimes(1);
   });
 
   it("fails when sticker send returns no message_id", async () => {

@@ -114,6 +114,7 @@ type ChannelHandlerParams = {
   gifPlayback?: boolean;
   silent?: boolean;
   mediaLocalRoots?: readonly string[];
+  onThreadIdFallback?: () => void | Promise<void>;
 };
 
 // Channel docking: outbound delivery delegates to plugin.outbound adapters.
@@ -187,6 +188,7 @@ function createChannelOutboundContextBase(
     deps: params.deps,
     silent: params.silent,
     mediaLocalRoots: params.mediaLocalRoots,
+    onThreadIdFallback: params.onThreadIdFallback,
   };
 }
 
@@ -299,6 +301,49 @@ async function deliverOutboundPayloadsCore(
     params.agentId ?? params.mirror?.agentId,
   );
   const results: OutboundDeliveryResult[] = [];
+  // Build a callback for Telegram thread-not-found fallback cleanup.
+  // When a send succeeds only after dropping a stale message_thread_id,
+  // this clears the threadId from the session store so future sends
+  // don't repeat the fail→retry cycle.
+  const effectiveSessionKey = params.mirror?.sessionKey ?? params.sessionKey;
+  const onThreadIdFallback =
+    effectiveSessionKey && channel === "telegram"
+      ? async () => {
+          try {
+            const { resolveSessionAgentId } = await import("../../agents/agent-scope.js");
+            const { resolveDefaultSessionStorePath } =
+              await import("../../config/sessions/paths.js");
+            const { updateSessionStoreEntry } = await import("../../config/sessions/store.js");
+            const agentId = resolveSessionAgentId({
+              sessionKey: effectiveSessionKey,
+              config: cfg,
+            });
+            const storePath = resolveDefaultSessionStorePath(agentId);
+            await updateSessionStoreEntry({
+              storePath,
+              sessionKey: effectiveSessionKey,
+              update: async (entry) => {
+                if (!entry.deliveryContext?.threadId && !entry.lastThreadId) {
+                  return null; // Nothing to clean up.
+                }
+                const nextDelivery = entry.deliveryContext
+                  ? { ...entry.deliveryContext }
+                  : undefined;
+                if (nextDelivery) {
+                  delete nextDelivery.threadId;
+                }
+                return {
+                  deliveryContext: nextDelivery,
+                  lastThreadId: undefined,
+                };
+              },
+            });
+          } catch {
+            // Best-effort — never block delivery on cleanup failures.
+          }
+        }
+      : undefined;
+
   const handler = await createChannelHandler({
     cfg,
     channel,
@@ -311,6 +356,7 @@ async function deliverOutboundPayloadsCore(
     gifPlayback: params.gifPlayback,
     silent: params.silent,
     mediaLocalRoots,
+    onThreadIdFallback,
   });
   const textLimit = handler.chunker
     ? resolveTextChunkLimit(cfg, channel, accountId, {
