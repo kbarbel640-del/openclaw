@@ -442,7 +442,7 @@ export const registerTelegramNativeCommands = ({
       for (const command of nativeCommands) {
         const normalizedCommandName = normalizeTelegramCommandName(command.name);
         bot.command(normalizedCommandName, async (ctx: TelegramNativeCommandContext) => {
-          const msg = ctx.message;
+          const msg = ctx.message ?? ctx.channelPost;
           if (!msg) {
             return;
           }
@@ -664,7 +664,7 @@ export const registerTelegramNativeCommands = ({
 
       for (const pluginCommand of pluginCatalog.commands) {
         bot.command(pluginCommand.command, async (ctx: TelegramNativeCommandContext) => {
-          const msg = ctx.message;
+          const msg = ctx.message ?? ctx.channelPost;
           if (!msg) {
             return;
           }
