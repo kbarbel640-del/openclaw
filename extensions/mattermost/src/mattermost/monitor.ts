@@ -274,6 +274,11 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
     return fetch(input, { ...init, headers });
   };
 
+  // SSRF policy for media fetches - allows private network when configured
+  const mediaSSrfPolicy = account.config.allowPrivateNetwork
+    ? { allowPrivateNetwork: true }
+    : undefined;
+
   const resolveMattermostMedia = async (
     fileIds?: string[] | null,
   ): Promise<MattermostMediaInfo[]> => {
@@ -289,6 +294,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
           fetchImpl: fetchWithAuth,
           filePathHint: fileId,
           maxBytes: mediaMaxBytes,
+          ssrfPolicy: mediaSSrfPolicy,
         });
         const saved = await core.channel.media.saveMediaBuffer(
           fetched.buffer,
