@@ -410,7 +410,7 @@ const ENUM_EXPECTATIONS: Record<string, string[]> = {
     '"debug"',
     '"trace"',
   ],
-  "logging.consoleStyle": ['"pretty"', '"compact"', '"json"'],
+  "logging.consoleStyle": ['"pretty"', '"compact"', '"json"', '"activity"'],
   "logging.redactSensitive": ['"off"', '"tools"'],
   "update.channel": ['"stable"', '"beta"', '"dev"'],
   "agents.defaults.compaction.mode": ['"default"', '"safeguard"'],
@@ -748,6 +748,7 @@ describe("config help copy quality", () => {
     expect(consoleStyle.includes('"pretty"')).toBe(true);
     expect(consoleStyle.includes('"compact"')).toBe(true);
     expect(consoleStyle.includes('"json"')).toBe(true);
+    expect(consoleStyle.includes('"activity"')).toBe(true);
 
     const pluginApiKey = FIELD_HELP["plugins.entries.*.apiKey"];
     expect(/secret|env|credential/i.test(pluginApiKey)).toBe(true);

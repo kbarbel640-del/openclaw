@@ -1,3 +1,4 @@
+import { buildActivityMeta } from "../logging/activity/build.js";
 import { diagnosticLogger as diag, logLaneDequeue, logLaneEnqueue } from "../logging/diagnostic.js";
 import { CommandLane } from "./lanes.js";
 /**
@@ -78,6 +79,15 @@ function drainLane(lane: string) {
         entry.onWait?.(waitedMs, state.queue.length);
         diag.warn(
           `lane wait exceeded: lane=${lane} waitedMs=${waitedMs} queueAhead=${state.queue.length}`,
+          {
+            activity: buildActivityMeta({
+              kind: "queue",
+              summary: `lane ${lane} wait exceeded`,
+              status: "queued",
+              durationMs: waitedMs,
+              extra: { lane, queueAhead: state.queue.length },
+            }),
+          },
         );
       }
       logLaneDequeue(lane, waitedMs, state.queue.length);
@@ -92,6 +102,19 @@ function drainLane(lane: string) {
           if (completedCurrentGeneration) {
             diag.debug(
               `lane task done: lane=${lane} durationMs=${Date.now() - startTime} active=${state.activeTaskIds.size} queued=${state.queue.length}`,
+              {
+                activity: buildActivityMeta({
+                  kind: "queue",
+                  summary: `lane ${lane} task done`,
+                  status: "done",
+                  durationMs: Date.now() - startTime,
+                  extra: {
+                    lane,
+                    active: state.activeTaskIds.size,
+                    queued: state.queue.length,
+                  },
+                }),
+              },
             );
             pump();
           }
@@ -102,6 +125,15 @@ function drainLane(lane: string) {
           if (!isProbeLane) {
             diag.error(
               `lane task error: lane=${lane} durationMs=${Date.now() - startTime} error="${String(err)}"`,
+              {
+                activity: buildActivityMeta({
+                  kind: "queue",
+                  summary: `lane ${lane} task error`,
+                  status: "error",
+                  durationMs: Date.now() - startTime,
+                  extra: { lane, error: String(err) },
+                }),
+              },
             );
           }
           if (completedCurrentGeneration) {
