@@ -27,6 +27,7 @@ const DISCORD_POLL_MAX_ANSWERS = 10;
 const DISCORD_POLL_MAX_DURATION_HOURS = 32 * 24;
 const DISCORD_MISSING_PERMISSIONS = 50013;
 const DISCORD_CANNOT_DM = 50007;
+const DISCORD_UNKNOWN_CHANNEL = 10_003;
 
 type DiscordRequest = RetryRunner;
 
@@ -183,6 +184,12 @@ async function buildDiscordSendError(
     return new DiscordSendError(
       "discord dm failed: user blocks dms or privacy settings disallow it",
       { kind: "dm-blocked" },
+    );
+  }
+  if (code === DISCORD_UNKNOWN_CHANNEL) {
+    return new DiscordSendError(
+      `discord send failed: channel ${ctx.channelId} no longer exists or is inaccessible${ctx.hasMedia ? " (media attachment)" : ""}`,
+      { kind: "unknown-channel", channelId: ctx.channelId },
     );
   }
   if (code !== DISCORD_MISSING_PERMISSIONS) {

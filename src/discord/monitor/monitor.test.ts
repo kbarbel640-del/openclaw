@@ -898,6 +898,8 @@ describe("resolveDiscordAutoThreadReplyPlan", () => {
     client?: Client;
     channelConfig?: DiscordChannelConfigResolved;
     threadChannel?: { id: string } | null;
+    isDirectMessage?: boolean;
+    authorId?: string;
   }) {
     return {
       client:
@@ -907,7 +909,9 @@ describe("resolveDiscordAutoThreadReplyPlan", () => {
         id: "m1",
         channelId: "parent",
       } as unknown as import("./listeners.js").DiscordMessageEvent["message"],
-      isGuildMessage: true,
+      isGuildMessage: !overrides?.isDirectMessage,
+      isDirectMessage: overrides?.isDirectMessage,
+      authorId: overrides?.authorId,
       channelConfig:
         overrides?.channelConfig ??
         ({ autoThread: true } as unknown as DiscordChannelConfigResolved),
@@ -965,5 +969,27 @@ describe("resolveDiscordAutoThreadReplyPlan", () => {
         expect(plan.autoThreadContext?.SessionKey, testCase.name).toBe(testCase.expectedSessionKey);
       }
     }
+  });
+
+  it("uses user-addressed reply target for DMs", async () => {
+    const plan = await resolveDiscordAutoThreadReplyPlan(
+      createAutoThreadPlanParams({
+        isDirectMessage: true,
+        authorId: "user123",
+        channelConfig: { autoThread: false } as unknown as DiscordChannelConfigResolved,
+      }),
+    );
+    expect(plan.deliverTarget).toBe("user:user123");
+    expect(plan.replyTarget).toBe("user:user123");
+  });
+
+  it("falls back to channel-addressed target when authorId is missing", async () => {
+    const plan = await resolveDiscordAutoThreadReplyPlan(
+      createAutoThreadPlanParams({
+        isDirectMessage: true,
+        channelConfig: { autoThread: false } as unknown as DiscordChannelConfigResolved,
+      }),
+    );
+    expect(plan.deliverTarget).toBe("channel:parent");
   });
 });

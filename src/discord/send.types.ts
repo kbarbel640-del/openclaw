@@ -2,7 +2,7 @@ import type { RequestClient } from "@buape/carbon";
 import type { RetryConfig } from "../infra/retry.js";
 
 export class DiscordSendError extends Error {
-  kind?: "missing-permissions" | "dm-blocked";
+  kind?: "missing-permissions" | "dm-blocked" | "unknown-channel";
   channelId?: string;
   missingPermissions?: string[];
 
