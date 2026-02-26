@@ -1,4 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The helpers import `../i18n/index.ts` which accesses `localStorage` at module
+// load time. `vi.hoisted` runs before static imports are resolved.
+vi.hoisted(() => {
+  if (typeof globalThis.localStorage === "undefined") {
+    (globalThis as Record<string, unknown>).localStorage = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+  }
+});
 import { parseSessionKey, resolveSessionDisplayName } from "./app-render.helpers.ts";
 import type { SessionsListResult } from "./types.ts";
 
@@ -259,5 +271,60 @@ describe("resolveSessionDisplayName", () => {
         row({ key: "agent:main:bluebubbles:direct:+19257864429", label: "Tyler" }),
       ),
     ).toBe("Tyler");
+  });
+
+  // ── Agent name resolution from agents list ──────────
+
+  it("resolves agent name from agents list for agent session key", () => {
+    const agents = [
+      { id: "main", name: "Piper" },
+      { id: "clint", name: "Clint" },
+    ];
+    expect(resolveSessionDisplayName("agent:clint:main", undefined, agents)).toBe("Clint");
+  });
+
+  it("resolves agent identity name when name is absent", () => {
+    const agents = [{ id: "clint", identity: { name: "Clint Eastwood" } }];
+    expect(resolveSessionDisplayName("agent:clint:main", undefined, agents)).toBe("Clint Eastwood");
+  });
+
+  it("prefers label over agent name from agents list", () => {
+    const agents = [{ id: "clint", name: "Clint" }];
+    expect(
+      resolveSessionDisplayName(
+        "agent:clint:main",
+        row({ key: "agent:clint:main", label: "Custom Label" }),
+        agents,
+      ),
+    ).toBe("Custom Label");
+  });
+
+  it("prefers displayName over agent name from agents list", () => {
+    const agents = [{ id: "clint", name: "Clint" }];
+    expect(
+      resolveSessionDisplayName(
+        "agent:clint:main",
+        row({ key: "agent:clint:main", displayName: "Custom Name" }),
+        agents,
+      ),
+    ).toBe("Custom Name");
+  });
+
+  it("falls back to parsed fallback when agent not found in list", () => {
+    const agents = [{ id: "main", name: "Piper" }];
+    expect(resolveSessionDisplayName("agent:unknown:main", undefined, agents)).toBe(
+      "agent:unknown:main",
+    );
+  });
+
+  it("applies type prefix to agent name for subagent sessions", () => {
+    const agents = [{ id: "main", name: "Piper" }];
+    expect(resolveSessionDisplayName("agent:main:subagent:abc-123", undefined, agents)).toBe(
+      "Subagent: Piper",
+    );
+  });
+
+  it("works without agents list (backward compatible)", () => {
+    expect(resolveSessionDisplayName("agent:clint:main")).toBe("agent:clint:main");
   });
 });
