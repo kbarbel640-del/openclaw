@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const readConfigFileSnapshot = vi.fn();
 const writeConfigFile = vi.fn().mockResolvedValue(undefined);
@@ -46,12 +46,10 @@ function expectWrittenPrimaryModel(model: string) {
 let modelsSetCommand: typeof import("./models/set.js").modelsSetCommand;
 let modelsFallbacksAddCommand: typeof import("./models/fallbacks.js").modelsFallbacksAddCommand;
 
-describe("models set + fallbacks", () => {
-  beforeAll(async () => {
-    ({ modelsSetCommand } = await import("./models/set.js"));
-    ({ modelsFallbacksAddCommand } = await import("./models/fallbacks.js"));
-  });
+({ modelsSetCommand } = await import("./models/set.js"));
+({ modelsFallbacksAddCommand } = await import("./models/fallbacks.js"));
 
+describe("models set + fallbacks", () => {
   beforeEach(() => {
     readConfigFileSnapshot.mockClear();
     writeConfigFile.mockClear();

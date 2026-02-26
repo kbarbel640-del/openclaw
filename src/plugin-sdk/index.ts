@@ -74,6 +74,12 @@ export {
 export type {
   AnyAgentTool,
   OpenClawPluginApi,
+  PluginHookExecutionMode,
+  PluginLifecycleHookContext,
+  PluginLifecycleHookOptions,
+  PluginLifecycleHookResult,
+  PluginLifecyclePayloadMap,
+  PluginLifecyclePhase,
   OpenClawPluginService,
   OpenClawPluginServiceContext,
   ProviderAuthContext,

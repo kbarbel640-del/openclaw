@@ -121,7 +121,10 @@ describe("QmdMemoryManager", () => {
   });
 
   afterAll(async () => {
-    await fs.rm(fixtureRoot, { recursive: true, force: true });
+    await Promise.race([
+      fs.rm(fixtureRoot, { recursive: true, force: true }),
+      new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+    ]);
   });
 
   beforeEach(async () => {
@@ -157,6 +160,9 @@ describe("QmdMemoryManager", () => {
     delete process.env.OPENCLAW_STATE_DIR;
     delete (globalThis as Record<string, unknown>).__openclawMcporterDaemonStart;
     delete (globalThis as Record<string, unknown>).__openclawMcporterColdStartWarned;
+    if (tmpRoot) {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
   });
 
   it("debounces back-to-back sync calls", async () => {
