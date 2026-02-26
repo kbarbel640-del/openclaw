@@ -406,10 +406,13 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     // When reactionTrigger is enabled, wake the agent session immediately.
     const reactionTrigger = deps.cfg.channels?.signal?.reactionTrigger ?? "off";
     if (reactionTrigger !== "off") {
+      // "own" mode: check if any target matches the bot's own account number
+      const isOwnMessage =
+        reactionTrigger === "own" && deps.account
+          ? targets.some((t) => t.kind === "phone" && t.id === deps.account)
+          : false;
       const shouldTrigger =
-        reactionTrigger === "all" ||
-        reactionTrigger === "allowlist" ||
-        (reactionTrigger === "own" && targets.some((t) => t.isSelf));
+        reactionTrigger === "all" || reactionTrigger === "allowlist" || isOwnMessage;
       if (shouldTrigger) {
         requestHeartbeatNow({
           reason: "reaction",
