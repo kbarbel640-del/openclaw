@@ -625,9 +625,18 @@ export const registerTelegramHandlers = ({
       }
     }
     if (isGroup && enforceGroupAllowlistAuthorization) {
-      if (!isAllowlistAuthorized(effectiveGroupAllow, senderId, senderUsername)) {
-        logVerbose(`Blocked telegram group sender ${senderId || "unknown"} (${deniedGroupReason})`);
-        return { allowed: false, reason: "group-unauthorized" };
+      // When no explicit group allowlist is configured (no groupAllowFrom and no
+      // per-group/topic allowFrom override), fall through to the group-policy
+      // check that shouldSkipGroupMessage already performed.  This prevents
+      // callback-allowlist mode from silently blocking every callback in groups
+      // whose groupPolicy is "open" — the most common default configuration.
+      if (effectiveGroupAllow.hasEntries || hasGroupAllowOverride) {
+        if (!isAllowlistAuthorized(effectiveGroupAllow, senderId, senderUsername)) {
+          logVerbose(
+            `Blocked telegram group sender ${senderId || "unknown"} (${deniedGroupReason})`,
+          );
+          return { allowed: false, reason: "group-unauthorized" };
+        }
       }
     }
     return { allowed: true };
