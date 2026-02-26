@@ -1,6 +1,8 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveWhatsAppAuthDir } from "./accounts.js";
+import type { OpenClawConfig } from "../config/config.js";
+import { WhatsAppConfigSchema } from "../config/zod-schema.providers-whatsapp.js";
+import { resolveWhatsAppAccount, resolveWhatsAppAuthDir } from "./accounts.js";
 
 describe("resolveWhatsAppAuthDir", () => {
   const stubCfg = { channels: { whatsapp: { accounts: {} } } } as Parameters<
@@ -43,5 +45,52 @@ describe("resolveWhatsAppAuthDir", () => {
       accountId: "my-account-1",
     });
     expect(authDir).toMatch(/whatsapp[/\\]my-account-1$/);
+  });
+});
+
+describe("resolveWhatsAppAccount channel-level policy fallback", () => {
+  it("inherits root-level dmPolicy when account has no explicit override (Zod-validated)", () => {
+    // Validate through Zod exactly as loadConfig() does in production, to
+    // ensure account-level defaults do not shadow root-level overrides.
+    const validated = WhatsAppConfigSchema.parse({
+      dmPolicy: "disabled",
+      accounts: {
+        default: {
+          authDir: "/tmp/test-auth",
+        },
+      },
+    });
+    const cfg = { channels: { whatsapp: validated } } as unknown as OpenClawConfig;
+    const account = resolveWhatsAppAccount({ cfg, accountId: "default" });
+    expect(account.dmPolicy).toBe("disabled");
+  });
+
+  it("inherits root-level groupPolicy when account has no explicit override (Zod-validated)", () => {
+    const validated = WhatsAppConfigSchema.parse({
+      groupPolicy: "disabled",
+      accounts: {
+        default: {
+          authDir: "/tmp/test-auth",
+        },
+      },
+    });
+    const cfg = { channels: { whatsapp: validated } } as unknown as OpenClawConfig;
+    const account = resolveWhatsAppAccount({ cfg, accountId: "default" });
+    expect(account.groupPolicy).toBe("disabled");
+  });
+
+  it("respects explicit account-level dmPolicy over root-level", () => {
+    const validated = WhatsAppConfigSchema.parse({
+      dmPolicy: "pairing",
+      accounts: {
+        default: {
+          authDir: "/tmp/test-auth",
+          dmPolicy: "disabled",
+        },
+      },
+    });
+    const cfg = { channels: { whatsapp: validated } } as unknown as OpenClawConfig;
+    const account = resolveWhatsAppAccount({ cfg, accountId: "default" });
+    expect(account.dmPolicy).toBe("disabled");
   });
 });
