@@ -57,15 +57,15 @@ Add to `~/.openclaw/openclaw.json`:
 }
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `serviceUrl` | `http://127.0.0.1:8100` | Compression service URL |
-| `timeoutMs` | `10000` | Max wait before passthrough (ms) |
-| `minPromptLength` | `500` | Minimum history length (chars) to trigger compression |
-| `ollamaUrl` | `http://127.0.0.1:11434` | Ollama API endpoint |
-| `preferredModel` | `mistral:7b` | Ollama model for compression |
-| `compressionStrategy` | `auto` | `auto`/`full`/`light`/`passthrough` |
-| `inferenceMode` | `auto` | `auto`/`cpu`/`gpu`/`remote` — controls inference strategy override |
+| Option                | Default                  | Description                                                        |
+| --------------------- | ------------------------ | ------------------------------------------------------------------ |
+| `serviceUrl`          | `http://127.0.0.1:8100`  | Compression service URL                                            |
+| `timeoutMs`           | `10000`                  | Max wait before passthrough (ms)                                   |
+| `minPromptLength`     | `500`                    | Minimum history length (chars) to trigger compression              |
+| `ollamaUrl`           | `http://127.0.0.1:11434` | Ollama API endpoint                                                |
+| `preferredModel`      | `mistral:7b`             | Ollama model for compression                                       |
+| `compressionStrategy` | `auto`                   | `auto`/`full`/`light`/`passthrough`                                |
+| `inferenceMode`       | `auto`                   | `auto`/`cpu`/`gpu`/`remote` — controls inference strategy override |
 
 ## CLI Commands
 
@@ -117,23 +117,23 @@ Use `/tokenranger` in any chat to access the settings menu:
 
 ## Compression Strategies
 
-| Strategy | When | Model | Description |
-|----------|------|-------|-------------|
-| `full` | GPU available (>80% VRAM) | mistral:7b | Deep semantic summarization |
-| `light` | CPU only | phi3.5:3b | Extractive bullet points |
-| `passthrough` | Ollama down | none | Truncate to last 20 lines |
+| Strategy      | When                      | Model      | Description                 |
+| ------------- | ------------------------- | ---------- | --------------------------- |
+| `full`        | GPU available (>80% VRAM) | mistral:7b | Deep semantic summarization |
+| `light`       | CPU only                  | phi3.5:3b  | Extractive bullet points    |
+| `passthrough` | Ollama down               | none       | Truncate to last 20 lines   |
 
 ## Measured Results
 
 ### Latest: 5-turn Discord bot conversation (2026-02-26, post code-review fixes)
 
 | Turn | Input (tokens) | Compressed (tokens) | Reduction | Latency |
-|------|---------------|--------------------:|----------:|--------:|
-| 1    | 241           | 121                 | 49.8%     | 916ms   |
-| 2    | 732           | 125                 | 82.9%     | 1,086ms |
-| 3    | 1,180         | 150                 | 87.3%     | 1,375ms |
-| 4    | 1,685         | 212                 | 87.4%     | 1,960ms |
-| 5    | 2,028         | 277                 | 86.3%     | 2,420ms |
+| ---- | -------------- | ------------------: | --------: | ------: |
+| 1    | 241            |                 121 |     49.8% |   916ms |
+| 2    | 732            |                 125 |     82.9% | 1,086ms |
+| 3    | 1,180          |                 150 |     87.3% | 1,375ms |
+| 4    | 1,685          |                 212 |     87.4% | 1,960ms |
+| 5    | 2,028          |                 277 |     86.3% | 2,420ms |
 
 **Cumulative**: 5,866 input → 885 output tokens (**84.9% overall reduction**)
 **Avg latency**: 1.6s per turn (GPU-full, mistral:7b-instruct)
@@ -141,11 +141,11 @@ Use `/tokenranger` in any chat to access the settings menu:
 
 ### Previous: Token comparison benchmark (2026-02-25)
 
-| Metric | Value |
-|--------|-------|
-| Ollama token savings | 85.0% |
-| Gemini token savings | 85.9% |
-| Compression latency | 1.6-2.9s per turn (GPU) |
+| Metric               | Value                            |
+| -------------------- | -------------------------------- |
+| Ollama token savings | 85.0%                            |
+| Gemini token savings | 85.9%                            |
+| Compression latency  | 1.6-2.9s per turn (GPU)          |
 | Graceful degradation | Full passthrough if service down |
 
 See [CHANGELOG.md](CHANGELOG.md) for full history.

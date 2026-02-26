@@ -6,16 +6,16 @@
 
 import { execSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
 import os from "node:os";
+import path from "node:path";
+import type { TokenRangerConfig } from "./config.js";
+import { checkServiceHealth } from "./health.js";
 import {
   detectPlatform,
   resolveServiceDir,
   resolveLaunchdPlistPath,
   resolveSystemdUnitDir,
 } from "./platform.js";
-import { checkServiceHealth } from "./health.js";
-import type { TokenRangerConfig } from "./config.js";
 
 type Logger = {
   info: (msg: string) => void;
@@ -150,17 +150,19 @@ export function installOllama(logger: Logger): boolean {
 // Python service installation
 // ---------------------------------------------------------------------------
 
-export function installPythonService(
-  serviceDir: string,
-  pluginDir: string,
-  logger: Logger,
-): void {
+export function installPythonService(serviceDir: string, pluginDir: string, logger: Logger): void {
   // Create service directory
   fs.mkdirSync(serviceDir, { recursive: true });
 
   // Copy Python files from plugin's service/ directory
   const sourceDir = path.join(pluginDir, "service");
-  const files = ["main.py", "config.py", "inference_router.py", "compressor.py", "requirements.txt"];
+  const files = [
+    "main.py",
+    "config.py",
+    "inference_router.py",
+    "compressor.py",
+    "requirements.txt",
+  ];
 
   for (const file of files) {
     const src = path.join(sourceDir, file);
@@ -236,10 +238,15 @@ export function pullOllamaModel(model: string, ollamaUrl: string, logger: Logger
   // Resolve model — use default if empty
   const resolvedModel = model || DEFAULT_GPU_MODEL;
 
-  // Check if model already exists
+  // Check if model already exists (match exact model name in first column)
   try {
     const list = execSync("ollama list", { encoding: "utf-8" });
-    if (list.includes(resolvedModel)) {
+    const installed = list
+      .split("\n")
+      .slice(1) // skip header
+      .map((line) => line.split(/\s+/)[0])
+      .filter(Boolean);
+    if (installed.includes(resolvedModel)) {
       logger.info(`  model ${resolvedModel} already present ✓`);
       return;
     }
@@ -409,10 +416,7 @@ export function uninstallService(logger: Logger): void {
 // Verification
 // ---------------------------------------------------------------------------
 
-export async function verifySetup(
-  serviceUrl: string,
-  logger: Logger,
-): Promise<boolean> {
+export async function verifySetup(serviceUrl: string, logger: Logger): Promise<boolean> {
   // Give the service a moment to start
   await new Promise((resolve) => setTimeout(resolve, 2000));
 

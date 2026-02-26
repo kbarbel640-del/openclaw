@@ -21,9 +21,7 @@ export type CompressResult = {
   latencyMs: number;
 };
 
-export async function compressContext(
-  req: CompressRequest,
-): Promise<CompressResult | null> {
+export async function compressContext(req: CompressRequest): Promise<CompressResult | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), req.timeoutMs);
 

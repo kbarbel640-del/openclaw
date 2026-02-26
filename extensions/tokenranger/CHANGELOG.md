@@ -8,12 +8,14 @@ Entries are date-stamped to maintain a running history of updates, fixes, and be
 ## [2026-02-26] Rename to TokenRanger + `/tokenranger` Slash Command
 
 ### Rename
+
 Full rename from `langchain-before-llm` to `tokenranger` across all files, services,
 configs, and documentation. The name "LangChain" is a trademark and should not be used
 in the plugin/service identity (Python library dependencies `langchain`, `langchain-ollama`
 remain unchanged — those are actual PyPI package names).
 
 **What changed:**
+
 - Plugin ID: `langchain-before-llm` → `tokenranger`
 - Package name: `@openclaw/langchain-before-llm` → `@openclaw/tokenranger`
 - Config type: `LangChainBeforeLlmConfig` → `TokenRangerConfig`
@@ -27,7 +29,9 @@ remain unchanged — those are actual PyPI package names).
 - CLI command: `openclaw langchain-before-llm` → `openclaw tokenranger`
 
 ### `/tokenranger` Slash Command
+
 New interactive slash command replacing `/compress-status`:
+
 - `/tokenranger` — Main menu with Mode, Model, Enable buttons
 - `/tokenranger mode` — Inference mode selection (CPU / GPU / Remote / Auto)
 - `/tokenranger mode <value>` — Set inference mode
@@ -36,13 +40,16 @@ New interactive slash command replacing `/compress-status`:
 - `/tokenranger toggle` — Enable/disable the plugin
 
 ### Inference Mode + Model Override
+
 New `inferenceMode` config field (`auto` | `cpu` | `gpu` | `remote`):
+
 - `auto` → no override; inference router probes and decides
 - `cpu` → forces `light` strategy
 - `gpu` → forces `full` strategy
 - `remote` → forces `full` strategy (remote GPU via LAN)
 
 Model and strategy overrides are passed through the entire stack:
+
 - TypeScript: `CompressRequest.modelOverride` / `strategyOverride`
 - Python: `CompressRequest.model_override` / `strategy_override`
 - Compressor: `dataclasses.replace(profile, ...)` applies overrides before compression
@@ -52,10 +59,12 @@ Model and strategy overrides are passed through the entire stack:
 ## [2026-02-26] r430a Remote GPU Offload — pvet630 Ollama
 
 ### Change
+
 Reconfigured r430a's TokenRanger service to offload all Ollama inference
 to pvet630's GPUs over the LAN, instead of running CPU inference locally.
 
 ### Architecture
+
 ```
 r430a (192.168.1.240)                    pvet630 (192.168.1.242)
 ┌──────────────────────┐                 ┌──────────────────────────┐
@@ -69,6 +78,7 @@ r430a (192.168.1.240)                    pvet630 (192.168.1.242)
 ```
 
 ### Configuration Changes
+
 - `TOKENRANGER_OLLAMA_BASE_URL`: `http://localhost:11434` → `http://192.168.1.242:11434`
 - `TOKENRANGER_OLLAMA_TIMEOUT`: `3.0` → `10.0` (network headroom)
 - `TOKENRANGER_GPU_COMPRESSION_MODEL`: `mistral:7b-instruct`
@@ -78,23 +88,23 @@ r430a (192.168.1.240)                    pvet630 (192.168.1.242)
 
 ### Benchmark — Remote GPU vs Local CPU
 
-| Metric | CPU (local) | GPU (remote) | Improvement |
-|--------|------------|-------------|-------------|
-| Avg latency/turn | 103s | 1.5s | **67x faster** |
-| Strategy | light (phi3.5:3.8B) | full (mistral:7b) | Better model |
-| Reduction (short) | 23.1% | 28.3% | +5pp |
-| RAM on r430a | 8.4GB used | 4.9GB used | -3.5GB freed |
-| Network overhead | 0ms | 0.6ms | Negligible |
+| Metric            | CPU (local)         | GPU (remote)      | Improvement    |
+| ----------------- | ------------------- | ----------------- | -------------- |
+| Avg latency/turn  | 103s                | 1.5s              | **67x faster** |
+| Strategy          | light (phi3.5:3.8B) | full (mistral:7b) | Better model   |
+| Reduction (short) | 23.1%               | 28.3%             | +5pp           |
+| RAM on r430a      | 8.4GB used          | 4.9GB used        | -3.5GB freed   |
+| Network overhead  | 0ms                 | 0.6ms             | Negligible     |
 
 ### 5-Turn Benchmark Results (Remote GPU)
 
 | Turn | Input (chars) | Output (chars) | Reduction | Latency |
-|------|--------------|----------------|-----------|---------|
-| 1    | 237          | 341            | -43.9%    | 699ms   |
-| 2    | 691          | 710            | -2.7%     | 1,268ms |
-| 3    | 1,214        | 654            | 46.1%     | 1,267ms |
-| 4    | 1,389        | 826            | 40.5%     | 2,659ms |
-| 5    | 1,264        | 905            | 28.4%     | 1,838ms |
+| ---- | ------------- | -------------- | --------- | ------- |
+| 1    | 237           | 341            | -43.9%    | 699ms   |
+| 2    | 691           | 710            | -2.7%     | 1,268ms |
+| 3    | 1,214         | 654            | 46.1%     | 1,267ms |
+| 4    | 1,389         | 826            | 40.5%     | 2,659ms |
+| 5    | 1,264         | 905            | 28.4%     | 1,838ms |
 
 **Total**: 4,795 → 3,436 chars (28.3% reduction), 7.7s total, 1.5s avg/turn
 
@@ -102,6 +112,7 @@ Note: Short test conversations show lower reduction. Real Discord conversations
 (2000+ tokens) achieve 85%+ reduction with the full strategy.
 
 ### Why This Works
+
 1. pvet630 Ollama already binds to `0.0.0.0:11434` (was pre-configured)
 2. LAN latency is 0.6ms — negligible vs inference time
 3. Inference router's GPU detection works via remote `/api/ps` VRAM check
@@ -113,6 +124,7 @@ Note: Short test conversations show lower reduction. Real Discord conversations
 ## [2026-02-26] Deployment to r430a (192.168.1.240) — CPU-Only
 
 ### Target Environment
+
 - **Host**: r430a (192.168.1.240), Ubuntu 22.04, x86_64
 - **Hardware**: CPU-only (no NVIDIA GPU / nvidia-smi unavailable)
 - **OpenClaw**: 2026.2.23 with Discord channel, Kimi coding model
@@ -120,6 +132,7 @@ Note: Short test conversations show lower reduction. Real Discord conversations
 - **Python**: 3.10.12
 
 ### Deployment Steps
+
 1. Packaged extension on pvet630 as tarball (excluding node_modules)
 2. Transferred via relay to r430a
 3. Extracted to `~/.openclaw/extensions/tokenranger/`
@@ -131,6 +144,7 @@ Note: Short test conversations show lower reduction. Real Discord conversations
 9. Restarted gateway — plugin loaded, health check passed
 
 ### CPU Model Config Adjustments
+
 - `cpu_compression_model`: `phi3.5:latest` (was `phi3.5:3b` which doesn't exist)
 - `timeoutMs`: `120000` (up from 10000 — CPU inference is 90-170s/turn)
 - `minPromptLength`: `300` (down from 500 — CPU compression is less aggressive)
@@ -138,28 +152,31 @@ Note: Short test conversations show lower reduction. Real Discord conversations
 ### E2E Benchmark — CPU-Only (phi3.5:latest, light strategy)
 
 | Turn | Input (tokens) | Output (tokens) | Reduction | Latency |
-|------|---------------|-----------------|-----------|---------|
-| 1    | 224           | 324             | -44.5%    | 170s    |
-| 2    | 459           | 201             | 56.1%     | 139s    |
-| 3    | (timeout)     | —               | —         | >180s   |
+| ---- | -------------- | --------------- | --------- | ------- |
+| 1    | 224            | 324             | -44.5%    | 170s    |
+| 2    | 459            | 201             | 56.1%     | 139s    |
+| 3    | (timeout)      | —               | —         | >180s   |
 
 **Cumulative**: 683 → 525 tokens (23.1% reduction), 310s total, 103s avg/turn
 
 ### Key Observations — CPU vs GPU
-| Metric | pvet630 (GPU) | r430a (CPU) |
-|--------|--------------|-------------|
-| Strategy | full (mistral:7b) | light (phi3.5:3.8B) |
-| Avg latency | 1.6s | 103s |
-| Reduction | 84.9% | 23.1% |
-| Turn 1 behavior | 49.8% reduction | -44.5% (expansion) |
+
+| Metric          | pvet630 (GPU)     | r430a (CPU)         |
+| --------------- | ----------------- | ------------------- |
+| Strategy        | full (mistral:7b) | light (phi3.5:3.8B) |
+| Avg latency     | 1.6s              | 103s                |
+| Reduction       | 84.9%             | 23.1%               |
+| Turn 1 behavior | 49.8% reduction   | -44.5% (expansion)  |
 
 ### Known Issues on CPU
+
 1. **Latency**: 90-170s per turn makes real-time compression impractical
 2. **Expansion on short input**: Turn 1 produced MORE output than input (light strategy
    with phi3.5 generates verbose extractive bullets instead of condensing)
 3. **Timeout risk**: 120s timeout still insufficient for some turns
 
 ### Possible Improvements
+
 - Use a smaller model (tinyllama, gemma:2b) for faster CPU inference
 - Add output length cap to light compression prompt (e.g., "Max 5 bullets")
 - Consider offloading compression to pvet630's GPUs via network call
@@ -171,6 +188,7 @@ Note: Short test conversations show lower reduction. Real Discord conversations
 ## [2026-02-26] Code Review Fixes — Cross-Platform & Async Safety
 
 ### Problems Identified
+
 A full code review and cross-platform compatibility audit identified 6 critical issues
 across the TypeScript plugin and Python service. Windows support was entirely broken,
 and several async safety and security issues were present.
@@ -213,11 +231,13 @@ and several async safety and security issues were present.
      `execSync("launchctl ...")` with `spawnSync("launchctl", [...])`.
 
 ### Additional Cross-Platform Improvements
+
 - `venvBin()` helper resolves `venv/bin/pip` vs `venv\Scripts\pip.exe` per platform
 - `checkCommand()` uses `where` on Windows, `which` on Unix
 - Windows now detected (returns `serviceManager: "none"` with manual-start instructions)
 
 ### Known Windows Gaps (Not Yet Addressed)
+
 - `python3` command doesn't exist on Windows (need to try `python` fallback)
 - No Windows service manager support (nssm, Task Scheduler)
 - `package.json` clean script uses `rm -rf` (not cross-platform)
@@ -227,12 +247,12 @@ and several async safety and security issues were present.
 5-turn Discord bot setup conversation, GPU-full strategy, mistral:7b-instruct:
 
 | Turn | Input (tokens) | Output (tokens) | Saved | Reduction | Latency |
-|------|---------------|-----------------|-------|-----------|---------|
-| 1    | 241           | 121             | 120   | 49.8%     | 916ms   |
-| 2    | 732           | 125             | 607   | 82.9%     | 1,086ms |
-| 3    | 1,180         | 150             | 1,030 | 87.3%     | 1,375ms |
-| 4    | 1,685         | 212             | 1,473 | 87.4%     | 1,960ms |
-| 5    | 2,028         | 277             | 1,751 | 86.3%     | 2,420ms |
+| ---- | -------------- | --------------- | ----- | --------- | ------- |
+| 1    | 241            | 121             | 120   | 49.8%     | 916ms   |
+| 2    | 732            | 125             | 607   | 82.9%     | 1,086ms |
+| 3    | 1,180          | 150             | 1,030 | 87.3%     | 1,375ms |
+| 4    | 1,685          | 212             | 1,473 | 87.4%     | 1,960ms |
+| 5    | 2,028          | 277             | 1,751 | 86.3%     | 2,420ms |
 
 **Cumulative**: 5,866 → 885 tokens (**84.9% reduction**), 7.8s total Ollama time (1.6s avg/turn)
 
@@ -243,18 +263,22 @@ and several async safety and security issues were present.
 ## [2026-02-26] Content Extraction Bug Fix & Inferencing Optimization
 
 ### Problem: Compression Never Fired on Real Discord Messages
+
 After deploying the plugin and observing 24+ hook fires, compression was never triggered.
 Gateway logs showed `historyLen=0` on every `before_agent_start` invocation.
 
 ### Root Cause
+
 OpenClaw messages use array content blocks `[{type:"text", text:"..."}]`, not plain strings.
 The plugin's content extraction only handled strings:
+
 ```typescript
 // BROKEN: treated array content as empty string
 const content = typeof m.content === "string" ? m.content : "";
 ```
 
 ### Fix — `index.ts`
+
 ```typescript
 let content = "";
 if (typeof m.content === "string") {
@@ -270,26 +294,31 @@ if (typeof m.content === "string") {
 ### Additional Fixes in Same Deployment
 
 **Empty-input hallucination guard** — `compressor.py` + `main.py`
+
 - Problem: Empty `session_history` sent to Ollama caused it to hallucinate 1,079 chars
   from nothing (reported as `-107,900%` reduction).
 - Fix: `total_input < 50` guard returns passthrough in both the endpoint and compressor.
 
 **GPU probe optimization** — `inference_router.py`
+
 - Problem: `_infer_compute_from_generate()` sent `POST /api/generate` with `prompt: "hi"`
   every 5 minutes when no model was loaded, causing unnecessary inference.
 - Fix: Try `nvidia-smi` first for instant GPU detection. Fallback uses `raw: True, prompt: ""`
   (loads model without generating tokens).
 
 **Debug logging** — `index.ts`
+
 - Added detailed `api.logger.debug()` on every `before_agent_start` invocation showing
   message count, history length, min threshold, and prompt preview.
 
 ### Verification
+
 - Live Discord conversation: 25,146 chars → 578 chars (**97.7% reduction**)
 - 18/18 e2e tests passing
 - Token comparison benchmark: 85.0% Ollama savings, 85.9% Gemini savings
 
 ### Commit
+
 `0b953d6` — "fix: resolve content extraction bug and reduce excessive Ollama inferencing"
 
 ---
@@ -297,11 +326,13 @@ if (typeof m.content === "string") {
 ## [2026-02-25] Initial Extension Scaffolding & Deployment
 
 ### What Was Built
+
 Restructured the TokenRanger system from a standalone prototype into a proper
 OpenClaw bundled extension following the plugin SDK patterns (modeled after `memory-lancedb`
 and `voice-call` extensions).
 
 ### Architecture
+
 - **TypeScript plugin** (`index.ts`, `src/*.ts`): Hooks into `before_agent_start` and
   `gateway_start`, registers CLI commands and `/tokenranger` slash command
 - **Python FastAPI service** (`service/*.py`): LangChain LCEL chains with Ollama,
@@ -311,6 +342,7 @@ and `voice-call` extensions).
   install, model pull, and service registration
 
 ### Plugin Workflow
+
 ```
 openclaw plugins enable tokenranger
 → openclaw tokenranger setup
@@ -319,6 +351,7 @@ openclaw plugins enable tokenranger
 ```
 
 ### Key Design Decisions
+
 - `before_agent_start` hook returns `{ prependContext }` (same pattern as `memory-lancedb`)
 - Graceful degradation at two layers: Python returns passthrough if Ollama down;
   TypeScript catches ECONNREFUSED and returns `undefined`
@@ -327,10 +360,12 @@ openclaw plugins enable tokenranger
   `passthrough` (no Ollama)
 
 ### Deployment Target
+
 pvet630 (192.168.1.242): 3x NVIDIA GPUs (RTX 3090 24GB + 2x RTX 3060 12GB),
 Ubuntu, systemd user unit, Ollama with mistral:7b-instruct loaded in VRAM.
 
 ### Initial Benchmark
+
 18/18 e2e tests passing. Token comparison: 84.6% savings (Ollama), 85.3% savings (Gemini).
 
 ---
@@ -338,6 +373,7 @@ Ubuntu, systemd user unit, Ollama with mistral:7b-instruct loaded in VRAM.
 ## [2026-02-26] VoC Paper Comparison Analysis
 
 ### Context
+
 Compared the TokenRanger implementation against the academic paper
 "Value of Computation as an Executive Layer for Memory-Centric Agent Runtimes"
 (32-page research paper on VoC-based agent architecture).
@@ -369,5 +405,6 @@ Compared the TokenRanger implementation against the academic paper
 9. **Novelty/epistemic value**: Paper factors in information gain from uncertainty reduction.
 
 ### Our Advantage
+
 The TokenRanger system is deployed and working in production with measured 85% token
 savings. The VoC paper is entirely theoretical with no implementation or benchmarks.
