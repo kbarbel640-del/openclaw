@@ -164,7 +164,7 @@ describe("server-channels auto restart", () => {
     expect(infoSpy).toHaveBeenCalledWith(
       expect.stringContaining("gateway.startAccount is not implemented"),
     );
-    expect(manager.getRuntimeSnapshot().channelAccounts.discord).toBeUndefined();
+    expect(manager.getRuntimeSnapshot().channelAccounts.discord?.default?.running).toBeFalsy();
   });
 
   it("marks enabled/configured when account descriptors omit them", () => {
