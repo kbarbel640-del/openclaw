@@ -2824,6 +2824,7 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
     public let turnsourcethreadid: AnyCodable?
     public let timeoutms: Int?
     public let twophase: Bool?
+    public let devicefamily: AnyCodable?
 
     public init(
         id: String?,
@@ -2842,7 +2843,8 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         turnsourceaccountid: AnyCodable?,
         turnsourcethreadid: AnyCodable?,
         timeoutms: Int?,
-        twophase: Bool?)
+        twophase: Bool?,
+        devicefamily: AnyCodable?)
     {
         self.id = id
         self.command = command
@@ -2861,6 +2863,7 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         self.turnsourcethreadid = turnsourcethreadid
         self.timeoutms = timeoutms
         self.twophase = twophase
+        self.devicefamily = devicefamily
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -2881,6 +2884,7 @@ public struct ExecApprovalRequestParams: Codable, Sendable {
         case turnsourcethreadid = "turnSourceThreadId"
         case timeoutms = "timeoutMs"
         case twophase = "twoPhase"
+        case devicefamily = "deviceFamily"
     }
 }
 
