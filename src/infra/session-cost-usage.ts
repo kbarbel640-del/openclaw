@@ -287,6 +287,15 @@ async function scanUsageFile(params: {
   });
 }
 
+function isUsageTranscriptFileName(fileName: string): boolean {
+  if (fileName.endsWith(".jsonl")) {
+    return true;
+  }
+  // Session deletions archive transcripts as "<session>.jsonl.deleted.<timestamp>".
+  // Include them so usage/cost totals remain accurate after deleteAfterRun/session cleanup.
+  return fileName.includes(".jsonl.deleted.");
+}
+
 export async function loadCostUsageSummary(params?: {
   startMs?: number;
   endMs?: number;
@@ -318,7 +327,7 @@ export async function loadCostUsageSummary(params?: {
   const files = (
     await Promise.all(
       entries
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl"))
+        .filter((entry) => entry.isFile() && isUsageTranscriptFileName(entry.name))
         .map(async (entry) => {
           const filePath = path.join(sessionsDir, entry.name);
           const stats = await fs.promises.stat(filePath).catch(() => null);
