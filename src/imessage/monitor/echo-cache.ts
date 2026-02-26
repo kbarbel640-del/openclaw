@@ -10,6 +10,8 @@ export type SentMessageCache = {
 
 const SENT_MESSAGE_TEXT_TTL_MS = 5000;
 const SENT_MESSAGE_ID_TTL_MS = 60_000;
+/** Hard cap to prevent unbounded memory growth in long-running processes. */
+const MAX_CACHE_ENTRIES = 500;
 
 function normalizeEchoTextKey(text: string | undefined): string | null {
   if (!text) {
@@ -76,6 +78,25 @@ class DefaultSentMessageCache implements SentMessageCache {
       if (now - timestamp > SENT_MESSAGE_ID_TTL_MS) {
         this.messageIdCache.delete(key);
       }
+    }
+    // Hard cap: if caches exceed the limit after TTL cleanup, evict oldest entries
+    this.evictOldest(this.textCache, MAX_CACHE_ENTRIES);
+    this.evictOldest(this.messageIdCache, MAX_CACHE_ENTRIES);
+  }
+
+  private evictOldest(cache: Map<string, number>, max: number): void {
+    if (cache.size <= max) {
+      return;
+    }
+    // Map iteration order is insertion order; delete from the front
+    const excess = cache.size - max;
+    let removed = 0;
+    for (const key of cache.keys()) {
+      if (removed >= excess) {
+        break;
+      }
+      cache.delete(key);
+      removed++;
     }
   }
 }
