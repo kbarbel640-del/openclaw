@@ -88,15 +88,6 @@ describe("DiscordMessageListener", () => {
     };
   }
 
-  async function expectPending(promise: Promise<unknown>) {
-    let resolved = false;
-    void promise.then(() => {
-      resolved = true;
-    });
-    await Promise.resolve();
-    expect(resolved).toBe(false);
-  }
-
   it("returns immediately without awaiting handler (fire-and-forget)", async () => {
     let handlerResolved = false;
     const deferred = createDeferred();
