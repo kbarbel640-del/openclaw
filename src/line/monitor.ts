@@ -311,6 +311,20 @@ export async function monitorLineProvider(
 
   abortSignal?.addEventListener("abort", stopHandler);
 
+  // Block until the abort signal fires so the channel manager sees a
+  // long-running promise.  Without this the function returns immediately,
+  // which causes the manager to treat the channel as "exited" and trigger
+  // the auto-restart loop indefinitely.
+  if (abortSignal && !abortSignal.aborted) {
+    await new Promise<void>((resolve) => {
+      const onAbort = () => {
+        abortSignal.removeEventListener("abort", onAbort);
+        resolve();
+      };
+      abortSignal.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
   return {
     account: bot.account,
     handleWebhook: bot.handleWebhook,

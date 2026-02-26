@@ -43,6 +43,7 @@ export async function resolveDeliveryTarget(
     channel?: "last" | ChannelId;
     to?: string;
     sessionKey?: string;
+    accountId?: string;
   },
 ): Promise<DeliveryTargetResolution> {
   const requestedChannel = typeof jobPayload.channel === "string" ? jobPayload.channel : "last";
@@ -112,6 +113,13 @@ export async function resolveDeliveryTarget(
     if (boundAccounts && boundAccounts.length > 0) {
       accountId = boundAccounts[0];
     }
+  }
+
+  // An explicit delivery.accountId always wins over the session-derived or
+  // binding-derived value so that multi-account setups route through the
+  // correct bot token.
+  if (jobPayload.accountId) {
+    accountId = jobPayload.accountId;
   }
 
   // Carry threadId when it was explicitly set (from :topic: parsing or config)

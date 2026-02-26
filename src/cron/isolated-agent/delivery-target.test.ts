@@ -299,4 +299,45 @@ describe("resolveDeliveryTarget", () => {
     expect(result.to).toBe("987654");
     expect(result.ok).toBe(true);
   });
+
+  it("explicit delivery.accountId overrides session-derived accountId", async () => {
+    setMainSessionEntry({
+      sessionId: "sess-ma",
+      updatedAt: 1000,
+      lastChannel: "telegram",
+      lastTo: "chat-999",
+      lastAccountId: "default",
+    });
+
+    const result = await resolveDeliveryTarget(makeCfg({ bindings: [] }), AGENT_ID, {
+      channel: "telegram",
+      to: "chat-999",
+      accountId: "buma",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.accountId).toBe("buma");
+  });
+
+  it("explicit delivery.accountId overrides bindings-derived accountId", async () => {
+    setMainSessionEntry(undefined);
+
+    const cfgWithBindings = makeCfg({
+      bindings: [
+        {
+          agentId: AGENT_ID,
+          match: { channel: "telegram", accountId: "bound-account" },
+        },
+      ],
+    });
+
+    const result = await resolveDeliveryTarget(cfgWithBindings, AGENT_ID, {
+      channel: "telegram",
+      to: "chat-888",
+      accountId: "explicit-account",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.accountId).toBe("explicit-account");
+  });
 });
