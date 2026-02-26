@@ -25,7 +25,7 @@ describe("status-reaction-lifecycle", () => {
     expect(emojis).not.toContain("👀");
   });
 
-  it("allows waiting -> terminal transition when active reaction fails", async () => {
+  it("keeps waiting when active interruption fails", async () => {
     let activeFailed = false;
     const setReaction = vi.fn(async (emoji: string) => {
       if (emoji === "🤔" && !activeFailed) {
@@ -47,11 +47,11 @@ describe("status-reaction-lifecycle", () => {
     await lifecycle.complete(true);
 
     const emojis = setReaction.mock.calls.map((call) => call[0]);
-    expect(emojis).toEqual(["👀", "🤔", "✅"]);
+    expect(emojis).toEqual(["👀", "🤔"]);
     expect(onError).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps queue order visible: backlog message can finish without showing fresh waiting", async () => {
+  it("keeps waiting until an active interruption is requested", async () => {
     const setReaction = vi.fn(async (_emoji: string) => {});
     const lifecycle = createDiscordStatusReactionLifecycle({
       enabled: true,
@@ -63,7 +63,7 @@ describe("status-reaction-lifecycle", () => {
     await lifecycle.enterWaiting(true);
     await lifecycle.complete(true);
 
-    expect(setReaction.mock.calls.map((call) => call[0])).toEqual(["⏳", "✅"]);
+    expect(setReaction.mock.calls.map((call) => call[0])).toEqual(["⏳"]);
   });
 
   it("records failed transition when active update fails", async () => {
@@ -92,12 +92,17 @@ describe("status-reaction-lifecycle", () => {
   });
 });
 
-it("reaches terminal state even when initial waiting reaction is still in flight", async () => {
-  // This test verifies the fix for: if Discord is slow to apply the first
-  // waiting reaction, complete() can be called while state is still idle,
-  // and the lifecycle must still queue the terminal state.
+it("queues terminal transition behind an active interruption", async () => {
   __testing.resetTraceEntriesForTests();
-  const setReaction = vi.fn(async () => {});
+  const releaseActiveRef: { current?: () => void } = {};
+  const setReaction = vi.fn((emoji: string) => {
+    if (emoji === "🤔") {
+      return new Promise<void>((resolve) => {
+        releaseActiveRef.current = resolve;
+      });
+    }
+    return Promise.resolve();
+  });
   const lifecycle = createDiscordStatusReactionLifecycle({
     enabled: true,
     messageId: "m5",
@@ -105,15 +110,18 @@ it("reaches terminal state even when initial waiting reaction is still in flight
     projection: resolveDiscordStatusReactionProjection(undefined, "👀"),
   });
 
-  // Complete immediately without ever entering waiting/active
-  // This simulates a very short run where the message finishes
-  // before any reaction update settles.
-  await lifecycle.complete(true);
+  await lifecycle.enterWaiting(false);
+  const activePromise = lifecycle.enterActive();
+  await Promise.resolve();
+  expect(setReaction.mock.calls.map((call) => call[0])).toEqual(["👀", "🤔"]);
 
-  // The terminal state should have been queued and applied
-  const trace = __testing.getTraceEntriesForTests().filter((e) => e.messageId === "m5");
-  const queuedDone = trace.find((e) => e.state === "done" && e.stage === "queued");
-  const appliedDone = trace.find((e) => e.state === "done" && e.stage === "applied");
-  expect(queuedDone).toBeDefined();
-  expect(appliedDone).toBeDefined();
+  const completePromise = lifecycle.complete(true);
+  await Promise.resolve();
+  expect(setReaction.mock.calls.map((call) => call[0])).toEqual(["👀", "🤔"]);
+
+  releaseActiveRef.current?.();
+  await activePromise;
+  await completePromise;
+
+  expect(setReaction.mock.calls.map((call) => call[0])).toEqual(["👀", "🤔", "✅"]);
 });

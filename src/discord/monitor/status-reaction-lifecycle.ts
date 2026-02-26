@@ -81,18 +81,16 @@ function canTransition(
   to: DiscordStatusLifecycleState,
 ): boolean {
   if (from === "idle") {
-    // Allow terminal transitions even if the initial waiting reaction is still in flight.
-    return isWaitingState(to) || to === "active" || to === "done" || to === "error";
-  }
-  if (to === "cleared") {
-    return from !== "cleared";
+    return isWaitingState(to) || to === "active";
   }
   if (isWaitingState(from)) {
-    // Allow terminal fallback even if active reaction fails.
-    return to === "active" || to === "done" || to === "error";
+    return to === "active";
   }
   if (from === "active") {
     return to === "done" || to === "error";
+  }
+  if (from === "done" || from === "error") {
+    return to === "cleared";
   }
   return false;
 }
@@ -178,7 +176,8 @@ export function createDiscordStatusReactionLifecycle(params: {
       });
       return chain;
     }
-    if (!canTransition(state, nextState)) {
+    const transitionSource = lastRequestedState ?? state;
+    if (!canTransition(transitionSource, nextState)) {
       trackTransition({
         messageId,
         state: nextState,
