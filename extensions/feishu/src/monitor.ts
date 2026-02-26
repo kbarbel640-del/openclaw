@@ -425,19 +425,17 @@ export async function monitorFeishuProvider(opts: MonitorFeishuOpts = {}): Promi
     `feishu: starting ${accounts.length} account(s): ${accounts.map((a) => a.accountId).join(", ")}`,
   );
 
-  // Start accounts with deterministic stagger to avoid bot-info probe bursts.
-  for (let i = 0; i < accounts.length; i++) {
-    const account = accounts[i];
-    if (i > 0) {
-      await sleep(FEISHU_STARTUP_ACCOUNT_STAGGER_MS);
-    }
-    await monitorSingleAccount({
-      cfg,
-      account,
-      runtime: opts.runtime,
-      abortSignal: opts.abortSignal,
-    });
-  }
+  // Start accounts in parallel; acquireStartupSlot enforces deterministic stagger.
+  await Promise.all(
+    accounts.map((account) =>
+      monitorSingleAccount({
+        cfg,
+        account,
+        runtime: opts.runtime,
+        abortSignal: opts.abortSignal,
+      }),
+    ),
+  );
 }
 
 /**
