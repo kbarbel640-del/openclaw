@@ -153,8 +153,7 @@ Docker installs and the containerized gateway live here:
 
 **Available runtimes:** Check available runtimes with `docker info | grep Runtimes`. Common options:
 
-- `io.containerd.runc.v2` (containerd)
-- `runc` (default, usually aliased as `io.containerd.runc.v2`)
+- `runc` / `io.containerd.runc.v2` (common defaults depending on your engine)
 - `sysbox-runc` (enhanced isolation)
 - `nvidia` (NVIDIA GPU support, legacy)
 
