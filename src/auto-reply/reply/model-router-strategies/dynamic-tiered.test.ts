@@ -1,3 +1,4 @@
+import path from "node:path";
 import { completeSimple } from "@mariozechner/pi-ai";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { getApiKeyForModel } from "../../../agents/model-auth.js";
@@ -741,7 +742,7 @@ Assistant [haiku]: It's 2:30 PM.`;
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockWriteFile).toHaveBeenCalledWith(
-        "/mock/workspace/ROUTER.md",
+        path.join("/mock/workspace", "ROUTER.md"),
         expect.stringContaining("{{HEURISTICS}}"),
         { encoding: "utf-8", flag: "wx" },
       );
@@ -765,7 +766,7 @@ Assistant [haiku]: It's 2:30 PM.`;
       await new Promise((r) => setTimeout(r, 10));
 
       expect(mockWriteFile).toHaveBeenCalledWith(
-        "/mock/workspace/ROUTER-HEURISTICS.md",
+        path.join("/mock/workspace", "ROUTER-HEURISTICS.md"),
         expect.stringContaining("FAST —"),
         { encoding: "utf-8", flag: "wx" },
       );
@@ -817,11 +818,13 @@ Assistant [haiku]: It's 2:30 PM.`;
       mockWriteFile.mockClear();
 
       // Default files exist on disk
+      const defaultPromptPath = path.join("/mock/workspace", "ROUTER.md");
+      const defaultHeuristicsPath = path.join("/mock/workspace", "ROUTER-HEURISTICS.md");
       mockReadFile.mockImplementation(async (filePath: unknown) => {
-        if (String(filePath) === "/mock/workspace/ROUTER.md") {
+        if (String(filePath) === defaultPromptPath) {
           return "Existing prompt\n{{HEURISTICS}}\n{{MESSAGE}}";
         }
-        if (String(filePath) === "/mock/workspace/ROUTER-HEURISTICS.md") {
+        if (String(filePath) === defaultHeuristicsPath) {
           return "FAST — Custom rules.";
         }
         throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
