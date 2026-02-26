@@ -13,6 +13,7 @@ import { loadChannels } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
   applyConfig,
+  discardConfigDraft,
   loadConfig,
   runUpdate,
   saveConfig,
@@ -521,6 +522,7 @@ export function renderApp(state: AppViewState) {
                 configForm: configValue,
                 configLoading: state.configLoading,
                 configSaving: state.configSaving,
+                configApplying: state.configApplying,
                 configDirty: state.configFormDirty,
                 channelsLoading: state.channelsLoading,
                 channelsError: state.channelsError,
@@ -694,8 +696,10 @@ export function renderApp(state: AppViewState) {
                     removeConfigFormValue(state, [...basePath, "deny"]);
                   }
                 },
-                onConfigReload: () => loadConfig(state),
+                onConfigReload: () => loadConfig(state, { preserveDirty: false }),
+                onConfigDiscard: () => discardConfigDraft(state),
                 onConfigSave: () => saveConfig(state),
+                onConfigApply: () => applyConfig(state),
                 onChannelsRefresh: () => loadChannels(state, false),
                 onCronRefresh: () => state.loadCron(),
                 onSkillsFilterChange: (next) => (state.skillsFilter = next),
@@ -922,7 +926,7 @@ export function renderApp(state: AppViewState) {
                 onDeviceRotate: (deviceId, role, scopes) =>
                   rotateDeviceToken(state, { deviceId, role, scopes }),
                 onDeviceRevoke: (deviceId, role) => revokeDeviceToken(state, { deviceId, role }),
-                onLoadConfig: () => loadConfig(state),
+                onLoadConfig: () => loadConfig(state, { preserveDirty: false }),
                 onLoadExecApprovals: () => {
                   const target =
                     state.execApprovalsTarget === "node" && state.execApprovalsTargetNodeId
@@ -1083,7 +1087,7 @@ export function renderApp(state: AppViewState) {
                   state.configActiveSubsection = null;
                 },
                 onSubsectionChange: (section) => (state.configActiveSubsection = section),
-                onReload: () => loadConfig(state),
+                onReload: () => loadConfig(state, { preserveDirty: false }),
                 onSave: () => saveConfig(state),
                 onApply: () => applyConfig(state),
                 onUpdate: () => runUpdate(state),

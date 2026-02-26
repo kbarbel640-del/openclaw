@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   applyConfigSnapshot,
   applyConfig,
+  discardConfigDraft,
   runUpdate,
   saveConfig,
   updateConfigFormValue,
@@ -98,6 +99,56 @@ describe("applyConfigSnapshot", () => {
     // Original values should be preserved when dirty
     expect(state.configRawOriginal).toBe('{ "original": true }');
     expect(state.configFormOriginal).toEqual({ original: true });
+  });
+
+  it("replaces dirty form state when preserveDirty is disabled", () => {
+    const state = createState();
+    state.configFormMode = "form";
+    state.configFormDirty = true;
+    state.configForm = { agents: { defaults: { model: { primary: "kimi-coding/k2p5" } } } };
+    state.configRaw =
+      '{ "agents": { "defaults": { "model": { "primary": "kimi-coding/k2p5" } } } }';
+
+    applyConfigSnapshot(
+      state,
+      {
+        config: { agents: { defaults: { model: { primary: "google/gemini-3-pro-preview" } } } },
+        valid: true,
+        issues: [],
+        raw: '{ "agents": { "defaults": { "model": { "primary": "google/gemini-3-pro-preview" } } } }',
+      },
+      { preserveDirty: false },
+    );
+
+    expect(state.configFormDirty).toBe(false);
+    expect(state.configForm).toEqual({
+      agents: { defaults: { model: { primary: "google/gemini-3-pro-preview" } } },
+    });
+    expect(state.configRawOriginal).toBe(
+      '{ "agents": { "defaults": { "model": { "primary": "google/gemini-3-pro-preview" } } } }',
+    );
+  });
+});
+
+describe("discardConfigDraft", () => {
+  it("restores latest snapshot and clears dirty form state", () => {
+    const state = createState();
+    state.configSnapshot = {
+      config: { agents: { defaults: { model: { primary: "google/gemini-3-pro-preview" } } } },
+      valid: true,
+      issues: [],
+      raw: '{ "agents": { "defaults": { "model": { "primary": "google/gemini-3-pro-preview" } } } }',
+    };
+    state.configFormMode = "form";
+    state.configFormDirty = true;
+    state.configForm = { agents: { defaults: { model: { primary: "kimi-coding/k2p5" } } } };
+
+    discardConfigDraft(state);
+
+    expect(state.configFormDirty).toBe(false);
+    expect(state.configForm).toEqual({
+      agents: { defaults: { model: { primary: "google/gemini-3-pro-preview" } } },
+    });
   });
 });
 
