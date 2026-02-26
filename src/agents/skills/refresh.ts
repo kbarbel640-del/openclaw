@@ -204,4 +204,8 @@ export function ensureSkillsWatcher(params: { workspaceDir: string; config?: Ope
   });
 
   watchers.set(workspaceDir, state);
+  // Invalidate persisted per-session skill snapshots when a watcher is first created (or
+  // replaced after process restart/config change). Without this, long-lived sessions can keep a
+  // stale snapshot until an actual filesystem event occurs.
+  bumpSkillsSnapshotVersion({ workspaceDir, reason: "manual" });
 }
