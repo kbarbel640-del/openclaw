@@ -48,6 +48,8 @@ import {
   pickFallbackThinkingLevel,
   type FailoverReason,
 } from "../pi-embedded-helpers.js";
+import { isCorruptedThoughtSignatureError } from "../pi-embedded-helpers/errors.js";
+import { dropThinkingBlocksFromSession } from "../pi-embedded-runner/thinking.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../usage.js";
 import { redactRunIdentifier, resolveRunWorkspaceDir } from "../workspace-run.js";
 import { compactEmbeddedPiSessionDirect } from "./compact.js";
@@ -926,9 +928,47 @@ export async function runEmbeddedPiAgent(
               thinkLevel = fallbackThinking;
               continue;
             }
+            const isSignatureError = isCorruptedThoughtSignatureError(errorText);
+
+            // OPTIMIZATION: In-place repair for Gemini signature errors
+            // If we hit a signature error, we try to strip thinking blocks from the session
+            // and retry with the SAME model once before failing over.
+            if (isSignatureError && !attempt.retryRepaired) {
+              log.info(
+                `[session-repair] Detected corrupted thought signature for ${provider}/${modelId}. Attempting in-place cleanup...`,
+              );
+              const dropResult = await dropThinkingBlocksFromSession({
+                sessionFile: params.sessionFile,
+              });
+              if (dropResult.droppedCount > 0) {
+                log.info(
+                  `[session-repair] Dropped ${dropResult.droppedCount} thinking blocks. Retrying prompt.`,
+                );
+                attempt.retryRepaired = true;
+                continue;
+              } else {
+                log.warn(
+                  `[session-repair] No thinking blocks found to drop for ${provider}/${modelId}. Proceeding to failover.`,
+                );
+              }
+            }
+
             // FIX: Throw FailoverError for prompt errors when fallbacks configured
             // This enables model fallback for quota/rate limit errors during prompt submission
-            if (fallbackConfigured && isFailoverErrorMessage(errorText)) {
+            // AND general provider errors like "Corrupted thought signature" (400)
+            if (
+              fallbackConfigured &&
+              (isFailoverErrorMessage(errorText) ||
+                isSignatureError ||
+                /400|provider returned error/i.test(errorText))
+            ) {
+              log.error(
+                `[run-prompt-error-failover] sessionKey=${params.sessionKey ?? params.sessionId} ` +
+                  `provider=${provider}/${modelId} ` +
+                  `failoverReason="${promptFailoverReason ?? "unknown"}" ` +
+                  `errorText="${errorText}" ` +
+                  `rawPromptError="${promptError instanceof Error ? promptError.message : typeof promptError === "string" ? promptError : JSON.stringify(promptError)}"`,
+              );
               throw new FailoverError(errorText, {
                 reason: promptFailoverReason ?? "unknown",
                 provider,
@@ -937,7 +977,29 @@ export async function runEmbeddedPiAgent(
                 status: resolveFailoverStatus(promptFailoverReason ?? "unknown"),
               });
             }
-            throw promptError;
+            // If not falling back, and we have no other way to inform the user,
+            // we will return an error payload in the final check below (line 1116 area)
+            // but we must not throw here if we want to reach that check.
+            // However, runEmbeddedAttempt already failed. We should return an error result.
+            return {
+              payloads: [
+                {
+                  text: `⚠️ Model request failed: ${errorText}. Please try again or use /new to reset.`,
+                  isError: true,
+                },
+              ],
+              meta: {
+                durationMs: Date.now() - started,
+                agentMeta: {
+                  sessionId: sessionIdUsed,
+                  provider,
+                  model: model.id,
+                  promptTokens: derivePromptTokens(lastRunPromptUsage),
+                },
+                systemPromptReport: attempt.systemPromptReport,
+                error: { kind: "prompt_error", message: errorText },
+              },
+            };
           }
 
           const fallbackThinking = pickFallbackThinkingLevel({
@@ -1039,6 +1101,15 @@ export async function runEmbeddedPiAgent(
               const status =
                 resolveFailoverStatus(assistantFailoverReason ?? "unknown") ??
                 (isTimeoutErrorMessage(message) ? 408 : undefined);
+
+              log.error(
+                `[run-failover] sessionKey=${params.sessionKey ?? params.sessionId} ` +
+                  `provider=${activeErrorContext.provider}/${activeErrorContext.model} ` +
+                  `rawError="${lastAssistant?.errorMessage ?? (timedOut ? "timeout" : "unknown")}" ` +
+                  `failoverReason="${assistantFailoverReason ?? "unknown"}" ` +
+                  `formattedMessage="${message}"`,
+              );
+
               throw new FailoverError(message, {
                 reason: assistantFailoverReason ?? "unknown",
                 provider: activeErrorContext.provider,
@@ -1087,16 +1158,17 @@ export async function runEmbeddedPiAgent(
             didSendViaMessagingTool: attempt.didSendViaMessagingTool,
           });
 
-          // Timeout aborts can leave the run without any assistant payloads.
-          // Emit an explicit timeout error instead of silently completing, so
+          // Timeout or aborts can leave the run without any assistant payloads.
+          // Emit an explicit error instead of silently completing, so
           // callers do not lose the turn as an orphaned user message.
-          if (timedOut && !timedOutDuringCompaction && payloads.length === 0) {
+          if ((timedOut || aborted) && !timedOutDuringCompaction && payloads.length === 0) {
+            const fallbackMsg = timedOut
+              ? "⏳ Request timed out before a response was generated. Please try again, or increase `agents.defaults.timeoutSeconds` in your config."
+              : "⚠️ Agent run was aborted before a response was generated.";
             return {
               payloads: [
                 {
-                  text:
-                    "Request timed out before a response was generated. " +
-                    "Please try again, or increase `agents.defaults.timeoutSeconds` in your config.",
+                  text: fallbackMsg,
                   isError: true,
                 },
               ],

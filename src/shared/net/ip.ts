@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
+
+// @ts-ignore
 import ipaddr from "ipaddr.js";
 
 export type ParsedIpAddress = ipaddr.IPv4 | ipaddr.IPv6;

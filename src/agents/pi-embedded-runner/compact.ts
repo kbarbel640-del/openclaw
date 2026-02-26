@@ -538,6 +538,12 @@ export async function compactEmbeddedPiSessionDirect(
       });
       trackSessionManagerAccess(params.sessionFile);
       const settingsManager = SettingsManager.create(effectiveWorkspace, agentDir);
+      settingsManager.applyOverrides({
+        retry: {
+          enabled: false,
+          maxRetries: 0,
+        },
+      });
       applyPiCompactionSettingsFromConfig({
         settingsManager,
         cfg: params.config,

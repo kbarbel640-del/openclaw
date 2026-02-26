@@ -627,6 +627,16 @@ export async function runEmbeddedAttempt(
       });
 
       const settingsManager = SettingsManager.create(effectiveWorkspace, agentDir);
+      // Disable the underlying AI agent's internal retry mechanism.
+      // E.g., OpenRouter returns immediate 401 when out of credits, but
+      // the internal pi-agent-core retry attempts would hide the 401 error
+      // and eventually result in a long timeout.
+      settingsManager.applyOverrides({
+        retry: {
+          enabled: false,
+          maxRetries: 0,
+        },
+      });
       applyPiCompactionSettingsFromConfig({
         settingsManager,
         cfg: params.config,

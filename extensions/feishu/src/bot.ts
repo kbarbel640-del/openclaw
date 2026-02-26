@@ -15,6 +15,7 @@ import { createFeishuClient } from "./client.js";
 import { tryRecordMessagePersistent } from "./dedup.js";
 import { maybeCreateDynamicAgent } from "./dynamic-agent.js";
 import { normalizeFeishuExternalKey } from "./external-keys.js";
+import { tryRecordMessage } from "./history.js";
 import { downloadMessageResourceFeishu } from "./media.js";
 import {
   escapeRegExp,
@@ -28,9 +29,15 @@ import {
   resolveFeishuAllowlistMatch,
   isFeishuGroupAllowed,
 } from "./policy.js";
+import { initReactionStateManager, getReactionStateManager } from "./reaction-state.js";
 import { createFeishuReplyDispatcher } from "./reply-dispatcher.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { getMessageFeishu, sendMessageFeishu } from "./send.js";
+import {
+  registerPendingMessage,
+  markProcessingStarted,
+  removePendingMessage,
+} from "./timeout-monitor.js";
 import type { FeishuMessageContext, FeishuMediaInfo, ResolvedFeishuAccount } from "./types.js";
 import type { DynamicAgentCreationConfig } from "./types.js";
 
@@ -524,6 +531,25 @@ export async function handleFeishuMessage(params: {
   const isGroup = ctx.chatType === "group";
   const senderUserId = event.sender.sender_id.user_id?.trim() || undefined;
 
+  // Initialize and use ReactionStateManager for multi-message emoji tracking
+  const reactionManager = initReactionStateManager({ cfg, log, error });
+  log(`[bot.ts] Reaction manager initialized for ${ctx.messageId}. Triggering onMessageQueued...`);
+
+  // Add QUEUED emoji immediately when message is received
+  try {
+    await reactionManager.onMessageQueued({
+      messageId: ctx.messageId,
+      chatId: ctx.chatId,
+      accountId: account.accountId,
+    });
+    log(`[bot.ts] onMessageQueued completed successfully for ${ctx.messageId}`);
+  } catch (err) {
+    log(`[bot.ts] Exception thrown during onMessageQueued for ${ctx.messageId}: ${String(err)}`);
+  }
+
+  // Track message in timeout monitor
+  registerPendingMessage(ctx.messageId, ctx.chatId, account.accountId);
+
   // Resolve sender display name (best-effort) so the agent can attribute messages correctly.
   const senderResult = await resolveFeishuSenderName({
     account,
@@ -640,6 +666,9 @@ export async function handleFeishuMessage(params: {
   }
 
   try {
+    // Timeout monitor: mark processing started
+    markProcessingStarted(ctx.messageId);
+
     const core = getFeishuRuntime();
     const shouldComputeCommandAuthorized = core.channel.commands.shouldComputeCommandAuthorized(
       ctx.content,
@@ -989,6 +1018,9 @@ export async function handleFeishuMessage(params: {
 
     markDispatchIdle();
 
+    // Remove from timeout monitor queue
+    removePendingMessage(ctx.messageId);
+
     if (isGroup && historyKey && chatHistories) {
       clearHistoryEntriesIfEnabled({
         historyMap: chatHistories,
@@ -1000,7 +1032,57 @@ export async function handleFeishuMessage(params: {
     log(
       `feishu[${account.accountId}]: dispatch complete (queuedFinal=${queuedFinal}, replies=${counts.final})`,
     );
+
+    // FR-001 Smart Fallback Cleanup:
+    // When replies=0, this message produced no reply. Two scenarios:
+    // 1. Another message is active (QUEUED or PROCESSING) in this chat → this was a
+    //    merged message. Trigger onProcessingStart to transition it from OK to Typing,
+    //    and its emoji will be cleaned up by clearForChat when the main reply arrives.
+    // 2. No active message exists → this message was truly discarded (e.g. debounce
+    //    timeout, filters, or all messages got replies=0). Clean up now.
+    // Note: we check hasActiveInChat (not hasProcessingInChat) because the main message
+    // may still be in QUEUED state when this merged message's dispatch returns.
+    if (counts.final === 0) {
+      const cutoffTimestamp = reactionManager.getState(ctx.messageId)?.createdAt ?? Date.now();
+      if (reactionManager.hasActiveInChat(ctx.chatId, cutoffTimestamp, ctx.messageId)) {
+        // Merged message: transition it from OK to Typing so user sees it's being processed
+        await reactionManager.onProcessingStart(ctx.messageId).catch(() => {});
+      } else {
+        // Truly discarded: clean up immediately and explicitly clear any remaining queue
+        // states to prevent zombie emojis when a whole batch is silently dropped
+        await reactionManager.onCompleted(ctx.messageId);
+        await reactionManager.clearForChat(ctx.chatId, cutoffTimestamp);
+      }
+    }
   } catch (err) {
     error(`feishu[${account.accountId}]: failed to dispatch message: ${String(err)}`);
+
+    // Ensure emoji is cleaned up on error - for this message AND any merged ones
+    // that might be waiting for it in PROCESSING/QUEUED state.
+    const cutoffTimestamp = reactionManager.getState(ctx.messageId)?.createdAt ?? Date.now();
+    await reactionManager.clearForChat(ctx.chatId, cutoffTimestamp);
+    removePendingMessage(ctx.messageId); // clean from queue
+
+    // Send fallback error message to user so they know what happened
+    try {
+      let errorMessage = "⚠️ 系统发生异常错误，处理失败。请稍候重试。";
+      if (err instanceof Error && err.message) {
+        errorMessage = `⚠️ 抱歉，处理您的请求时遇到问题：${err.message}`;
+      } else if (typeof err === "string" && err) {
+        errorMessage = `⚠️ 抱歉，处理您的请求时遇到问题：${err}`;
+      }
+
+      await sendMessageFeishu({
+        cfg,
+        to: ctx.chatId,
+        text: errorMessage,
+        replyToMessageId: ctx.messageId,
+        accountId: account.accountId,
+      });
+    } catch (sendErr) {
+      error(
+        `feishu[${account.accountId}]: failed to send fallback error message: ${String(sendErr)}`,
+      );
+    }
   }
 }

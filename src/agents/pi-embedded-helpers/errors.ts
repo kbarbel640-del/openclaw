@@ -640,6 +640,7 @@ const ERROR_PATTERNS = {
     /\bstop reason:\s*abort\b/i,
     /\breason:\s*abort\b/i,
     /\bunhandled stop reason:\s*abort\b/i,
+    "corrupted thought signature",
   ],
   billing: [
     /["']?(?:status|code)["']?\s*[:=]\s*402\b|\bhttp\s*402\b|\berror(?:\s+code)?\s*[:=]?\s*402\b|\b(?:got|returned|received)\s+(?:a\s+)?402\b|^\s*402\s+payment/i,
@@ -713,6 +714,17 @@ export function isRateLimitErrorMessage(raw: string): boolean {
 
 export function isTimeoutErrorMessage(raw: string): boolean {
   return matchesErrorPatterns(raw, ERROR_PATTERNS.timeout);
+}
+
+export function isCorruptedThoughtSignatureError(raw: string): boolean {
+  if (!raw) {
+    return false;
+  }
+  const lower = raw.toLowerCase();
+  return (
+    lower.includes("corrupted thought signature") ||
+    (lower.includes("invalid_argument") && lower.includes("thought_signature"))
+  );
 }
 
 /**
@@ -916,6 +928,9 @@ export function classifyFailoverReason(raw: string): FailoverReason | null {
   }
   if (isAuthErrorMessage(raw)) {
     return "auth";
+  }
+  if (isCorruptedThoughtSignatureError(raw)) {
+    return "format";
   }
   return null;
 }
