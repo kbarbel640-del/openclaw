@@ -172,6 +172,55 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task SystemRun_InvalidTimeoutType_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "run-invalid-timeout",
+                Command = "system.run",
+                ParamsJSON = "{\"command\":\"echo hi\",\"timeoutMs\":\"1000\"}"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+            Assert.Contains("timeoutMs", res.Error.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SystemRun_Timeout_ShouldKillProcessTree_AndReturnTimedOut()
+        {
+            var executor = new NodeCommandExecutor();
+
+            object command = OperatingSystem.IsWindows()
+                ? new[] { "powershell", "-NoProfile", "-Command", "Start-Sleep -Seconds 2" }
+                : new[] { "bash", "-lc", "sleep 2" };
+
+            var req = new BridgeInvokeRequest
+            {
+                Id = "run-timeout",
+                Command = "system.run",
+                ParamsJSON = JsonSerializer.Serialize(new { command, timeoutMs = 100 })
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.Unavailable, res.Error!.Code);
+            Assert.Contains("timed out", res.Error.Message, StringComparison.OrdinalIgnoreCase);
+
+            Assert.NotNull(res.PayloadJSON);
+            using var doc = JsonDocument.Parse(res.PayloadJSON!);
+            var root = doc.RootElement;
+            Assert.True(root.GetProperty("timedOut").GetBoolean());
+            Assert.Equal(-1, root.GetProperty("exitCode").GetInt32());
+        }
+
+        [Fact]
         public async Task ScreenRecord_InvalidDuration_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();
