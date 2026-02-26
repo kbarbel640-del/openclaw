@@ -12,6 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const distDir = path.join(repoRoot, "dist");
 const docsOpenApiDir = path.join(repoRoot, "docs", "openapi");
+const DEFAULT_GENERATED_AT = "1970-01-01T00:00:00.000Z";
 
 function collectSchemaPaths(schema: unknown): string[] {
   const keys = new Set<string>();
@@ -255,7 +256,8 @@ async function main() {
     };
   }
 
-  const generatedAt = new Date().toISOString();
+  // Keep generated artifacts deterministic so config-spec:check can run in CI.
+  const generatedAt = process.env.OPENCLAW_CONFIG_SPEC_GENERATED_AT ?? DEFAULT_GENERATED_AT;
   const keys = new Set<string>(collectSchemaPaths(schema));
   for (const key of Object.keys(uiHints)) {
     keys.add(key);
