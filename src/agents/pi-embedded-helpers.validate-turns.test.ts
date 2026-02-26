@@ -243,23 +243,69 @@ describe("validateAnthropicTurns", () => {
     ]);
   });
 
-  it("should not merge consecutive assistant messages", () => {
+  it("should merge consecutive assistant messages", () => {
+    // This can occur when an agent generates a text reply and a tool_use in
+    // two separate logical steps within the same turn.  The Anthropic API
+    // requires that the tool_result immediately follows the assistant message
+    // containing the tool_use, so the two assistant messages must be merged.
     const msgs = asMessages([
       { role: "user", content: [{ type: "text", text: "Question" }] },
       {
         role: "assistant",
-        content: [{ type: "text", text: "Answer 1" }],
+        content: [{ type: "text", text: "Got it, let me check..." }],
       },
       {
         role: "assistant",
-        content: [{ type: "text", text: "Answer 2" }],
+        content: [{ type: "toolCall", id: "toolu01", name: "session_status", arguments: {} }],
       },
     ]);
 
     const result = validateAnthropicTurns(msgs);
 
-    // validateAnthropicTurns only merges user messages, not assistant
+    // Both assistant messages should be collapsed into one
+    expect(result).toHaveLength(2);
+    expect(result[0].role).toBe("user");
+    expect(result[1].role).toBe("assistant");
+    const content = (result[1] as { content: unknown[] }).content;
+    expect(content).toHaveLength(2);
+    expect((content[0] as { type: string }).type).toBe("text");
+    expect((content[1] as { type: string }).type).toBe("toolCall");
+  });
+
+  it("should merge consecutive assistant messages followed by tool results", () => {
+    // Realistic scenario: text reply then tool_use in separate steps, followed
+    // by the tool result.  After merging, the tool_result must immediately
+    // follow the (now merged) assistant message.
+    const msgs = asMessages([
+      { role: "user", content: [{ type: "text", text: "What is the session status?" }] },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Got it. I can see the issue..." }],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "toolu01L348", name: "session_status", arguments: {} }],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "toolu01L348",
+        toolName: "session_status",
+        content: [{ type: "text", text: "Active" }],
+        isError: false,
+        timestamp: 1000,
+      },
+    ]);
+
+    const result = validateAnthropicTurns(msgs);
+
     expect(result).toHaveLength(3);
+    expect(result[0].role).toBe("user");
+    expect(result[1].role).toBe("assistant");
+    const content = (result[1] as { content: unknown[] }).content;
+    expect(content).toHaveLength(2);
+    expect((content[0] as { type: string }).type).toBe("text");
+    expect((content[1] as { type: string }).type).toBe("toolCall");
+    expect(result[2].role).toBe("toolResult");
   });
 
   it("should handle mixed scenario with steering messages", () => {
