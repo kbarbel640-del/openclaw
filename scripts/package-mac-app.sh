@@ -14,7 +14,20 @@ BUILD_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_COMMIT=$(cd "$ROOT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 GIT_BUILD_NUMBER=$(cd "$ROOT_DIR" && git rev-list --count HEAD 2>/dev/null || echo "0")
 APP_VERSION="${APP_VERSION:-$PKG_VERSION}"
-APP_BUILD="${APP_BUILD:-$GIT_BUILD_NUMBER}"
+# Derive YYYYMMDD0 numeric build from APP_VERSION (YYYY.M.D) so omitting
+# APP_BUILD no longer falls back to git commit count (which breaks Sparkle ordering).
+calver_build() {
+  local v="$1"
+  local IFS='.-'
+  read -r y m d _rest <<< "$v"
+  if [[ "$y" =~ ^[0-9]{4}$ && "$m" =~ ^[0-9]+$ && "$d" =~ ^[0-9]+$ ]]; then
+    printf '%s%02d%02d0' "$y" "$m" "$d"
+  else
+    echo ""
+  fi
+}
+CALVER_BUILD=$(calver_build "$APP_VERSION")
+APP_BUILD="${APP_BUILD:-${CALVER_BUILD:-$GIT_BUILD_NUMBER}}"
 BUILD_CONFIG="${BUILD_CONFIG:-debug}"
 BUILD_ARCHS_VALUE="${BUILD_ARCHS:-$(uname -m)}"
 if [[ "${BUILD_ARCHS_VALUE}" == "all" ]]; then
