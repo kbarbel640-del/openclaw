@@ -707,7 +707,6 @@ dig +short api.telegram.org AAAA
 
   </Accordion>
 
-
   <Accordion title="Messages reach Telegram API but never reach the Agent">
 
     This scenario can appear after an update when Telegram inbound messages stop reaching the Agent, even though the bot can still send messages.
