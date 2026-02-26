@@ -38,14 +38,73 @@ const {
   getLastDevProject,
   setLastDevProject,
 } = require("./lib/openclaw-p0.2-last-dev-project.cjs");
+const { DecisionEngine } = require("./decision-engine.cjs");
 
 const UPSTREAM_HOST = "localhost";
 const UPSTREAM_PORT = 3456;
 const LISTEN_PORT = 3457;
 const SKILL_API_PORT = 8000;
 const MEM0_PORT = 8002;
-const VERSION = "10.3.0";
+const VERSION = "10.4.0";
 const startedAt = Date.now();
+
+// ─── Phase -1: Request Trace — structured observability ──────────────
+const TRACE_LOG_PATH = path.join(__dirname, "logs", "request-trace.jsonl");
+const _traceBuffer = [];
+const TRACE_FLUSH_INTERVAL = 1000; // 1s batch write
+
+function createTrace(reqId) {
+  return {
+    trace_id: crypto.randomUUID(),
+    req_id: reqId,
+    ts: Date.now(),
+    spans: [],
+    decision_ms: 0,
+    executor: "",
+    executor_ms: 0,
+    total_ms: 0,
+    fallback: false,
+    model_switch: false,
+    intent_cache_hit: false,
+    ollama_quality_score: 0,
+    route_path: "",
+    _start: Date.now(),
+  };
+}
+
+function traceSpan(trace, stage) {
+  const start = Date.now();
+  return {
+    end(meta) {
+      const ms = Date.now() - start;
+      trace.spans.push({ stage, ms, ...meta });
+      return ms;
+    },
+  };
+}
+
+function finalizeTrace(trace, executor, extra) {
+  trace.executor = executor || trace.executor || "unknown";
+  trace.total_ms = Date.now() - trace._start;
+  if (extra) {
+    Object.assign(trace, extra);
+  }
+  delete trace._start;
+  _traceBuffer.push(JSON.stringify(trace));
+}
+
+// Batch flush trace buffer to disk
+setInterval(() => {
+  if (_traceBuffer.length === 0) {
+    return;
+  }
+  const batch = _traceBuffer.splice(0, _traceBuffer.length);
+  fs.appendFile(TRACE_LOG_PATH, batch.join("\n") + "\n", (err) => {
+    if (err) {
+      console.error(`[trace] write error: ${err.message}`);
+    }
+  });
+}, TRACE_FLUSH_INTERVAL);
 
 // ─── P1.4: Config Manager — 統一管理敏感配置 ──────────────────────
 
@@ -105,10 +164,12 @@ class ConfigManager {
   validate() {
     console.log(`[CONFIG] 已加載 ${Object.keys(this.config).length} 個配置項`);
     if (this.requiredKeys.length > 0) {
-      console.log(`[CONFIG] 必需: ${this.requiredKeys.map(r => r.key).join(", ")}`);
+      console.log(`[CONFIG] 必需: ${this.requiredKeys.map((r) => r.key).join(", ")}`);
     }
     if (this.optionalKeys.length > 0) {
-      console.log(`[CONFIG] 可選: ${this.optionalKeys.map(r => `${r.key}(預設: ${r.defaultValue})`).join(", ")}`);
+      console.log(
+        `[CONFIG] 可選: ${this.optionalKeys.map((r) => `${r.key}(預設: ${r.defaultValue})`).join(", ")}`,
+      );
     }
   }
 }
@@ -171,6 +232,10 @@ const specManager = new SpecManager({
   specsPath: path.join(process.env.HOME || "/root", ".claude", "specs"),
   metricsPath: path.join(process.env.HOME || "/root", ".claude", "logs", "spec-metrics.jsonl"),
 });
+
+// ─── Decision Engine (Phase 0) ──────────────────────────────
+
+const decisionEngine = new DecisionEngine();
 
 // ─── P1.9 + P1.11: Circuit Breaker ──────────────────────────────
 
@@ -1402,11 +1467,29 @@ function detectMultiSkillIntent(text) {
 
   // Priority override: gmail/calendar operations with highest confidence
   const gmailActionWords = [
-    "刪除郵件", "刪郵件", "清理郵件", "批量刪除", "刪除垃圾",
-    "未讀郵件", "查看郵件", "寄信", "發郵件", "收件匣",
-    "過濾", "過濾規則", "封鎖寄件者", "封鎖", "取消訂閱", "退訂",
-    "delete email", "trash email", "inbox", "send email",
-    "filter", "block sender", "unsubscribe",
+    "刪除郵件",
+    "刪郵件",
+    "清理郵件",
+    "批量刪除",
+    "刪除垃圾",
+    "未讀郵件",
+    "查看郵件",
+    "寄信",
+    "發郵件",
+    "收件匣",
+    "過濾",
+    "過濾規則",
+    "封鎖寄件者",
+    "封鎖",
+    "取消訂閱",
+    "退訂",
+    "delete email",
+    "trash email",
+    "inbox",
+    "send email",
+    "filter",
+    "block sender",
+    "unsubscribe",
   ];
 
   // Check gmail with high priority
@@ -1429,7 +1512,7 @@ function detectMultiSkillIntent(text) {
     }
 
     // 計算該 route 的置信度
-    const match = matcher.match(text, route.keywords, 'auto');
+    const match = matcher.match(text, route.keywords, "auto");
     if (match.matched) {
       intents.push({
         skillName: route.name,
@@ -2358,15 +2441,14 @@ const _sessionQueue = [];
 // ─── Anti-Thrashing Controls ────────────────────────────────────────
 let _lastSessionSpawn = 0;
 const SESSION_COOLDOWN_MS = 20000; // 20s between session spawns
-const SWITCH_THRESHOLD = 1.35;    // hysteresis: 35% cost difference needed to switch
-const FAILURE_PENALTY = 1.8;      // multiply cost by this on recent failure
-const _lastRouteByIntent = {};    // track last route per intent for hysteresis
-
+const SWITCH_THRESHOLD = 1.35; // hysteresis: 35% cost difference needed to switch
+const FAILURE_PENALTY = 1.8; // multiply cost by this on recent failure
+const _lastRouteByIntent = {}; // track last route per intent for hysteresis
 
 // ─── Self-Learning Router — adaptive routing based on execution history ────
 const ROUTING_STATS_PATH = path.join(
   process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
-  "routing-stats.json"
+  "routing-stats.json",
 );
 const MIN_SAMPLES_FOR_LEARNING = 5; // fallback to rule-based below this
 
@@ -2392,25 +2474,53 @@ function saveRoutingStats(stats) {
 // Intent fingerprint — stable, explainable, near-zero cost
 function extractIntent(text) {
   const lower = text.toLowerCase();
-  if (/docker|container|image|volume/.test(lower)) {return "docker";}
-  if (/git|commit|diff|branch|push|pull|merge/.test(lower)) {return "git";}
-  if (/endpoint|api|feature|module|component/.test(lower)) {return "implementation";}
-  if (/memory|disk|process|cpu|系統|system_info/.test(lower)) {return "system";}
-  if (/deploy|部署|上線|release/.test(lower)) {return "deploy";}
-  if (/cleanup|清理|刪除|remove|prune/.test(lower)) {return "cleanup";}
-  if (/config|設定|configure/.test(lower)) {return "config";}
-  if (/test|測試|spec/.test(lower)) {return "test";}
-  if (/file|檔案|read|write|list|目錄|directory|backup|備份/.test(lower)) {return "file_ops";}
-  if (/install|安裝|update|更新|upgrade/.test(lower)) {return "install";}
-  if (/restart|重啟|start|stop|啟動|停止/.test(lower)) {return "service_ops";}
-  if (/refactor|重構|migrate|遷移|整合|integrate/.test(lower)) {return "refactor";}
-  if (/design|設計|architecture|架構/.test(lower)) {return "design";}
+  if (/docker|container|image|volume/.test(lower)) {
+    return "docker";
+  }
+  if (/git|commit|diff|branch|push|pull|merge/.test(lower)) {
+    return "git";
+  }
+  if (/endpoint|api|feature|module|component/.test(lower)) {
+    return "implementation";
+  }
+  if (/memory|disk|process|cpu|系統|system_info/.test(lower)) {
+    return "system";
+  }
+  if (/deploy|部署|上線|release/.test(lower)) {
+    return "deploy";
+  }
+  if (/cleanup|清理|刪除|remove|prune/.test(lower)) {
+    return "cleanup";
+  }
+  if (/config|設定|configure/.test(lower)) {
+    return "config";
+  }
+  if (/test|測試|spec/.test(lower)) {
+    return "test";
+  }
+  if (/file|檔案|read|write|list|目錄|directory|backup|備份/.test(lower)) {
+    return "file_ops";
+  }
+  if (/install|安裝|update|更新|upgrade/.test(lower)) {
+    return "install";
+  }
+  if (/restart|重啟|start|stop|啟動|停止/.test(lower)) {
+    return "service_ops";
+  }
+  if (/refactor|重構|migrate|遷移|整合|integrate/.test(lower)) {
+    return "refactor";
+  }
+  if (/design|設計|architecture|架構/.test(lower)) {
+    return "design";
+  }
   return "general";
 }
 
 // Expected cost = latency / success_rate (lower is better)
 function expectedCost(stats) {
-  if (!stats || (stats.success + stats.fail) === 0) {return Infinity;}
+  if (!stats || stats.success + stats.fail === 0) {
+    return Infinity;
+  }
   const successRate = stats.success / Math.max(1, stats.success + stats.fail);
   return stats.avg_latency / Math.max(successRate, 0.2);
 }
@@ -2426,8 +2536,12 @@ function learningRoute(intent, ruleBasedDecision) {
   if (!intentStats) {
     return { route: ruleBasedDecision, reason: "no_history" };
   }
-  const devSamples = intentStats.dev_loop ? (intentStats.dev_loop.success + intentStats.dev_loop.fail) : 0;
-  const sesSamples = intentStats.session_bridge ? (intentStats.session_bridge.success + intentStats.session_bridge.fail) : 0;
+  const devSamples = intentStats.dev_loop
+    ? intentStats.dev_loop.success + intentStats.dev_loop.fail
+    : 0;
+  const sesSamples = intentStats.session_bridge
+    ? intentStats.session_bridge.success + intentStats.session_bridge.fail
+    : 0;
 
   if (devSamples < MIN_SAMPLES_FOR_LEARNING && sesSamples < MIN_SAMPLES_FOR_LEARNING) {
     return { route: ruleBasedDecision, reason: `low_samples(dev=${devSamples},ses=${sesSamples})` };
@@ -2439,12 +2553,19 @@ function learningRoute(intent, ruleBasedDecision) {
 
   // Apply failure penalty: if recent failure rate > 30%, increase cost
   if (intentStats.dev_loop && intentStats.dev_loop.fail > 0) {
-    const devFailRate = intentStats.dev_loop.fail / (intentStats.dev_loop.success + intentStats.dev_loop.fail);
-    if (devFailRate > 0.3) {devCost *= FAILURE_PENALTY;}
+    const devFailRate =
+      intentStats.dev_loop.fail / (intentStats.dev_loop.success + intentStats.dev_loop.fail);
+    if (devFailRate > 0.3) {
+      devCost *= FAILURE_PENALTY;
+    }
   }
   if (intentStats.session_bridge && intentStats.session_bridge.fail > 0) {
-    const sesFailRate = intentStats.session_bridge.fail / (intentStats.session_bridge.success + intentStats.session_bridge.fail);
-    if (sesFailRate > 0.3) {sesCost *= FAILURE_PENALTY;}
+    const sesFailRate =
+      intentStats.session_bridge.fail /
+      (intentStats.session_bridge.success + intentStats.session_bridge.fail);
+    if (sesFailRate > 0.3) {
+      sesCost *= FAILURE_PENALTY;
+    }
   }
 
   // Mode bias: coding mode reduces session cost (favors Claude), ops mode increases it
@@ -2455,10 +2576,14 @@ function learningRoute(intent, ruleBasedDecision) {
   }
 
   // Cooldown enforcement: if session was spawned recently, bias toward dev_loop
-  const effectiveCooldown = (_lrMode && getModeAdjustments(_lrMode).cooldownOverride) || SESSION_COOLDOWN_MS;
+  const effectiveCooldown =
+    (_lrMode && getModeAdjustments(_lrMode).cooldownOverride) || SESSION_COOLDOWN_MS;
   const timeSinceLastSession = Date.now() - _lastSessionSpawn;
   if (timeSinceLastSession < effectiveCooldown) {
-    return { route: "dev_loop", reason: `cooldown(${Math.round((SESSION_COOLDOWN_MS - timeSinceLastSession) / 1000)}s remaining)` };
+    return {
+      route: "dev_loop",
+      reason: `cooldown(${Math.round((SESSION_COOLDOWN_MS - timeSinceLastSession) / 1000)}s remaining)`,
+    };
   }
 
   // Hysteresis: require SWITCH_THRESHOLD cost ratio to change from last route
@@ -2480,44 +2605,46 @@ function learningRoute(intent, ruleBasedDecision) {
   const switched = route !== ruleBasedDecision;
   return {
     route,
-    reason: `${switched ? "learned" : "confirmed"}(dev=${devCost.toFixed(1)},ses=${sesCost.toFixed(1)},hysteresis=${SWITCH_THRESHOLD},last=${lastRoute || "none"})`
+    reason: `${switched ? "learned" : "confirmed"}(dev=${devCost.toFixed(1)},ses=${sesCost.toFixed(1)},hysteresis=${SWITCH_THRESHOLD},last=${lastRoute || "none"})`,
   };
 }
 
 // Record execution outcome — called after task completes
 function recordRoutingOutcome(intent, executor, success, latencyMs) {
   const allStats = loadRoutingStats();
-  if (!allStats[intent]) {allStats[intent] = {};}
+  if (!allStats[intent]) {
+    allStats[intent] = {};
+  }
   if (!allStats[intent][executor]) {
     allStats[intent][executor] = { success: 0, fail: 0, avg_latency: 0, samples: 0 };
   }
   const s = allStats[intent][executor];
   s.samples = (s.samples || 0) + 1;
-  if (success) {s.success++;} else {s.fail++;}
+  if (success) {
+    s.success++;
+  } else {
+    s.fail++;
+  }
   // Exponential moving average for latency (alpha=0.3 for responsiveness)
   const alpha = 0.3;
-  s.avg_latency = s.avg_latency === 0
-    ? latencyMs
-    : s.avg_latency * (1 - alpha) + latencyMs * alpha;
+  s.avg_latency = s.avg_latency === 0 ? latencyMs : s.avg_latency * (1 - alpha) + latencyMs * alpha;
   saveRoutingStats(allStats);
-  console.log(`[wrapper] ROUTING_FEEDBACK: intent=${intent} executor=${executor} success=${success} latency=${latencyMs}ms avg=${s.avg_latency.toFixed(0)}ms samples=${s.samples}`);
+  console.log(
+    `[wrapper] ROUTING_FEEDBACK: intent=${intent} executor=${executor} success=${success} latency=${latencyMs}ms avg=${s.avg_latency.toFixed(0)}ms samples=${s.samples}`,
+  );
 }
 
-
-
-
-
 // ─── Intent Momentum — adaptive mode system with decay ────────────────
-const MODE_DECAY = 0.85;           // decay factor per task
-const MODE_BOOST = 2;              // boost for matching intent
-const MODE_PENALTY = -0.5;         // penalty for non-matching
-const MODE_THRESHOLD = 3;          // minimum score to activate mode
+const MODE_DECAY = 0.85; // decay factor per task
+const MODE_BOOST = 2; // boost for matching intent
+const MODE_PENALTY = -0.5; // penalty for non-matching
+const MODE_THRESHOLD = 3; // minimum score to activate mode
 
 const _modeScores = {
-  coding: 0,     // implementation, refactor, design
-  ops: 0,        // docker, service_ops, deploy, cleanup
-  debugging: 0,  // git (diff/log), system, test
-  research: 0,   // general, config, file_ops, install
+  coding: 0, // implementation, refactor, design
+  ops: 0, // docker, service_ops, deploy, cleanup
+  debugging: 0, // git (diff/log), system, test
+  research: 0, // general, config, file_ops, install
 };
 
 // Map intents to modes
@@ -2549,8 +2676,12 @@ function updateMomentum(intent) {
   _modeScores[targetMode] += MODE_BOOST;
   // Small penalty to others (keeps modes competitive)
   for (const mode of Object.keys(_modeScores)) {
-    if (mode !== targetMode) {_modeScores[mode] += MODE_PENALTY;}
-    if (_modeScores[mode] < 0) {_modeScores[mode] = 0;}
+    if (mode !== targetMode) {
+      _modeScores[mode] += MODE_PENALTY;
+    }
+    if (_modeScores[mode] < 0) {
+      _modeScores[mode] = 0;
+    }
   }
 }
 
@@ -2578,19 +2709,22 @@ function getModeAdjustments(mode) {
     case "research":
       return { sessionCostMultiplier: 1.2, cooldownOverride: null, predictionThreshold: 0.65 };
     default:
-      return { sessionCostMultiplier: 1.0, cooldownOverride: null, predictionThreshold: PREDICTION_CONFIDENCE };
+      return {
+        sessionCostMultiplier: 1.0,
+        cooldownOverride: null,
+        predictionThreshold: PREDICTION_CONFIDENCE,
+      };
   }
 }
-
 
 // ─── Control Plane Event Logging — append-only observability ──────────
 const CP_EVENTS_PATH = path.join(
   process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
-  "routing-events.jsonl"
+  "routing-events.jsonl",
 );
 const CP_MODE_HISTORY_PATH = path.join(
   process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
-  "mode-history.jsonl"
+  "mode-history.jsonl",
 );
 const _predictionTracker = { hits: 0, misses: 0, total: 0, falseWarms: 0 };
 const _routingEvents = []; // in-memory ring buffer (last 200)
@@ -2599,9 +2733,13 @@ const MAX_EVENTS = 200;
 function recordRoutingEvent(event) {
   event.ts = Date.now();
   _routingEvents.push(event);
-  if (_routingEvents.length > MAX_EVENTS) {_routingEvents.shift();}
+  if (_routingEvents.length > MAX_EVENTS) {
+    _routingEvents.shift();
+  }
   // Append to file (non-blocking)
-  try { fs.appendFileSync(CP_EVENTS_PATH, JSON.stringify(event) + "\n"); } catch {}
+  try {
+    fs.appendFileSync(CP_EVENTS_PATH, JSON.stringify(event) + "\n");
+  } catch {}
   updateDrift(event);
 }
 
@@ -2612,12 +2750,16 @@ function recordModeSnapshot() {
     scores: { ..._modeScores },
     lastIntent: _lastIntent,
   };
-  try { fs.appendFileSync(CP_MODE_HISTORY_PATH, JSON.stringify(snapshot) + "\n"); } catch {}
+  try {
+    fs.appendFileSync(CP_MODE_HISTORY_PATH, JSON.stringify(snapshot) + "\n");
+  } catch {}
   return snapshot;
 }
 
 function trackPrediction(predicted, actual) {
-  if (!predicted) {return;} // no prediction made
+  if (!predicted) {
+    return;
+  } // no prediction made
   _predictionTracker.total++;
   if (predicted === actual) {
     _predictionTracker.hits++;
@@ -2635,9 +2777,15 @@ const DRIFT_ALPHA = 0.1;
 const DRIFT_BASELINE_MIN = 30;
 
 const _driftState = {
-  baselinePredAcc: null, baselineLatency: null, baselineSessionRatio: null, baselineFalseWarm: null,
+  baselinePredAcc: null,
+  baselineLatency: null,
+  baselineSessionRatio: null,
+  baselineFalseWarm: null,
   samplesForBaseline: 0,
-  currentPredAcc: null, currentLatency: null, currentSessionRatio: null, currentFalseWarm: null,
+  currentPredAcc: null,
+  currentLatency: null,
+  currentSessionRatio: null,
+  currentFalseWarm: null,
   recentModes: [],
   lastStatsUpdate: Date.now(),
   alerts: [],
@@ -2649,29 +2797,48 @@ function updateDrift(event) {
   s.lastStatsUpdate = Date.now();
   if (event.predicted) {
     const hit = event.predicted === event.executor ? 1 : 0;
-    s.currentPredAcc = s.currentPredAcc === null ? hit : s.currentPredAcc * (1 - DRIFT_ALPHA) + hit * DRIFT_ALPHA;
+    s.currentPredAcc =
+      s.currentPredAcc === null ? hit : s.currentPredAcc * (1 - DRIFT_ALPHA) + hit * DRIFT_ALPHA;
   }
   const isSes = event.executor === "session_bridge" ? 1 : 0;
-  s.currentSessionRatio = s.currentSessionRatio === null ? isSes : s.currentSessionRatio * (1 - DRIFT_ALPHA) + isSes * DRIFT_ALPHA;
-  if (event.mode) { s.recentModes.push(event.mode); if (s.recentModes.length > 20) {s.recentModes.shift();} }
+  s.currentSessionRatio =
+    s.currentSessionRatio === null
+      ? isSes
+      : s.currentSessionRatio * (1 - DRIFT_ALPHA) + isSes * DRIFT_ALPHA;
+  if (event.mode) {
+    s.recentModes.push(event.mode);
+    if (s.recentModes.length > 20) {
+      s.recentModes.shift();
+    }
+  }
   if (s.samplesForBaseline === DRIFT_BASELINE_MIN) {
     s.baselinePredAcc = s.currentPredAcc;
     s.baselineSessionRatio = s.currentSessionRatio;
   }
-  if (s.samplesForBaseline > DRIFT_BASELINE_MIN) {checkDriftAlerts();}
+  if (s.samplesForBaseline > DRIFT_BASELINE_MIN) {
+    checkDriftAlerts();
+  }
 }
 
 function recordLatencyDrift(latencyMs) {
   const s = _driftState;
-  s.currentLatency = s.currentLatency === null ? latencyMs : s.currentLatency * (1 - DRIFT_ALPHA) + latencyMs * DRIFT_ALPHA;
-  if (s.samplesForBaseline === DRIFT_BASELINE_MIN && s.baselineLatency === null) {s.baselineLatency = s.currentLatency;}
+  s.currentLatency =
+    s.currentLatency === null
+      ? latencyMs
+      : s.currentLatency * (1 - DRIFT_ALPHA) + latencyMs * DRIFT_ALPHA;
+  if (s.samplesForBaseline === DRIFT_BASELINE_MIN && s.baselineLatency === null) {
+    s.baselineLatency = s.currentLatency;
+  }
 }
 
 function recordFalseWarmDrift(isFalseWarm) {
   const s = _driftState;
   const v = isFalseWarm ? 1 : 0;
-  s.currentFalseWarm = s.currentFalseWarm === null ? v : s.currentFalseWarm * (1 - DRIFT_ALPHA) + v * DRIFT_ALPHA;
-  if (s.samplesForBaseline === DRIFT_BASELINE_MIN && s.baselineFalseWarm === null) {s.baselineFalseWarm = s.currentFalseWarm;}
+  s.currentFalseWarm =
+    s.currentFalseWarm === null ? v : s.currentFalseWarm * (1 - DRIFT_ALPHA) + v * DRIFT_ALPHA;
+  if (s.samplesForBaseline === DRIFT_BASELINE_MIN && s.baselineFalseWarm === null) {
+    s.baselineFalseWarm = s.currentFalseWarm;
+  }
 }
 
 function checkDriftAlerts() {
@@ -2680,55 +2847,125 @@ function checkDriftAlerts() {
   const alerts = [];
   if (s.baselinePredAcc !== null && s.currentPredAcc !== null) {
     const drop = s.baselinePredAcc - s.currentPredAcc;
-    if (drop > 0.15) {alerts.push({ type: "pred_accuracy", severity: drop > 0.25 ? "critical" : "warning", msg: "預測準確率下降 " + (drop*100).toFixed(0) + "%", baseline: s.baselinePredAcc, current: s.currentPredAcc });}
+    if (drop > 0.15) {
+      alerts.push({
+        type: "pred_accuracy",
+        severity: drop > 0.25 ? "critical" : "warning",
+        msg: "預測準確率下降 " + (drop * 100).toFixed(0) + "%",
+        baseline: s.baselinePredAcc,
+        current: s.currentPredAcc,
+      });
+    }
   }
   if (s.baselineLatency !== null && s.currentLatency !== null) {
     const inc = (s.currentLatency - s.baselineLatency) / s.baselineLatency;
-    if (inc > 0.30) {alerts.push({ type: "latency", severity: inc > 0.5 ? "critical" : "warning", msg: "延遲上升 " + (inc*100).toFixed(0) + "%", baseline: s.baselineLatency, current: s.currentLatency });}
+    if (inc > 0.3) {
+      alerts.push({
+        type: "latency",
+        severity: inc > 0.5 ? "critical" : "warning",
+        msg: "延遲上升 " + (inc * 100).toFixed(0) + "%",
+        baseline: s.baselineLatency,
+        current: s.currentLatency,
+      });
+    }
   }
   if (s.recentModes.length >= 10) {
-    let sw = 0; for (let i = 1; i < s.recentModes.length; i++) {if (s.recentModes[i] !== s.recentModes[i-1]) { sw++; }}
+    let sw = 0;
+    for (let i = 1; i < s.recentModes.length; i++) {
+      if (s.recentModes[i] !== s.recentModes[i - 1]) {
+        sw++;
+      }
+    }
     const rate = sw / (s.recentModes.length - 1);
-    if (rate > 0.25) {alerts.push({ type: "mode_oscillation", severity: rate > 0.4 ? "critical" : "warning", msg: "模式震盪率 " + (rate*100).toFixed(0) + "%", rate });}
+    if (rate > 0.25) {
+      alerts.push({
+        type: "mode_oscillation",
+        severity: rate > 0.4 ? "critical" : "warning",
+        msg: "模式震盪率 " + (rate * 100).toFixed(0) + "%",
+        rate,
+      });
+    }
   }
   if (s.baselineSessionRatio !== null && s.currentSessionRatio !== null) {
     const shift = Math.abs(s.currentSessionRatio - s.baselineSessionRatio);
-    if (shift > 0.20) {alerts.push({ type: "executor_imbalance", severity: shift > 0.35 ? "critical" : "warning", msg: "執行器比例偏移 " + (shift*100).toFixed(0) + "%", baseline: s.baselineSessionRatio, current: s.currentSessionRatio });}
+    if (shift > 0.2) {
+      alerts.push({
+        type: "executor_imbalance",
+        severity: shift > 0.35 ? "critical" : "warning",
+        msg: "執行器比例偏移 " + (shift * 100).toFixed(0) + "%",
+        baseline: s.baselineSessionRatio,
+        current: s.currentSessionRatio,
+      });
+    }
   }
   if (now - s.lastStatsUpdate > 2 * 3600 * 1000) {
-    alerts.push({ type: "staleness", severity: "warning", msg: "學習數據已 " + ((now - s.lastStatsUpdate) / 3600000).toFixed(1) + "h 未更新" });
+    alerts.push({
+      type: "staleness",
+      severity: "warning",
+      msg: "學習數據已 " + ((now - s.lastStatsUpdate) / 3600000).toFixed(1) + "h 未更新",
+    });
   }
-  if (s.currentFalseWarm !== null && s.currentFalseWarm > 0.30) {
-    alerts.push({ type: "false_warm", severity: s.currentFalseWarm > 0.45 ? "critical" : "warning", msg: "誤預熱率 " + (s.currentFalseWarm*100).toFixed(0) + "%", rate: s.currentFalseWarm });
+  if (s.currentFalseWarm !== null && s.currentFalseWarm > 0.3) {
+    alerts.push({
+      type: "false_warm",
+      severity: s.currentFalseWarm > 0.45 ? "critical" : "warning",
+      msg: "誤預熱率 " + (s.currentFalseWarm * 100).toFixed(0) + "%",
+      rate: s.currentFalseWarm,
+    });
   }
   for (const a of alerts) {
     a.ts = now;
-    const idx = s.alerts.findIndex(x => x.type === a.type);
-    if (idx !== -1) {s.alerts[idx] = a;} else {s.alerts.push(a);}
-    if (s.alerts.length > 50) {s.alerts.shift();}
+    const idx = s.alerts.findIndex((x) => x.type === a.type);
+    if (idx !== -1) {
+      s.alerts[idx] = a;
+    } else {
+      s.alerts.push(a);
+    }
+    if (s.alerts.length > 50) {
+      s.alerts.shift();
+    }
   }
-  const activeTypes = new Set(alerts.map(a => a.type));
-  s.alerts = s.alerts.filter(a => activeTypes.has(a.type) || now - a.ts < 600000);
+  const activeTypes = new Set(alerts.map((a) => a.type));
+  s.alerts = s.alerts.filter((a) => activeTypes.has(a.type) || now - a.ts < 600000);
 }
 
 function getDriftAnalysis() {
   const s = _driftState;
-  const msr = s.recentModes.length >= 2 ? (() => { let sw = 0; for (let i = 1; i < s.recentModes.length; i++) {if (s.recentModes[i] !== s.recentModes[i-1]) { sw++; }} return (sw / (s.recentModes.length - 1) * 100).toFixed(1) + "%"; })() : null;
+  const msr =
+    s.recentModes.length >= 2
+      ? (() => {
+          let sw = 0;
+          for (let i = 1; i < s.recentModes.length; i++) {
+            if (s.recentModes[i] !== s.recentModes[i - 1]) {
+              sw++;
+            }
+          }
+          return ((sw / (s.recentModes.length - 1)) * 100).toFixed(1) + "%";
+        })()
+      : null;
   return {
-    status: s.alerts.some(a => a.severity === "critical") ? "critical" : s.alerts.length > 0 ? "warning" : "healthy",
+    status: s.alerts.some((a) => a.severity === "critical")
+      ? "critical"
+      : s.alerts.length > 0
+        ? "warning"
+        : "healthy",
     samples: s.samplesForBaseline,
     baselineEstablished: s.samplesForBaseline >= DRIFT_BASELINE_MIN,
     baselines: {
       predAccuracy: s.baselinePredAcc !== null ? (s.baselinePredAcc * 100).toFixed(1) + "%" : null,
       latency: s.baselineLatency !== null ? Math.round(s.baselineLatency) + "ms" : null,
-      sessionRatio: s.baselineSessionRatio !== null ? (s.baselineSessionRatio * 100).toFixed(1) + "%" : null,
-      falseWarmRate: s.baselineFalseWarm !== null ? (s.baselineFalseWarm * 100).toFixed(1) + "%" : null,
+      sessionRatio:
+        s.baselineSessionRatio !== null ? (s.baselineSessionRatio * 100).toFixed(1) + "%" : null,
+      falseWarmRate:
+        s.baselineFalseWarm !== null ? (s.baselineFalseWarm * 100).toFixed(1) + "%" : null,
     },
     current: {
       predAccuracy: s.currentPredAcc !== null ? (s.currentPredAcc * 100).toFixed(1) + "%" : null,
       latency: s.currentLatency !== null ? Math.round(s.currentLatency) + "ms" : null,
-      sessionRatio: s.currentSessionRatio !== null ? (s.currentSessionRatio * 100).toFixed(1) + "%" : null,
-      falseWarmRate: s.currentFalseWarm !== null ? (s.currentFalseWarm * 100).toFixed(1) + "%" : null,
+      sessionRatio:
+        s.currentSessionRatio !== null ? (s.currentSessionRatio * 100).toFixed(1) + "%" : null,
+      falseWarmRate:
+        s.currentFalseWarm !== null ? (s.currentFalseWarm * 100).toFixed(1) + "%" : null,
       modeSwitchRate: msr,
     },
     alerts: s.alerts,
@@ -2736,11 +2973,10 @@ function getDriftAnalysis() {
   };
 }
 
-
 // ─── Predictive Routing — task transition tracking + executor prediction ───
 const TRANSITIONS_PATH = path.join(
   process.env.OPENCLAW_CONFIG_DIR || "/Users/rexmacmini/.openclaw",
-  "task-transitions.json"
+  "task-transitions.json",
 );
 const PREDICTION_CONFIDENCE = 0.6; // minimum probability to act on prediction
 let _lastIntent = null;
@@ -2766,9 +3002,13 @@ function saveTransitions(data) {
 
 // Record intent-to-executor transition (not intent-to-intent)
 function recordTransition(intent, executor) {
-  if (!intent) {return;}
+  if (!intent) {
+    return;
+  }
   const data = loadTransitions();
-  if (!data[intent]) {data[intent] = { dev_loop: 0, session_bridge: 0 };}
+  if (!data[intent]) {
+    data[intent] = { dev_loop: 0, session_bridge: 0 };
+  }
   data[intent][executor] = (data[intent][executor] || 0) + 1;
   saveTransitions(data);
 }
@@ -2778,13 +3018,19 @@ function recordTransition(intent, executor) {
 function predictExecutor(intent) {
   const data = loadTransitions();
   const stats = data[intent];
-  if (!stats) {return null;}
+  if (!stats) {
+    return null;
+  }
 
   const total = (stats.dev_loop || 0) + (stats.session_bridge || 0);
-  if (total < MIN_SAMPLES_FOR_LEARNING) {return null;}
+  if (total < MIN_SAMPLES_FOR_LEARNING) {
+    return null;
+  }
 
   const probSession = (stats.session_bridge || 0) / total;
-  if (probSession > PREDICTION_CONFIDENCE) {return "session_bridge";}
+  if (probSession > PREDICTION_CONFIDENCE) {
+    return "session_bridge";
+  }
   return null;
 }
 
@@ -2793,7 +3039,9 @@ function softPreWarm(project) {
   // Fire-and-forget: just ping session bridge health to keep connection warm
   // In future: can send prepare signal with project context
   callSessionBridgeAPI("GET", "/health", null).catch(() => {});
-  console.log("[wrapper] PREDICTIVE_PREWARM: pinged session-bridge" + (project ? " for " + project : ""));
+  console.log(
+    "[wrapper] PREDICTIVE_PREWARM: pinged session-bridge" + (project ? " for " + project : ""),
+  );
 }
 
 function callSessionBridgeAPI(method, path, body) {
@@ -2835,38 +3083,47 @@ function callSessionBridgeAPI(method, path, body) {
   });
 }
 
-
 // ---------------------------------------------------------------------------
 // Bounded Autonomy v1 — Policy Interceptor + Safety Guards
 // ---------------------------------------------------------------------------
 
 function unwrapCommand(cmd) {
-  let prev, current = cmd;
+  let prev,
+    current = cmd;
   do {
     prev = current;
     const m = current.match(/(?:bash|sh)\s+-c\s+["'](.+)["']/);
-    if (m) {current = m[1];}
+    if (m) {
+      current = m[1];
+    }
   } while (current !== prev);
   return current;
 }
 
 function classifyCommand(cmd) {
   const normalized = unwrapCommand(cmd);
-  if (/rm\s+-rf|rm\s+-r\s+\/|docker\s+(?:system\s+)?prune|drop\s+table|truncate/i.test(normalized))
-    {return 'destructive';}
-  if (/git\s+push\s+--force|git\s+reset\s+--hard|chmod\s+777/i.test(normalized))
-    {return 'destructive';}
-  if (/docker\s+restart|docker\s+stop|launchctl|kill\s+-9|systemctl/i.test(normalized))
-    {return 'operational';}
-  return 'safe';
+  if (
+    /rm\s+-rf|rm\s+-r\s+\/|docker\s+(?:system\s+)?prune|drop\s+table|truncate/i.test(normalized)
+  ) {
+    return "destructive";
+  }
+  if (/git\s+push\s+--force|git\s+reset\s+--hard|chmod\s+777/i.test(normalized)) {
+    return "destructive";
+  }
+  if (/docker\s+restart|docker\s+stop|launchctl|kill\s+-9|systemctl/i.test(normalized)) {
+    return "operational";
+  }
+  return "safe";
 }
 
 function injectVerificationStep(task, classification) {
-  if (classification === 'destructive') {
-    return `[VERIFICATION REQUIRED]\n` +
+  if (classification === "destructive") {
+    return (
+      `[VERIFICATION REQUIRED]\n` +
       `Classification: ${classification}. Before executing:\n` +
       `(1) verify exact target (2) confirm recoverability (3) prefer reversible alternative.\n\n` +
-      task;
+      task
+    );
   }
   return task;
 }
@@ -2876,9 +3133,9 @@ const executionWindow = new Map();
 function runawayGuard(task, classification) {
   const now = Date.now();
   // Key by classification + task hash to avoid cross-service throttling
-  const key = `${classification}:${task.slice(0, 80).replace(/\s+/g, '_')}`;
+  const key = `${classification}:${task.slice(0, 80).replace(/\s+/g, "_")}`;
   const history = executionWindow.get(key) || [];
-  const recent = history.filter(t => now - t < 60000);
+  const recent = history.filter((t) => now - t < 60000);
 
   if (recent.length >= 5) {
     throw new Error(`[Runaway Prevention] ${key}: ${recent.length} ops in 60s. Halted.`);
@@ -2888,13 +3145,13 @@ function runawayGuard(task, classification) {
 }
 
 const authorityDirective = [
-  '[Operational Authority]',
-  'You have pre-authorized operational control within system boundaries.',
-  'Default mode: execute without confirmation.',
-  'Before destructive operations: verify target, ensure recoverability, prefer reversible actions.',
-  'Report results after execution, not intentions before.',
-  '',
-].join('\n');
+  "[Operational Authority]",
+  "You have pre-authorized operational control within system boundaries.",
+  "Default mode: execute without confirmation.",
+  "Before destructive operations: verify target, ensure recoverability, prefer reversible actions.",
+  "Report results after execution, not intentions before.",
+  "",
+].join("\n");
 
 async function callSessionBridge(task, project) {
   const classification = classifyCommand(task);
@@ -3682,7 +3939,15 @@ async function executeAgentdToolCall(toolName, toolArgs) {
   }
 }
 
-async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryContext, userText, req) {
+async function handleDevToolLoop(
+  reqId,
+  parsedBody,
+  res,
+  wantsStream,
+  memoryContext,
+  userText,
+  req,
+) {
   const messages = parsedBody.messages || [];
   const systemPrompt = injectBotSystemPrompt(
     messages.filter((m) => m.role !== "system"),
@@ -3821,10 +4086,17 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
 
         // --- Learning Router feedback ---
         if (req._cpIntent) {
-          recordRoutingOutcome(req._cpIntent, "dev_loop", true, Date.now() - (req._cpStartTime || Date.now()));
+          recordRoutingOutcome(
+            req._cpIntent,
+            "dev_loop",
+            true,
+            Date.now() - (req._cpStartTime || Date.now()),
+          );
           // Predictive: pre-warm if next task likely needs session
           const _devPredicted = predictExecutor(req._cpIntent);
-          if (_devPredicted === "session_bridge") {softPreWarm();}
+          if (_devPredicted === "session_bridge") {
+            softPreWarm();
+          }
         }
         return sendDirectResponse(reqId, finalContent, wantsStream, res);
       }
@@ -3840,10 +4112,15 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
     console.error(`[wrapper] #${reqId} dev-tool-loop error: ${e.message}`);
     metrics.errors++;
     // --- Learning Router failure feedback ---
-        if (req._cpIntent) {
-          recordRoutingOutcome(req._cpIntent, "dev_loop", false, Date.now() - (req._cpStartTime || Date.now()));
-        }
-        return sendDirectResponse(reqId, `[開發模式錯誤] ${e.message}`, wantsStream, res);
+    if (req._cpIntent) {
+      recordRoutingOutcome(
+        req._cpIntent,
+        "dev_loop",
+        false,
+        Date.now() - (req._cpStartTime || Date.now()),
+      );
+    }
+    return sendDirectResponse(reqId, `[開發模式錯誤] ${e.message}`, wantsStream, res);
   }
 }
 
@@ -3854,60 +4131,139 @@ async function handleDevToolLoop(reqId, parsedBody, res, wantsStream, memoryCont
 
 const EXEC_PATTERNS = [
   // SSH shortcuts
-  { pattern: /^ssh\s+mac-?mini\s+(.+)$/is, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
-  { pattern: /^在\s*mac\s*mini\s*(?:上\s*)?(?:執行|跑|run)\s+(.+)$/is, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
+  { pattern: /^ssh\s+mac-?mini\s+(.+)$/is, parse: (m) => ({ action: "raw", args: [m[1]] }) },
+  {
+    pattern: /^在\s*mac\s*mini\s*(?:上\s*)?(?:執行|跑|run)\s+(.+)$/is,
+    parse: (m) => ({ action: "raw", args: [m[1]] }),
+  },
 
   // Docker
-  { pattern: /^docker\s+ps$/i, parse: () => ({ action: 'docker-ps', args: [] }) },
-  { pattern: /^(?:檢查|查看|看)\s*(?:docker|容器)\s*(?:狀態|status)?$/i, parse: () => ({ action: 'docker-ps', args: [] }) },
-  { pattern: /^(?:重啟|restart)\s+(.+?)\s*(?:容器|container)?$/i, parse: (m) => ({ action: 'docker-restart', args: [m[1].trim()] }) },
-  { pattern: /^docker\s+restart\s+(.+)$/i, parse: (m) => ({ action: 'docker-restart', args: [m[1].trim()] }) },
-  { pattern: /^docker\s+stop\s+(.+)$/i, parse: (m) => ({ action: 'docker-stop', args: [m[1].trim()] }) },
-  { pattern: /^docker\s+logs\s+(.+)$/i, parse: (m) => ({ action: 'docker-logs', args: [m[1].trim()] }) },
-  { pattern: /^(?:看|查看)\s*(.+?)\s*(?:的)?\s*(?:logs?|日誌)$/i, parse: (m) => ({ action: 'docker-logs', args: [m[1].trim()] }) },
-  { pattern: /^docker\s+compose\s+up/i, parse: () => ({ action: 'docker-compose-up', args: [] }) },
+  { pattern: /^docker\s+ps$/i, parse: () => ({ action: "docker-ps", args: [] }) },
+  {
+    pattern: /^(?:檢查|查看|看)\s*(?:docker|容器)\s*(?:狀態|status)?$/i,
+    parse: () => ({ action: "docker-ps", args: [] }),
+  },
+  {
+    pattern: /^(?:重啟|restart)\s+(.+?)\s*(?:容器|container)?$/i,
+    parse: (m) => ({ action: "docker-restart", args: [m[1].trim()] }),
+  },
+  {
+    pattern: /^docker\s+restart\s+(.+)$/i,
+    parse: (m) => ({ action: "docker-restart", args: [m[1].trim()] }),
+  },
+  {
+    pattern: /^docker\s+stop\s+(.+)$/i,
+    parse: (m) => ({ action: "docker-stop", args: [m[1].trim()] }),
+  },
+  {
+    pattern: /^docker\s+logs\s+(.+)$/i,
+    parse: (m) => ({ action: "docker-logs", args: [m[1].trim()] }),
+  },
+  {
+    pattern: /^(?:看|查看)\s*(.+?)\s*(?:的)?\s*(?:logs?|日誌)$/i,
+    parse: (m) => ({ action: "docker-logs", args: [m[1].trim()] }),
+  },
+  { pattern: /^docker\s+compose\s+up/i, parse: () => ({ action: "docker-compose-up", args: [] }) },
 
   // Deploy
-  { pattern: /^(?:部署|deploy)\s+openclaw$/i, parse: () => ({ action: 'deploy-openclaw', args: [] }) },
-  { pattern: /^(?:更新|update)\s+openclaw$/i, parse: () => ({ action: 'deploy-openclaw', args: [] }) },
-  { pattern: /^(?:部署|deploy)\s+(?:taiwan[- ]?stock|台股)$/i, parse: () => ({ action: 'deploy-taiwan-stock', args: [] }) },
+  {
+    pattern: /^(?:部署|deploy)\s+openclaw$/i,
+    parse: () => ({ action: "deploy-openclaw", args: [] }),
+  },
+  {
+    pattern: /^(?:更新|update)\s+openclaw$/i,
+    parse: () => ({ action: "deploy-openclaw", args: [] }),
+  },
+  {
+    pattern: /^(?:部署|deploy)\s+(?:taiwan[- ]?stock|台股)$/i,
+    parse: () => ({ action: "deploy-taiwan-stock", args: [] }),
+  },
 
   // Services
-  { pattern: /^(?:重啟|restart)\s+(?:wrapper|proxy)$/i, parse: () => ({ action: 'restart-service', args: ['com.tool-wrapper-proxy'] }) },
-  { pattern: /^(?:重啟|restart)\s+(?:session[- ]?bridge)$/i, parse: () => ({ action: 'restart-service', args: ['com.rexsu.session-bridge'] }) },
-  { pattern: /^(?:重啟|restart)\s+orchestrator$/i, parse: () => ({ action: 'restart-service', args: ['com.rexsu.orchestrator'] }) },
-  { pattern: /^(?:服務|service)\s*(?:列表|list|狀態|status)$/i, parse: () => ({ action: 'service-list', args: [] }) },
+  {
+    pattern: /^(?:重啟|restart)\s+(?:wrapper|proxy)$/i,
+    parse: () => ({ action: "restart-service", args: ["com.tool-wrapper-proxy"] }),
+  },
+  {
+    pattern: /^(?:重啟|restart)\s+(?:session[- ]?bridge)$/i,
+    parse: () => ({ action: "restart-service", args: ["com.rexsu.session-bridge"] }),
+  },
+  {
+    pattern: /^(?:重啟|restart)\s+orchestrator$/i,
+    parse: () => ({ action: "restart-service", args: ["com.rexsu.orchestrator"] }),
+  },
+  {
+    pattern: /^(?:服務|service)\s*(?:列表|list|狀態|status)$/i,
+    parse: () => ({ action: "service-list", args: [] }),
+  },
 
   // Git
-  { pattern: /^git\s+status(?:\s+(.+))?$/i, parse: (m) => ({ action: 'git-status', args: m[1] ? [m[1].trim()] : [] }) },
-  { pattern: /^git\s+log(?:\s+(.+))?$/i, parse: (m) => ({ action: 'git-log', args: m[1] ? [m[1].trim()] : [] }) },
-  { pattern: /^git\s+pull(?:\s+(.+))?$/i, parse: (m) => ({ action: 'git-pull', args: m[1] ? [m[1].trim()] : [] }) },
+  {
+    pattern: /^git\s+status(?:\s+(.+))?$/i,
+    parse: (m) => ({ action: "git-status", args: m[1] ? [m[1].trim()] : [] }),
+  },
+  {
+    pattern: /^git\s+log(?:\s+(.+))?$/i,
+    parse: (m) => ({ action: "git-log", args: m[1] ? [m[1].trim()] : [] }),
+  },
+  {
+    pattern: /^git\s+pull(?:\s+(.+))?$/i,
+    parse: (m) => ({ action: "git-pull", args: m[1] ? [m[1].trim()] : [] }),
+  },
 
   // System
-  { pattern: /^(?:系統|system)\s*(?:資訊|info|狀態|status)$/i, parse: () => ({ action: 'system-info', args: [] }) },
-  { pattern: /^(?:健康|health)\s*(?:檢查|check)?$/i, parse: () => ({ action: 'health', args: [] }) },
-  { pattern: /^(?:清理|cleanup|prune)\s+(?:docker|容器)\s*(?:volumes?)?$/i, parse: () => ({ action: 'raw', args: ['docker volume prune -f && docker builder prune -f'] }) },
+  {
+    pattern: /^(?:系統|system)\s*(?:資訊|info|狀態|status)$/i,
+    parse: () => ({ action: "system-info", args: [] }),
+  },
+  {
+    pattern: /^(?:健康|health)\s*(?:檢查|check)?$/i,
+    parse: () => ({ action: "health", args: [] }),
+  },
+  {
+    pattern: /^(?:清理|cleanup|prune)\s+(?:docker|容器)\s*(?:volumes?)?$/i,
+    parse: () => ({ action: "raw", args: ["docker volume prune -f && docker builder prune -f"] }),
+  },
 
   // Catch-all for explicit exec
-  { pattern: /^(?:exec|執行)\s+(.+)$/i, parse: (m) => ({ action: 'raw', args: [m[1]] }) },
+  { pattern: /^(?:exec|執行)\s+(.+)$/i, parse: (m) => ({ action: "raw", args: [m[1]] }) },
 
   // Mac mini catch-all — any action mentioning Mac mini → session bridge
   // Users say infinite variations; pattern-matching each is futile.
-  { pattern: /^.*(?:mac\s*mini|macmini).*$/is, parse: (m) => ({ action: '_dev_task', args: [m[0]] }) },
+  {
+    pattern: /^.*(?:mac\s*mini|macmini).*$/is,
+    parse: (m) => ({ action: "_dev_task", args: [m[0]] }),
+  },
 
   // Dev task routing — "使用 Claude Code ..." → session bridge
-  { pattern: /^(?:使用|用)\s*(?:claude\s*(?:code)?|CC)\s+(.+)$/is, parse: (m) => ({ action: '_dev_task', args: [m[1]] }) },
-  { pattern: /^(?:幫我|請)\s*(?:開發|實作|修復|重構|寫)\s+(.+)$/is, parse: (m) => ({ action: '_dev_task', args: [m[1]] }) },
+  {
+    pattern: /^(?:使用|用)\s*(?:claude\s*(?:code)?|CC)\s+(.+)$/is,
+    parse: (m) => ({ action: "_dev_task", args: [m[1]] }),
+  },
+  {
+    pattern: /^(?:幫我|請)\s*(?:開發|實作|修復|重構|寫)\s+(.+)$/is,
+    parse: (m) => ({ action: "_dev_task", args: [m[1]] }),
+  },
 
   // Capability queries — intercept before Haiku says "I can't"
-  { pattern: /^(?:你)?(?:可以|能|能不能|可不可以)(?:檢視|查看|管理|操作|存取|訪問|連接|控制).*(?:mac\s*mini|專案|系統|伺服器|服務器)/is, parse: () => ({ action: '_capability', args: [] }) },
-  { pattern: /^(?:can you|are you able to).*(?:access|view|manage|control|connect|ssh).*(?:mac\s*mini|server|project|system)/is, parse: () => ({ action: '_capability', args: [] }) },
+  {
+    pattern:
+      /^(?:你)?(?:可以|能|能不能|可不可以)(?:檢視|查看|管理|操作|存取|訪問|連接|控制).*(?:mac\s*mini|專案|系統|伺服器|服務器)/is,
+    parse: () => ({ action: "_capability", args: [] }),
+  },
+  {
+    pattern:
+      /^(?:can you|are you able to).*(?:access|view|manage|control|connect|ssh).*(?:mac\s*mini|server|project|system)/is,
+    parse: () => ({ action: "_capability", args: [] }),
+  },
 ];
 
 function detectExecAction(text) {
   for (const { pattern, parse } of EXEC_PATTERNS) {
     const m = text.match(pattern);
-    if (m) return parse(m);
+    if (m) {
+      return parse(m);
+    }
   }
   return null;
 }
@@ -3915,67 +4271,82 @@ function detectExecAction(text) {
 function localExec(action, args) {
   // Capability query — return static help text, no shell exec
   // Dev task — route to Claude agent via session bridge
-  if (action === '_dev_task') {
-    const task = args.join(' ');
-    console.log('[wrapper] _dev_task → callSessionBridge:', task);
+  if (action === "_dev_task") {
+    const task = args.join(" ");
+    console.log("[wrapper] _dev_task → callSessionBridge:", task);
     // Detect project from task text
     let project = null;
     const projectMap = [
-      { keywords: ['taiwan-stock', '台股', '台灣股票', '股票專案'], name: 'taiwan-stock-mvp' },
-      { keywords: ['openclaw', 'bot', 'telegram'], name: 'openclaw' },
-      { keywords: ['personal-ai', 'ai assistant'], name: 'personal-ai-assistant' },
-      { keywords: ['rex-ai', 'dashboard'], name: 'rex-ai' },
+      { keywords: ["taiwan-stock", "台股", "台灣股票", "股票專案"], name: "taiwan-stock-mvp" },
+      { keywords: ["openclaw", "bot", "telegram"], name: "openclaw" },
+      { keywords: ["personal-ai", "ai assistant"], name: "personal-ai-assistant" },
+      { keywords: ["rex-ai", "dashboard"], name: "rex-ai" },
     ];
     const lower = task.toLowerCase();
     for (const p of projectMap) {
-      if (p.keywords.some(k => lower.includes(k))) { project = p.name; break; }
+      if (p.keywords.some((k) => lower.includes(k))) {
+        project = p.name;
+        break;
+      }
     }
-    return callSessionBridge(task, project).then(r => r.output || '(session completed, no output)');
+    return callSessionBridge(task, project).then(
+      (r) => r.output || "(session completed, no output)",
+    );
   }
 
-  if (action === '_capability') {
-    return Promise.resolve([
-      '可以。我可以直接操作 Mac mini，不需要你手動執行。',
-      '',
-      '直接發送命令即可，例如:',
-      '  docker ps — 查看容器狀態',
-      '  重啟 backend — 重啟容器',
-      '  健康檢查 — 系統整體狀態',
-      '  git status — 查看 Git 狀態',
-      '  部署 openclaw — 拉最新代碼並部署',
-      '  docker logs backend — 查看日誌',
-      '',
-      '複雜開發任務用 @agent 前綴:',
-      '  @agent 修復 Telegram provider',
-      '  @agent 加一個 /version endpoint',
-    ].join('\n'));
+  if (action === "_capability") {
+    return Promise.resolve(
+      [
+        "可以。我可以直接操作 Mac mini，不需要你手動執行。",
+        "",
+        "直接發送命令即可，例如:",
+        "  docker ps — 查看容器狀態",
+        "  重啟 backend — 重啟容器",
+        "  健康檢查 — 系統整體狀態",
+        "  git status — 查看 Git 狀態",
+        "  部署 openclaw — 拉最新代碼並部署",
+        "  docker logs backend — 查看日誌",
+        "",
+        "複雜開發任務用 @agent 前綴:",
+        "  @agent 修復 Telegram provider",
+        "  @agent 加一個 /version endpoint",
+      ].join("\n"),
+    );
   }
 
   return new Promise((resolve, reject) => {
-    const { execFile } = require('node:child_process');
-    const execPath = '/Users/rexmacmini/openclaw/openclaw-exec.sh';
+    const { execFile } = require("node:child_process");
+    const execPath = "/Users/rexmacmini/openclaw/openclaw-exec.sh";
     const execArgs = [action, ...args];
 
-    execFile(execPath, execArgs, {
-      timeout: 30000,
-      maxBuffer: 1024 * 1024,
-      env: { ...process.env, PATH: process.env.PATH + ':/opt/homebrew/bin:/usr/local/bin' },
-    }, (err, stdout, stderr) => {
-      if (err && err.killed) {
-        reject(new Error('Command timed out (30s)'));
-        return;
-      }
-      const output = (stdout || '') + (stderr ? '\nSTDERR: ' + stderr : '');
-      if (err && !output.trim()) {
-        reject(new Error(err.message));
-        return;
-      }
-      resolve(output.trim() || '(completed, no output)');
-    });
+    execFile(
+      execPath,
+      execArgs,
+      {
+        timeout: 30000,
+        maxBuffer: 1024 * 1024,
+        env: { ...process.env, PATH: process.env.PATH + ":/opt/homebrew/bin:/usr/local/bin" },
+      },
+      (err, stdout, stderr) => {
+        if (err && err.killed) {
+          reject(new Error("Command timed out (30s)"));
+          return;
+        }
+        const output = (stdout || "") + (stderr ? "\nSTDERR: " + stderr : "");
+        if (err && !output.trim()) {
+          reject(new Error(err.message));
+          return;
+        }
+        resolve(output.trim() || "(completed, no output)");
+      },
+    );
   });
 }
 
 async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
+  const trace = createTrace(reqId);
+  req._trace = trace;
+
   // Ollama health check: restart if unresponsive
   const checkOllamaHealth = async () => {
     try {
@@ -4022,7 +4393,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
 
   // Check health every 100 requests (low overhead)
   if (metrics.requests % 100 === 0) {
-    checkOllamaHealth();
+    void checkOllamaHealth();
   }
 
   const msgs = parsed.messages || [];
@@ -4061,16 +4432,21 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   // P0.1: 非阻塞 intent 分類 (在背景運行，不影響主路徑)
   if (userText && intentClassifier) {
     void (async () => {
+      const span = traceSpan(trace, "intent_classify");
       try {
         const hint = await intentClassifier.classify(userText);
         if (hint && hint.intent) {
           req.intent_hint = hint;
+          trace.intent_cache_hit = !!hint.cached;
+          span.end({ intent: hint.intent, confidence: hint.confidence, cached: !!hint.cached });
           console.log(
             `[wrapper] #${reqId} intent classified: ${hint.intent}=${(hint.confidence || 0).toFixed(2)}`,
           );
+        } else {
+          span.end({ intent: null });
         }
       } catch (e) {
-        // 靜默失敗，不影響主路徑
+        span.end({ error: e.message });
       }
     })();
   }
@@ -4080,6 +4456,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   // Priority 1.4: Taiwan Stock Real-time Analysis
   const stockSymbol = detectStockSymbol(userText);
   if (stockSymbol) {
+    const span = traceSpan(trace, "taiwan_stock");
     console.log(`[wrapper] #${reqId} TAIWAN_STOCK: ${stockSymbol}`);
     metrics.skillCalls++;
     try {
@@ -4098,8 +4475,11 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       }
       analysis += `\n⚠️ 免責聲明: 本分析僅供參考，非投資建議。`;
       skillContext = `[台股分析]\n${analysis}`;
+      span.end({ symbol: stockSymbol, success: true });
+      finalizeTrace(trace, "taiwan_stock", { route_path: "stock_direct" });
       return sendDirectResponse(reqId, skillContext, wantsStream, res);
     } catch (e) {
+      span.end({ symbol: stockSymbol, error: e.message });
       console.error(`[wrapper] #${reqId} taiwan_stock error: ${e.message}`);
       metrics.errors++;
       console.log(`[wrapper] #${reqId} taiwan_stock fallback: ${e.message}`);
@@ -4125,84 +4505,173 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     }
   }
 
-
   // Priority 0.6: Deterministic command executor — LLM completely bypassed
   // Simple system commands execute locally (wrapper IS on Mac mini).
   // Complex dev tasks still route to callSessionBridge → Claude agent.
   {
     const execAction = detectExecAction(userText);
     if (execAction) {
-      console.log(`[wrapper] #${reqId} EXEC: ${execAction.action} ${execAction.args.join(' ')}`);
+      const span = traceSpan(trace, "local_exec");
+      console.log(`[wrapper] #${reqId} EXEC: ${execAction.action} ${execAction.args.join(" ")}`);
       try {
         const output = await localExec(execAction.action, execAction.args);
+        span.end({ action: execAction.action, success: true });
+        finalizeTrace(trace, "local", { route_path: "exec_direct" });
         return sendDirectResponse(reqId, output, wantsStream, res);
       } catch (e) {
+        span.end({ action: execAction.action, error: e.message });
+        finalizeTrace(trace, "local", { route_path: "exec_direct", fallback: true });
         console.error(`[wrapper] #${reqId} EXEC error: ${e.message}`);
         return sendDirectResponse(reqId, `執行失敗: ${e.message}`, wantsStream, res);
       }
     }
   }
 
-    // Priority 0.65: Control Plane — self-learning routing (v3)
+  // Priority 0.65: Control Plane — self-learning routing (v3)
   // Uses historical execution stats to route optimally.
   // Fallback: rule-based Intent Density scoring (v2) when insufficient data.
   // Agent-internal requests → never escalate (prevent control plane hijack)
   {
     // --- Agent internal bypass: agents manage themselves ---
-    const isAgentInternal = req.headers["x-openclaw-agent"] === "true"
-      || req.headers["x-openclaw-internal"] === "true";
+    const isAgentInternal =
+      req.headers["x-openclaw-agent"] === "true" || req.headers["x-openclaw-internal"] === "true";
 
     const CP_ACTION_SIGNALS = [
       // Code/Dev tasks
-      "加一個", "新增", "建立", "實作", "實現", "寫一個", "修復", "重構",
-      "開發", "develop", "使用 claude", "用 claude",
-      "implement", "create", "build", "add", "write", "fix", "refactor",
+      "加一個",
+      "新增",
+      "建立",
+      "實作",
+      "實現",
+      "寫一個",
+      "修復",
+      "重構",
+      "開發",
+      "develop",
+      "使用 claude",
+      "用 claude",
+      "implement",
+      "create",
+      "build",
+      "add",
+      "write",
+      "fix",
+      "refactor",
       // System ops
-      "重啟", "restart", "停止", "stop", "啟動", "start",
-      "清理", "cleanup", "刪除", "delete", "移除", "remove",
+      "重啟",
+      "restart",
+      "停止",
+      "stop",
+      "啟動",
+      "start",
+      "清理",
+      "cleanup",
+      "刪除",
+      "delete",
+      "移除",
+      "remove",
       // Docker
-      "container", "容器", "docker", "image", "volume",
+      "container",
+      "容器",
+      "docker",
+      "image",
+      "volume",
       // Deploy
-      "部署", "deploy", "push", "上線", "release",
+      "部署",
+      "deploy",
+      "push",
+      "上線",
+      "release",
       // File ops
-      "檔案", "file", "目錄", "directory", "備份", "backup",
+      "檔案",
+      "file",
+      "目錄",
+      "directory",
+      "備份",
+      "backup",
       // Config
-      "設定", "config", "configure", "修改設定", "更新設定",
+      "設定",
+      "config",
+      "configure",
+      "修改設定",
+      "更新設定",
       // Install/Update
-      "安裝", "install", "更新", "update", "upgrade",
+      "安裝",
+      "install",
+      "更新",
+      "update",
+      "upgrade",
     ];
     const CP_EXCLUDE = [
       // Pure questions — don't route to session bridge
-      "什麼是", "what is", "what's", "how does", "為什麼", "why",
-      "explain", "解釋", "tell me about", "介紹",
+      "什麼是",
+      "what is",
+      "what's",
+      "how does",
+      "為什麼",
+      "why",
+      "explain",
+      "解釋",
+      "tell me about",
+      "介紹",
       // Greetings
-      "你好", "hello", "hi", "嗨", "hey",
+      "你好",
+      "hello",
+      "hi",
+      "嗨",
+      "hey",
     ];
     const lowerCP = userText.toLowerCase();
-    const hasAction = CP_ACTION_SIGNALS.some(s => lowerCP.includes(s));
-    const isQuestion = CP_EXCLUDE.some(s => lowerCP.includes(s));
+    const hasAction = CP_ACTION_SIGNALS.some((s) => lowerCP.includes(s));
+    const isQuestion = CP_EXCLUDE.some((s) => lowerCP.includes(s));
 
     if (hasAction && !isQuestion && userText.length > 5 && !isAgentInternal) {
       // --- Step 1: Rule-based Intent Density scoring (baseline) ---
       const CP_COMPLEX_VERBS = [
-        "實作", "implement", "重構", "refactor", "設計", "design",
-        "遷移", "migrate", "整合", "integrate", "新增功能", "add feature",
-        "建立模組", "create module", "architecture", "架構",
+        "實作",
+        "implement",
+        "重構",
+        "refactor",
+        "設計",
+        "design",
+        "遷移",
+        "migrate",
+        "整合",
+        "integrate",
+        "新增功能",
+        "add feature",
+        "建立模組",
+        "create module",
+        "architecture",
+        "架構",
       ];
       const CP_COMPLEX_PATTERNS = [
         /(?:endpoint|api|module|component|service|feature).*(?:加|建|寫|implement|create|build|design)/is,
         /(?:加|建|寫|implement|create|build|design).*(?:endpoint|api|module|component|service|feature)/is,
       ];
       const CP_TECHNICAL_NOUNS = [
-        "endpoint", "api", "database", "schema", "middleware", "router",
-        "controller", "service", "model", "migration", "pipeline",
-        "資料庫", "路由", "中間件", "控制器", "模型",
+        "endpoint",
+        "api",
+        "database",
+        "schema",
+        "middleware",
+        "router",
+        "controller",
+        "service",
+        "model",
+        "migration",
+        "pipeline",
+        "資料庫",
+        "路由",
+        "中間件",
+        "控制器",
+        "模型",
       ];
 
       let complexityScore = 0;
-      const verbMatches = CP_COMPLEX_VERBS.filter(v => lowerCP.includes(v)).length;
-      const patternMatches = CP_COMPLEX_PATTERNS.filter(p => p.test(userText)).length;
-      const nounMatches = CP_TECHNICAL_NOUNS.filter(n => lowerCP.includes(n)).length;
+      const verbMatches = CP_COMPLEX_VERBS.filter((v) => lowerCP.includes(v)).length;
+      const patternMatches = CP_COMPLEX_PATTERNS.filter((p) => p.test(userText)).length;
+      const nounMatches = CP_TECHNICAL_NOUNS.filter((n) => lowerCP.includes(n)).length;
       complexityScore = verbMatches * 2 + patternMatches * 3 + nounMatches;
 
       const explicitEscalation = /^(?:@agent\s|task:\s*)/i.test(userText);
@@ -4217,7 +4686,7 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       // Detect project from PROJECT_ROUTES
       let cpProject = null;
       for (const route of PROJECT_ROUTES) {
-        if (route.keywords.some(kw => lowerCP.includes(kw))) {
+        if (route.keywords.some((kw) => lowerCP.includes(kw))) {
           cpProject = route.dir.split("/").pop();
           break;
         }
@@ -4238,9 +4707,14 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       const effectiveThreshold = modeAdj.predictionThreshold || PREDICTION_CONFIDENCE;
 
       // --- Observability ---
-      const modeStr = activeMode ? `${activeMode}(${Object.entries(_modeScores).map(([k,v])=>k[0]+"="+v.toFixed(1)).join(",")})` : "none";
-      console.log(`[wrapper] #${reqId} CONTROL_PLANE_V3: intent=${cpIntent} score=${complexityScore} rule=${ruleBasedDecision} final=${finalRoute} reason=${routeReason} mode=${modeStr} predicted=${predictedExecutor || "none"} project=${cpProject || "none"}`);
-
+      const modeStr = activeMode
+        ? `${activeMode}(${Object.entries(_modeScores)
+            .map(([k, v]) => k[0] + "=" + v.toFixed(1))
+            .join(",")})`
+        : "none";
+      console.log(
+        `[wrapper] #${reqId} CONTROL_PLANE_V3: intent=${cpIntent} score=${complexityScore} rule=${ruleBasedDecision} final=${finalRoute} reason=${routeReason} mode=${modeStr} predicted=${predictedExecutor || "none"} project=${cpProject || "none"}`,
+      );
 
       // --- Record routing event for dashboard ---
       const predictedExec = predictExecutor(cpIntent);
@@ -4266,26 +4740,41 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       if (finalRoute === "session_bridge") {
         // --- Session Gate: prevent spawn storm ---
         if (_activeSessions >= MAX_CONCURRENT_SESSIONS) {
-          console.log(`[wrapper] #${reqId} CONTROL_PLANE_QUEUED: ${_activeSessions} active sessions, falling through to dev mode`);
+          console.log(
+            `[wrapper] #${reqId} CONTROL_PLANE_QUEUED: ${_activeSessions} active sessions, falling through to dev mode`,
+          );
           recordRoutingOutcome(cpIntent, "dev_loop", true, Date.now() - cpStartTime);
         } else {
           // → Slow Path: Session Bridge (Claude Code) for deliberative tasks
           console.log(`[wrapper] #${reqId} CONTROL_PLANE_SESSION: routing to session-bridge`);
           _lastSessionSpawn = Date.now();
           _activeSessions++;
+          const sbSpan = traceSpan(trace, "session_bridge");
           try {
             const result = await callSessionBridge(userText, cpProject);
-            const output = result.output || result.lastMessage || "(session completed, no output captured)";
-            const truncated = output.length > 3000 ? output.slice(0, 3000) + "\n...(truncated)" : output;
+            const output =
+              result.output || result.lastMessage || "(session completed, no output captured)";
+            const truncated =
+              output.length > 3000 ? output.slice(0, 3000) + "\n...(truncated)" : output;
             recordRoutingOutcome(cpIntent, "session_bridge", true, Date.now() - cpStartTime);
-            // Predictive: pre-warm for likely next task
             const _pPredicted = predictExecutor(cpIntent);
-            if (_pPredicted === "session_bridge") {softPreWarm(cpProject);}
+            if (_pPredicted === "session_bridge") {
+              softPreWarm(cpProject);
+            }
+            sbSpan.end({ success: true, project: cpProject });
+            finalizeTrace(trace, "session_bridge", {
+              route_path: "control_plane_session",
+              decision_ms: Date.now() - cpStartTime,
+            });
             return sendDirectResponse(reqId, truncated, wantsStream, res);
           } catch (e) {
+            sbSpan.end({ error: e.message });
+            trace.fallback = true;
             console.error(`[wrapper] #${reqId} control_plane error: ${e.message}`);
             recordRoutingOutcome(cpIntent, "session_bridge", false, Date.now() - cpStartTime);
-            console.log(`[wrapper] #${reqId} control_plane: session-bridge failed, falling through to dev mode`);
+            console.log(
+              `[wrapper] #${reqId} control_plane: session-bridge failed, falling through to dev mode`,
+            );
           } finally {
             _activeSessions--;
           }
@@ -4293,7 +4782,9 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       } else {
         // → Fast Path: fall through to dev mode tool loop
         // Note: dev mode feedback is recorded after tool loop completes (see dev mode section)
-        console.log(`[wrapper] #${reqId} CONTROL_PLANE_FAST: falling through to dev mode (intent=${cpIntent})`);
+        console.log(
+          `[wrapper] #${reqId} CONTROL_PLANE_FAST: falling through to dev mode (intent=${cpIntent})`,
+        );
         // Stash intent for dev mode feedback
         req._cpIntent = cpIntent;
         req._cpStartTime = cpStartTime;
@@ -4301,51 +4792,77 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     }
   }
 
-    // Priority 0.7: Agent Orchestrator — @agent or task: prefix
+  // Priority 0.7: Agent Orchestrator — @agent or task: prefix
   {
     const agentMatch = userText.match(/^(?:@agent\s+|task:\s*|agent:\s*)(.+)$/is);
     if (agentMatch) {
       const taskText = agentMatch[1].trim();
+      const orchSpan = traceSpan(trace, "agent_orchestrator");
       console.log(`[wrapper] #${reqId} AGENT_TASK: ${taskText.slice(0, 80)}`);
       try {
         const orchRes = await new Promise((resolve, reject) => {
           const postData = JSON.stringify({ text: taskText, chatId: "150944774" });
-          const orchReq = http.request({
-            hostname: "127.0.0.1",
-            port: 7789,
-            path: "/telegram/message",
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(postData) },
-            timeout: 30000,
-          }, (r) => {
-            let body = "";
-            r.on("data", (c) => body += c);
-            r.on("end", () => {
-              try { resolve(JSON.parse(body)); } catch { resolve({ error: body }); }
-            });
-          });
+          const orchReq = http.request(
+            {
+              hostname: "127.0.0.1",
+              port: 7789,
+              path: "/telegram/message",
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(postData),
+              },
+              timeout: 30000,
+            },
+            (r) => {
+              let body = "";
+              r.on("data", (c) => (body += c));
+              r.on("end", () => {
+                try {
+                  resolve(JSON.parse(body));
+                } catch {
+                  resolve({ error: body });
+                }
+              });
+            },
+          );
           orchReq.on("error", reject);
-          orchReq.on("timeout", () => { orchReq.destroy(); reject(new Error("timeout")); });
+          orchReq.on("timeout", () => {
+            orchReq.destroy();
+            reject(new Error("timeout"));
+          });
           orchReq.write(postData);
           orchReq.end();
         });
         let reply;
         if (orchRes.tasks) {
-          const taskList = orchRes.tasks.map(t => `- ${t.id}: ${t.description.slice(0, 60)}${t.queued ? " (queued)" : ""}`).join("\n");
+          const taskList = orchRes.tasks
+            .map((t) => `- ${t.id}: ${t.description.slice(0, 60)}${t.queued ? " (queued)" : ""}`)
+            .join("\n");
           reply = `Agent task created:\n${taskList}`;
         } else if (orchRes.status) {
           const s = orchRes.status;
-          reply = `Orchestrator: ${s.running} running, ${s.active} active (max ${s.maxConcurrent})\n` +
-            s.tasks.map(t => `- ${t.id} [${t.status}] ${t.description}`).join("\n");
+          reply =
+            `Orchestrator: ${s.running} running, ${s.active} active (max ${s.maxConcurrent})\n` +
+            s.tasks.map((t) => `- ${t.id} [${t.status}] ${t.description}`).join("\n");
         } else if (orchRes.error) {
           reply = `Orchestrator error: ${orchRes.error}`;
         } else {
           reply = JSON.stringify(orchRes);
         }
+        orchSpan.end({ success: true });
+        finalizeTrace(trace, "agent_orchestrator", { route_path: "agent_task" });
         return sendDirectResponse(reqId, reply, wantsStream, res);
       } catch (e) {
+        orchSpan.end({ error: e.message });
+        finalizeTrace(trace, "agent_orchestrator", { route_path: "agent_task", fallback: true });
         console.error(`[wrapper] #${reqId} agent_task error: ${e.message}`);
-        return sendDirectResponse(reqId, `Agent orchestrator error: ${e.message}`, wantsStream, res);
+        return sendDirectResponse(
+          reqId,
+          `Agent orchestrator error: ${e.message}`,
+          wantsStream,
+          res,
+        );
       }
     }
   }
@@ -4353,8 +4870,11 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
   {
     const sysIntent = detectSystemIntent(userText);
     if (sysIntent) {
+      const sysSpan = traceSpan(trace, "system_cmd");
       console.log(`[wrapper] #${reqId} SYSTEM CMD: ${sysIntent.type}`);
       const sysResult = await handleSystemCommand(sysIntent.type);
+      sysSpan.end({ type: sysIntent.type });
+      finalizeTrace(trace, "system", { route_path: "system_cmd" });
       return sendDirectResponse(reqId, sysResult, wantsStream, res);
     }
   }
@@ -4599,67 +5119,104 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
     }
   }
 
-  // Priority 4: Ollama-first routing for normal conversation
-  if (!skillContext && (forceModel === "ollama" || forceModel === "glm")) {
-    // Only @ollama or @glm → try Ollama
+  // Priority 4: Smart routing via DecisionEngine
+  // Force model directives override DecisionEngine
+  if (!skillContext) {
     metrics.normalChat++;
-    const ollamaModelName = forceModel === "glm" ? "glm-4.7-flash" : "qwen2.5-coder:7b";
-    console.log(`[wrapper] #${reqId} trying Ollama ${ollamaModelName}...`);
+    const isForceOllama = forceModel === "ollama" || forceModel === "glm";
+    const isForceClaude = forceModel === "claude" || forceModel === "opus";
 
-    // Prepare messages with system prompt + memory for Ollama
-    const ollamaMessages = prepareOllamaMessages(msgs, memoryContext);
-    const ollamaOpts = forceModel === "glm" ? ollamaRouter.getModelForForce("glm") : {};
-    const ollamaResult = await ollamaRouter.tryOllamaChat(ollamaMessages, ollamaOpts);
+    // DecisionEngine decides executor (unless force override)
+    const decision = decisionEngine.decide(
+      { userText, intentHint: req.intent_hint, forceModel },
+      trace,
+    );
+    const useOllama = isForceOllama || (!isForceClaude && decision.executor === "ollama");
 
-    if (ollamaResult.success) {
-      const quality = ollamaRouter.assessQuality(ollamaResult.content, userText);
+    console.log(
+      `[wrapper] #${reqId} DECISION: executor=${decision.executor} reason=${decision.reason} ms=${decision.decisionMs} force=${forceModel || "none"}`,
+    );
 
-      if (quality >= 0.7 || forceModel === "ollama" || forceModel === "glm") {
-        metrics.ollamaRouted++;
-        const latencySec = (ollamaResult.latency / 1000).toFixed(1);
-        const modelName = ollamaResult.model || "qwen2.5-coder:7b";
-        const footer = `\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nOllama ${modelName} (${latencySec}s)`;
-        console.log(
-          `[wrapper] #${reqId} ollama OK: quality=${quality.toFixed(2)} latency=${ollamaResult.latency}ms`,
-        );
+    if (useOllama) {
+      const ollamaModelName = forceModel === "glm" ? "glm-4.7-flash" : "qwen2.5-coder:7b";
+      console.log(`[wrapper] #${reqId} trying Ollama ${ollamaModelName}...`);
+      const ollamaSpan = traceSpan(trace, "ollama_exec");
 
-        if (userText && ollamaResult.content.length > 10) {
-          // storeMemory(userText, ollamaResult.content); // Mem0 removed
+      const ollamaMessages = prepareOllamaMessages(msgs, memoryContext);
+      const ollamaOpts = forceModel === "glm" ? ollamaRouter.getModelForForce("glm") : {};
+      const ollamaResult = await ollamaRouter.tryOllamaChat(ollamaMessages, ollamaOpts);
+
+      if (ollamaResult.success) {
+        const quality = ollamaRouter.assessQuality(ollamaResult.content, userText);
+        trace.ollama_quality_score = quality;
+
+        // Tiered quality thresholds based on complexity
+        const qualityThreshold =
+          decision.intent.complexity > 0.6 ? 0.8 : decision.intent.complexity > 0.3 ? 0.6 : 0.4;
+        const qualityOk = quality >= qualityThreshold || isForceOllama;
+
+        if (qualityOk) {
+          metrics.ollamaRouted++;
+          decisionEngine.recordSuccess("ollama", ollamaResult.latency);
+          const latencySec = (ollamaResult.latency / 1000).toFixed(1);
+          const modelName = ollamaResult.model || "qwen2.5-coder:7b";
+          const footer = `\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nOllama ${modelName} (${latencySec}s)`;
+          console.log(
+            `[wrapper] #${reqId} ollama OK: quality=${quality.toFixed(2)} threshold=${qualityThreshold} latency=${ollamaResult.latency}ms`,
+          );
+
+          trackTokenUsage(
+            modelName,
+            "ollama",
+            {
+              input_tokens: ollamaResult.promptTokens || 0,
+              output_tokens: ollamaResult.evalTokens || 0,
+            },
+            ollamaResult.latency,
+          );
+
+          ollamaSpan.end({
+            model: modelName,
+            quality,
+            latency: ollamaResult.latency,
+            success: true,
+          });
+          finalizeTrace(trace, "ollama", {
+            route_path: "ollama_direct",
+            executor_ms: ollamaResult.latency,
+          });
+          return sendDirectResponse(reqId, ollamaResult.content + footer, wantsStream, res);
         }
-        // Track Ollama token usage
-        trackTokenUsage(
-          modelName,
-          "ollama",
-          {
-            input_tokens: ollamaResult.promptTokens || 0,
-            output_tokens: ollamaResult.evalTokens || 0,
-          },
-          ollamaResult.latency,
+
+        // Quality below threshold — fallback to Claude
+        ollamaRouter.ollamaStats.qualityReject++;
+        ollamaRouter.ollamaStats.fallback++;
+        metrics.ollamaFallback++;
+        decisionEngine.recordFailure("ollama");
+        ollamaSpan.end({ quality, threshold: qualityThreshold, rejected: true });
+        trace.fallback = true;
+        trace.model_switch = true;
+        console.log(
+          `[wrapper] #${reqId} ollama quality reject: ${quality.toFixed(2)} < ${qualityThreshold}, fallback to Claude`,
         );
-
-        return sendDirectResponse(reqId, ollamaResult.content + footer, wantsStream, res);
+      } else {
+        ollamaRouter.ollamaStats.fallback++;
+        metrics.ollamaFallback++;
+        decisionEngine.recordFailure("ollama");
+        ollamaSpan.end({ error: ollamaResult.reason });
+        trace.fallback = true;
+        console.log(`[wrapper] #${reqId} ollama ${ollamaResult.reason}: fallback to Claude`);
       }
-
-      // Quality too low — fallback
-      ollamaRouter.ollamaStats.qualityReject++;
-      ollamaRouter.ollamaStats.fallback++;
-      metrics.ollamaFallback++;
-      console.log(
-        `[wrapper] #${reqId} ollama quality reject: ${quality.toFixed(2)}, fallback to Claude`,
-      );
-    } else {
-      ollamaRouter.ollamaStats.fallback++;
-      metrics.ollamaFallback++;
-      console.log(`[wrapper] #${reqId} ollama ${ollamaResult.reason}: fallback to Claude`);
     }
-  } else if (!skillContext) {
-    metrics.normalChat++;
+
+    // Periodically check failover recovery
+    decisionEngine.checkRecovery();
   }
 
   // Claude (fallback, forced, or has skill context)
   if (!skillContext && forceModel !== "opus") {
-    // No skill matched — let Claude decide using tool-use
-    return await handleWithSkillTools(
+    const claudeSpan = traceSpan(trace, "claude_skill_tools");
+    const result = await handleWithSkillTools(
       reqId,
       parsed,
       res,
@@ -4668,8 +5225,15 @@ async function handleChatCompletion(reqId, parsed, wantsStream, req, res) {
       skillContext,
       userText,
     );
+    claudeSpan.end({});
+    finalizeTrace(trace, "claude", {
+      route_path: trace.fallback ? "ollama_fallback_claude" : "claude_direct",
+    });
+    return result;
   } else {
-    // Skill matched or has context — use traditional passthrough
+    finalizeTrace(trace, skillContext ? "claude_with_skill" : "claude", {
+      route_path: "passthrough",
+    });
     if (wantsStream) {
       streamPassthrough(reqId, parsed, res, skillContext, memoryContext, userText);
     } else {
@@ -5148,7 +5712,10 @@ const server = http.createServer((req, res) => {
   // ─── Control Plane Dashboard ───
   if (req.url === "/dashboard" && req.method === "GET") {
     try {
-      const html = fs.readFileSync("/Users/rexmacmini/openclaw/control-plane-dashboard.html", "utf8");
+      const html = fs.readFileSync(
+        "/Users/rexmacmini/openclaw/control-plane-dashboard.html",
+        "utf8",
+      );
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(html);
     } catch (e) {
@@ -5168,7 +5735,17 @@ const server = http.createServer((req, res) => {
     if (events.length === 0) {
       try {
         const raw = fs.readFileSync(CP_EVENTS_PATH, "utf8").trim();
-        events = raw.split("\n").slice(-limit).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+        events = raw
+          .split("\n")
+          .slice(-limit)
+          .map((l) => {
+            try {
+              return JSON.parse(l);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
       } catch {}
     }
     res.end(JSON.stringify(events.slice(-limit)));
@@ -5180,7 +5757,17 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     try {
       const raw = fs.readFileSync(CP_MODE_HISTORY_PATH, "utf8").trim();
-      const lines = raw.split("\n").slice(-100).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      const lines = raw
+        .split("\n")
+        .slice(-100)
+        .map((l) => {
+          try {
+            return JSON.parse(l);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
       res.end(JSON.stringify(lines));
     } catch {
       res.end("[]");
@@ -5191,16 +5778,20 @@ const server = http.createServer((req, res) => {
   // Prediction accuracy stats
   if (req.url === "/prediction-stats" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-    const accuracy = _predictionTracker.total > 0
-      ? (_predictionTracker.hits / _predictionTracker.total * 100).toFixed(1)
-      : "0.0";
-    res.end(JSON.stringify({
-      ..._predictionTracker,
-      accuracy: accuracy + "%",
-      falseWarmRate: _predictionTracker.total > 0
-        ? (_predictionTracker.falseWarms / _predictionTracker.total * 100).toFixed(1) + "%"
-        : "0.0%",
-    }));
+    const accuracy =
+      _predictionTracker.total > 0
+        ? ((_predictionTracker.hits / _predictionTracker.total) * 100).toFixed(1)
+        : "0.0";
+    res.end(
+      JSON.stringify({
+        ..._predictionTracker,
+        accuracy: accuracy + "%",
+        falseWarmRate:
+          _predictionTracker.total > 0
+            ? ((_predictionTracker.falseWarms / _predictionTracker.total) * 100).toFixed(1) + "%"
+            : "0.0%",
+      }),
+    );
     return;
   }
 
@@ -5220,16 +5811,22 @@ const server = http.createServer((req, res) => {
   }
 
   // Routing stats — self-learning router visibility
-  
+
   // Mode status — current momentum state
   if (req.url === "/mode-status" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
-    res.end(JSON.stringify({
-      activeMode: getActiveMode(),
-      scores: _modeScores,
-      adjustments: getModeAdjustments(getActiveMode()),
-      lastIntent: _lastIntent,
-    }, null, 2));
+    res.end(
+      JSON.stringify(
+        {
+          activeMode: getActiveMode(),
+          scores: _modeScores,
+          adjustments: getModeAdjustments(getActiveMode()),
+          lastIntent: _lastIntent,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -5259,7 +5856,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-if (req.url === "/routing-stats" && req.method === "GET") {
+  if (req.url === "/routing-stats" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
     const stats = loadRoutingStats();
     const enriched = {};
@@ -5273,7 +5870,6 @@ if (req.url === "/routing-stats" && req.method === "GET") {
     return;
   }
 
-
   // System metrics proxy
   if (req.url === "/metrics/system" && req.method === "GET") {
     return handleSystemMetrics(res);
@@ -5285,6 +5881,60 @@ if (req.url === "/routing-stats" && req.method === "GET") {
     req.method === "GET"
   ) {
     return handleModelUsage(res);
+  }
+
+  // Decision engine stats
+  if (req.url === "/metrics/decision" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(decisionEngine.getStats(), null, 2));
+    return;
+  }
+
+  // Trace stats endpoint — recent traces summary
+  if (req.url === "/metrics/traces" && req.method === "GET") {
+    try {
+      const data = fs.readFileSync(TRACE_LOG_PATH, "utf-8").trim().split("\n").slice(-100);
+      const traces = data
+        .filter(Boolean)
+        .map((l) => {
+          try {
+            return JSON.parse(l);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      const executors = {};
+      let totalMs = 0;
+      let fallbacks = 0;
+      for (const t of traces) {
+        executors[t.executor] = (executors[t.executor] || 0) + 1;
+        totalMs += t.total_ms || 0;
+        if (t.fallback) {
+          fallbacks++;
+        }
+      }
+      const summary = {
+        count: traces.length,
+        avg_total_ms: traces.length ? Math.round(totalMs / traces.length) : 0,
+        fallback_rate: traces.length ? ((fallbacks / traces.length) * 100).toFixed(1) + "%" : "0%",
+        executors,
+        recent: traces
+          .slice(-5)
+          .map((t) => ({
+            trace_id: t.trace_id,
+            executor: t.executor,
+            total_ms: t.total_ms,
+            route_path: t.route_path,
+          })),
+      };
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(summary, null, 2));
+    } catch (e) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ count: 0, message: "No traces yet" }));
+    }
+    return;
   }
 
   // Spec-Driven Development endpoints
@@ -5551,7 +6201,7 @@ if (req.url === "/routing-stats" && req.method === "GET") {
       `[wrapper] #${reqId} msgs=${msgCount} lastRole=${lastRole} tools=${hasTools} stream=${wantsStream}`,
     );
 
-    handleChatCompletion(reqId, parsed, wantsStream, req, res);
+    void handleChatCompletion(reqId, parsed, wantsStream, req, res);
   });
 });
 
@@ -5615,7 +6265,7 @@ void (async () => {
       `[wrapper] Mode: streaming + smart-intent + CLI + dev-mode + mem0 + ollama-first routing + P0.2`,
     );
     console.log(
-      `[wrapper] Endpoints: /health, /metrics, /metrics/model-usage, /metrics/failover, /api/agents/list, /api/agents/route, /api/intent/classify, /api/intent/stats, /api/websearch, /api/websearch/stats, /api/spec/*, /api/wake-event`,
+      `[wrapper] Endpoints: /health, /metrics, /metrics/model-usage, /metrics/failover, /metrics/traces, /api/agents/list, /api/agents/route, /api/intent/classify, /api/intent/stats, /api/websearch, /api/websearch/stats, /api/spec/*, /api/wake-event`,
     );
   });
 })();
