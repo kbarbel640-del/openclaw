@@ -267,6 +267,7 @@ export const ToolsWebSearchSchema = z
       ])
       .optional(),
     apiKey: z.string().optional().register(sensitive),
+    baseUrl: z.string().optional(),
     maxResults: z.number().int().positive().optional(),
     timeoutSeconds: z.number().int().positive().optional(),
     cacheTtlMinutes: z.number().nonnegative().optional(),
