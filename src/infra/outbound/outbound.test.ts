@@ -399,9 +399,7 @@ describe("delivery-queue", () => {
       const remaining = await loadPendingDeliveries(tmpDir);
       expect(remaining).toHaveLength(1);
 
-      expect(log.info).toHaveBeenCalledWith(
-        expect.stringContaining("Backoff"),
-      );
+      expect(log.info).toHaveBeenCalledWith(expect.stringContaining("Backoff"));
     });
 
     it("returns zeros when queue is empty", async () => {
