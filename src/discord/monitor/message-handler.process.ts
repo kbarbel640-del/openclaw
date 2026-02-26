@@ -106,8 +106,12 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   mediaList.push(...forwardedMediaList);
   const text = messageText;
   if (!text) {
-    logVerbose(`discord: drop message ${message.id} (empty content)`);
+    logVerbose("discord: drop message " + message.id + " (empty content)");
     return;
+  }
+
+  if (ctx.threadBinding?.threadId) {
+    threadBindings.touchThread({ threadId: ctx.threadBinding.threadId, persist: true });
   }
   const ackReaction = resolveAckReaction(cfg, route.agentId, {
     channel: "discord",

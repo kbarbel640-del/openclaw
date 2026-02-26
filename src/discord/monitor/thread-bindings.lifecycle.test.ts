@@ -49,12 +49,15 @@ const {
   __testing,
   autoBindSpawnedDiscordSubagent,
   createThreadBindingManager,
+  resolveThreadBindingInactivityExpiresAt,
   resolveThreadBindingIntroText,
-  setThreadBindingTtlBySessionKey,
+  resolveThreadBindingMaxAgeExpiresAt,
+  setThreadBindingIdleTimeoutBySessionKey,
+  setThreadBindingMaxAgeBySessionKey,
   unbindThreadBindingsBySessionKey,
 } = await import("./thread-bindings.js");
 
-describe("thread binding ttl", () => {
+describe("thread binding lifecycle", () => {
   beforeEach(() => {
     __testing.resetThreadBindingsForTests();
     hoisted.sendMessageDiscord.mockClear();
@@ -71,7 +74,8 @@ describe("thread binding ttl", () => {
       accountId: "default",
       persist: false,
       enableSweeper: true,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
 
   const bindDefaultThreadTarget = async (
@@ -88,23 +92,26 @@ describe("thread binding ttl", () => {
     });
   };
 
-  it("includes ttl in intro text", () => {
+  it("includes idle and max-age details in intro text", () => {
     const intro = resolveThreadBindingIntroText({
       agentId: "main",
       label: "worker",
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 48 * 60 * 60 * 1000,
     });
-    expect(intro).toContain("auto-unfocus in 24h");
+    expect(intro).toContain("idle auto-unfocus after 24h inactivity");
+    expect(intro).toContain("max age 48h");
   });
 
-  it("auto-unfocuses expired bindings and sends a ttl-expired message", async () => {
+  it("auto-unfocuses idle-expired bindings and sends inactivity message", async () => {
     vi.useFakeTimers();
     try {
       const manager = createThreadBindingManager({
         accountId: "default",
         persist: false,
         enableSweeper: true,
-        sessionTtlMs: 60_000,
+        idleTimeoutMs: 60_000,
+        maxAgeMs: 0,
       });
 
       const binding = await manager.bindTarget({
@@ -128,7 +135,41 @@ describe("thread binding ttl", () => {
       expect(hoisted.sendWebhookMessageDiscord).not.toHaveBeenCalled();
       expect(hoisted.sendMessageDiscord).toHaveBeenCalledTimes(1);
       const farewell = hoisted.sendMessageDiscord.mock.calls[0]?.[1] as string | undefined;
-      expect(farewell).toContain("Session ended automatically after 1m");
+      expect(farewell).toContain("after 1m of inactivity");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("auto-unfocuses max-age-expired bindings and sends max-age message", async () => {
+    vi.useFakeTimers();
+    try {
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: false,
+        enableSweeper: true,
+        idleTimeoutMs: 0,
+        maxAgeMs: 60_000,
+      });
+
+      const binding = await manager.bindTarget({
+        threadId: "thread-1",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:child",
+        agentId: "main",
+        webhookId: "wh-1",
+        webhookToken: "tok-1",
+      });
+      expect(binding).not.toBeNull();
+      hoisted.sendMessageDiscord.mockClear();
+
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(manager.getByThreadId("thread-1")).toBeUndefined();
+      expect(hoisted.sendMessageDiscord).toHaveBeenCalledTimes(1);
+      const farewell = hoisted.sendMessageDiscord.mock.calls[0]?.[1] as string | undefined;
+      expect(farewell).toContain("max age of 1m");
     } finally {
       vi.useRealTimers();
     }
@@ -171,7 +212,7 @@ describe("thread binding ttl", () => {
     }
   });
 
-  it("updates ttl by target session key", async () => {
+  it("updates idle timeout by target session key", async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date("2026-02-20T23:00:00.000Z"));
@@ -179,7 +220,8 @@ describe("thread binding ttl", () => {
         accountId: "default",
         persist: false,
         enableSweeper: false,
-        sessionTtlMs: 24 * 60 * 60 * 1000,
+        idleTimeoutMs: 24 * 60 * 60 * 1000,
+        maxAgeMs: 0,
       });
 
       await manager.bindTarget({
@@ -191,33 +233,80 @@ describe("thread binding ttl", () => {
         webhookId: "wh-1",
         webhookToken: "tok-1",
       });
+
+      const boundAt = manager.getByThreadId("thread-1")?.boundAt;
       vi.setSystemTime(new Date("2026-02-20T23:15:00.000Z"));
 
-      const updated = setThreadBindingTtlBySessionKey({
+      const updated = setThreadBindingIdleTimeoutBySessionKey({
         accountId: "default",
         targetSessionKey: "agent:main:subagent:child",
-        ttlMs: 2 * 60 * 60 * 1000,
+        idleTimeoutMs: 2 * 60 * 60 * 1000,
       });
 
       expect(updated).toHaveLength(1);
-      expect(updated[0]?.boundAt).toBe(new Date("2026-02-20T23:15:00.000Z").getTime());
-      expect(updated[0]?.expiresAt).toBe(new Date("2026-02-21T01:15:00.000Z").getTime());
-      expect(manager.getByThreadId("thread-1")?.expiresAt).toBe(
-        new Date("2026-02-21T01:15:00.000Z").getTime(),
-      );
+      expect(updated[0]?.lastActivityAt).toBe(new Date("2026-02-20T23:15:00.000Z").getTime());
+      expect(updated[0]?.boundAt).toBe(boundAt);
+      expect(
+        resolveThreadBindingInactivityExpiresAt({
+          record: updated[0],
+          defaultIdleTimeoutMs: manager.getIdleTimeoutMs(),
+        }),
+      ).toBe(new Date("2026-02-21T01:15:00.000Z").getTime());
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("keeps binding when ttl is disabled per session key", async () => {
+  it("updates max age by target session key", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-02-20T10:00:00.000Z"));
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: false,
+        enableSweeper: false,
+        idleTimeoutMs: 24 * 60 * 60 * 1000,
+        maxAgeMs: 0,
+      });
+
+      await manager.bindTarget({
+        threadId: "thread-1",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:child",
+        agentId: "main",
+      });
+
+      vi.setSystemTime(new Date("2026-02-20T10:30:00.000Z"));
+      const updated = setThreadBindingMaxAgeBySessionKey({
+        accountId: "default",
+        targetSessionKey: "agent:main:subagent:child",
+        maxAgeMs: 3 * 60 * 60 * 1000,
+      });
+
+      expect(updated).toHaveLength(1);
+      expect(updated[0]?.boundAt).toBe(new Date("2026-02-20T10:30:00.000Z").getTime());
+      expect(updated[0]?.lastActivityAt).toBe(new Date("2026-02-20T10:30:00.000Z").getTime());
+      expect(
+        resolveThreadBindingMaxAgeExpiresAt({
+          record: updated[0],
+          defaultMaxAgeMs: manager.getMaxAgeMs(),
+        }),
+      ).toBe(new Date("2026-02-20T13:30:00.000Z").getTime());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps binding when idle timeout is disabled per session key", async () => {
     vi.useFakeTimers();
     try {
       const manager = createThreadBindingManager({
         accountId: "default",
         persist: false,
         enableSweeper: true,
-        sessionTtlMs: 60_000,
+        idleTimeoutMs: 60_000,
+        maxAgeMs: 0,
       });
 
       await manager.bindTarget({
@@ -230,19 +319,55 @@ describe("thread binding ttl", () => {
         webhookToken: "tok-1",
       });
 
-      const updated = setThreadBindingTtlBySessionKey({
+      const updated = setThreadBindingIdleTimeoutBySessionKey({
         accountId: "default",
         targetSessionKey: "agent:main:subagent:child",
-        ttlMs: 0,
+        idleTimeoutMs: 0,
       });
       expect(updated).toHaveLength(1);
-      expect(updated[0]?.expiresAt).toBe(0);
-      hoisted.sendWebhookMessageDiscord.mockClear();
+      expect(updated[0]?.idleTimeoutMs).toBe(0);
 
       await vi.advanceTimersByTimeAsync(240_000);
 
       expect(manager.getByThreadId("thread-1")).toBeDefined();
-      expect(hoisted.sendWebhookMessageDiscord).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refreshes inactivity window when thread activity is touched", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-02-20T00:00:00.000Z"));
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: false,
+        enableSweeper: false,
+        idleTimeoutMs: 60_000,
+        maxAgeMs: 0,
+      });
+
+      await manager.bindTarget({
+        threadId: "thread-1",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:child",
+        agentId: "main",
+      });
+
+      vi.setSystemTime(new Date("2026-02-20T00:00:30.000Z"));
+      const touched = manager.touchThread({ threadId: "thread-1", persist: false });
+      expect(touched).not.toBeNull();
+
+      const record = manager.getByThreadId("thread-1");
+      expect(record).toBeDefined();
+      expect(record?.lastActivityAt).toBe(new Date("2026-02-20T00:00:30.000Z").getTime());
+      expect(
+        resolveThreadBindingInactivityExpiresAt({
+          record: record!,
+          defaultIdleTimeoutMs: manager.getIdleTimeoutMs(),
+        }),
+      ).toBe(new Date("2026-02-20T00:01:30.000Z").getTime());
     } finally {
       vi.useRealTimers();
     }
@@ -253,7 +378,8 @@ describe("thread binding ttl", () => {
       accountId: "default",
       persist: false,
       enableSweeper: false,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
 
     const first = await manager.bindTarget({
@@ -289,7 +415,8 @@ describe("thread binding ttl", () => {
       accountId: "default",
       persist: false,
       enableSweeper: false,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
 
     await manager.bindTarget({
@@ -329,7 +456,8 @@ describe("thread binding ttl", () => {
       accountId: "default",
       persist: false,
       enableSweeper: false,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
 
     hoisted.restGet.mockClear();
@@ -365,7 +493,8 @@ describe("thread binding ttl", () => {
       token: "runtime-token",
       persist: false,
       enableSweeper: false,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
 
     hoisted.createDiscordRestClient.mockClear();
@@ -402,14 +531,16 @@ describe("thread binding ttl", () => {
       token: "token-old",
       persist: false,
       enableSweeper: false,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
     const manager = createThreadBindingManager({
       accountId: "runtime",
       token: "token-new",
       persist: false,
       enableSweeper: false,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
 
     hoisted.createThreadDiscord.mockClear();
@@ -441,13 +572,15 @@ describe("thread binding ttl", () => {
       accountId: "a",
       persist: false,
       enableSweeper: false,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
     const b = createThreadBindingManager({
       accountId: "b",
       persist: false,
       enableSweeper: false,
-      sessionTtlMs: 24 * 60 * 60 * 1000,
+      idleTimeoutMs: 24 * 60 * 60 * 1000,
+      maxAgeMs: 0,
     });
 
     const aBinding = await a.bindTarget({
@@ -503,7 +636,9 @@ describe("thread binding ttl", () => {
                 agentId: "main",
                 boundBy: "system",
                 boundAt: now,
-                expiresAt: now + 60_000,
+                lastActivityAt: now,
+                idleTimeoutMs: 60_000,
+                maxAgeMs: 0,
               },
             },
           },

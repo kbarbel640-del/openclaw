@@ -4,7 +4,8 @@ import { resolveStateDir } from "../../config/paths.js";
 import { loadJsonFile, saveJsonFile } from "../../infra/json-file.js";
 import { normalizeAccountId, resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import {
-  DEFAULT_THREAD_BINDING_TTL_MS,
+  DEFAULT_THREAD_BINDING_IDLE_TIMEOUT_MS,
+  DEFAULT_THREAD_BINDING_MAX_AGE_MS,
   RECENT_UNBOUND_WEBHOOK_ECHO_TTL_MS,
   THREAD_BINDINGS_VERSION,
   type PersistedThreadBindingRecord,
@@ -164,9 +165,17 @@ function normalizePersistedBinding(threadIdKey: string, raw: unknown): ThreadBin
     typeof value.boundAt === "number" && Number.isFinite(value.boundAt)
       ? Math.floor(value.boundAt)
       : Date.now();
-  const expiresAt =
-    typeof value.expiresAt === "number" && Number.isFinite(value.expiresAt)
-      ? Math.max(0, Math.floor(value.expiresAt))
+  const lastActivityAt =
+    typeof value.lastActivityAt === "number" && Number.isFinite(value.lastActivityAt)
+      ? Math.max(0, Math.floor(value.lastActivityAt))
+      : boundAt;
+  const idleTimeoutMs =
+    typeof value.idleTimeoutMs === "number" && Number.isFinite(value.idleTimeoutMs)
+      ? Math.max(0, Math.floor(value.idleTimeoutMs))
+      : undefined;
+  const maxAgeMs =
+    typeof value.maxAgeMs === "number" && Number.isFinite(value.maxAgeMs)
+      ? Math.max(0, Math.floor(value.maxAgeMs))
       : undefined;
   return {
     accountId,
@@ -180,41 +189,79 @@ function normalizePersistedBinding(threadIdKey: string, raw: unknown): ThreadBin
     webhookToken,
     boundBy,
     boundAt,
-    expiresAt,
+    lastActivityAt,
+    idleTimeoutMs,
+    maxAgeMs,
   };
 }
 
-export function normalizeThreadBindingTtlMs(raw: unknown): number {
+export function normalizeThreadBindingDurationMs(raw: unknown, defaultsTo: number): number {
   if (typeof raw !== "number" || !Number.isFinite(raw)) {
-    return DEFAULT_THREAD_BINDING_TTL_MS;
+    return defaultsTo;
   }
-  const ttlMs = Math.floor(raw);
-  if (ttlMs < 0) {
-    return DEFAULT_THREAD_BINDING_TTL_MS;
+  const durationMs = Math.floor(raw);
+  if (durationMs < 0) {
+    return defaultsTo;
   }
-  return ttlMs;
+  return durationMs;
 }
 
-export function resolveThreadBindingExpiresAt(params: {
-  record: Pick<ThreadBindingRecord, "boundAt" | "expiresAt">;
-  sessionTtlMs: number;
-}): number | undefined {
-  if (typeof params.record.expiresAt === "number" && Number.isFinite(params.record.expiresAt)) {
-    const explicitExpiresAt = Math.floor(params.record.expiresAt);
-    if (explicitExpiresAt <= 0) {
-      // 0 is an explicit per-binding TTL disable sentinel.
-      return undefined;
-    }
-    return explicitExpiresAt;
+export function resolveThreadBindingIdleTimeoutMs(params: {
+  record: Pick<ThreadBindingRecord, "idleTimeoutMs">;
+  defaultIdleTimeoutMs: number;
+}): number {
+  const explicit = params.record.idleTimeoutMs;
+  if (typeof explicit === "number" && Number.isFinite(explicit)) {
+    return Math.max(0, Math.floor(explicit));
   }
-  if (params.sessionTtlMs <= 0) {
+  return Math.max(0, Math.floor(params.defaultIdleTimeoutMs));
+}
+
+export function resolveThreadBindingMaxAgeMs(params: {
+  record: Pick<ThreadBindingRecord, "maxAgeMs">;
+  defaultMaxAgeMs: number;
+}): number {
+  const explicit = params.record.maxAgeMs;
+  if (typeof explicit === "number" && Number.isFinite(explicit)) {
+    return Math.max(0, Math.floor(explicit));
+  }
+  return Math.max(0, Math.floor(params.defaultMaxAgeMs));
+}
+
+export function resolveThreadBindingInactivityExpiresAt(params: {
+  record: Pick<ThreadBindingRecord, "lastActivityAt" | "idleTimeoutMs">;
+  defaultIdleTimeoutMs: number;
+}): number | undefined {
+  const idleTimeoutMs = resolveThreadBindingIdleTimeoutMs({
+    record: params.record,
+    defaultIdleTimeoutMs: params.defaultIdleTimeoutMs,
+  });
+  if (idleTimeoutMs <= 0) {
+    return undefined;
+  }
+  const lastActivityAt = Math.floor(params.record.lastActivityAt);
+  if (!Number.isFinite(lastActivityAt) || lastActivityAt <= 0) {
+    return undefined;
+  }
+  return lastActivityAt + idleTimeoutMs;
+}
+
+export function resolveThreadBindingMaxAgeExpiresAt(params: {
+  record: Pick<ThreadBindingRecord, "boundAt" | "maxAgeMs">;
+  defaultMaxAgeMs: number;
+}): number | undefined {
+  const maxAgeMs = resolveThreadBindingMaxAgeMs({
+    record: params.record,
+    defaultMaxAgeMs: params.defaultMaxAgeMs,
+  });
+  if (maxAgeMs <= 0) {
     return undefined;
   }
   const boundAt = Math.floor(params.record.boundAt);
   if (!Number.isFinite(boundAt) || boundAt <= 0) {
     return undefined;
   }
-  return boundAt + params.sessionTtlMs;
+  return boundAt + maxAgeMs;
 }
 
 function linkSessionBinding(targetSessionKey: string, bindingKey: string) {
@@ -427,6 +474,13 @@ export function resolveBindingIdsForSession(params: {
     out.push(bindingKey);
   }
   return out;
+}
+
+export function resolveDefaultThreadBindingDurations() {
+  return {
+    defaultIdleTimeoutMs: DEFAULT_THREAD_BINDING_IDLE_TIMEOUT_MS,
+    defaultMaxAgeMs: DEFAULT_THREAD_BINDING_MAX_AGE_MS,
+  };
 }
 
 export function resetThreadBindingsForTests() {
