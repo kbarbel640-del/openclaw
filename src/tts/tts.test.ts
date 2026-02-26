@@ -82,9 +82,7 @@ const mockAssistantMessage = (content: AssistantMessage["content"]): AssistantMe
 describe("tts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(completeSimple).mockResolvedValue(
-      mockAssistantMessage([{ type: "text", text: "Summary" }]),
-    );
+    vi.mocked(completeSimple).mockResolvedValue(mockAssistantMessage([{ type: "text", text: "Summary" }]));
   });
 
   describe("isValidVoiceId", () => {
@@ -194,8 +192,9 @@ describe("tts", () => {
     it("uses default edge output format unless overridden", () => {
       const cases = [
         {
-          name: "default",
+          name: "default (no channel)",
           cfg: baseCfg,
+          channelId: null,
           expected: "audio-24khz-48kbitrate-mono-mp3",
         },
         {
@@ -208,12 +207,32 @@ describe("tts", () => {
               },
             },
           } as OpenClawConfig,
+          channelId: null,
+          expected: "audio-24khz-96kbitrate-mono-mp3",
+        },
+        {
+          name: "telegram defaults to ogg/opus",
+          cfg: baseCfg,
+          channelId: "telegram" as const,
+          expected: "ogg-24khz-16bit-mono-opus",
+        },
+        {
+          name: "telegram with explicit override respects config",
+          cfg: {
+            ...baseCfg,
+            messages: {
+              tts: {
+                edge: { outputFormat: "audio-24khz-96kbitrate-mono-mp3" },
+              },
+            },
+          } as OpenClawConfig,
+          channelId: "telegram" as const,
           expected: "audio-24khz-96kbitrate-mono-mp3",
         },
       ] as const;
       for (const testCase of cases) {
         const config = resolveTtsConfig(testCase.cfg);
-        expect(resolveEdgeOutputFormat(config), testCase.name).toBe(testCase.expected);
+        expect(resolveEdgeOutputFormat(config, testCase.channelId), testCase.name).toBe(testCase.expected);
       }
     });
   });
@@ -270,9 +289,7 @@ describe("tts", () => {
 
     it("summarizes text and returns result with metrics", async () => {
       const mockSummary = "This is a summarized version of the text.";
-      vi.mocked(completeSimple).mockResolvedValue(
-        mockAssistantMessage([{ type: "text", text: mockSummary }]),
-      );
+      vi.mocked(completeSimple).mockResolvedValue(mockAssistantMessage([{ type: "text", text: mockSummary }]));
 
       const longText = "A".repeat(2000);
       const result = await summarizeText({
@@ -431,9 +448,7 @@ describe("tts", () => {
       },
     };
 
-    const withMockedAutoTtsFetch = async (
-      run: (fetchMock: ReturnType<typeof vi.fn>) => Promise<void>,
-    ) => {
+    const withMockedAutoTtsFetch = async (run: (fetchMock: ReturnType<typeof vi.fn>) => Promise<void>) => {
       const prevPrefs = process.env.OPENCLAW_TTS_PREFS;
       process.env.OPENCLAW_TTS_PREFS = `/tmp/tts-test-${Date.now()}.json`;
       const originalFetch = globalThis.fetch;
