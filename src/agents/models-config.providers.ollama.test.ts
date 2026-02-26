@@ -67,6 +67,17 @@ describe("resolveOllamaApiBase", () => {
     }
   });
 
+  it("falls through blank configuredBaseUrl to OLLAMA_HOST", () => {
+    const prev = process.env.OLLAMA_HOST;
+    try {
+      process.env.OLLAMA_HOST = "http://remote:11434";
+      expect(resolveOllamaApiBase("   ")).toBe("http://remote:11434");
+    } finally {
+      if (prev === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prev;
+    }
+  });
+
   it("prefers explicit config over OLLAMA_HOST env var", () => {
     const prev = process.env.OLLAMA_HOST;
     try {
