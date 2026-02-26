@@ -55,7 +55,7 @@ Welcome to the lobster tank! 🦞
 
 - **Jonathan Taylor** - ACP subsystem, Gateway features/bugs, Gog/Mog/Sog CLI's, SEDMAT
   - Github [@visionik](https://github.com/visionik) · X: [@visionik](https://x.com/visionik)
-    
+
 ## How to Contribute
 
 1. **Bugs & small fixes** → Open a PR!
