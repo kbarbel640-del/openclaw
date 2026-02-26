@@ -904,12 +904,16 @@ export async function handleFeishuMessage(params: {
       markPermIdle();
     }
 
+    // Include messageId in the message body so agents can access it for
+    // media downloads and message replies (feishu API requires messageId + fileKey).
+    // Format: [Feishu messageId: om_xxx] prefix makes the source clear.
+    const bodyWithMessageId = `[Feishu messageId: ${ctx.messageId}] ${messageBody}`;
     const body = core.channel.reply.formatAgentEnvelope({
       channel: "Feishu",
       from: envelopeFrom,
       timestamp: new Date(),
       envelope: envelopeOptions,
-      body: messageBody,
+      body: bodyWithMessageId,
     });
 
     let combinedBody = body;
