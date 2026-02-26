@@ -1,3 +1,4 @@
+import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import {
   discoverHuggingfaceModels,
   isHuggingfacePolicyLocked,
@@ -7,7 +8,6 @@ import {
   createAuthChoiceAgentModelNoter,
   ensureApiKeyFromOptionEnvOrPrompt,
 } from "./auth-choice.apply-helpers.js";
-import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { applyDefaultModelChoice } from "./auth-choice.default-model.js";
 import { ensureModelAllowlistEntry } from "./model-allowlist.js";
 import {

@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { SkillBinTrustEntry } from "../infra/exec-approvals.js";
 import { resolveBrowserConfig } from "../browser/config.js";
 import { loadConfig } from "../config/config.js";
 import { GatewayClient } from "../gateway/client.js";
 import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
-import type { SkillBinTrustEntry } from "../infra/exec-approvals.js";
 import { getMachineDisplayName } from "../infra/machine-name.js";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";

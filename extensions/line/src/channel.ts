@@ -580,7 +580,6 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
 
         const hasToken = Boolean(
           account.channelAccessToken?.trim() ||
-          account.config?.tokenFile?.trim() ||
           (accountId == DEFAULT_ACCOUNT_ID && process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim()) ||
           (account.tokenSource && account.tokenSource !== "none"),
         );
@@ -595,7 +594,6 @@ export const linePlugin: ChannelPlugin<ResolvedLineAccount> = {
 
         const hasSecret = Boolean(
           account.channelSecret?.trim() ||
-          account.config?.secretFile?.trim() ||
           (accountId == DEFAULT_ACCOUNT_ID && process.env.LINE_CHANNEL_SECRET?.trim()),
         );
         if (!hasSecret) {
