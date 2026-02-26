@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { withFetchPreconnect } from "../../test-utils/fetch-mock.js";
 import { createWebFetchTool, createWebSearchTool } from "./web-tools.js";
 
@@ -99,13 +99,9 @@ describe("web tools defaults", () => {
 
 describe("web_search country and language parameters", () => {
   const priorFetch = global.fetch;
-
-  beforeEach(() => {
-    vi.stubEnv("BRAVE_API_KEY", "test-key");
-  });
+  let queryCounter = 0;
 
   afterEach(() => {
-    vi.unstubAllEnvs();
     global.fetch = priorFetch;
   });
 
@@ -117,10 +113,22 @@ describe("web_search country and language parameters", () => {
       freshness: string;
     }>,
   ) {
+    const query = `country-lang-${++queryCounter}`;
     const mockFetch = installMockFetch({ web: { results: [] } });
-    const tool = createWebSearchTool({ config: undefined, sandboxed: true });
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              apiKey: "test-key",
+            },
+          },
+        },
+      },
+      sandboxed: true,
+    });
     expect(tool).not.toBeNull();
-    await tool?.execute?.("call-1", { query: "test", ...params });
+    await tool?.execute?.("call-1", { query, ...params });
     expect(mockFetch).toHaveBeenCalled();
     return new URL(mockFetch.mock.calls[0][0] as string);
   }
@@ -136,9 +144,21 @@ describe("web_search country and language parameters", () => {
   });
 
   it("rejects invalid freshness values", async () => {
+    const query = `country-lang-${++queryCounter}`;
     const mockFetch = installMockFetch({ web: { results: [] } });
-    const tool = createWebSearchTool({ config: undefined, sandboxed: true });
-    const result = await tool?.execute?.("call-1", { query: "test", freshness: "yesterday" });
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              apiKey: "test-key",
+            },
+          },
+        },
+      },
+      sandboxed: true,
+    });
+    const result = await tool?.execute?.("call-1", { query, freshness: "yesterday" });
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(result?.details).toMatchObject({ error: "invalid_freshness" });

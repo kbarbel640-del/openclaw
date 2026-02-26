@@ -1,0 +1,179 @@
+{
+  "id": "memory-supabase",
+  "kind": "memory",
+  "uiHints": {
+    "supabase.url": {
+      "label": "Supabase Project URL",
+      "placeholder": "https://YOUR-PROJECT.supabase.co",
+      "help": "Project URL (for example https://xxxx.supabase.co)"
+    },
+    "supabase.serviceKey": {
+      "label": "Supabase Service Role Key",
+      "sensitive": true,
+      "placeholder": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "help": "Use the service-role key so RPC functions can query pgvector tables"
+    },
+    "supabase.functions.search": {
+      "label": "Search RPC Function",
+      "placeholder": "openclaw_match_memories",
+      "advanced": true
+    },
+    "supabase.functions.store": {
+      "label": "Store RPC Function",
+      "placeholder": "openclaw_store_memory",
+      "advanced": true
+    },
+    "supabase.functions.get": {
+      "label": "Get RPC Function",
+      "placeholder": "openclaw_get_memory",
+      "advanced": true
+    },
+    "supabase.functions.forget": {
+      "label": "Forget RPC Function",
+      "placeholder": "openclaw_forget_memory",
+      "advanced": true
+    },
+    "supabase.functions.count": {
+      "label": "Count RPC Function",
+      "placeholder": "openclaw_memory_count",
+      "advanced": true
+    },
+    "embedding.provider": {
+      "label": "Embedding Provider",
+      "placeholder": "openai",
+      "help": "Supported: openai, gemini, voyage, mistral, local"
+    },
+    "embedding.apiKey": {
+      "label": "Embedding API Key",
+      "sensitive": true,
+      "placeholder": "sk-...",
+      "help": "Optional override. Otherwise uses core auth/env resolution."
+    },
+    "embedding.model": {
+      "label": "Embedding Model",
+      "placeholder": "text-embedding-3-small",
+      "help": "Model id for the selected provider. Keep pgvector dimensions aligned."
+    },
+    "embedding.local.modelPath": {
+      "label": "Local Model Path",
+      "advanced": true,
+      "placeholder": "hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf"
+    },
+    "embedding.local.modelCacheDir": {
+      "label": "Local Model Cache Dir",
+      "advanced": true,
+      "placeholder": "~/.cache/openclaw/models"
+    },
+    "autoCapture": {
+      "label": "Auto-Capture"
+    },
+    "autoRecall": {
+      "label": "Auto-Recall"
+    },
+    "captureMaxChars": {
+      "label": "Capture Max Chars",
+      "advanced": true,
+      "placeholder": "500"
+    },
+    "maxRecallResults": {
+      "label": "Max Recall Results",
+      "advanced": true,
+      "placeholder": "5"
+    },
+    "minScore": {
+      "label": "Minimum Similarity",
+      "advanced": true,
+      "placeholder": "0.3"
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "supabase": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "serviceKey": {
+            "type": "string"
+          },
+          "functions": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "search": {
+                "type": "string"
+              },
+              "store": {
+                "type": "string"
+              },
+              "get": {
+                "type": "string"
+              },
+              "forget": {
+                "type": "string"
+              },
+              "count": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": ["url", "serviceKey"]
+      },
+      "embedding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["openai", "gemini", "voyage", "mistral", "local"]
+          },
+          "apiKey": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "local": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "modelPath": {
+                "type": "string"
+              },
+              "modelCacheDir": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "autoCapture": {
+        "type": "boolean"
+      },
+      "autoRecall": {
+        "type": "boolean"
+      },
+      "captureMaxChars": {
+        "type": "number",
+        "minimum": 100,
+        "maximum": 10000
+      },
+      "maxRecallResults": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 20
+      },
+      "minScore": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "required": ["supabase", "embedding"]
+  }
+}

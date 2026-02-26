@@ -329,9 +329,15 @@ describe("initSessionState thread forking", () => {
     const [sessionHeaderLine] = forkedContent.split("\n");
     const sessionHeader = JSON.parse(sessionHeaderLine ?? "{}") as { parentSession?: string };
     expect(sessionHeader.parentSession).toBeTruthy();
-    const resolvedParentSession = await fs.realpath(parentSessionFile);
-    const resolvedForkParentSession = await fs.realpath(sessionHeader.parentSession ?? "");
-    expect(resolvedForkParentSession).toBe(resolvedParentSession);
+    const [expectedParentPath, recordedParentPath] = await Promise.all([
+      fs.realpath(parentSessionFile),
+      fs.realpath(sessionHeader.parentSession ?? ""),
+    ]);
+    if (process.platform === "win32") {
+      expect(recordedParentPath.toLowerCase()).toBe(expectedParentPath.toLowerCase());
+    } else {
+      expect(recordedParentPath).toBe(expectedParentPath);
+    }
   });
 
   it("records topic-specific session files when MessageThreadId is present", async () => {

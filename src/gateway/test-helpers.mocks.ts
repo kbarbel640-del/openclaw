@@ -145,6 +145,7 @@ const createStubPluginRegistry = (): PluginRegistry => ({
     },
   ],
   providers: [],
+  embeddingProviders: [],
   gatewayHandlers: {},
   httpHandlers: [],
   httpRoutes: [],

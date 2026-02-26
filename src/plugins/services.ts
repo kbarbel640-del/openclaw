@@ -16,14 +16,25 @@ function createPluginLogger(): PluginLogger {
 }
 
 function createServiceContext(params: {
+  registry: PluginRegistry;
   config: OpenClawConfig;
   workspaceDir?: string;
 }): OpenClawPluginServiceContext {
+  const embeddingProviders = new Map(
+    params.registry.embeddingProviders.map((entry) => [entry.provider.id, entry.provider]),
+  );
   return {
     config: params.config,
     workspaceDir: params.workspaceDir,
     stateDir: STATE_DIR,
     logger: createPluginLogger(),
+    resolveEmbeddingProvider: (id: string) => {
+      const key = id.trim();
+      if (!key) {
+        return null;
+      }
+      return embeddingProviders.get(key) ?? null;
+    },
   };
 }
 
@@ -41,6 +52,7 @@ export async function startPluginServices(params: {
     stop?: () => void | Promise<void>;
   }> = [];
   const serviceContext = createServiceContext({
+    registry: params.registry,
     config: params.config,
     workspaceDir: params.workspaceDir,
   });

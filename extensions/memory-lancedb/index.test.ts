@@ -11,6 +11,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { resolveMemoryEmbeddingModel, type MemoryEmbeddingProviderId } from "openclaw/plugin-sdk";
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-key";
@@ -50,6 +51,7 @@ describe("memory plugin e2e", () => {
 
     const config = memoryPlugin.configSchema?.parse?.({
       embedding: {
+        provider: "openai",
         apiKey: OPENAI_API_KEY,
         model: "text-embedding-3-small",
       },
@@ -72,6 +74,7 @@ describe("memory plugin e2e", () => {
 
     const config = memoryPlugin.configSchema?.parse?.({
       embedding: {
+        provider: "openai",
         apiKey: "${TEST_MEMORY_API_KEY}",
       },
       dbPath,
@@ -82,23 +85,30 @@ describe("memory plugin e2e", () => {
     delete process.env.TEST_MEMORY_API_KEY;
   });
 
-  test("config schema rejects missing apiKey", async () => {
-    const { default: memoryPlugin } = await import("./index.js");
+  test.each(["openai", "gemini", "voyage", "mistral", "local"] as const)(
+    "config schema allows provider auth resolution without embedding.apiKey (%s)",
+    async (provider: MemoryEmbeddingProviderId) => {
+      const { default: memoryPlugin } = await import("./index.js");
 
-    expect(() => {
-      memoryPlugin.configSchema?.parse?.({
-        embedding: {},
+      const config = memoryPlugin.configSchema?.parse?.({
+        embedding: {
+          provider,
+        },
         dbPath,
       });
-    }).toThrow("embedding.apiKey is required");
-  });
+
+      expect(config?.embedding?.provider).toBe(provider);
+      expect(config?.embedding?.apiKey).toBeUndefined();
+      expect(config?.embedding?.model).toBe(resolveMemoryEmbeddingModel(provider));
+    },
+  );
 
   test("config schema validates captureMaxChars range", async () => {
     const { default: memoryPlugin } = await import("./index.js");
 
     expect(() => {
       memoryPlugin.configSchema?.parse?.({
-        embedding: { apiKey: OPENAI_API_KEY },
+        embedding: { provider: "openai", apiKey: OPENAI_API_KEY },
         dbPath,
         captureMaxChars: 99,
       });
@@ -110,6 +120,7 @@ describe("memory plugin e2e", () => {
 
     const config = memoryPlugin.configSchema?.parse?.({
       embedding: {
+        provider: "openai",
         apiKey: OPENAI_API_KEY,
         model: "text-embedding-3-small",
       },
@@ -125,6 +136,7 @@ describe("memory plugin e2e", () => {
 
     const config = memoryPlugin.configSchema?.parse?.({
       embedding: {
+        provider: "openai",
         apiKey: OPENAI_API_KEY,
         model: "text-embedding-3-small",
       },
@@ -232,6 +244,7 @@ describeLive("memory plugin live tests", () => {
       config: {},
       pluginConfig: {
         embedding: {
+          provider: "openai",
           apiKey: liveApiKey,
           model: "text-embedding-3-small",
         },
