@@ -214,6 +214,36 @@ export async function runCronIsolatedAgentTurn(params: {
       model = resolvedOverride.ref.model;
     }
   }
+
+  // Extract and validate payload fallbacks (if provided).
+  // Fallbacks are normalized to canonical "provider/model" format to ensure consistent resolution.
+  const payloadFallbacksRaw =
+    params.job.payload.kind === "agentTurn" ? params.job.payload.fallbacks : undefined;
+  let payloadFallbacks: string[] | undefined;
+  if (payloadFallbacksRaw !== undefined) {
+    if (!Array.isArray(payloadFallbacksRaw)) {
+      return { status: "error", error: "invalid fallbacks: expected array" };
+    }
+    const normalized: string[] = [];
+    for (const fb of payloadFallbacksRaw) {
+      if (typeof fb !== "string") {
+        return { status: "error", error: "invalid fallbacks: expected array of strings" };
+      }
+      const resolvedFb = resolveAllowedModelRef({
+        cfg: cfgWithAgentDefaults,
+        catalog: await loadCatalog(),
+        raw: fb,
+        defaultProvider: resolvedDefault.provider,
+        defaultModel: resolvedDefault.model,
+      });
+      if ("error" in resolvedFb) {
+        return { status: "error", error: `fallback: ${resolvedFb.error}` };
+      }
+      normalized.push(resolvedFb.key);
+    }
+    payloadFallbacks = normalized;
+  }
+
   const now = Date.now();
   const cronSession = resolveCronSession({
     cfg: params.cfg,
@@ -422,7 +452,8 @@ export async function runCronIsolatedAgentTurn(params: {
       provider,
       model,
       agentDir,
-      fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
+      fallbacksOverride:
+        payloadFallbacks ?? resolveAgentModelFallbacksOverride(params.cfg, agentId),
       run: (providerOverride, modelOverride) => {
         if (abortSignal?.aborted) {
           throw new Error(abortReason());
