@@ -134,4 +134,116 @@ struct MenuSessionsInjectorTests {
         #expect(usageCostItem?.submenu != nil)
         #expect(usageCostItem?.submenu?.delegate == nil)
     }
+
+    @Test func cronSessionsAreHiddenByDefaultWhenHideCronEnabled() {
+        let injector = MenuSessionsInjector()
+        injector.setTestingControlChannelConnected(true)
+        injector.hideCronSessions = true
+
+        let defaults = SessionDefaults(model: "anthropic/claude-opus-4-6", contextTokens: 200_000)
+        let rows = [
+            SessionRow(
+                id: "main",
+                key: "main",
+                kind: .direct,
+                displayName: nil,
+                provider: nil,
+                subject: nil,
+                room: nil,
+                space: nil,
+                updatedAt: Date(),
+                sessionId: "s1",
+                thinkingLevel: nil,
+                verboseLevel: nil,
+                systemSent: false,
+                abortedLastRun: false,
+                tokens: SessionTokenStats(input: 10, output: 20, total: 30, contextTokens: 200_000),
+                model: nil),
+            SessionRow(
+                id: "cron:abc123",
+                key: "cron:abc123",
+                kind: .cron,
+                displayName: nil,
+                provider: nil,
+                subject: nil,
+                room: nil,
+                space: nil,
+                updatedAt: Date(),
+                sessionId: "s2",
+                thinkingLevel: nil,
+                verboseLevel: nil,
+                systemSent: false,
+                abortedLastRun: false,
+                tokens: SessionTokenStats(input: 0, output: 1, total: 1, contextTokens: 200_000),
+                model: nil),
+        ]
+        let snapshot = SessionStoreSnapshot(
+            storePath: "/tmp/sessions.json",
+            defaults: defaults,
+            rows: rows)
+        injector.setTestingSnapshot(snapshot, errorText: nil)
+
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Header", action: nil, keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Send Heartbeats", action: nil, keyEquivalent: ""))
+
+        injector.injectForTesting(into: menu)
+
+        // Cron session item should NOT appear in menu
+        let cronItem = menu.items.first { item in
+            guard let view = item.view else { return false }
+            return view.debugDescription.contains("cron:abc123")
+        }
+        #expect(cronItem == nil)
+
+        // The "Show Cron Sessions" toggle should appear
+        let toggleItem = menu.items.first { $0.title == "Show Cron Sessions" }
+        #expect(toggleItem != nil)
+        #expect(toggleItem?.state == .on)
+    }
+
+    @Test func cronSessionsAreVisibleWhenHideCronDisabled() {
+        let injector = MenuSessionsInjector()
+        injector.setTestingControlChannelConnected(true)
+        injector.hideCronSessions = false
+
+        let defaults = SessionDefaults(model: "anthropic/claude-opus-4-6", contextTokens: 200_000)
+        let rows = [
+            SessionRow(
+                id: "cron:abc123",
+                key: "cron:abc123",
+                kind: .cron,
+                displayName: nil,
+                provider: nil,
+                subject: nil,
+                room: nil,
+                space: nil,
+                updatedAt: Date(),
+                sessionId: "s2",
+                thinkingLevel: nil,
+                verboseLevel: nil,
+                systemSent: false,
+                abortedLastRun: false,
+                tokens: SessionTokenStats(input: 0, output: 1, total: 1, contextTokens: 200_000),
+                model: nil),
+        ]
+        let snapshot = SessionStoreSnapshot(
+            storePath: "/tmp/sessions.json",
+            defaults: defaults,
+            rows: rows)
+        injector.setTestingSnapshot(snapshot, errorText: nil)
+
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Header", action: nil, keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Send Heartbeats", action: nil, keyEquivalent: ""))
+
+        injector.injectForTesting(into: menu)
+
+        // The "Hide Cron Sessions" toggle should appear (showing it can be enabled)
+        let toggleItem = menu.items.first { $0.title == "Hide Cron Sessions" }
+        #expect(toggleItem != nil)
+        #expect(toggleItem?.state == .off)
+    }
 }

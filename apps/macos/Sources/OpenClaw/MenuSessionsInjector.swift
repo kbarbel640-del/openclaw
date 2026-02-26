@@ -26,6 +26,14 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
     private var cachedErrorText: String?
     private var cacheUpdatedAt: Date?
     private let refreshIntervalSeconds: TimeInterval = 12
+
+    // MARK: - Cron filter
+    private static let hideCronKey = "openclaw.menu.hideCronSessions"
+
+    var hideCronSessions: Bool {
+        get { UserDefaults.standard.object(forKey: Self.hideCronKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: Self.hideCronKey) }
+    }
     private var cachedUsageSummary: GatewayUsageSummary?
     private var cachedUsageErrorText: String?
     private var usageCacheUpdatedAt: Date?
@@ -181,7 +189,7 @@ extension MenuSessionsInjector {
         if let snapshot = self.cachedSnapshot {
             let now = Date()
             let mainKey = self.mainSessionKey
-            let rows = snapshot.rows.filter { row in
+            let allActiveRows = snapshot.rows.filter { row in
                 if row.key == "main", mainKey != "main" { return false }
                 if row.key == mainKey { return true }
                 guard let updatedAt = row.updatedAt else { return false }
@@ -191,6 +199,11 @@ extension MenuSessionsInjector {
                 if rhs.key == mainKey { return false }
                 return (lhs.updatedAt ?? .distantPast) > (rhs.updatedAt ?? .distantPast)
             }
+
+            let hideCron = self.hideCronSessions
+            let hiddenCronCount = hideCron ? allActiveRows.filter { $0.kind == .cron }.count : 0
+            let rows = hideCron ? allActiveRows.filter { $0.kind != .cron } : allActiveRows
+
             if !rows.isEmpty {
                 let previewKeys = rows.prefix(20).map(\.key)
                 let task = Task {
@@ -207,7 +220,8 @@ extension MenuSessionsInjector {
             let hosted = self.makeHostedView(
                 rootView: AnyView(MenuSessionsHeaderView(
                     count: rows.count,
-                    statusText: statusText)),
+                    statusText: statusText,
+                    hiddenCronCount: hiddenCronCount)),
                 width: width,
                 highlighted: false)
             headerItem.view = hosted
@@ -216,8 +230,11 @@ extension MenuSessionsInjector {
             cursor += 1
 
             if rows.isEmpty {
+                let emptyText = hiddenCronCount > 0
+                    ? "No active sessions (cron hidden)"
+                    : "No active sessions"
                 menu.insertItem(
-                    self.makeMessageItem(text: "No active sessions", symbolName: "minus", width: width),
+                    self.makeMessageItem(text: emptyText, symbolName: "minus", width: width),
                     at: cursor)
                 cursor += 1
             } else {
@@ -234,6 +251,18 @@ extension MenuSessionsInjector {
                     cursor += 1
                 }
             }
+
+            // Cron filter toggle — always shown at the bottom of the session list
+            let cronToggle = NSMenuItem(
+                title: hideCron ? "Show Cron Sessions" : "Hide Cron Sessions",
+                action: #selector(self.toggleHideCronSessions),
+                keyEquivalent: "")
+            cronToggle.tag = self.tag
+            cronToggle.target = self
+            cronToggle.state = hideCron ? .on : .off
+            cronToggle.image = NSImage(systemSymbolName: "clock.badge.checkmark", accessibilityDescription: nil)
+            menu.insertItem(cronToggle, at: cursor)
+            cursor += 1
         } else {
             let headerItem = NSMenuItem()
             headerItem.tag = self.tag
@@ -976,6 +1005,15 @@ extension MenuSessionsInjector {
             return "v\(trimmed)"
         }
         return trimmed
+    }
+
+    @objc
+    private func toggleHideCronSessions() {
+        self.hideCronSessions.toggle()
+        // Re-inject immediately so the change is visible without closing the menu.
+        guard let menu = self.statusItem?.menu else { return }
+        self.inject(into: menu)
+        self.injectNodes(into: menu)
     }
 
     @objc

@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuSessionsHeaderView: View {
     let count: Int
     let statusText: String?
+    var hiddenCronCount: Int = 0
 
     private let paddingTop: CGFloat = 8
     private let paddingBottom: CGFloat = 6
@@ -16,9 +17,16 @@ struct MenuSessionsHeaderView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 10)
-                Text(self.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if self.hiddenCronCount > 0 {
+                        Text("\(self.hiddenCronCount) cron hidden")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Text(self.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let statusText, !statusText.isEmpty {

@@ -103,10 +103,11 @@ struct SessionRow: Identifiable {
 }
 
 enum SessionKind {
-    case direct, group, global, unknown
+    case direct, group, global, unknown, cron
 
     static func from(key: String) -> SessionKind {
         if key == "global" { return .global }
+        if key.hasPrefix("cron:") { return .cron }
         if key.hasPrefix("group:") { return .group }
         if key.contains(":group:") { return .group }
         if key.contains(":channel:") { return .group }
@@ -120,6 +121,7 @@ enum SessionKind {
         case .group: "Group"
         case .global: "Global"
         case .unknown: "Unknown"
+        case .cron: "Cron"
         }
     }
 
@@ -129,6 +131,7 @@ enum SessionKind {
         case .group: .orange
         case .global: .purple
         case .unknown: .gray
+        case .cron: Color(nsColor: .systemTeal)
         }
     }
 }

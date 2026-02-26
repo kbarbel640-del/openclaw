@@ -9,6 +9,8 @@ struct SessionDataTests {
         #expect(SessionKind.from(key: "discord:group:engineering") == .group)
         #expect(SessionKind.from(key: "unknown") == .unknown)
         #expect(SessionKind.from(key: "user@example.com") == .direct)
+        #expect(SessionKind.from(key: "cron:abc123-def") == .cron)
+        #expect(SessionKind.from(key: "cron:weekly-agent-roundtable") == .cron)
     }
 
     @Test func sessionTokenStatsFormatKTokensRoundsAsExpected() {
