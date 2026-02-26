@@ -1,12 +1,21 @@
 import { createFeishuClient, type FeishuClientCredentials } from "./client.js";
 import type { FeishuProbeResult } from "./types.js";
 
+const PROBE_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const probeCache = new Map<string, { result: FeishuProbeResult; expiresAt: number }>();
+
 export async function probeFeishu(creds?: FeishuClientCredentials): Promise<FeishuProbeResult> {
   if (!creds?.appId || !creds?.appSecret) {
     return {
       ok: false,
       error: "missing credentials (appId, appSecret)",
     };
+  }
+
+  const cacheKey = creds.appId;
+  const cached = probeCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.result;
   }
 
   try {
@@ -28,12 +37,14 @@ export async function probeFeishu(creds?: FeishuClientCredentials): Promise<Feis
     }
 
     const bot = response.bot || response.data?.bot;
-    return {
+    const result: FeishuProbeResult = {
       ok: true,
       appId: creds.appId,
       botName: bot?.bot_name,
       botOpenId: bot?.open_id,
     };
+    probeCache.set(cacheKey, { result, expiresAt: Date.now() + PROBE_CACHE_TTL_MS });
+    return result;
   } catch (err) {
     return {
       ok: false,
