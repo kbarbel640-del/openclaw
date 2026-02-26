@@ -24,6 +24,23 @@ function isHostnameAllowedBySuffixAllowlist(
   return allowlist.some((entry) => normalized === entry || normalized.endsWith(`.${entry}`));
 }
 
+/**
+ * @description Normalizes a list of hostname suffix allowlist entries.
+ * Wildcards (`"*"`, `"*."`) are collapsed to `"*"`. Duplicate normalized
+ * values are deduplicated. When `input` is absent or empty, `defaults` is used
+ * instead.
+ *
+ * @param input - Raw suffix entries to normalize (e.g. `["*.Example.com", "api.example.com"]`).
+ * @param defaults - Fallback entries used when `input` is absent or empty.
+ * @returns An array of normalized, lowercased suffix strings. Returns `["*"]`
+ *   when a wildcard is present; returns `[]` when no entries survive normalization.
+ *
+ * @example
+ * ```ts
+ * normalizeHostnameSuffixAllowlist(["*.Example.COM", "  api.example.com "]);
+ * // ["example.com", "api.example.com"]
+ * ```
+ */
 export function normalizeHostnameSuffixAllowlist(
   input?: readonly string[],
   defaults?: readonly string[],
@@ -39,6 +56,25 @@ export function normalizeHostnameSuffixAllowlist(
   return Array.from(new Set(normalized));
 }
 
+/**
+ * @description Checks whether a URL is an HTTPS URL whose hostname is covered
+ * by a pre-normalized suffix allowlist. Non-HTTPS URLs and URLs that fail to
+ * parse always return `false`.
+ *
+ * @param url - The URL string to test.
+ * @param allowlist - A normalized suffix allowlist (from
+ *   {@link normalizeHostnameSuffixAllowlist}).
+ * @returns `true` when the URL is HTTPS and its hostname matches a suffix
+ *   entry (exact match or subdomain match).
+ *
+ * @example
+ * ```ts
+ * isHttpsUrlAllowedByHostnameSuffixAllowlist("https://api.example.com/v1", ["example.com"]);
+ * // true
+ * isHttpsUrlAllowedByHostnameSuffixAllowlist("http://api.example.com/v1", ["example.com"]);
+ * // false (not HTTPS)
+ * ```
+ */
 export function isHttpsUrlAllowedByHostnameSuffixAllowlist(
   url: string,
   allowlist: readonly string[],

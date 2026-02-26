@@ -5,24 +5,67 @@ import { readJsonFileWithFallback, writeJsonFileAtomically } from "./json-store.
 
 type PersistentDedupeData = Record<string, number>;
 
+/**
+ * @description Configuration options for a {@link PersistentDedupe} instance
+ * created via {@link createPersistentDedupe}.
+ */
 export type PersistentDedupeOptions = {
+  /**
+   * How long (in milliseconds) a recorded key remains valid. Set to `0` to
+   * keep entries indefinitely (until evicted by `fileMaxEntries`).
+   */
   ttlMs: number;
+  /** Maximum number of entries kept in the in-process memory cache. */
   memoryMaxSize: number;
+  /**
+   * Maximum number of entries written to the backing JSON file per namespace.
+   * Older entries are evicted first when this limit is exceeded.
+   */
   fileMaxEntries: number;
+  /**
+   * Returns the absolute file path for a given namespace string. Called once
+   * per namespace on first disk access.
+   */
   resolveFilePath: (namespace: string) => string;
+  /** Optional overrides for the file-lock retry/staleness behavior. */
   lockOptions?: Partial<FileLockOptions>;
+  /** Optional callback invoked when a disk I/O error occurs. */
   onDiskError?: (error: unknown) => void;
 };
 
+/**
+ * @description Per-call options for {@link PersistentDedupe.checkAndRecord}.
+ */
 export type PersistentDedupeCheckOptions = {
+  /**
+   * Namespace that scopes the key. Defaults to `"global"`. Use separate
+   * namespaces to dedupe the same key in different contexts (e.g. per-account).
+   */
   namespace?: string;
+  /** Override the current timestamp (ms since epoch); defaults to `Date.now()`. */
   now?: number;
+  /** Per-call disk-error handler that overrides the instance-level handler. */
   onDiskError?: (error: unknown) => void;
 };
 
+/**
+ * @description A two-layer (memory + disk) deduplication handle returned by
+ * {@link createPersistentDedupe}.
+ */
 export type PersistentDedupe = {
+  /**
+   * Checks whether `key` has been seen recently and records it if not.
+   * Returns `true` when the key is **new** (safe to process), `false` when it
+   * is a **duplicate** (should be skipped). Concurrent calls for the same
+   * scoped key are coalesced — only one disk write occurs.
+   *
+   * @param key - Deduplication key (e.g. a message ID).
+   * @param options - Optional namespace, timestamp override, and error handler.
+   */
   checkAndRecord: (key: string, options?: PersistentDedupeCheckOptions) => Promise<boolean>;
+  /** Clears all in-memory cached entries without touching the disk store. */
   clearMemory: () => void;
+  /** Returns the current number of entries in the in-memory cache. */
   memorySize: () => number;
 };
 
@@ -90,6 +133,34 @@ function pruneData(
     });
 }
 
+/**
+ * @description Creates a two-layer deduplication store that combines an
+ * in-process LRU/TTL memory cache with a file-backed JSON store to survive
+ * process restarts. Use it to prevent duplicate processing of inbound messages
+ * (e.g. webhook replays or polling double-delivery).
+ *
+ * - **Memory layer** — fast O(1) lookup, bounded by `options.memoryMaxSize`.
+ * - **Disk layer** — persisted to a JSON file guarded by a file lock.  Entries
+ *   older than `options.ttlMs` are pruned on each write; the file is capped at
+ *   `options.fileMaxEntries`.
+ *
+ * @param options - Configuration for TTL, cache sizes, file path resolver, and
+ *   error handling. See {@link PersistentDedupeOptions}.
+ * @returns A {@link PersistentDedupe} instance.
+ *
+ * @example
+ * ```ts
+ * const dedupe = createPersistentDedupe({
+ *   ttlMs: 60_000,
+ *   memoryMaxSize: 1000,
+ *   fileMaxEntries: 5000,
+ *   resolveFilePath: (ns) => `/data/dedupe-${ns}.json`,
+ * });
+ *
+ * const isNew = await dedupe.checkAndRecord(messageId, { namespace: accountId });
+ * if (!isNew) return; // duplicate – skip
+ * ```
+ */
 export function createPersistentDedupe(options: PersistentDedupeOptions): PersistentDedupe {
   const ttlMs = Math.max(0, Math.floor(options.ttlMs));
   const memoryMaxSize = Math.max(0, Math.floor(options.memoryMaxSize));

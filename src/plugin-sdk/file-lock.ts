@@ -3,14 +3,30 @@ import path from "node:path";
 import { isPidAlive } from "../shared/pid-alive.js";
 import { resolveProcessScopedMap } from "../shared/process-scoped-map.js";
 
+/**
+ * @description Configuration options for acquiring a file lock.
+ */
 export type FileLockOptions = {
+  /**
+   * Retry configuration for acquiring the lock. Uses an exponential-backoff
+   * strategy with optional jitter.
+   */
   retries: {
+    /** Total number of retry attempts after the first failure. */
     retries: number;
+    /** Exponential back-off factor applied between retry attempts. */
     factor: number;
+    /** Minimum delay in milliseconds between retries. */
     minTimeout: number;
+    /** Maximum delay in milliseconds between retries. */
     maxTimeout: number;
+    /** When true, adds random jitter to each computed delay. */
     randomize?: boolean;
   };
+  /**
+   * Number of milliseconds after which a lock is considered stale and may be
+   * forcibly removed by a competing caller.
+   */
   stale: number;
 };
 
@@ -81,8 +97,16 @@ async function isStaleLock(lockPath: string, staleMs: number): Promise<boolean> 
   }
 }
 
+/**
+ * @description A handle returned after successfully acquiring a file lock.
+ */
 export type FileLockHandle = {
+  /** Absolute path of the `.lock` file that was created. */
   lockPath: string;
+  /**
+   * Releases the lock. When the same process holds re-entrant locks, the
+   * underlying lock file is only removed after the outermost `release()` call.
+   */
   release: () => Promise<void>;
 };
 
@@ -100,6 +124,29 @@ async function releaseHeldLock(normalizedFile: string): Promise<void> {
   await fs.rm(current.lockPath, { force: true }).catch(() => undefined);
 }
 
+/**
+ * @description Acquires an exclusive file lock by creating a sibling `.lock`
+ * file next to `filePath`. Supports re-entrant acquisition within the same
+ * process: if the lock is already held, the call increments a reference count
+ * and returns immediately. Stale locks (owner PID dead or past `options.stale`
+ * ms) are automatically removed before retrying.
+ *
+ * @param filePath - Path to the file that should be locked. A corresponding
+ *   `<filePath>.lock` file is used as the mutex.
+ * @param options - Retry and staleness configuration.
+ * @returns A {@link FileLockHandle} whose `release()` must be called when done.
+ * @throws {Error} If all retry attempts are exhausted without acquiring the lock.
+ *
+ * @example
+ * ```ts
+ * const lock = await acquireFileLock("/data/store.json", opts);
+ * try {
+ *   // exclusive access
+ * } finally {
+ *   await lock.release();
+ * }
+ * ```
+ */
 export async function acquireFileLock(
   filePath: string,
   options: FileLockOptions,
@@ -147,6 +194,26 @@ export async function acquireFileLock(
   throw new Error(`file lock timeout for ${normalizedFile}`);
 }
 
+/**
+ * @description Acquires a file lock, runs an async callback, then releases the
+ * lock — even if the callback throws. This is the preferred alternative to
+ * manually calling `acquireFileLock` / `release()`.
+ *
+ * @param filePath - Path to the file that should be locked.
+ * @param options - Retry and staleness configuration (see {@link FileLockOptions}).
+ * @param fn - Async callback executed while the lock is held.
+ * @returns The resolved value of `fn`.
+ * @throws Propagates any error thrown by `fn` or by lock acquisition.
+ *
+ * @example
+ * ```ts
+ * const result = await withFileLock("/data/store.json", opts, async () => {
+ *   const data = await readJsonFileWithFallback("/data/store.json", {});
+ *   await writeJsonFileAtomically("/data/store.json", { ...data, updated: true });
+ *   return data;
+ * });
+ * ```
+ */
 export async function withFileLock<T>(
   filePath: string,
   options: FileLockOptions,

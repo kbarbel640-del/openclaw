@@ -13,6 +13,28 @@ function readSlackBlocksParam(actionParams: Record<string, unknown>) {
   return parseSlackBlocksInput(actionParams.blocks) as Record<string, unknown>[] | undefined;
 }
 
+/**
+ * @description Dispatches an inbound Slack-compatible message action (send,
+ * react, reactions, read, edit, delete, pin, unpin, list-pins, member-info,
+ * emoji-list) by parsing the action context, normalizing parameters, and
+ * forwarding the resolved call to the provider's `invoke` function.
+ *
+ * This helper is shared by Slack-style channel plugins (Slack, Mattermost,
+ * etc.) to avoid duplicating action dispatch logic.
+ *
+ * @param params.providerId - Identifier of the calling provider (used in
+ *   error messages for unsupported actions).
+ * @param params.ctx - The action context provided by the gateway, including
+ *   `action`, `params`, `cfg`, and `accountId`.
+ * @param params.invoke - Provider-specific function that executes the
+ *   normalized action against the platform API.
+ * @param params.normalizeChannelId - Optional function to normalize/transform
+ *   the channel ID before forwarding (e.g. stripping a `"#"` prefix).
+ * @param params.includeReadThreadId - When `true`, the `threadId` param is
+ *   forwarded on `read` actions (defaults to `false`).
+ * @returns A promise resolving to the `AgentToolResult` from `invoke`.
+ * @throws {Error} When the action is not recognized by this handler.
+ */
 export async function handleSlackMessageAction(params: {
   providerId: string;
   ctx: ChannelMessageActionContext;
