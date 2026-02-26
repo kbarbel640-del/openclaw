@@ -3,7 +3,9 @@ import path from "node:path";
 import { CURRENT_SESSION_VERSION } from "@mariozechner/pi-coding-agent";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { resolveThinkingDefault } from "../../agents/model-selection.js";
+import { repairToolUseResultPairing } from "../../agents/session-transcript-repair.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
+import type { AgentMessage } from "../../agents/types.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import type { MsgContext } from "../../auto-reply/templating.js";
@@ -556,7 +558,12 @@ export const chatHandlers: GatewayRequestHandlers = {
     const max = Math.min(hardMax, requested);
     const sliced = rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
     const sanitized = stripEnvelopeFromMessages(sliced);
-    const normalized = sanitizeChatHistoryMessages(sanitized);
+    // Repair tool_use/tool_result pairing to prevent orphaned tool_result blocks
+    // from being sent to the client. This can happen after compaction when a
+    // tool_use is summarized away but its tool_result remains in the JSONL.
+    // See: https://github.com/openclaw/openclaw/issues/27804
+    const repaired = repairToolUseResultPairing(sanitized as AgentMessage[]);
+    const normalized = sanitizeChatHistoryMessages(repaired.messages);
     const maxHistoryBytes = getMaxChatHistoryMessagesBytes();
     const perMessageHardCap = Math.min(CHAT_HISTORY_MAX_SINGLE_MESSAGE_BYTES, maxHistoryBytes);
     const replaced = replaceOversizedChatHistoryMessages({

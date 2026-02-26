@@ -504,4 +504,81 @@ describe("gateway server chat", () => {
       testState.sessionStorePath = undefined;
     }
   });
+
+  test("chat.history removes orphaned tool_result blocks after compaction", async () => {
+    // Regression test for https://github.com/openclaw/openclaw/issues/27804
+    // When compaction summarizes away a tool_use but leaves its tool_result in the JSONL,
+    // chat.history should strip the orphaned tool_result to prevent API 400 errors.
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gw-"));
+    try {
+      testState.sessionStorePath = path.join(dir, "sessions.json");
+      await writeSessionStore({
+        entries: {
+          main: {
+            sessionId: "sess-orphan-tool",
+            updatedAt: Date.now(),
+          },
+        },
+      });
+
+      // Simulate a session JSONL with an orphaned tool_result after compaction:
+      // 1. User message
+      // 2. Compaction marker (tool_use was summarized away)
+      // 3. Orphaned tool_result (no matching tool_use in the kept messages)
+      // 4. Another user message
+      const lines = [
+        JSON.stringify({
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "first message" }],
+            timestamp: 1000,
+          },
+        }),
+        JSON.stringify({
+          type: "compaction",
+          id: "compact-1",
+          timestamp: new Date(2000).toISOString(),
+          summary: "Summarized earlier conversation",
+          firstKeptEntryId: "entry-3",
+        }),
+        // This tool_result is orphaned - its tool_use was in the compacted portion
+        JSON.stringify({
+          message: {
+            role: "toolResult",
+            toolCallId: "call_orphaned_123",
+            toolName: "test_tool",
+            content: [{ type: "text", text: "orphaned result" }],
+            timestamp: 3000,
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "second message" }],
+            timestamp: 4000,
+          },
+        }),
+      ];
+
+      await fs.writeFile(path.join(dir, "sess-orphan-tool.jsonl"), lines.join("\n"), "utf-8");
+
+      const historyRes = await rpcReq<{ messages?: unknown[] }>(ws, "chat.history", {
+        sessionKey: "main",
+      });
+
+      expect(historyRes.ok).toBe(true);
+      const messages = historyRes.payload?.messages ?? [];
+
+      // The orphaned tool_result should be removed
+      const roles = messages.map((m) => (m as { role?: string }).role);
+      expect(roles).not.toContain("toolResult");
+
+      // We should still have the user messages and compaction marker
+      expect(roles.filter((r) => r === "user")).toHaveLength(2);
+      expect(roles.filter((r) => r === "system")).toHaveLength(1); // compaction marker
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+      testState.sessionStorePath = undefined;
+    }
+  });
 });
