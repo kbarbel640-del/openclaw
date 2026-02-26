@@ -1,6 +1,5 @@
 import {
   type ChunkMode,
-  isSilentReplyText,
   loadWebMedia,
   type MarkdownTableMode,
   type MSTeamsReplyStyle,
@@ -37,6 +36,10 @@ const FILE_CONSENT_THRESHOLD_BYTES = 4 * 1024 * 1024;
 type SendContext = {
   sendActivity: (textOrActivity: string | object) => Promise<unknown>;
 };
+
+function isExactSilentReply(text: string): boolean {
+  return text.trim().toUpperCase() === SILENT_REPLY_TOKEN.toUpperCase();
+}
 
 export type MSTeamsConversationReference = {
   activityId?: string;
@@ -146,7 +149,7 @@ function pushTextMessages(
       opts.chunkMode,
     )) {
       const trimmed = chunk.trim();
-      if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) {
+      if (!trimmed || isExactSilentReply(trimmed)) {
         continue;
       }
       out.push({ text: trimmed });
@@ -155,7 +158,7 @@ function pushTextMessages(
   }
 
   const trimmed = text.trim();
-  if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) {
+  if (!trimmed || isExactSilentReply(trimmed)) {
     return;
   }
   out.push({ text: trimmed });
