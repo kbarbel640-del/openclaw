@@ -24,12 +24,12 @@ struct VoiceWakeWordsSettingsView: View {
                 Button {
                     self.addWord()
                 } label: {
-                    Label("Add word", systemImage: "plus")
+                    Label("添加词语", systemImage: "plus")
                 }
                 .disabled(self.triggerWords
                     .contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }))
 
-                Button("Reset defaults") {
+                Button("将项参数恢复回到出厂配置初始默认使用") {
                     self.triggerWords = VoiceWakePreferences.defaultTriggerWords
                 }
             } header: {

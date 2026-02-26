@@ -16,7 +16,7 @@ extension VoiceWakeOverlayController {
         controller.presentFinal(token: token, transcript: "Final", autoSendAfter: nil)
         controller.userBeganEditing()
         controller.endEditing()
-        controller.updateText("Edited text")
+        controller.updateText("编辑内容")
 
         _ = controller.makeAttributed(from: "Attributed")
         _ = controller.targetFrame()

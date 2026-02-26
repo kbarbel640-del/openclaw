@@ -8,12 +8,12 @@ struct GatewayDiscoveryDebugLogView: View {
     var body: some View {
         List {
             if !self.debugLogsEnabled {
-                Text("Enable “Discovery Debug Logs” to start collecting events.")
+                Text("启用“发现服务调试日志”以收集事件。")
                     .foregroundStyle(.secondary)
             }
 
             if self.gatewayController.discoveryDebugLog.isEmpty {
-                Text("No log entries yet.")
+                Text("暂无日志。")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(self.gatewayController.discoveryDebugLog) { entry in
@@ -32,7 +32,7 @@ struct GatewayDiscoveryDebugLogView: View {
         .navigationTitle("Discovery Logs")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Copy") {
+                Button("复制") {
                     UIPasteboard.general.string = self.formattedLog()
                 }
                 .disabled(self.gatewayController.discoveryDebugLog.isEmpty)

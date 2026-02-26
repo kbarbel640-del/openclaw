@@ -22,7 +22,7 @@ struct VoiceTab: View {
                     let triggers = self.voiceWake.activeTriggerWords
                     Group {
                         if triggers.isEmpty {
-                            Text("Add wake words in Settings.")
+                            Text("在设置中添加唤醒词。")
                         } else if triggers.count == 1 {
                             Text("Say “\(triggers[0]) …” to trigger.")
                         } else if triggers.count == 2 {

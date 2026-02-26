@@ -72,7 +72,7 @@ extension OnboardingView {
         view.handleBack()
 
         _ = view.onboardingPage { Text("Test") }
-        _ = view.onboardingCard { Text("Card") }
+        _ = view.onboardingCard { Text("卡片") }
         _ = view.featureRow(title: "Feature", subtitle: "Subtitle", systemImage: "sparkles")
         _ = view.featureActionRow(
             title: "Action",

@@ -35,7 +35,7 @@ extension CronSettings {
     func jobContextMenu(_ job: CronJob) -> some View {
         Button("Run now") { Task { await self.store.runJob(id: job.id, force: true) } }
         if job.sessionTarget == .isolated {
-            Button("Open transcript") {
+            Button("实时读取监控流") {
                 WebChatManager.shared.show(sessionKey: "cron:\(job.id)")
             }
         }
@@ -43,13 +43,13 @@ extension CronSettings {
         Button(job.enabled ? "Disable" : "Enable") {
             Task { await self.store.setJobEnabled(id: job.id, enabled: !job.enabled) }
         }
-        Button("Edit…") {
+        Button("编辑…") {
             self.editingJob = job
             self.editorError = nil
             self.showEditor = true
         }
         Divider()
-        Button("Delete…", role: .destructive) {
+        Button("删除…", role: .destructive) {
             self.confirmDelete = job
         }
     }
@@ -68,7 +68,7 @@ extension CronSettings {
             }
             Spacer()
             HStack(spacing: 8) {
-                Toggle("Enabled", isOn: Binding(
+                Toggle("已启用", isOn: Binding(
                     get: { job.enabled },
                     set: { enabled in Task { await self.store.setJobEnabled(id: job.id, enabled: enabled) } }))
                     .toggleStyle(.switch)
@@ -81,7 +81,7 @@ extension CronSettings {
                     }
                     .buttonStyle(.bordered)
                 }
-                Button("Edit") {
+                Button("编辑") {
                     self.editingJob = job
                     self.editorError = nil
                     self.showEditor = true
@@ -145,7 +145,7 @@ extension CronSettings {
                 Button {
                     Task { await self.store.refreshRuns(jobId: job.id) }
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label("强制加载刷新", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
                 .disabled(self.store.isLoadingRuns)
@@ -156,7 +156,7 @@ extension CronSettings {
             }
 
             if self.store.runEntries.isEmpty {
-                Text("No run log entries yet.")
+                Text("暂无运行历史输出。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -208,7 +208,7 @@ extension CronSettings {
     func payloadSummary(_ job: CronJob) -> some View {
         let payload = job.payload
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Payload")
+            Text("数据负载")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             switch payload {

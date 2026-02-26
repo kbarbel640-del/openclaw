@@ -57,7 +57,7 @@ extension ChannelsSettings {
 
     private var emptyDetail: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Channels")
+            Text("频道列表")
                 .font(.title3.weight(.semibold))
             Text("Select a channel to view status and settings.")
                 .font(.callout)
@@ -132,11 +132,11 @@ extension ChannelsSettings {
             }
 
             HStack(spacing: 10) {
-                Text("Last check \(self.channelLastCheckText(channel))")
+                Text("最后检查: \(self.channelLastCheckText(channel))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if self.channelHasError(channel) {
-                    Text("Error")
+                    Text("错误")
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)

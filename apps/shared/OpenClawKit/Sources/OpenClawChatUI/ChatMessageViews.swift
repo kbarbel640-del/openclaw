@@ -459,7 +459,7 @@ struct ChatTypingIndicatorBubble: View {
         HStack(spacing: 10) {
             TypingDots()
             if self.style == .standard {
-                Text("OpenClaw is thinking…")
+                Text("OpenClaw 正在疯狂思考…")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Spacer()

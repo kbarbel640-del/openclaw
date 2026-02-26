@@ -25,7 +25,7 @@ struct ContextMenuCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Context")
+                Text("上下文")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 10)
@@ -39,7 +39,7 @@ struct ContextMenuCardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if self.rows.isEmpty, !self.isLoading {
-                Text("No active sessions")
+                Text("目前无活跃通信会话")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

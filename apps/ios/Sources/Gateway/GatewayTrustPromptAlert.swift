@@ -24,7 +24,7 @@ struct GatewayTrustPromptAlert: ViewModifier {
                     Verify this SHA-256 fingerprint out-of-band before trusting:
                     \(prompt.fingerprintSha256)
                     """),
-                primaryButton: .cancel(Text("Cancel")) {
+                primaryButton: .cancel(Text("取消")) {
                     self.gatewayController.declinePendingTrustPrompt()
                 },
                 secondaryButton: .default(Text("Trust and connect")) {

@@ -8,10 +8,10 @@ struct AgentEventsWindow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Agent Events")
+                Text("智能体事件")
                     .font(.title3.weight(.semibold))
                 Spacer()
-                Button("Clear") { self.store.clear() }
+                Button("清除") { self.store.clear() }
                     .buttonStyle(.bordered)
             }
             .padding(.bottom, 4)

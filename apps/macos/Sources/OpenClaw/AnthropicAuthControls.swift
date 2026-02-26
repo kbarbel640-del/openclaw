@@ -27,7 +27,7 @@ struct AnthropicAuthControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if self.connectionMode != .local {
-                Text("Gateway isn’t running locally; OAuth must be created on the gateway host.")
+                Text("网关未在本地运行；必须在服务端进行 OAuth 认证。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -47,7 +47,7 @@ struct AnthropicAuthControls: View {
                 .buttonStyle(.bordered)
                 .disabled(!FileManager().fileExists(atPath: OpenClawOAuthStore.oauthURL().path))
 
-                Button("Refresh") {
+                Button("强制加载刷新") {
                     self.refresh()
                 }
                 .buttonStyle(.bordered)
@@ -74,7 +74,7 @@ struct AnthropicAuthControls: View {
                 .disabled(self.connectionMode != .local || self.busy)
 
                 if self.pkce != nil {
-                    Button("Cancel") {
+                    Button("取消") {
                         self.pkce = nil
                         self.code = ""
                         self.statusText = nil
@@ -86,7 +86,7 @@ struct AnthropicAuthControls: View {
 
             if self.pkce != nil {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Paste `code#state`")
+                    Text("输入 `code#state`")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
 
@@ -94,17 +94,17 @@ struct AnthropicAuthControls: View {
                         .textFieldStyle(.roundedBorder)
                         .disabled(self.busy)
 
-                    Toggle("Auto-detect from clipboard", isOn: self.$autoDetectClipboard)
+                    Toggle("从剪贴板自动检测", isOn: self.$autoDetectClipboard)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .disabled(self.busy)
 
-                    Toggle("Auto-connect when detected", isOn: self.$autoConnectClipboard)
+                    Toggle("检测到时自动连接", isOn: self.$autoConnectClipboard)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .disabled(self.busy)
 
-                    Button("Connect") {
+                    Button("连接") {
                         Task { await self.finishOAuth() }
                     }
                     .buttonStyle(.bordered)

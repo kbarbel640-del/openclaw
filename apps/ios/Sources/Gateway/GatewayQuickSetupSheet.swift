@@ -12,7 +12,7 @@ struct GatewayQuickSetupSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Connect to a Gateway?")
+                Text("连接到网关?")
                     .font(.title2.bold())
 
                 if let candidate = self.bestCandidate {
@@ -54,10 +54,10 @@ struct GatewayQuickSetupSheet: View {
                             if self.connecting {
                                 HStack(spacing: 8) {
                                     ProgressView().progressViewStyle(.circular)
-                                    Text("Connecting…")
+                                    Text("连接中…")
                                 }
                             } else {
-                                Text("Connect")
+                                Text("连接")
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -75,16 +75,16 @@ struct GatewayQuickSetupSheet: View {
                     Button {
                         self.dismiss()
                     } label: {
-                        Text("Not now")
+                        Text("暂不配置")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                     .disabled(self.connecting)
 
-                    Toggle("Don’t show this again", isOn: self.$quickSetupDismissed)
+                    Toggle("不再显示", isOn: self.$quickSetupDismissed)
                         .padding(.top, 4)
                 } else {
-                    Text("No gateways found yet. Make sure your gateway is running and Bonjour discovery is enabled.")
+                    Text("未找到网关，请检查环境。")
                         .foregroundStyle(.secondary)
                 }
 
@@ -99,7 +99,7 @@ struct GatewayQuickSetupSheet: View {
                         self.quickSetupDismissed = true
                         self.dismiss()
                     } label: {
-                        Text("Close")
+                        Text("关闭")
                     }
                 }
             }

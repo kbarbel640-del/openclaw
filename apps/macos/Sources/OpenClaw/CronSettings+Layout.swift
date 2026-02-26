@@ -36,8 +36,8 @@ extension CronSettings {
             get: { self.confirmDelete != nil },
             set: { if !$0 { self.confirmDelete = nil } }))
         {
-            Button("Cancel", role: .cancel) { self.confirmDelete = nil }
-            Button("Delete", role: .destructive) {
+            Button("取消", role: .cancel) { self.confirmDelete = nil }
+            Button("删除", role: .destructive) {
                 if let job = self.confirmDelete {
                     Task { await self.store.removeJob(id: job.id) }
                 }
@@ -61,7 +61,7 @@ extension CronSettings {
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
-                        Text("Cron scheduler is disabled")
+                        Text("定时调度已禁用")
                             .font(.headline)
                         Spacer()
                     }
@@ -91,9 +91,9 @@ extension CronSettings {
     var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Cron")
+                Text("定时任务")
                     .font(.headline)
-                Text("Manage Gateway cron jobs (main session vs isolated runs) and inspect run history.")
+                Text("统筹管理网关定时任务和历史记录。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -103,7 +103,7 @@ extension CronSettings {
                 Button {
                     Task { await self.store.refreshJobs() }
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label("强制加载刷新", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
                 .disabled(self.store.isLoadingJobs)
@@ -113,7 +113,7 @@ extension CronSettings {
                     self.editingJob = nil
                     self.showEditor = true
                 } label: {
-                    Label("New Job", systemImage: "plus")
+                    Label("新建任务", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -124,7 +124,7 @@ extension CronSettings {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 if let err = self.store.lastError {
-                    Text("Error: \(err)")
+                    Text("错误: \(err)")
                         .font(.footnote)
                         .foregroundStyle(.red)
                 } else if let msg = self.store.statusMessage {

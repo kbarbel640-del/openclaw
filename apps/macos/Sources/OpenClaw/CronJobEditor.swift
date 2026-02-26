@@ -89,25 +89,25 @@ struct CronJobEditor: View {
                     GroupBox("Basics") {
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                             GridRow {
-                                self.gridLabel("Name")
+                                self.gridLabel("名称")
                                 TextField("Required (e.g. “Daily summary”)", text: self.$name)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(maxWidth: .infinity)
                             }
                             GridRow {
-                                self.gridLabel("Description")
+                                self.gridLabel("说明")
                                 TextField("Optional notes", text: self.$description)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(maxWidth: .infinity)
                             }
                             GridRow {
-                                self.gridLabel("Agent ID")
+                                self.gridLabel("智能体 ID")
                                 TextField("Optional (default agent)", text: self.$agentId)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(maxWidth: .infinity)
                             }
                             GridRow {
-                                self.gridLabel("Enabled")
+                                self.gridLabel("已启用")
                                 Toggle("", isOn: self.$enabled)
                                     .labelsHidden()
                                     .toggleStyle(.switch)
@@ -147,7 +147,7 @@ struct CronJobEditor: View {
                     GroupBox("Schedule") {
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                             GridRow {
-                                self.gridLabel("Kind")
+                                self.gridLabel("类型")
                                 Picker("", selection: self.$scheduleKind) {
                                     Text("at").tag(ScheduleKind.at)
                                     Text("every").tag(ScheduleKind.every)
@@ -170,7 +170,7 @@ struct CronJobEditor: View {
                             switch self.scheduleKind {
                             case .at:
                                 GridRow {
-                                    self.gridLabel("At")
+                                    self.gridLabel("在")
                                     DatePicker(
                                         "",
                                         selection: self.$atDate,
@@ -179,20 +179,20 @@ struct CronJobEditor: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 GridRow {
-                                    self.gridLabel("Auto-delete")
-                                    Toggle("Delete after successful run", isOn: self.$deleteAfterRun)
+                                    self.gridLabel("自动删除")
+                                    Toggle("成功运行后删除", isOn: self.$deleteAfterRun)
                                         .toggleStyle(.switch)
                                 }
                             case .every:
                                 GridRow {
-                                    self.gridLabel("Every")
+                                    self.gridLabel("按")
                                     TextField("10m, 1h, 1d", text: self.$everyText)
                                         .textFieldStyle(.roundedBorder)
                                         .frame(maxWidth: .infinity)
                                 }
                             case .cron:
                                 GridRow {
-                                    self.gridLabel("Expression")
+                                    self.gridLabel("表达式")
                                     TextField("e.g. 0 9 * * 3", text: self.$cronExpr)
                                         .textFieldStyle(.roundedBorder)
                                         .frame(maxWidth: .infinity)
@@ -218,7 +218,7 @@ struct CronJobEditor: View {
                             } else {
                                 Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                                     GridRow {
-                                        self.gridLabel("Kind")
+                                        self.gridLabel("类型")
                                         Picker("", selection: self.$payloadKind) {
                                             Text("systemEvent").tag(PayloadKind.systemEvent)
                                             Text("agentTurn").tag(PayloadKind.agentTurn)
@@ -263,7 +263,7 @@ struct CronJobEditor: View {
             }
 
             HStack {
-                Button("Cancel") { self.onCancel() }
+                Button("取消") { self.onCancel() }
                     .keyboardShortcut(.cancelAction)
                     .buttonStyle(.bordered)
                 Spacer()
@@ -302,7 +302,7 @@ struct CronJobEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                 GridRow {
-                    self.gridLabel("Message")
+                    self.gridLabel("发送消息")
                     TextField("What should OpenClaw do?", text: self.$agentMessage, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(3...7)
@@ -321,10 +321,10 @@ struct CronJobEditor: View {
                         .frame(width: 180, alignment: .leading)
                 }
                 GridRow {
-                    self.gridLabel("Delivery")
+                    self.gridLabel("传递")
                     Picker("", selection: self.$deliveryMode) {
-                        Text("Announce summary").tag(DeliveryChoice.announce)
-                        Text("None").tag(DeliveryChoice.none)
+                        Text("播报摘要").tag(DeliveryChoice.announce)
+                        Text("无").tag(DeliveryChoice.none)
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
@@ -334,7 +334,7 @@ struct CronJobEditor: View {
             if self.deliveryMode == .announce {
                 Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                     GridRow {
-                        self.gridLabel("Channel")
+                        self.gridLabel("频道")
                         Picker("", selection: self.$channel) {
                             ForEach(self.channelOptions, id: \.self) { channel in
                                 Text(self.channelLabel(for: channel)).tag(channel)
@@ -351,8 +351,8 @@ struct CronJobEditor: View {
                             .frame(maxWidth: .infinity)
                     }
                     GridRow {
-                        self.gridLabel("Best-effort")
-                        Toggle("Do not fail the job if announce fails", isOn: self.$bestEffortDeliver)
+                        self.gridLabel("尽力而为")
+                        Toggle("如果播报失败，继续执行任务", isOn: self.$bestEffortDeliver)
                             .toggleStyle(.switch)
                     }
                 }

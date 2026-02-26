@@ -75,7 +75,7 @@ extension ConfigSettings {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
                 if self.sections.isEmpty {
-                    Text("No config sections available.")
+                    Text("暂无可用配置部分。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 6)
@@ -153,7 +153,7 @@ extension ConfigSettings {
 
     @ViewBuilder
     private var header: some View {
-        Text("Config")
+        Text("配置")
             .font(.title3.weight(.semibold))
         Text(self.isNixMode
             ? "This tab is read-only in Nix mode. Edit config via Nix and rebuild."
@@ -176,7 +176,7 @@ extension ConfigSettings {
 
     private var actionRow: some View {
         HStack(spacing: 10) {
-            Button("Reload") {
+            Button("尝试重新执行加载配置") {
                 Task { await self.store.reloadConfigDraft() }
             }
             .disabled(!self.store.configLoaded)

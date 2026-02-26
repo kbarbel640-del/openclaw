@@ -75,15 +75,15 @@ struct RootTabs: View {
             isPresented: self.$showGatewayActions,
             titleVisibility: .visible)
         {
-            Button("Disconnect", role: .destructive) {
+            Button("断开连接", role: .destructive) {
                 self.appModel.disconnectGateway()
             }
-            Button("Open Settings") {
+            Button("前往通用设置选项") {
                 self.selectedTab = 2
             }
-            Button("Cancel", role: .cancel) {}
+            Button("取消", role: .cancel) {}
         } message: {
-            Text("Disconnect from the gateway?")
+            Text("确定断开网关连接吗？")
         }
     }
 

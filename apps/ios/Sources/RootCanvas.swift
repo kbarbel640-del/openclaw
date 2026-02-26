@@ -285,7 +285,7 @@ private struct CanvasContent: View {
                 OverlayButton(systemImage: "text.bubble.fill", brighten: self.brightenButtons) {
                     self.openChat()
                 }
-                .accessibilityLabel("Chat")
+                .accessibilityLabel("聊天")
 
                 if self.talkButtonEnabled {
                     // Talk mode lives on a side bubble so it doesn't get buried in settings.
@@ -347,15 +347,15 @@ private struct CanvasContent: View {
             isPresented: self.$showGatewayActions,
             titleVisibility: .visible)
         {
-            Button("Disconnect", role: .destructive) {
+            Button("断开连接", role: .destructive) {
                 self.appModel.disconnectGateway()
             }
-            Button("Open Settings") {
+            Button("前往通用设置选项") {
                 self.openSettings()
             }
-            Button("Cancel", role: .cancel) {}
+            Button("取消", role: .cancel) {}
         } message: {
-            Text("Disconnect from the gateway?")
+            Text("确定断开网关连接吗？")
         }
     }
 

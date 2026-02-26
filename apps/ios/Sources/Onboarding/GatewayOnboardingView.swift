@@ -6,7 +6,7 @@ struct GatewayOnboardingView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Connect to your gateway to get started.")
+                    Text("连接到网关以开始使用。")
                         .foregroundStyle(.secondary)
                 }
 
@@ -131,7 +131,7 @@ private struct ManualEntryStep: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
 
-                Button("Apply setup code") {
+                Button("应用安装代码") {
                     self.applySetupCode()
                 }
                 .disabled(self.setupCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -176,10 +176,10 @@ private struct ManualEntryStep: View {
                         HStack(spacing: 8) {
                             ProgressView()
                                 .progressViewStyle(.circular)
-                            Text("Connecting…")
+                            Text("连接中…")
                         }
                     } else {
-                        Text("Connect")
+                        Text("连接")
                     }
                 }
                 .disabled(self.connectingGatewayID != nil)

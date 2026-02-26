@@ -27,7 +27,7 @@ struct VoiceWakeTestCard: View {
                         .font(.subheadline)
                         .frame(maxHeight: 22, alignment: .center)
                     if case let .detected(text) = testState {
-                        Text("Heard: \(text)")
+                        Text("识别到: \(text)")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)

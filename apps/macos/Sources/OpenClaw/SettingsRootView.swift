@@ -24,11 +24,11 @@ struct SettingsRootView: View {
             }
             TabView(selection: self.$selectedTab) {
                 GeneralSettings(state: self.state)
-                    .tabItem { Label("General", systemImage: "gearshape") }
+                    .tabItem { Label("通用", systemImage: "gearshape") }
                     .tag(SettingsTab.general)
 
                 ChannelsSettings()
-                    .tabItem { Label("Channels", systemImage: "link") }
+                    .tabItem { Label("频道列表", systemImage: "link") }
                     .tag(SettingsTab.channels)
 
                 VoiceWakeSettings(state: self.state, isActive: self.selectedTab == .voiceWake)
@@ -36,11 +36,11 @@ struct SettingsRootView: View {
                     .tag(SettingsTab.voiceWake)
 
                 ConfigSettings()
-                    .tabItem { Label("Config", systemImage: "slider.horizontal.3") }
+                    .tabItem { Label("配置", systemImage: "slider.horizontal.3") }
                     .tag(SettingsTab.config)
 
                 InstancesSettings()
-                    .tabItem { Label("Instances", systemImage: "network") }
+                    .tabItem { Label("实例", systemImage: "network") }
                     .tag(SettingsTab.instances)
 
                 SessionsSettings()
@@ -48,7 +48,7 @@ struct SettingsRootView: View {
                     .tag(SettingsTab.sessions)
 
                 CronSettings()
-                    .tabItem { Label("Cron", systemImage: "calendar") }
+                    .tabItem { Label("定时任务", systemImage: "calendar") }
                     .tag(SettingsTab.cron)
 
                 SkillsSettings(state: self.state)
@@ -59,17 +59,17 @@ struct SettingsRootView: View {
                     status: self.permissionMonitor.status,
                     refresh: self.refreshPerms,
                     showOnboarding: { DebugActions.restartOnboarding() })
-                    .tabItem { Label("Permissions", systemImage: "lock.shield") }
+                    .tabItem { Label("安全权限", systemImage: "lock.shield") }
                     .tag(SettingsTab.permissions)
 
                 if self.state.debugPaneEnabled {
                     DebugSettings(state: self.state)
-                        .tabItem { Label("Debug", systemImage: "ant") }
+                        .tabItem { Label("调试", systemImage: "ant") }
                         .tag(SettingsTab.debug)
                 }
 
                 AboutSettings(updater: self.updater)
-                    .tabItem { Label("About", systemImage: "info.circle") }
+                    .tabItem { Label("关于", systemImage: "info.circle") }
                     .tag(SettingsTab.about)
             }
         }
@@ -118,13 +118,13 @@ struct SettingsRootView: View {
             HStack(spacing: 8) {
                 Image(systemName: "gearshape.2.fill")
                     .foregroundStyle(.secondary)
-                Text("Managed by Nix")
+                Text("通过 Nix 管理")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Config: \(configPath)")
+                Text("配置文件: \(configPath)")
                 Text("State:  \(stateDir)")
             }
             .font(.caption.monospaced())

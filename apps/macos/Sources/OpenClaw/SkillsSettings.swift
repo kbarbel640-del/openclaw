@@ -50,7 +50,7 @@ struct SkillsSettings: View {
                 Button {
                     Task { await self.model.refresh() }
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label("强制加载刷新", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
                 .help("Refresh")
@@ -75,7 +75,7 @@ struct SkillsSettings: View {
     @ViewBuilder
     private var skillsList: some View {
         if self.model.skills.isEmpty {
-            Text("No skills reported yet.")
+            Text("无已加载技能插件。")
                 .foregroundStyle(.secondary)
         } else {
             List {
@@ -99,7 +99,7 @@ struct SkillsSettings: View {
                         })
                 }
                 if !self.model.skills.isEmpty, self.filteredSkills.isEmpty {
-                    Text("No skills match this filter.")
+                    Text("没有匹配的技能。")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -109,7 +109,7 @@ struct SkillsSettings: View {
     }
 
     private var headerFilter: some View {
-        Picker("Filter", selection: self.$filter) {
+        Picker("筛选", selection: self.$filter) {
             ForEach(SkillsFilter.allCases) { filter in
                 Text(filter.title)
                     .tag(filter)
@@ -200,7 +200,7 @@ private struct SkillRow: View {
                 self.metaRow
 
                 if self.skill.disabled {
-                    Text("Disabled in config")
+                    Text("配置中已禁用")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if !self.requirementsMet, self.shouldShowMissingSummary {
@@ -245,7 +245,7 @@ private struct SkillRow: View {
             SkillTag(text: self.sourceLabel)
             if let url = self.homepageUrl {
                 Link(destination: url) {
-                    Label("Website", systemImage: "link")
+                    Label("官网", systemImage: "link")
                         .font(.caption2.weight(.semibold))
                 }
                 .buttonStyle(.link)
@@ -324,12 +324,12 @@ private struct SkillRow: View {
                 ForEach(self.installOptions, id: \.id) { (option: SkillInstallOption) in
                     HStack(spacing: 6) {
                         if self.showGatewayInstall {
-                            Button("Install on Gateway") { self.onInstall(option, .gateway) }
+                            Button("在网关安装") { self.onInstall(option, .gateway) }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(self.isBusy)
                         }
                         if self.showGatewayInstall {
-                            Button("Install on This Mac") { self.onInstall(option, .local) }
+                            Button("在这台 Mac 安装") { self.onInstall(option, .local) }
                                 .buttonStyle(.bordered)
                                 .disabled(self.isBusy)
                                 .help(
@@ -337,7 +337,7 @@ private struct SkillRow: View {
                                         ? "Switches to Local mode to install on this Mac."
                                         : "")
                         } else {
-                            Button("Install on This Mac") { self.onInstall(option, .local) }
+                            Button("在这台 Mac 安装") { self.onInstall(option, .local) }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(self.isBusy)
                                 .help(
@@ -450,7 +450,7 @@ private struct EnvEditorView: View {
             SecureField(self.editor.envKey, text: self.$value)
                 .textFieldStyle(.roundedBorder)
             HStack {
-                Button("Cancel") { self.dismiss() }
+                Button("取消") { self.dismiss() }
                 Spacer()
                 Button("Save") {
                     self.onSave(self.value)

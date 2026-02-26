@@ -77,20 +77,20 @@ struct MenuContent: View {
                         self.browserControlEnabled = enabled
                         Task { await self.saveBrowserControlEnabled(enabled) }
                     })) {
-                Label("Browser Control", systemImage: "globe")
+                Label("浏览器控制", systemImage: "globe")
             }
             Toggle(isOn: self.$cameraEnabled) {
-                Label("Allow Camera", systemImage: "camera")
+                Label("允许使用相机", systemImage: "camera")
             }
             Picker(selection: self.execApprovalModeBinding) {
                 ForEach(ExecApprovalQuickMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
             } label: {
-                Label("Exec Approvals", systemImage: "terminal")
+                Label("代码审批", systemImage: "terminal")
             }
             Toggle(isOn: Binding(get: { self.state.canvasEnabled }, set: { self.state.canvasEnabled = $0 })) {
-                Label("Allow Canvas", systemImage: "rectangle.and.pencil.and.ellipsis")
+                Label("允许使用画布(Canvas)", systemImage: "rectangle.and.pencil.and.ellipsis")
             }
             .onChange(of: self.state.canvasEnabled) { _, enabled in
                 if !enabled {
@@ -111,7 +111,7 @@ struct MenuContent: View {
                     await self.openDashboard()
                 }
             } label: {
-                Label("Open Dashboard", systemImage: "gauge")
+                Label("打开控制台页面", systemImage: "gauge")
             }
             Button {
                 Task { @MainActor in
@@ -119,7 +119,7 @@ struct MenuContent: View {
                     WebChatManager.shared.show(sessionKey: sessionKey)
                 }
             } label: {
-                Label("Open Chat", systemImage: "bubble.left.and.bubble.right")
+                Label("打开对话", systemImage: "bubble.left.and.bubble.right")
             }
             if self.state.canvasEnabled {
                 Button {
@@ -149,11 +149,11 @@ struct MenuContent: View {
             Button("Settings…") { self.open(tab: .general) }
                 .keyboardShortcut(",", modifiers: [.command])
             self.debugMenu
-            Button("About OpenClaw") { self.open(tab: .about) }
+            Button("关于 OpenClaw") { self.open(tab: .about) }
             if let updater, updater.isAvailable, self.updateStatus.isUpdateReady {
                 Button("Update ready, restart now?") { updater.checkForUpdates(nil) }
             }
-            Button("Quit") { NSApplication.shared.terminate(nil) }
+            Button("退回桌面/完全结束") { NSApplication.shared.terminate(nil) }
         }
         .task(id: self.state.swabbleEnabled) {
             if self.state.swabbleEnabled {
@@ -225,11 +225,11 @@ struct MenuContent: View {
     @ViewBuilder
     private var debugMenu: some View {
         if self.state.debugPaneEnabled {
-            Menu("Debug") {
+            Menu("调试") {
                 Button {
                     DebugActions.openConfigFolder()
                 } label: {
-                    Label("Open Config Folder", systemImage: "folder")
+                    Label("打开本地配置文件夹", systemImage: "folder")
                 }
                 Button {
                     Task { await DebugActions.runHealthCheckNow() }
@@ -248,7 +248,7 @@ struct MenuContent: View {
                             self.presentDebugResult(result, title: "Remote Tunnel")
                         }
                     } label: {
-                        Label("Reset Remote Tunnel", systemImage: "arrow.triangle.2.circlepath")
+                        Label("断开所有隧道挂载通道重连接口", systemImage: "arrow.triangle.2.circlepath")
                     }
                 }
                 Button {
@@ -274,23 +274,23 @@ struct MenuContent: View {
                             systemImage: "doc.text.magnifyingglass")
                     }
                 } label: {
-                    Label("App Logging", systemImage: "doc.text")
+                    Label("应用日志", systemImage: "doc.text")
                 }
                 Button {
                     DebugActions.openSessionStore()
                 } label: {
-                    Label("Open Session Store", systemImage: "externaldrive")
+                    Label("查看本地 Session 数据位置", systemImage: "externaldrive")
                 }
                 Divider()
                 Button {
                     DebugActions.openAgentEventsWindow()
                 } label: {
-                    Label("Open Agent Events…", systemImage: "bolt.horizontal.circle")
+                    Label("监控代理事件…", systemImage: "bolt.horizontal.circle")
                 }
                 Button {
                     DebugActions.openLog()
                 } label: {
-                    Label("Open Log", systemImage: "doc.text.magnifyingglass")
+                    Label("查看全局系统日志", systemImage: "doc.text.magnifyingglass")
                 }
                 Button {
                     Task { _ = await DebugActions.sendDebugVoice() }
@@ -442,14 +442,14 @@ struct MenuContent: View {
 
             if self.loadingMics {
                 Divider()
-                Label("Refreshing microphones…", systemImage: "arrow.triangle.2.circlepath")
+                Label("正在搜索可用麦克风设备…", systemImage: "arrow.triangle.2.circlepath")
                     .labelStyle(.titleOnly)
                     .foregroundStyle(.secondary)
                     .disabled(true)
             }
         } label: {
             HStack {
-                Text("Microphone")
+                Text("控制麦克风")
                 Spacer()
                 Text(self.selectedMicLabel)
                     .foregroundStyle(.secondary)
@@ -470,7 +470,7 @@ struct MenuContent: View {
     private var microphoneMenuItems: some View {
         Group {
             if self.isSelectedMicUnavailable {
-                Label("Disconnected (using System default)", systemImage: "exclamationmark.triangle")
+                Label("已断开 (使用系统默认)", systemImage: "exclamationmark.triangle")
                     .labelStyle(.titleAndIcon)
                     .foregroundStyle(.secondary)
                     .disabled(true)

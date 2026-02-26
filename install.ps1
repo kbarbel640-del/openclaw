@@ -127,11 +127,29 @@ function Install-Node {
 function Check-ExistingOpenClaw {
     try {
         $null = Get-Command openclaw -ErrorAction Stop
-    Write-Host "[*] Existing OpenClaw installation detected" -ForegroundColor Yellow
-    return $true
+        Write-Host "[*] Existing OpenClaw installation detected" -ForegroundColor Yellow
+        return $true
     } catch {
         return $false
     }
+}
+
+# Uninstall existing OpenClaw background service and binary
+function Uninstall-ExistingOpenClaw {
+    Write-Host "[*] Attempting to uninstall existing OpenClaw before installing custom version..." -ForegroundColor Yellow
+    
+    # Try removing the gateway service if accessible
+    try {
+        openclaw gateway uninstall --force 2>$null | Out-Null
+    } catch {}
+
+    # Attempt to uninstall generic NPM package
+    try {
+        Write-Host "  Uninstalling NPM openclaw globally..." -ForegroundColor Gray
+        npm uninstall -g openclaw 2>$null | Out-Null
+    } catch {}
+    
+    Write-Host "[OK] Legacy OpenClaw cleaned up (if any)" -ForegroundColor Green
 }
 
 function Check-Git {
@@ -407,6 +425,9 @@ function Main {
 
     # Check for existing installation
     $isUpgrade = Check-ExistingOpenClaw
+    if ($isUpgrade) {
+        Uninstall-ExistingOpenClaw
+    }
 
     # Step 1: Node.js
     if (-not (Check-Node)) {

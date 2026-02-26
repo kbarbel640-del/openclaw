@@ -89,10 +89,10 @@ struct SettingsTab: View {
                                     HStack(spacing: 8) {
                                         ProgressView()
                                             .progressViewStyle(.circular)
-                                        Text("Connecting…")
+                                        Text("连接中…")
                                     }
                                 } else {
-                                    Text("Connect with setup code")
+                                    Text("使用设置代码连接")
                                 }
                             }
                             .disabled(self.connectingGatewayID != nil
@@ -106,8 +106,8 @@ struct SettingsTab: View {
                         }
 
                         if self.isGatewayConnected {
-                            Picker("Bot", selection: self.$selectedAgentPickerId) {
-                                Text("Default").tag("")
+                            Picker("机器人", selection: self.$selectedAgentPickerId) {
+                                Text("默认").tag("")
                                 let defaultId = (self.appModel.gatewayDefaultAgentId ?? "")
                                     .trimmingCharacters(in: .whitespacesAndNewlines)
                                 ForEach(self.appModel.gatewayAgents.filter { $0.id != defaultId }, id: \.id) { agent in
@@ -115,7 +115,7 @@ struct SettingsTab: View {
                                     Text(name.isEmpty ? agent.id : name).tag(agent.id)
                                 }
                             }
-                            Text("Controls which bot Chat and Talk speak to.")
+                            Text("控制对话对应的机器人。")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -124,7 +124,7 @@ struct SettingsTab: View {
                             LabeledContent("Discovery", value: self.gatewayController.discoveryStatusText)
                         }
                         LabeledContent("Status", value: self.appModel.gatewayStatusText)
-                        Toggle("Auto-connect on launch", isOn: self.$gatewayAutoConnect)
+                        Toggle("启动时自动连接", isOn: self.$gatewayAutoConnect)
 
                         if let serverName = self.appModel.gatewayServerName {
                             LabeledContent("Server", value: serverName)
@@ -138,26 +138,26 @@ struct SettingsTab: View {
                                     Button {
                                         UIPasteboard.general.string = urlString
                                     } label: {
-                                        Label("Copy URL", systemImage: "doc.on.doc")
+                                        Label("复制链接", systemImage: "doc.on.doc")
                                     }
 
                                     if let parts {
                                         Button {
                                             UIPasteboard.general.string = parts.host
                                         } label: {
-                                            Label("Copy Host", systemImage: "doc.on.doc")
+                                            Label("复制主机", systemImage: "doc.on.doc")
                                         }
 
                                         Button {
                                             UIPasteboard.general.string = "\(parts.port)"
                                         } label: {
-                                            Label("Copy Port", systemImage: "doc.on.doc")
+                                            Label("复制端口", systemImage: "doc.on.doc")
                                         }
                                     }
                                 }
                             }
 
-                            Button("Disconnect", role: .destructive) {
+                            Button("断开连接", role: .destructive) {
                                 self.appModel.disconnectGateway()
                             }
                         } else {
@@ -183,10 +183,10 @@ struct SettingsTab: View {
                                     HStack(spacing: 8) {
                                         ProgressView()
                                             .progressViewStyle(.circular)
-                                        Text("Connecting…")
+                                        Text("连接中…")
                                     }
                                 } else {
-                                    Text("Connect (Manual)")
+                                    Text("手动连接")
                                 }
                             }
                             .disabled(self.connectingGatewayID != nil || self.manualGatewayHost
@@ -199,7 +199,7 @@ struct SettingsTab: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
 
-                            Toggle("Discovery Debug Logs", isOn: self.$discoveryDebugLogsEnabled)
+                            Toggle("发现服务调试日志", isOn: self.$discoveryDebugLogsEnabled)
                                 .onChange(of: self.discoveryDebugLogsEnabled) { _, newValue in
                                     self.gatewayController.setDiscoveryDebugLoggingEnabled(newValue)
                                 }
@@ -208,7 +208,7 @@ struct SettingsTab: View {
                                 GatewayDiscoveryDebugLogView()
                             }
 
-                            Toggle("Debug Canvas Status", isOn: self.$canvasDebugStatusEnabled)
+                            Toggle("调试 Canvas 状态", isOn: self.$canvasDebugStatusEnabled)
 
                             TextField("Gateway Auth Token", text: self.$gatewayToken)
                                 .textInputAutocapitalization(.never)
@@ -216,12 +216,12 @@ struct SettingsTab: View {
 
                             SecureField("Gateway Password", text: self.$gatewayPassword)
 
-                            Button("Reset Onboarding", role: .destructive) {
+                            Button("重置向导并退回首页", role: .destructive) {
                                 self.showResetOnboardingAlert = true
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Debug")
+                                Text("调试")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                 Text(self.gatewayDebugText())
@@ -237,7 +237,7 @@ struct SettingsTab: View {
                             Circle()
                                 .fill(self.isGatewayConnected ? Color.green : Color.secondary.opacity(0.35))
                                 .frame(width: 10, height: 10)
-                            Text("Gateway")
+                            Text("网关")
                             Spacer()
                             Text(self.gatewaySummaryText)
                                 .font(.footnote)
@@ -260,8 +260,7 @@ struct SettingsTab: View {
                             help: "Enables voice conversation mode with your connected OpenClaw agent.") { newValue in
                                 self.appModel.setTalkEnabled(newValue)
                             }
-                        self.featureToggle(
-                            "Background Listening",
+                        self.featureToggle("后台监听",
                             isOn: self.$talkBackgroundEnabled,
                             help: "Keeps listening while the app is backgrounded. Uses more battery.")
 
@@ -273,13 +272,12 @@ struct SettingsTab: View {
                                 value: VoiceWakePreferences.displayString(for: self.voiceWake.triggerWords))
                         }
 
-                        self.featureToggle(
-                            "Allow Camera",
+                        self.featureToggle("允许使用相机",
                             isOn: self.$cameraEnabled,
                             help: "Allows the gateway to request photos or short video clips while OpenClaw is foregrounded.")
 
                         HStack(spacing: 8) {
-                            Text("Location Access")
+                            Text("启用位置访问")
                             Spacer()
                             Button {
                                 self.activeFeatureHelp = FeatureHelp(
@@ -290,18 +288,17 @@ struct SettingsTab: View {
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Location Access info")
+                            .accessibilityLabel("授权位置访问信息")
                         }
-                        Picker("Location Access", selection: self.$locationEnabledModeRaw) {
-                            Text("Off").tag(OpenClawLocationMode.off.rawValue)
+                        Picker("启用位置访问", selection: self.$locationEnabledModeRaw) {
+                            Text("关闭").tag(OpenClawLocationMode.off.rawValue)
                             Text("While Using").tag(OpenClawLocationMode.whileUsing.rawValue)
-                            Text("Always").tag(OpenClawLocationMode.always.rawValue)
+                            Text("始终").tag(OpenClawLocationMode.always.rawValue)
                         }
                         .labelsHidden()
                         .pickerStyle(.segmented)
 
-                        self.featureToggle(
-                            "Prevent Sleep",
+                        self.featureToggle("系统防休眠保持活跃",
                             isOn: self.$preventSleep,
                             help: "Keeps the screen awake while OpenClaw is open.")
 
@@ -318,7 +315,7 @@ struct SettingsTab: View {
                                 .lineLimit(2 ... 6)
                                 .textInputAutocapitalization(.sentences)
                             HStack(spacing: 8) {
-                                Text("Default Share Instruction")
+                                Text("默认分享指令")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                                 Spacer()
@@ -331,7 +328,7 @@ struct SettingsTab: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("Default Share Instruction info")
+                                .accessibilityLabel("默认分享指令说明")
                             }
 
                             VStack(alignment: .leading, spacing: 8) {
@@ -368,14 +365,14 @@ struct SettingsTab: View {
                     } label: {
                         Image(systemName: "xmark")
                     }
-                    .accessibilityLabel("Close")
+                    .accessibilityLabel("关闭")
                 }
             }
             .alert("Reset Onboarding?", isPresented: self.$showResetOnboardingAlert) {
-                Button("Reset", role: .destructive) {
+                Button("恢复初始", role: .destructive) {
                     self.resetOnboarding()
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("取消", role: .cancel) {}
             } message: {
                 Text(
                     "This will disconnect, clear saved gateway connection + credentials, and reopen the onboarding wizard.")
@@ -384,7 +381,7 @@ struct SettingsTab: View {
                 Alert(
                     title: Text(help.title),
                     message: Text(help.message),
-                    dismissButton: .default(Text("OK")))
+                    dismissButton: .default(Text("确定")))
             }
             .onAppear {
                 self.lastLocationModeRaw = self.locationEnabledModeRaw
@@ -472,9 +469,9 @@ struct SettingsTab: View {
     private func gatewayList(showing: GatewayListMode) -> some View {
         if self.gatewayController.gateways.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text("No gateways found yet.")
+                Text("未找到网关。")
                     .foregroundStyle(.secondary)
-                Text("If your gateway is on another network, connect it and ensure DNS is working.")
+                Text("若网关在其它网络，请确保 DNS 正常解析。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -504,7 +501,7 @@ struct SettingsTab: View {
             }
 
             if rows.isEmpty, showing == .availableOnly {
-                Text("No other gateways found.")
+                Text("未发现其他网关。")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(rows) { gateway in
@@ -528,7 +525,7 @@ struct SettingsTab: View {
                                 ProgressView()
                                     .progressViewStyle(.circular)
                             } else {
-                                Text("Connect")
+                                Text("连接")
                             }
                         }
                         .disabled(self.connectingGatewayID != nil)
@@ -645,14 +642,14 @@ struct SettingsTab: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .progressViewStyle(.circular)
-                Text("Connecting…")
+                Text("连接中…")
             }
             .frame(maxWidth: .infinity)
         } else {
             HStack(spacing: 8) {
                 Image(systemName: "bolt.horizontal.circle.fill")
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Connect last known")
+                    Text("连接上次的主机")
                     Text("\(host):\(port)")
                         .font(.footnote)
                         .foregroundStyle(.secondary)

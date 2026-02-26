@@ -12,14 +12,14 @@ struct InstancesSettings: View {
         VStack(alignment: .leading, spacing: 12) {
             self.header
             if let err = store.lastError {
-                Text("Error: \(err)")
+                Text("错误: \(err)")
                     .foregroundStyle(.red)
             } else if let info = store.statusMessage {
                 Text(info)
                     .foregroundStyle(.secondary)
             }
             if self.store.instances.isEmpty {
-                Text("No instances reported yet.")
+                Text("未发现在线实例连入。")
                     .foregroundStyle(.secondary)
             } else {
                 List(self.store.instances) { inst in
@@ -36,9 +36,9 @@ struct InstancesSettings: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Connected Instances")
+                Text("已连接的实例")
                     .font(.headline)
-                Text("Latest presence beacons from OpenClaw nodes. Updated periodically.")
+                Text("定期更新来自 OpenClaw 节点的信标。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -49,7 +49,7 @@ struct InstancesSettings: View {
                 Button {
                     Task { await self.store.refresh() }
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label("强制加载刷新", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
                 .help("Refresh")
@@ -124,7 +124,7 @@ struct InstancesSettings: View {
         .padding(.vertical, 6)
         .help(inst.text)
         .contextMenu {
-            Button("Copy Debug Summary") {
+            Button("复制调试摘要") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(inst.text, forType: .string)
             }

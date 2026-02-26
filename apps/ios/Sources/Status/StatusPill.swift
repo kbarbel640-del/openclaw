@@ -98,7 +98,7 @@ struct StatusPill: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Connection Status")
+        .accessibilityLabel("连接状态")
         .accessibilityValue(self.accessibilityValue)
         .accessibilityHint("Double tap to open settings")
         .onAppear { self.updatePulse(for: self.gateway, scenePhase: self.scenePhase, reduceMotion: self.reduceMotion) }

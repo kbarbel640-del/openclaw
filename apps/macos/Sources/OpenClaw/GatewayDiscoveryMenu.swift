@@ -21,7 +21,7 @@ struct GatewayDiscoveryInlineList: View {
             }
 
             if self.discovery.gateways.isEmpty {
-                Text("No gateways found yet.")
+                Text("未找到网关。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

@@ -57,7 +57,7 @@ struct ContextUsageBar: View {
                 .frame(height: self.height)
             }
         }
-        .accessibilityLabel("Context usage")
+        .accessibilityLabel("上下文占用")
         .accessibilityValue(self.accessibilityValue)
     }
 

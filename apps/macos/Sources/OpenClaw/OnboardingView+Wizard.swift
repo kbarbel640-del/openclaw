@@ -8,7 +8,7 @@ extension OnboardingView {
             VStack(spacing: 16) {
                 Text("Setup Wizard")
                     .font(.largeTitle.weight(.semibold))
-                Text("Follow the guided setup from the Gateway. This keeps onboarding in sync with the CLI.")
+                Text("按照网关引导进行设置以保持同步。")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

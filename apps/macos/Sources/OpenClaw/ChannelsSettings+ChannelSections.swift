@@ -13,7 +13,7 @@ extension ChannelsSettings {
     func channelHeaderActions(_ channel: ChannelItem) -> some View {
         HStack(spacing: 8) {
             if channel.id == "whatsapp" {
-                Button("Logout") {
+                Button("退出登录") {
                     Task { await self.store.logoutWhatsApp() }
                 }
                 .buttonStyle(.bordered)
@@ -21,7 +21,7 @@ extension ChannelsSettings {
             }
 
             if channel.id == "telegram" {
-                Button("Logout") {
+                Button("退出登录") {
                     Task { await self.store.logoutTelegram() }
                 }
                 .buttonStyle(.bordered)
@@ -34,7 +34,7 @@ extension ChannelsSettings {
                 if self.store.isRefreshing {
                     ProgressView().controlSize(.small)
                 } else {
-                    Text("Refresh")
+                    Text("强制加载刷新")
                 }
             }
             .buttonStyle(.bordered)
@@ -74,7 +74,7 @@ extension ChannelsSettings {
                     .buttonStyle(.borderedProminent)
                     .disabled(self.store.whatsappBusy)
 
-                    Button("Relink") {
+                    Button("断开并建联与重新绑定") {
                         Task { await self.store.startWhatsAppLogin(force: true) }
                     }
                     .buttonStyle(.bordered)
@@ -114,7 +114,7 @@ extension ChannelsSettings {
             .buttonStyle(.borderedProminent)
             .disabled(self.store.isSavingConfig || !self.store.configDirty)
 
-            Button("Reload") {
+            Button("尝试重新执行加载配置") {
                 Task { await self.store.reloadConfigDraft() }
             }
             .buttonStyle(.bordered)

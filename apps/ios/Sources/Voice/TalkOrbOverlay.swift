@@ -51,7 +51,7 @@ struct TalkOrbOverlay: View {
 
             let agentName = self.appModel.activeAgentName.trimmingCharacters(in: .whitespacesAndNewlines)
             if !agentName.isEmpty {
-                Text("Bot: \(agentName)")
+                Text("机器人: \(agentName)")
                     .font(.system(.caption, design: .rounded).weight(.semibold))
                     .foregroundStyle(Color.white.opacity(0.70))
             }
@@ -74,7 +74,7 @@ struct TalkOrbOverlay: View {
                     .fill(seam.opacity(0.90))
                     .frame(width: max(18, 180 * mic), height: 6)
                     .animation(.easeOut(duration: 0.12), value: mic)
-                    .accessibilityLabel("Microphone level")
+                    .accessibilityLabel("麦克风音量")
             }
         }
         .padding(28)

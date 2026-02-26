@@ -10,7 +10,7 @@ struct AboutSettings: View {
         VStack(spacing: 8) {
             let appIcon = NSApplication.shared.applicationIconImage ?? CritterIconRenderer.makeIcon(blink: 0)
             Button {
-                if let url = URL(string: "https://github.com/openclaw/openclaw") {
+                if let url = URL(string: "https://github.com/luolin-ai/openclawWeComzh") {
                     NSWorkspace.shared.open(url)
                 }
             } label: {
@@ -29,16 +29,16 @@ struct AboutSettings: View {
             }
 
             VStack(spacing: 3) {
-                Text("OpenClaw")
+                Text("OpenClaw 客户端")
                     .font(.title3.bold())
                 Text("Version \(self.versionString)")
                     .foregroundStyle(.secondary)
                 if let buildTimestamp {
-                    Text("Built \(buildTimestamp)\(self.buildSuffix)")
+                    Text("构建于: \(buildTimestamp)\(self.buildSuffix)")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                Text("Menu bar companion for notifications, screenshots, and privileged agent actions.")
+                Text("用于显示通知、屏幕截图与授权代理操作的系统菜单栏工具。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -48,11 +48,11 @@ struct AboutSettings: View {
             VStack(alignment: .center, spacing: 6) {
                 AboutLinkRow(
                     icon: "chevron.left.slash.chevron.right",
-                    title: "GitHub",
-                    url: "https://github.com/openclaw/openclaw")
-                AboutLinkRow(icon: "globe", title: "Website", url: "https://openclaw.ai")
-                AboutLinkRow(icon: "bird", title: "Twitter", url: "https://twitter.com/steipete")
-                AboutLinkRow(icon: "envelope", title: "Email", url: "mailto:peter@steipete.me")
+                    title: "GitHub 源码",
+                    url: "https://github.com/luolin-ai/openclawWeComzh")
+                AboutLinkRow(icon: "globe", title: "官网", url: "https://github.com/luolin-ai/openclawWeComzh")
+                AboutLinkRow(icon: "bird", title: "Twitter 推特", url: "https://twitter.com/steipete")
+                AboutLinkRow(icon: "envelope", title: "Email 邮件联系", url: "mailto:peter@steipete.me")
             }
             .frame(maxWidth: .infinity)
             .multilineTextAlignment(.center)
@@ -64,14 +64,14 @@ struct AboutSettings: View {
 
                 if updater.isAvailable {
                     VStack(spacing: 10) {
-                        Toggle("Check for updates automatically", isOn: self.$autoCheckEnabled)
+                        Toggle("自动检查更新", isOn: self.$autoCheckEnabled)
                             .toggleStyle(.checkbox)
                             .frame(maxWidth: .infinity, alignment: .center)
 
-                        Button("Check for Updates…") { updater.checkForUpdates(nil) }
+                        Button("检查更新…") { updater.checkForUpdates(nil) }
                     }
                 } else {
-                    Text("Updates unavailable in this build.")
+                    Text("当前编译版本不支持自动获取新组件更新。")
                         .foregroundStyle(.secondary)
                         .padding(.top, 4)
                 }

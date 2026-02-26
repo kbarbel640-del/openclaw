@@ -85,7 +85,7 @@ struct TailscaleIntegrationSection: View {
             }
 
             if self.connectionMode != .local {
-                Text("Local mode required. Update settings on the gateway host.")
+                Text("需要本地模式。请前往网关更新设置。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -130,7 +130,7 @@ struct TailscaleIntegrationSection: View {
             Text(self.statusText)
                 .font(.callout)
             Spacer()
-            Button("Refresh") {
+            Button("强制加载刷新") {
                 Task { await self.effectiveService.checkTailscaleStatus() }
             }
             .buttonStyle(.bordered)
@@ -154,7 +154,7 @@ struct TailscaleIntegrationSection: View {
         HStack(spacing: 12) {
             Button("App Store") { self.effectiveService.openAppStore() }
                 .buttonStyle(.link)
-            Button("Direct Download") { self.effectiveService.openDownloadPage() }
+            Button("直接下载") { self.effectiveService.openDownloadPage() }
                 .buttonStyle(.link)
             Button("Setup Guide") { self.effectiveService.openSetupGuide() }
                 .buttonStyle(.link)
@@ -164,9 +164,9 @@ struct TailscaleIntegrationSection: View {
 
     private var modePicker: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Exposure mode")
+            Text("暴露模式")
                 .font(.callout.weight(.semibold))
-            Picker("Exposure", selection: self.$tailscaleMode) {
+            Picker("暴露模式", selection: self.$tailscaleMode) {
                 ForEach(GatewayTailscaleMode.allCases) { mode in
                     Text(mode.label).tag(mode)
                 }
@@ -183,7 +183,7 @@ struct TailscaleIntegrationSection: View {
         if let host = self.effectiveService.tailscaleHostname {
             let url = "https://\(host)/ui/"
             HStack(spacing: 8) {
-                Text("Dashboard URL:")
+                Text("控制台链接:")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let link = URL(string: url) {
@@ -209,7 +209,7 @@ struct TailscaleIntegrationSection: View {
 
     private var serveAuthSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Require credentials", isOn: self.$requireCredentialsForServe)
+            Toggle("身份需要密码支持凭证使用", isOn: self.$requireCredentialsForServe)
                 .toggleStyle(.checkbox)
             if self.requireCredentialsForServe {
                 self.authFields
@@ -223,7 +223,7 @@ struct TailscaleIntegrationSection: View {
 
     private var funnelAuthSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Funnel requires authentication.")
+            Text("Funnel 需要身份认证连接。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             self.authFields

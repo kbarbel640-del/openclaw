@@ -84,10 +84,10 @@ struct OpenClawChatComposer: View {
 
     private var thinkingPicker: some View {
         Picker("Thinking", selection: self.$viewModel.thinkingLevel) {
-            Text("Off").tag("off")
-            Text("Low").tag("low")
-            Text("Medium").tag("medium")
-            Text("High").tag("high")
+            Text("关闭").tag("off")
+            Text("低").tag("low")
+            Text("中").tag("medium")
+            Text("高").tag("high")
         }
         .labelsHidden()
         .pickerStyle(.menu)
@@ -230,7 +230,7 @@ struct OpenClawChatComposer: View {
     private var editorOverlay: some View {
         ZStack(alignment: .topLeading) {
             if self.viewModel.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Message OpenClaw…")
+                Text("发送消息给 OpenClaw…")
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 4)

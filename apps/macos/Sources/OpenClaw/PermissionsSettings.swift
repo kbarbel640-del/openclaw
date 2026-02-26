@@ -12,7 +12,7 @@ struct PermissionsSettings: View {
         VStack(alignment: .leading, spacing: 14) {
             SystemRunSettingsView()
 
-            Text("Allow these so OpenClaw can notify and capture when needed.")
+            Text("允许这些权限，以便通知及截屏。")
                 .padding(.top, 4)
 
             PermissionStatusList(status: self.status, refresh: self.refresh)
@@ -37,21 +37,21 @@ private struct LocationAccessSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Location Access")
+            Text("启用位置访问")
                 .font(.body)
 
             Picker("", selection: self.$locationModeRaw) {
-                Text("Off").tag(OpenClawLocationMode.off.rawValue)
+                Text("关闭").tag(OpenClawLocationMode.off.rawValue)
                 Text("While Using").tag(OpenClawLocationMode.whileUsing.rawValue)
-                Text("Always").tag(OpenClawLocationMode.always.rawValue)
+                Text("始终").tag(OpenClawLocationMode.always.rawValue)
             }
             .labelsHidden()
             .pickerStyle(.menu)
 
-            Toggle("Precise Location", isOn: self.$locationPreciseEnabled)
+            Toggle("高精度定位", isOn: self.$locationPreciseEnabled)
                 .disabled(self.locationMode == .off)
 
-            Text("Always may require System Settings to approve background location.")
+            Text("“始终”需要系统设置批准后台定位。")
                 .font(.footnote)
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -110,7 +110,7 @@ struct PermissionStatusList: View {
             Button {
                 Task { await self.refresh() }
             } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                Label("强制加载刷新", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -154,10 +154,10 @@ struct PermissionRow: View {
             }
             Spacer()
             if self.status {
-                Label("Granted", systemImage: "checkmark.circle.fill")
+                Label("已授权", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else {
-                Button("Grant") { self.action() }
+                Button("授权") { self.action() }
                     .buttonStyle(.bordered)
             }
         }

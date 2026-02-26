@@ -76,7 +76,7 @@ struct GeneralSettings: View {
                 Spacer(minLength: 12)
                 HStack {
                     Spacer()
-                    Button("Quit OpenClaw") { NSApp.terminate(nil) }
+                    Button("彻底关闭 OpenClaw") { NSApp.terminate(nil) }
                         .buttonStyle(.borderedProminent)
                 }
             }
@@ -103,21 +103,21 @@ struct GeneralSettings: View {
 
     private var connectionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("OpenClaw runs")
+            Text("OpenClaw 平台运行情况")
                 .font(.title3.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Picker("Mode", selection: self.$state.connectionMode) {
-                Text("Not configured").tag(AppState.ConnectionMode.unconfigured)
-                Text("Local (this Mac)").tag(AppState.ConnectionMode.local)
-                Text("Remote (another host)").tag(AppState.ConnectionMode.remote)
+            Picker("系统模式", selection: self.$state.connectionMode) {
+                Text("未配置").tag(AppState.ConnectionMode.unconfigured)
+                Text("本地网络 (本机)").tag(AppState.ConnectionMode.local)
+                Text("远程网关 (其他设备)").tag(AppState.ConnectionMode.remote)
             }
             .pickerStyle(.menu)
             .labelsHidden()
             .frame(width: 260, alignment: .leading)
 
             if self.state.connectionMode == .unconfigured {
-                Text("Pick Local or Remote to start the Gateway.")
+                Text("请选择本地启动或者连接远程网关。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -184,14 +184,14 @@ struct GeneralSettings: View {
                     }
                     .padding(.top, 4)
                 } label: {
-                    Text("Advanced")
+                    Text("高级")
                         .font(.callout.weight(.semibold))
                 }
             }
 
             // Diagnostics
             VStack(alignment: .leading, spacing: 4) {
-                Text("Control channel")
+                Text("控制通道")
                     .font(.caption.weight(.semibold))
                 if !self.isControlStatusDuplicate || ControlChannel.shared.lastPingMs != nil {
                     let status = self.isControlStatusDuplicate ? nil : self.controlStatusLine
@@ -205,7 +205,7 @@ struct GeneralSettings: View {
                 }
                 if let hb = HeartbeatStore.shared.lastEvent {
                     let ageText = age(from: Date(timeIntervalSince1970: hb.ts / 1000))
-                    Text("Last heartbeat: \(hb.status) · \(ageText)")
+                    Text("心跳包: \(hb.status)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -240,7 +240,7 @@ struct GeneralSettings: View {
                 .frame(width: self.remoteLabelWidth, alignment: .leading)
             Picker("Transport", selection: self.$state.remoteTransport) {
                 Text("SSH tunnel").tag(AppState.RemoteTransport.ssh)
-                Text("Direct (ws/wss)").tag(AppState.RemoteTransport.direct)
+                Text("直连 (ws/wss)").tag(AppState.RemoteTransport.direct)
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 320)
@@ -284,7 +284,7 @@ struct GeneralSettings: View {
     private var remoteDirectRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 10) {
-                Text("Gateway")
+                Text("网关")
                     .font(.callout.weight(.semibold))
                     .frame(width: self.remoteLabelWidth, alignment: .leading)
                 TextField("wss://gateway.example.ts.net", text: self.$state.remoteUrl)
@@ -303,7 +303,7 @@ struct GeneralSettings: View {
                 .disabled(self.remoteStatus == .checking || self.state.remoteUrl
                     .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            Text("Direct mode requires a ws:// or wss:// URL (Tailscale Serve uses wss://<magicdns>).")
+            Text("直连模式需要 ws:// 或 wss:// 地址。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.leading, self.remoteLabelWidth + 10)
@@ -329,7 +329,7 @@ struct GeneralSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         case .ok:
-            Label("Ready", systemImage: "checkmark.circle.fill")
+            Label("监控就绪", systemImage: "checkmark.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.green)
         case let .failed(message):
@@ -360,17 +360,17 @@ struct GeneralSettings: View {
                let required = self.gatewayStatus.requiredGateway,
                gatewayVersion != required
             {
-                Text("Installed: \(gatewayVersion) · Required: \(required)")
+                Text("已安装: \(gatewayVersion) · 最低需要: \(required)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if let gatewayVersion = self.gatewayStatus.gatewayVersion {
-                Text("Gateway \(gatewayVersion) detected")
+                Text("检测到网关 \(gatewayVersion)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if let node = self.gatewayStatus.nodeVersion {
-                Text("Node \(node)")
+                Text("服务节点 \(node)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -382,15 +382,15 @@ struct GeneralSettings: View {
             }
 
             if let failure = self.gatewayManager.lastFailureReason {
-                Text("Last failure: \(failure)")
+                Text("最近错误: \(failure)")
                     .font(.caption)
                     .foregroundStyle(.red)
             }
 
-            Button("Recheck") { self.refreshGatewayStatus() }
+            Button("尝试重新刷新检测") { self.refreshGatewayStatus() }
                 .buttonStyle(.bordered)
 
-            Text("Gateway auto-starts in local mode via launchd (\(gatewayLaunchdLabel)).")
+            Text("本地模式下，网关通过 launchd 开机自启。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -451,11 +451,11 @@ struct GeneralSettings: View {
                     let lastActivity = recent.updatedAt != nil
                         ? relativeAge(from: Date(timeIntervalSince1970: (recent.updatedAt ?? 0) / 1000))
                         : "unknown"
-                    Text("Last activity: \(recent.key) \(lastActivity)")
+                    Text("最后活动: \(recent.key) \(lastActivity)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text("Last check: \(relativeAge(from: self.healthStore.lastSuccess))")
+                Text("最后检查: \(relativeAge(from: self.healthStore.lastSuccess))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if let error = self.healthStore.lastError {
@@ -463,7 +463,7 @@ struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.red)
             } else {
-                Text("Health check pending…")
+                Text("健康检查中…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -527,7 +527,7 @@ extension GeneralSettings {
                 }
                 .disabled(self.healthStore.isRefreshing)
 
-                Button("Open logs") { self.revealLogs() }
+                Button("输出排错日志") { self.revealLogs() }
                     .buttonStyle(.link)
                     .foregroundStyle(.secondary)
             }

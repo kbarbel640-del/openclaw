@@ -33,7 +33,7 @@ struct ChatSheet: View {
                         } label: {
                             Image(systemName: "xmark")
                         }
-                        .accessibilityLabel("Close")
+                        .accessibilityLabel("关闭")
                     }
                 }
         }

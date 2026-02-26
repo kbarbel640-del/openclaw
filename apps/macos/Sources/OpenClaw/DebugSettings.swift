@@ -73,9 +73,9 @@ struct DebugSettings: View {
         }
         .alert(item: self.$pendingKill) { listener in
             Alert(
-                title: Text("Kill \(listener.command) (\(listener.pid))?"),
+                title: Text("终止进程 \(listener.command)？"),
                 message: Text("This process looks expected for the current mode. Kill anyway?"),
-                primaryButton: .destructive(Text("Kill")) {
+                primaryButton: .destructive(Text("终止")) {
                     Task { await self.killConfirmed(listener.pid) }
                 },
                 secondaryButton: .cancel())
@@ -85,7 +85,7 @@ struct DebugSettings: View {
     private var launchdSection: some View {
         GroupBox("Gateway startup") {
             VStack(alignment: .leading, spacing: 8) {
-                Toggle("Attach only (skip launchd install)", isOn: self.$launchAgentWriteDisabled)
+                Toggle("仅附加 (跳过 launchd 安装)", isOn: self.$launchAgentWriteDisabled)
                     .onChange(of: self.launchAgentWriteDisabled) { _, newValue in
                         self.launchAgentWriteError = GatewayLaunchAgentManager.setLaunchAgentWriteDisabled(newValue)
                         if self.launchAgentWriteError != nil {
@@ -119,7 +119,7 @@ struct DebugSettings: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Debug")
+            Text("调试")
                 .font(.title3.weight(.semibold))
             Text("Tools for diagnosing local issues (Gateway, ports, logs, Canvas).")
                 .font(.callout)
@@ -137,7 +137,7 @@ struct DebugSettings: View {
         GroupBox("App") {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                 GridRow {
-                    self.gridLabel("Health")
+                    self.gridLabel("运行健康")
                     HStack(spacing: 8) {
                         Circle().fill(self.healthStore.state.tint).frame(width: 10, height: 10)
                         Text(self.healthStore.summaryLine)
@@ -145,7 +145,7 @@ struct DebugSettings: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 GridRow {
-                    self.gridLabel("CLI")
+                    self.gridLabel("命令行")
                     let loc = CLIInstaller.installedLocation()
                     Text(loc ?? "missing")
                         .font(.caption.monospaced())
@@ -155,11 +155,11 @@ struct DebugSettings: View {
                         .truncationMode(.middle)
                 }
                 GridRow {
-                    self.gridLabel("PID")
+                    self.gridLabel("进程 PID")
                     Text("\(ProcessInfo.processInfo.processIdentifier)")
                 }
                 GridRow {
-                    self.gridLabel("Binary path")
+                    self.gridLabel("可执行文件路径")
                     Text(Bundle.main.bundlePath)
                         .font(.caption2.monospaced())
                         .foregroundStyle(.secondary)
@@ -186,7 +186,7 @@ struct DebugSettings: View {
 
                 let key = DeepLinkHandler.currentKey()
                 HStack(spacing: 8) {
-                    Text("Key")
+                    Text("键")
                         .foregroundStyle(.secondary)
                         .frame(width: self.labelColumnWidth, alignment: .leading)
                     Text(key)
@@ -195,12 +195,12 @@ struct DebugSettings: View {
                         .textSelection(.enabled)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Button("Copy") {
+                    Button("复制") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(key, forType: .string)
                     }
                     .buttonStyle(.bordered)
-                    Button("Copy sample URL") {
+                    Button("复制示例链接") {
                         let msg = "Hello from deep link"
                         let encoded = msg.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? msg
                         let url = "openclaw://agent?message=\(encoded)&key=\(key)"
@@ -211,7 +211,7 @@ struct DebugSettings: View {
                     Spacer(minLength: 0)
                 }
 
-                Text("Deep links (openclaw://…) are always enabled; the key controls unattended runs.")
+                Text("深度链接始终启用；此开关控制无人值守的调用。")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
@@ -231,7 +231,7 @@ struct DebugSettings: View {
                         if self.canRestartGateway {
                             Button("Restart Gateway") { DebugActions.restartGateway() }
                         }
-                        Button("Clear log") { GatewayProcessManager.shared.clearLog() }
+                        Button("清除日志") { GatewayProcessManager.shared.clearLog() }
                         Spacer(minLength: 0)
                     }
                     .buttonStyle(.bordered)
@@ -244,10 +244,10 @@ struct DebugSettings: View {
         GroupBox("Logs") {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                 GridRow {
-                    self.gridLabel("Pino log")
+                    self.gridLabel("查看 Pino 原始执行日志")
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
-                            Button("Open") { DebugActions.openLog() }
+                            Button("打开") { DebugActions.openLog() }
                                 .buttonStyle(.bordered)
                             Text(DebugActions.pinoLogPath())
                                 .font(.caption2.monospaced())
@@ -260,7 +260,7 @@ struct DebugSettings: View {
                 }
 
                 GridRow {
-                    self.gridLabel("App logging")
+                    self.gridLabel("应用日志")
                     VStack(alignment: .leading, spacing: 8) {
                         Picker("Verbosity", selection: self.$appLogLevelRaw) {
                             ForEach(AppLogLevel.allCases) { level in
@@ -278,11 +278,11 @@ struct DebugSettings: View {
                                     "Enable only while actively debugging.")
 
                         HStack(spacing: 8) {
-                            Button("Open folder") {
+                            Button("打开目录") {
                                 NSWorkspace.shared.open(DiagnosticsFileLog.logDirectoryURL())
                             }
                             .buttonStyle(.bordered)
-                            Button("Clear") {
+                            Button("清除") {
                                 Task { try? await DiagnosticsFileLog.shared.clear() }
                             }
                             .buttonStyle(.bordered)
@@ -303,16 +303,16 @@ struct DebugSettings: View {
         GroupBox("Ports") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    Text("Port diagnostics")
+                    Text("执行接口占用诊断")
                         .font(.caption.weight(.semibold))
                     if self.portCheckInFlight { ProgressView().controlSize(.small) }
                     Spacer()
-                    Button("Check gateway ports") {
+                    Button("检查网关端口") {
                         Task { await self.runPortCheck() }
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(self.portCheckInFlight)
-                    Button("Reset SSH tunnel") {
+                    Button("断开清退 SSH 隧道连接重新映射") {
                         Task { await self.resetGatewayTunnel() }
                     }
                     .buttonStyle(.bordered)
@@ -333,13 +333,13 @@ struct DebugSettings: View {
                 }
 
                 if self.portReports.isEmpty, !self.portCheckInFlight {
-                    Text("Check which process owns \(GatewayEnvironment.gatewayPort()) and suggest fixes.")
+                    Text("诊断占用 \(GatewayEnvironment.gatewayPort()) 端口的进程。")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(self.portReports) { report in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Port \(report.port)")
+                            Text("端口占用: \(report.port)")
                                 .font(.footnote.weight(.semibold))
                             Text(report.summary)
                                 .font(.caption)
@@ -353,7 +353,7 @@ struct DebugSettings: View {
                                             .foregroundStyle(listener.expected ? .secondary : Color.red)
                                             .lineLimit(1)
                                         Spacer()
-                                        Button("Kill") {
+                                        Button("终止") {
                                             self.requestKill(listener)
                                         }
                                         .buttonStyle(.bordered)
@@ -382,7 +382,7 @@ struct DebugSettings: View {
         GroupBox("Paths") {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("OpenClaw project root")
+                    Text("工程配置仓库根目录")
                         .font(.caption.weight(.semibold))
                     HStack(spacing: 8) {
                         TextField("Path to openclaw repo", text: self.$gatewayRootInput)
@@ -391,7 +391,7 @@ struct DebugSettings: View {
                             .onSubmit { self.saveRelayRoot() }
                         Button("Save") { self.saveRelayRoot() }
                             .buttonStyle(.borderedProminent)
-                        Button("Reset") {
+                        Button("恢复初始") {
                             let def = FileManager().homeDirectoryForCurrentUser
                                 .appendingPathComponent("Projects/openclaw").path
                             self.gatewayRootInput = def
@@ -430,7 +430,7 @@ struct DebugSettings: View {
                         }
                     }
                     GridRow {
-                        self.gridLabel("Model catalog")
+                        self.gridLabel("可用大模型目录")
                         VStack(alignment: .leading, spacing: 6) {
                             Text(self.modelCatalogPath)
                                 .font(.caption.monospaced())
@@ -440,7 +440,7 @@ struct DebugSettings: View {
                                 Button {
                                     self.chooseCatalogFile()
                                 } label: {
-                                    Label("Choose models.generated.ts…", systemImage: "folder")
+                                    Label("选择 models.generated.ts…", systemImage: "folder")
                                 }
                                 .buttonStyle(.bordered)
 
@@ -459,11 +459,11 @@ struct DebugSettings: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             } else if let modelsCount {
-                                Text("Loaded \(modelsCount) models")
+                                Text("已加载 \(modelsCount) 模型")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
-                            Text("Local fallback for model picker when gateway models.list is unavailable.")
+                            Text("网关模型不可用时的本地降级组件。")
                                 .font(.footnote)
                                 .foregroundStyle(.tertiary)
                         }
@@ -482,7 +482,7 @@ struct DebugSettings: View {
                     }
                     .buttonStyle(.bordered)
 
-                    Button("Open Agent Events") {
+                    Button("监听代理事件") {
                         DebugActions.openAgentEventsWindow()
                     }
                     .buttonStyle(.borderedProminent)
@@ -523,8 +523,7 @@ struct DebugSettings: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(
-                        "Note: macOS may require restarting OpenClaw after enabling Accessibility or Screen Recording.")
+                    Text("注意：为使隐私许可彻底生效，您可能需要重启 OpenClaw。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -552,7 +551,7 @@ struct DebugSettings: View {
     private var canvasSection: some View {
         GroupBox("Canvas") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Enable/disable Canvas in General settings.")
+                Text("在通用设置中开关 Canvas。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -565,7 +564,7 @@ struct DebugSettings: View {
                         Task { await self.canvasPresent() }
                     }
                     .buttonStyle(.borderedProminent)
-                    Button("Hide panel") {
+                    Button("隐藏面板") {
                         CanvasManager.shared.hideAll()
                         self.canvasStatus = "hidden"
                         self.canvasError = nil
@@ -583,7 +582,7 @@ struct DebugSettings: View {
                         .textFieldStyle(.roundedBorder)
                         .font(.caption.monospaced())
                         .frame(maxWidth: 520)
-                    Button("Eval") {
+                    Button("评估") {
                         Task { await self.canvasEval() }
                     }
                     .buttonStyle(.bordered)
@@ -641,7 +640,7 @@ struct DebugSettings: View {
         GroupBox("Experiments") {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                 GridRow {
-                    self.gridLabel("Icon override")
+                    self.gridLabel("自定义图标")
                     Picker("", selection: self.bindingOverride) {
                         ForEach(IconOverrideSelection.allCases) { option in
                             Text(option.label).tag(option.rawValue)
@@ -651,8 +650,8 @@ struct DebugSettings: View {
                     .frame(maxWidth: 280, alignment: .leading)
                 }
                 GridRow {
-                    self.gridLabel("Chat")
-                    Text("Native SwiftUI")
+                    self.gridLabel("聊天")
+                    Text("原生 SwiftUI")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }

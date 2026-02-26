@@ -10,10 +10,10 @@ struct SystemRunSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
-                Text("Exec approvals")
+                Text("代码审批")
                     .font(.body)
                 Spacer(minLength: 0)
-                Picker("Agent", selection: Binding(
+                Picker("智能体(Agent)", selection: Binding(
                     get: { self.model.selectedAgentId },
                     set: { self.model.selectAgent($0) }))
                 {
@@ -74,7 +74,7 @@ struct SystemRunSettingsView: View {
                 set: { self.model.setAskFallback($0) }))
             {
                 ForEach(ExecSecurity.allCases) { mode in
-                    Text("Fallback: \(mode.title)").tag(mode)
+                    Text("降级至: \(mode.title)").tag(mode)
                 }
             }
             .labelsHidden()
@@ -89,7 +89,7 @@ struct SystemRunSettingsView: View {
 
     private var allowlistView: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Toggle("Auto-allow skill CLIs", isOn: Binding(
+            Toggle("自动允许技能 CLI 工具", isOn: Binding(
                 get: { self.model.autoAllowSkills },
                 set: { self.model.setAutoAllowSkills($0) }))
 
@@ -100,14 +100,14 @@ struct SystemRunSettingsView: View {
             }
 
             if self.model.isDefaultsScope {
-                Text("Allowlists are per-agent. Select an agent to edit its allowlist.")
+                Text("白名单是按智能体设置的。请选择智能体编辑。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
                 HStack(spacing: 8) {
                     TextField("Add allowlist pattern (case-insensitive globs)", text: self.$newPattern)
                         .textFieldStyle(.roundedBorder)
-                    Button("Add") {
+                    Button("添加") {
                         let pattern = self.newPattern.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !pattern.isEmpty else { return }
                         self.model.addEntry(pattern)
@@ -118,7 +118,7 @@ struct SystemRunSettingsView: View {
                 }
 
                 if self.model.entries.isEmpty {
-                    Text("No allowlisted commands yet.")
+                    Text("暂无白名单命令。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
@@ -189,19 +189,19 @@ struct ExecAllowlistRow: View {
 
             if let lastUsedAt = self.entry.lastUsedAt {
                 let date = Date(timeIntervalSince1970: lastUsedAt / 1000.0)
-                Text("Last used \(Self.relativeFormatter.localizedString(for: date, relativeTo: Date()))")
+                Text("最后使用时间: \(Self.relativeFormatter.localizedString(for: date, relativeTo: Date()))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if let lastUsedCommand = self.entry.lastUsedCommand, !lastUsedCommand.isEmpty {
-                Text("Last command: \(lastUsedCommand)")
+                Text("最近命令: \(lastUsedCommand)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             if let lastResolvedPath = self.entry.lastResolvedPath, !lastResolvedPath.isEmpty {
-                Text("Resolved path: \(lastResolvedPath)")
+                Text("解析最终读取系统绝对寻址目标路径: \(lastResolvedPath)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

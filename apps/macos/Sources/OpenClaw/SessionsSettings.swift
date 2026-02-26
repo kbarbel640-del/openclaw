@@ -38,7 +38,7 @@ struct SessionsSettings: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Sessions")
                     .font(.headline)
-                Text("Peek at the stored conversation buckets the CLI reuses for context and rate limits.")
+                Text("查看和清理历史长对话缓存记忆。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -50,7 +50,7 @@ struct SessionsSettings: View {
                 Button {
                     Task { await self.refresh() }
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label("强制加载刷新", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
                 .help("Refresh")
@@ -61,7 +61,7 @@ struct SessionsSettings: View {
     private var content: some View {
         Group {
             if self.rows.isEmpty, self.errorMessage == nil {
-                Text("No sessions yet. They appear after the first inbound message or heartbeat.")
+                Text("暂无新消息或心跳载入。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.top, 6)
@@ -111,7 +111,7 @@ struct SessionsSettings: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text("Context")
+                    Text("上下文")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
