@@ -462,19 +462,11 @@ export async function sendMSTeamsMessages(params: {
     return messageIds;
   };
 
-  if (params.replyStyle === "thread") {
-    const ctx = params.context;
-    if (!ctx) {
-      throw new Error("Missing context for replyStyle=thread");
-    }
-    return await sendMessagesInContext(ctx);
-  }
-
   const baseRef = buildConversationReference(params.conversationRef);
-  const proactiveRef: MSTeamsConversationReference = {
-    ...baseRef,
-    activityId: undefined,
-  };
+  const proactiveRef: MSTeamsConversationReference =
+    params.replyStyle === "thread"
+      ? baseRef
+      : { ...baseRef, activityId: undefined };
 
   const messageIds: string[] = [];
   await params.adapter.continueConversation(params.appId, proactiveRef, async (ctx) => {

@@ -15,6 +15,7 @@ import {
   formatUnknownError,
 } from "./errors.js";
 import {
+  buildConversationReference,
   type MSTeamsAdapter,
   renderReplyPayloadsToMessages,
   sendMSTeamsMessages,
@@ -32,7 +33,7 @@ export function createMSTeamsReplyDispatcher(params: {
   adapter: MSTeamsAdapter;
   appId: string;
   conversationRef: StoredConversationReference;
-  context: MSTeamsTurnContext;
+  context?: MSTeamsTurnContext;
   replyStyle: MSTeamsReplyStyle;
   textLimit: number;
   onSentMessageIds?: (ids: string[]) => void;
@@ -43,7 +44,10 @@ export function createMSTeamsReplyDispatcher(params: {
 }) {
   const core = getMSTeamsRuntime();
   const sendTypingIndicator = async () => {
-    await params.context.sendActivity({ type: "typing" });
+    const ref = buildConversationReference(params.conversationRef);
+    await params.adapter.continueConversation(params.appId, ref, async (ctx) => {
+      await ctx.sendActivity({ type: "typing" });
+    });
   };
   const typingCallbacks = createTypingCallbacks({
     start: sendTypingIndicator,
@@ -90,7 +94,6 @@ export function createMSTeamsReplyDispatcher(params: {
           adapter: params.adapter,
           appId: params.appId,
           conversationRef: params.conversationRef,
-          context: params.context,
           messages,
           // Enable default retry/backoff for throttling/transient failures.
           retry: {},
