@@ -7,7 +7,7 @@
  */
 
 import type * as Lark from "@larksuiteoapi/node-sdk";
-import { cleanBlocksForDescendant } from "./table-utils.js";
+import { cleanBlocksForDescendant } from "./docx-table-ops.js";
 
 export const BATCH_SIZE = 1000; // Feishu API limit per request
 

@@ -2,19 +2,19 @@ import type * as Lark from "@larksuiteoapi/node-sdk";
 import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { listEnabledFeishuAccounts } from "./accounts.js";
-import { BATCH_SIZE, insertBlocksInBatches } from "./batch-insert.js";
 import { createFeishuClient } from "./client.js";
-import { updateColorText } from "./color-text.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
-import { getFeishuRuntime } from "./runtime.js";
+import { BATCH_SIZE, insertBlocksInBatches } from "./docx-batch-insert.js";
+import { updateColorText } from "./docx-color-text.js";
+import { extractImageUrls, processImages, uploadImageAction } from "./docx-picture-ops.js";
 import {
   insertTableRow,
   insertTableColumn,
   deleteTableRows,
   deleteTableColumns,
   mergeTableCells,
-} from "./table-ops.js";
-import { cleanBlocksForDescendant } from "./table-utils.js";
+  cleanBlocksForDescendant,
+} from "./docx-table-ops.js";
 import { resolveToolsConfig } from "./tools-config.js";
 
 // ============ Helpers ============
@@ -24,20 +24,6 @@ function json(data: unknown) {
     content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
     details: data,
   };
-}
-
-/** Extract image URLs from markdown content */
-function extractImageUrls(markdown: string): string[] {
-  const regex = /!\[[^\]]*\]\(([^)]+)\)/g;
-  const urls: string[] = [];
-  let match;
-  while ((match = regex.exec(markdown)) !== null) {
-    const url = match[1].trim();
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-      urls.push(url);
-    }
-  }
-  return urls;
 }
 
 const BLOCK_TYPE_NAMES: Record<number, string> = {
@@ -86,7 +72,7 @@ function sortBlocksByFirstLevel(blocks: any[], firstLevelIds: string[]): any[] {
 
 /**
  * Insert blocks using Descendant API (single request, <1000 blocks).
- * For larger documents, use insertBlocksInBatches from batch-insert.ts.
+ * For larger documents, use insertBlocksInBatches from docx-batch-insert.ts.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
 async function insertBlocksWithDescendant(
@@ -142,158 +128,6 @@ async function clearDocumentContent(client: Lark.Client, docToken: string) {
   }
 
   return childIds.length;
-}
-
-async function uploadImageToDocx(
-  client: Lark.Client,
-  blockId: string,
-  imageBuffer: Buffer,
-  fileName: string,
-  docToken?: string,
-): Promise<string> {
-  const res = await client.drive.media.uploadAll({
-    data: {
-      file_name: fileName,
-      parent_type: "docx_image",
-      parent_node: blockId,
-      size: imageBuffer.length,
-      // Pass Buffer directly so form-data can calculate Content-Length correctly.
-      // Readable.from() produces a stream with unknown length, causing upload failures
-      // for larger images (Content-Length mismatch → "Error when parsing request").
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK file type
-      file: imageBuffer as any,
-      // Required for multi-region routing (e.g. JP cluster): tells the drive service
-      // which document the image block belongs to, enabling correct datacenter routing.
-      ...(docToken ? { extra: JSON.stringify({ drive_route_token: docToken }) } : {}),
-    },
-  });
-
-  const fileToken = res?.file_token;
-  if (!fileToken) {
-    throw new Error("Image upload failed: no file_token returned");
-  }
-  return fileToken;
-}
-
-async function downloadImage(url: string, maxBytes: number): Promise<Buffer> {
-  const fetched = await getFeishuRuntime().channel.media.fetchRemoteMedia({ url, maxBytes });
-  return fetched.buffer;
-}
-
-/* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
-async function processImages(
-  client: Lark.Client,
-  docToken: string,
-  markdown: string,
-  insertedBlocks: any[],
-  maxBytes: number,
-): Promise<number> {
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-  const imageUrls = extractImageUrls(markdown);
-  if (imageUrls.length === 0) {
-    return 0;
-  }
-
-  const imageBlocks = insertedBlocks.filter((b) => b.block_type === 27);
-
-  let processed = 0;
-  for (let i = 0; i < Math.min(imageUrls.length, imageBlocks.length); i++) {
-    const url = imageUrls[i];
-    const blockId = imageBlocks[i].block_id;
-
-    try {
-      const buffer = await downloadImage(url, maxBytes);
-      const urlPath = new URL(url).pathname;
-      const fileName = urlPath.split("/").pop() || `image_${i}.png`;
-      const fileToken = await uploadImageToDocx(client, blockId, buffer, fileName, docToken);
-
-      await client.docx.documentBlock.patch({
-        path: { document_id: docToken, block_id: blockId },
-        data: {
-          replace_image: { token: fileToken },
-        },
-      });
-
-      processed++;
-    } catch (err) {
-      console.error(`Failed to process image ${url}:`, err);
-    }
-  }
-
-  return processed;
-}
-
-async function uploadImageAction(
-  client: Lark.Client,
-  docToken: string,
-  imageInput: string,
-  fileName?: string,
-  insertAfterBlockId?: string,
-  mediaMaxBytes?: number,
-): Promise<{ success: boolean; block_id: string }> {
-  // Resolve image buffer from URL, base64, data URI, or file path
-  let buffer: Buffer;
-  let resolvedFileName = fileName ?? "image.png";
-
-  if (imageInput.startsWith("http://") || imageInput.startsWith("https://")) {
-    // Remote URL — download via OpenClaw media fetcher
-    buffer = await downloadImage(imageInput, mediaMaxBytes ?? 20 * 1024 * 1024);
-    resolvedFileName = fileName ?? imageInput.split("/").pop()?.split("?")[0] ?? "image.jpg";
-  } else if (imageInput.startsWith("data:")) {
-    // data URI: data:image/png;base64,xxxx
-    const [header, data] = imageInput.split(",");
-    const mimeMatch = header.match(/data:([^;]+)/);
-    const ext = mimeMatch?.[1]?.split("/")[1] ?? "png";
-    resolvedFileName = fileName ?? `image.${ext}`;
-    buffer = Buffer.from(data, "base64");
-  } else if (
-    (imageInput.startsWith("/") ||
-      imageInput.startsWith("~") ||
-      imageInput.startsWith("./") ||
-      imageInput.startsWith("../")) &&
-    imageInput.length < 1024 // File paths are short; base64 JPEGs start with "/9j/" but are thousands of chars
-  ) {
-    // File path (absolute or relative)
-    const { readFile } = await import("fs/promises");
-    buffer = await readFile(imageInput);
-    resolvedFileName = fileName ?? imageInput.split("/").pop() ?? "image.png";
-  } else {
-    // Plain base64 string (may contain A-Za-z0-9+/= including '/')
-    buffer = Buffer.from(imageInput.trim(), "base64");
-  }
-
-  // Step 1 (per Feishu FAQ): Create an empty image block
-  const insertRes = await client.docx.documentBlockChildren.create({
-    path: { document_id: docToken, block_id: insertAfterBlockId ?? docToken },
-    params: { document_revision_id: -1 },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK type
-    data: { children: [{ block_type: 27, image: {} as any }], index: -1 },
-  });
-
-  if (insertRes.code !== 0) {
-    throw new Error(`Failed to create image block: ${insertRes.msg}`);
-  }
-
-  const blockId = insertRes.data?.children?.[0]?.block_id;
-  if (!blockId) {
-    throw new Error("No block_id returned after creating image block");
-  }
-
-  // Step 2 (per Feishu FAQ): Upload image with parent_node = image block ID
-  // Pass docToken as drive_route_token for correct multi-region routing
-  const fileToken = await uploadImageToDocx(client, blockId, buffer, resolvedFileName, docToken);
-
-  // Step 3 (per Feishu FAQ): Set image token on the block
-  const patchRes = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: { replace_image: { token: fileToken } },
-  });
-
-  if (patchRes.code !== 0) {
-    throw new Error(`Failed to set image: ${patchRes.msg}`);
-  }
-
-  return { success: true, block_id: blockId };
 }
 
 // ============ Actions ============
