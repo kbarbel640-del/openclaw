@@ -68,4 +68,25 @@ describe("resolveSendPolicy", () => {
     expect(resolveSendPolicy({ cfg, sessionKey: "agent:main:discord:group:dev" })).toBe("deny");
     expect(resolveSendPolicy({ cfg, sessionKey: "agent:main:slack:group:dev" })).toBe("allow");
   });
+
+  it("derives channel from new session key format with accountId", () => {
+    const cfg = {
+      session: {
+        sendPolicy: {
+          default: "allow",
+          rules: [{ action: "deny", match: { channel: "discord" } }],
+        },
+      },
+    } as OpenClawConfig;
+    // New format: agent:<agentId>:<channel>:<accountId>:<peerKind>:<peerId>
+    expect(resolveSendPolicy({ cfg, sessionKey: "agent:main:discord:acc-1:channel:123" })).toBe(
+      "deny",
+    );
+    expect(resolveSendPolicy({ cfg, sessionKey: "agent:main:discord:acc-1:group:456" })).toBe(
+      "deny",
+    );
+    // Old format should still work
+    expect(resolveSendPolicy({ cfg, sessionKey: "agent:main:discord:channel:123" })).toBe("deny");
+    expect(resolveSendPolicy({ cfg, sessionKey: "agent:main:discord:group:456" })).toBe("deny");
+  });
 });
