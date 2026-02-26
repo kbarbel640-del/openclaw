@@ -501,6 +501,25 @@ namespace OpenClaw.Node.Tests
         }
 
         [Fact]
+        public async Task InputClick_NonIntegerCoordinates_ShouldReturnInvalidRequest()
+        {
+            var executor = new NodeCommandExecutor();
+            var req = new BridgeInvokeRequest
+            {
+                Id = "input-click-3",
+                Command = "input.click",
+                ParamsJSON = "{\"x\":1.5,\"y\":2}"
+            };
+
+            var res = await executor.ExecuteAsync(req);
+
+            Assert.False(res.Ok);
+            Assert.NotNull(res.Error);
+            Assert.Equal(OpenClawNodeErrorCode.InvalidRequest, res.Error!.Code);
+            Assert.Contains("must be integers", res.Error.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public async Task InputScroll_MissingDelta_ShouldReturnInvalidRequest()
         {
             var executor = new NodeCommandExecutor();

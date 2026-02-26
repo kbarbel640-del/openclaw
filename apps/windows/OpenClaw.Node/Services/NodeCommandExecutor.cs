@@ -1266,8 +1266,10 @@ namespace OpenClaw.Node.Services
                 return Invalid(request.Id, "input.click requires numeric params.y");
             }
 
-            var x = xEl.GetInt32();
-            var y = yEl.GetInt32();
+            if (!xEl.TryGetInt32(out var x) || !yEl.TryGetInt32(out var y))
+            {
+                return Invalid(request.Id, "input.click params.x and params.y must be integers");
+            }
             var button = root.Value.TryGetProperty("button", out var bEl) && bEl.ValueKind == JsonValueKind.String
                 ? (bEl.GetString() ?? "primary")
                 : "primary";
