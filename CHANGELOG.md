@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Telegram, Discord, and Slack: outbound messages are now throttled per chat/channel with configurable inter-message delay (`channels.telegram.outbound.interMessageMs`, `channels.discord.outbound.interMessageMs`, `channels.slack.outbound.interMessageMs`) to avoid platform flood limits. Defaults: Telegram 800 ms, Discord and Slack 1100 ms. Closes #13627.
 - Android/Chat: improve streaming delivery handling and markdown rendering quality in the native Android chat UI, including better GitHub-flavored markdown behavior. (#26079) Thanks @obviyus.
 - Android/Startup perf: defer foreground-service startup, move WebView debugging init out of critical startup, and add startup macrobenchmark + low-noise perf CLI scripts for deterministic cold-start tracking. (#26659) Thanks @obviyus.
 - UI/Chat compose: add mobile stacked layout for compose action buttons on small screens to improve send/session controls usability. (#11167) Thanks @junyiz.
