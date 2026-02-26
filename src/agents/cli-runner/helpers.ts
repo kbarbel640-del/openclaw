@@ -386,6 +386,7 @@ export function parseCliJsonl(raw: string, backend: CliBackendConfig): CliOutput
       const type = typeof item.type === "string" ? item.type.toLowerCase() : "";
       if (!type || type.includes("message")) {
         texts.push(item.text);
+        continue;
       }
     }
     const part = isRecord(parsed.part) ? parsed.part : null;
