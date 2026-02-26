@@ -78,6 +78,26 @@ Call:
 }
 ```
 
+## Thread spawn recovery policy
+
+When the user asks to start a coding harness in a thread (for example "start a codex/claude/pi thread"), treat that as an ACP runtime request and try to satisfy it end-to-end.
+
+Required behavior when ACP backend is unavailable:
+
+1. Do not immediately ask the user to pick an alternate path.
+2. First attempt automatic local repair:
+   - ensure plugin-local pinned acpx is installed in `extensions/acpx`
+   - verify `${ACPX_CMD} --version`
+3. Retry ACP thread spawn once after repair.
+4. Only if repair+retry fails, report the concrete error and then offer fallback options.
+
+When offering fallback, keep ACP first:
+
+- Option 1: retry ACP spawn after showing exact failing step
+- Option 2: direct acpx telephone-game flow
+
+Do not default to subagent runtime for these requests.
+
 ## ACPX install and version policy (direct acpx path)
 
 For this repo, direct `acpx` calls must follow the same pinned policy as the `@openclaw/acpx` extension.
@@ -170,11 +190,12 @@ If `~/.acpx/config.json` overrides `agents`, those overrides replace defaults.
 ### Failure handling
 
 - `acpx: command not found`:
-  - install pinned plugin-local acpx in `extensions/acpx` and retry
+  - for thread-spawn ACP requests, install plugin-local pinned acpx in `extensions/acpx` immediately and retry once
+  - do not ask for install permission first unless policy explicitly requires it
   - do not install global `acpx` unless explicitly requested
 - adapter command missing (for example `claude-agent-acp` not found):
-  - first check whether `~/.acpx/config.json` has custom `agents` overrides
-  - prefer removing broken override(s) to restore built-in defaults
+  - for thread-spawn ACP requests, first restore built-in defaults by removing broken `~/.acpx/config.json` agent overrides
+  - then retry once before offering fallback
   - if user wants binary-based overrides, install exactly the configured adapter binary
 - `NO_SESSION`: run `${ACPX_CMD} <agent> sessions new --name <sessionName>` then retry prompt.
 - queue busy: either wait for completion (default) or use `--no-wait` when async behavior is explicitly desired.
