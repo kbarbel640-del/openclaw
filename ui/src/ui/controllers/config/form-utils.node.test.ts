@@ -508,6 +508,20 @@ describe("coerceFormValues", () => {
     expect(coerced.id).toBe("9007199254740992");
   });
 
+  it("coerces scientific notation normally even for large values", () => {
+    const schema: JsonSchema = {
+      type: "object",
+      properties: {
+        value: { type: "number" },
+      },
+    };
+    // Scientific notation should be coerced to number even if the value is large
+    const form = { value: "1e20" };
+    const coerced = coerceFormValues(form, schema) as Record<string, unknown>;
+    expect(typeof coerced.value).toBe("number");
+    expect(coerced.value).toBe(1e20);
+  });
+
   it("coerces small integers normally even with number schema", () => {
     const schema: JsonSchema = {
       type: "object",

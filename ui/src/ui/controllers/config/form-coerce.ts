@@ -12,8 +12,10 @@ function coerceNumberString(value: string, integer: boolean): number | undefined
   if (integer && !Number.isInteger(parsed)) {
     return value;
   }
-  // Preserve large integers as strings to avoid precision loss (e.g., Discord snowflake IDs)
-  if (Math.abs(parsed) > Number.MAX_SAFE_INTEGER) {
+  // Preserve large integer-like strings to avoid precision loss (e.g., Discord snowflake IDs).
+  // Only applies to strings that look like integer literals (no decimal point, no exponent).
+  // Scientific notation (e.g., "1e20") is allowed to coerce normally.
+  if (Math.abs(parsed) > Number.MAX_SAFE_INTEGER && /^-?\d+$/.test(trimmed)) {
     return value;
   }
   return parsed;
