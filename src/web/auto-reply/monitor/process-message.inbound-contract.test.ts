@@ -10,6 +10,12 @@ vi.mock("../../../auto-reply/reply/provider-dispatcher.js", () => ({
   }),
 }));
 
+vi.mock("../../../../agents/agent-scope.js", () => ({
+  resolveAgentConfig: vi.fn(() => ({})),
+  resolveAgentDir: vi.fn(() => "/tmp/agent"),
+  resolveSessionAgentId: vi.fn(() => "main"),
+}));
+
 import { processMessage } from "./process-message.js";
 
 describe("web processMessage inbound contract", () => {
