@@ -33,6 +33,8 @@ namespace OpenClaw.Node
                 return;
             }
 
+            try
+            {
             var connectParams = new ConnectParams
             {
                 MinProtocol = Constants.GatewayProtocolVersion,
@@ -244,6 +246,17 @@ namespace OpenClaw.Node
                 if (restartRequested)
                 {
                     TryScheduleSelfRestart();
+                }
+            }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FATAL] Startup failed before runtime guard: {ex.Message}");
+                if (trayEnabled)
+                {
+                    ShowUserWarningDialog(
+                        "OpenClaw Node Setup Error",
+                        "Node startup failed due to invalid configuration (for example gateway URL).\n\nOpen tray menu → Open Config, fix values, save, then restart node.");
                 }
             }
         }
