@@ -170,4 +170,27 @@ describe("resolvePluginTools optional tools", () => {
     expect(tools.map((tool) => tool.name)).toEqual(["other_tool"]);
     expect(registry.diagnostics).toHaveLength(0);
   });
+
+  it("requests plugin registry refresh mode when refreshToolSchema is requested", () => {
+    setRegistry([
+      {
+        pluginId: "optional-demo",
+        optional: true,
+        source: "/tmp/optional-demo.js",
+        factory: () => makeTool("optional_tool"),
+      },
+    ]);
+
+    resolvePluginTools({
+      context: createContext() as never,
+      toolAllowlist: ["optional_tool"],
+      refreshToolSchema: true,
+    });
+
+    const loadArgs = loadOpenClawPluginsMock.mock.calls[0]?.[0] as
+      | { refresh?: boolean; cache?: boolean }
+      | undefined;
+    expect(loadArgs?.refresh).toBe(true);
+    expect(loadArgs?.cache).toBeUndefined();
+  });
 });

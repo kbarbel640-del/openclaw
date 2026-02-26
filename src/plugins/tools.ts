@@ -47,6 +47,7 @@ export function resolvePluginTools(params: {
   existingToolNames?: Set<string>;
   toolAllowlist?: string[];
   suppressNameConflicts?: boolean;
+  refreshToolSchema?: boolean;
 }): AnyAgentTool[] {
   // Fast path: when plugins are effectively disabled, avoid discovery/jiti entirely.
   // This matters a lot for unit tests and for tool construction hot paths.
@@ -60,6 +61,7 @@ export function resolvePluginTools(params: {
     config: effectiveConfig,
     workspaceDir: params.context.workspaceDir,
     logger: createPluginLoaderLogger(log),
+    ...(params.refreshToolSchema ? { refresh: true } : {}),
   });
 
   const tools: AnyAgentTool[] = [];

@@ -21,6 +21,8 @@ export type EmbeddedRunAttemptParams = EmbeddedRunAttemptBase & {
   modelRegistry: ModelRegistry;
   thinkLevel: ThinkLevel;
   legacyBeforeAgentStartResult?: PluginHookBeforeAgentStartResult;
+  /** Force a one-time tool schema refresh by bypassing plugin registry cache. */
+  refreshToolSchema?: boolean;
 };
 
 export type EmbeddedRunAttemptResult = {
