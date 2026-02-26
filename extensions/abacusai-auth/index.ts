@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import { emptyPluginConfigSchema, fetchWithSsrFGuard } from "openclaw/plugin-sdk";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -232,19 +232,26 @@ async function validateApiKey(
   apiKey: string,
 ): Promise<{ valid: boolean; email?: string; error?: string }> {
   try {
-    const r = await fetch(`${ABACUS_API}/describeUser`, {
-      method: "GET",
-      headers: { apiKey, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(15_000),
+    const { response: r, release } = await fetchWithSsrFGuard({
+      url: `${ABACUS_API}/describeUser`,
+      init: {
+        method: "GET",
+        headers: { apiKey, "Content-Type": "application/json" },
+      },
+      timeoutMs: 15_000,
     });
-    if (!r.ok) {
-      return { valid: false, error: r.status === 403 ? "Invalid API key" : `HTTP ${r.status}` };
+    try {
+      if (!r.ok) {
+        return { valid: false, error: r.status === 403 ? "Invalid API key" : `HTTP ${r.status}` };
+      }
+      const d = (await r.json()) as { success?: boolean; result?: { email?: string } };
+      if (!d.success) {
+        return { valid: false, error: "API returned unsuccessful response" };
+      }
+      return { valid: true, email: d.result?.email?.trim() };
+    } finally {
+      await release();
     }
-    const d = (await r.json()) as { success?: boolean; result?: { email?: string } };
-    if (!d.success) {
-      return { valid: false, error: "API returned unsuccessful response" };
-    }
-    return { valid: true, email: d.result?.email?.trim() };
   } catch (err) {
     return {
       valid: false,
@@ -340,16 +347,20 @@ async function handleProxyRequest(req: IncomingMessage, res: ServerResponse) {
     body = JSON.stringify(parsed);
   }
 
-  const upstream = await fetch(target, {
-    method: req.method ?? "GET",
-    headers: body ? headers : { Authorization: headers.Authorization },
-    body: body ?? undefined,
-    signal: AbortSignal.timeout(180_000),
+  const { response: upstream, release } = await fetchWithSsrFGuard({
+    url: target,
+    init: {
+      method: req.method ?? "GET",
+      headers: body ? headers : { Authorization: headers.Authorization },
+      body: body ?? undefined,
+    },
+    timeoutMs: 180_000,
   });
 
   // Detect expired/revoked API key at runtime
   if (upstream.status === 401 || upstream.status === 403) {
     const errBody = await upstream.text().catch(() => "");
+    await release();
     console.error(
       `[abacusai] Upstream returned ${upstream.status} — API key may be expired or revoked.`,
     );
@@ -387,6 +398,7 @@ async function handleProxyRequest(req: IncomingMessage, res: ServerResponse) {
             res.write(normalized + "\n\n");
           }
           res.end();
+          await release();
           return;
         }
         buffer += decoder.decode(value, { stream: true });
@@ -402,10 +414,14 @@ async function handleProxyRequest(req: IncomingMessage, res: ServerResponse) {
         }
       }
     };
-    pump().catch(() => res.end());
+    pump().catch(async () => {
+      res.end();
+      await release();
+    });
   } else {
     // Non-streaming response - add id and object fields
     const data = await upstream.text();
+    await release();
     try {
       const json = JSON.parse(data) as Record<string, unknown>;
       if (!("id" in json)) {
