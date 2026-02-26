@@ -118,9 +118,9 @@ export const nl: TranslationMap = {
     zhCN: "简体中文 (Vereenvoudigd Chinees)",
     zhTW: "繁體中文 (Traditioneel Chinees)",
     ptBR: "Português (Braziliaans Portugees)",
-    nl: "Nederlands (Dutch)",
-    fr: "Français (Frans)",
-    de: "Deutsch (Duits)",
-    it: "Italiano (Italiaans)",
+    nl: "Nederlands",
+    fr: "Français",
+    de: "Deutsch",
+    it: "Italiano",
   },
 };
