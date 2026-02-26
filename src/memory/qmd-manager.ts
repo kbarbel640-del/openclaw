@@ -217,6 +217,7 @@ export class QmdMemoryManager implements MemorySearchManager {
       ...process.env,
       XDG_CONFIG_HOME: this.xdgConfigHome,
       XDG_CACHE_HOME: this.xdgCacheHome,
+      MCPORTER_CONFIG: path.join(this.agentStateDir, "config", "mcporter.json"),
       NO_COLOR: "1",
     };
     this.sessionExporter = this.qmd.sessions.enabled
