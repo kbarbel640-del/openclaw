@@ -693,6 +693,8 @@ export async function startGatewayServer(
 
   const canvasHostServerPort = (canvasHostServer as CanvasHostServer | null)?.port;
 
+  let tailscaleOrigin: string | null = null;
+
   attachGatewayWsHandlers({
     wss,
     clients,
@@ -714,6 +716,7 @@ export async function startGatewayServer(
       ...secretsHandlers,
     },
     broadcast,
+    getTailscaleOrigin: () => tailscaleOrigin,
     context: {
       deps,
       cron,
@@ -786,8 +789,8 @@ export async function startGatewayServer(
           broadcast(GATEWAY_EVENT_UPDATE_AVAILABLE, payload, { dropIfSlow: true });
         },
       });
-  const tailscaleCleanup = minimalTestGateway
-    ? null
+  const tailscaleResult = minimalTestGateway
+    ? { cleanup: null, hostname: null }
     : await startGatewayTailscaleExposure({
         tailscaleMode,
         resetOnExit: tailscaleConfig.resetOnExit,
@@ -795,6 +798,8 @@ export async function startGatewayServer(
         controlUiBasePath,
         logTailscale,
       });
+  const tailscaleCleanup = tailscaleResult.cleanup;
+  tailscaleOrigin = tailscaleResult.hostname ? `https://${tailscaleResult.hostname}` : null;
 
   let browserControl: Awaited<ReturnType<typeof startBrowserControlServerIfEnabled>> = null;
   if (!minimalTestGateway) {
