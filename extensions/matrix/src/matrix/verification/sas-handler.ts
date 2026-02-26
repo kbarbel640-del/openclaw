@@ -531,7 +531,7 @@ export class SasVerificationHandler {
     this.logVerboseMessage(`matrix: verification: MAC verified for txn=${transactionId}`);
 
     // If we haven't sent our MAC yet, send it now
-    if (session.state !== "mac_sent") {
+    if ((session.state as string) !== "mac_sent") {
       await this.sendMac(session);
     }
 
@@ -657,13 +657,14 @@ export class SasVerificationHandler {
     // Get our ed25519 signing key from the crypto module
     let signingKeyBase64 = "";
     try {
-      const deviceInfo = await this.client.crypto?.getOwnDeviceKeys?.();
-      if (deviceInfo) {
-        const keys = deviceInfo as Record<string, unknown>;
-        const ed25519Key = keys[keyId] ?? keys[`ed25519:${session.selfDeviceId}`];
-        if (typeof ed25519Key === "string") {
-          signingKeyBase64 = ed25519Key;
-        }
+      // CryptoClient exposes clientDeviceEd25519 as a getter
+      const crypto = this.client.crypto as unknown as
+        | {
+            clientDeviceEd25519?: string;
+          }
+        | undefined;
+      if (crypto?.clientDeviceEd25519) {
+        signingKeyBase64 = crypto.clientDeviceEd25519;
       }
     } catch {
       // If we can't get the signing key, use an empty placeholder
@@ -855,21 +856,15 @@ export class SasVerificationHandler {
 
 async function resolveDeviceId(client: MatrixClient): Promise<string> {
   // Try to get device ID from the crypto module
-  const crypto = client.crypto as
+  // CryptoClient exposes clientDeviceId as a getter
+  const crypto = client.crypto as unknown as
     | {
-        deviceId?: string;
-        getDeviceId?: () => string | Promise<string>;
+        clientDeviceId?: string;
       }
     | undefined;
 
-  if (crypto?.deviceId) {
-    return crypto.deviceId;
-  }
-  if (crypto?.getDeviceId) {
-    const id = await crypto.getDeviceId();
-    if (id) {
-      return id;
-    }
+  if (crypto?.clientDeviceId) {
+    return crypto.clientDeviceId;
   }
 
   // Fallback: get device ID from whoami

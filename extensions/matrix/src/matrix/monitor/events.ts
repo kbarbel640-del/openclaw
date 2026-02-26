@@ -34,7 +34,7 @@ function createSelfUserIdResolver(client: Pick<MatrixClient, "getUserId">) {
 }
 
 /** Set of event types that belong to the verification protocol. */
-const VERIFICATION_EVENT_TYPES = new Set([
+const VERIFICATION_EVENT_TYPES: Set<string> = new Set([
   EventType.VerificationRequest,
   EventType.VerificationReady,
   EventType.VerificationStart,
