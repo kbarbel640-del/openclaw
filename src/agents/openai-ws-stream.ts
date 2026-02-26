@@ -10,8 +10,17 @@
  *  - Falls back to `streamSimple` (HTTP) if the WebSocket connection fails
  *  - Cleanup helpers for releasing sessions after the run completes
  *
+ * Complexity budget & risk mitigation:
+ *  - **Opt-in only**: activated by `providers.<name>.websocket: true` in config
+ *  - **Transparent fallback**: every failure path (connect, send, mid-request drop)
+ *    falls back to the existing HTTP `streamSimple` — the agent run always completes
+ *  - **Zero shared state**: per-session registry; session cleanup on dispose prevents leaks
+ *  - **Full parity**: all generation options (temperature, top_p, max_output_tokens,
+ *    tool_choice, reasoning) forwarded identically to the HTTP path
+ *
  * @see src/agents/openai-ws-connection.ts for the connection manager
  * @see WEBSOCKET_MODE_SPEC.md for the full architecture spec
+ * @see openai-ws-stream.e2e.test.ts for live API integration tests (run with OPENAI_API_KEY)
  */
 
 import { randomUUID } from "node:crypto";
