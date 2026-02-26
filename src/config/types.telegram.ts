@@ -183,7 +183,7 @@ export type TelegramTopicConfig = {
   allowFrom?: Array<string | number>;
   /** Optional system prompt snippet for this topic. */
   systemPrompt?: string;
-  /** Per-topic model override (e.g., "anthropic/claude-opus-4-6"). Requires sharedTopicSession on the group. */
+  /** Per-topic model override (e.g., "anthropic/claude-opus-4-6"). Best paired with sharedTopicSession on the group for shared conversation history. */
   model?: string;
 };
 
