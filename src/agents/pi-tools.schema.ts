@@ -130,9 +130,7 @@ export function normalizeToolParameters(
   const isGeminiProvider =
     options?.modelProvider?.toLowerCase().includes("google") ||
     options?.modelProvider?.toLowerCase().includes("gemini");
-  const isAnthropicProvider =
-    options?.modelProvider?.toLowerCase().includes("anthropic") ||
-    options?.modelProvider?.toLowerCase().includes("google-antigravity");
+  const isAnthropicProvider = options?.modelProvider?.toLowerCase().includes("anthropic");
 
   // If schema already has type + properties (no top-level anyOf to merge),
   // clean it for Gemini compatibility (but only if using Gemini, not Anthropic)

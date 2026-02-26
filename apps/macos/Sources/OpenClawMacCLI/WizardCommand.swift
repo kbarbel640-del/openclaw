@@ -251,7 +251,7 @@ actor GatewayWizardClient {
         let clientMode = "ui"
         let role = "operator"
         // Explicit scopes; gateway no longer defaults empty scopes to admin.
-        let scopes: [String] = ["operator.admin", "operator.approvals", "operator.pairing"]
+        let scopes = defaultOperatorConnectScopes
         let client: [String: ProtoAnyCodable] = [
             "id": ProtoAnyCodable(clientId),
             "displayName": ProtoAnyCodable(Host.current().localizedName ?? "OpenClaw macOS Wizard CLI"),
@@ -280,19 +280,17 @@ actor GatewayWizardClient {
         let connectNonce = try await self.waitForConnectChallenge()
         let identity = DeviceIdentityStore.loadOrCreate()
         let signedAtMs = Int(Date().timeIntervalSince1970 * 1000)
-        let scopesValue = scopes.joined(separator: ",")
-        let payloadParts = [
-            "v2",
-            identity.deviceId,
-            clientId,
-            clientMode,
-            role,
-            scopesValue,
-            String(signedAtMs),
-            self.token ?? "",
-            connectNonce,
-        ]
-        let payload = payloadParts.joined(separator: "|")
+        let payload = GatewayDeviceAuthPayload.buildV3(
+            deviceId: identity.deviceId,
+            clientId: clientId,
+            clientMode: clientMode,
+            role: role,
+            scopes: scopes,
+            signedAtMs: signedAtMs,
+            token: self.token,
+            nonce: connectNonce,
+            platform: platform,
+            deviceFamily: "Mac")
         if let signature = DeviceIdentityStore.signPayload(payload, identity: identity),
            let publicKey = DeviceIdentityStore.publicKeyBase64Url(identity)
         {

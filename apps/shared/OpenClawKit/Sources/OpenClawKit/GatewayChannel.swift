@@ -127,6 +127,14 @@ private enum ConnectChallengeError: Error {
     case timeout
 }
 
+private let defaultOperatorConnectScopes: [String] = [
+    "operator.admin",
+    "operator.read",
+    "operator.write",
+    "operator.approvals",
+    "operator.pairing",
+]
+
 public actor GatewayChannelActor {
     private let logger = Logger(subsystem: "ai.openclaw", category: "gateway")
     private var task: WebSocketTaskBox?
@@ -318,7 +326,7 @@ public actor GatewayChannelActor {
         let primaryLocale = Locale.preferredLanguages.first ?? Locale.current.identifier
         let options = self.connectOptions ?? GatewayConnectOptions(
             role: "operator",
-            scopes: ["operator.admin", "operator.approvals", "operator.pairing"],
+            scopes: defaultOperatorConnectScopes,
             caps: [],
             commands: [],
             permissions: [:],
@@ -390,20 +398,18 @@ public actor GatewayChannelActor {
         }
         let signedAtMs = Int(Date().timeIntervalSince1970 * 1000)
         let connectNonce = try await self.waitForConnectChallenge()
-        let scopesValue = scopes.joined(separator: ",")
-        let payloadParts = [
-            "v2",
-            identity?.deviceId ?? "",
-            clientId,
-            clientMode,
-            role,
-            scopesValue,
-            String(signedAtMs),
-            authToken ?? "",
-            connectNonce,
-        ]
-        let payload = payloadParts.joined(separator: "|")
         if includeDeviceIdentity, let identity {
+            let payload = GatewayDeviceAuthPayload.buildV3(
+                deviceId: identity.deviceId,
+                clientId: clientId,
+                clientMode: clientMode,
+                role: role,
+                scopes: scopes,
+                signedAtMs: signedAtMs,
+                token: authToken,
+                nonce: connectNonce,
+                platform: platform,
+                deviceFamily: InstanceIdentity.deviceFamily)
             if let signature = DeviceIdentityStore.signPayload(payload, identity: identity),
                let publicKey = DeviceIdentityStore.publicKeyBase64Url(identity) {
                 let device: [String: ProtoAnyCodable] = [
