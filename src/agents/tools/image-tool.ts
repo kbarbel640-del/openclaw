@@ -184,10 +184,7 @@ export function resolveImageModelConfigForTool(params: {
       fallbacks: [ANTHROPIC_IMAGE_FALLBACK],
     };
   }
-
-  return {
-    primary: `${primary.provider}/${primary.model}`,
-  };
+  return null;
 }
 
 function pickMaxBytes(cfg?: OpenClawConfig, maxBytesMb?: number): number | undefined {
