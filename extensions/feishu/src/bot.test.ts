@@ -75,6 +75,7 @@ describe("handleFeishuMessage command authorization", () => {
     setFeishuRuntime({
       system: {
         enqueueSystemEvent: vi.fn(),
+        requestHeartbeatNow: vi.fn(),
       },
       channel: {
         routing: {
