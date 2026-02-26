@@ -40,6 +40,7 @@ import {
   resolveTelegramStreamMode,
 } from "./bot/helpers.js";
 import { resolveTelegramFetch } from "./fetch.js";
+import { createTelegramSendChatActionHandler } from "./sendchataction-401-backoff.js";
 
 export type TelegramBotOptions = {
   token: string;
@@ -407,7 +408,16 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     logger,
   });
 
-  return bot;
+  // Global sendChatAction handler with 401 backoff / circuit breaker (issue #27092).
+  // Shared across all message contexts for this account so that consecutive 401s
+  // from ANY chat are tracked together — prevents infinite retry storms.
+  const sendChatActionHandler = createTelegramSendChatActionHandler({
+    sendChatActionFn: (chatId, action, threadParams) =>
+      bot.api.sendChatAction(chatId, action, threadParams),
+    logger: (message) => logVerbose(`telegram: ${message}`),
+  });
+
+  return Object.assign(bot, { sendChatActionHandler });
 }
 
 export function createTelegramWebhookCallback(bot: Bot, path = "/telegram-webhook") {
