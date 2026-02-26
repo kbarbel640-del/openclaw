@@ -1,8 +1,60 @@
+/**
+ * Check if a string looks like a large integer (> MAX_SAFE_INTEGER) that should be preserved as a string.
+ * Discord snowflake IDs exceed JavaScript's safe integer range and must be kept as strings to avoid precision loss.
+ */
+function looksLikeLargeInteger(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed.length < 16) {
+    return false;
+  }
+  // Large integers (> Number.MAX_SAFE_INTEGER = 9007199254740991) have 16+ digits
+  // Check if it's a valid integer string that would lose precision if converted to number
+  if (/^-?\d+$/.test(trimmed)) {
+    const num = Number(trimmed);
+    return Number.isFinite(num) && Math.abs(num) > Number.MAX_SAFE_INTEGER;
+  }
+  return false;
+}
+
+/**
+ * Deep clone an object while preserving large integer strings that would lose precision
+ * if converted to JavaScript numbers (e.g., Discord snowflake IDs).
+ */
+function cloneWithLargeIntPreservation(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    // Preserve large integer strings to avoid precision loss
+    if (looksLikeLargeInteger(value)) {
+      return value;
+    }
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(cloneWithLargeIntPreservation);
+  }
+
+  if (typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value)) {
+      result[key] = cloneWithLargeIntPreservation(val);
+    }
+    return result;
+  }
+
+  return value;
+}
+
 export function cloneConfigObject<T>(value: T): T {
   if (typeof structuredClone === "function") {
+    // structuredClone doesn't lose precision for large integers in strings
     return structuredClone(value);
   }
-  return JSON.parse(JSON.stringify(value)) as T;
+  // Fallback: use custom clone that preserves large integer strings
+  return cloneWithLargeIntPreservation(value) as T;
 }
 
 export function serializeConfigForm(form: Record<string, unknown>): string {

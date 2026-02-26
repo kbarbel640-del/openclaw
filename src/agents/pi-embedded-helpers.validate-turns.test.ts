@@ -243,23 +243,35 @@ describe("validateAnthropicTurns", () => {
     ]);
   });
 
-  it("should not merge consecutive assistant messages", () => {
+  it("should merge consecutive assistant messages", () => {
+    // This can occur when an agent generates a text reply and a tool_use in
+    // two separate logical steps within the same turn.  The Anthropic API
+    // requires that the tool_result immediately follows the assistant message
+    // containing the tool_use, so the two assistant messages must be merged.
     const msgs = asMessages([
       { role: "user", content: [{ type: "text", text: "Question" }] },
       {
         role: "assistant",
-        content: [{ type: "text", text: "Answer 1" }],
+        content: [{ type: "text", text: "Got it, let me check..." }],
+        stopReason: "end_turn",
       },
       {
         role: "assistant",
-        content: [{ type: "text", text: "Answer 2" }],
+        content: [{ type: "toolCall", id: "toolu01", name: "session_status", input: {} }],
+        stopReason: "toolUse",
       },
     ]);
 
     const result = validateAnthropicTurns(msgs);
 
-    // validateAnthropicTurns only merges user messages, not assistant
-    expect(result).toHaveLength(3);
+    // Both assistant messages should be collapsed into one
+    expect(result).toHaveLength(2);
+    expect(result[0].role).toBe("user");
+    expect(result[1].role).toBe("assistant");
+    const content = (result[1] as { content: unknown[] }).content;
+    expect(content).toHaveLength(2);
+    expect((content[0] as { type: string }).type).toBe("text");
+    expect((content[1] as { type: string }).type).toBe("toolCall");
   });
 
   it("should handle mixed scenario with steering messages", () => {

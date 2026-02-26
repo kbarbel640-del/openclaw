@@ -40,6 +40,20 @@ const vectorToBlob = (embedding: number[]): Buffer =>
 
 const log = createSubsystemLogger("memory");
 
+/**
+ * Removes lone surrogates from text before sending to embeddings API.
+ * Lone surrogates (U+D800-U+DFFF) are invalid in UTF-8 and cause providers to reject requests.
+ * This replaces them with the replacement character (U+FFFD).
+ */
+function sanitizeTextForEmbedding(text: string): string {
+  // Match lone surrogates: unpaired high surrogates (D800-DBFF) or low surrogates (DC00-DFFF)
+  // not followed by the appropriate paired surrogate
+  return text.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\DFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    "\uFFFD",
+  );
+}
+
 export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
   protected abstract batchFailureCount: number;
   protected abstract batchFailureLastError?: string;
@@ -510,7 +524,7 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
           timeoutMs,
         });
         return await this.withTimeout(
-          this.provider.embedBatch(texts),
+          this.provider.embedBatch(texts.map(sanitizeTextForEmbedding)),
           timeoutMs,
           `memory embeddings batch timed out after ${Math.round(timeoutMs / 1000)}s`,
         );
@@ -552,7 +566,7 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
     const timeoutMs = this.resolveEmbeddingTimeout("query");
     log.debug("memory embeddings: query start", { provider: this.provider.id, timeoutMs });
     return await this.withTimeout(
-      this.provider.embedQuery(text),
+      this.provider.embedQuery(sanitizeTextForEmbedding(text)),
       timeoutMs,
       `memory embeddings query timed out after ${Math.round(timeoutMs / 1000)}s`,
     );
