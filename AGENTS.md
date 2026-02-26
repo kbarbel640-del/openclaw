@@ -102,6 +102,20 @@
 - Pure test additions/fixes generally do **not** need a changelog entry unless they alter user-facing behavior or the user asks for one.
 - Mobile: before using a simulator, check for connected real devices (iOS + Android) and prefer them when available.
 
+### Local full-CI one-shot record (2026-02-25)
+
+- Ran local parity sweep for GitHub CI workflows (`workflow-sanity.yml`, `ci.yml`, `install-smoke.yml`, `sandbox-common-smoke.yml`) via `/tmp/run-openclaw-local-ci.sh`.
+- Artifacts: `/tmp/openclaw-local-ci-20260225-221535.summary`, `/tmp/openclaw-local-ci-20260225-221535.log`.
+- Result: `PASS=15`, `FAIL=15`, `SKIP=1` (`ci:secrets-zizmor` skipped because no workflow-file diff vs `origin/main`).
+- `ci.yml` jobs with `if: false` (`deadcode`, `ios`) are disabled in GitHub CI and were not executed.
+- Main local blockers seen in this run:
+  - `ci:check`: formatting failure in `src/daemon/launchd.ts`.
+  - `ci:checks-node-test` and `ci:macos-ts-tests`: test failures plus Node OOM during full `pnpm test`.
+  - `ci:skills-python-*` / `ci:secrets-*`: Homebrew Python PEP668 (`externally-managed-environment`) and missing `pre-commit`/`detect-secrets`.
+  - `ci:macos-swift*`: missing `swiftlint`/`swiftformat` and Swift `6.2.0` required vs local `6.1.0`.
+  - `ci:android-*`: Android SDK not configured (`ANDROID_HOME` / `apps/android/local.properties`).
+  - `sandbox-common-smoke:common-image`: passed after running the workflow command directly (temp script had unescaped `$u` with `set -u`).
+
 ## Commit & Pull Request Guidelines
 
 **Full maintainer PR workflow (optional):** If you want the repo's end-to-end maintainer workflow (triage order, quality bar, rebase rules, commit/changelog conventions, co-contributor policy, and the `review-pr` > `prepare-pr` > `merge-pr` pipeline), see `.agents/skills/PR_WORKFLOW.md`. Maintainers may use other workflows; when a maintainer specifies a workflow, follow that. If no workflow is specified, default to PR_WORKFLOW.
