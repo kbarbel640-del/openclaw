@@ -107,6 +107,21 @@ describe("guard-model", () => {
       const res = resolveGuardModelConfig(cfg);
       expect(res).toBeNull();
     });
+
+    it("marks non-OpenAI-compatible guard providers as fail-closed", () => {
+      const cfg: OpenClawConfig = {
+        agents: { defaults: { guardModel: "anthropic/claude-opus-4-6" } },
+      };
+      const res = resolveGuardModelConfig(cfg);
+      expect(res).toEqual(
+        expect.objectContaining({
+          provider: "anthropic",
+          modelId: "claude-opus-4-6",
+          onError: "block",
+          compatibilityError: expect.stringContaining("not compatible"),
+        }),
+      );
+    });
   });
 
   describe("applyGuardToPayloads", () => {
@@ -142,7 +157,7 @@ describe("guard-model", () => {
       expect(res[0]?.text).toContain("violence");
     });
 
-    it("appends warning when action is warn and content is unsafe", async () => {
+    it("annotates the last user-facing text when action is warn and content is unsafe", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
         jsonGuardReply('{"safe":false,"reason":"self-harm","categories":["self-harm"]}'),
       );
@@ -157,11 +172,38 @@ describe("guard-model", () => {
         { cfg: TEST_RUNTIME_CONFIG },
       );
 
-      expect(res).toHaveLength(2);
-      expect(res[0]?.text).toBe("original reply");
-      expect(res[1]?.isError).toBe(true);
-      expect(res[1]?.text).toContain("Content safety warning");
-      expect(res[1]?.text).toContain("self-harm");
+      expect(res).toHaveLength(1);
+      expect(res[0]?.isError).not.toBe(true);
+      expect(res[0]?.text).toContain("original reply");
+      expect(res[0]?.text).toContain("Content safety warning");
+      expect(res[0]?.text).toContain("self-harm");
+    });
+
+    it("warn mode preserves trailing payload order for last-payload delivery", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        jsonGuardReply('{"safe":false,"reason":"policy","categories":["policy"]}'),
+      );
+      const payloads: ReplyPayload[] = [
+        { text: "first reply" },
+        { isError: true, text: "tool error details" },
+        { text: "final reply" },
+      ];
+
+      const res = await applyGuardToPayloads(
+        payloads,
+        {
+          ...BASE_GUARD_CONFIG,
+          action: "warn",
+        },
+        { cfg: TEST_RUNTIME_CONFIG },
+      );
+
+      expect(res).toHaveLength(3);
+      expect(res[0]?.text).toBe("first reply");
+      expect(res[1]?.text).toBe("tool error details");
+      expect(res[2]?.text).toContain("final reply");
+      expect(res[2]?.text).toContain("Content safety warning");
+      expect(res[2]?.text).toContain("policy");
     });
 
     it("forces block on guard API error when onError is block even if action is warn", async () => {
@@ -215,6 +257,18 @@ describe("guard-model", () => {
   });
 
   describe("evaluateGuard", () => {
+    it("short-circuits as fail-closed for incompatible guard model config", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const res = await evaluateGuard("reply text", {
+        ...BASE_GUARD_CONFIG,
+        compatibilityError: 'API "anthropic-messages" is not OpenAI-compatible',
+      });
+
+      expect(res.safe).toBe(false);
+      expect(res.source).toBe("error");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
     it("treats non-boolean safe field as guard error", async () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
         jsonGuardReply('{"safe":"false","reason":"string not boolean"}'),

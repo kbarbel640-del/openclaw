@@ -16,8 +16,11 @@ import {
   resolveAgentModelFallbackValues,
   resolveAgentModelPrimaryValue,
 } from "../config/model-input.js";
+import type { ModelApi } from "../config/types.models.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveApiKeyForProvider, type ResolvedProviderAuth } from "./model-auth.js";
+import { findNormalizedProviderValue, normalizeProviderId } from "./model-selection.js";
+import { resolveModel } from "./pi-embedded-runner/model.js";
 
 const log = createSubsystemLogger("guard-model");
 
@@ -32,6 +35,7 @@ export type GuardModelConfig = {
   fallbacks?: Array<{ provider: string; modelId: string }>;
   action: GuardModelAction;
   onError: GuardModelOnError;
+  compatibilityError?: string;
 };
 
 export type GuardResult = {
@@ -63,6 +67,73 @@ const KNOWN_BASE_URLS: Record<string, string> = {
   together: "https://api.together.xyz/v1",
 };
 
+const OPENAI_COMPATIBLE_GUARD_APIS = new Set<ModelApi>([
+  "openai-completions",
+  "openai-responses",
+  "openai-codex-responses",
+]);
+const NON_OPENAI_COMPATIBLE_GUARD_PROVIDERS = new Set([
+  "anthropic",
+  "google",
+  "google-vertex",
+  "google-gemini-cli",
+  "amazon-bedrock",
+  "ollama",
+  "github-copilot",
+]);
+
+export type GuardModelCompatibility = {
+  compatible: boolean;
+  api?: string;
+  reason?: string;
+};
+
+function resolveGuardModelCompatibility(params: {
+  provider: string;
+  modelId: string;
+  cfg?: OpenClawConfig;
+  agentDir?: string;
+}): GuardModelCompatibility {
+  const normalizedProvider = normalizeProviderId(params.provider);
+  if (NON_OPENAI_COMPATIBLE_GUARD_PROVIDERS.has(normalizedProvider)) {
+    return {
+      compatible: false,
+      reason: `provider "${params.provider}" is not OpenAI-compatible`,
+    };
+  }
+
+  const providerCfg = findNormalizedProviderValue(params.cfg?.models?.providers, params.provider);
+  const configuredApi =
+    providerCfg && typeof providerCfg === "object" && "api" in providerCfg
+      ? (providerCfg as { api?: string }).api
+      : undefined;
+  if (configuredApi && !OPENAI_COMPATIBLE_GUARD_APIS.has(configuredApi as ModelApi)) {
+    return {
+      compatible: false,
+      api: configuredApi,
+      reason: `provider API "${configuredApi}" is not OpenAI-compatible`,
+    };
+  }
+
+  const resolved = resolveModel(params.provider, params.modelId, params.agentDir, params.cfg);
+  if (!resolved.model) {
+    // Unknown custom providers can still be OpenAI-compatible.
+    // If we cannot positively identify a non-compatible API, allow the model ref.
+    return { compatible: true };
+  }
+
+  const api = resolved.model.api;
+  if (!OPENAI_COMPATIBLE_GUARD_APIS.has(api as ModelApi)) {
+    return {
+      compatible: false,
+      api,
+      reason: `API "${api}" is not OpenAI-compatible`,
+    };
+  }
+
+  return { compatible: true, api };
+}
+
 // ─── Config resolution ──────────────────────────────────────────────────────
 
 /**
@@ -93,6 +164,19 @@ export function resolveGuardModelConfig(cfg: OpenClawConfig | undefined): GuardM
 
   const provider = primary.slice(0, slashIdx);
   const modelId = primary.slice(slashIdx + 1);
+  const primaryCompatibility = resolveGuardModelCompatibility({ provider, modelId, cfg });
+  if (!primaryCompatibility.compatible) {
+    const compatibilityError = `Guard model "${primary}" is not compatible: ${primaryCompatibility.reason ?? "unsupported API"}`;
+    log.warn(compatibilityError);
+    return {
+      provider,
+      modelId,
+      action: cfg.agents?.defaults?.guardModelAction ?? "block",
+      onError: "block",
+      compatibilityError,
+    };
+  }
+
   const fallbackRefs = resolveAgentModelFallbackValues(guardModelCfg);
   const seen = new Set<string>([`${provider}/${modelId}`]);
   const fallbacks: Array<{ provider: string; modelId: string }> = [];
@@ -103,6 +187,17 @@ export function resolveGuardModelConfig(cfg: OpenClawConfig | undefined): GuardM
     }
     const key = `${parsed.provider}/${parsed.modelId}`;
     if (seen.has(key)) {
+      continue;
+    }
+    const fallbackCompatibility = resolveGuardModelCompatibility({
+      provider: parsed.provider,
+      modelId: parsed.modelId,
+      cfg,
+    });
+    if (!fallbackCompatibility.compatible) {
+      log.warn(
+        `Skipping incompatible guard fallback "${key}": ${fallbackCompatibility.reason ?? "unsupported API"}`,
+      );
       continue;
     }
     seen.add(key);
@@ -137,6 +232,11 @@ export async function evaluateGuard(
     agentDir?: string;
   },
 ): Promise<GuardResult> {
+  if (config.compatibilityError) {
+    log.warn(`guard model compatibility error: ${config.compatibilityError}`);
+    return handleGuardError({ ...config, onError: "block" }, config.compatibilityError);
+  }
+
   let auth: ResolvedProviderAuth;
   try {
     auth = await resolveApiKeyForProvider({
@@ -335,17 +435,27 @@ export async function applyGuardToPayloads(
         return p;
       });
 
-    case "warn":
-      // Append a warning to the last text payload
-      return [
-        ...payloads,
-        {
-          text:
-            `⚠️ Content safety warning: ${result.reason ?? "potential safety concern"}` +
-            (result.categories?.length ? ` [${result.categories.join(", ")}]` : ""),
-          isError: true,
-        },
-      ];
+    case "warn": {
+      // Keep payload order stable for downstream delivery paths that pick
+      // the last deliverable payload (for example isolated cron delivery).
+      // Annotate the last user-facing text payload instead of appending one.
+      const warningText =
+        `⚠️ Content safety warning: ${result.reason ?? "potential safety concern"}` +
+        (result.categories?.length ? ` [${result.categories.join(", ")}]` : "");
+      const nextPayloads = payloads.slice();
+      for (let i = nextPayloads.length - 1; i >= 0; i -= 1) {
+        const payload = nextPayloads[i];
+        if (!payload?.text || payload.isError || payload.isReasoning) {
+          continue;
+        }
+        nextPayloads[i] = {
+          ...payload,
+          text: `${payload.text}\n\n${warningText}`,
+        };
+        return nextPayloads;
+      }
+      return payloads;
+    }
 
     default:
       return payloads;
@@ -419,6 +529,25 @@ function parseGuardModelRef(raw: string): { provider: string; modelId: string } 
     provider: trimmed.slice(0, slashIdx),
     modelId: trimmed.slice(slashIdx + 1),
   };
+}
+
+export function resolveGuardModelRefCompatibility(
+  modelRef: string,
+  params?: {
+    cfg?: OpenClawConfig;
+    agentDir?: string;
+  },
+): GuardModelCompatibility {
+  const parsed = parseGuardModelRef(modelRef);
+  if (!parsed) {
+    return { compatible: false, reason: "Model reference must use provider/model format" };
+  }
+  return resolveGuardModelCompatibility({
+    provider: parsed.provider,
+    modelId: parsed.modelId,
+    cfg: params?.cfg,
+    agentDir: params?.agentDir,
+  });
 }
 
 async function evaluateGuardWithFallbacks(

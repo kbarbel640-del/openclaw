@@ -1,5 +1,6 @@
 import fsPromises from "node:fs/promises";
 import nodePath from "node:path";
+import { resolveGuardModelRefCompatibility } from "../agents/guard-model.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { readConfigFileSnapshot, resolveGatewayPort, writeConfigFile } from "../config/config.js";
@@ -284,6 +285,22 @@ async function promptGuardModelConfig(
     note(
       [
         "Guard model must use provider/model format (for example: openai/gpt-4o-mini).",
+        "Keeping existing guard model settings unchanged.",
+      ].join("\n"),
+      "Guard Model",
+    );
+    return configAfterSelection;
+  }
+  const compatibility = resolveGuardModelRefCompatibility(selectedModel, {
+    cfg: configAfterSelection,
+  });
+  if (!compatibility.compatible) {
+    note(
+      [
+        "Guard model must use an OpenAI-compatible provider/model (chat/completions API).",
+        compatibility.api
+          ? `Selected model uses "${compatibility.api}" API, which is not supported for guard screening.`
+          : "Selected guard model could not be resolved to an OpenAI-compatible API.",
         "Keeping existing guard model settings unchanged.",
       ].join("\n"),
       "Guard Model",
