@@ -103,6 +103,26 @@ describe("ensureAgentWorkspace", () => {
     expect(state.bootstrapSeededAt).toBeUndefined();
     expect(state.onboardingCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
   });
+
+  it("treats workspace with memory/ dir but no template files as existing, not brand new (#27314)", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-workspace-");
+    // Simulate a workspace that lost template files but still has user content
+    await fs.mkdir(path.join(tempDir, "memory"), { recursive: true });
+    await fs.writeFile(path.join(tempDir, "memory", "2026-02-25.md"), "# Daily log\nSome notes");
+    await fs.writeFile(path.join(tempDir, "MEMORY.md"), "# Long-term memory\nImportant stuff");
+
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+
+    // Template files should be created (writeFileIfMissing)
+    await expect(fs.access(path.join(tempDir, DEFAULT_IDENTITY_FILENAME))).resolves.toBeUndefined();
+    // But BOOTSTRAP.md should NOT be created — workspace is not brand new
+    // (it has user content, so onboarding is treated as already completed)
+    const state = await readOnboardingState(tempDir);
+    expect(state.onboardingCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
+    // User content must be preserved
+    const memoryContent = await fs.readFile(path.join(tempDir, "MEMORY.md"), "utf-8");
+    expect(memoryContent).toBe("# Long-term memory\nImportant stuff");
+  });
 });
 
 describe("loadWorkspaceBootstrapFiles", () => {

@@ -349,9 +349,13 @@ export async function ensureAgentWorkspace(params?: {
   const statePath = resolveWorkspaceStatePath(dir);
 
   const isBrandNewWorkspace = await (async () => {
-    const paths = [agentsPath, soulPath, toolsPath, identityPath, userPath, heartbeatPath];
+    // Check both template files AND user-content indicators (memory/, MEMORY.md, .git with commits).
+    // This prevents re-bootstrapping a workspace that lost its template files but still has user data (#27314).
+    const templatePaths = [agentsPath, soulPath, toolsPath, identityPath, userPath, heartbeatPath];
+    const userContentPaths = [path.join(dir, "memory"), path.join(dir, "MEMORY.md")];
+    const allPaths = [...templatePaths, ...userContentPaths];
     const existing = await Promise.all(
-      paths.map(async (p) => {
+      allPaths.map(async (p) => {
         try {
           await fs.access(p);
           return true;
@@ -394,14 +398,27 @@ export async function ensureAgentWorkspace(params?: {
   }
 
   if (!state.bootstrapSeededAt && !state.onboardingCompletedAt && !bootstrapExists) {
-    // Legacy migration path: if USER/IDENTITY diverged from templates, treat onboarding as complete
-    // and avoid recreating BOOTSTRAP for already-onboarded workspaces.
+    // Legacy migration path: if USER/IDENTITY diverged from templates, OR if user-content
+    // indicators exist (memory/, MEMORY.md), treat onboarding as complete and avoid
+    // recreating BOOTSTRAP for already-onboarded workspaces (#27314).
     const [identityContent, userContent] = await Promise.all([
       fs.readFile(identityPath, "utf-8"),
       fs.readFile(userPath, "utf-8"),
     ]);
+    const hasUserContent = await (async () => {
+      const indicators = [path.join(dir, "memory"), path.join(dir, "MEMORY.md")];
+      for (const p of indicators) {
+        try {
+          await fs.access(p);
+          return true;
+        } catch {
+          // continue
+        }
+      }
+      return false;
+    })();
     const legacyOnboardingCompleted =
-      identityContent !== identityTemplate || userContent !== userTemplate;
+      identityContent !== identityTemplate || userContent !== userTemplate || hasUserContent;
     if (legacyOnboardingCompleted) {
       markState({ onboardingCompletedAt: nowIso() });
     } else {
