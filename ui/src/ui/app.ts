@@ -335,7 +335,7 @@ export class OpenClawApp extends LitElement {
     try {
       const stored = localStorage.getItem("openclaw:stream-mode");
       // Default to true (redacted) unless explicitly disabled
-      return stored === null ? true : stored === "true";
+      return stored === null ? false : stored === "true";
     } catch {
       return true;
     }

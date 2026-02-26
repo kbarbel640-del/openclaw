@@ -1,7 +1,14 @@
 import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
 import { getPerspectiveById } from "./goal-perspectives";
-import type { GoalPerspective, BusinessGoal, GoalLevel, GoalType, TroposGoalModel } from "./types";
+import type {
+  GoalPerspective,
+  BusinessGoal,
+  GoalLevel,
+  GoalState,
+  GoalType,
+  TroposGoalModel,
+} from "./types";
 
 // --- Node data types ---
 
@@ -10,6 +17,7 @@ export type GoalModelNodeData = {
   goalName: string;
   goalLevel: GoalLevel;
   goalType: GoalType;
+  goalState?: GoalState;
   priority: number;
   description: string;
   desires: string[];
@@ -239,6 +247,7 @@ export function goalsToGoalModelGraph(
         goalName: goal.text ?? goal.name ?? goal.id,
         goalLevel: goal.level,
         goalType: goal.type,
+        goalState: goal.goalState,
         priority: goal.priority,
         description: goal.description ?? "",
         desires: goal.desires ?? [],

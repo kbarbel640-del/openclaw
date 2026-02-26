@@ -357,15 +357,21 @@ export class GoalStoreQueries {
       priority: number;
       status?: string;
       parent_goal_id?: string;
+      goal_type?: string;
+      goal_state?: string;
     },
   ): string {
     const now = new Date().toISOString();
+    const goalState = goal.goal_state || "active";
     const optionals = [
       goal.success_criteria
         ? `, has success_criteria ${JSON.stringify(goal.success_criteria)}`
         : "",
       goal.deadline ? `, has deadline ${JSON.stringify(goal.deadline)}` : "",
       goal.parent_goal_id ? `, has parent_goal_id ${JSON.stringify(goal.parent_goal_id)}` : "",
+      goal.goal_type ? `, has goal_type ${JSON.stringify(goal.goal_type)}` : "",
+      `, has goal_state ${JSON.stringify(goalState)}`,
+      `, has state_changed_at ${JSON.stringify(now)}`,
     ].join("");
 
     return `match
@@ -417,7 +423,13 @@ insert
    */
   static queryGoals(
     agentId: string,
-    filters: { hierarchy_level?: string; status?: string; minPriority?: number },
+    filters: {
+      hierarchy_level?: string;
+      status?: string;
+      minPriority?: number;
+      goal_type?: string;
+      goal_state?: string;
+    },
   ): string {
     const clauses: string[] = [
       `$agent isa agent, has uid ${JSON.stringify(agentId)};`,
@@ -432,6 +444,12 @@ insert
     }
     if (filters.minPriority !== undefined && filters.minPriority > 0) {
       clauses.push(`$p >= ${filters.minPriority};`);
+    }
+    if (filters.goal_type) {
+      clauses.push(`$goal has goal_type ${JSON.stringify(filters.goal_type)};`);
+    }
+    if (filters.goal_state) {
+      clauses.push(`$goal has goal_state ${JSON.stringify(filters.goal_state)};`);
     }
     return `match\n  ${clauses.join("\n  ")}`;
   }
@@ -459,6 +477,168 @@ delete
 insert
   $goal has progress ${progress};
   $goal has updated_at ${JSON.stringify(now)};${statusInsert}`;
+  }
+
+  /**
+   * Transition a goal's state, recording the transition.
+   * Caller must validate the transition via goal-state-machine before calling.
+   */
+  static transitionGoalState(
+    agentId: string,
+    goalId: string,
+    newState: string,
+    transitionId: string,
+  ): string {
+    const now = new Date().toISOString();
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)}, has goal_state $old_state, has state_changed_at $old_changed_at;
+  (owner: $agent, owned: $goal) isa agent_owns;
+delete
+  $goal has $old_state;
+  $goal has $old_changed_at;
+insert
+  $goal has goal_state ${JSON.stringify(newState)};
+  $goal has state_changed_at ${JSON.stringify(now)};
+  $transition isa goal_state_transition,
+    has uid ${JSON.stringify(transitionId)},
+    has previous_state $old_state,
+    has goal_state ${JSON.stringify(newState)},
+    has created_at ${JSON.stringify(now)};
+  (transitioned_goal: $goal, transition_record: $transition) isa goal_has_transition;
+  (owner: $agent, owned: $transition) isa agent_owns;`;
+  }
+
+  /**
+   * Migration query: copy existing status values into goal_state for pre-existing data.
+   */
+  static migrateGoalStates(): string {
+    return `match
+  $goal isa goal, has status $st;
+  not { $goal has goal_state $gs; };
+insert
+  $goal has goal_state $st;
+  $goal has state_changed_at ${JSON.stringify(new Date().toISOString())};`;
+  }
+
+  /**
+   * Create a precondition linked to a goal.
+   */
+  static createPrecondition(
+    agentId: string,
+    pc: {
+      id: string;
+      goalId: string;
+      name: string;
+      type: string; // "goal_state" | "condition" | "expression"
+      expression: string;
+      referencedGoalId?: string;
+      satisfied?: boolean;
+    },
+  ): string {
+    const now = new Date().toISOString();
+    const refClause = pc.referencedGoalId
+      ? `, has referenced_goal_id ${JSON.stringify(pc.referencedGoalId)}`
+      : "";
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $goal isa goal, has uid ${JSON.stringify(pc.goalId)};
+  (owner: $agent, owned: $goal) isa agent_owns;
+insert
+  $pc isa goal_precondition,
+    has uid ${JSON.stringify(pc.id)},
+    has name ${JSON.stringify(pc.name)},
+    has precondition_type ${JSON.stringify(pc.type)},
+    has precondition_expression ${JSON.stringify(pc.expression)},
+    has precondition_satisfied ${pc.satisfied ?? false}${refClause},
+    has created_at ${JSON.stringify(now)},
+    has updated_at ${JSON.stringify(now)};
+  (preconditioned_goal: $goal, precondition: $pc) isa goal_has_precondition;
+  (owner: $agent, owned: $pc) isa agent_owns;`;
+  }
+
+  /**
+   * Query all preconditions for a goal.
+   */
+  static queryPreconditions(goalId: string): string {
+    return `match
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+  $pc isa goal_precondition, has uid $pcid, has name $n, has precondition_type $pt, has precondition_expression $pe, has precondition_satisfied $ps;
+  (preconditioned_goal: $goal, precondition: $pc) isa goal_has_precondition;`;
+  }
+
+  /**
+   * Update a precondition's satisfied state.
+   */
+  static updatePreconditionSatisfied(preconditionId: string, satisfied: boolean): string {
+    const now = new Date().toISOString();
+    return `match
+  $pc isa goal_precondition, has uid ${JSON.stringify(preconditionId)}, has precondition_satisfied $old_sat, has updated_at $old_updated;
+delete
+  $pc has $old_sat;
+  $pc has $old_updated;
+insert
+  $pc has precondition_satisfied ${satisfied};
+  $pc has updated_at ${JSON.stringify(now)};`;
+  }
+
+  /**
+   * Find goals in "pending" state where ALL preconditions are satisfied.
+   */
+  static findActivatableGoals(agentId: string): string {
+    return `match
+  $agent isa agent, has uid ${JSON.stringify(agentId)};
+  $goal isa goal, has uid $gid, has name $n, has goal_state "pending";
+  (owner: $agent, owned: $goal) isa agent_owns;
+  not {
+    (preconditioned_goal: $goal, precondition: $pc) isa goal_has_precondition;
+    $pc has precondition_satisfied false;
+  };`;
+  }
+
+  /**
+   * Create a delegation relation between two agents for a goal.
+   */
+  static createDelegation(delegatorId: string, delegateeId: string, goalId: string): string {
+    return `match
+  $delegator isa agent, has uid ${JSON.stringify(delegatorId)};
+  $delegatee isa agent, has uid ${JSON.stringify(delegateeId)};
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+insert
+  (delegator: $delegator, delegatee: $delegatee, delegated_goal: $goal) isa goal_delegation;`;
+  }
+
+  /**
+   * Query all delegations from a given agent (who did this agent delegate to).
+   */
+  static queryDelegationsFrom(agentId: string): string {
+    return `match
+  $delegator isa agent, has uid ${JSON.stringify(agentId)};
+  $delegatee isa agent, has uid $did, has name $dn;
+  $goal isa goal, has uid $gid, has name $gn;
+  (delegator: $delegator, delegatee: $delegatee, delegated_goal: $goal) isa goal_delegation;`;
+  }
+
+  /**
+   * Query all delegations to a given agent (who delegated to this agent).
+   */
+  static queryDelegationsTo(agentId: string): string {
+    return `match
+  $delegator isa agent, has uid $did, has name $dn;
+  $delegatee isa agent, has uid ${JSON.stringify(agentId)};
+  $goal isa goal, has uid $gid, has name $gn;
+  (delegator: $delegator, delegatee: $delegatee, delegated_goal: $goal) isa goal_delegation;`;
+  }
+
+  /**
+   * Query the full delegation chain for a goal.
+   */
+  static queryDelegationChain(goalId: string): string {
+    return `match
+  $delegator isa agent, has uid $from_id, has name $from_name;
+  $delegatee isa agent, has uid $to_id, has name $to_name;
+  $goal isa goal, has uid ${JSON.stringify(goalId)};
+  (delegator: $delegator, delegatee: $delegatee, delegated_goal: $goal) isa goal_delegation;`;
   }
 }
 
@@ -952,6 +1132,14 @@ export function getBaseSchema(): string {
   attribute deadline, value string;
   attribute progress, value double;
   attribute parent_goal_id, value string;
+  attribute goal_type, value string;
+  attribute goal_state, value string;
+  attribute state_changed_at, value string;
+  attribute previous_state, value string;
+  attribute precondition_type, value string;
+  attribute precondition_expression, value string;
+  attribute precondition_satisfied, value boolean;
+  attribute referenced_goal_id, value string;
   attribute commitment_strategy, value string;
   attribute plan_ref, value string;
   attribute plan_source, value string;
@@ -1091,6 +1279,10 @@ export function getBaseSchema(): string {
     owns progress,
     owns status,
     owns parent_goal_id,
+    owns goal_type,
+    owns goal_state,
+    owns state_changed_at,
+    owns previous_state,
     owns created_at,
     owns updated_at;
 
@@ -1311,6 +1503,50 @@ export function getBaseSchema(): string {
 
   decision plays decision_resolves_goal:resolver;
   goal plays decision_resolves_goal:resolved_goal;
+
+  # ── Goal State Transition ─────────────────────────────────────────────
+  entity goal_state_transition,
+    owns uid @key,
+    owns previous_state,
+    owns goal_state,
+    owns created_at;
+
+  relation goal_has_transition,
+    relates transitioned_goal,
+    relates transition_record;
+
+  goal plays goal_has_transition:transitioned_goal;
+  goal_state_transition plays goal_has_transition:transition_record;
+  goal_state_transition plays agent_owns:owned;
+
+  # ── Goal Preconditions ──────────────────────────────────────────────
+  entity goal_precondition,
+    owns uid @key,
+    owns name,
+    owns precondition_type,
+    owns precondition_expression,
+    owns precondition_satisfied,
+    owns referenced_goal_id,
+    owns created_at,
+    owns updated_at;
+
+  relation goal_has_precondition,
+    relates preconditioned_goal,
+    relates precondition;
+
+  goal plays goal_has_precondition:preconditioned_goal;
+  goal_precondition plays goal_has_precondition:precondition;
+  goal_precondition plays agent_owns:owned;
+
+  # ── Goal Delegation ─────────────────────────────────────────────────
+  relation goal_delegation,
+    relates delegator,
+    relates delegatee,
+    relates delegated_goal;
+
+  agent plays goal_delegation:delegator;
+  agent plays goal_delegation:delegatee;
+  goal plays goal_delegation:delegated_goal;
 
   # ── BPMN 2.0 Attributes ──────────────────────────────────────────────
   attribute element_type, value string;

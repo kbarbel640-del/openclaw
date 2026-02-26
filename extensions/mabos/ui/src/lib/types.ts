@@ -139,7 +139,18 @@ export type DecisionResolution = {
 // --- Goals / Workflows ---
 
 export type GoalLevel = "strategic" | "tactical" | "operational";
-export type GoalType = "hardgoal" | "softgoal" | "task" | "resource";
+export type TroposGoalType = "hardgoal" | "softgoal" | "task" | "resource";
+export type BDIGoalType = "achieve" | "maintain" | "cease" | "avoid" | "query";
+export type GoalType = TroposGoalType | BDIGoalType;
+
+export type GoalState =
+  | "pending"
+  | "active"
+  | "in_progress"
+  | "achieved"
+  | "failed"
+  | "suspended"
+  | "abandoned";
 
 export type GoalPerspective = "level" | "actor" | "type" | "bsc" | "goa-domain";
 
@@ -192,6 +203,18 @@ export type BusinessGoal = {
   category?: GoalBSCCategory; // BSC perspective
   domain?: GoalDomainCategory; // GOA domain perspective
   parentGoalId?: string; // explicit refinement parent
+  goalState?: GoalState; // lifecycle state
+  stateChangedAt?: string; // ISO timestamp of last state transition
+  preconditions?: GoalPrecondition[];
+};
+
+export type GoalPrecondition = {
+  id: string;
+  name: string;
+  type: "goal_state" | "condition" | "expression";
+  expression: string;
+  satisfied: boolean;
+  referencedGoalId?: string;
 };
 
 export type TroposActor = {

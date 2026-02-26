@@ -597,7 +597,7 @@ function generateGoals(agentId: AgentId): string {
     md += `No directly delegated stakeholder goals. This agent supports other agents' goals.\n\n`;
   } else {
     delegated.forEach((g, i) => {
-      md += `### DG-${i + 1}: ${g}\n- **Source:** Stakeholder delegation via Tropos model\n- **Type:** hard\n- **Status:** active\n\n`;
+      md += `### DG-${i + 1}: ${g}\n- **Source:** Stakeholder delegation via Tropos model\n- **Type:** achieve\n- **Status:** active\n\n`;
     });
   }
 

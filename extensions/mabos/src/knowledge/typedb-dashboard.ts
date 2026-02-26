@@ -610,6 +610,34 @@ export async function queryGoalModelFromTypeDB(dbName: string): Promise<TroposGo
     );
     const goalRows = getRows(goalRes);
 
+    // Query optional goal_state and goal_type (backwards compat)
+    const goalStateMap = new Map<string, string>();
+    const goalTypeMap = new Map<string, string>();
+    try {
+      const stateRes = await client
+        .matchQuery(`match $g isa goal, has uid $gid, has goal_state $gs;`, dbName)
+        .catch(() => null);
+      for (const row of getRows(stateRes)) {
+        const gid = getConceptValue(row.data["gid"]) as string;
+        const gs = getConceptValue(row.data["gs"]) as string;
+        if (gid && gs) goalStateMap.set(gid, gs);
+      }
+    } catch {
+      /* goals may lack goal_state */
+    }
+    try {
+      const typeRes = await client
+        .matchQuery(`match $g isa goal, has uid $gid, has goal_type $gt;`, dbName)
+        .catch(() => null);
+      for (const row of getRows(typeRes)) {
+        const gid = getConceptValue(row.data["gid"]) as string;
+        const gt = getConceptValue(row.data["gt"]) as string;
+        if (gid && gt) goalTypeMap.set(gid, gt);
+      }
+    } catch {
+      /* goals may lack goal_type */
+    }
+
     // Query desire→goal links
     const linkRes = await client.matchQuery(
       `match $d isa desire, has uid $did, has name $dn; $g isa goal, has uid $gid; (motivator: $d, motivated: $g) isa desire_motivates_goal;`,
@@ -656,11 +684,12 @@ export async function queryGoalModelFromTypeDB(dbName: string): Promise<TroposGo
         text: name,
         description: desc || "",
         level: levelMap[hl] || "operational",
-        type: "hardgoal" as const,
+        type: (goalTypeMap.get(gid) || "hardgoal") as string,
         priority: priority ?? 0.5,
         actor: aid ? toDashboardId(aid) : undefined,
         desires: desiresByGoal.get(gid) || [],
         workflows: [] as any[],
+        goalState: goalStateMap.get(gid) || undefined,
       };
     });
 
@@ -738,6 +767,22 @@ export async function queryGoalModelFromTypeDB(dbName: string): Promise<TroposGo
       const pid = getConceptValue(row.data["pid"]) as string;
       if (gid && pid) {
         dependencies.push({ from: pid, to: gid, type: "delegation", goalId: gid });
+      }
+    }
+
+    // Query goal_delegation relations (agent → agent delegation)
+    const delegRes = await client
+      .matchQuery(
+        `match (delegator: $from, delegatee: $to, delegated_goal: $g) isa goal_delegation; $from has uid $fid; $to has uid $tid; $g has uid $gid;`,
+        dbName,
+      )
+      .catch(() => null);
+    for (const row of getRows(delegRes)) {
+      const fid = getConceptValue(row.data["fid"]) as string;
+      const tid = getConceptValue(row.data["tid"]) as string;
+      const gid = getConceptValue(row.data["gid"]) as string;
+      if (fid && tid && gid) {
+        dependencies.push({ from: fid, to: tid, type: "delegation", goalId: gid });
       }
     }
 

@@ -431,11 +431,29 @@ Generated: ${now}
           ],
           goal_mapping: goalMapping,
           constraints: params.constraints || [],
-          dependencies: AGENT_ROLES.map((r) => ({
-            from: "stakeholder",
-            to: r,
-            type: "delegation",
-          })),
+          dependencies: [
+            // Stakeholder → C-suite
+            ...AGENT_ROLES.map((r) => ({
+              from: "stakeholder",
+              to: r,
+              type: "delegation" as const,
+            })),
+            // C-suite → Domain agents
+            ...(() => {
+              const coreToSubAgent: Record<string, string[]> = {
+                cmo: ["marketing-director", "sales-director", "creative-director"],
+                coo: ["inventory-mgr", "fulfillment-mgr", "product-mgr", "cs-director"],
+                cfo: ["compliance-director"],
+              };
+              return Object.entries(coreToSubAgent).flatMap(([core, subs]) =>
+                subs.map((sub) => ({
+                  from: core,
+                  to: sub,
+                  type: "delegation" as const,
+                })),
+              );
+            })(),
+          ],
         };
 
         await writeJson(join(bizDir, "tropos-goal-model.json"), tropos);
