@@ -962,6 +962,13 @@ export async function runEmbeddedPiAgent(
                 isSignatureError ||
                 /400|provider returned error/i.test(errorText))
             ) {
+              log.error(
+                `[run-prompt-error-failover] sessionKey=${params.sessionKey ?? params.sessionId} ` +
+                  `provider=${provider}/${modelId} ` +
+                  `failoverReason="${promptFailoverReason ?? "unknown"}" ` +
+                  `errorText="${errorText}" ` +
+                  `rawPromptError="${promptError instanceof Error ? promptError.message : typeof promptError === "string" ? promptError : JSON.stringify(promptError)}"`,
+              );
               throw new FailoverError(errorText, {
                 reason: promptFailoverReason ?? "unknown",
                 provider,
@@ -1094,6 +1101,15 @@ export async function runEmbeddedPiAgent(
               const status =
                 resolveFailoverStatus(assistantFailoverReason ?? "unknown") ??
                 (isTimeoutErrorMessage(message) ? 408 : undefined);
+
+              log.error(
+                `[run-failover] sessionKey=${params.sessionKey ?? params.sessionId} ` +
+                  `provider=${activeErrorContext.provider}/${activeErrorContext.model} ` +
+                  `rawError="${lastAssistant?.errorMessage ?? (timedOut ? "timeout" : "unknown")}" ` +
+                  `failoverReason="${assistantFailoverReason ?? "unknown"}" ` +
+                  `formattedMessage="${message}"`,
+              );
+
               throw new FailoverError(message, {
                 reason: assistantFailoverReason ?? "unknown",
                 provider: activeErrorContext.provider,

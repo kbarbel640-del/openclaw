@@ -1056,10 +1056,33 @@ export async function handleFeishuMessage(params: {
     }
   } catch (err) {
     error(`feishu[${account.accountId}]: failed to dispatch message: ${String(err)}`);
+
     // Ensure emoji is cleaned up on error - for this message AND any merged ones
     // that might be waiting for it in PROCESSING/QUEUED state.
     const cutoffTimestamp = reactionManager.getState(ctx.messageId)?.createdAt ?? Date.now();
     await reactionManager.clearForChat(ctx.chatId, cutoffTimestamp);
     removePendingMessage(ctx.messageId); // clean from queue
+
+    // Send fallback error message to user so they know what happened
+    try {
+      let errorMessage = "⚠️ 系统发生异常错误，处理失败。请稍候重试。";
+      if (err instanceof Error && err.message) {
+        errorMessage = `⚠️ 抱歉，处理您的请求时遇到问题：${err.message}`;
+      } else if (typeof err === "string" && err) {
+        errorMessage = `⚠️ 抱歉，处理您的请求时遇到问题：${err}`;
+      }
+
+      await sendMessageFeishu({
+        cfg,
+        to: ctx.chatId,
+        text: errorMessage,
+        replyToMessageId: ctx.messageId,
+        accountId: account.accountId,
+      });
+    } catch (sendErr) {
+      error(
+        `feishu[${account.accountId}]: failed to send fallback error message: ${String(sendErr)}`,
+      );
+    }
   }
 }
