@@ -48,7 +48,9 @@ CHROME_ARGS+=(
 
 chromium "${CHROME_ARGS[@]}" about:blank &
 
-for _ in $(seq 1 50); do
+# Chromium can take a while to expose /json/version (especially on first run).
+# Wait up to ~30s before continuing.
+for _ in $(seq 1 300); do
   if curl -sS --max-time 1 "http://127.0.0.1:${CHROME_CDP_PORT}/json/version" >/dev/null; then
     break
   fi

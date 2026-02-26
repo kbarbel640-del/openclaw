@@ -1,12 +1,30 @@
 services:
+  openclaw-init-perms:
+    # Ensure named volumes are owned by the non-root runtime user (uid 1000).
+    # Without this, Docker often initializes volumes as root-owned, and the
+    # gateway/CLI can't read/write their state.
+    image: alpine:3.20
+    command:
+      [
+        "sh",
+        "-lc",
+        "chown -R 1000:1000 /home/node/.openclaw /openclaw/workspace || true; chmod -R u+rwX,go-rwx /home/node/.openclaw || true",
+      ]
+    volumes:
+      - openclaw_config:/home/node/.openclaw
+      - openclaw_workspace:/openclaw/workspace
+    restart: "no"
+
   openclaw-dind:
-    # Rootless DIND reduces host risk vs privileged dockerd-in-docker.
-    image: docker:27-dind-rootless
+    # Rootless DIND is ideal, but Docker Desktop often blocks the userns
+    # primitives rootlesskit relies on. Use classic dind for reliability.
+    image: docker:27-dind
+    privileged: true
     environment:
       DOCKER_TLS_CERTDIR: ""
     command: ["--tls=false", "--host=tcp://0.0.0.0:2375"]
     volumes:
-      - openclaw_dind:/home/rootless/.local/share/docker
+      - openclaw_dind:/var/lib/docker
       - openclaw_workspace:/openclaw/workspace
     restart: unless-stopped
 
@@ -32,6 +50,8 @@ services:
       - openclaw_config:/home/node/.openclaw
       - openclaw_workspace:/openclaw/workspace
     depends_on:
+      openclaw-init-perms:
+        condition: service_completed_successfully
       - openclaw-dind
     ports:
       - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
@@ -72,6 +92,8 @@ services:
       - openclaw_config:/home/node/.openclaw
       - openclaw_workspace:/openclaw/workspace
     depends_on:
+      openclaw-init-perms:
+        condition: service_completed_successfully
       - openclaw-dind
     stdin_open: true
     tty: true

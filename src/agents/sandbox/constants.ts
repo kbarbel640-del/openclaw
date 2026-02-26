@@ -44,7 +44,8 @@ export const DEFAULT_SANDBOX_BROWSER_PREFIX = "moltbot-sbx-browser-";
 export const DEFAULT_SANDBOX_BROWSER_CDP_PORT = 9222;
 export const DEFAULT_SANDBOX_BROWSER_VNC_PORT = 5900;
 export const DEFAULT_SANDBOX_BROWSER_NOVNC_PORT = 6080;
-export const DEFAULT_SANDBOX_BROWSER_AUTOSTART_TIMEOUT_MS = 12_000;
+// Docker Desktop + first-run Chromium can be slow; be generous here.
+export const DEFAULT_SANDBOX_BROWSER_AUTOSTART_TIMEOUT_MS = 30_000;
 
 export const SANDBOX_AGENT_WORKSPACE_MOUNT = "/agent";
 

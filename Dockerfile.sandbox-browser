@@ -23,6 +23,15 @@ RUN apt-get update \
 COPY scripts/sandbox-browser-entrypoint.sh /usr/local/bin/moltbot-sandbox-browser
 RUN chmod +x /usr/local/bin/moltbot-sandbox-browser
 
+# Xvfb refuses to create /tmp/.X11-unix when not running as root.
+# Pre-create it with the standard sticky-bit permissions so we can run as
+# an unprivileged user.
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
+
+RUN useradd --create-home --shell /bin/bash sandbox
+USER sandbox
+WORKDIR /home/sandbox
+
 EXPOSE 9222 5900 6080
 
 CMD ["moltbot-sandbox-browser"]
