@@ -13,16 +13,25 @@ export function createTypingCallbacks(params: {
   onStartError: (err: unknown) => void;
   onStopError?: (err: unknown) => void;
   keepaliveIntervalMs?: number;
+  /** Stop the keepalive loop after this many consecutive start() failures. */
+  maxConsecutiveFailures?: number;
 }): TypingCallbacks {
   const stop = params.stop;
   const keepaliveIntervalMs = params.keepaliveIntervalMs ?? 3_000;
+  const maxConsecutiveFailures = params.maxConsecutiveFailures ?? 2;
   let stopSent = false;
+  let consecutiveFailures = 0;
 
   const fireStart = async () => {
     try {
       await params.start();
+      consecutiveFailures = 0;
     } catch (err) {
+      consecutiveFailures++;
       params.onStartError(err);
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        keepaliveLoop.stop();
+      }
     }
   };
 
@@ -33,6 +42,7 @@ export function createTypingCallbacks(params: {
 
   const onReplyStart = async () => {
     stopSent = false;
+    consecutiveFailures = 0;
     keepaliveLoop.stop();
     await fireStart();
     keepaliveLoop.start();
