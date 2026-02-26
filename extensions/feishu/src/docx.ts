@@ -7,6 +7,13 @@ import { BATCH_SIZE, insertBlocksInBatches } from "./batch-insert.js";
 import { createFeishuClient } from "./client.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
+import {
+  insertTableRow,
+  insertTableColumn,
+  deleteTableRows,
+  deleteTableColumns,
+  mergeTableCells,
+} from "./table-ops.js";
 import { cleanBlocksForDescendant } from "./table-utils.js";
 import { resolveToolsConfig } from "./tools-config.js";
 
@@ -436,105 +443,6 @@ async function getBlock(client: Lark.Client, docToken: string, blockId: string) 
   return {
     block: res.data?.block,
   };
-}
-
-// ============ Table Operations ============
-
-async function insertTableRow(
-  client: Lark.Client,
-  docToken: string,
-  blockId: string,
-  rowIndex: number = -1,
-) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: { insert_table_row: { row_index: rowIndex } },
-  });
-  if (res.code !== 0) {
-    throw new Error(res.msg);
-  }
-  return { success: true, block: res.data?.block };
-}
-
-async function insertTableColumn(
-  client: Lark.Client,
-  docToken: string,
-  blockId: string,
-  columnIndex: number = -1,
-) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: { insert_table_column: { column_index: columnIndex } },
-  });
-  if (res.code !== 0) {
-    throw new Error(res.msg);
-  }
-  return { success: true, block: res.data?.block };
-}
-
-async function deleteTableRows(
-  client: Lark.Client,
-  docToken: string,
-  blockId: string,
-  rowStart: number,
-  rowCount: number = 1,
-) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: { delete_table_rows: { row_start_index: rowStart, row_end_index: rowStart + rowCount } },
-  });
-  if (res.code !== 0) {
-    throw new Error(res.msg);
-  }
-  return { success: true, rows_deleted: rowCount, block: res.data?.block };
-}
-
-async function deleteTableColumns(
-  client: Lark.Client,
-  docToken: string,
-  blockId: string,
-  columnStart: number,
-  columnCount: number = 1,
-) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: {
-      delete_table_columns: {
-        column_start_index: columnStart,
-        column_end_index: columnStart + columnCount,
-      },
-    },
-  });
-  if (res.code !== 0) {
-    throw new Error(res.msg);
-  }
-  return { success: true, columns_deleted: columnCount, block: res.data?.block };
-}
-
-async function mergeTableCells(
-  client: Lark.Client,
-  docToken: string,
-  blockId: string,
-  rowStart: number,
-  rowEnd: number,
-  columnStart: number,
-  columnEnd: number,
-) {
-  const res = await client.docx.documentBlock.patch({
-    path: { document_id: docToken, block_id: blockId },
-    data: {
-      merge_table_cells: {
-        row_start_index: rowStart,
-        row_end_index: rowEnd,
-        column_start_index: columnStart,
-        column_end_index: columnEnd,
-      },
-    },
-  });
-  if (res.code !== 0) {
-    throw new Error(res.msg);
-  }
-  return { success: true, block: res.data?.block };
 }
 
 async function listAppScopes(client: Lark.Client) {
