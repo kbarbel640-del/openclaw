@@ -237,7 +237,15 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
     isCliProviderMock.mockReturnValue(false);
     runCliAgentMock.mockResolvedValue({
       payloads: [{ text: "test output" }],
-      meta: { agentMeta: { usage: { input: 10, output: 20 } } },
+      meta: {
+        durationMs: 5,
+        agentMeta: {
+          sessionId: "cli-session-id",
+          provider: "claude-cli",
+          model: "opus",
+          usage: { input: 10, output: 20 },
+        },
+      },
     });
     logWarnMock.mockReset();
     // Fresh session object per test — prevents mutation leaking between tests
@@ -364,6 +372,7 @@ describe("runCronIsolatedAgentTurn — skill filter", () => {
         result,
         provider: "claude-cli",
         model: "opus",
+        attempts: [],
       };
     });
 
