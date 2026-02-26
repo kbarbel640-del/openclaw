@@ -31,7 +31,13 @@ import {
 import { createFeishuReplyDispatcher } from "./reply-dispatcher.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { getMessageFeishu, sendMessageFeishu } from "./send.js";
-import type { FeishuMessageContext, FeishuMediaInfo, ResolvedFeishuAccount } from "./types.js";
+import { runWithFeishuToolContext } from "./tools-common/tool-context.js";
+import type {
+  FeishuConfig,
+  FeishuMessageContext,
+  FeishuMediaInfo,
+  ResolvedFeishuAccount,
+} from "./types.js";
 import type { DynamicAgentCreationConfig } from "./types.js";
 
 // --- Permission error extraction ---
@@ -41,6 +47,20 @@ type PermissionError = {
   message: string;
   grantUrl?: string;
 };
+
+function decodeHtmlEntities(raw: string): string {
+  return raw
+    .replace(/&amp;/gi, "&")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"');
+}
+
+function extractFirstUrl(raw: string): string | undefined {
+  if (!raw) return undefined;
+  const decoded = decodeHtmlEntities(raw);
+  const urlMatch = decoded.match(/https?:\/\/[^\s"'<>]+/i);
+  return urlMatch?.[0];
+}
 
 function extractPermissionError(err: unknown): PermissionError | null {
   if (!err || typeof err !== "object") return null;
@@ -59,10 +79,12 @@ function extractPermissionError(err: unknown): PermissionError | null {
   // Feishu permission error code: 99991672
   if (feishuErr.code !== 99991672) return null;
 
-  // Extract the grant URL from the error message (contains the direct link)
   const msg = feishuErr.msg ?? "";
-  const urlMatch = msg.match(/https:\/\/[^\s,]+\/app\/[^\s,]+/);
-  const grantUrl = urlMatch?.[0];
+  const grantUrlFromMsg = extractFirstUrl(msg);
+  const grantUrlFromViolations = feishuErr.error?.permission_violations
+    ?.map((item) => extractFirstUrl(item.uri ?? ""))
+    .find((url): url is string => Boolean(url));
+  const grantUrl = grantUrlFromMsg ?? grantUrlFromViolations;
 
   return {
     code: feishuErr.code,
@@ -580,7 +602,6 @@ export async function handleFeishuMessage(params: {
       log,
     });
     const groupAllowFrom = feishuCfg?.groupAllowFrom ?? [];
-    // DEBUG: log(`feishu[${account.accountId}]: groupPolicy=${groupPolicy}`);
 
     // Check if this GROUP is allowed (groupAllowFrom contains group IDs like oc_xxx, not user IDs)
     const groupAllowed = isFeishuGroupAllowed({
@@ -636,7 +657,6 @@ export async function handleFeishuMessage(params: {
       }
       return;
     }
-  } else {
   }
 
   try {
@@ -761,6 +781,7 @@ export async function handleFeishuMessage(params: {
           runtime,
           senderOpenId: ctx.senderOpenId,
           dynamicCfg,
+          accountId: account.accountId,
           log: (msg) => log(msg),
         });
         if (result.created) {
@@ -858,7 +879,6 @@ export async function handleFeishuMessage(params: {
 
       const permissionCtx = core.channel.reply.finalizeInboundContext({
         Body: permissionBody,
-        BodyForAgent: permissionNotifyBody,
         RawBody: permissionNotifyBody,
         CommandBody: permissionNotifyBody,
         From: feishuFrom,
@@ -894,12 +914,21 @@ export async function handleFeishuMessage(params: {
 
       log(`feishu[${account.accountId}]: dispatching permission error notification to agent`);
 
-      await core.channel.reply.dispatchReplyFromConfig({
-        ctx: permissionCtx,
-        cfg,
-        dispatcher: permDispatcher,
-        replyOptions: permReplyOptions,
-      });
+      await runWithFeishuToolContext(
+        {
+          channel: "feishu",
+          accountId: account.accountId,
+          sessionKey: route.sessionKey,
+        },
+        // Keep account context available while the agent executes plugin tools.
+        () =>
+          core.channel.reply.dispatchReplyFromConfig({
+            ctx: permissionCtx,
+            cfg,
+            dispatcher: permDispatcher,
+            replyOptions: permReplyOptions,
+          }),
+      );
 
       markPermIdle();
     }
@@ -933,19 +962,8 @@ export async function handleFeishuMessage(params: {
       });
     }
 
-    const inboundHistory =
-      isGroup && historyKey && historyLimit > 0 && chatHistories
-        ? (chatHistories.get(historyKey) ?? []).map((entry) => ({
-            sender: entry.sender,
-            body: entry.body,
-            timestamp: entry.timestamp,
-          }))
-        : undefined;
-
     const ctxPayload = core.channel.reply.finalizeInboundContext({
       Body: combinedBody,
-      BodyForAgent: ctx.content,
-      InboundHistory: inboundHistory,
       RawBody: ctx.content,
       CommandBody: ctx.content,
       From: feishuFrom,
@@ -959,7 +977,6 @@ export async function handleFeishuMessage(params: {
       Provider: "feishu" as const,
       Surface: "feishu" as const,
       MessageSid: ctx.messageId,
-      ReplyToBody: quotedContent ?? undefined,
       Timestamp: Date.now(),
       WasMentioned: ctx.mentionedBot,
       CommandAuthorized: commandAuthorized,
@@ -980,12 +997,21 @@ export async function handleFeishuMessage(params: {
 
     log(`feishu[${account.accountId}]: dispatching to agent (session=${route.sessionKey})`);
 
-    const { queuedFinal, counts } = await core.channel.reply.dispatchReplyFromConfig({
-      ctx: ctxPayload,
-      cfg,
-      dispatcher,
-      replyOptions,
-    });
+    const { queuedFinal, counts } = await runWithFeishuToolContext(
+      {
+        channel: "feishu",
+        accountId: account.accountId,
+        sessionKey: route.sessionKey,
+      },
+      // Tool calls produced by this turn should resolve to the same inbound account.
+      () =>
+        core.channel.reply.dispatchReplyFromConfig({
+          ctx: ctxPayload,
+          cfg,
+          dispatcher,
+          replyOptions,
+        }),
+    );
 
     markDispatchIdle();
 
