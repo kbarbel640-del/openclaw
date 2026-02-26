@@ -12,7 +12,6 @@ import { listNodes, resolveNodeIdFromList } from "./nodes-utils.js";
 
 function node(overrides: Partial<NodeListNode> & { nodeId: string }): NodeListNode {
   return {
-    nodeId: overrides.nodeId,
     caps: ["canvas"],
     connected: true,
     ...overrides,
