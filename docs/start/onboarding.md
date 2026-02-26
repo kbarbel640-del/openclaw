@@ -19,6 +19,7 @@ For a general overview of onboarding paths, see [Onboarding Overview](/start/onb
 <Frame>
 <img src="/assets/macos-onboarding/01-macos-warning.jpeg" alt="" />
 </Frame>
+
 </Step>
 <Step title="Approve find local networks">
 <Frame>
@@ -34,6 +35,7 @@ Security trust model:
 
 - By default, OpenClaw is a personal agent: one trusted operator boundary.
 - Shared/multi-user setups require lock-down (split trust boundaries, keep tool access minimal, and follow [Security](/gateway/security)).
+
 </Step>
 <Step title="Local vs Remote">
 <Frame>
