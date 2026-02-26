@@ -593,6 +593,11 @@ export async function spawnSubagentDirect(
         `In this sandbox, they are available at: ${relDir} (relative to workspace).\n`;
     } catch (err) {
       await fsPromises.rm(absDir, { recursive: true, force: true });
+      await callGateway({
+        method: "sessions.delete",
+        params: { key: childSessionKey, emitLifecycleHooks: false },
+        timeoutMs: 10_000,
+      }).catch(() => {});
       const messageText = err instanceof Error ? err.message : "attachments_materialization_failed";
       return { status: "error", error: messageText };
     }

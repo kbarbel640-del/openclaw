@@ -690,6 +690,11 @@ async function finalizeSubagentCleanup(
   if (didAnnounce) {
     const completionReason = resolveCleanupCompletionReason(entry);
     await emitCompletionEndedHookIfNeeded(entry, completionReason);
+    // Clean up attachments before the run record is removed.
+    const shouldDeleteAttachments = cleanup === "delete" || !entry.retainAttachmentsOnKeep;
+    if (shouldDeleteAttachments) {
+      await safeRemoveAttachmentsDir(entry);
+    }
     completeCleanupBookkeeping({
       runId,
       entry,
