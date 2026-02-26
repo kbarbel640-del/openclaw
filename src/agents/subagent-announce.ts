@@ -75,6 +75,9 @@ function buildCompletionDeliveryMessage(params: {
   if (isAnnounceSkip(findingsText)) {
     return "";
   }
+  if (isSilentReplyText(findingsText, SILENT_REPLY_TOKEN)) {
+    return "";
+  }
   const hasFindings = findingsText.length > 0 && findingsText !== "(no output)";
   const header = (() => {
     if (params.outcome?.status === "error") {
