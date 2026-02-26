@@ -91,3 +91,29 @@ describe("status-reaction-lifecycle", () => {
     expect(failed).toContain("active");
   });
 });
+
+it("reaches terminal state even when initial waiting reaction is still in flight", async () => {
+  // This test verifies the fix for: if Discord is slow to apply the first
+  // waiting reaction, complete() can be called while state is still idle,
+  // and the lifecycle must still queue the terminal state.
+  __testing.resetTraceEntriesForTests();
+  const setReaction = vi.fn(async () => {});
+  const lifecycle = createDiscordStatusReactionLifecycle({
+    enabled: true,
+    messageId: "m5",
+    adapter: { setReaction },
+    projection: resolveDiscordStatusReactionProjection(undefined, "👀"),
+  });
+
+  // Complete immediately without ever entering waiting/active
+  // This simulates a very short run where the message finishes
+  // before any reaction update settles.
+  await lifecycle.complete(true);
+
+  // The terminal state should have been queued and applied
+  const trace = __testing.getTraceEntriesForTests().filter((e) => e.messageId === "m5");
+  const queuedDone = trace.find((e) => e.state === "done" && e.stage === "queued");
+  const appliedDone = trace.find((e) => e.state === "done" && e.stage === "applied");
+  expect(queuedDone).toBeDefined();
+  expect(appliedDone).toBeDefined();
+});
