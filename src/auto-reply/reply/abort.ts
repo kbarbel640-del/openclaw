@@ -80,9 +80,10 @@ const TRAILING_ABORT_PUNCTUATION_RE = /[.!?…,，。;；:：'"’”)\]}]+$/u;
 
 function normalizeAbortTriggerText(text: string): string {
   return text
+    .normalize("NFC")
     .trim()
     .toLowerCase()
-    .replace(/[’`]/g, "'")
+    .replace(/['`]/g, "'")
     .replace(/\s+/g, " ")
     .replace(TRAILING_ABORT_PUNCTUATION_RE, "")
     .trim();

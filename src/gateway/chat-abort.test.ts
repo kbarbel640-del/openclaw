@@ -59,6 +59,16 @@ describe("isChatStopCommandText", () => {
     expect(isChatStopCommandText("please do not do that")).toBe(false);
     expect(isChatStopCommandText("keep going")).toBe(false);
   });
+
+  it("matches decomposed Unicode forms (NFD) of stop commands", () => {
+    // detén with decomposed accent: dete + combining acute accent (\u0301) + n
+    expect(isChatStopCommandText("dete\u0301n")).toBe(true);
+    // arrête with decomposed accents
+    expect(isChatStopCommandText("arre\u0302te")).toBe(true);
+    // Verify composed forms still work
+    expect(isChatStopCommandText("detén")).toBe(true);
+    expect(isChatStopCommandText("arrête")).toBe(true);
+  });
 });
 
 describe("abortChatRunById", () => {
