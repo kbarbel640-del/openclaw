@@ -11,20 +11,20 @@ private enum GatewayTailscaleMode: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .off: "Off"
-        case .serve: "Tailnet (Serve)"
-        case .funnel: "Public (Funnel)"
+        case .off: "关闭 (Off)"
+        case .serve: "私有网络 (Tailnet Serve)"
+        case .funnel: "公共访问 (Funnel)"
         }
     }
 
     var description: String {
         switch self {
         case .off:
-            "No automatic Tailscale configuration."
+            "不进行自动 Tailscale 配置。"
         case .serve:
-            "Tailnet-only HTTPS via Tailscale Serve."
+            "仅限 Tailnet 私有访问下的 HTTPS。"
         case .funnel:
-            "Public HTTPS via Tailscale Funnel (requires auth)."
+            "通过 Tailscale Funnel 进行公共 HTTPS 访问 (需要身份认证)。"
         }
     }
 }
@@ -64,7 +64,7 @@ struct TailscaleIntegrationSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Tailscale (dashboard access)")
+            Text("Tailscale (访问控制面板)")
                 .font(.callout.weight(.semibold))
 
             self.statusRow
@@ -145,9 +145,9 @@ struct TailscaleIntegrationSection: View {
     }
 
     private var statusText: String {
-        if !self.effectiveService.isInstalled { return "Tailscale is not installed" }
-        if self.effectiveService.isRunning { return "Tailscale is installed and running" }
-        return "Tailscale is installed but not running"
+        if !self.effectiveService.isInstalled { return "Tailscale 未安装" }
+        if self.effectiveService.isRunning { return "Tailscale 已安装并正在运行" }
+        return "Tailscale 已安装但未运行"
     }
 
     private var installButtons: some View {
@@ -156,7 +156,7 @@ struct TailscaleIntegrationSection: View {
                 .buttonStyle(.link)
             Button("直接下载") { self.effectiveService.openDownloadPage() }
                 .buttonStyle(.link)
-            Button("Setup Guide") { self.effectiveService.openSetupGuide() }
+            Button("安装指南") { self.effectiveService.openSetupGuide() }
                 .buttonStyle(.link)
         }
         .controlSize(.small)
@@ -195,13 +195,13 @@ struct TailscaleIntegrationSection: View {
                 }
             }
         } else if !self.effectiveService.isRunning {
-            Text("Start Tailscale to get your tailnet hostname.")
+            Text("启动 Tailscale 以获取您的 tailnet 主机名。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
 
         if self.effectiveService.isInstalled, !self.effectiveService.isRunning {
-            Button("Start Tailscale") { self.effectiveService.openTailscaleApp() }
+            Button("启动 Tailscale") { self.effectiveService.openTailscaleApp() }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
         }
@@ -214,7 +214,7 @@ struct TailscaleIntegrationSection: View {
             if self.requireCredentialsForServe {
                 self.authFields
             } else {
-                Text("Serve uses Tailscale identity headers; no password required.")
+                Text("Serve 模式下使用 Tailscale 身份标头；无需密码。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -232,14 +232,14 @@ struct TailscaleIntegrationSection: View {
 
     @ViewBuilder
     private var authFields: some View {
-        SecureField("Password", text: self.$password)
+        SecureField("密码", text: self.$password)
             .textFieldStyle(.roundedBorder)
             .frame(maxWidth: 240)
             .onSubmit { Task { await self.applySettings() } }
-        Text("Stored in ~/.openclaw/openclaw.json. Prefer OPENCLAW_GATEWAY_PASSWORD for production.")
+        Text("保存在 ~/.openclaw/openclaw.json 中。生产环境推荐使用 OPENCLAW_GATEWAY_PASSWORD。")
             .font(.caption)
             .foregroundStyle(.secondary)
-        Button("Update password") { Task { await self.applySettings() } }
+        Button("更新密码") { Task { await self.applySettings() } }
             .buttonStyle(.bordered)
             .controlSize(.small)
     }
@@ -278,7 +278,7 @@ struct TailscaleIntegrationSection: View {
         let requiresPassword = self.tailscaleMode == .funnel
             || (self.tailscaleMode == .serve && self.requireCredentialsForServe)
         if requiresPassword, trimmedPassword.isEmpty {
-            self.validationMessage = "Password required for this mode."
+            self.validationMessage = "此模式需要密码。"
             return
         }
 
@@ -295,9 +295,9 @@ struct TailscaleIntegrationSection: View {
         }
 
         if self.connectionMode == .local, !self.isPaused {
-            self.statusMessage = "Saved to ~/.openclaw/openclaw.json. Restarting gateway…"
+            self.statusMessage = "保存至 ~/.openclaw/openclaw.json。等待网关重启…"
         } else {
-            self.statusMessage = "Saved to ~/.openclaw/openclaw.json. Restart the gateway to apply."
+            self.statusMessage = "保存至 ~/.openclaw/openclaw.json。需要重启网关才能生效。"
         }
         self.restartGatewayIfNeeded()
     }

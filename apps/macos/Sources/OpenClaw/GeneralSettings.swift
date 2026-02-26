@@ -29,8 +29,8 @@ struct GeneralSettings: View {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 12) {
                     SettingsToggleRow(
-                        title: "OpenClaw active",
-                        subtitle: "Pause to stop the OpenClaw gateway; no messages will be processed.",
+                        title: "启用 OpenClaw 网关",
+                        subtitle: "暂停以停止 OpenClaw 网关；将不再处理任何新消息。",
                         binding: self.activeBinding)
 
                     self.connectionSection
@@ -38,38 +38,38 @@ struct GeneralSettings: View {
                     Divider()
 
                     SettingsToggleRow(
-                        title: "Launch at login",
-                        subtitle: "Automatically start OpenClaw after you sign in.",
+                        title: "开机自启动",
+                        subtitle: "在您登录 Mac 后自动启动 OpenClaw。",
                         binding: self.$state.launchAtLogin)
 
                     SettingsToggleRow(
-                        title: "Show Dock icon",
-                        subtitle: "Keep OpenClaw visible in the Dock instead of menu-bar-only mode.",
+                        title: "显示程序坞(Dock)图标",
+                        subtitle: "在底部的 Dock 栏中保持显示 OpenClaw，而不仅仅是顶部菜单栏模式。",
                         binding: self.$state.showDockIcon)
 
                     SettingsToggleRow(
-                        title: "Play menu bar icon animations",
-                        subtitle: "Enable idle blinks and wiggles on the status icon.",
+                        title: "允许菜单栏图标动画",
+                        subtitle: "启用顶部状态图标的眨眼和摆动等休息动画。",
                         binding: self.$state.iconAnimationsEnabled)
 
                     SettingsToggleRow(
-                        title: "Allow Canvas",
-                        subtitle: "Allow the agent to show and control the Canvas panel.",
+                        title: "允许使用画板 (Canvas)",
+                        subtitle: "允许 AI 助手显示和控制画板面板。",
                         binding: self.$state.canvasEnabled)
 
                     SettingsToggleRow(
-                        title: "Allow Camera",
-                        subtitle: "Allow the agent to capture a photo or short video via the built-in camera.",
+                        title: "允许访问系统相机",
+                        subtitle: "允许 AI 助手通过内置摄像头捕获照片或短视频。",
                         binding: self.$cameraEnabled)
 
                     SettingsToggleRow(
-                        title: "Enable Peekaboo Bridge",
-                        subtitle: "Allow signed tools (e.g. `peekaboo`) to drive UI automation via PeekabooBridge.",
+                        title: "启用 Peekaboo 桥接",
+                        subtitle: "允许经过签名的工具（例如 `peekaboo`）通过 PeekabooBridge 驱动 UI 自动化。",
                         binding: self.$state.peekabooBridgeEnabled)
 
                     SettingsToggleRow(
-                        title: "Enable debug tools",
-                        subtitle: "Show the Debug tab with development utilities.",
+                        title: "启用调试工具 (Debug)",
+                        subtitle: "在设置顶栏显示带开发实用工具的“调试”选项卡。",
                         binding: self.$state.debugPaneEnabled)
                 }
 
@@ -441,10 +441,10 @@ struct GeneralSettings: View {
                     linkId?.capitalized ??
                     "Link channel"
                 let linkAge = linkId.flatMap { snap.channels[$0]?.authAgeMs }
-                Text("\(linkLabel) auth age: \(healthAgeString(linkAge))")
+                Text("\(linkLabel) 授权时长: \(healthAgeString(linkAge))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("Session store: \(snap.sessions.path) (\(snap.sessions.count) entries)")
+                Text("会话存储路径: \(snap.sessions.path) (\(snap.sessions.count) 条目)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let recent = snap.sessions.recent.first {
@@ -475,7 +475,7 @@ struct GeneralSettings: View {
                     if self.healthStore.isRefreshing {
                         ProgressView().controlSize(.small)
                     } else {
-                        Label("Run Health Check", systemImage: "arrow.clockwise")
+                        Label("运行健康检查", systemImage: "arrow.clockwise")
                     }
                 }
                 .disabled(self.healthStore.isRefreshing)
@@ -485,7 +485,7 @@ struct GeneralSettings: View {
                 Button {
                     self.revealLogs()
                 } label: {
-                    Label("Reveal Logs", systemImage: "doc.text.magnifyingglass")
+                    Label("查看相关日志", systemImage: "doc.text.magnifyingglass")
                 }
             }
         }
@@ -522,7 +522,7 @@ extension GeneralSettings {
             }
 
             HStack(spacing: 10) {
-                Button("Retry now") {
+                Button("立即重试") {
                     Task { await HealthStore.shared.refresh(onDemand: true) }
                 }
                 .disabled(self.healthStore.isRefreshing)
