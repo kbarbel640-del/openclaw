@@ -98,6 +98,7 @@ final class NodeAppModel {
     private var nodeGatewayTask: Task<Void, Never>?
     private var operatorGatewayTask: Task<Void, Never>?
     private var voiceWakeSyncTask: Task<Void, Never>?
+    private var liveActivityTask: Task<Void, Never>?
     @ObservationIgnored private var cameraHUDDismissTask: Task<Void, Never>?
     @ObservationIgnored private lazy var capabilityRouter: NodeCapabilityRouter = self.buildCapabilityRouter()
     private let gatewayHealthMonitor = GatewayHealthMonitor()
@@ -630,6 +631,31 @@ final class NodeAppModel {
                     self.applyTalkModeSync(enabled: decoded.enabled, phase: decoded.phase)
                 default:
                     continue
+                }
+            }
+        }
+    }
+
+    /// Subscribe to operator gateway server events and drive the Live Activity.
+    func startLiveActivityEventLoop() {
+        self.liveActivityTask?.cancel()
+        let la = LiveActivityManager.shared
+        if la.isActive { la.handleReconnect() }
+        else { la.startActivity(agentName: self.selectedAgentId ?? "main", sessionKey: self.mainSessionKey) }
+        self.liveActivityTask = Task { [weak self] in
+            guard let self else { return }
+            let stream = await self.operatorGateway.subscribeServerEvents(bufferingNewest: 200)
+            for await evt in stream {
+                if Task.isCancelled { return }
+                guard evt.event == "agent" || evt.event == "chat",
+                      let payload = evt.payload else { continue }
+                await MainActor.run {
+                    let agent = self.selectedAgentId ?? "main", session = self.mainSessionKey
+                    switch evt.event {
+                    case "agent": LiveActivityManager.shared.dispatchAgentEvent(payload, agentName: agent, sessionKey: session)
+                    case "chat": LiveActivityManager.shared.dispatchChatEvent(payload)
+                    default: break
+                    }
                 }
             }
         }
@@ -1684,6 +1710,9 @@ extension NodeAppModel {
         self.operatorGatewayTask = nil
         self.voiceWakeSyncTask?.cancel()
         self.voiceWakeSyncTask = nil
+        self.liveActivityTask?.cancel()
+        self.liveActivityTask = nil
+        LiveActivityManager.shared.handleDisconnect()
         self.gatewayHealthMonitor.stop()
         Task {
             await self.operatorGateway.disconnect()
@@ -1720,6 +1749,8 @@ private extension NodeAppModel {
         self.operatorConnected = false
         self.voiceWakeSyncTask?.cancel()
         self.voiceWakeSyncTask = nil
+        self.liveActivityTask?.cancel()
+        self.liveActivityTask = nil
         self.gatewayDefaultAgentId = nil
         self.gatewayAgents = []
         self.selectedAgentId = GatewaySettingsStore.loadGatewaySelectedAgentId(stableID: stableID)
@@ -1797,6 +1828,7 @@ private extension NodeAppModel {
                             await self.refreshAgentsFromGateway()
                             await self.refreshShareRouteFromGateway()
                             await self.startVoiceWakeSync()
+                            await MainActor.run { self.startLiveActivityEventLoop() }
                             await MainActor.run { self.startGatewayHealthMonitor() }
                         },
                         onDisconnected: { [weak self] reason in
@@ -1804,6 +1836,7 @@ private extension NodeAppModel {
                             await MainActor.run {
                                 self.operatorConnected = false
                                 self.talkMode.updateGatewayConnected(false)
+                                LiveActivityManager.shared.handleDisconnect()
                             }
                             GatewayDiagnostics.log("operator gateway disconnected reason=\(reason)")
                             await MainActor.run { self.stopGatewayHealthMonitor() }
