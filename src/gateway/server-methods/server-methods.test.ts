@@ -219,8 +219,14 @@ describe("sanitizeChatSendMessageInput", () => {
     expect(result).toEqual({ ok: true, message: "ab\tc\nd\ref" });
   });
 
-  it("normalizes unicode to NFC", () => {
-    expect(sanitizeChatSendMessageInput("Cafe\u0301")).toEqual({ ok: true, message: "Café" });
+  it("preserves Unicode characters without normalization", () => {
+    // Combining diacritics should be preserved as-is (no NFC normalization)
+    expect(sanitizeChatSendMessageInput("Cafe\u0301")).toEqual({ ok: true, message: "Cafe\u0301" });
+    // CJK characters should be preserved exactly
+    expect(sanitizeChatSendMessageInput("\u5de5\u52d9")).toEqual({
+      ok: true,
+      message: "\u5de5\u52d9",
+    });
   });
 });
 
