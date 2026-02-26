@@ -94,13 +94,8 @@ const DEFAULT_QMD_MCPORTER: ResolvedQmdMcporterConfig = {
 };
 
 const DEFAULT_QMD_SCOPE: SessionSendPolicyConfig = {
-  default: "deny",
-  rules: [
-    {
-      action: "allow",
-      match: { chatType: "direct" },
-    },
-  ],
+  default: "allow",
+  rules: [],
 };
 
 function sanitizeName(input: string): string {

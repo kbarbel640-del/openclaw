@@ -1761,6 +1761,33 @@ describe("QmdMemoryManager", () => {
     }
   });
 
+  it("allows all chat types when no scope is configured (default allow)", async () => {
+    cfg = {
+      ...cfg,
+      memory: {
+        backend: "qmd",
+        qmd: {
+          includeDefaultMemory: false,
+          update: { interval: "0s", debounceMs: 60_000, onBoot: false },
+          paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
+          // no scope configured → should default to allow
+        },
+      },
+    } as OpenClawConfig;
+    const { manager } = await createManager();
+
+    const isAllowed = (key?: string) =>
+      (manager as unknown as { isScopeAllowed: (key?: string) => boolean }).isScopeAllowed(key);
+
+    // all chat types and no session key should be allowed by default
+    expect(isAllowed(undefined)).toBe(true);
+    expect(isAllowed("agent:main:telegram:direct:u123")).toBe(true);
+    expect(isAllowed("agent:main:telegram:group:g123")).toBe(true);
+    expect(isAllowed("agent:main:discord:channel:c123")).toBe(true);
+
+    await manager.close();
+  });
+
   it("scopes by channel for agent-prefixed session keys", async () => {
     cfg = {
       ...cfg,
