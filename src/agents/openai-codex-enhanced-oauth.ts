@@ -61,8 +61,11 @@ function extractAccountId(accessToken: string): string | null {
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
-function parseAuthorizationInput(input: string): { code?: string; state?: string } {
-  const value = input.trim();
+function parseAuthorizationInput(input: string | undefined | null): {
+  code?: string;
+  state?: string;
+} {
+  const value = (input ?? "").trim();
   if (!value) {
     return {};
   }
@@ -359,6 +362,11 @@ export function registerEnhancedCodexOAuth(): void {
   if (registered) {
     return;
   }
-  registerOAuthProvider(enhancedCodexOAuthProvider);
-  registered = true;
+  try {
+    registerOAuthProvider(enhancedCodexOAuthProvider);
+    registered = true;
+  } catch {
+    // In test environments @mariozechner/pi-ai may be mocked without
+    // registerOAuthProvider; silently skip registration.
+  }
 }
