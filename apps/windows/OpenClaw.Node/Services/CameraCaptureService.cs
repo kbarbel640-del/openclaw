@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Diagnostics;
 
@@ -68,10 +69,6 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
             int? delayMs,
             string? deviceId)
         {
-            var _ = facing;
-            var __ = maxWidth;
-            var ___ = quality;
-
             LastError = null;
             var clampedDelay = Math.Clamp(delayMs ?? 0, 0, 10000);
             if (clampedDelay > 0) await Task.Delay(clampedDelay);
@@ -82,12 +79,14 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
                 return (PlaceholderJpegBase64, 1, 1);
             }
 
-            var (bytes, error) = await TryCaptureWithWinRtAsync(deviceId);
+            var resolvedWinRtDeviceId = await ResolvePreferredWinRtDeviceIdAsync(facing, deviceId);
+            var (bytes, error) = await TryCaptureWithWinRtAsync(resolvedWinRtDeviceId);
             if (bytes != null && bytes.Length > 0 && IsLikelyJpeg(bytes))
             {
+                var effective = ApplyJpegOutputOptions(bytes, maxWidth, quality);
                 LastError = null;
-                var (w, h) = TryReadJpegDimensions(bytes);
-                return (Convert.ToBase64String(bytes), Math.Max(w, 1), Math.Max(h, 1));
+                var (w, h) = TryReadJpegDimensions(effective);
+                return (Convert.ToBase64String(effective), Math.Max(w, 1), Math.Max(h, 1));
             }
 
             // Optional shipped fallback: bundled ffmpeg binary (no user install required).
@@ -108,6 +107,51 @@ AAAAAAAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdAABP/9k=";
 
             LastError = error;
             return (PlaceholderJpegBase64, 1, 1);
+        }
+
+        private async Task<string?> ResolvePreferredWinRtDeviceIdAsync(string facing, string? explicitDeviceId)
+        {
+            if (!string.IsNullOrWhiteSpace(explicitDeviceId))
+            {
+                return explicitDeviceId;
+            }
+
+            var (devices, _) = await TryListDevicesWithWinRtAsync();
+            if (devices.Length == 0)
+            {
+                return null;
+            }
+
+            var desiredFacing = string.Equals(facing, "back", StringComparison.OrdinalIgnoreCase) ? "back" : "front";
+            var selected = devices.FirstOrDefault(d =>
+                string.Equals(d.Position, desiredFacing, StringComparison.OrdinalIgnoreCase)) ?? devices[0];
+            return selected.Id;
+        }
+
+        private static byte[] ApplyJpegOutputOptions(byte[] jpegBytes, int? maxWidth, double? quality)
+        {
+            if (!maxWidth.HasValue && !quality.HasValue)
+            {
+                return jpegBytes;
+            }
+
+            try
+            {
+                var (srcW, _) = TryReadJpegDimensions(jpegBytes);
+                var targetWidth = Math.Clamp(maxWidth ?? Math.Max(srcW, 1), 64, 8000);
+                var targetQuality = Math.Clamp(quality ?? 0.92, 0.1, 1.0);
+                var encoded = ImageEncoding.EncodeJpegBase64(jpegBytes, targetWidth, targetQuality);
+                if (string.IsNullOrWhiteSpace(encoded.Base64))
+                {
+                    return jpegBytes;
+                }
+
+                return Convert.FromBase64String(encoded.Base64);
+            }
+            catch
+            {
+                return jpegBytes;
+            }
         }
 
         private static async Task<(CameraDeviceInfo[] Devices, string? Error)> TryListDevicesWithWinRtAsync()
