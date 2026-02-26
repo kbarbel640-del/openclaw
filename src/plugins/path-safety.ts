@@ -1,8 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
 
+function normalizeForPathComparison(inputPath: string): string {
+  const resolved = path.resolve(inputPath);
+  if (process.platform !== "win32") {
+    return resolved;
+  }
+  // Windows realpath may mix verbatim-path prefixes (\\?\) and drive-letter casing.
+  // Normalize both before running containment checks to avoid false negatives.
+  const withoutVerbatim = resolved.startsWith("\\\\?\\") ? resolved.slice(4) : resolved;
+  return withoutVerbatim.toLowerCase();
+}
+
 export function isPathInside(baseDir: string, targetPath: string): boolean {
-  const rel = path.relative(baseDir, targetPath);
+  const normalizedBase = normalizeForPathComparison(baseDir);
+  const normalizedTarget = normalizeForPathComparison(targetPath);
+  const rel = path.relative(normalizedBase, normalizedTarget);
   if (!rel) {
     return true;
   }
