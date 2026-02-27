@@ -116,10 +116,7 @@ export async function ensureOpenClawModelsJson(
   // with plaintext apiKey values. Prefer the source snapshot (with SecretRef inputs)
   // when available so models.json does not persist resolved secrets to disk.
   const sourceCfg = getRuntimeConfigSourceSnapshot();
-  const explicitProviders = (sourceCfg?.models?.providers ?? cfg.models?.providers ?? {}) as Record<
-    string,
-    ProviderConfig
-  >;
+  const explicitProviders = sourceCfg?.models?.providers ?? cfg.models?.providers ?? {};
   const implicitProviders = await resolveImplicitProviders({ agentDir, explicitProviders });
   const providers: Record<string, ProviderConfig> = mergeProviders({
     implicit: implicitProviders,
