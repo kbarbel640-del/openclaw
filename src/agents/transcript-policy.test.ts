@@ -74,4 +74,66 @@ describe("resolveTranscriptPolicy", () => {
     });
     expect(policy.validateAnthropicTurns).toBe(false);
   });
+
+  // --- #28492: Mistral via OpenAI-compatible proxy providers ---
+
+  it("enables strict9 sanitization for Mistral model via openai-completions without explicit provider", () => {
+    const policy = resolveTranscriptPolicy({
+      modelId: "mistralai/mistral-large-3-675b-instruct-2512",
+      modelApi: "openai-completions",
+    });
+    expect(policy.sanitizeToolCallIds).toBe(true);
+    expect(policy.toolCallIdMode).toBe("strict9");
+    expect(policy.sanitizeMode).toBe("full");
+  });
+
+  it("enables strict9 sanitization for Mistral model via NVIDIA NIM (openai-completions)", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "nvidia-nim",
+      modelId: "mistralai/mistral-large-3-675b-instruct-2512",
+      modelApi: "openai-completions",
+    });
+    expect(policy.sanitizeToolCallIds).toBe(true);
+    expect(policy.toolCallIdMode).toBe("strict9");
+    expect(policy.sanitizeMode).toBe("full");
+  });
+
+  it("enables strict9 sanitization for Mixtral model via OpenRouter", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "openrouter",
+      modelId: "mistralai/mixtral-8x22b-instruct",
+      modelApi: "openai-completions",
+    });
+    expect(policy.sanitizeToolCallIds).toBe(true);
+    expect(policy.toolCallIdMode).toBe("strict9");
+  });
+
+  it("enables strict9 sanitization for Codestral model via generic proxy", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "my-proxy",
+      modelId: "codestral-latest",
+      modelApi: "openai-completions",
+    });
+    expect(policy.sanitizeToolCallIds).toBe(true);
+    expect(policy.toolCallIdMode).toBe("strict9");
+  });
+
+  it("still disables sanitization for non-Mistral models on OpenAI provider", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "openai",
+      modelId: "gpt-4.1",
+      modelApi: "openai",
+    });
+    expect(policy.sanitizeToolCallIds).toBe(false);
+    expect(policy.toolCallIdMode).toBeUndefined();
+  });
+
+  it("still enables strict9 for native Mistral provider (no regression)", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "mistral",
+      modelId: "mistral-large-latest",
+    });
+    expect(policy.sanitizeToolCallIds).toBe(true);
+    expect(policy.toolCallIdMode).toBe("strict9");
+  });
 });
