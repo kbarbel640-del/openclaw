@@ -350,7 +350,7 @@ export async function getHealthSnapshot(params?: {
   probe?: boolean;
 }): Promise<HealthSummary> {
   const timeoutMs = params?.timeoutMs;
-  const cfg = loadConfig();
+  const cfg = loadConfig({ allowInvalid: true });
   const { defaultAgentId, ordered } = resolveAgentOrder(cfg);
   const channelBindings = buildChannelAccountBindings(cfg);
   const sessionCache = new Map<string, HealthSummary["sessions"]>();
@@ -526,7 +526,7 @@ export async function healthCommand(
   opts: { json?: boolean; timeoutMs?: number; verbose?: boolean; config?: OpenClawConfig },
   runtime: RuntimeEnv,
 ) {
-  const cfg = opts.config ?? loadConfig();
+  const cfg = opts.config ?? loadConfig({ allowInvalid: true });
   // Always query the running gateway; do not open a direct Baileys socket here.
   const summary = await withProgress(
     {

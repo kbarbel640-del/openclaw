@@ -75,7 +75,7 @@ export async function scanStatus(
     },
     async (progress) => {
       progress.setLabel("Loading config…");
-      const cfg = loadConfig();
+      const cfg = loadConfig({ allowInvalid: true });
       const osSummary = resolveOsSummary();
       progress.tick();
 

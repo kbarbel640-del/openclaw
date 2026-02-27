@@ -55,6 +55,51 @@ describe("loadConfig invalid config handling", () => {
     });
   });
 
+  it("allows diagnostic callers to continue with empty config via allowInvalid", async () => {
+    await withTempHome(async (home) => {
+      const configPath = `${home}/.openclaw/openclaw.json`;
+      await fs.mkdir(`${home}/.openclaw`, { recursive: true });
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          tools: { sessions: { visibility: "all" } },
+          skills: { "nano-banana-pro": { env: { GEMINI_API_KEY: "test" } } },
+        }),
+        "utf-8",
+      );
+
+      expect(loadConfig({ allowInvalid: true })).toEqual({});
+    });
+  });
+
+  it("does not cache allowInvalid fallback for later strict reads", async () => {
+    await withTempHome(async (home) => {
+      const configDir = `${home}/.openclaw`;
+      const configPath = `${configDir}/openclaw.json`;
+      await fs.mkdir(configDir, { recursive: true });
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          gateway: { port: 19001 },
+          skills: { "nano-banana-pro": { env: { GEMINI_API_KEY: "test" } } },
+        }),
+        "utf-8",
+      );
+
+      expect(loadConfig({ allowInvalid: true })).toEqual({});
+
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          gateway: { port: 19003 },
+        }),
+        "utf-8",
+      );
+
+      expect(loadConfig().gateway?.port).toBe(19003);
+    });
+  });
+
   it("keeps throwing on repeated reads until the invalid config is fixed", async () => {
     await withTempHome(async (home) => {
       const configDir = `${home}/.openclaw`;

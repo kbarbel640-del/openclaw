@@ -1346,7 +1346,11 @@ export function getRuntimeConfigSnapshot(): OpenClawConfig | null {
   return runtimeConfigSnapshot;
 }
 
-export function loadConfig(): OpenClawConfig {
+export type LoadConfigOptions = {
+  allowInvalid?: boolean;
+};
+
+export function loadConfig(options: LoadConfigOptions = {}): OpenClawConfig {
   if (runtimeConfigSnapshot) {
     return runtimeConfigSnapshot;
   }
@@ -1359,7 +1363,17 @@ export function loadConfig(): OpenClawConfig {
       return cached.config;
     }
   }
-  const config = io.loadConfig();
+  let config: OpenClawConfig;
+  try {
+    config = io.loadConfig();
+  } catch (err) {
+    const error = err as { code?: string };
+    if (options.allowInvalid && error?.code === "INVALID_CONFIG") {
+      // Diagnostics commands (status/health) may continue with empty config.
+      return {};
+    }
+    throw err;
+  }
   if (shouldUseConfigCache(process.env)) {
     const cacheMs = resolveConfigCacheMs(process.env);
     if (cacheMs > 0) {
