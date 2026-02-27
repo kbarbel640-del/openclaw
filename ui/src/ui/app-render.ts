@@ -415,6 +415,9 @@ export function renderApp(state: AppViewState) {
                 loading: state.sessionsLoading,
                 result: state.sessionsResult,
                 error: state.sessionsError,
+                canDeleteSessions: false,
+                deleteUnavailableReason:
+                  "Session delete is unavailable in Dashboard sessions for webchat clients.",
                 activeMinutes: state.sessionsFilterActive,
                 limit: state.sessionsFilterLimit,
                 includeGlobal: state.sessionsIncludeGlobal,
