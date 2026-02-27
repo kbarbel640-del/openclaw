@@ -273,4 +273,119 @@ describe("registerTelegramNativeCommands", () => {
     );
     expect(sendMessage).not.toHaveBeenCalledWith(123, "Command not found.");
   });
+
+  describe("channel_post command support", () => {
+    function buildChannelPostBot() {
+      const commandHandlers = new Map<string, (ctx: unknown) => Promise<void>>();
+      const sendMessage = vi.fn().mockResolvedValue(undefined);
+      const bot = {
+        api: {
+          setMyCommands: vi.fn().mockResolvedValue(undefined),
+          sendMessage,
+        },
+        command: vi.fn((name: string, cb: (ctx: unknown) => Promise<void>) => {
+          commandHandlers.set(name, cb);
+        }),
+      } as unknown as Parameters<typeof registerTelegramNativeCommands>[0]["bot"];
+      return { commandHandlers, sendMessage, bot };
+    }
+
+    const channelPostCtx = {
+      match: "",
+      message: undefined,
+      channelPost: {
+        message_id: 42,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: -1001234567890, type: "channel" as const, title: "Bot Relay" },
+        sender_chat: {
+          id: -1001234567890,
+          type: "channel" as const,
+          title: "Bot Relay",
+          username: "bot_relay",
+        },
+      },
+    };
+
+    it("rejects auth-required native commands from channel_post when channel is not explicitly allowed", async () => {
+      const { commandHandlers, sendMessage, bot } = buildChannelPostBot();
+      registerTelegramNativeCommands({
+        ...buildParams({}),
+        bot,
+      });
+
+      const handler = commandHandlers.get("status");
+      expect(handler).toBeTruthy();
+
+      await handler?.(channelPostCtx);
+      expect(sendMessage).toHaveBeenCalledWith(
+        -1001234567890,
+        "You are not authorized to use this command.",
+      );
+    });
+
+    it("processes plugin commands from channel_post", async () => {
+      const { commandHandlers, sendMessage, bot } = buildChannelPostBot();
+      pluginCommandMocks.getPluginCommandSpecs.mockReturnValue([
+        { name: "plug", description: "Plugin command" },
+      ] as never);
+      pluginCommandMocks.matchPluginCommand.mockReturnValue({
+        command: { key: "plug", requireAuth: false },
+        args: undefined,
+      } as never);
+
+      registerTelegramNativeCommands({
+        ...buildParams({}),
+        bot,
+      });
+
+      const handler = commandHandlers.get("plug");
+      expect(handler).toBeTruthy();
+
+      await handler?.(channelPostCtx);
+      expect(sendMessage).not.toHaveBeenCalledWith(
+        expect.anything(),
+        "You are not authorized to use this command.",
+      );
+      expect(deliveryMocks.deliverReplies).toHaveBeenCalled();
+    });
+
+    it("falls back to sender_chat for sender identification in channel_post", async () => {
+      const { commandHandlers, sendMessage, bot } = buildChannelPostBot();
+      pluginCommandMocks.getPluginCommandSpecs.mockReturnValue([
+        { name: "plug", description: "Plugin command" },
+      ] as never);
+      pluginCommandMocks.matchPluginCommand.mockReturnValue({
+        command: { key: "plug", requireAuth: true },
+        args: undefined,
+      } as never);
+
+      registerTelegramNativeCommands({
+        ...buildParams({}),
+        bot,
+        resolveGroupPolicy: () => ({
+          allowlistEnabled: true,
+          allowed: true,
+        }),
+      });
+
+      const handler = commandHandlers.get("plug");
+      expect(handler).toBeTruthy();
+
+      // Channel post with no `from`, only `sender_chat`
+      await handler?.(channelPostCtx);
+
+      // Should be authorized when channel policy explicitly allows this channel.
+      expect(sendMessage).not.toHaveBeenCalledWith(
+        expect.anything(),
+        "You are not authorized to use this command.",
+      );
+
+      // Plugin command should have been executed with sender_chat info
+      expect(pluginCommandMocks.executePluginCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          senderId: String(-1001234567890),
+        }),
+      );
+    });
+  });
 });
