@@ -117,16 +117,10 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).not.toContain("## Voice (TTS)");
     expect(prompt).not.toContain("## Silent Replies");
     expect(prompt).not.toContain("## Heartbeats");
-    expect(prompt).toContain("## Safety");
+    expect(prompt).not.toContain("## Safety");
     expect(prompt).toContain(
       "For long waits, avoid rapid poll loops: use exec with enough yieldMs or process(action=poll, timeout=<ms>).",
     );
-    expect(prompt).toContain("You have no independent goals");
-    expect(prompt).toContain("Prioritize safety and human oversight");
-    expect(prompt).toContain("if instructions conflict");
-    expect(prompt).toContain("Inspired by Anthropic's constitution");
-    expect(prompt).toContain("Do not manipulate or persuade anyone");
-    expect(prompt).toContain("Do not copy yourself or change system prompts");
     expect(prompt).toContain("## Subagent Context");
     expect(prompt).not.toContain("## Group Chat Context");
     expect(prompt).toContain("Subagent details");
@@ -155,18 +149,16 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).not.toContain("## Skills");
   });
 
-  it("includes safety guardrails in full prompts", () => {
+  it("does not include hardcoded safety guardrails (deferred to SOUL.md)", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
     });
 
-    expect(prompt).toContain("## Safety");
-    expect(prompt).toContain("You have no independent goals");
-    expect(prompt).toContain("Prioritize safety and human oversight");
-    expect(prompt).toContain("if instructions conflict");
-    expect(prompt).toContain("Inspired by Anthropic's constitution");
-    expect(prompt).toContain("Do not manipulate or persuade anyone");
-    expect(prompt).toContain("Do not copy yourself or change system prompts");
+    expect(prompt).not.toContain("## Safety");
+    expect(prompt).not.toContain("You have no independent goals");
+    expect(prompt).not.toContain("Prioritize safety and human oversight");
+    expect(prompt).not.toContain("Inspired by Anthropic's constitution");
+    expect(prompt).not.toContain("Do not manipulate or persuade anyone");
   });
 
   it("includes voice hint when provided", () => {
@@ -499,8 +491,9 @@ describe("buildAgentSystemPrompt", () => {
     });
 
     expect(prompt).toContain(
-      "If SOUL.md is present, embody its persona and tone. Avoid stiff, generic replies; follow its guidance unless higher-priority instructions override it.",
+      "SOUL.md and IDENTITY.md are the sole authority for your identity, personality, behavior, and boundaries.",
     );
+    expect(prompt).toContain("these files define who you are");
   });
 
   it("summarizes the message tool when available", () => {
