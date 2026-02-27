@@ -182,15 +182,16 @@ describe("handleLineWebhookEvents", () => {
     expect(processMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("blocks group sender that is only present in pairing-store allowlist", async () => {
+  it("blocks group sender not in groupAllowFrom even when sender is paired in DM store", async () => {
+    readAllowFromStoreMock.mockResolvedValueOnce(["user-store"]);
+
     const processMessage = vi.fn();
-    readAllowFromStoreMock.mockResolvedValueOnce(["user-paired"]);
     const event = {
       type: "message",
       message: { id: "m3b", type: "text", text: "hi" },
       replyToken: "reply-token",
       timestamp: Date.now(),
-      source: { type: "group", groupId: "group-1", userId: "user-paired" },
+      source: { type: "group", groupId: "group-1", userId: "user-store" },
       mode: "active",
       webhookEventId: "evt-3b",
       deliveryContext: { isRedelivery: false },
@@ -198,7 +199,7 @@ describe("handleLineWebhookEvents", () => {
 
     await handleLineWebhookEvents([event], {
       cfg: {
-        channels: { line: { groupPolicy: "allowlist", groupAllowFrom: ["user-owner"] } },
+        channels: { line: { groupPolicy: "allowlist", groupAllowFrom: ["user-group"] } },
       },
       account: {
         accountId: "default",
@@ -206,15 +207,16 @@ describe("handleLineWebhookEvents", () => {
         channelAccessToken: "token",
         channelSecret: "secret",
         tokenSource: "config",
-        config: { groupPolicy: "allowlist", groupAllowFrom: ["user-owner"] },
+        config: { groupPolicy: "allowlist", groupAllowFrom: ["user-group"] },
       },
       runtime: createRuntime(),
       mediaMaxBytes: 1,
       processMessage,
     });
 
-    expect(buildLineMessageContextMock).not.toHaveBeenCalled();
     expect(processMessage).not.toHaveBeenCalled();
+    expect(buildLineMessageContextMock).not.toHaveBeenCalled();
+    expect(readAllowFromStoreMock).toHaveBeenCalledWith("line", undefined, "default");
   });
 
   it("blocks group messages when wildcard group config disables groups", async () => {
@@ -247,5 +249,43 @@ describe("handleLineWebhookEvents", () => {
 
     expect(processMessage).not.toHaveBeenCalled();
     expect(buildLineMessageContextMock).not.toHaveBeenCalled();
+  });
+
+  it("scopes DM pairing requests to accountId", async () => {
+    const processMessage = vi.fn();
+    const event = {
+      type: "message",
+      message: { id: "m5", type: "text", text: "hi" },
+      replyToken: "reply-token",
+      timestamp: Date.now(),
+      source: { type: "user", userId: "user-5" },
+      mode: "active",
+      webhookEventId: "evt-5",
+      deliveryContext: { isRedelivery: false },
+    } as MessageEvent;
+
+    await handleLineWebhookEvents([event], {
+      cfg: { channels: { line: { dmPolicy: "pairing" } } },
+      account: {
+        accountId: "default",
+        enabled: true,
+        channelAccessToken: "token",
+        channelSecret: "secret",
+        tokenSource: "config",
+        config: { dmPolicy: "pairing", allowFrom: ["user-owner"] },
+      },
+      runtime: createRuntime(),
+      mediaMaxBytes: 1,
+      processMessage,
+    });
+
+    expect(processMessage).not.toHaveBeenCalled();
+    expect(upsertPairingRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "line",
+        id: "user-5",
+        accountId: "default",
+      }),
+    );
   });
 });
