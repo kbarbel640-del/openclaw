@@ -29,6 +29,8 @@ Sandboxing details: [Sandboxing](/gateway/sandboxing)
 - At least 2 GB RAM for image build (`pnpm install` may be OOM-killed on 1 GB hosts with exit 137)
 - Enough disk for images + logs
 
+**Security note:** For production deployments, consider using [Docker Hardened Images (DHI)](/install/docker-hardened-images) for enhanced security and reduced vulnerabilities.
+
 ## Containerized Gateway (Docker Compose)
 
 ### Quick start (recommended)
