@@ -77,7 +77,7 @@ export type RuntimeVersionEnv = {
 
 export function resolveRuntimeServiceVersion(
   env: RuntimeVersionEnv = process.env as RuntimeVersionEnv,
-  fallback = "dev",
+  fallback: string = VERSION || "dev",
 ): string {
   return (
     firstNonEmpty(
