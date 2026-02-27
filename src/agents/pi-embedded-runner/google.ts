@@ -418,6 +418,8 @@ export async function sanitizeSessionHistory(params: {
   policy?: TranscriptPolicy;
 }): Promise<AgentMessage[]> {
   // Keep docs/reference/transcript-hygiene.md in sync with any logic changes here.
+  // Guard against undefined/null messages (defensive fix for compaction crash)
+  const messages = params.messages ?? [];
   const policy =
     params.policy ??
     resolveTranscriptPolicy({
@@ -425,7 +427,7 @@ export async function sanitizeSessionHistory(params: {
       provider: params.provider,
       modelId: params.modelId,
     });
-  const withInterSessionMarkers = annotateInterSessionUserMessages(params.messages);
+  const withInterSessionMarkers = annotateInterSessionUserMessages(messages);
   const sanitizedImages = await sanitizeSessionMessagesImages(
     withInterSessionMarkers,
     "session:history",
