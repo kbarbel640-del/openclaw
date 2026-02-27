@@ -135,15 +135,13 @@ describe("createGeminiEmbeddingProvider retry behavior", () => {
     retryAsyncMock.mockImplementation(async (run: () => Promise<unknown>) => await run());
 
     // Mock withRemoteHttpResponse to call onResponse with a non-ok response
-    wrhrMock.mockImplementation(
-      async (opts: { onResponse: (res: unknown) => Promise<unknown> }) => {
-        return await opts.onResponse({
-          ok: false,
-          status: 429,
-          text: async () => "rate limited",
-        });
-      },
-    );
+    wrhrMock.mockImplementation(async (opts) => {
+      return await opts.onResponse({
+        ok: false,
+        status: 429,
+        text: async () => "rate limited",
+      } as unknown as Response);
+    });
 
     const { provider } = await getProvider();
     try {
