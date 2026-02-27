@@ -66,6 +66,7 @@ describe("sendMessage", () => {
       | undefined;
     expect(call).toEqual(
       expect.objectContaining({
+        session: expect.objectContaining({ agentId: "work" }),
         channel: "telegram",
         to: "123456",
       }),
