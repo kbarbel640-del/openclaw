@@ -41,6 +41,7 @@ const ROUTABLE_TEST_CHANNELS = new Set([
 ]);
 
 beforeEach(() => {
+  runEmbeddedPiAgentMock.mockReset();
   routeReplyMock.mockReset();
   routeReplyMock.mockResolvedValue({ ok: true });
   isRoutableChannelMock.mockReset();
@@ -180,6 +181,43 @@ describe("createFollowupRunner messaging tool dedupe", () => {
       storePath: overrides.storePath,
     });
   }
+
+  it("preserves Slack thread tool context for followup runs", async () => {
+    const onBlockReply = vi.fn(async () => {});
+    runEmbeddedPiAgentMock.mockResolvedValueOnce({ payloads: [], meta: {} });
+
+    const runner = createMessagingDedupeRunner(onBlockReply);
+    const base = baseQueuedRun("slack");
+    const queued = {
+      ...base,
+      originatingChannel: "slack" as const,
+      originatingChatType: "channel",
+      originatingAccountId: "primary",
+      originatingTo: "channel:C1",
+      originatingThreadId: "1770432765.123469",
+      run: {
+        ...base.run,
+        config: {
+          channels: {
+            slack: {
+              // Even when explicit reply threading is off, followups should keep tool sends
+              // attached to the inbound Slack thread.
+              replyToMode: "off",
+            },
+          },
+        },
+      },
+    } as FollowupRun;
+
+    await runner(queued);
+
+    expect(runEmbeddedPiAgentMock).toHaveBeenCalledTimes(1);
+    const call = runEmbeddedPiAgentMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(call.currentChannelId).toBe("C1");
+    expect(call.currentThreadTs).toBe("1770432765.123469");
+    expect(call.replyToMode).toBe("all");
+    expect(call.hasRepliedRef).toMatchObject({ value: false });
+  });
 
   it("drops payloads already sent via messaging tool", async () => {
     const onBlockReply = vi.fn(async () => {});
