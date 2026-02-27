@@ -27,10 +27,18 @@ import {
   resolveThinkingDefault,
 } from "../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import {
+  registerSkillsUsageTracking,
+  trackSkillCommandInvocation,
+} from "../agents/skills-usage-tracker.js";
 import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
 import { getSkillsSnapshotVersion } from "../agents/skills/refresh.js";
 import { resolveAgentTimeoutMs } from "../agents/timeout.js";
 import { ensureAgentWorkspace } from "../agents/workspace.js";
+import {
+  listSkillCommandsForWorkspace,
+  resolveSkillCommandInvocation,
+} from "../auto-reply/skill-commands.js";
 import {
   formatThinkingLevels,
   formatXHighModelHint,
@@ -492,6 +500,19 @@ export async function agentCommand(
     const needsSkillsSnapshot = isNewSession || !sessionEntry?.skillsSnapshot;
     const skillsSnapshotVersion = getSkillsSnapshotVersion(workspaceDir);
     const skillFilter = resolveAgentSkillsFilter(cfg, sessionAgentId);
+    registerSkillsUsageTracking({ workspaceDir, config: cfg, skillFilter });
+    const skillCommands = listSkillCommandsForWorkspace({
+      workspaceDir,
+      cfg,
+      skillFilter,
+    });
+    const skillInvocation = resolveSkillCommandInvocation({
+      commandBodyNormalized: body,
+      skillCommands,
+    });
+    if (skillInvocation) {
+      trackSkillCommandInvocation(skillInvocation.command.skillName, { runId, sessionKey });
+    }
     const skillsSnapshot = needsSkillsSnapshot
       ? buildWorkspaceSkillSnapshot(workspaceDir, {
           config: cfg,

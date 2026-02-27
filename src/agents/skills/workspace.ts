@@ -10,6 +10,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { CONFIG_DIR, resolveUserPath } from "../../utils.js";
 import { resolveSandboxPath } from "../sandbox-paths.js";
+import { registerSkillsUsageEntries } from "../skills-usage-store.js";
 import { resolveBundledSkillsDir } from "./bundled-dir.js";
 import { shouldIncludeSkill } from "./config.js";
 import { normalizeSkillFilter } from "./filter.js";
@@ -402,6 +403,8 @@ function loadSkillEntries(
       invocation: resolveSkillInvocationPolicy(frontmatter),
     };
   });
+  // Keep usage registry in sync with discovered skills (best-effort, non-blocking).
+  void registerSkillsUsageEntries(skillEntries.map((entry) => entry.skill.name));
   return skillEntries;
 }
 

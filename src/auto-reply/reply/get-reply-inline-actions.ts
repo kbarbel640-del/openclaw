@@ -1,5 +1,9 @@
 import { collectTextContentBlocks } from "../../agents/content-blocks.js";
 import { createOpenClawTools } from "../../agents/openclaw-tools.js";
+import {
+  registerSkillsUsageTracking,
+  trackSkillCommandInvocation,
+} from "../../agents/skills-usage-tracker.js";
 import type { SkillCommandSpec } from "../../agents/skills.js";
 import { applyOwnerOnlyToolPolicy } from "../../agents/tool-policy.js";
 import { getChannelDock } from "../../channels/dock.js";
@@ -174,6 +178,9 @@ export async function handleInlineActions(params: {
             skillFilter,
           })
         : [];
+  if (skillCommands.length > 0) {
+    registerSkillsUsageTracking({ workspaceDir, config: cfg, skillFilter });
+  }
 
   const skillInvocation =
     allowTextCommands && skillCommands.length > 0
@@ -183,6 +190,10 @@ export async function handleInlineActions(params: {
         })
       : null;
   if (skillInvocation) {
+    trackSkillCommandInvocation(skillInvocation.command.skillName, {
+      runId: opts?.runId,
+      sessionKey,
+    });
     if (!command.isAuthorizedSender) {
       logVerbose(
         `Ignoring /${skillInvocation.command.name} from unauthorized sender: ${command.senderId || "<unknown>"}`,
