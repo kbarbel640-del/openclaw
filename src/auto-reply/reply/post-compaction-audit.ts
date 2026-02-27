@@ -22,6 +22,10 @@ export function auditPostCompactionReads(
   for (const required of requiredReads) {
     if (typeof required === "string") {
       const requiredResolved = path.resolve(workspaceDir, required);
+      // Skip files that don't exist on disk — they can't be read (#20444)
+      if (!fs.existsSync(requiredResolved)) {
+        continue;
+      }
       const found = normalizedReads.some((r) => r === requiredResolved);
       if (!found) {
         missingPatterns.push(required);
