@@ -213,5 +213,34 @@ describe("format-relative", () => {
       // Should be a short date like "Jan 9" not "30d ago"
       expect(result).toMatch(/[A-Z][a-z]{2} \d{1,2}/);
     });
+
+    it("formats relative timestamps in pt-BR locale (past)", () => {
+      const now = Date.now();
+      expect(formatRelativeTimestamp(now - 10000, { locale: "pt-BR" })).toBe("agora mesmo");
+      expect(formatRelativeTimestamp(now - 300000, { locale: "pt-BR" })).toBe("há 5m");
+      expect(formatRelativeTimestamp(now - 7200000, { locale: "pt-BR" })).toBe("há 2h");
+      expect(formatRelativeTimestamp(now - 172800000, { locale: "pt-BR" })).toBe("há 2d");
+    });
+
+    it("formats relative timestamps in pt-BR locale (future)", () => {
+      const now = Date.now();
+      expect(formatRelativeTimestamp(now + 30000, { locale: "pt-BR" })).toBe("em <1m");
+      expect(formatRelativeTimestamp(now + 300000, { locale: "pt-BR" })).toBe("em 5m");
+      expect(formatRelativeTimestamp(now + 7200000, { locale: "pt-BR" })).toBe("em 2h");
+    });
+
+    it("falls back to localized date for old pt-BR timestamps when enabled", () => {
+      const oldDate = Date.now() - 30 * 24 * 3600000; // 30 days ago
+      const result = formatRelativeTimestamp(oldDate, { dateFallback: true, locale: "pt-BR" });
+      // Should be a localized short date (e.g. "25 de jan.") not "30d ago"
+      expect(result).not.toMatch(/\dd ago/);
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("defaults to English when locale is undefined", () => {
+      const now = Date.now();
+      expect(formatRelativeTimestamp(now - 300000)).toBe("5m ago");
+      expect(formatRelativeTimestamp(now - 10000)).toBe("just now");
+    });
   });
 });

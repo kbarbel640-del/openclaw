@@ -296,7 +296,7 @@ export function renderOverview(props: OverviewProps) {
           <div class="stat">
             <div class="stat-label">${t("overview.snapshot.lastChannelsRefresh")}</div>
             <div class="stat-value">
-              ${props.lastChannelsRefresh ? formatRelativeTimestamp(props.lastChannelsRefresh) : t("common.na")}
+                ${props.lastChannelsRefresh != null ? formatRelativeTimestamp(props.lastChannelsRefresh, { locale: currentLocale }) : t("common.na")}
             </div>
           </div>
         </div>
