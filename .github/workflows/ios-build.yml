@@ -5,18 +5,18 @@ on:
     branches:
       - main
     paths:
-      - 'apps/ios/**'
-      - '.github/workflows/ios-build.yml'
+      - "apps/ios/**"
+      - ".github/workflows/ios-build.yml"
   pull_request:
     branches:
       - main
     paths:
-      - 'apps/ios/**'
+      - "apps/ios/**"
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-15-large
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
