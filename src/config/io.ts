@@ -810,7 +810,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
       const error = err as { code?: string };
       if (error?.code === "INVALID_CONFIG") {
-        return {};
+        throw err;
       }
       deps.logger.error(`Failed to read config at ${configPath}`, err);
       return {};
