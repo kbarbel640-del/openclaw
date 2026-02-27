@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { UpdateRunResult } from "../../infra/update-runner.js";
 import { inferUpdateFailureHints } from "./progress.js";
 
-function makeResult(stepName: string, stderrTail: string): UpdateRunResult {
+function makeResult(
+  stepName: string,
+  stderrTail: string,
+  mode: UpdateRunResult["mode"] = "npm",
+): UpdateRunResult {
   return {
     status: "error",
-    mode: "npm",
+    mode,
     reason: stepName,
     steps: [
       {
@@ -39,5 +43,14 @@ describe("inferUpdateFailureHints", () => {
     );
     const hints = inferUpdateFailureHints(result);
     expect(hints.join("\n")).toContain("--omit=optional");
+  });
+
+  it("does not return npm hints for non-npm install modes", () => {
+    const result = makeResult(
+      "global update",
+      "npm ERR! code EACCES\nnpm ERR! Error: EACCES: permission denied",
+      "pnpm",
+    );
+    expect(inferUpdateFailureHints(result)).toEqual([]);
   });
 });
