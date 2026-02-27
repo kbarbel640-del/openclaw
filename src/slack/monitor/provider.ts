@@ -376,6 +376,10 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   };
   opts.abortSignal?.addEventListener("abort", stopOnAbort, { once: true });
 
+  type SlackSocketLifecycleWaitResult =
+    | { kind: "abort" }
+    | { kind: "disconnected"; event: string; error?: unknown };
+
   const waitForSocketDisconnect =
     slackMode === "socket"
       ? (() => {
@@ -390,20 +394,20 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
             }
             listeners.length = 0;
           };
-          const promise = new Promise<never>((_, reject) => {
-            const onLifecycleError = (event: string) => {
+          const promise = new Promise<SlackSocketLifecycleWaitResult>((resolve) => {
+            const onDisconnect = (event: string, error?: unknown) => {
               if (opts.abortSignal?.aborted) {
                 return;
               }
               cleanup();
+              // Intentionally exit the provider on disconnect. The gateway's channel manager
+              // will auto-restart it (and for manual invocations, the user sees a clear error).
               runtime.error?.(`slack socket mode disconnected (${event}); restarting provider`);
-              reject(new Error(`slack socket mode disconnected (${event})`));
+              resolve({ kind: "disconnected", event, error });
             };
-            for (const event of ["disconnected", "unable_to_socket_mode_start"]) {
-              const handler = () => onLifecycleError(event);
-              listeners.push({ event, handler });
-              lifecycleClient.on(event, handler);
-            }
+            const onDisconnected = (error?: unknown) => onDisconnect("disconnected", error);
+            listeners.push({ event: "disconnected", handler: onDisconnected });
+            lifecycleClient.on("disconnected", onDisconnected);
           });
           return { cleanup, promise };
         })()
@@ -419,14 +423,17 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
     if (opts.abortSignal?.aborted) {
       return;
     }
-    const waitForAbort = new Promise<void>((resolve) => {
-      opts.abortSignal?.addEventListener("abort", () => resolve(), {
+    const waitForAbort = new Promise<SlackSocketLifecycleWaitResult>((resolve) => {
+      opts.abortSignal?.addEventListener("abort", () => resolve({ kind: "abort" }), {
         once: true,
       });
     });
-    await (waitForSocketDisconnect
+    const result = await (waitForSocketDisconnect
       ? Promise.race([waitForAbort, waitForSocketDisconnect.promise])
       : waitForAbort);
+    if (result.kind === "disconnected") {
+      throw new Error(`slack socket mode disconnected (${result.event})`);
+    }
   } finally {
     waitForSocketDisconnect?.cleanup();
     opts.abortSignal?.removeEventListener("abort", stopOnAbort);
