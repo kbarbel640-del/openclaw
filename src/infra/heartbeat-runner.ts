@@ -239,10 +239,6 @@ export function resolveHeartbeatIntervalMs(
     return null;
   }
   if (ms > MAX_SAFE_TIMEOUT_MS) {
-    log.warn("heartbeat: interval exceeds 32-bit timeout limit; clamping to ~24.8 days", {
-      requestedMs: ms,
-      clampedMs: MAX_SAFE_TIMEOUT_MS,
-    });
     return MAX_SAFE_TIMEOUT_MS;
   }
   return ms;
@@ -1063,6 +1059,23 @@ export function startHeartbeatRunner(opts: {
       const intervalMs = resolveHeartbeatIntervalMs(cfg, undefined, agent.heartbeat);
       if (!intervalMs) {
         continue;
+      }
+      // Warn once per config update when the interval was clamped due to 32-bit overflow.
+      // The check is done here rather than in resolveHeartbeatIntervalMs to avoid log spam
+      // from health/status polling paths that also call the resolver.
+      if (intervalMs === MAX_SAFE_TIMEOUT_MS) {
+        const raw =
+          agent.heartbeat?.every ??
+          cfg.agents?.defaults?.heartbeat?.every ??
+          DEFAULT_HEARTBEAT_EVERY;
+        const rawMs = raw ? parseDurationMs(String(raw).trim(), { defaultUnit: "m" }) : 0;
+        if (rawMs > MAX_SAFE_TIMEOUT_MS) {
+          log.warn("heartbeat: interval exceeds 32-bit timeout limit; clamping to ~24.8 days", {
+            agentId: agent.agentId,
+            requestedMs: rawMs,
+            clampedMs: MAX_SAFE_TIMEOUT_MS,
+          });
+        }
       }
       intervals.push(intervalMs);
       const prevState = prevAgents.get(agent.agentId);
