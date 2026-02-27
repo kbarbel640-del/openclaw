@@ -1,3 +1,4 @@
+import net from "node:net";
 import path from "node:path";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { getActiveEmbeddedRunCount } from "../agents/pi-embedded-runner/runs.js";
@@ -29,6 +30,7 @@ import {
 import { isDiagnosticsEnabled } from "../infra/diagnostic-events.js";
 import { logAcceptedEnvOption } from "../infra/env.js";
 import { createExecApprovalForwarder } from "../infra/exec-approval-forwarder.js";
+import { GatewayLockError } from "../infra/gateway-lock.js";
 import { onHeartbeatEvent } from "../infra/heartbeat-events.js";
 import { startHeartbeatRunner, type HeartbeatRunner } from "../infra/heartbeat-runner.js";
 import { getMachineDisplayName } from "../infra/machine-name.js";
@@ -426,6 +428,30 @@ export async function startGatewayServer(
   } = runtimeConfig;
   let hooksConfig = runtimeConfig.hooksConfig;
   const canvasHostEnabled = runtimeConfig.canvasHostEnabled;
+
+  // Fail fast: check port availability before heavy runtime state initialization.
+  // Without this, a port conflict + systemd Restart=always creates an infinite
+  // crash loop that can exhaust system resources and kill the host VM.
+  // Uses the resolved bindHost so the probe matches the actual bind address.
+  await new Promise<void>((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        reject(
+          new GatewayLockError(
+            `another gateway instance is already listening on ws://${bindHost}:${port}`,
+            err,
+          ),
+        );
+      } else {
+        reject(err);
+      }
+    });
+    probe.once("listening", () => {
+      probe.close(() => resolve());
+    });
+    probe.listen(port, bindHost);
+  });
 
   // Create auth rate limiters used by connect/auth flows.
   const rateLimitConfig = cfgAtStart.gateway?.auth?.rateLimit;
