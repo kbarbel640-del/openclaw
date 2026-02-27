@@ -6,6 +6,8 @@ export const GATEWAY_SERVICE_MARKER = "openclaw";
 export const GATEWAY_SERVICE_KIND = "gateway";
 export const NODE_LAUNCH_AGENT_LABEL = "ai.openclaw.node";
 export const NODE_SYSTEMD_SERVICE_NAME = "openclaw-node";
+// The macOS menubar companion app LaunchAgent — a client of the gateway, not a gateway itself.
+export const MAC_APP_LAUNCH_AGENT_LABEL = "ai.openclaw.mac";
 export const NODE_WINDOWS_TASK_NAME = "OpenClaw Node";
 export const NODE_SERVICE_MARKER = "openclaw";
 export const NODE_SERVICE_KIND = "node";

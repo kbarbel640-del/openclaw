@@ -1,12 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { findExtraGatewayServices } from "./inspect.js";
 
-const { execSchtasksMock } = vi.hoisted(() => ({
+const { execSchtasksMock, readdirMock, readFileMock } = vi.hoisted(() => ({
   execSchtasksMock: vi.fn(),
+  readdirMock: vi.fn(),
+  readFileMock: vi.fn(),
 }));
 
 vi.mock("./schtasks-exec.js", () => ({
   execSchtasks: (...args: unknown[]) => execSchtasksMock(...args),
+}));
+
+vi.mock("node:fs/promises", () => ({
+  default: { readdir: readdirMock, readFile: readFileMock },
+  readdir: readdirMock,
+  readFile: readFileMock,
 }));
 
 describe("findExtraGatewayServices (win32)", () => {
@@ -83,5 +91,56 @@ describe("findExtraGatewayServices (win32)", () => {
         legacy: true,
       },
     ]);
+  });
+});
+
+// Minimal plist bodies that contain "openclaw" (so detectMarker fires) but are NOT gateways.
+const MAC_APP_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+  <key>Label</key><string>ai.openclaw.mac</string>
+  <key>ProgramArguments</key>
+  <array><string>/Applications/OpenClaw.app/Contents/MacOS/OpenClaw</string></array>
+</dict></plist>`;
+
+const NODE_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+  <key>Label</key><string>ai.openclaw.node</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/openclaw</string>
+    <string>node</string><string>run</string>
+  </array>
+</dict></plist>`;
+
+describe("findExtraGatewayServices (darwin)", () => {
+  const originalPlatform = process.platform;
+
+  beforeEach(() => {
+    Object.defineProperty(process, "platform", { configurable: true, value: "darwin" });
+    readdirMock.mockReset();
+    readFileMock.mockReset();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", {
+      configurable: true,
+      value: originalPlatform,
+    });
+  });
+
+  it("does not flag ai.openclaw.mac (macOS menubar app) as a competing gateway", async () => {
+    readdirMock.mockResolvedValue(["ai.openclaw.mac.plist"]);
+    readFileMock.mockResolvedValue(MAC_APP_PLIST);
+
+    const result = await findExtraGatewayServices({ HOME: "/Users/test" });
+    expect(result).toEqual([]);
+  });
+
+  it("does not flag ai.openclaw.node (node host) as a competing gateway", async () => {
+    readdirMock.mockResolvedValue(["ai.openclaw.node.plist"]);
+    readFileMock.mockResolvedValue(NODE_PLIST);
+
+    const result = await findExtraGatewayServices({ HOME: "/Users/test" });
+    expect(result).toEqual([]);
   });
 });
