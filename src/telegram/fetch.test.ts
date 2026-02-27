@@ -198,6 +198,17 @@ describe("resolveTelegramFetch", () => {
     expect(setDefaultAutoSelectFamily).toHaveBeenCalledWith(true);
   });
 
+  it("does not replace global dispatcher when lowercase proxy envs are configured", async () => {
+    vi.stubEnv("all_proxy", "socks5://127.0.0.1:1082");
+    globalThis.fetch = vi.fn(async () => ({})) as unknown as typeof fetch;
+
+    resolveTelegramFetch(undefined, { network: { autoSelectFamily: true } });
+
+    expect(setGlobalDispatcher).not.toHaveBeenCalled();
+    expect(AgentCtor).not.toHaveBeenCalled();
+    expect(setDefaultAutoSelectFamily).toHaveBeenCalledWith(true);
+  });
+
   it("sets global dispatcher only once across repeated equal decisions", async () => {
     clearProxyEnvsForTest();
     globalThis.fetch = vi.fn(async () => ({})) as unknown as typeof fetch;
