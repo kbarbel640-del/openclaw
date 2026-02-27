@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-// Default required files — constants, extensible to config later
+// Default required files — constants, extensible to config later.
+// Only patterns that universally exist across workspaces belong here;
+// workspace-specific files should be listed in AGENTS.md "Session Startup".
 const DEFAULT_REQUIRED_READS: Array<string | RegExp> = [
-  "WORKFLOW_AUTO.md",
   /memory\/\d{4}-\d{2}-\d{2}\.md/, // daily memory files
 ];
 
@@ -22,6 +23,10 @@ export function auditPostCompactionReads(
   for (const required of requiredReads) {
     if (typeof required === "string") {
       const requiredResolved = path.resolve(workspaceDir, required);
+      // Skip audit for files that don't exist in the workspace
+      if (!fs.existsSync(requiredResolved)) {
+        continue;
+      }
       const found = normalizedReads.some((r) => r === requiredResolved);
       if (!found) {
         missingPatterns.push(required);
