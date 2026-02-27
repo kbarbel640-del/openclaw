@@ -48,6 +48,89 @@ export interface LineHandlerContext {
   runtime: RuntimeEnv;
   mediaMaxBytes: number;
   processMessage: (ctx: LineInboundContext) => Promise<void>;
+  replayCache?: LineWebhookReplayCache;
+}
+
+const LINE_WEBHOOK_REPLAY_WINDOW_MS = 10 * 60 * 1000;
+const LINE_WEBHOOK_REPLAY_MAX_ENTRIES = 4096;
+const LINE_WEBHOOK_REPLAY_PRUNE_INTERVAL_MS = 1000;
+export type LineWebhookReplayCache = {
+  seenEvents: Map<string, number>;
+  lastPruneAtMs: number;
+};
+
+export function createLineWebhookReplayCache(): LineWebhookReplayCache {
+  return {
+    seenEvents: new Map<string, number>(),
+    lastPruneAtMs: 0,
+  };
+}
+
+function pruneLineWebhookReplayCache(cache: LineWebhookReplayCache, nowMs: number): void {
+  const minSeenAt = nowMs - LINE_WEBHOOK_REPLAY_WINDOW_MS;
+  for (const [key, seenAt] of cache.seenEvents) {
+    if (seenAt < minSeenAt) {
+      cache.seenEvents.delete(key);
+    }
+  }
+
+  if (cache.seenEvents.size > LINE_WEBHOOK_REPLAY_MAX_ENTRIES) {
+    const deleteCount = cache.seenEvents.size - LINE_WEBHOOK_REPLAY_MAX_ENTRIES;
+    let deleted = 0;
+    for (const key of cache.seenEvents.keys()) {
+      if (deleted >= deleteCount) {
+        break;
+      }
+      cache.seenEvents.delete(key);
+      deleted += 1;
+    }
+  }
+}
+
+function buildLineWebhookReplayKey(
+  event: WebhookEvent,
+  accountId: string,
+): { key: string; eventId: string } | null {
+  const eventId = (event as { webhookEventId?: string }).webhookEventId?.trim();
+  if (!eventId) {
+    return null;
+  }
+
+  const source = (
+    event as {
+      source?: { type?: string; userId?: string; groupId?: string; roomId?: string };
+    }
+  ).source;
+  const sourceId =
+    source?.type === "group"
+      ? `group:${source.groupId ?? ""}`
+      : source?.type === "room"
+        ? `room:${source.roomId ?? ""}`
+        : `user:${source?.userId ?? ""}`;
+  return { key: `${accountId}|${event.type}|${sourceId}|${eventId}`, eventId };
+}
+
+function shouldSkipLineReplayEvent(event: WebhookEvent, context: LineHandlerContext): boolean {
+  const replay = buildLineWebhookReplayKey(event, context.account.accountId);
+  const cache = context.replayCache;
+  if (!replay || !cache) {
+    return false;
+  }
+
+  const nowMs = Date.now();
+  if (
+    nowMs - cache.lastPruneAtMs >= LINE_WEBHOOK_REPLAY_PRUNE_INTERVAL_MS ||
+    cache.seenEvents.size >= LINE_WEBHOOK_REPLAY_MAX_ENTRIES
+  ) {
+    pruneLineWebhookReplayCache(cache, nowMs);
+    cache.lastPruneAtMs = nowMs;
+  }
+  if (cache.seenEvents.has(replay.key)) {
+    logVerbose(`line: skipped replayed webhook event ${replay.eventId}`);
+    return true;
+  }
+  cache.seenEvents.set(replay.key, nowMs);
+  return false;
 }
 
 function resolveLineGroupConfig(params: {
@@ -319,6 +402,9 @@ export async function handleLineWebhookEvents(
   context: LineHandlerContext,
 ): Promise<void> {
   for (const event of events) {
+    if (shouldSkipLineReplayEvent(event, context)) {
+      continue;
+    }
     try {
       switch (event.type) {
         case "message":

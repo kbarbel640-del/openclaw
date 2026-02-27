@@ -64,6 +64,7 @@ const { readAllowFromStoreMock, upsertPairingRequestMock } = vi.hoisted(() => ({
 }));
 
 let handleLineWebhookEvents: typeof import("./bot-handlers.js").handleLineWebhookEvents;
+let createLineWebhookReplayCache: typeof import("./bot-handlers.js").createLineWebhookReplayCache;
 
 const createRuntime = () => ({ log: vi.fn(), error: vi.fn(), exit: vi.fn() });
 
@@ -74,7 +75,7 @@ vi.mock("../pairing/pairing-store.js", () => ({
 
 describe("handleLineWebhookEvents", () => {
   beforeAll(async () => {
-    ({ handleLineWebhookEvents } = await import("./bot-handlers.js"));
+    ({ handleLineWebhookEvents, createLineWebhookReplayCache } = await import("./bot-handlers.js"));
   });
 
   beforeEach(() => {
@@ -247,5 +248,41 @@ describe("handleLineWebhookEvents", () => {
 
     expect(processMessage).not.toHaveBeenCalled();
     expect(buildLineMessageContextMock).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates replayed webhook events by webhookEventId before processing", async () => {
+    const processMessage = vi.fn();
+    const event = {
+      type: "message",
+      message: { id: "m-replay", type: "text", text: "hello" },
+      replyToken: "reply-token",
+      timestamp: Date.now(),
+      source: { type: "group", groupId: "group-replay", userId: "user-replay" },
+      mode: "active",
+      webhookEventId: "evt-replay-1",
+      deliveryContext: { isRedelivery: true },
+    } as MessageEvent;
+
+    const context: Parameters<typeof handleLineWebhookEvents>[1] = {
+      cfg: { channels: { line: { groupPolicy: "open" } } },
+      account: {
+        accountId: "default",
+        enabled: true,
+        channelAccessToken: "token",
+        channelSecret: "secret",
+        tokenSource: "config",
+        config: { groupPolicy: "open" },
+      },
+      runtime: createRuntime(),
+      mediaMaxBytes: 1,
+      processMessage,
+      replayCache: createLineWebhookReplayCache(),
+    };
+
+    await handleLineWebhookEvents([event], context);
+    await handleLineWebhookEvents([event], context);
+
+    expect(buildLineMessageContextMock).toHaveBeenCalledTimes(1);
+    expect(processMessage).toHaveBeenCalledTimes(1);
   });
 });
