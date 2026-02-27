@@ -289,9 +289,9 @@ async function reannounceAttachedTabs() {
       )
       targetInfo = info?.targetInfo
     } catch {
-      // Target.getTargetInfo failed — debugger lost the tab info.
-      // Tab state remains valid (Runtime.evaluate succeeded above); proceed
-      // with whatever targetInfo we have cached and let the relay use it.
+      // Target.getTargetInfo failed. Preserve at least targetId from
+      // cached tab state so relay receives a stable identifier.
+      targetInfo = tab.targetId ? { targetId: tab.targetId } : undefined
     }
 
     try {
