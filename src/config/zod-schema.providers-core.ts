@@ -36,6 +36,8 @@ import { sensitive } from "./zod-schema.sensitive.js";
 
 const ToolPolicyBySenderSchema = z.record(z.string(), ToolPolicySchema).optional();
 
+export const RequireMentionSchema = z.union([z.boolean(), z.literal("monitor")]).optional();
+
 const DiscordIdSchema = z
   .union([z.string(), z.number()])
   .refine((value) => typeof value === "string", {
@@ -56,7 +58,7 @@ const TelegramCapabilitiesSchema = z.union([
 
 export const TelegramTopicSchema = z
   .object({
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     groupPolicy: GroupPolicySchema.optional(),
     skills: z.array(z.string()).optional(),
     enabled: z.boolean().optional(),
@@ -67,7 +69,7 @@ export const TelegramTopicSchema = z
 
 export const TelegramGroupSchema = z
   .object({
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     groupPolicy: GroupPolicySchema.optional(),
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
@@ -347,7 +349,7 @@ export const DiscordDmSchema = z
 export const DiscordGuildChannelSchema = z
   .object({
     allow: z.boolean().optional(),
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     skills: z.array(z.string()).optional(),
@@ -363,7 +365,7 @@ export const DiscordGuildChannelSchema = z
 export const DiscordGuildSchema = z
   .object({
     slug: z.string().optional(),
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
@@ -636,7 +638,7 @@ export const GoogleChatGroupSchema = z
   .object({
     enabled: z.boolean().optional(),
     allow: z.boolean().optional(),
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     users: z.array(z.union([z.string(), z.number()])).optional(),
     systemPrompt: z.string().optional(),
   })
@@ -650,7 +652,7 @@ export const GoogleChatAccountSchema = z
     configWrites: z.boolean().optional(),
     allowBots: z.boolean().optional(),
     dangerouslyAllowNameMatching: z.boolean().optional(),
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     groupPolicy: GroupPolicySchema.optional().default("allowlist"),
     groupAllowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     groups: z.record(z.string(), GoogleChatGroupSchema.optional()).optional(),
@@ -708,7 +710,7 @@ export const SlackChannelSchema = z
   .object({
     enabled: z.boolean().optional(),
     allow: z.boolean().optional(),
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     allowBots: z.boolean().optional(),
@@ -751,7 +753,7 @@ export const SlackAccountSchema = z
     userTokenReadOnly: z.boolean().optional().default(true),
     allowBots: z.boolean().optional(),
     dangerouslyAllowNameMatching: z.boolean().optional(),
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     groupPolicy: GroupPolicySchema.optional(),
     historyLimit: z.number().int().min(0).optional(),
     dmHistoryLimit: z.number().int().min(0).optional(),
@@ -991,7 +993,7 @@ export const SignalConfigSchema = SignalAccountSchemaBase.extend({
 
 export const IrcGroupSchema = z
   .object({
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     skills: z.array(z.string()).optional(),
@@ -1162,7 +1164,7 @@ export const IMessageAccountSchemaBase = z
         z.string(),
         z
           .object({
-            requireMention: z.boolean().optional(),
+            requireMention: RequireMentionSchema,
             tools: ToolPolicySchema,
             toolsBySender: ToolPolicyBySenderSchema,
           })
@@ -1249,7 +1251,7 @@ const BlueBubblesActionSchema = z
 
 const BlueBubblesGroupConfigSchema = z
   .object({
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
   })
@@ -1341,7 +1343,7 @@ export const BlueBubblesConfigSchema = BlueBubblesAccountSchemaBase.extend({
 
 export const MSTeamsChannelSchema = z
   .object({
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     replyStyle: MSTeamsReplyStyleSchema.optional(),
@@ -1350,7 +1352,7 @@ export const MSTeamsChannelSchema = z
 
 export const MSTeamsTeamSchema = z
   .object({
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     replyStyle: MSTeamsReplyStyleSchema.optional(),
@@ -1385,7 +1387,7 @@ export const MSTeamsConfigSchema = z
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     mediaAllowHosts: z.array(z.string()).optional(),
     mediaAuthAllowHosts: z.array(z.string()).optional(),
-    requireMention: z.boolean().optional(),
+    requireMention: RequireMentionSchema,
     historyLimit: z.number().int().min(0).optional(),
     dmHistoryLimit: z.number().int().min(0).optional(),
     dms: z.record(z.string(), DmConfigSchema.optional()).optional(),
