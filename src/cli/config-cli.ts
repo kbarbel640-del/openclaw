@@ -3,6 +3,7 @@ import JSON5 from "json5";
 import { readConfigFileSnapshot, writeConfigFile } from "../config/config.js";
 import { isBlockedObjectKey } from "../config/prototype-keys.js";
 import { redactConfigObject } from "../config/redact-snapshot.js";
+import { buildConfigSchema } from "../config/schema.js";
 import { danger, info } from "../globals.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
@@ -247,7 +248,8 @@ export async function runConfigGet(opts: { path: string; json?: boolean; runtime
   try {
     const parsedPath = parseRequiredPath(opts.path);
     const snapshot = await loadValidConfig(runtime);
-    const redacted = redactConfigObject(snapshot.config);
+    const { uiHints } = buildConfigSchema();
+    const redacted = redactConfigObject(snapshot.config, uiHints);
     const res = getAtPath(redacted, parsedPath);
     if (!res.found) {
       runtime.error(danger(`Config path not found: ${opts.path}`));
