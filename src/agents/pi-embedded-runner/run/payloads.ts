@@ -73,6 +73,12 @@ function resolveToolErrorWarningPolicy(params: {
   if (normalizedToolName === "sessions_send") {
     return { showWarning: false, includeDetails };
   }
+  // When the user asked to suppress tool errors and we already have a
+  // user-facing assistant reply, keep the reply visible instead of appending
+  // a mutating-tool warning that can dominate the final output.
+  if (params.suppressToolErrors && params.hasUserFacingReply) {
+    return false;
+  }
   const isMutatingToolError =
     params.lastToolError.mutatingAction ?? isLikelyMutatingToolName(params.lastToolError.toolName);
   if (isMutatingToolError) {
