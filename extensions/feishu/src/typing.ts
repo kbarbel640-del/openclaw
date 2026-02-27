@@ -79,7 +79,7 @@ export async function removeTypingIndicator(params: {
       },
     });
   } catch (err) {
-    // Re-throw rate-limit / quota errors so the circuit breaker can trip (#28062).
+    // Re-throw rate-limit / quota errors so callers (onStopError) can observe them (#28062).
     if (isRateLimitError(err)) {
       throw err;
     }
@@ -90,9 +90,10 @@ export async function removeTypingIndicator(params: {
 
 /**
  * Detect Feishu rate-limit or quota-exceeded errors (HTTP 429 / error code 99991403).
- * These must propagate to the circuit breaker to stop the keepalive loop.
+ * These must propagate so the circuit breaker (for start) or error handlers (for stop)
+ * can observe them instead of being silently swallowed.
  */
-function isRateLimitError(err: unknown): boolean {
+export function isRateLimitError(err: unknown): boolean {
   if (typeof err !== "object" || err === null) {
     return false;
   }
