@@ -147,10 +147,11 @@ async function fetchHttpJson<T>(
 
   const t = setTimeout(() => ctrl.abort(new Error("timed out")), timeoutMs);
   try {
-    const res = await retryHttpAsync(() => fetch(url, { ...init, signal: ctrl.signal }), {
+    const result = await retryHttpAsync(() => fetch(url, { ...init, signal: ctrl.signal }), {
       label: "browser-fetch-http-json",
+      transformResponse: async (res) => await res.json(),
     });
-    return (await res.json()) as T;
+    return result;
   } finally {
     clearTimeout(t);
     if (upstreamSignal && upstreamAbortListener) {
