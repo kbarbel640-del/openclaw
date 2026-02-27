@@ -516,9 +516,18 @@ async function resolveExecRefs(params: {
   }
 
   const timeoutMs = normalizePositiveInt(params.providerConfig.timeoutMs, DEFAULT_EXEC_TIMEOUT_MS);
+  // When noOutputTimeoutMs is not explicitly configured, fall back to the
+  // resolved timeoutMs so the no-output watchdog never fires earlier than the
+  // overall timeout the user requested.  This prevents a situation where a user
+  // sets timeoutMs: 10_000 but the provider is killed after only 2 000 ms of
+  // silence (the previous hard-coded default).
+  const noOutputFallback =
+    params.providerConfig.noOutputTimeoutMs == null && params.providerConfig.timeoutMs != null
+      ? timeoutMs
+      : DEFAULT_EXEC_NO_OUTPUT_TIMEOUT_MS;
   const noOutputTimeoutMs = normalizePositiveInt(
     params.providerConfig.noOutputTimeoutMs,
-    DEFAULT_EXEC_NO_OUTPUT_TIMEOUT_MS,
+    noOutputFallback,
   );
   const maxOutputBytes = normalizePositiveInt(
     params.providerConfig.maxOutputBytes,

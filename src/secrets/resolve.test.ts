@@ -533,4 +533,51 @@ describe("secret ref resolver", () => {
       ),
     ).rejects.toThrow('has source "env" but ref requests "exec"');
   });
+
+  it("exec provider respects timeoutMs as no-output fallback when noOutputTimeoutMs is omitted", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "openclaw-secrets-resolve-exec-timeout-fallback-"),
+    );
+    cleanupRoots.push(root);
+    // Script that waits 2.5 s before producing output — longer than the 2 s
+    // default no-output timeout but shorter than the 5 s timeoutMs we set.
+    const scriptPath = path.join(root, "slow-resolver.mjs");
+    await writeSecureFile(
+      scriptPath,
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        "const req = JSON.parse(fs.readFileSync(0, 'utf8'));",
+        "setTimeout(() => {",
+        "  const values = Object.fromEntries((req.ids ?? []).map((id) => [id, `v:${id}`]));",
+        "  process.stdout.write(JSON.stringify({ protocolVersion: 1, values }));",
+        "}, 2500);",
+      ].join("\n"),
+      0o700,
+    );
+
+    // With timeoutMs: 5000 and noOutputTimeoutMs omitted, the fallback should
+    // be 5000 (not the old 2000 default), so the 2.5 s delay succeeds.
+    const value = await resolveSecretRefString(
+      { source: "exec", provider: "execmain", id: "openai/api-key" },
+      {
+        config: {
+          secrets: {
+            providers: {
+              execmain: {
+                source: "exec",
+                command: scriptPath,
+                passEnv: ["PATH"],
+                timeoutMs: 5_000,
+              },
+            },
+          },
+        },
+      },
+    );
+    expect(value).toBe("v:openai/api-key");
+  }, 10_000);
 });
