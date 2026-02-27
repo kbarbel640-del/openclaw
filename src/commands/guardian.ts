@@ -14,10 +14,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { intro, outro, spinner, note, confirm, isCancel } from "@clack/prompts";
-import { resolveGatewayService } from "../daemon/service.js";
-import { callGateway } from "../gateway/call.js";
 import { readConfigFileSnapshot } from "../config/config.js";
 import { STATE_DIR, CONFIG_PATH } from "../config/paths.js";
+import { resolveGatewayService } from "../daemon/service.js";
+import { callGateway } from "../gateway/call.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { theme } from "../terminal/theme.js";
 
@@ -253,7 +253,9 @@ export async function guardianRestore(
 
   const interactive = !opts.nonInteractive && !opts.yes;
   if (interactive) {
-    const ok = await confirm({ message: "Restore this snapshot? (current config will be saved first)" });
+    const ok = await confirm({
+      message: "Restore this snapshot? (current config will be saved first)",
+    });
     if (isCancel(ok) || !ok) {
       outro("Cancelled.");
       return;
@@ -300,9 +302,7 @@ export function guardianList(_runtime: RuntimeEnv): void {
   }
 
   const col = (s: string, w: number) => s.slice(0, w).padEnd(w);
-  console.log(
-    `\n${col("ID", 20)} ${col("Tag", 14)} ${col("Status", 6)} ${col("Hash", 14)} Files`,
-  );
+  console.log(`\n${col("ID", 20)} ${col("Tag", 14)} ${col("Status", 6)} ${col("Hash", 14)} Files`);
   console.log("─".repeat(70));
 
   for (const s of meta.snapshots) {
@@ -314,7 +314,9 @@ export function guardianList(_runtime: RuntimeEnv): void {
     );
   }
 
-  console.log(`\nTotal: ${meta.snapshots.length}  |  Latest healthy: ${meta.lastHealthyId ?? "none"}\n`);
+  console.log(
+    `\nTotal: ${meta.snapshots.length}  |  Latest healthy: ${meta.lastHealthyId ?? "none"}\n`,
+  );
 }
 
 // ─── diff ─────────────────────────────────────────────────────────────────────
@@ -343,9 +345,7 @@ export function guardianDiff(runtime: RuntimeEnv, opts: { target?: string }): vo
   // Show JSON diff of openclaw.json
   try {
     const current = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
-    const saved = JSON.parse(
-      fs.readFileSync(path.join(snapDir, "openclaw.json"), "utf8"),
-    );
+    const saved = JSON.parse(fs.readFileSync(path.join(snapDir, "openclaw.json"), "utf8"));
     const diffLines = jsonDiff(saved, current);
     if (diffLines.length > 0) {
       console.log("\nKey differences (snapshot → current):");
@@ -389,10 +389,7 @@ function jsonDiff(a: unknown, b: unknown, prefix = ""): string[] {
 
 // ─── prune ────────────────────────────────────────────────────────────────────
 
-export function guardianPrune(
-  runtime: RuntimeEnv,
-  opts: Pick<GuardianOptions, "keep">,
-): void {
+export function guardianPrune(runtime: RuntimeEnv, opts: Pick<GuardianOptions, "keep">): void {
   const keep = opts.keep ?? 10;
   const meta = loadMeta();
 
@@ -436,14 +433,20 @@ export async function guardianStatus(_runtime: RuntimeEnv): Promise<void> {
 
   console.log("\nSnapshots:");
   console.log(`  Total:              ${meta.snapshots.length}`);
-  console.log(`  Latest healthy:     ${latestHealthy?.id ?? "none"}${latestHealthy?.tag ? ` (${latestHealthy.tag})` : ""}`);
-  console.log(`  Most recent:        ${latest?.id ?? "none"}${latest?.healthy ? " ✅" : latest ? " ⚠️" : ""}`);
+  console.log(
+    `  Latest healthy:     ${latestHealthy?.id ?? "none"}${latestHealthy?.tag ? ` (${latestHealthy.tag})` : ""}`,
+  );
+  console.log(
+    `  Most recent:        ${latest?.id ?? "none"}${latest?.healthy ? " ✅" : latest ? " ⚠️" : ""}`,
+  );
 
   const currentHash = fileHash(CONFIG_PATH);
   console.log(`  Current cfg hash:   ${currentHash}`);
   if (latestHealthy) {
     const match = currentHash === latestHealthy.configHash;
-    console.log(`  Matches snapshot:   ${match ? "✅ yes" : "⚠️  no (config changed since last snapshot)"}`);
+    console.log(
+      `  Matches snapshot:   ${match ? "✅ yes" : "⚠️  no (config changed since last snapshot)"}`,
+    );
   }
   console.log();
 }
