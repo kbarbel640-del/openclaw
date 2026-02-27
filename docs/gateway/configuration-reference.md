@@ -158,6 +158,7 @@ WhatsApp runs through the gateway's web channel (Baileys Web). It starts automat
       streaming: "partial", // off | partial | block | progress (default: off)
       actions: { reactions: true, sendMessage: true },
       reactionNotifications: "own", // off | own | all
+      reactionTrigger: "off", // off | own | all
       mediaMaxMb: 5,
       retry: {
         attempts: 3,
@@ -219,6 +220,7 @@ WhatsApp runs through the gateway's web channel (Baileys Web). It starts automat
           slug: "friends-of-openclaw",
           requireMention: false,
           reactionNotifications: "own",
+          reactionTrigger: "off", // off | own | all | allowlist
           users: ["987654321098765432"],
           channels: {
             general: { allow: true },
@@ -291,6 +293,8 @@ WhatsApp runs through the gateway's web channel (Baileys Web). It starts automat
 
 **Reaction notification modes:** `off` (none), `own` (bot's messages, default), `all` (all messages), `allowlist` (from `guilds.<id>.users` on all messages).
 
+**Reaction trigger modes (`reactionTrigger`):** Controls whether a reaction immediately wakes the agent session instead of waiting for the next message or heartbeat. Values: `off` (default — no immediate wake), `own` (wake only for reactions on the bot's own messages), `all` (wake on any reaction). Discord and Signal also support `allowlist`. This is independent of `reactionNotifications` — notifications control which reactions create system events, while trigger controls whether they also wake the agent. Note: on Slack Free workspaces, reaction events are not delivered by the Slack API, so this setting has no effect.
+
 ### Google Chat
 
 ```json5
@@ -352,6 +356,7 @@ WhatsApp runs through the gateway's web channel (Baileys Web). It starts automat
       historyLimit: 50,
       allowBots: false,
       reactionNotifications: "own",
+      reactionTrigger: "off", // off | own | all | allowlist
       reactionAllowlist: ["U123"],
       replyToMode: "off", // off | first | all
       thread: {
@@ -429,6 +434,7 @@ Chat modes: `oncall` (respond on @-mention, default), `onmessage` (every message
   channels: {
     signal: {
       reactionNotifications: "own", // off | own | all | allowlist
+      reactionTrigger: "off", // off | own | all | allowlist
       reactionAllowlist: ["+15551234567", "uuid:123e4567-e89b-12d3-a456-426614174000"],
       historyLimit: 50,
     },
