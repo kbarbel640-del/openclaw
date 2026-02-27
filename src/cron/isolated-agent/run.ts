@@ -433,6 +433,7 @@ export async function runCronIsolatedAgentTurn(params: {
             sessionId: cronSession.sessionEntry.sessionId,
             sessionKey: agentSessionKey,
             agentId,
+            agentDir,
             sessionFile,
             workspaceDir,
             config: cfgWithAgentDefaults,
