@@ -69,6 +69,10 @@ const STICKER_REPLY_EMOJI_FALLBACK = "🙂";
 const STICKER_REPLY_EMOJI_LIMIT = 3;
 
 type ZaloCoreRuntime = ReturnType<typeof getZaloRuntime>;
+type SendRetryControl = {
+  abortSignal?: AbortSignal;
+  isStopped?: () => boolean;
+};
 
 function waitForAbort(signal: AbortSignal): Promise<void> {
   if (signal.aborted) {
@@ -83,6 +87,39 @@ function logVerbose(core: ZaloCoreRuntime, runtime: ZaloRuntimeEnv, message: str
   if (core.logging.shouldLogVerbose()) {
     runtime.log?.(`[zalo] ${message}`);
   }
+}
+
+function isSendRetryCancelled(control?: SendRetryControl): boolean {
+  return Boolean(control?.abortSignal?.aborted || control?.isStopped?.());
+}
+
+function createSendRetryAbortError(actionLabel: string): ZaloApiAbortError {
+  return new ZaloApiAbortError(`${actionLabel} aborted`, "aborted");
+}
+
+function waitForRetryDelay(
+  delayMs: number,
+  abortSignal?: AbortSignal,
+): Promise<"elapsed" | "aborted"> {
+  if (!abortSignal) {
+    return new Promise<"elapsed">((resolve) => {
+      setTimeout(() => resolve("elapsed"), delayMs);
+    });
+  }
+  if (abortSignal.aborted) {
+    return Promise.resolve("aborted");
+  }
+  return new Promise<"elapsed" | "aborted">((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve("aborted");
+    };
+    const timer = setTimeout(() => {
+      abortSignal.removeEventListener("abort", onAbort);
+      resolve("elapsed");
+    }, delayMs);
+    abortSignal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function isAbortError(err: unknown): boolean {
@@ -126,12 +163,19 @@ async function runWithSendRetry<T>(params: {
   accountId: string;
   actionLabel: string;
   operation: () => Promise<T>;
+  sendRetryControl?: SendRetryControl;
 }): Promise<T> {
-  const { runtime, accountId, actionLabel, operation } = params;
+  const { runtime, accountId, actionLabel, operation, sendRetryControl } = params;
   for (let attempt = 0; ; attempt++) {
+    if (isSendRetryCancelled(sendRetryControl)) {
+      throw createSendRetryAbortError(actionLabel);
+    }
     try {
       return await operation();
     } catch (error) {
+      if (isSendRetryCancelled(sendRetryControl)) {
+        throw createSendRetryAbortError(actionLabel);
+      }
       if (attempt >= SEND_RETRY_DELAYS_MS.length || !isRetryableSendError(error)) {
         throw error;
       }
@@ -141,7 +185,10 @@ async function runWithSendRetry<T>(params: {
           SEND_RETRY_DELAYS_MS.length + 1
         }): ${String(error)}; retrying in ${delayMs}ms`,
       );
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      const waitResult = await waitForRetryDelay(delayMs, sendRetryControl?.abortSignal);
+      if (waitResult === "aborted" || isSendRetryCancelled(sendRetryControl)) {
+        throw createSendRetryAbortError(actionLabel);
+      }
     }
   }
 }
@@ -165,6 +212,10 @@ export async function handleZaloWebhookRequest(
       target.mediaMaxMb,
       target.statusSink,
       target.fetcher,
+      {
+        abortSignal: target.abortSignal,
+        isStopped: target.isStopped,
+      },
     );
   });
 }
@@ -218,6 +269,7 @@ function startPollingLoop(params: {
           mediaMaxMb,
           statusSink,
           fetcher,
+          { abortSignal, isStopped },
         );
       }
     } catch (err) {
@@ -263,6 +315,7 @@ async function processUpdate(
   mediaMaxMb: number,
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void,
   fetcher?: ZaloFetch,
+  sendRetryControl?: SendRetryControl,
 ): Promise<void> {
   const { event_name, message } = update;
   if (!message) {
@@ -282,7 +335,17 @@ async function processUpdate(
 
   switch (event_name) {
     case "message.text.received":
-      await handleTextMessage(message, token, account, config, runtime, core, statusSink, fetcher);
+      await handleTextMessage(
+        message,
+        token,
+        account,
+        config,
+        runtime,
+        core,
+        statusSink,
+        fetcher,
+        sendRetryControl,
+      );
       break;
     case "message.image.received":
       await handleImageMessage(
@@ -296,10 +359,21 @@ async function processUpdate(
         mediaMaxMb,
         statusSink,
         fetcher,
+        sendRetryControl,
       );
       break;
     case "message.link.received":
-      await handleTextMessage(message, token, account, config, runtime, core, statusSink, fetcher);
+      await handleTextMessage(
+        message,
+        token,
+        account,
+        config,
+        runtime,
+        core,
+        statusSink,
+        fetcher,
+        sendRetryControl,
+      );
       break;
     case "message.sticker.received":
       await handleStickerMessage(
@@ -313,6 +387,7 @@ async function processUpdate(
         mediaMaxMb,
         statusSink,
         fetcher,
+        sendRetryControl,
       );
       break;
     case "message.reaction.received":
@@ -331,6 +406,7 @@ async function processUpdate(
         core,
         statusSink,
         fetcher,
+        sendRetryControl,
       );
       break;
     default:
@@ -360,6 +436,7 @@ async function enforceInboundDirectAccess(params: {
   rawBody: string;
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
   fetcher?: ZaloFetch;
+  sendRetryControl?: SendRetryControl;
 }): Promise<{
   allowed: boolean;
   isGroup: boolean;
@@ -368,7 +445,18 @@ async function enforceInboundDirectAccess(params: {
   senderName?: string;
   commandAuthorized: boolean | undefined;
 }> {
-  const { message, token, account, config, runtime, core, rawBody, statusSink, fetcher } = params;
+  const {
+    message,
+    token,
+    account,
+    config,
+    runtime,
+    core,
+    rawBody,
+    statusSink,
+    fetcher,
+    sendRetryControl,
+  } = params;
   const pairing = createScopedPairingAccess({
     core,
     channel: "zalo",
@@ -459,6 +547,7 @@ async function enforceInboundDirectAccess(params: {
                 },
                 fetcher,
               ),
+            sendRetryControl,
           });
           statusSink?.({ lastOutboundAt: Date.now() });
         } catch (err) {
@@ -502,6 +591,7 @@ async function handleUnsupportedMessage(
   core: ZaloCoreRuntime,
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void,
   fetcher?: ZaloFetch,
+  sendRetryControl?: SendRetryControl,
 ): Promise<void> {
   runtime.log?.(
     `[${account.accountId}] [zalo] Unsupported event payload: ${formatUpdateForLog(update)}`,
@@ -516,6 +606,7 @@ async function handleUnsupportedMessage(
     rawBody: `<unsupported:${update.event_name}>`,
     statusSink,
     fetcher,
+    sendRetryControl,
   });
   if (!access.allowed) {
     return;
@@ -536,6 +627,7 @@ async function handleUnsupportedMessage(
           },
           fetcher,
         ),
+      sendRetryControl,
     });
     statusSink?.({ lastOutboundAt: Date.now() });
   } catch (error) {
@@ -554,6 +646,7 @@ async function handleTextMessage(
   core: ZaloCoreRuntime,
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void,
   fetcher?: ZaloFetch,
+  sendRetryControl?: SendRetryControl,
 ): Promise<void> {
   const text = resolveInboundText(message);
   if (!text) {
@@ -572,6 +665,7 @@ async function handleTextMessage(
     mediaType: undefined,
     statusSink,
     fetcher,
+    sendRetryControl,
   });
 }
 
@@ -586,6 +680,7 @@ async function handleImageMessage(
   mediaMaxMb: number,
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void,
   fetcher?: ZaloFetch,
+  sendRetryControl?: SendRetryControl,
 ): Promise<void> {
   const { caption } = message;
   runtime.log?.(
@@ -651,6 +746,7 @@ async function handleImageMessage(
     mediaType,
     statusSink,
     fetcher,
+    sendRetryControl,
   });
 }
 
@@ -689,6 +785,7 @@ async function handleStickerMessage(
   mediaMaxMb: number,
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void,
   fetcher?: ZaloFetch,
+  sendRetryControl?: SendRetryControl,
 ): Promise<void> {
   runtime.log?.(
     `[${account.accountId}] [zalo] Sticker event payload: ${formatUpdateForLog(update)}`,
@@ -737,6 +834,7 @@ async function handleStickerMessage(
     stickerReplyEmojiOnly: true,
     statusSink,
     fetcher,
+    sendRetryControl,
   });
 }
 
@@ -753,6 +851,7 @@ async function processMessageWithPipeline(params: {
   stickerReplyEmojiOnly?: boolean;
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
   fetcher?: ZaloFetch;
+  sendRetryControl?: SendRetryControl;
 }): Promise<void> {
   const {
     message,
@@ -767,6 +866,7 @@ async function processMessageWithPipeline(params: {
     stickerReplyEmojiOnly,
     statusSink,
     fetcher,
+    sendRetryControl,
   } = params;
   const { message_id, date } = message;
   const rawBody = text?.trim() || (mediaPath ? "<media:image>" : "");
@@ -780,6 +880,7 @@ async function processMessageWithPipeline(params: {
     rawBody,
     statusSink,
     fetcher,
+    sendRetryControl,
   });
   if (!access.allowed) {
     return;
@@ -886,6 +987,7 @@ async function processMessageWithPipeline(params: {
           statusSink,
           fetcher,
           tableMode,
+          sendRetryControl,
         });
       },
       onError: (err, info) => {
@@ -910,6 +1012,7 @@ async function deliverZaloReply(params: {
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
   fetcher?: ZaloFetch;
   tableMode?: MarkdownTableMode;
+  sendRetryControl?: SendRetryControl;
 }): Promise<void> {
   const {
     payload,
@@ -922,6 +1025,7 @@ async function deliverZaloReply(params: {
     stickerReplyEmojiOnly,
     statusSink,
     fetcher,
+    sendRetryControl,
   } = params;
   const tableMode = params.tableMode ?? "code";
   const convertedText = core.channel.text.convertMarkdownTables(payload.text ?? "", tableMode);
@@ -937,6 +1041,7 @@ async function deliverZaloReply(params: {
         accountId: accountId ?? "default",
         actionLabel: "send photo",
         operation: () => sendPhoto(token, { chat_id: chatId, photo: mediaUrl, caption }, fetcher),
+        sendRetryControl,
       });
       statusSink?.({ lastOutboundAt: Date.now() });
     },
@@ -958,6 +1063,7 @@ async function deliverZaloReply(params: {
           accountId: accountId ?? "default",
           actionLabel: "send message",
           operation: () => sendMessage(token, { chat_id: chatId, text: chunk }, fetcher),
+          sendRetryControl,
         });
         statusSink?.({ lastOutboundAt: Date.now() });
       } catch (err) {
@@ -1032,6 +1138,8 @@ export async function monitorZaloProvider(options: ZaloMonitorOptions): Promise<
       statusSink: (patch) => statusSink?.(patch),
       mediaMaxMb: effectiveMediaMaxMb,
       fetcher,
+      abortSignal,
+      isStopped: () => stopped,
     });
     stopHandlers.push(unregister);
     abortSignal.addEventListener(
@@ -1126,6 +1234,7 @@ export const __testing = {
   describeInboundImagePayload,
   formatUpdateForLog,
   isRetryableSendError,
+  runWithSendRetry,
   toEmojiOnlyReplyText,
   processUpdateForTesting,
   resolveInboundImageUrl,
