@@ -15,10 +15,17 @@ const requiredPathGroups = [
   "dist/build-info.json",
 ];
 const forbiddenPrefixes = ["dist/OpenClaw.app/"];
+const appcastPath = resolve("appcast.xml");
 
 type PackageJson = {
   name?: string;
   version?: string;
+};
+
+type CalverSparkleFloors = {
+  dateKey: number;
+  legacyFloor: number;
+  laneFloor: number;
 };
 
 function normalizePluginSyncVersion(version: string): string {
@@ -87,8 +94,119 @@ function checkPluginVersions() {
   }
 }
 
+function sparkleFloorsFromShortVersion(shortVersion: string): CalverSparkleFloors | null {
+  const match = /^([0-9]{4})\.([0-9]{1,2})\.([0-9]{1,2})([.-].*)?$/.exec(shortVersion.trim());
+  if (!match) {
+    return null;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+
+  const dateKey = Number(`${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`);
+  const legacyFloor = Number(`${dateKey}0`);
+
+  // Must stay aligned with canonical_build_from_version in scripts/package-mac-app.sh.
+  const suffix = match[4] ?? "";
+  let lane = 90;
+  if (suffix.length > 0) {
+    const numericSuffix = /([0-9]+)$/.exec(suffix)?.[1];
+    if (numericSuffix) {
+      lane = Math.min(Number.parseInt(numericSuffix, 10), 89);
+    } else {
+      lane = 1;
+    }
+  }
+
+  const laneFloor = Number(`${dateKey}${String(lane).padStart(2, "0")}`);
+  return { dateKey, legacyFloor, laneFloor };
+}
+
+function extractTag(item: string, tag: string): string | null {
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`<${escapedTag}>([^<]+)</${escapedTag}>`);
+  return regex.exec(item)?.[1]?.trim() ?? null;
+}
+
+function checkAppcastSparkleVersions() {
+  const xml = readFileSync(appcastPath, "utf8");
+  const itemMatches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)];
+  const errors: string[] = [];
+  const calverItems: Array<{ title: string; sparkleBuild: number; floors: CalverSparkleFloors }> =
+    [];
+
+  if (itemMatches.length === 0) {
+    errors.push("appcast.xml contains no <item> entries.");
+  }
+
+  for (const [, item] of itemMatches) {
+    const title = extractTag(item, "title") ?? "unknown";
+    const shortVersion = extractTag(item, "sparkle:shortVersionString");
+    const sparkleVersion = extractTag(item, "sparkle:version");
+
+    if (!sparkleVersion) {
+      errors.push(`appcast item '${title}' is missing sparkle:version.`);
+      continue;
+    }
+    if (!/^[0-9]+$/.test(sparkleVersion)) {
+      errors.push(`appcast item '${title}' has non-numeric sparkle:version '${sparkleVersion}'.`);
+      continue;
+    }
+
+    if (!shortVersion) {
+      continue;
+    }
+    const floors = sparkleFloorsFromShortVersion(shortVersion);
+    if (floors === null) {
+      continue;
+    }
+
+    const sparkleBuild = Number(sparkleVersion);
+    calverItems.push({ title, sparkleBuild, floors });
+  }
+
+  const adoptionDateKey = calverItems
+    .filter((item) => item.sparkleBuild >= 1_000_000_000)
+    .map((item) => item.floors.dateKey)
+    .toSorted((a, b) => a - b)[0];
+
+  for (const item of calverItems) {
+    const expectLaneFloor =
+      item.sparkleBuild >= 1_000_000_000 ||
+      (typeof adoptionDateKey === "number" && item.floors.dateKey >= adoptionDateKey);
+    const floor = expectLaneFloor ? item.floors.laneFloor : item.floors.legacyFloor;
+
+    if (item.sparkleBuild < floor) {
+      const floorLabel = expectLaneFloor ? "lane floor" : "legacy floor";
+      errors.push(
+        `appcast item '${item.title}' has sparkle:version ${item.sparkleBuild} below ${floorLabel} ${floor}.`,
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error("release-check: appcast sparkle version validation failed:");
+    for (const error of errors) {
+      console.error(`  - ${error}`);
+    }
+    process.exit(1);
+  }
+}
+
 function main() {
   checkPluginVersions();
+  checkAppcastSparkleVersions();
 
   const results = runPackDry();
   const files = results.flatMap((entry) => entry.files ?? []);
