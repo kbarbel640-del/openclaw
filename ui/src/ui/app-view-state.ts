@@ -66,6 +66,8 @@ export type AppViewState = {
   chatMessage: string;
   chatAttachments: ChatAttachment[];
   chatMessages: unknown[];
+  chatInputHistory: string[];
+  chatInputHistoryIndex: number;
   chatToolMessages: unknown[];
   chatStream: string | null;
   chatStreamStartedAt: number | null;
@@ -313,6 +315,7 @@ export type AppViewState = {
   setChatMessage: (next: string) => void;
   handleSendChat: (messageOverride?: string, opts?: { restoreDraft?: boolean }) => Promise<void>;
   handleAbortChat: () => Promise<void>;
+  handleInputHistoryNavigate: (direction: "up" | "down") => void;
   removeQueuedMessage: (id: string) => void;
   handleChatScroll: (event: Event) => void;
   resetToolStream: () => void;
