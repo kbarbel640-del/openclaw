@@ -186,9 +186,15 @@ export async function ensureSessionHeader(params: {
 
 export function buildBootstrapContextFiles(
   files: WorkspaceBootstrapFile[],
-  opts?: { warn?: (message: string) => void; maxChars?: number; totalMaxChars?: number },
+  opts?: {
+    warn?: (message: string) => void;
+    maxChars?: number;
+    totalMaxChars?: number;
+    fileMaxChars?: Record<string, number>;
+  },
 ): EmbeddedContextFile[] {
   const maxChars = opts?.maxChars ?? DEFAULT_BOOTSTRAP_MAX_CHARS;
+  const fileMaxCharsMap = opts?.fileMaxChars;
   const totalMaxChars = Math.max(
     1,
     Math.floor(opts?.totalMaxChars ?? Math.max(maxChars, DEFAULT_BOOTSTRAP_TOTAL_MAX_CHARS)),
@@ -225,8 +231,11 @@ export function buildBootstrapContextFiles(
       );
       break;
     }
-    const fileMaxChars = Math.max(1, Math.min(maxChars, remainingTotalChars));
-    const trimmed = trimBootstrapContent(file.content ?? "", file.name, fileMaxChars);
+    const perFileMax = fileMaxCharsMap?.[file.name];
+    const effectiveMaxChars =
+      typeof perFileMax === "number" && perFileMax > 0 ? perFileMax : maxChars;
+    const fileMaxCharsValue = Math.max(1, Math.min(effectiveMaxChars, remainingTotalChars));
+    const trimmed = trimBootstrapContent(file.content ?? "", file.name, fileMaxCharsValue);
     const contentWithinBudget = clampToBudget(trimmed.content, remainingTotalChars);
     if (!contentWithinBudget) {
       continue;

@@ -84,6 +84,7 @@ export async function resolveBootstrapContextForRun(params: {
   const contextFiles = buildBootstrapContextFiles(bootstrapFiles, {
     maxChars: resolveBootstrapMaxChars(params.config),
     totalMaxChars: resolveBootstrapTotalMaxChars(params.config),
+    fileMaxChars: params.config?.agents?.defaults?.bootstrapFileMaxChars,
     warn: params.warn,
   });
   return { bootstrapFiles, contextFiles };

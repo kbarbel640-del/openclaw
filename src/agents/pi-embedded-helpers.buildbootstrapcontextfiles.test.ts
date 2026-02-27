@@ -115,6 +115,39 @@ describe("buildBootstrapContextFiles", () => {
     expect(result[0]?.content.startsWith("[MISSING]")).toBe(true);
   });
 
+  it("respects per-file maxChars overrides via fileMaxChars", () => {
+    const files = [
+      makeFile({ name: "AGENTS.md", content: "a".repeat(500) }),
+      makeFile({ name: "TOOLS.md", path: "/tmp/TOOLS.md", content: "b".repeat(10_000) }),
+      makeFile({ name: "USER.md", path: "/tmp/USER.md", content: "c".repeat(500) }),
+    ];
+    const warnings: string[] = [];
+    const result = buildBootstrapContextFiles(files, {
+      maxChars: 20_000,
+      fileMaxChars: { "TOOLS.md": 3_000 },
+      warn: (msg) => warnings.push(msg),
+    });
+    expect(result).toHaveLength(3);
+    // AGENTS.md and USER.md should be untouched (under default maxChars)
+    expect(result[0]?.content).toBe("a".repeat(500));
+    expect(result[2]?.content).toBe("c".repeat(500));
+    // TOOLS.md should be truncated to ~3000 chars
+    expect(result[1]?.content.length).toBeLessThanOrEqual(3_000);
+    expect(result[1]?.content).toContain("[...truncated, read TOOLS.md for full content...]");
+    expect(warnings.some((w) => w.includes("TOOLS.md") && w.includes("limit 3000"))).toBe(true);
+  });
+
+  it("fileMaxChars does not affect files without overrides", () => {
+    const files = [makeFile({ name: "AGENTS.md", content: "a".repeat(15_000) })];
+    const result = buildBootstrapContextFiles(files, {
+      maxChars: 20_000,
+      fileMaxChars: { "TOOLS.md": 3_000 },
+    });
+    expect(result).toHaveLength(1);
+    // AGENTS.md has no override, uses default maxChars (20_000), so 15_000 fits
+    expect(result[0]?.content).toBe("a".repeat(15_000));
+  });
+
   it("skips files with missing or invalid paths and emits warnings", () => {
     const malformedMissingPath = {
       name: "SKILL-SECURITY.md",

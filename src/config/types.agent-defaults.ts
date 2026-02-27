@@ -134,6 +134,12 @@ export type AgentDefaultsConfig = {
   bootstrapMaxChars?: number;
   /** Max total chars across all injected bootstrap files (default: 150000). */
   bootstrapTotalMaxChars?: number;
+  /**
+   * Per-file max chars overrides for bootstrap files.
+   * Keys are filenames (e.g. "TOOLS.md"), values are max chars for that file.
+   * Overrides `bootstrapMaxChars` for the specified file only.
+   */
+  bootstrapFileMaxChars?: Record<string, number>;
   /** Optional IANA timezone for the user (used in system prompt; defaults to host timezone). */
   userTimezone?: string;
   /** Time format in system prompt: auto (OS preference), 12-hour, or 24-hour. */
