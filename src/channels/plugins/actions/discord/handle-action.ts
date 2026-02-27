@@ -1,5 +1,6 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import {
+  readBooleanParam,
   readNumberParam,
   readStringArrayParam,
   readStringParam,
@@ -151,6 +152,7 @@ export async function handleDiscordMessageAction(
 
   if (action === "read") {
     const limit = readNumberParam(params, "limit", { integer: true });
+    const compact = readBooleanParam(params, "compact");
     return await handleDiscordAction(
       {
         action: "readMessages",
@@ -160,6 +162,7 @@ export async function handleDiscordMessageAction(
         before: readStringParam(params, "before"),
         after: readStringParam(params, "after"),
         around: readStringParam(params, "around"),
+        compact,
       },
       cfg,
       actionOptions,
