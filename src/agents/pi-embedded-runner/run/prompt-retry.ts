@@ -1,57 +1,19 @@
 import type { OutboundRetryConfig } from "../../../config/types.base.js";
-import { retryAsync } from "../../../infra/retry.js";
+import { sleepWithAbort } from "../../../infra/backoff.js";
 import { isRateLimitErrorMessage } from "../../pi-embedded-helpers/errors.js";
 import { log } from "../logger.js";
 
 /**
- * Extract HTTP status code from error object.
- * Supports various error formats from different LLM providers.
- */
-function extractStatusCode(err: unknown): number | undefined {
-  if (typeof err !== "object" || err === null) {
-    return undefined;
-  }
-
-  const errObj = err as Record<string, unknown>;
-
-  // Direct status property
-  if (typeof errObj.status === "number") {
-    return errObj.status;
-  }
-  if (typeof errObj.status === "string") {
-    const parsed = Number(errObj.status);
-    if (!Number.isNaN(parsed)) {
-      return parsed;
-    }
-  }
-
-  // Nested in error object
-  if (errObj.error && typeof errObj.error === "object") {
-    const nested = errObj.error as Record<string, unknown>;
-    if (typeof nested.status === "number") {
-      return nested.status;
-    }
-    if (typeof nested.status === "string") {
-      const parsed = Number(nested.status);
-      if (!Number.isNaN(parsed)) {
-        return parsed;
-      }
-    }
-  }
-
-  // HTTP style code in message (e.g., "HTTP 429")
-  const msg = extractErrorMessage(err);
-  const match = msg.match(/HTTP[^\d]*(\d{3})/i);
-  if (match) {
-    return Number(match[1]);
-  }
-
-  return undefined;
-}
-
-/**
- * Check if HTTP status code indicates a retryable error.
- * These codes represent temporary failures that may resolve on retry.
+ * Simplified rate limit recovery wrapper with exponential backoff.
+ *
+ * Works with pi-ai SDK error formats:
+ * - Object: { status: 429, message: "Rate limit exceeded" }
+ * - Error: new Error("429: Too Many Requests")
+ * - String: "TPM limit reached"
+ *
+ * Adds an external retry layer on top of the SDK's internal retry mechanism.
+ *
+ * Retry history is tracked internally and logged on final failure for diagnostics.
  */
 function isRetryableStatusCode(code: number): boolean {
   // 429: Rate limit exceeded
@@ -63,172 +25,91 @@ function isRetryableStatusCode(code: number): boolean {
   return retryableCodes.includes(code);
 }
 
-/**
- * Extract error message from various error formats across different LLM providers.
- * Handles:
- * - String errors: "TPM limit exceeded"
- * - Error objects: new Error("message") or { message: "message" }
- * - API response objects: { type: "error", error: { type: "rate_limit_error", message: "..." } }
- * - JSON stringified errors: '{"type":"error",...}'
- */
-function extractErrorMessage(err: unknown): string {
-  if (err === null || err === undefined) {
-    return "";
+function extractStatusCode(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null) {
+    return undefined;
   }
-  // Handle string errors
-  if (typeof err === "string") {
-    return err;
+
+  const errObj = err as Record<string, unknown>;
+
+  // Direct status property (e.g., { status: 429, ... })
+  if (typeof errObj.status === "number") {
+    return errObj.status;
   }
-  // Handle Error objects
-  if (err instanceof Error && err.message) {
-    return err.message;
-  }
-  // Handle plain objects with error properties
-  if (typeof err === "object") {
-    const errObj = err as Record<string, unknown>;
-    // Try nested error structure (common in Anthropic/OpenAI SDK)
-    if (errObj.error && typeof errObj.error === "object") {
-      const nested = errObj.error as Record<string, unknown>;
-      // eslint-disable-next-line @typescript-eslint/no-base-to-string
-      for (const key of ["message", "error", "type", "code"]) {
-        const value = nested[key] ?? errObj[key];
-        if (typeof value === "string" && value) {
-          return value;
-        }
-      }
-      // Fallback to JSON stringification
-      return JSON.stringify(errObj.error);
+
+  // Nested in error object
+  if (errObj.error && typeof errObj.error === "object") {
+    const nested = errObj.error as Record<string, unknown>;
+    if (typeof nested.status === "number") {
+      return nested.status;
     }
-    // Direct properties
-    // eslint-disable-next-line @typescript-eslint/no-base-to-string
-    for (const key of ["message", "error", "code", "reason", "type"]) {
-      const value = errObj[key];
-      if (typeof value === "string" && value) {
-        return value;
-      }
-    }
-    // Fallback to JSON stringification
-    return JSON.stringify(errObj);
   }
-  // eslint-disable-next-line @typescript-eslint/no-base-to-string
-  return String(err);
+
+  return undefined;
 }
 
-/**
- * Check if error is retryable (rate limit, overload, or temporary failure).
- * Supports all major LLM providers and handles both SDK errors and formatted
- * user-facing messages (e.g., from pi-ai SDK after retries exhausted).
- */
-function isRetryableError(err: unknown): boolean {
-  // Check HTTP status code first (most reliable for retries)
+function isRateLimitError(err: unknown): boolean {
+  if (!err) {
+    return false;
+  }
+
+  // Check HTTP status code first (most reliable indicator for retry decisions)
   const statusCode = extractStatusCode(err);
   if (statusCode !== undefined && isRetryableStatusCode(statusCode)) {
     return true;
   }
 
-  const msg = extractErrorMessage(err).toLowerCase();
-
-  // Reuse the core rate limit pattern detection from errors.ts
-  if (isRateLimitErrorMessage(msg)) {
-    return true;
+  // Check string errors directly (isRateLimitErrorMessage handles case normalization)
+  if (typeof err === "string") {
+    return isRateLimitErrorMessage(err);
   }
 
-  // SDK-specific error types not covered by isRateLimitErrorMessage
-  // These are explicit error types from various LLM SDKs
-  const sdkErrorTypes = [
-    "rate_limit_error",
-    "rate_limit_exceeded",
-    "overloaded_error",
-    "throttling_exception",
-    "resource_exhausted",
-    "resource_has_been_exhausted",
-    "tokens_per_minute",
-  ];
-
-  for (const type of sdkErrorTypes) {
-    if (msg.includes(type)) {
-      return true;
-    }
+  // Check Error instances - pass message directly since isRateLimitErrorMessage normalizes case
+  if (err instanceof Error && err.message) {
+    return isRateLimitErrorMessage(err.message);
   }
 
-  // Chinese error patterns for LLM providers
-  const chineseErrorPatterns = ["请求额度超限", "请求频率超限", "限流", "速率限制"];
-
-  for (const pattern of chineseErrorPatterns) {
-    if (msg.includes(pattern)) {
-      return true;
-    }
-  }
-
-  // Check for formatted error messages (from pi-ai SDK or user-facing errors)
-  // These are often what remains after SDK retries have been exhausted
-  const formattedErrorPatterns = [
-    /api[_\s]?rate[_\s]?limit/i,
-    /api rate limit reached/i,
-    /too[_\s]?many[_\s]?requests?/i,
-    /tpm[_\s]?limit/i,
-    /tokens per minute/i,
-    /rate[_\s]?limit[_\s]?(?:exceeded|error)?/i,
-    /overloaded/i,
-    /service[_\s]?(?:unavailable|temporarily[_\s]?overloaded)/i,
-    /请/i, // Chinese "please" (part of "请稍后重试" type messages)
-    /重试/i, // Chinese "retry"
-  ];
-
-  if (formattedErrorPatterns.some((pattern) => pattern.test(msg))) {
-    return true;
-  }
-
-  // HTTP 502/503 errors often indicate temporary service overload
-  const httpErrorPatterns = [
-    /\b502\b.*\bBad\s*Gateway\b/i,
-    /\b503\b.*\bService\s*(?:Unavailable|Temporarily\s*Overloaded)/i,
-  ];
-
-  return httpErrorPatterns.some((pattern) => pattern.test(msg));
-}
-
-/**
- * Extract retry_after value from error for appropriate backoff.
- */
-function getRetryAfterMs(err: unknown): number | undefined {
-  const msg = extractErrorMessage(err);
-
-  // Explicit retry_after field
-  if (typeof err === "object" && err !== null) {
+  // Handle object errors with various shapes
+  if (typeof err === "object") {
     const errObj = err as Record<string, unknown>;
-    // Direct retry_after property
-    if (typeof errObj.retry_after === "number") {
-      return errObj.retry_after * 1000;
-    }
-    if (typeof errObj.retry_after === "string") {
-      const parsed = Number(errObj.retry_after);
-      if (!Number.isNaN(parsed)) {
-        return parsed * 1000;
-      }
-    }
-    // Nested in error object
+
+    // Check nested error structure: { error: { message: "...", status: ... } }
     if (errObj.error && typeof errObj.error === "object") {
       const nested = errObj.error as Record<string, unknown>;
-      if (typeof nested.retry_after === "number") {
-        return nested.retry_after * 1000;
+      const nestedMsg = nested.message ?? nested.error;
+      if (typeof nestedMsg === "string" && isRateLimitErrorMessage(nestedMsg)) {
+        return true;
       }
-      if (typeof nested.retry_after === "string") {
-        const parsed = Number(nested.retry_after);
-        if (!Number.isNaN(parsed)) {
-          return parsed * 1000;
-        }
-      }
+    }
+
+    // Check direct message/error properties
+    const directMsg = errObj.message ?? errObj.error;
+    if (typeof directMsg === "string" && isRateLimitErrorMessage(directMsg)) {
+      return true;
     }
   }
 
-  // Match "retry_after: N" or "retry after N" in message
-  const match = msg.match(/retry_after[:\s]*(\d+)/i) ?? msg.match(/retry\s*after[:\s]*(\d+)/i);
-  if (match) {
-    return Number(match[1]) * 1000;
-  }
+  return false;
+}
 
-  return undefined;
+function applyJitter(delayMs: number, jitter: number): number {
+  if (jitter <= 0 || !jitter) {
+    return delayMs;
+  }
+  const offset = (Math.random() * 2 - 1) * jitter;
+  return Math.max(0, Math.round(delayMs * (1 + offset)));
+}
+
+function resolveDelay(config: OutboundRetryConfig, attempt: number): number {
+  const minDelay = config.minDelayMs ?? 5000;
+  const maxDelay = config.maxDelayMs ?? 60000;
+  const jitter = config.jitter ?? 0;
+
+  // Use exponential backoff: minDelay, minDelay*2, minDelay*4, ...
+  const baseDelay = minDelay * Math.pow(2, attempt - 1);
+  const delay = applyJitter(baseDelay, jitter);
+  // Clamp to maxDelay
+  return Math.min(delay, maxDelay);
 }
 
 export function getRetryConfig(
@@ -238,37 +119,89 @@ export function getRetryConfig(
   return config?.models?.providers?.[provider]?.retry;
 }
 
+/**
+ * Default rate limit recovery config (conservative settings suitable for TPM limits).
+ * - 5 attempts with exponential backoff starting at 5s
+ * - 30% jitter to prevent thundering herd on recovery
+ */
+const DEFAULT_RECOVERY_CONFIG: OutboundRetryConfig = {
+  attempts: 5,
+  minDelayMs: 5000,
+  maxDelayMs: 60000,
+  jitter: 0.3,
+};
+
+/**
+ * Tracks individual retry attempts for diagnostics.
+ */
+interface RetryAttempt {
+  attempt: number;
+  delayMs: number;
+  errorMessage: string;
+}
+
 export async function runWithPromptRetry<T>(
   fn: () => Promise<T>,
-  _provider: string,
-  _modelId: string,
   retryConfig?: OutboundRetryConfig,
   signal?: AbortSignal,
 ): Promise<T> {
-  // If no retry config is provided, run the function without retry logic (default: disabled)
-  if (!retryConfig) {
-    return fn();
+  const config = retryConfig ?? DEFAULT_RECOVERY_CONFIG;
+  const attempts = config.attempts ?? 5;
+  const retryHistory: RetryAttempt[] = [];
+  let lastError: unknown;
+  let lastErrorMessage = "";
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+
+      // Extract error message for history
+      if (err instanceof Error) {
+        lastErrorMessage = err.message;
+      } else if (typeof err === "string") {
+        lastErrorMessage = err;
+      } else if (typeof err === "object" && err !== null) {
+        const msgProp = (err as Record<string, unknown>).message;
+        lastErrorMessage = typeof msgProp === "string" ? msgProp : "(object error)";
+      } else {
+        lastErrorMessage = String(err);
+      }
+
+      // Check if it's a rate limit error
+      if (!isRateLimitError(err)) {
+        // Non-rate-limit error, don't retry
+        throw err;
+      }
+
+      // Rate limit error - wait and retry
+      if (attempt >= attempts) {
+        // Last attempt, give up - log full history for diagnostics
+        log.info(`[rate-limit] exhausted ${attempts} attempts, last error: ${lastErrorMessage}`);
+        throw err;
+      }
+
+      const delay = resolveDelay(config, attempt);
+
+      // Track retry attempt for diagnostics
+      retryHistory.push({
+        attempt,
+        delayMs: delay,
+        errorMessage: lastErrorMessage,
+      });
+
+      log.info(
+        `[rate-limit] retry attempt ${attempt}/${attempts} after ${delay}ms, ` +
+          `reason: ${lastErrorMessage.slice(0, 100)}`,
+      );
+
+      await sleepWithAbort(delay, signal);
+    }
   }
 
-  const attempts = retryConfig.attempts ?? 3;
-  const minDelayMs = retryConfig.minDelayMs ?? 1000;
-  const maxDelayMs = retryConfig.maxDelayMs ?? 60000;
-  const jitter = retryConfig.jitter ?? 0.2;
-
-  return retryAsync(fn, {
-    attempts,
-    minDelayMs,
-    maxDelayMs,
-    jitter,
-    shouldRetry: isRetryableError,
-    retryAfterMs: getRetryAfterMs,
-    onRetry: (info) => {
-      log.warn(
-        `[prompt-retry] retry attempt=${info.attempt}/${info.maxAttempts} delay=${info.delayMs}ms`,
-      );
-    },
-    signal,
-  });
+  // Should not reach here, but TypeScript needs this
+  throw lastError;
 }
 
 export type { OutboundRetryConfig };
