@@ -1,0 +1,72 @@
+[90m2026-02-22T20:07:04.107Z[39m [35m[canvas][39m [36mhost mounted at http://127.0.0.1:18789/__openclaw__/canvas/ (root C:\Users\disier\.openclaw\canvas)[39m
+[90m2026-02-22T20:07:04.420Z[39m [36m[heartbeat][39m [36mstarted[39m
+[90m2026-02-22T20:07:04.430Z[39m [32m[health-monitor][39m [36mstarted (interval: 300s, grace: 60s)[39m
+[90m2026-02-22T20:07:04.435Z[39m [36m[gateway][39m [36magent model: anthropic/claude-opus-4-6[39m
+[90m2026-02-22T20:07:04.438Z[39m [36m[gateway][39m [36mlistening on ws://127.0.0.1:18789, ws://[::1]:18789 (PID 20456)[39m
+[90m2026-02-22T20:07:04.441Z[39m [36m[gateway][39m [36mlog file: \tmp\openclaw\openclaw-2026-02-22.log[39m
+[90m2026-02-22T20:07:04.509Z[39m [35m[browser/service][39m [36mBrowser control service ready (profiles=2)[39m
+[90m2026-02-22T20:14:07.598Z[39m [36m[gateway][39m [36mdevice pairing auto-approved device=8b528fffb1fa31170447ae3ff290fb60f36912ac08e4f76b4aed3a40d4c4a1c6 role=operator[39m
+[90m2026-02-22T20:14:07.634Z[39m [36m[ws][39m [36mwebchat connected conn=8a9ca2e8-5f9f-416c-b948-849333e1d932 remote=127.0.0.1 client=openclaw-control-ui webchat vdev[39m
+[90m2026-02-22T20:14:07.817Z[39m [36m[ws][39m [36m⇄ res ✓ agent.identity.get 57ms conn=8a9ca2e8…d932 id=73fc1068…ca59[39m
+[90m2026-02-22T20:14:07.949Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 107ms conn=8a9ca2e8…d932 id=cf7be9d3…00be[39m
+[90m2026-02-22T20:14:07.954Z[39m [36m[ws][39m [36m⇄ res ✓ device.pair.list 97ms conn=8a9ca2e8…d932 id=78265f40…f79f[39m
+[90m2026-02-22T20:14:08.070Z[39m [36m[ws][39m [36m⇄ res ✓ chat.history 209ms conn=8a9ca2e8…d932 id=275c5bfd…1401[39m
+[90m2026-02-22T20:15:16.731Z[39m [36m[ws][39m [36m⇄ res ✓ config.schema 2964ms conn=8a9ca2e8…d932 id=ecd6e59f…59e6[39m
+[90m2026-02-22T20:15:18.362Z[39m [36m[ws][39m [36m⇄ res ✓ config.get 112ms conn=8a9ca2e8…d932 id=48a713e6…be8d[39m
+[90m2026-02-22T20:16:56.861Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 119ms conn=8a9ca2e8…d932 id=13a4df4e…dd81[39m
+[90m2026-02-22T20:17:54.743Z[39m [36m[ws][39m [36mwebchat connected conn=c08769d6-793c-415f-9527-72b31c92cf44 remote=127.0.0.1 client=openclaw-control-ui webchat vdev[39m
+[90m2026-02-22T20:17:55.288Z[39m [36m[ws][39m [36m⇄ res ✓ config.schema 316ms conn=c08769d6…cf44 id=1fffd18b…9cab[39m
+[90m2026-02-22T20:17:55.312Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 342ms conn=c08769d6…cf44 id=d8e94983…67b3[39m
+[90m2026-02-22T20:17:55.323Z[39m [36m[ws][39m [36m⇄ res ✓ device.pair.list 356ms conn=c08769d6…cf44 id=900963ce…b700[39m
+[90m2026-02-22T20:17:57.278Z[39m [36m[ws][39m [36m⇄ res ✓ config.get 107ms conn=c08769d6…cf44 id=b58bc1de…4cbe[39m
+[90m2026-02-22T20:18:05.723Z[39m [36m[ws][39m [36m⇄ res ✓ skills.status 4675ms conn=c08769d6…cf44 id=5fcecf3c…d9d7[39m
+[90m2026-02-22T20:18:05.835Z[39m [36m[ws][39m [36m⇄ res ✓ status 4833ms conn=c08769d6…cf44 id=59a5d8e3…19c1[39m
+[90m2026-02-22T20:18:05.862Z[39m [36m[ws][39m [36m⇄ res ✓ models.list 4817ms conn=c08769d6…cf44 id=6c1ce93d…b828[39m
+[90m2026-02-22T20:18:05.870Z[39m [36m[ws][39m [36m⇄ res ✓ cron.status 4893ms conn=c08769d6…cf44 id=ed4b9164…7565[39m
+[90m2026-02-22T20:18:05.880Z[39m [36m[ws][39m [36m⇄ res ✓ cron.list 4893ms conn=c08769d6…cf44 id=7921fa9e…d984[39m
+[90m2026-02-22T20:18:07.049Z[39m [36m[ws][39m [36m⇄ res ✓ skills.status 1104ms conn=8a9ca2e8…d932 id=3a38335f…ee7e[39m
+[90m2026-02-22T20:18:07.107Z[39m [36m[ws][39m [36m⇄ res ✓ status 1185ms conn=8a9ca2e8…d932 id=f9b891b0…270e[39m
+[90m2026-02-22T20:18:07.134Z[39m [36m[ws][39m [36m⇄ res ✓ models.list 1205ms conn=8a9ca2e8…d932 id=439bcab6…b3f2[39m
+[90m2026-02-22T20:18:07.145Z[39m [36m[ws][39m [36m⇄ res ✓ cron.status 1225ms conn=8a9ca2e8…d932 id=e61e68cb…403d[39m
+[90m2026-02-22T20:18:07.156Z[39m [36m[ws][39m [36m⇄ res ✓ cron.list 1237ms conn=8a9ca2e8…d932 id=d63d79d3…fefd[39m
+[90m2026-02-22T20:18:07.189Z[39m [36m[ws][39m [36m⇄ res ✓ sessions.usage 1456ms conn=c08769d6…cf44 id=4b50466b…4da2[39m
+[90m2026-02-22T20:18:07.206Z[39m [36m[ws][39m [36m⇄ res ✓ usage.cost 1405ms conn=c08769d6…cf44 id=d734a19e…72a8[39m
+[90m2026-02-22T20:18:07.215Z[39m [36m[ws][39m [36m⇄ res ✓ usage.cost 131ms conn=8a9ca2e8…d932 id=408470e1…da94[39m
+[90m2026-02-22T20:18:07.230Z[39m [36m[ws][39m [36m⇄ res ✓ sessions.usage 169ms conn=8a9ca2e8…d932 id=36aa5260…f5f7[39m
+[90m2026-02-22T20:18:07.298Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 1392ms conn=8a9ca2e8…d932 id=8b27ad30…3794[39m
+[90m2026-02-22T20:18:07.303Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 1418ms conn=c08769d6…cf44 id=f09bcae8…e88d[39m
+[90m2026-02-22T20:18:07.324Z[39m [36m[ws][39m [36m⇄ res ✓ logs.tail 1519ms conn=c08769d6…cf44 id=4027355e…65a8[39m
+[90m2026-02-22T20:18:07.339Z[39m [36m[ws][39m [36m⇄ res ✓ logs.tail 249ms conn=8a9ca2e8…d932 id=072b7eb8…4d62[39m
+[90m2026-02-22T20:20:13.409Z[39m [36m[ws][39m [36mwebchat disconnected code=1001 reason=n/a conn=c08769d6-793c-415f-9527-72b31c92cf44[39m
+[90m2026-02-22T20:20:15.357Z[39m [36m[ws][39m [36mwebchat connected conn=69cc6d2e-40f9-41ea-88f7-0ffb9e9bf8fd remote=127.0.0.1 client=openclaw-control-ui webchat vdev[39m
+[90m2026-02-22T20:20:16.883Z[39m [36m[ws][39m [36m⇄ res ✓ skills.status 1372ms conn=69cc6d2e…f8fd id=c13de080…64d2[39m
+[90m2026-02-22T20:20:16.964Z[39m [36m[ws][39m [36m⇄ res ✓ status 1466ms conn=69cc6d2e…f8fd id=a7eb72f1…2e16[39m
+[90m2026-02-22T20:20:17.001Z[39m [36m[ws][39m [36m⇄ res ✓ models.list 1495ms conn=69cc6d2e…f8fd id=a555a8e6…16a1[39m
+[90m2026-02-22T20:20:17.009Z[39m [36m[ws][39m [36m⇄ res ✓ cron.status 1520ms conn=69cc6d2e…f8fd id=60962bf1…7019[39m
+[90m2026-02-22T20:20:17.013Z[39m [36m[ws][39m [36m⇄ res ✓ cron.list 1526ms conn=69cc6d2e…f8fd id=628458a2…49ca[39m
+[90m2026-02-22T20:20:17.024Z[39m [36m[ws][39m [36m⇄ res ✓ sessions.usage 132ms conn=69cc6d2e…f8fd id=d5aab9db…9f2c[39m
+[90m2026-02-22T20:20:17.041Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 1604ms conn=69cc6d2e…f8fd id=53340025…ffa1[39m
+[90m2026-02-22T20:20:17.052Z[39m [36m[ws][39m [36m⇄ res ✓ device.pair.list 1614ms conn=69cc6d2e…f8fd id=7ebe238e…e7d3[39m
+[90m2026-02-22T20:22:51.358Z[39m [36m[ws][39m [36mwebchat disconnected code=1001 reason=n/a conn=8a9ca2e8-5f9f-416c-b948-849333e1d932[39m
+[90m2026-02-22T20:22:51.421Z[39m [36m[ws][39m [36mwebchat disconnected code=1006 reason=n/a conn=69cc6d2e-40f9-41ea-88f7-0ffb9e9bf8fd[39m
+[90m2026-02-22T20:22:57.363Z[39m [36m[ws][39m [36mwebchat connected conn=bfa5df11-86e0-40e0-af68-1f151c4a4791 remote=127.0.0.1 client=openclaw-control-ui webchat vdev[39m
+[90m2026-02-22T20:22:57.725Z[39m [36m[ws][39m [36m⇄ res ✓ agents.list 100ms conn=bfa5df11…4791 id=892913f6…e9be[39m
+[90m2026-02-22T20:22:58.725Z[39m [36m[ws][39m [36m⇄ res ✓ skills.status 877ms conn=bfa5df11…4791 id=a2802824…7663[39m
+[90m2026-02-22T20:22:58.765Z[39m [36m[ws][39m [36m⇄ res ✓ status 933ms conn=bfa5df11…4791 id=9cad0dbf…3fff[39m
+[90m2026-02-22T20:22:58.791Z[39m [36m[ws][39m [36m⇄ res ✓ models.list 946ms conn=bfa5df11…4791 id=322b2aa6…674a[39m
+[90m2026-02-22T20:22:58.806Z[39m [36m[ws][39m [36m⇄ res ✓ cron.status 1028ms conn=bfa5df11…4791 id=2b1e83c4…9f41[39m
+[90m2026-02-22T20:22:58.812Z[39m [36m[ws][39m [36m⇄ res ✓ cron.list 994ms conn=bfa5df11…4791 id=907de44f…8a2a[39m
+[90m2026-02-22T20:22:58.823Z[39m [36m[ws][39m [36m⇄ res ✓ sessions.usage 88ms conn=bfa5df11…4791 id=e61a3acf…1525[39m
+[90m2026-02-22T20:22:58.919Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 1182ms conn=bfa5df11…4791 id=6ba24858…0f65[39m
+[90m2026-02-22T20:22:58.927Z[39m [36m[ws][39m [36m⇄ res ✓ device.pair.list 1191ms conn=bfa5df11…4791 id=963f6467…bd90[39m
+[90m2026-02-22T20:22:58.943Z[39m [36m[ws][39m [36m⇄ res ✓ logs.tail 196ms conn=bfa5df11…4791 id=7583e161…ede3[39m
+[90m2026-02-22T20:23:02.631Z[39m [36m[ws][39m [36mwebchat connected conn=d4456c09-f175-4b47-a3e3-71b59edec597 remote=127.0.0.1 client=openclaw-control-ui webchat vdev[39m
+[90m2026-02-22T20:23:03.268Z[39m [36m[ws][39m [36m⇄ res ✓ skills.status 497ms conn=d4456c09…c597 id=da84b7fd…52c9[39m
+[90m2026-02-22T20:23:03.275Z[39m [36m[ws][39m [36m⇄ res ✓ status 516ms conn=d4456c09…c597 id=958f2536…3b5a[39m
+[90m2026-02-22T20:23:03.294Z[39m [36m[ws][39m [36m⇄ res ✓ models.list 533ms conn=d4456c09…c597 id=9e572dd7…98d1[39m
+[90m2026-02-22T20:23:03.299Z[39m [36m[ws][39m [36m⇄ res ✓ cron.status 539ms conn=d4456c09…c597 id=41e08078…9151[39m
+[90m2026-02-22T20:23:03.305Z[39m [36m[ws][39m [36m⇄ res ✓ cron.list 545ms conn=d4456c09…c597 id=364fdb19…fb35[39m
+[90m2026-02-22T20:23:04.046Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 1271ms conn=d4456c09…c597 id=7d6db0c0…f4ce[39m
+[90m2026-02-22T20:23:04.070Z[39m [36m[ws][39m [36m⇄ res ✓ device.pair.list 1302ms conn=d4456c09…c597 id=b7650a7d…bd73[39m
+[90m2026-02-22T20:23:04.132Z[39m [36m[ws][39m [36m⇄ res ✓ logs.tail 801ms conn=d4456c09…c597 id=f06bd37e…9461[39m
+[90m2026-02-22T20:24:46.674Z[39m [36m[ws][39m [36m⇄ res ✓ node.list 86ms conn=bfa5df11…4791 id=10f0b6b2…7f16[39m

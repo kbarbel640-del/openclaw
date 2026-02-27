@@ -1,0 +1,11 @@
+
+> openclaw@2026.2.22 build C:\Users\disier\Downloads\n8n-disier\OpenClawDisier
+> pnpm canvas:a2ui:bundle && tsdown && pnpm build:plugin-sdk:dts && node --import tsx scripts/write-plugin-sdk-entry-dts.ts && node --import tsx scripts/canvas-a2ui-copy.ts && node --import tsx scripts/copy-hook-metadata.ts && node --import tsx scripts/copy-export-html-templates.ts && node --import tsx scripts/write-build-info.ts && node --import tsx scripts/write-cli-compat.ts
+
+
+> openclaw@2026.2.22 canvas:a2ui:bundle C:\Users\disier\Downloads\n8n-disier\OpenClawDisier
+> bash scripts/bundle-a2ui.sh
+
+<3>WSL (9 - Relay) ERROR: CreateProcessCommon:800: execvpe(/bin/bash) failed: No such file or directory
+ÔÇëELIFECYCLEÔÇë Command failed with exit code 1.
+ÔÇëELIFECYCLEÔÇë Command failed with exit code 1.

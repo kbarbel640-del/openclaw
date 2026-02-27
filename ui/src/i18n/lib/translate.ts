@@ -3,7 +3,7 @@ import type { Locale, TranslationMap } from "./types.ts";
 
 type Subscriber = (locale: Locale) => void;
 
-export const SUPPORTED_LOCALES: ReadonlyArray<Locale> = ["en", "zh-CN", "zh-TW", "pt-BR"];
+export const SUPPORTED_LOCALES: ReadonlyArray<Locale> = ["en", "zh-CN", "zh-TW", "pt-BR", "es-ES"];
 
 export function isSupportedLocale(value: string | null | undefined): value is Locale {
   return value !== null && value !== undefined && SUPPORTED_LOCALES.includes(value as Locale);
@@ -21,23 +21,18 @@ class I18nManager {
   private resolveInitialLocale(): Locale {
     const saved = localStorage.getItem("openclaw.i18n.locale");
     if (isSupportedLocale(saved)) {
-      return saved;
-    }
-    const navLang = navigator.language;
-    if (navLang.startsWith("zh")) {
-      return navLang === "zh-TW" || navLang === "zh-HK" ? "zh-TW" : "zh-CN";
-    }
-    if (navLang.startsWith("pt")) {
-      return "pt-BR";
-    }
-    return "en";
-  }
-
-  private loadLocale() {
-    const initialLocale = this.resolveInitialLocale();
-    if (initialLocale === "en") {
-      this.locale = "en";
-      return;
+      this.locale = saved;
+    } else {
+      const navLang = navigator.language;
+      if (navLang.startsWith("zh")) {
+        this.locale = navLang === "zh-TW" || navLang === "zh-HK" ? "zh-TW" : "zh-CN";
+      } else if (navLang.startsWith("pt")) {
+        this.locale = "pt-BR";
+      } else if (navLang.startsWith("es")) {
+        this.locale = "es-ES";
+      } else {
+        this.locale = "en";
+      }
     }
     // Use the normal locale setter so startup locale loading follows the same
     // translation-loading + notify path as manual locale changes.
@@ -64,6 +59,8 @@ class I18nManager {
           module = await import("../locales/zh-TW.ts");
         } else if (locale === "pt-BR") {
           module = await import("../locales/pt-BR.ts");
+        } else if (locale === "es-ES") {
+          module = await import("../locales/es-ES.ts");
         } else {
           return;
         }
