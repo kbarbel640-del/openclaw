@@ -85,14 +85,16 @@ export const it: TranslationMap = {
       title: "Note",
       subtitle: "Promemoria rapidi per configurazioni di controllo remoto.",
       tailscaleTitle: "Tailscale Serve",
-      tailscaleText: "Preferisci la modalità serve per mantenere il gateway in loopback con l'auth tailnet.",
+      tailscaleText:
+        "Preferisci la modalità serve per mantenere il gateway in loopback con l'auth tailnet.",
       sessionTitle: "Igiene della sessione",
       sessionText: "Usa /new o sessions.patch per reimpostare il contesto.",
       cronTitle: "Promemoria Cron",
       cronText: "Usa sessioni isolate per le esecuzioni ricorrenti.",
     },
     auth: {
-      required: "Questo gateway richiede l'autenticazione. Aggiungi un token o una password, quindi clicca su Connetti.",
+      required:
+        "Questo gateway richiede l'autenticazione. Aggiungi un token o una password, quindi clicca su Connetti.",
       failed:
         "Autenticazione fallita. Ricopia un URL con token tramite {command}, o aggiorna il token, quindi clicca su Connetti.",
     },

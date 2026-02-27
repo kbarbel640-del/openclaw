@@ -71,7 +71,8 @@ export const de: TranslationMap = {
       uptime: "Betriebszeit",
       tickInterval: "Tick-Intervall",
       lastChannelsRefresh: "Letzte Kanalaktualisierung",
-      channelsHint: "Verwenden Sie Kanäle, um WhatsApp, Telegram, Discord, Signal oder iMessage zu verknüpfen.",
+      channelsHint:
+        "Verwenden Sie Kanäle, um WhatsApp, Telegram, Discord, Signal oder iMessage zu verknüpfen.",
     },
     stats: {
       instances: "Instanzen",
@@ -85,14 +86,16 @@ export const de: TranslationMap = {
       title: "Notizen",
       subtitle: "Kurze Erinnerungen für Fernsteuerungskonfigurationen.",
       tailscaleTitle: "Tailscale Serve",
-      tailscaleText: "Bevorzugen Sie den Serve-Modus, um das Gateway auf Loopback mit Tailnet-Auth zu halten.",
+      tailscaleText:
+        "Bevorzugen Sie den Serve-Modus, um das Gateway auf Loopback mit Tailnet-Auth zu halten.",
       sessionTitle: "Sitzungshygiene",
       sessionText: "Verwenden Sie /new oder sessions.patch, um den Kontext zurückzusetzen.",
       cronTitle: "Cron-Erinnerungen",
       cronText: "Verwenden Sie isolierte Sitzungen für wiederkehrende Läufe.",
     },
     auth: {
-      required: "Dieses Gateway erfordert Authentifizierung. Fügen Sie ein Token oder Passwort hinzu und klicken Sie auf Verbinden.",
+      required:
+        "Dieses Gateway erfordert Authentifizierung. Fügen Sie ein Token oder Passwort hinzu und klicken Sie auf Verbinden.",
       failed:
         "Authentifizierung fehlgeschlagen. Kopieren Sie erneut eine URL mit Token über {command}, oder aktualisieren Sie das Token und klicken Sie auf Verbinden.",
     },

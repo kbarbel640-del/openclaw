@@ -85,14 +85,16 @@ export const fr: TranslationMap = {
       title: "Notes",
       subtitle: "Rappels rapides pour les configurations à distance.",
       tailscaleTitle: "Tailscale serve",
-      tailscaleText: "Préférez le mode serve pour garder la passerelle en loopback avec l'auth tailnet.",
+      tailscaleText:
+        "Préférez le mode serve pour garder la passerelle en loopback avec l'auth tailnet.",
       sessionTitle: "Hygiène de session",
       sessionText: "Utilisez /new ou sessions.patch pour réinitialiser le contexte.",
       cronTitle: "Rappels Cron",
       cronText: "Utilisez des sessions isolées pour les exécutions récurrentes.",
     },
     auth: {
-      required: "Cette passerelle nécessite une authentification. Ajoutez un jeton ou un mot de passe, puis cliquez sur Connecter.",
+      required:
+        "Cette passerelle nécessite une authentification. Ajoutez un jeton ou un mot de passe, puis cliquez sur Connecter.",
       failed:
         "Échec de l'authentification. Recopiez une URL avec jeton via {command}, ou mettez à jour le jeton, puis cliquez sur Connecter.",
     },

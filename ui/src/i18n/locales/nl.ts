@@ -71,7 +71,8 @@ export const nl: TranslationMap = {
       uptime: "Uptime",
       tickInterval: "Tick-interval",
       lastChannelsRefresh: "Laatste kanaalverversing",
-      channelsHint: "Gebruik Kanalen om WhatsApp, Telegram, Discord, Signal of iMessage te koppelen.",
+      channelsHint:
+        "Gebruik Kanalen om WhatsApp, Telegram, Discord, Signal of iMessage te koppelen.",
     },
     stats: {
       instances: "Instanties",
@@ -85,14 +86,16 @@ export const nl: TranslationMap = {
       title: "Notities",
       subtitle: "Snelle herinneringen voor configuratie op afstand.",
       tailscaleTitle: "Tailscale serve",
-      tailscaleText: "Gebruik bij voorkeur serve-modus om de gateway op loopback te houden met tailnet-auth.",
+      tailscaleText:
+        "Gebruik bij voorkeur serve-modus om de gateway op loopback te houden met tailnet-auth.",
       sessionTitle: "Sessiehygiëne",
       sessionText: "Gebruik /new of sessions.patch om context te resetten.",
       cronTitle: "Cron-herinneringen",
       cronText: "Gebruik geïsoleerde sessies voor terugkerende runs.",
     },
     auth: {
-      required: "Deze gateway vereist authenticatie. Voeg een token of wachtwoord toe en klik op Verbinden.",
+      required:
+        "Deze gateway vereist authenticatie. Voeg een token of wachtwoord toe en klik op Verbinden.",
       failed:
         "Authenticatie mislukt. Kopieer opnieuw een URL met token via {command}, of werk het token bij en klik op Verbinden.",
     },
