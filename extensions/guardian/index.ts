@@ -2,17 +2,17 @@
  * OpenClaw Guardian v2 — Blacklist + LLM Intent Verification
  *
  * Flow:
- *   tool call → only check exec/write/edit
+ *   tool call → check exec/write/edit blacklist, then tool-level blacklist
  *     → blacklist match? no → pass (99%)
  *     → yes, critical → 3 LLM votes (all must confirm user intent)
  *     → yes, warning  → 1 LLM vote (confirm user intent)
  *     → LLM down → critical: block, warning: ask user
  */
 
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { readFileSync } from "node:fs";
 import { join, dirname, resolve, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 function canonicalizePath(raw: string): string {
   if (!raw) return raw;
@@ -21,9 +21,10 @@ function canonicalizePath(raw: string): string {
   // Resolve to absolute + normalize (removes ../ etc)
   return normalize(resolve(raw));
 }
-import { initAuditLog, writeAuditEntry } from "./src/audit-log.js";
-import { checkExecBlacklist, checkPathBlacklist } from "./src/blacklist.js";
+
+import { checkExecBlacklist, checkPathBlacklist, checkToolBlacklist } from "./src/blacklist.js";
 import { initLlm, singleVote, multiVote } from "./src/llm-voter.js";
+import { initAuditLog, writeAuditEntry } from "./src/audit-log.js";
 
 function loadEnabled(): boolean {
   try {
@@ -49,7 +50,7 @@ export default function setup(api: OpenClawPluginApi): void {
   api.on("before_tool_call", async (event, ctx) => {
     const { toolName, params } = event;
 
-    // Only check exec, write, edit — everything else passes instantly
+    // Phase 1: Check dedicated blacklists for exec/write/edit
     let match = null;
 
     if (toolName === "exec") {
@@ -58,6 +59,11 @@ export default function setup(api: OpenClawPluginApi): void {
       const rawPath = (params?.file_path ?? params?.path ?? "") as string;
       const safePath = canonicalizePath(rawPath);
       match = checkPathBlacklist(safePath);
+    }
+
+    // Phase 2: If no dedicated match, check tool-level blacklist (covers all tools)
+    if (!match) {
+      match = checkToolBlacklist(toolName, (params ?? {}) as Record<string, unknown>);
     }
 
     if (!match) return; // 99% of calls end here

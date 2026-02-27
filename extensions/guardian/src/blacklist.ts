@@ -5,6 +5,7 @@
  * IMPORTANT: These patterns are checked against:
  *   - exec: the command string
  *   - write/edit: the file path
+ *   - all other tools: action-like param fields (via checkToolBlacklist)
  * The caller (index.ts) decides what text to pass in.
  */
 
@@ -53,8 +54,6 @@ const CRITICAL_EXEC: Rule[] = [
   // Absolute path to rm
   { pattern: /\/bin\/rm\s+(-[a-zA-Z]*r[a-zA-Z]*)\s+/, reason: "rm via absolute path" },
   { pattern: /\/usr\/bin\/rm\s+(-[a-zA-Z]*r[a-zA-Z]*)\s+/, reason: "rm via absolute path" },
-  // eval with dangerous content
-  { pattern: /\beval\s+/, reason: "eval execution (arbitrary code)" },
 
   // ── Interpreter inline code — dangerous operations ──
 
@@ -172,8 +171,6 @@ const CRITICAL_EXEC: Rule[] = [
     reason: "kernel module manipulation",
   },
 
-  // ── Download and execute pattern (handled in CHAIN_ATTACKS above) ──
-
   // xargs with dangerous commands
   { pattern: /xargs\s+.*\brm\b/, reason: "xargs rm (indirect deletion)" },
   { pattern: /xargs\s+.*\bchmod\b/, reason: "xargs chmod (indirect permission change)" },
@@ -219,6 +216,8 @@ const WARNING_EXEC: Rule[] = [
   // Database destruction
   { pattern: /DROP\s+(?:DATABASE|TABLE)\b/i, reason: "DROP DATABASE/TABLE" },
   { pattern: /TRUNCATE\s+/i, reason: "TRUNCATE table" },
+  // eval execution (risky but common in shell scripts — review, don't hard-block)
+  { pattern: /\beval\s+/, reason: "eval execution (arbitrary code)" },
   // Network/firewall changes
   { pattern: /\biptables\s+/, reason: "firewall rule change (iptables)" },
   { pattern: /\bufw\s+(?:allow|deny|delete|disable)\b/, reason: "firewall rule change (ufw)" },
@@ -259,6 +258,12 @@ const SAFE_EXEC: RegExp[] = [
   /^(?:apt|dpkg|pip|npm)\s+(?:list|show|info|search)\b/,
   // node -p is print-only (safe)
   /^node\s+-p\s+/,
+  // safe file operations (create only, no overwrite risk)
+  /^(?:mkdir|touch)\s+/,
+  // archive/compression (read-heavy, low risk)
+  /^(?:tar|unzip|gzip|gunzip|bzip2|xz|7z)\s+/,
+  // openclaw CLI
+  /^openclaw\s+/,
 ];
 
 // ── Quote/Comment Detection ────────────────────────────────────────
@@ -300,6 +305,31 @@ function matchRules(
 
 // ── Command Segmentation ───────────────────────────────────────────
 
+/**
+ * Normalize a command string before segmentation.
+ * Handles literal escape sequences that could be used to bypass newline splitting.
+ */
+function normalizeCommand(cmd: string): string {
+  // Replace literal \n (two chars: backslash + n) with actual newline
+  // This prevents bypass via literal escape sequences in some contexts
+  // Only replace outside of quotes to avoid breaking quoted strings
+  let result = "";
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i];
+    if (ch === "'" && !inDouble) { inSingle = !inSingle; result += ch; continue; }
+    if (ch === '"' && !inSingle) { inDouble = !inDouble; result += ch; continue; }
+    if (!inSingle && !inDouble && ch === "\\" && cmd[i + 1] === "n") {
+      result += "\n";
+      i++; // skip 'n'
+      continue;
+    }
+    result += ch;
+  }
+  return result;
+}
+
 function splitCommand(cmd: string): string[] {
   // Split on shell operators, but not inside quotes
   const segments: string[] = [];
@@ -327,8 +357,8 @@ function splitCommand(cmd: string): string[] {
         i++; // skip second char
         continue;
       }
-      // Single-char separators: ; | \n
-      if (ch === ";" || ch === "|" || ch === "\n") {
+      // Single-char separators: ; | \n \r
+      if (ch === ";" || ch === "|" || ch === "\n" || ch === "\r") {
         segments.push(current.trim());
         current = "";
         continue;
@@ -344,11 +374,14 @@ function splitCommand(cmd: string): string[] {
 
 /**
  * Check a command (exec) against blacklist.
- * Splits on shell operators and checks each segment.
+ * Normalizes escape sequences, splits on shell operators, and checks each segment.
  * Returns null if no match (99% of calls).
  */
 export function checkExecBlacklist(command: string): BlacklistMatch | null {
-  if (!command) return null;
+  if (!command || !command.trim()) return null;
+
+  // Normalize literal escape sequences that could bypass newline splitting
+  const normalized = normalizeCommand(command);
 
   // Phase 1: Check the FULL command string for pipe-based attacks
   // These patterns span across pipe boundaries and must be checked before splitting
@@ -400,11 +433,12 @@ export function checkExecBlacklist(command: string): BlacklistMatch | null {
     },
   ];
   const fullMatch =
-    matchRules(command, PIPE_ATTACKS, "critical") ?? matchRules(command, CHAIN_ATTACKS, "critical");
+    matchRules(normalized, PIPE_ATTACKS, "critical") ??
+    matchRules(normalized, CHAIN_ATTACKS, "critical");
   if (fullMatch) return fullMatch;
 
   // Phase 2: Split on shell operators and check each segment
-  const segments = splitCommand(command);
+  const segments = splitCommand(normalized);
   for (const seg of segments) {
     // Whitelist check: safe commands skip blacklist entirely
     if (SAFE_EXEC.some((re) => re.test(seg))) continue;
@@ -425,4 +459,70 @@ export function checkPathBlacklist(filePath: string): BlacklistMatch | null {
   return (
     matchRules(filePath, CRITICAL_PATH, "critical") ?? matchRules(filePath, WARNING_PATH, "warning")
   );
+}
+
+// ── Tool-level blacklist (catches dangerous actions regardless of tool) ──
+
+interface ToolRule {
+  tool: RegExp;
+  param: string;
+  pattern: RegExp;
+  level: "critical" | "warning";
+  reason: string;
+}
+
+const TOOL_RULES: ToolRule[] = [
+  // Email: bulk delete / trash / expunge (irreversible)
+  {
+    tool: /.*/,
+    param: "*",
+    pattern: /\b(?:batchDelete|expunge|emptyTrash|purge)\b/i,
+    level: "critical",
+    reason: "bulk email deletion (irreversible)",
+  },
+  // Email: single delete/trash (only matches action field value)
+  {
+    tool: /.*/,
+    param: "*",
+    pattern: /\b(?:delete|trash)\b/i,
+    level: "warning",
+    reason: "email/message deletion",
+  },
+  // Destructive database queries embedded in tool params
+  {
+    tool: /.*/,
+    param: "*",
+    pattern: /\b(?:DROP\s+(?:DATABASE|TABLE)|TRUNCATE\s+|DELETE\s+FROM)\b/i,
+    level: "critical",
+    reason: "destructive database query in tool params",
+  },
+];
+
+/**
+ * Check any tool call's params against tool-level blacklist.
+ * Only checks specific param fields (not full serialization) to avoid false positives.
+ * Skips exec/write/edit (already handled by dedicated checkers).
+ * Returns null if no match.
+ */
+export function checkToolBlacklist(
+  toolName: string,
+  params: Record<string, unknown>,
+): BlacklistMatch | null {
+  // exec/write/edit already have dedicated checkers
+  if (toolName === "exec" || toolName === "write" || toolName === "edit") return null;
+  if (!params || Object.keys(params).length === 0) return null;
+
+  // Only check action-like fields for all rules
+  const actionFields = ["action", "method", "command", "operation"];
+  const actionValue = actionFields
+    .map((f) => (typeof params[f] === "string" ? (params[f] as string) : ""))
+    .filter(Boolean)
+    .join(" ");
+
+  for (const rule of TOOL_RULES) {
+    if (!rule.tool.test(toolName)) continue;
+    const m = rule.pattern.exec(actionValue);
+    if (m) return { level: rule.level, pattern: rule.pattern.source, reason: rule.reason };
+  }
+  return null;
 }
