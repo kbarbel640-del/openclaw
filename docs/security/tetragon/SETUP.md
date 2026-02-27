@@ -4,29 +4,19 @@ Step-by-step instructions for deploying Tetragon alongside OpenClaw and routing 
 
 ## Prerequisites
 
-- Linux host or Kubernetes cluster running OpenClaw
+- Linux host (bare metal or VM) running OpenClaw
 - Kernel 4.19+ (5.x+ recommended for full BPF feature support)
 - OTel Collector installed (or planned; see step 4)
 
 ## 1. Install Tetragon
 
-### Option A: Helm (Kubernetes)
-
-```bash
-helm repo add cilium https://helm.cilium.io
-helm repo update
-helm install tetragon cilium/tetragon \
-  --namespace kube-system \
-  --set tetragon.exportFilename=/var/log/tetragon/tetragon.log
-```
-
-### Option B: Package (bare metal / VM)
+OpenClaw runs on bare metal or VMs (not Kubernetes), so install Tetragon as a systemd service.
 
 ```bash
 # Debian/Ubuntu
 # Detect architecture (amd64 or arm64)
 ARCH=$(uname -m | sed "s/x86_64/amd64/" | sed "s/aarch64/arm64/")
-curl -sL https://github.com/cilium/tetragon/releases/latest/download/tetragon-linux-$(ARCH).tar.gz \
+curl -sL https://github.com/cilium/tetragon/releases/latest/download/tetragon-linux-${ARCH}.tar.gz \
   | sudo tar -xz -C /usr/local/bin/
 
 # Create systemd unit
@@ -54,8 +44,7 @@ sudo systemctl enable --now tetragon
 
 ```bash
 # Check Tetragon is running
-sudo systemctl status tetragon   # bare metal
-kubectl -n kube-system get pods -l app.kubernetes.io/name=tetragon  # K8s
+sudo systemctl status tetragon
 
 # Confirm events are being written
 tail -1 /var/log/tetragon/tetragon.log | jq .
@@ -65,16 +54,7 @@ tail -1 /var/log/tetragon/tetragon.log | jq .
 
 Apply each policy from the `policies/` directory. On Kubernetes, use `kubectl apply`; on bare metal, place them in Tetragon's policy directory.
 
-### Kubernetes
-
-```bash
-kubectl apply -f policies/01-process-exec.yaml
-kubectl apply -f policies/02-sensitive-files.yaml
-kubectl apply -f policies/03-privilege-escalation.yaml
-kubectl apply -f policies/04-dangerous-commands.yaml
-```
-
-### Bare metal
+### Apply policies
 
 ```bash
 sudo mkdir -p /etc/tetragon/tetragon.tp.d
@@ -85,10 +65,7 @@ sudo systemctl restart tetragon
 ### Verify policies are loaded
 
 ```bash
-# Kubernetes
-kubectl get tracingpolicies
-
-# Bare metal - trigger a test event
+# Trigger a test event
 cat /etc/passwd > /dev/null
 tail -5 /var/log/tetragon/tetragon.log | jq 'select(.process_kprobe != null)'
 ```
@@ -121,7 +98,7 @@ Use the provided [collector-config.yaml](collector-config.yaml) as a starting po
 ```bash
 # Download the contrib distribution (includes filelog receiver)
 ARCH=$(uname -m | sed "s/x86_64/amd64/" | sed "s/aarch64/arm64/")
-curl -sL https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_linux_$(ARCH).tar.gz \
+curl -sL https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_linux_${ARCH}.tar.gz \
   | sudo tar -xz -C /usr/local/bin/
 ```
 
@@ -208,14 +185,6 @@ The default policies are intentionally broad. In production you will want to red
 - **Narrow binary selectors.** The process-exec policy (`01-process-exec.yaml`) watches `/usr/bin/node` and `/usr/local/bin/node`. If OpenClaw runs from a different path (e.g. nvm, Homebrew, container image), update the `matchBinaries` values. Remove paths that do not apply to your setup.
 - **Exclude known-safe file access.** If your application legitimately reads `.env` on every startup, add a `matchActions` with `action: NoPost` for that specific path, or remove the pattern from `02-sensitive-files.yaml`.
 - **Rate-limit shell events.** The dangerous-commands policy fires on every `/bin/bash` and `/bin/sh` exec. On busy hosts this can be noisy. Consider removing the shell selector and relying on correlation with `curl`/`wget` events in your backend instead.
-- **Use `matchNamespaces` in Kubernetes.** Scope policies to the namespace where OpenClaw runs so unrelated workloads do not generate events:
-
-  ```yaml
-  selectors:
-    - matchNamespaces:
-        - namespace: openclaw
-  ```
-
 - **Adjust OTel Collector batch size.** If event volume is high, increase `send_batch_size` and `timeout` in `collector-config.yaml` to reduce export overhead.
 - **Filter at the Collector.** Add a `filter` processor to drop low-value events before they reach your backend:
 
