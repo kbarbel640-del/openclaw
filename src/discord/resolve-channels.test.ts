@@ -112,4 +112,32 @@ describe("resolveDiscordChannelAllowlist", () => {
     expect(res2[0]?.guildId).toBe("999");
     expect(res2[0]?.channelId).toBeUndefined();
   });
+
+  it("resolves numeric guild_id/channel_id correctly", async () => {
+    const fetcher = withFetchPreconnect(async (input: RequestInfo | URL) => {
+      const url = urlToString(input);
+      if (url.endsWith("/users/@me/guilds")) {
+        return jsonResponse([{ id: "1468266439856357409", name: "Guild One" }]);
+      }
+      if (url.endsWith("/channels/1476042683708604518")) {
+        return jsonResponse({
+          id: "1476042683708604518",
+          name: "general",
+          guild_id: "1468266439856357409",
+          type: 0,
+        });
+      }
+      return new Response("not found", { status: 404 });
+    });
+
+    const res = await resolveDiscordChannelAllowlist({
+      token: "test",
+      entries: ["1468266439856357409/1476042683708604518"],
+      fetcher,
+    });
+
+    expect(res[0]?.resolved).toBe(true);
+    expect(res[0]?.guildId).toBe("1468266439856357409");
+    expect(res[0]?.channelId).toBe("1476042683708604518");
+  });
 });
