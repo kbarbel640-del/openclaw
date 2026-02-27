@@ -54,4 +54,25 @@ describe("loadConfig invalid config handling", () => {
       expect(loadConfig().gateway?.port).toBe(19002);
     });
   });
+
+  it("keeps throwing on repeated reads until the invalid config is fixed", async () => {
+    await withTempHome(async (home) => {
+      const configDir = `${home}/.openclaw`;
+      const configPath = `${configDir}/openclaw.json`;
+      await fs.mkdir(configDir, { recursive: true });
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          skills: { "nano-banana-pro": { env: { GEMINI_API_KEY: "test" } } },
+        }),
+        "utf-8",
+      );
+
+      expect(() => loadConfig()).toThrow(/Invalid config/);
+
+      clearConfigCache();
+      clearRuntimeConfigSnapshot();
+      expect(() => loadConfig()).toThrow(/Invalid config/);
+    });
+  });
 });
