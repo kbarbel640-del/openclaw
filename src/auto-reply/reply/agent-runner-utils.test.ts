@@ -3,12 +3,15 @@ import type { FollowupRun } from "./queue.js";
 
 const hoisted = vi.hoisted(() => {
   const resolveRunModelFallbacksOverrideMock = vi.fn();
-  return { resolveRunModelFallbacksOverrideMock };
+  const resolveEffectiveModelFallbacksMock = vi.fn();
+  return { resolveRunModelFallbacksOverrideMock, resolveEffectiveModelFallbacksMock };
 });
 
 vi.mock("../../agents/agent-scope.js", () => ({
   resolveRunModelFallbacksOverride: (...args: unknown[]) =>
     hoisted.resolveRunModelFallbacksOverrideMock(...args),
+  resolveEffectiveModelFallbacks: (...args: unknown[]) =>
+    hoisted.resolveEffectiveModelFallbacksMock(...args),
 }));
 
 const {
@@ -45,6 +48,7 @@ function makeRun(overrides: Partial<FollowupRun["run"]> = {}): FollowupRun["run"
 describe("agent-runner-utils", () => {
   beforeEach(() => {
     hoisted.resolveRunModelFallbacksOverrideMock.mockClear();
+    hoisted.resolveEffectiveModelFallbacksMock.mockClear();
   });
 
   it("resolves model fallback options from run context", () => {
@@ -79,6 +83,44 @@ describe("agent-runner-utils", () => {
       sessionKey: run.sessionKey,
     });
     expect(resolved.fallbacksOverride).toEqual(["fallback-model"]);
+  });
+
+  it("uses configured fallback chain for auto auth-profile provider overrides", () => {
+    hoisted.resolveEffectiveModelFallbacksMock.mockReturnValue(["openai/gpt-4.1"]);
+    const run = makeRun({
+      provider: "anthropic",
+      model: "claude-sonnet-4",
+      authProfileIdSource: "auto",
+    });
+
+    const resolved = resolveModelFallbackOptions(run);
+
+    expect(hoisted.resolveEffectiveModelFallbacksMock).toHaveBeenCalledWith({
+      cfg: run.config,
+      agentId: run.agentId,
+      hasSessionModelOverride: true,
+    });
+    expect(hoisted.resolveRunModelFallbacksOverrideMock).not.toHaveBeenCalled();
+    expect(resolved.fallbacksOverride).toEqual(["openai/gpt-4.1"]);
+  });
+
+  it("keeps manual auth-profile provider overrides on the direct model only", () => {
+    hoisted.resolveRunModelFallbacksOverrideMock.mockReturnValue(undefined);
+    const run = makeRun({
+      provider: "anthropic",
+      model: "claude-sonnet-4",
+      authProfileIdSource: "user",
+    });
+
+    const resolved = resolveModelFallbackOptions(run);
+
+    expect(hoisted.resolveEffectiveModelFallbacksMock).not.toHaveBeenCalled();
+    expect(hoisted.resolveRunModelFallbacksOverrideMock).toHaveBeenCalledWith({
+      cfg: run.config,
+      agentId: run.agentId,
+      sessionKey: run.sessionKey,
+    });
+    expect(resolved.fallbacksOverride).toBeUndefined();
   });
 
   it("builds embedded run base params with auth profile and run metadata", () => {
