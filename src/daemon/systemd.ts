@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { VERSION } from "../version.js";
 import {
+  formatGatewayServiceDescription,
   LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES,
   resolveGatewayServiceDescription,
   resolveGatewaySystemdServiceName,
@@ -287,6 +289,71 @@ async function runSystemdServiceAction(params: {
   params.stdout.write(`${formatLine(params.label, unitName)}\n`);
 }
 
+/**
+ * Patches the OPENCLAW_SERVICE_VERSION env var and Description line in an
+ * existing systemd unit file to match the currently running version.
+ *
+ * This prevents stale version labels after `openclaw update` or package
+ * manager upgrades that don't rewrite the unit file.
+ *
+ * Returns true if the unit was modified, false if it was already current
+ * or could not be patched (missing file, no env line, etc.).
+ */
+export async function syncSystemdUnitVersion(env: GatewayServiceEnv): Promise<boolean> {
+  const unitPath = resolveSystemdUnitPath(env);
+  let content: string;
+  try {
+    content = await fs.readFile(unitPath, "utf8");
+  } catch {
+    return false;
+  }
+
+  let changed = false;
+  const lines = content.split("\n");
+  const newLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Patch Environment=OPENCLAW_SERVICE_VERSION=...
+    if (trimmed.startsWith("Environment=")) {
+      const parsed = parseSystemdEnvAssignment(trimmed.slice("Environment=".length).trim());
+      if (parsed && parsed.key === "OPENCLAW_SERVICE_VERSION" && parsed.value !== VERSION) {
+        newLines.push(`Environment="OPENCLAW_SERVICE_VERSION=${VERSION}"`);
+        changed = true;
+        continue;
+      }
+    }
+
+    // Patch Description=OpenClaw Gateway (vX.Y.Z)
+    if (trimmed.startsWith("Description=")) {
+      const currentDesc = trimmed.slice("Description=".length).trim();
+      const newDesc = formatGatewayServiceDescription({
+        profile: env.OPENCLAW_PROFILE,
+        version: VERSION,
+      });
+      if (currentDesc !== newDesc) {
+        newLines.push(`Description=${newDesc}`);
+        changed = true;
+        continue;
+      }
+    }
+
+    newLines.push(line);
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  await fs.writeFile(unitPath, newLines.join("\n"), "utf8");
+  const reload = await execSystemctl(["--user", "daemon-reload"]);
+  if (reload.code !== 0) {
+    // Non-fatal: the restart will still proceed with the old unit in memory
+  }
+  return true;
+}
+
 export async function stopSystemdService({
   stdout,
   env,
@@ -303,6 +370,13 @@ export async function restartSystemdService({
   stdout,
   env,
 }: GatewayServiceControlArgs): Promise<void> {
+  // Sync version in unit file before restarting so that systemctl status
+  // and OPENCLAW_SERVICE_VERSION reflect the currently installed version.
+  try {
+    await syncSystemdUnitVersion(env ?? {});
+  } catch {
+    // Non-fatal: proceed with restart even if version sync fails
+  }
   await runSystemdServiceAction({
     stdout,
     env,
