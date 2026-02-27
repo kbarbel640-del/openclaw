@@ -104,7 +104,7 @@ describe("retryHttpAsync", () => {
   });
 
   it("does not retry on non-retryable errors", async () => {
-    const mockRetry = vi.fn().mockRejectedValue(new Error("ENOTCONN"));
+    const mockRetry = vi.fn().mockRejectedValue(new Error("EACCES"));
     const logger = vi.fn();
     const options = {
       label: "test",
@@ -115,7 +115,7 @@ describe("retryHttpAsync", () => {
       shouldRetry: isHttpRetryable,
     } as const;
 
-    await expect(retryHttpAsync(mockRetry, options)).rejects.toThrow("ENOTCONN");
+    await expect(retryHttpAsync(mockRetry, options)).rejects.toThrow("EACCES");
     expect(mockRetry).toHaveBeenCalledTimes(1);
   });
 
