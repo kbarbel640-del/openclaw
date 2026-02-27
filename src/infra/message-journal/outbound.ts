@@ -269,40 +269,6 @@ export function getOutboundStatusForInbound(
   }
 }
 
-/** Check if any queued outbound exists for the given inbound turn id. */
-export function hasQueuedOutboundForInbound(inboundId: string, stateDir?: string): boolean {
-  const db = getJournalDb(stateDir);
-  try {
-    const row = db
-      .prepare(
-        `SELECT 1 FROM outbound_messages
-          WHERE inbound_id = ? AND status = 'queued' LIMIT 1`,
-      )
-      .get(inboundId);
-    return row != null;
-  } catch (err) {
-    logVerbose(`message-journal/outbound: hasQueuedOutboundForInbound failed: ${String(err)}`);
-    return false;
-  }
-}
-
-/** Check whether any outbound row (queued/delivered/failed) exists for the inbound turn id. */
-export function hasAnyOutboundForInbound(inboundId: string, stateDir?: string): boolean {
-  const db = getJournalDb(stateDir);
-  try {
-    const row = db
-      .prepare(
-        `SELECT 1 FROM outbound_messages
-          WHERE inbound_id = ? LIMIT 1`,
-      )
-      .get(inboundId);
-    return row != null;
-  } catch (err) {
-    logVerbose(`message-journal/outbound: hasAnyOutboundForInbound failed: ${String(err)}`);
-    return false;
-  }
-}
-
 /** Move an entry to status='failed' (equivalent of old moveToFailed). */
 export async function moveToFailed(id: string, stateDir?: string): Promise<void> {
   const db = getJournalDb(stateDir);

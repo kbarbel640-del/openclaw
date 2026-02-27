@@ -1,13 +1,16 @@
 import type { OpenClawConfig } from "../config/config.js";
 import { logVerbose } from "../globals.js";
 import { acceptInboundOrSkip, completeInboundTurn } from "../infra/message-journal/inbound.js";
+import { getOutboundStatusForInbound } from "../infra/message-journal/outbound.js";
 import { generateSecureUuid } from "../infra/secure-random.js";
+import { isDeliverableMessageChannel, normalizeMessageChannel } from "../utils/message-channel.js";
 import type { DispatchFromConfigResult } from "./reply/dispatch-from-config.js";
 import { dispatchReplyFromConfig } from "./reply/dispatch-from-config.js";
 import { finalizeInboundContext } from "./reply/inbound-context.js";
 import {
   createReplyDispatcher,
   createReplyDispatcherWithTyping,
+  type DeliveryJournalContext,
   type ReplyDispatcher,
   type ReplyDispatcherOptions,
   type ReplyDispatcherWithTypingOptions,
@@ -45,6 +48,30 @@ type DispatchInboundMessageInternalParams = {
   isOrphanReplyRecovery?: boolean;
 };
 
+function resolveDeliveryJournalContext(params: {
+  pendingReplyId: string;
+  ctx: FinalizedMsgContext;
+}): DeliveryJournalContext | undefined {
+  const channel = normalizeMessageChannel(
+    params.ctx.OriginatingChannel ?? params.ctx.Surface ?? params.ctx.Provider,
+  );
+  if (!channel || !isDeliverableMessageChannel(channel)) {
+    return undefined;
+  }
+  const to = params.ctx.OriginatingTo?.trim() || params.ctx.To?.trim();
+  if (!to) {
+    return undefined;
+  }
+  return {
+    channel,
+    to,
+    accountId: params.ctx.AccountId?.trim() || undefined,
+    threadId: params.ctx.MessageThreadId,
+    replyToId: params.ctx.ReplyToId?.trim() || undefined,
+    inboundId: params.pendingReplyId,
+  };
+}
+
 async function dispatchInboundMessageInternal({
   ctx,
   cfg,
@@ -60,7 +87,7 @@ async function dispatchInboundMessageInternal({
   const shouldTrackTurn = !isOrphanReplyRecovery && replyOptions?.isHeartbeat !== true;
 
   let pendingReplyId: string | undefined;
-  let deliveryObserved = false;
+  let deliveryJournalEnabled = false;
   if (shouldTrackTurn) {
     // Generate a stable turn ID if the caller didn't provide one.
     if (!finalized.PendingReplyId?.trim()) {
@@ -88,21 +115,15 @@ async function dispatchInboundMessageInternal({
       logVerbose(`dispatch: journal accept failed (continuing): ${String(err)}`);
     }
 
-    // Persist post-send evidence as soon as any provider send succeeds.
-    // This prevents duplicate orphan replay for channels that bypass outbound journaling.
-    if (pendingReplyId && dispatcher.setDeliveryObserver) {
-      const pendingId = pendingReplyId;
-      dispatcher.setDeliveryObserver(() => {
-        if (deliveryObserved) {
-          return;
-        }
-        deliveryObserved = true;
-        try {
-          completeInboundTurn(pendingId, "delivered");
-        } catch (err) {
-          logVerbose(`dispatch: journal early-complete failed: ${String(err)}`);
-        }
+    // Register write-ahead outbound journaling so every dispatcher send path
+    // (including channel-specific direct callbacks) produces durable evidence.
+    if (pendingReplyId && dispatcher.setDeliveryJournalContext) {
+      const context = resolveDeliveryJournalContext({
+        pendingReplyId,
+        ctx: finalized,
       });
+      dispatcher.setDeliveryJournalContext(context);
+      deliveryJournalEnabled = Boolean(context);
     }
   }
 
@@ -118,10 +139,32 @@ async function dispatchInboundMessageInternal({
       }),
   });
 
-  // Mark turn delivered after dispatcher fully drains (including queued replies).
-  if (pendingReplyId && !deliveryObserved) {
+  // Resolve terminal state after dispatcher fully drains (including queued replies).
+  if (pendingReplyId) {
     try {
-      completeInboundTurn(pendingReplyId, "delivered");
+      const successfulSends = dispatcher.getDeliveryStats?.().successfulSends ?? 0;
+      if (successfulSends > 0) {
+        // Actual provider sends succeeded, so this turn should not be replayed.
+        completeInboundTurn(pendingReplyId, "delivered");
+        return result;
+      }
+      if (deliveryJournalEnabled) {
+        const status = getOutboundStatusForInbound(pendingReplyId);
+        if (status.queued > 0) {
+          logVerbose(
+            `dispatch: leaving inbound processing for queued outbound recovery (turn=${pendingReplyId})`,
+          );
+        } else if (status.delivered > 0) {
+          completeInboundTurn(pendingReplyId, "delivered");
+        } else if (status.failed > 0) {
+          completeInboundTurn(pendingReplyId, "failed");
+        } else {
+          // No outbound rows found (for example, journal unavailable) — keep fail-open behavior.
+          completeInboundTurn(pendingReplyId, "delivered");
+        }
+      } else {
+        completeInboundTurn(pendingReplyId, "delivered");
+      }
     } catch (err) {
       logVerbose(`dispatch: journal complete failed: ${String(err)}`);
     }

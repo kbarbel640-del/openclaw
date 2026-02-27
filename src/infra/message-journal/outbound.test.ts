@@ -10,7 +10,6 @@ import {
   enqueueDelivery,
   failDelivery,
   getOutboundStatusForInbound,
-  hasAnyOutboundForInbound,
   isEntryEligibleForRecoveryRetry,
   isPermanentDeliveryError,
   loadPendingDeliveries,
@@ -95,17 +94,19 @@ describe("enqueue + ack lifecycle", () => {
 
     const [pending] = await loadPendingDeliveries(tmpDir);
     expect(pending.inboundId).toBe(inboundId);
-    expect(hasAnyOutboundForInbound(inboundId, tmpDir)).toBe(true);
     expect(getOutboundStatusForInbound(inboundId, tmpDir)).toEqual({
       queued: 1,
       delivered: 0,
       failed: 0,
     });
-    expect(hasAnyOutboundForInbound("missing-turn", tmpDir)).toBe(false);
+    expect(getOutboundStatusForInbound("missing-turn", tmpDir)).toEqual({
+      queued: 0,
+      delivered: 0,
+      failed: 0,
+    });
 
     await ackDelivery(id, tmpDir);
     // Delivered rows still count as outbound history for inbound replay gating.
-    expect(hasAnyOutboundForInbound(inboundId, tmpDir)).toBe(true);
     expect(getOutboundStatusForInbound(inboundId, tmpDir)).toEqual({
       queued: 0,
       delivered: 1,

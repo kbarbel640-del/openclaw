@@ -12,10 +12,18 @@ vi.mock("../infra/message-journal/inbound.js", () => ({
   acceptInboundOrSkip: vi.fn(() => true),
   completeInboundTurn: vi.fn(),
 }));
+vi.mock("../infra/message-journal/outbound.js", () => ({
+  getOutboundStatusForInbound: vi.fn(() => ({
+    queued: 0,
+    delivered: 0,
+    failed: 0,
+  })),
+}));
 
 // Import after mock registration so we get the spy instances.
 const { acceptInboundOrSkip, completeInboundTurn } =
   await import("../infra/message-journal/inbound.js");
+const { getOutboundStatusForInbound } = await import("../infra/message-journal/outbound.js");
 
 function createDispatcher(record: string[]): ReplyDispatcher {
   return {
@@ -118,6 +126,11 @@ describe("dispatchInboundMessage — journal integration", () => {
   beforeEach(() => {
     vi.mocked(acceptInboundOrSkip).mockClear().mockReturnValue(true);
     vi.mocked(completeInboundTurn).mockClear();
+    vi.mocked(getOutboundStatusForInbound).mockClear().mockReturnValue({
+      queued: 0,
+      delivered: 0,
+      failed: 0,
+    });
   });
 
   it("calls acceptInboundOrSkip and assigns PendingReplyId when absent", async () => {
@@ -150,18 +163,18 @@ describe("dispatchInboundMessage — journal integration", () => {
     expect(vi.mocked(completeInboundTurn).mock.calls[0][1]).toBe("delivered");
   });
 
-  it("marks delivered on first successful send when dispatcher exposes delivery observer", async () => {
-    let observer: ((info: { kind: "tool" | "block" | "final" }) => void) | undefined;
+  it("marks delivered when dispatcher reports successful sends", async () => {
+    vi.mocked(getOutboundStatusForInbound).mockReturnValue({
+      queued: 1,
+      delivered: 0,
+      failed: 0,
+    });
     const dispatcher: ReplyDispatcher = {
       sendToolResult: () => true,
       sendBlockReply: () => true,
-      sendFinalReply: () => {
-        observer?.({ kind: "final" });
-        return true;
-      },
-      setDeliveryObserver: (nextObserver) => {
-        observer = nextObserver;
-      },
+      sendFinalReply: () => true,
+      setDeliveryJournalContext: vi.fn(),
+      getDeliveryStats: () => ({ successfulSends: 1 }),
       getQueuedCounts: () => ({ tool: 0, block: 0, final: 0 }),
       markComplete: vi.fn(),
       waitForIdle: vi.fn(async () => {}),
@@ -174,9 +187,75 @@ describe("dispatchInboundMessage — journal integration", () => {
       replyResolver: async () => ({ text: "ok" }),
     });
 
-    // Early post-send marker should suppress duplicate terminal transition at function end.
     expect(completeInboundTurn).toHaveBeenCalledTimes(1);
     expect(vi.mocked(completeInboundTurn).mock.calls[0][1]).toBe("delivered");
+    // Successful sends short-circuit DB status checks.
+    expect(getOutboundStatusForInbound).not.toHaveBeenCalled();
+  });
+
+  it("configures delivery journal context when dispatcher supports it", async () => {
+    const setDeliveryJournalContext = vi.fn();
+    const dispatcher: ReplyDispatcher = {
+      sendToolResult: () => true,
+      sendBlockReply: () => true,
+      sendFinalReply: () => true,
+      setDeliveryJournalContext,
+      getQueuedCounts: () => ({ tool: 0, block: 0, final: 0 }),
+      markComplete: vi.fn(),
+      waitForIdle: vi.fn(async () => {}),
+    };
+
+    await dispatchInboundMessage({
+      ctx: buildTestCtx({
+        Surface: "slack",
+        OriginatingChannel: "slack",
+        OriginatingTo: "channel:C123",
+        AccountId: "work",
+      }),
+      cfg: {} as OpenClawConfig,
+      dispatcher,
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(setDeliveryJournalContext).toHaveBeenCalledTimes(1);
+    expect(setDeliveryJournalContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "slack",
+        to: "channel:C123",
+        accountId: "work",
+      }),
+    );
+  });
+
+  it("marks turn failed when outbound journal reports failed deliveries", async () => {
+    vi.mocked(getOutboundStatusForInbound).mockReturnValue({
+      queued: 0,
+      delivered: 0,
+      failed: 1,
+    });
+    const dispatcher: ReplyDispatcher = {
+      sendToolResult: () => true,
+      sendBlockReply: () => true,
+      sendFinalReply: () => true,
+      setDeliveryJournalContext: vi.fn(),
+      getQueuedCounts: () => ({ tool: 0, block: 0, final: 0 }),
+      markComplete: vi.fn(),
+      waitForIdle: vi.fn(async () => {}),
+    };
+
+    await dispatchInboundMessage({
+      ctx: buildTestCtx({
+        Surface: "signal",
+        OriginatingChannel: "signal",
+        OriginatingTo: "signal:+15550001111",
+      }),
+      cfg: {} as OpenClawConfig,
+      dispatcher,
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(completeInboundTurn).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(completeInboundTurn).mock.calls[0][1]).toBe("failed");
   });
 
   it("skips journal tracking for heartbeats", async () => {
