@@ -28,6 +28,7 @@ import {
   type HistoryEntry,
 } from "openclaw/plugin-sdk";
 import { getMattermostRuntime } from "../runtime.js";
+import { setThreadRoot } from "../thread-state.js";
 import { resolveMattermostAccount } from "./accounts.js";
 import {
   createMattermostClient,
@@ -503,7 +504,10 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
     });
 
     const baseSessionKey = route.sessionKey;
-    const threadRootId = post.root_id?.trim() || undefined;
+    const threadRootId = post.root_id?.trim() || (kind !== "direct" ? post.id : undefined);
+    if (threadRootId && channelId) {
+      setThreadRoot(channelId, threadRootId);
+    }
     const threadKeys = resolveThreadSessionKeys({
       baseSessionKey,
       threadId: threadRootId,
