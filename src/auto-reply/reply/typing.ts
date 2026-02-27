@@ -80,6 +80,12 @@ export function createTypingController(params: {
     if (sealed) {
       return;
     }
+    // After the run completes, late callbacks (tool/block streaming) should not
+    // reset the TTL. Otherwise the typing indicator stays alive indefinitely.
+    // See: https://github.com/openclaw/openclaw/issues/26733
+    if (runComplete) {
+      return;
+    }
     if (!typingIntervalMs || typingIntervalMs <= 0) {
       return;
     }
