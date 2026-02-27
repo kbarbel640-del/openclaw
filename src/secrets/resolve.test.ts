@@ -112,6 +112,87 @@ describe("secret ref resolver", () => {
     expect(value).toBe("value:openai/api-key");
   });
 
+  it("uses exec timeoutMs as no-output timeout fallback when noOutputTimeoutMs is unset", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-secrets-resolve-exec-timeout-"));
+    cleanupRoots.push(root);
+    const scriptPath = path.join(root, "resolver-timeout-fallback.mjs");
+    await writeSecureFile(
+      scriptPath,
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        "const req = JSON.parse(fs.readFileSync(0, 'utf8'));",
+        "const values = Object.fromEntries((req.ids ?? []).map((id) => [id, `value:${id}`]));",
+        "setTimeout(() => {",
+        "  process.stdout.write(JSON.stringify({ protocolVersion: 1, values }));",
+        "}, 2500);",
+      ].join("\n"),
+      0o700,
+    );
+
+    const value = await resolveSecretRefString(
+      { source: "exec", provider: "execmain", id: "openai/api-key" },
+      {
+        config: {
+          secrets: {
+            providers: {
+              execmain: {
+                source: "exec",
+                command: scriptPath,
+                passEnv: ["PATH"],
+                timeoutMs: 4000,
+              },
+            },
+          },
+        },
+      },
+    );
+    expect(value).toBe("value:openai/api-key");
+  });
+
+  it("allows >2s startup with default exec timeout when noOutputTimeoutMs is unset", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-secrets-resolve-exec-default-"));
+    cleanupRoots.push(root);
+    const scriptPath = path.join(root, "resolver-default-timeout-fallback.mjs");
+    await writeSecureFile(
+      scriptPath,
+      [
+        "#!/usr/bin/env node",
+        "import fs from 'node:fs';",
+        "const req = JSON.parse(fs.readFileSync(0, 'utf8'));",
+        "const values = Object.fromEntries((req.ids ?? []).map((id) => [id, `value:${id}`]));",
+        "setTimeout(() => {",
+        "  process.stdout.write(JSON.stringify({ protocolVersion: 1, values }));",
+        "}, 2500);",
+      ].join("\n"),
+      0o700,
+    );
+
+    const value = await resolveSecretRefString(
+      { source: "exec", provider: "execmain", id: "openai/api-key" },
+      {
+        config: {
+          secrets: {
+            providers: {
+              execmain: {
+                source: "exec",
+                command: scriptPath,
+                passEnv: ["PATH"],
+              },
+            },
+          },
+        },
+      },
+    );
+    expect(value).toBe("value:openai/api-key");
+  });
+
   it("supports non-JSON single-value exec output when jsonOnly is false", async () => {
     if (process.platform === "win32") {
       return;
