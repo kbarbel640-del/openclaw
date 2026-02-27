@@ -15,20 +15,8 @@ import {
 
 export const AgentDefaultsSchema = z
   .object({
-    model: z
-      .object({
-        primary: z.string().optional(),
-        fallbacks: z.array(z.string()).optional(),
-      })
-      .strict()
-      .optional(),
-    imageModel: z
-      .object({
-        primary: z.string().optional(),
-        fallbacks: z.array(z.string()).optional(),
-      })
-      .strict()
-      .optional(),
+    model: AgentModelSchema.optional(),
+    imageModel: AgentModelSchema.optional(),
     models: z
       .record(
         z.string(),
@@ -108,6 +96,14 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+    embeddedPi: z
+      .object({
+        projectSettingsPolicy: z
+          .union([z.literal("trusted"), z.literal("sanitize"), z.literal("ignore")])
+          .optional(),
+      })
+      .strict()
+      .optional(),
     thinkingDefault: z
       .union([
         z.literal("off"),
@@ -158,6 +154,7 @@ export const AgentDefaultsSchema = z
         archiveAfterMinutes: z.number().int().positive().optional(),
         model: AgentModelSchema.optional(),
         thinking: z.string().optional(),
+        runTimeoutSeconds: z.number().int().min(0).optional(),
         announceTimeoutMs: z.number().int().positive().optional(),
       })
       .strict()

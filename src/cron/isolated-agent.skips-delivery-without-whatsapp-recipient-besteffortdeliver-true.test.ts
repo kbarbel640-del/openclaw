@@ -56,6 +56,7 @@ async function expectBestEffortTelegramNotDelivered(
 
     expect(res.status).toBe("ok");
     expect(res.delivered).toBe(false);
+    expect(res.deliveryAttempted).toBe(true);
     expect(runSubagentAnnounceFlow).not.toHaveBeenCalled();
     expect(deps.sendMessageTelegram).toHaveBeenCalledTimes(1);
   });
@@ -81,11 +82,13 @@ async function expectExplicitTelegramTargetAnnounce(params: {
       | {
           requesterOrigin?: { channel?: string; to?: string };
           roundOneReply?: string;
+          bestEffortDeliver?: boolean;
         }
       | undefined;
     expect(announceArgs?.requesterOrigin?.channel).toBe("telegram");
     expect(announceArgs?.requesterOrigin?.to).toBe("123");
     expect(announceArgs?.roundOneReply).toBe(params.expectedText);
+    expect(announceArgs?.bestEffortDeliver).toBe(false);
     expect(deps.sendMessageTelegram).not.toHaveBeenCalled();
   });
 }
@@ -257,6 +260,58 @@ describe("runCronIsolatedAgentTurn", () => {
       expect(res.error).toContain("boom");
       expect(runSubagentAnnounceFlow).not.toHaveBeenCalled();
       expect(deps.sendMessageTelegram).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("fails when announce delivery reports false and best-effort is disabled", async () => {
+    await withTempCronHome(async (home) => {
+      const storePath = await writeSessionStore(home, { lastProvider: "webchat", lastTo: "" });
+      const deps = createCliDeps();
+      mockAgentPayloads([{ text: "hello from cron" }]);
+      vi.mocked(runSubagentAnnounceFlow).mockResolvedValueOnce(false);
+
+      const res = await runTelegramAnnounceTurn({
+        home,
+        storePath,
+        deps,
+        delivery: {
+          mode: "announce",
+          channel: "telegram",
+          to: "123",
+          bestEffort: false,
+        },
+      });
+
+      expect(res.status).toBe("error");
+      expect(res.error).toContain("cron announce delivery failed");
+      expect(deps.sendMessageTelegram).not.toHaveBeenCalled();
+    });
+  });
+
+  it("marks attempted when announce delivery reports false and best-effort is enabled", async () => {
+    await withTempCronHome(async (home) => {
+      const storePath = await writeSessionStore(home, { lastProvider: "webchat", lastTo: "" });
+      const deps = createCliDeps();
+      mockAgentPayloads([{ text: "hello from cron" }]);
+      vi.mocked(runSubagentAnnounceFlow).mockResolvedValueOnce(false);
+
+      const res = await runTelegramAnnounceTurn({
+        home,
+        storePath,
+        deps,
+        delivery: {
+          mode: "announce",
+          channel: "telegram",
+          to: "123",
+          bestEffort: true,
+        },
+      });
+
+      expect(res.status).toBe("ok");
+      expect(res.delivered).toBe(false);
+      expect(res.deliveryAttempted).toBe(true);
+      expect(runSubagentAnnounceFlow).toHaveBeenCalledTimes(1);
+      expect(deps.sendMessageTelegram).not.toHaveBeenCalled();
     });
   });
 
