@@ -101,6 +101,29 @@ function resolvePositiveInt(value: unknown, fallback: number): number {
   return Math.floor(value);
 }
 
+function validateResolvedGatewayAbuseConfig(config: ResolvedGatewayAbuseConfig): void {
+  if (config.quota.sustainedWindowMs < config.quota.burstWindowMs) {
+    throw new Error(
+      "gateway.abuse.quota.sustainedWindowMs must be >= burstWindowMs after defaults are applied.",
+    );
+  }
+  if (config.anomaly.warningThreshold >= config.anomaly.throttleThreshold) {
+    throw new Error(
+      "gateway.abuse.anomaly.warningThreshold must be < throttleThreshold after defaults are applied.",
+    );
+  }
+  if (config.anomaly.throttleThreshold >= config.anomaly.blockThreshold) {
+    throw new Error(
+      "gateway.abuse.anomaly.throttleThreshold must be < blockThreshold after defaults are applied.",
+    );
+  }
+  if (config.correlation.warningScore >= config.correlation.criticalScore) {
+    throw new Error(
+      "gateway.abuse.correlation.warningScore must be < criticalScore after defaults are applied.",
+    );
+  }
+}
+
 export function resolveGatewayAbuseConfig(
   cfg: OpenClawConfig,
   overrides?: GatewayAbuseConfig,
@@ -132,7 +155,7 @@ export function resolveGatewayAbuseConfig(
     ...overrides?.auditLedger,
   };
 
-  return {
+  const resolved: ResolvedGatewayAbuseConfig = {
     quota: {
       mode: resolveMode(quota.mode),
       burstLimit: resolvePositiveInt(
@@ -228,4 +251,7 @@ export function resolveGatewayAbuseConfig(
           : DEFAULT_GATEWAY_ABUSE_CONFIG.auditLedger.redactPayloads,
     },
   };
+
+  validateResolvedGatewayAbuseConfig(resolved);
+  return resolved;
 }

@@ -64,4 +64,47 @@ describe("resolveGatewayAbuseConfig", () => {
     expect(resolved.auditLedger.mode).toBe("observe");
     expect(resolved.auditLedger.retentionDays).toBe(30);
   });
+
+  it("rejects partial anomaly thresholds that invert ordering after defaults", () => {
+    expect(() =>
+      resolveGatewayAbuseConfig({
+        gateway: {
+          abuse: {
+            anomaly: {
+              warningThreshold: 70,
+              blockThreshold: 80,
+            },
+          },
+        },
+      }),
+    ).toThrow("gateway.abuse.anomaly.warningThreshold must be < throttleThreshold");
+  });
+
+  it("rejects partial quota windows that invert ordering after defaults", () => {
+    expect(() =>
+      resolveGatewayAbuseConfig({
+        gateway: {
+          abuse: {
+            quota: {
+              sustainedWindowMs: 5_000,
+            },
+          },
+        },
+      }),
+    ).toThrow("gateway.abuse.quota.sustainedWindowMs must be >= burstWindowMs");
+  });
+
+  it("rejects partial correlation scores that invert ordering after defaults", () => {
+    expect(() =>
+      resolveGatewayAbuseConfig({
+        gateway: {
+          abuse: {
+            correlation: {
+              warningScore: 90,
+            },
+          },
+        },
+      }),
+    ).toThrow("gateway.abuse.correlation.warningScore must be < criticalScore");
+  });
 });
