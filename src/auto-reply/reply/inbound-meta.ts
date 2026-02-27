@@ -61,6 +61,7 @@ export function buildInboundMetaSystemPrompt(ctx: TemplateContext): string {
     schema: "openclaw.inbound_meta.v1",
     chat_id: safeTrim(ctx.OriginatingTo),
     channel: channelValue,
+    account_id: safeTrim(ctx.AccountId),
     provider: safeTrim(ctx.Provider),
     surface: safeTrim(ctx.Surface),
     chat_type: chatType ?? (isDirect ? "direct" : undefined),

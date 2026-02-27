@@ -37,6 +37,21 @@ describe("buildInboundMetaSystemPrompt", () => {
     expect(payload["channel"]).toBe("telegram");
   });
 
+  it("includes account_id when present", () => {
+    const prompt = buildInboundMetaSystemPrompt({
+      MessageSid: "456",
+      OriginatingTo: "+5548991904510",
+      OriginatingChannel: "whatsapp",
+      Provider: "whatsapp",
+      Surface: "whatsapp",
+      ChatType: "direct",
+      AccountId: "eko",
+    } as TemplateContext);
+
+    const payload = parseInboundMetaPayload(prompt);
+    expect(payload["account_id"]).toBe("eko");
+  });
+
   it("does not include per-turn message identifiers (cache stability)", () => {
     const prompt = buildInboundMetaSystemPrompt({
       MessageSid: "123",
