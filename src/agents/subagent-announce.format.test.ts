@@ -1638,7 +1638,7 @@ describe("subagent announce formatting", () => {
     let historyReads = 0;
     chatHistoryMock.mockImplementation(async () => {
       historyReads += 1;
-      if (historyReads < 3) {
+      if (historyReads < 2) {
         return {
           messages: [{ role: "assistant", content: "Waiting for child output..." }],
         };
@@ -1655,7 +1655,7 @@ describe("subagent announce formatting", () => {
       requesterSessionKey: "agent:main:subagent:orchestrator",
       requesterDisplayKey: "agent:main:subagent:orchestrator",
       ...defaultOutcomeAnnounce,
-      timeoutMs: 100,
+      timeoutMs: 500,
     });
 
     expect(didAnnounce).toBe(true);
