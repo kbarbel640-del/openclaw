@@ -154,8 +154,8 @@ async function restartGateway(runtime: RuntimeEnv): Promise<void> {
     const service = resolveGatewayService();
     await service.restart({ env: process.env, stdout: process.stdout });
   } catch (err) {
-    runtime.warn?.(`Gateway restart failed: ${String(err)}`);
-    runtime.warn?.("Run manually: openclaw gateway restart");
+    runtime.log(`Gateway restart failed: ${String(err)}`);
+    runtime.log("Run manually: openclaw gateway restart");
   }
 }
 
@@ -166,7 +166,7 @@ export async function guardianSnapshot(
   opts: Pick<GuardianOptions, "tag">,
 ): Promise<void> {
   ensureDirs();
-  intro(theme.title("Guardian — Snapshot"));
+  intro(theme.heading("Guardian — Snapshot"));
 
   const s = spinner();
   s.start("Checking gateway health…");
@@ -214,7 +214,7 @@ export async function guardianRestore(
   runtime: RuntimeEnv,
   opts: GuardianOptions & { target?: string },
 ): Promise<void> {
-  intro(theme.title("Guardian — Restore"));
+  intro(theme.heading("Guardian — Restore"));
 
   const meta = loadMeta();
   if (meta.snapshots.length === 0) {
@@ -389,7 +389,10 @@ function jsonDiff(a: unknown, b: unknown, prefix = ""): string[] {
 
 // ─── prune ────────────────────────────────────────────────────────────────────
 
-export function guardianPrune(runtime: RuntimeEnv, opts: Pick<GuardianOptions, "keep">): void {
+export function guardianPrune(
+  runtime: RuntimeEnv,
+  opts: Pick<GuardianOptions, "keep" | "yes">,
+): void {
   const keep = opts.keep ?? 10;
   const meta = loadMeta();
 
