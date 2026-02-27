@@ -188,6 +188,73 @@ export function sanitizeToolCallInputs(
   return repairToolCallInputs(messages, options).messages;
 }
 
+function toolReplayIdVariants(id: string): string[] {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const variants = new Set<string>([trimmed]);
+  const separator = trimmed.indexOf("|");
+  if (separator > 0) {
+    const callId = trimmed.slice(0, separator).trim();
+    if (callId) {
+      variants.add(callId);
+    }
+  }
+  return [...variants];
+}
+
+export function dropUnpairedToolResults(messages: AgentMessage[]): AgentMessage[] {
+  let changed = false;
+  const seenAssistantToolCallIds = new Set<string>();
+  const out: AgentMessage[] = [];
+
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object") {
+      out.push(msg);
+      continue;
+    }
+
+    if (msg.role === "assistant") {
+      const calls = extractToolCallsFromAssistant(msg);
+      for (const call of calls) {
+        for (const variant of toolReplayIdVariants(call.id)) {
+          seenAssistantToolCallIds.add(variant);
+        }
+      }
+      out.push(msg);
+      continue;
+    }
+
+    if (msg.role !== "toolResult") {
+      out.push(msg);
+      continue;
+    }
+
+    const toolResultId = extractToolResultId(msg);
+    if (!toolResultId) {
+      changed = true;
+      continue;
+    }
+
+    const resultIdVariants = toolReplayIdVariants(toolResultId);
+    if (resultIdVariants.length === 0) {
+      changed = true;
+      continue;
+    }
+
+    const hasMatch = resultIdVariants.some((variant) => seenAssistantToolCallIds.has(variant));
+    if (!hasMatch) {
+      changed = true;
+      continue;
+    }
+
+    out.push(msg);
+  }
+
+  return changed ? out : messages;
+}
+
 export function sanitizeToolUseResultPairing(messages: AgentMessage[]): AgentMessage[] {
   return repairToolUseResultPairing(messages).messages;
 }

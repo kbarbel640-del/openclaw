@@ -1,6 +1,7 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { describe, expect, it } from "vitest";
 import {
+  dropUnpairedToolResults,
   sanitizeToolCallInputs,
   sanitizeToolUseResultPairing,
   repairToolUseResultPairing,
@@ -313,5 +314,84 @@ describe("sanitizeToolCallInputs", () => {
       ? assistant.content.map((block) => (block as { type?: unknown }).type)
       : [];
     expect(types).toEqual(["text", "toolUse"]);
+  });
+});
+
+describe("dropUnpairedToolResults", () => {
+  it("drops orphan toolResult when no prior assistant tool call exists", () => {
+    const input = [
+      { role: "user", content: "hello" },
+      {
+        role: "toolResult",
+        toolCallId: "call_orphan",
+        toolName: "read",
+        content: [{ type: "text", text: "orphan" }],
+      },
+    ] as unknown as AgentMessage[];
+
+    const out = dropUnpairedToolResults(input);
+    expect(out.map((message) => message.role)).toEqual(["user"]);
+  });
+
+  it("keeps valid toolResult matched by exact call|fc id", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call_live|fc_live", name: "read", arguments: {} }],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "call_live|fc_live",
+        toolName: "read",
+        content: [{ type: "text", text: "ok" }],
+      },
+    ] as unknown as AgentMessage[];
+
+    const out = dropUnpairedToolResults(input);
+    expect(out).toHaveLength(2);
+    expect(out[1]?.role).toBe("toolResult");
+  });
+
+  it("keeps valid toolResult when assistant uses call|fc and result uses bare call", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call_live|fc_live", name: "read", arguments: {} }],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "call_live",
+        toolName: "read",
+        content: [{ type: "text", text: "ok" }],
+      },
+    ] as unknown as AgentMessage[];
+
+    const out = dropUnpairedToolResults(input);
+    expect(out).toHaveLength(2);
+    expect((out[1] as { toolCallId?: string }).toolCallId).toBe("call_live");
+  });
+
+  it("drops toolResult entries with missing or empty ids", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "call_live", name: "read", arguments: {} }],
+      },
+      {
+        role: "toolResult",
+        toolName: "read",
+        content: [{ type: "text", text: "missing id" }],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "   ",
+        toolName: "read",
+        content: [{ type: "text", text: "blank id" }],
+      },
+    ] as unknown as AgentMessage[];
+
+    const out = dropUnpairedToolResults(input);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.role).toBe("assistant");
   });
 });
