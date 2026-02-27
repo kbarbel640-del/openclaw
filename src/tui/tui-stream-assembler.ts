@@ -77,6 +77,29 @@ function isDroppedBoundaryTextBlockSubset(params: {
   return finalTextBlocks.every((block, index) => streamedTextBlocks[suffixStart + index] === block);
 }
 
+/**
+ * Detect whether `incomingText` is a boundary-aligned truncation of
+ * `streamedText` — i.e. the incoming text is a strict prefix or suffix
+ * of the streamed text.  This targets the single-block streaming
+ * scenario from #28180 where the provider re-emits the message with a
+ * shortened text block at the tool-call boundary.
+ *
+ * Unlike a length-only check, this ensures that intentional rewrites
+ * (where the model replaces the text with completely different content
+ * that happens to be shorter) are NOT mistaken for truncation.
+ *
+ * This guard is only used inside `ingestDelta` on the first
+ * tool-boundary transition as a UI flicker prevention measure;
+ * `finalize` always trusts the final payload, so any intentional
+ * rewrite by the model will still be reflected in the final output.
+ */
+function isBoundaryAlignedTruncation(streamedText: string, incomingText: string): boolean {
+  if (!streamedText || !incomingText || incomingText.length >= streamedText.length) {
+    return false;
+  }
+  return streamedText.startsWith(incomingText) || streamedText.endsWith(incomingText);
+}
+
 function shouldPreserveBoundaryDroppedText(params: {
   boundaryDropMode: BoundaryDropMode;
   streamedSawNonTextContentBlocks: boolean;
@@ -122,7 +145,17 @@ export class TuiStreamAssembler {
     state: RunStreamState,
     message: unknown,
     showThinking: boolean,
-    opts?: { boundaryDropMode?: BoundaryDropMode },
+    opts?: {
+      boundaryDropMode?: BoundaryDropMode;
+      /**
+       * When true, enables the single-block boundary-aligned truncation
+       * guard that prevents text from visibly shrinking on the first
+       * tool-boundary transition.  Only `ingestDelta` sets this —
+       * `finalize` always trusts the final payload so intentional
+       * rewrites are honoured.
+       */
+      guardSingleBlockTruncation?: boolean;
+    },
   ) {
     const thinkingText = extractThinkingFromMessage(message);
     const contentText = extractContentFromMessage(message);
@@ -134,13 +167,52 @@ export class TuiStreamAssembler {
     if (contentText) {
       const nextContentBlocks = textBlocks.length > 0 ? textBlocks : [contentText];
       const boundaryDropMode = opts?.boundaryDropMode ?? "off";
-      const shouldKeepStreamedBoundaryText = shouldPreserveBoundaryDroppedText({
-        boundaryDropMode,
-        streamedSawNonTextContentBlocks: state.sawNonTextContentBlocks,
-        incomingSawNonTextContentBlocks: sawNonTextContentBlocks,
-        streamedTextBlocks: state.contentBlocks,
-        nextContentBlocks,
-      });
+
+      // Single-block boundary-aligned truncation guard (#28180).
+      //
+      // During live streaming, when a tool_use block first appears the
+      // provider may re-emit the message with a shortened text block
+      // that is a strict prefix or suffix of the already-streamed text.
+      // The existing multi-block subset check (`isDroppedBoundaryTextBlockSubset`)
+      // does not catch this because the block count stays 1 → 1.
+      //
+      // To prevent visible text shrinkage we keep the already-streamed
+      // text when ALL of the following hold:
+      //   1. Called from ingestDelta (guardSingleBlockTruncation === true)
+      //   2. This is the first tool-boundary transition
+      //      (sawNonTextContentBlocks flips from false to true)
+      //   3. The incoming text is a strict prefix or suffix of the
+      //      streamed text (boundary-aligned truncation pattern)
+      //
+      // Condition 3 ensures that intentional rewrites — where the model
+      // replaces text with completely different (possibly shorter) content —
+      // are NOT blocked.  For example, "Need to verify; answer is 42"
+      // rewritten to "The answer is definitely 42" is not a prefix or
+      // suffix match, so it passes through normally.
+      //
+      // This is a pure UI flicker prevention measure.  finalize() never
+      // enables this guard, so the final output always reflects the
+      // authoritative server payload.
+      let keepForSingleBlockTruncation = false;
+      if (opts?.guardSingleBlockTruncation && boundaryDropMode !== "off") {
+        const isFirstToolTransition =
+          !state.sawNonTextContentBlocks && sawNonTextContentBlocks && state.contentText;
+        if (isFirstToolTransition) {
+          keepForSingleBlockTruncation = isBoundaryAlignedTruncation(
+            state.contentText,
+            contentText,
+          );
+        }
+      }
+
+      const shouldKeepStreamedBoundaryText =
+        shouldPreserveBoundaryDroppedText({
+          boundaryDropMode,
+          streamedSawNonTextContentBlocks: state.sawNonTextContentBlocks,
+          incomingSawNonTextContentBlocks: sawNonTextContentBlocks,
+          streamedTextBlocks: state.contentBlocks,
+          nextContentBlocks,
+        }) || keepForSingleBlockTruncation;
 
       if (!shouldKeepStreamedBoundaryText) {
         state.contentText = contentText;
@@ -165,6 +237,7 @@ export class TuiStreamAssembler {
     const previousDisplayText = state.displayText;
     this.updateRunState(state, message, showThinking, {
       boundaryDropMode: "streamed-or-incoming",
+      guardSingleBlockTruncation: true,
     });
 
     if (!state.displayText || state.displayText === previousDisplayText) {
@@ -181,6 +254,9 @@ export class TuiStreamAssembler {
     const streamedSawNonTextContentBlocks = state.sawNonTextContentBlocks;
     this.updateRunState(state, message, showThinking, {
       boundaryDropMode: "streamed-only",
+      // guardSingleBlockTruncation is intentionally NOT set here.
+      // finalize always trusts the final payload from the server,
+      // ensuring that intentional model rewrites are honoured.
     });
     const finalComposed = state.displayText;
     const shouldKeepStreamedText =

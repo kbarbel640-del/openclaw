@@ -119,4 +119,175 @@ describe("TuiStreamAssembler", () => {
       expect(finalText).toBe(testCase.expected);
     });
   }
+
+  // --- Single-block boundary-aligned truncation guard (#28180) ---
+
+  it("preserves streamed text when first tool delta truncates to a suffix", () => {
+    // Core #28180 scenario: provider re-emits a shorter text block at tool boundary.
+    // "consectetur adipiscing elit." is a suffix of the full streamed text.
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta(
+      "run-shrink",
+      messageWithContent([text("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")]),
+      false,
+    );
+
+    // Tool appears and text is truncated to only the suffix.
+    const afterTool = assembler.ingestDelta(
+      "run-shrink",
+      messageWithContent([toolUse(), text("consectetur adipiscing elit.")]),
+      false,
+    );
+    // Suffix match → boundary-aligned truncation → preserve streamed text.
+    expect(afterTool).toBeNull();
+  });
+
+  it("preserves streamed text when first tool delta truncates to a prefix", () => {
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta(
+      "run-shrink-prefix",
+      messageWithContent([text("Lorem ipsum dolor sit amet, consectetur adipiscing elit.")]),
+      false,
+    );
+
+    const afterTool = assembler.ingestDelta(
+      "run-shrink-prefix",
+      messageWithContent([toolUse(), text("Lorem ipsum dolor sit amet,")]),
+      false,
+    );
+    // Prefix match → boundary-aligned truncation → preserve streamed text.
+    expect(afterTool).toBeNull();
+  });
+
+  it("allows text growth when tool_use first appears", () => {
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta("run-grow", messageWithContent([text("Hello world")]), false);
+
+    // Tool appears but text grows — should update normally.
+    const second = assembler.ingestDelta(
+      "run-grow",
+      messageWithContent([text("Hello world"), toolUse(), text("New content after tool")]),
+      false,
+    );
+    expect(second).toBe("Hello world\nNew content after tool");
+  });
+
+  it("allows intentional rewrite at first tool boundary (non-boundary-aligned)", () => {
+    // Codex's key concern: model intentionally rewrites
+    // "Need to verify; answer is 42" (28 chars) to
+    // "The answer is definitely 42" (27 chars).
+    // The new text is shorter but is NOT a prefix or suffix of the old text,
+    // so it should pass through as a legitimate rewrite.
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta(
+      "run-rewrite",
+      messageWithContent([text("Need to verify; answer is 42")]),
+      false,
+    );
+
+    const second = assembler.ingestDelta(
+      "run-rewrite",
+      messageWithContent([toolUse(), text("The answer is definitely 42")]),
+      false,
+    );
+    // NOT a prefix or suffix → intentional rewrite → update normally.
+    expect(second).toBe("The answer is definitely 42");
+  });
+
+  it("does not guard on second tool delta (only first transition)", () => {
+    const assembler = new TuiStreamAssembler();
+    // Phase 1: pre-tool text.
+    assembler.ingestDelta(
+      "run-second",
+      messageWithContent([text("Need to verify; answer is 42")]),
+      false,
+    );
+
+    // Phase 2: first tool transition — text grows (not a truncation).
+    assembler.ingestDelta(
+      "run-second",
+      messageWithContent([text("Need to verify; answer is 42"), toolUse()]),
+      false,
+    );
+
+    // Phase 3: second delta with tool — model intentionally rewrites to
+    // shorter text.  NOT the first tool transition → should go through.
+    const rewrite = assembler.ingestDelta(
+      "run-second",
+      messageWithContent([toolUse(), text("42")]),
+      false,
+    );
+    expect(rewrite).toBe("42");
+  });
+
+  it("finalize honours intentional rewrite even when text is a suffix", () => {
+    // Model intentionally rewrites "Need to verify; answer is 42" → "42"
+    // at tool boundary.  ingestDelta guards it (suffix match), but
+    // finalize must honour the authoritative payload.
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta(
+      "run-final-rewrite",
+      messageWithContent([text("Need to verify; answer is 42")]),
+      false,
+    );
+
+    // First tool transition — "42" is a suffix → ingestDelta guards it.
+    assembler.ingestDelta("run-final-rewrite", messageWithContent([toolUse(), text("42")]), false);
+
+    // finalize sends the authoritative "42" — must be honoured.
+    const finalText = assembler.finalize(
+      "run-final-rewrite",
+      messageWithContent([toolUse(), text("42")]),
+      false,
+    );
+    expect(finalText).toBe("42");
+  });
+
+  it("finalize honours intentional rewrite when no truncation during streaming", () => {
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta(
+      "run-final-rewrite-2",
+      messageWithContent([text("Need to verify; answer is 42")]),
+      false,
+    );
+
+    // First tool transition with text growth (not truncation).
+    assembler.ingestDelta(
+      "run-final-rewrite-2",
+      messageWithContent([text("Need to verify; answer is 42"), toolUse()]),
+      false,
+    );
+
+    // finalize with shorter text — intentional rewrite.
+    const finalText = assembler.finalize(
+      "run-final-rewrite-2",
+      messageWithContent([toolUse(), text("42")]),
+      false,
+    );
+    expect(finalText).toBe("42");
+  });
+
+  it("preserves streamed text through finalize when multi-tool truncation occurs", () => {
+    // Streaming had two tools with text blocks, finalize drops some.
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta(
+      "run-multi-tool",
+      messageWithContent([
+        text("Step 1 result"),
+        toolUse(),
+        text("Step 2 result"),
+        toolUse(),
+        text("Step 3 result"),
+      ]),
+      false,
+    );
+
+    // finalize drops the last block (suffix subset).
+    const finalText = assembler.finalize(
+      "run-multi-tool",
+      messageWithContent([text("Step 1 result"), toolUse(), text("Step 2 result")]),
+      false,
+    );
+    expect(finalText).toBe("Step 1 result\nStep 2 result\nStep 3 result");
+  });
 });
