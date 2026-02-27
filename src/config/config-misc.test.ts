@@ -204,7 +204,7 @@ describe("gateway.healthRefreshIntervalSeconds", () => {
 });
 
 describe("channels.defaults.healthProbe", () => {
-  it('accepts "full"', () => {
+  it("accepts full", () => {
     const res = validateConfigObject({
       channels: {
         defaults: { healthProbe: "full" },
@@ -213,7 +213,7 @@ describe("channels.defaults.healthProbe", () => {
     expect(res.ok).toBe(true);
   });
 
-  it('accepts "skip"', () => {
+  it("accepts skip", () => {
     const res = validateConfigObject({
       channels: {
         defaults: { healthProbe: "skip" },
@@ -233,7 +233,7 @@ describe("channels.defaults.healthProbe", () => {
 });
 
 describe("per-channel healthProbe", () => {
-  it('accepts healthProbe on a built-in channel', () => {
+  it("accepts healthProbe on a built-in channel", () => {
     const res = validateConfigObject({
       channels: {
         telegram: { healthProbe: "skip" },
@@ -242,7 +242,7 @@ describe("per-channel healthProbe", () => {
     expect(res.ok).toBe(true);
   });
 
-  it('accepts healthProbe on an extension channel via passthrough', () => {
+  it("accepts healthProbe on an extension channel via passthrough", () => {
     const res = validateConfigObject({
       channels: {
         feishu: { healthProbe: "skip" },
