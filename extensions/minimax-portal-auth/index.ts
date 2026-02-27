@@ -85,6 +85,11 @@ function createOAuthHandler(region: MiniMaxRegion) {
                 api: "anthropic-messages",
                 models: [
                   buildModelDefinition({
+                    id: "MiniMax-M2",
+                    name: "MiniMax M2",
+                    input: ["text"],
+                  }),
+                  buildModelDefinition({
                     id: "MiniMax-M2.1",
                     name: "MiniMax M2.1",
                     input: ["text"],
@@ -95,6 +100,12 @@ function createOAuthHandler(region: MiniMaxRegion) {
                     input: ["text"],
                     reasoning: true,
                   }),
+                  buildModelDefinition({
+                    id: "MiniMax-M2.5-highspeed",
+                    name: "MiniMax M2.5 Highspeed",
+                    input: ["text"],
+                    reasoning: true,
+                  }),
                 ],
               },
             },
@@ -102,8 +113,10 @@ function createOAuthHandler(region: MiniMaxRegion) {
           agents: {
             defaults: {
               models: {
+                [modelRef("MiniMax-M2")]: { alias: "minimax-m2" },
                 [modelRef("MiniMax-M2.1")]: { alias: "minimax-m2.1" },
                 [modelRef("MiniMax-M2.5")]: { alias: "minimax-m2.5" },
+                [modelRef("MiniMax-M2.5-highspeed")]: { alias: "minimax-m2.5-highspeed" },
               },
             },
           },
