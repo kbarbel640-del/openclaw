@@ -606,7 +606,7 @@ describe("Slack native command argument menus", () => {
 
 function createPolicyHarness(overrides?: {
   groupPolicy?: "open" | "allowlist";
-  channelsConfig?: Record<string, { allow?: boolean; requireMention?: boolean }>;
+  channelsConfig?: Record<string, { allow?: boolean; requireMention?: boolean; users?: string[] }>;
   channelId?: string;
   channelName?: string;
   allowFrom?: string[];
@@ -845,6 +845,33 @@ describe("slack slash commands access groups", () => {
     const { respond } = await registerAndRunPolicySlash({ harness });
 
     expectUnauthorizedResponse(respond);
+  });
+
+  it("blocks slash commands when channel users is explicitly empty", async () => {
+    const harness = createPolicyHarness({
+      allowFrom: ["*"],
+      channelId: "C_LOCKED",
+      channelName: "locked",
+      channelsConfig: {
+        C_LOCKED: { allow: true, users: [] },
+      },
+      resolveChannelName: async () => ({ name: "locked", type: "channel" }),
+    });
+    const { respond } = await registerAndRunPolicySlash({
+      harness,
+      command: {
+        user_id: "U_ATTACKER",
+        user_name: "Mallory",
+        channel_id: "C_LOCKED",
+        channel_name: "locked",
+      },
+    });
+
+    expect(dispatchMock).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith({
+      text: "You are not authorized to use this command here.",
+      response_type: "ephemeral",
+    });
   });
 });
 
