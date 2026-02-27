@@ -318,8 +318,16 @@ function normalizeCommand(cmd: string): string {
   let inDouble = false;
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i];
-    if (ch === "'" && !inDouble) { inSingle = !inSingle; result += ch; continue; }
-    if (ch === '"' && !inSingle) { inDouble = !inDouble; result += ch; continue; }
+    if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+      result += ch;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      result += ch;
+      continue;
+    }
     if (!inSingle && !inDouble && ch === "\\" && cmd[i + 1] === "n") {
       result += "\n";
       i++; // skip 'n'
@@ -480,6 +488,15 @@ const TOOL_RULES: ToolRule[] = [
     level: "critical",
     reason: "bulk email deletion (irreversible)",
   },
+  // Destructive database queries embedded in tool params
+  // Must be checked before the generic delete/trash warning rule below
+  {
+    tool: /.*/,
+    param: "*",
+    pattern: /\b(?:DROP\s+(?:DATABASE|TABLE)|TRUNCATE\s+|DELETE\s+FROM)\b/i,
+    level: "critical",
+    reason: "destructive database query in tool params",
+  },
   // Email: single delete/trash (only matches action field value)
   {
     tool: /.*/,
@@ -487,14 +504,6 @@ const TOOL_RULES: ToolRule[] = [
     pattern: /\b(?:delete|trash)\b/i,
     level: "warning",
     reason: "email/message deletion",
-  },
-  // Destructive database queries embedded in tool params
-  {
-    tool: /.*/,
-    param: "*",
-    pattern: /\b(?:DROP\s+(?:DATABASE|TABLE)|TRUNCATE\s+|DELETE\s+FROM)\b/i,
-    level: "critical",
-    reason: "destructive database query in tool params",
   },
 ];
 

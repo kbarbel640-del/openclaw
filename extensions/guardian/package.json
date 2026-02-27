@@ -1,21 +1,20 @@
 {
   "name": "@openclaw/guardian",
-  "version": "2.0.0",
+  "version": "2026.2.27",
   "private": true,
   "description": "Tiered safety voting plugin for OpenClaw — blacklist + LLM intent verification",
   "license": "MIT",
   "type": "module",
-  "main": "index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "devDependencies": {
     "openclaw": "workspace:*",
     "vitest": "^3.0.0"
   },
   "peerDependencies": {
     "openclaw": ">=2026.1.26"
-  },
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest"
   },
   "openclaw": {
     "extensions": [

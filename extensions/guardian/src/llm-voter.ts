@@ -12,6 +12,41 @@ import { join } from "node:path";
 export type Vote = { voter: number; confirmed: boolean; reason: string };
 export type VoteResult = { confirmed: boolean; reason: string; votes?: Vote[] };
 
+// ── Internal types for config parsing ──────────────────────────────
+
+interface ModelEntry {
+  id: string;
+  name?: string;
+  api?: string;
+  headers?: Record<string, string>;
+}
+
+interface ProviderEntry {
+  baseUrl?: string;
+  apiKey?: string;
+  api?: string;
+  headers?: Record<string, string>;
+  models?: ModelEntry[];
+}
+
+interface ModelsConfig {
+  models?: {
+    providers?: Record<string, ProviderEntry>;
+  };
+}
+
+// ── LLM response types ────────────────────────────────────────────
+
+interface AnthropicResponse {
+  content?: Array<{ type?: string; text?: string }>;
+}
+
+interface OpenAIResponse {
+  choices?: Array<{ message?: { content?: string } }>;
+}
+
+type LLMResponse = AnthropicResponse & OpenAIResponse;
+
 // ── LLM Config (resolved at init from OpenClaw config) ─────────────
 
 let llmUrl = "";
@@ -38,7 +73,8 @@ const PREFERRED_MODELS = [
  * Called once at plugin setup.
  */
 export function initLlm(config: Record<string, unknown>): void {
-  const providers = (config as Record<string, any>)?.models?.providers;
+  const typed = config as ModelsConfig;
+  const providers = typed?.models?.providers;
   if (!providers || typeof providers !== "object") {
     console.error("[guardian] No model providers found in config");
     return;
@@ -46,11 +82,11 @@ export function initLlm(config: Record<string, unknown>): void {
 
   // Strategy: find a provider with a cheap/fast model
   for (const preferred of PREFERRED_MODELS) {
-    for (const [, provider] of Object.entries(providers) as [string, any][]) {
+    for (const [, provider] of Object.entries(providers)) {
       if (!provider.baseUrl || !provider.apiKey) continue;
-      const models = provider.models ?? [];
+      const models: ModelEntry[] = provider.models ?? [];
       const found = models.find(
-        (m: any) => m.id === preferred || m.id?.includes(preferred) || m.name?.includes(preferred),
+        (m) => m.id === preferred || m.id?.includes(preferred) || m.name?.includes(preferred),
       );
       if (found) {
         llmUrl = provider.baseUrl.replace(/\/$/, "");
@@ -65,10 +101,10 @@ export function initLlm(config: Record<string, unknown>): void {
     }
   }
 
-  // Fallback: use the first provider with any model
-  for (const [, provider] of Object.entries(providers) as [string, any][]) {
+  // Fallback: use the first provider with a model
+  for (const [, provider] of Object.entries(providers)) {
     if (!provider.baseUrl || !provider.apiKey) continue;
-    const models = provider.models ?? [];
+    const models: ModelEntry[] = provider.models ?? [];
     if (models.length > 0) {
       llmUrl = provider.baseUrl.replace(/\/$/, "");
       llmApiKey = provider.apiKey;
@@ -88,15 +124,11 @@ export function initLlm(config: Record<string, unknown>): void {
 
 const SYSTEM_PROMPT = `You are a security confirmation checker for an AI agent.
 
-Your ONLY job is to determine: Did the user explicitly request or confirm this operation?
-
-You will receive:
-1. A tool call that was flagged as potentially dangerous
-2. Recent conversation messages for context
+Your ONLY job: determine if the user explicitly requested or confirmed the flagged operation.
 
 Rules:
-- If the user clearly asked for this operation (e.g., "delete that folder", "remove the old files", "restart the service"), answer YES.
-- If the user confirmed after being asked (e.g., "yes", "do it", "confirmed", "go ahead"), answer YES.
+- Look at the user's recent messages for explicit intent.
+- "Yes", "go ahead", "do it", "确认", "好的，执行吧" count as confirmation IF they follow a question about the operation.
 - If there is no clear user intent or confirmation for this specific operation, answer NO.
 - When in doubt, answer NO.
 - Do NOT evaluate whether the operation is dangerous — that's already been determined. You are ONLY checking user intent.
@@ -158,6 +190,19 @@ function resolveSessionsDir(): string {
   return candidates[0]; // fallback
 }
 
+/** Content block with type and text fields (Anthropic message format). */
+interface ContentBlock {
+  type?: string;
+  text?: string;
+}
+
+/** Parsed session entry structure. */
+interface SessionEntry {
+  role?: string;
+  content?: string | ContentBlock[];
+  message?: SessionEntry;
+}
+
 export function readRecentContext(_sessionKey?: string): string {
   try {
     const sessDir = resolveSessionsDir();
@@ -176,16 +221,16 @@ export function readRecentContext(_sessionKey?: string): string {
     for (const line of lines.split("\n")) {
       if (!line.trim()) continue;
       try {
-        const entry = JSON.parse(line);
+        const entry = JSON.parse(line) as SessionEntry;
         const msg = entry.message ?? entry;
         if (msg.role === "user") {
           const text =
             typeof msg.content === "string"
               ? msg.content
               : Array.isArray(msg.content)
-                ? msg.content
-                    .filter((b: any) => b.type === "text")
-                    .map((b: any) => b.text)
+                ? (msg.content as ContentBlock[])
+                    .filter((b) => b.type === "text")
+                    .map((b) => b.text ?? "")
                     .join(" ")
                 : "";
           if (text.trim()) userMessages.push(text.trim().slice(0, 500));
@@ -257,14 +302,14 @@ async function callLLM(userPrompt: string): Promise<{ confirmed: boolean; reason
     }
 
     if (!resp.ok) throw new Error(`LLM HTTP ${resp.status}`);
-    const data = (await resp.json()) as any;
+    const data = (await resp.json()) as LLMResponse;
 
     // Extract text from either Anthropic or OpenAI response format
     const text = data.content?.[0]?.text ?? data.choices?.[0]?.message?.content ?? "";
 
     const jsonMatch = text.match(/\{[\s\S]*?\}/);
     if (!jsonMatch) throw new Error("No JSON in LLM response");
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(jsonMatch[0]) as { confirmed?: boolean; reason?: string };
     return { confirmed: !!parsed.confirmed, reason: parsed.reason ?? "" };
   } finally {
     clearTimeout(timer);
@@ -273,11 +318,11 @@ async function callLLM(userPrompt: string): Promise<{ confirmed: boolean; reason
 
 // ── Prompt Builder ─────────────────────────────────────────────────
 
-function buildPrompt(toolName: string, params: Record<string, any>, context: string): string {
+function buildPrompt(toolName: string, params: Record<string, unknown>, context: string): string {
   const detail =
     toolName === "exec"
-      ? `Command: ${params.command ?? "(empty)"}`
-      : `File path: ${params.file_path ?? params.path ?? "(empty)"}`;
+      ? `Command: ${(params.command as string | undefined) ?? "(empty)"}`
+      : `File path: ${(params.file_path as string | undefined) ?? (params.path as string | undefined) ?? "(empty)"}`;
   return `Flagged tool call:\n- Tool: ${toolName}\n- ${detail}\n\nRecent user messages:\n${context}`;
 }
 
@@ -285,21 +330,22 @@ function buildPrompt(toolName: string, params: Record<string, any>, context: str
 
 export async function singleVote(
   toolName: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   sessionKey?: string,
 ): Promise<VoteResult> {
   const context = readRecentContext(sessionKey);
   const prompt = buildPrompt(toolName, params, context);
   try {
     return await callLLM(prompt);
-  } catch (e: any) {
-    return { confirmed: false, reason: `LLM unavailable: ${e.message}` };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { confirmed: false, reason: `LLM unavailable: ${message}` };
   }
 }
 
 export async function multiVote(
   toolName: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   sessionKey?: string,
   count = 3,
   threshold = 3,
@@ -310,9 +356,10 @@ export async function multiVote(
   const promises = Array.from({ length: count }, (_, i) =>
     callLLM(prompt)
       .then((r): Vote => ({ voter: i + 1, confirmed: r.confirmed, reason: r.reason }))
-      .catch(
-        (e: any): Vote => ({ voter: i + 1, confirmed: false, reason: `LLM error: ${e.message}` }),
-      ),
+      .catch((e: unknown): Vote => {
+        const message = e instanceof Error ? e.message : String(e);
+        return { voter: i + 1, confirmed: false, reason: `LLM error: ${message}` };
+      }),
   );
 
   const votes = await Promise.all(promises);
