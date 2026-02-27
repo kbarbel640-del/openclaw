@@ -106,6 +106,29 @@ function isOpenClawGatewaySystemdService(name: string, contents: string): boolea
   return contents.toLowerCase().includes("gateway");
 }
 
+/**
+ * Returns true when a systemd unit is a browser/CDP service (e.g. a snap-installed
+ * Chromium running headless with --remote-debugging-port as a persistent workaround
+ * for on-demand launch failures).  Such services must NOT be treated as rogue
+ * "gateway-like" processes even when their ExecStart path happens to contain the
+ * word "openclaw" (e.g. a --user-data-dir under ~/snap/chromium/common/openclaw/).
+ *
+ * Detection heuristics (any one is sufficient):
+ *   1. ExecStart contains --remote-debugging-port  (CDP flag)
+ *   2. ExecStart references a chromium or chrome binary
+ */
+function isBrowserCdpService(contents: string): boolean {
+  const lower = contents.toLowerCase();
+  if (lower.includes("--remote-debugging-port")) {
+    return true;
+  }
+  // Match common browser binary names on the ExecStart line
+  if (/execstart\s*=.*\b(chromium|chromium-browser|google-chrome|chrome)\b/.test(lower)) {
+    return true;
+  }
+  return false;
+}
+
 function isOpenClawGatewayTaskName(name: string): boolean {
   const normalized = name.trim().toLowerCase();
   if (!normalized) {
@@ -249,6 +272,13 @@ async function scanSystemdDir(params: {
       continue;
     }
     if (marker === "openclaw" && isOpenClawGatewaySystemdService(name, contents)) {
+      continue;
+    }
+    // Exclude browser/CDP services (e.g. snap Chromium running headless with
+    // --remote-debugging-port).  They are not gateway processes even when their
+    // ExecStart path incidentally contains the word "openclaw".
+    // See: https://github.com/openclaw/openclaw/issues/24644
+    if (isBrowserCdpService(contents)) {
       continue;
     }
     results.push({
