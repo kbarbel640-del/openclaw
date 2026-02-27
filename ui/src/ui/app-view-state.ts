@@ -57,6 +57,7 @@ export type AppViewState = {
   lastError: string | null;
   lastErrorCode: string | null;
   eventLog: EventLogEntry[];
+  hideHealthEventsInEventLog: boolean;
   assistantName: string;
   assistantAvatar: string | null;
   assistantAgentId: string | null;
@@ -322,4 +323,5 @@ export type AppViewState = {
   handleOpenSidebar: (content: string) => void;
   handleCloseSidebar: () => void;
   handleSplitRatioChange: (ratio: number) => void;
+  setHideHealthEventsInEventLog: (next: boolean) => void;
 };
