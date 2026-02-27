@@ -278,16 +278,17 @@ export class AcpGatewayAgent implements Agent {
     this.sessionStore.setActiveRun(params.sessionId, runId, abortController);
 
     return new Promise<PromptResponse>((resolve, reject) => {
-      this.pendingPrompts.set(params.sessionId, {
+      const pending: PendingPrompt = {
         sessionId: params.sessionId,
         sessionKey: session.sessionKey,
         idempotencyKey: runId,
         resolve,
         reject,
-      });
+      };
+      this.pendingPrompts.set(params.sessionId, pending);
 
       this.gateway
-        .request(
+        .request<{ runId?: string; sessionKey?: string; status?: string }>(
           "chat.send",
           {
             sessionKey: session.sessionKey,
@@ -300,6 +301,12 @@ export class AcpGatewayAgent implements Agent {
           },
           { expectFinal: true },
         )
+        .then((result) => {
+          // Update the session key to the canonical form returned by the gateway
+          if (result?.sessionKey && result.sessionKey !== session.sessionKey) {
+            pending.sessionKey = result.sessionKey;
+          }
+        })
         .catch((err) => {
           this.pendingPrompts.delete(params.sessionId);
           this.sessionStore.clearActiveRun(params.sessionId);
@@ -420,6 +427,25 @@ export class AcpGatewayAgent implements Agent {
     }
 
     if (state === "final") {
+      // Send any remaining message content that wasn't sent via delta events
+      if (messageData) {
+        const content = messageData.content as Array<{ type: string; text?: string }> | undefined;
+        if (content) {
+          const fullText = content.find((c) => c.type === "text")?.text ?? "";
+          const sentSoFar = pending.sentTextLength ?? 0;
+          // Only send the remaining portion that wasn't sent via delta
+          if (fullText.length > sentSoFar) {
+            const remainingText = fullText.slice(sentSoFar);
+            await this.connection.sessionUpdate({
+              sessionId: pending.sessionId,
+              update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: remainingText },
+              },
+            });
+          }
+        }
+      }
       this.finishPrompt(pending.sessionId, pending, "end_turn");
       return;
     }
