@@ -123,8 +123,8 @@ export class FeishuStreamingSession {
         receive_id: receiveId,
         msg_type: "interactive",
         content: JSON.stringify({ type: "card", data: { card_id: cardId } }),
-        root_id: rootId,
-      },
+        ...(rootId ? { root_id: rootId } : {}),
+      } as any,
     });
     if (sendRes.code !== 0 || !sendRes.data?.message_id) {
       throw new Error(`Send card failed: ${sendRes.msg}`);
