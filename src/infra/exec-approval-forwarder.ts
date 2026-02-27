@@ -148,6 +148,12 @@ function shouldSkipDiscordForwarding(
   return Boolean(execApprovals?.enabled && (execApprovals.approvers?.length ?? 0) > 0);
 }
 
+// Telegram has its own handler (TelegramExecApprovalHandler) with inline buttons.
+function shouldSkipTelegramForwarding(target: ExecApprovalForwardTarget): boolean {
+  const channel = normalizeMessageChannel(target.channel) ?? target.channel;
+  return channel === "telegram";
+}
+
 function formatApprovalCommand(command: string): { inline: boolean; text: string } {
   if (!command.includes("\n") && !command.includes("`")) {
     return { inline: true, text: `\`${command}\`` };
@@ -352,7 +358,10 @@ export function createExecApprovalForwarder(
       config,
       request,
       resolveSessionTarget,
-    }).filter((target) => !shouldSkipDiscordForwarding(target, cfg));
+    }).filter(
+      (target) =>
+        !shouldSkipDiscordForwarding(target, cfg) && !shouldSkipTelegramForwarding(target),
+    );
 
     if (filteredTargets.length === 0) {
       return false;
@@ -417,7 +426,10 @@ export function createExecApprovalForwarder(
           config,
           request,
           resolveSessionTarget,
-        }).filter((target) => !shouldSkipDiscordForwarding(target, cfg));
+        }).filter(
+          (target) =>
+            !shouldSkipDiscordForwarding(target, cfg) && !shouldSkipTelegramForwarding(target),
+        );
       }
     }
     if (!targets || targets.length === 0) {
