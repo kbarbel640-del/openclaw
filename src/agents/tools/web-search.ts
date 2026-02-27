@@ -1054,34 +1054,41 @@ async function runBaiduSearch(params: {
       },
     ],
   };
-  const res = await fetch(BAIDU_SEARCH_API_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${params.apiKey}`,
-      "X-Appbuilder-From": "openclaw",
+  return withTrustedWebSearchEndpoint(
+    {
+      url: BAIDU_SEARCH_API_ENDPOINT,
+      timeoutSeconds: params.timeoutSeconds,
+      init: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${params.apiKey}`,
+          "X-Appbuilder-From": "openclaw",
+        },
+        body: JSON.stringify(body),
+      },
     },
-    body: JSON.stringify(body),
-    signal: withTimeout(undefined, params.timeoutSeconds * 1000),
-  });
-  if (!res.ok) {
-    return throwWebSearchApiError(res, "baidu");
-  }
+    async (res) => {
+      if (!res.ok) {
+        return throwWebSearchApiError(res, "baidu");
+      }
 
-  const data = (await res.json()) as BaiduSearchResponse;
-  const results = Array.isArray(data.references) ? (data.references ?? []) : [];
-  const mapped = results.map((entry) => {
-    const snippet = entry.snippet ?? "";
-    const title = entry.title ?? "";
-    const url = entry.url ?? "";
-    return {
-      title: title ? wrapWebContent(title, "web_search") : "",
-      url, // Keep raw for tool chaining
-      snippet: snippet ? wrapWebContent(snippet, "web_search") : "",
-      date: entry.date || undefined,
-    };
-  });
-  return { results: mapped };
+      const data = (await res.json()) as BaiduSearchResponse;
+      const results = Array.isArray(data.references) ? (data.references ?? []) : [];
+      const mapped = results.map((entry) => {
+        const snippet = entry.snippet ?? "";
+        const title = entry.title ?? "";
+        const url = entry.url ?? "";
+        return {
+          title: title ? wrapWebContent(title, "web_search") : "",
+          url, // Keep raw for tool chaining
+          snippet: snippet ? wrapWebContent(snippet, "web_search") : "",
+          date: entry.date || undefined,
+        };
+      });
+      return { results: mapped };
+    },
+  );
 }
 
 function extractKimiMessageText(message: KimiMessage | undefined): string | undefined {
