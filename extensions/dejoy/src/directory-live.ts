@@ -1,4 +1,4 @@
-import type { ChannelDirectoryEntry } from "openclaw/plugin-sdk";
+import { fetchWithSsrFGuard, type ChannelDirectoryEntry } from "openclaw/plugin-sdk";
 import { resolveMatrixAuth } from "./dejoy/client.js";
 
 type MatrixUserResult = {
@@ -29,19 +29,28 @@ async function fetchMatrixJson<T>(params: {
   method?: "GET" | "POST";
   body?: unknown;
 }): Promise<T> {
-  const res = await fetch(`${params.homeserver}${params.path}`, {
-    method: params.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${params.accessToken}`,
-      "Content-Type": "application/json",
+  const { response: res, release } = await fetchWithSsrFGuard({
+    url: `${params.homeserver}${params.path}`,
+    init: {
+      method: params.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${params.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: params.body ? JSON.stringify(params.body) : undefined,
     },
-    body: params.body ? JSON.stringify(params.body) : undefined,
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Matrix API ${params.path} failed (${res.status}): ${text || "unknown error"}`);
+  try {
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        `Matrix API ${params.path} failed (${res.status}): ${text || "unknown error"}`,
+      );
+    }
+    return (await res.json()) as T;
+  } finally {
+    await release();
   }
-  return (await res.json()) as T;
 }
 
 function normalizeQuery(value?: string | null): string {

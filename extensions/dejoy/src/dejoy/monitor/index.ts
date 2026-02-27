@@ -280,6 +280,7 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     directTracker,
     getRoomInfo,
     getMemberDisplayName,
+    accountId: opts.accountId,
   });
 
   registerMatrixMonitorEvents({

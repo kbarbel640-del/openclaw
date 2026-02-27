@@ -1,5 +1,7 @@
 import type { LocationMessageEventContent, MatrixClient } from "@vector-im/matrix-bot-sdk";
 import {
+  DEFAULT_ACCOUNT_ID,
+  createScopedPairingAccess,
   createReplyPrefixOptions,
   createTypingCallbacks,
   formatAllowlistMatchMeta,
@@ -38,7 +40,7 @@ import { EventType, RelationType } from "./types.js";
 
 export type MatrixMonitorHandlerParams = {
   client: MatrixClient;
-  core: Pick<PluginRuntime, "logging" | "channel" | "system">;
+  core: PluginRuntime;
   cfg: CoreConfig;
   runtime: RuntimeEnv;
   logger: {
@@ -69,6 +71,7 @@ export type MatrixMonitorHandlerParams = {
     roomId: string,
   ) => Promise<{ name?: string; canonicalAlias?: string; altAliases: string[] }>;
   getMemberDisplayName: (roomId: string, userId: string) => Promise<string>;
+  accountId?: string | null;
 };
 
 export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParams) {
@@ -94,7 +97,14 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
     directTracker,
     getRoomInfo,
     getMemberDisplayName,
+    accountId,
   } = params;
+  const resolvedAccountId = accountId?.trim() || DEFAULT_ACCOUNT_ID;
+  const pairing = createScopedPairingAccess({
+    core,
+    channel: "dejoy",
+    accountId: resolvedAccountId,
+  });
 
   return async (roomId: string, event: MatrixRawEvent) => {
     try {
@@ -219,7 +229,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
       }
 
       const senderName = await getMemberDisplayName(roomId, senderId);
-      const storeAllowFrom = await core.channel.pairing.readAllowFromStore("dejoy").catch(() => []);
+      const storeAllowFrom = await pairing.readAllowFromStore().catch(() => []);
       const effectiveAllowFrom = normalizeMatrixAllowList([...allowFrom, ...storeAllowFrom]);
       const groupAllowFrom = (cfg.channels?.dejoy?.groupAllowFrom ?? []) as Array<string | number>;
       const effectiveGroupAllowFrom = normalizeMatrixAllowList(groupAllowFrom);
@@ -237,8 +247,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
           const allowMatchMeta = formatAllowlistMatchMeta(allowMatch);
           if (!allowMatch.allowed) {
             if (dmPolicy === "pairing") {
-              const { code, created } = await core.channel.pairing.upsertPairingRequest({
-                channel: "dejoy",
+              const { code, created } = await pairing.upsertPairingRequest({
                 id: senderId,
                 meta: { name: senderName },
               });

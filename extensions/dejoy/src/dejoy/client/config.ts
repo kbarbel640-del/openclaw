@@ -1,4 +1,5 @@
 import { MatrixClient } from "@vector-im/matrix-bot-sdk";
+import { fetchWithSsrFGuard } from "openclaw/plugin-sdk";
 import { getDeJoyRuntime } from "../../runtime.js";
 import type { CoreConfig } from "../../types.js";
 import { ensureMatrixSdkLoggingConfigured } from "./logging.js";
@@ -114,49 +115,55 @@ export async function resolveMatrixAuth(params?: {
     );
   }
 
-  // Login with password using HTTP API
-  const loginResponse = await fetch(`${resolved.homeserver}/_matrix/client/v3/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      type: "m.login.password",
-      identifier: { type: "m.id.user", user: resolved.userId },
-      password: resolved.password,
-      initial_device_display_name: resolved.deviceName ?? "OpenClaw Gateway",
-    }),
+  // Login with password using HTTP API (SSRF-guarded)
+  const { response: loginResponse, release } = await fetchWithSsrFGuard({
+    url: `${resolved.homeserver}/_matrix/client/v3/login`,
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "m.login.password",
+        identifier: { type: "m.id.user", user: resolved.userId },
+        password: resolved.password,
+        initial_device_display_name: resolved.deviceName ?? "OpenClaw Gateway",
+      }),
+    },
   });
+  try {
+    if (!loginResponse.ok) {
+      const errorText = await loginResponse.text();
+      throw new Error(`Matrix login failed: ${errorText}`);
+    }
 
-  if (!loginResponse.ok) {
-    const errorText = await loginResponse.text();
-    throw new Error(`Matrix login failed: ${errorText}`);
+    const login = (await loginResponse.json()) as {
+      access_token?: string;
+      user_id?: string;
+      device_id?: string;
+    };
+
+    const accessToken = login.access_token?.trim();
+    if (!accessToken) {
+      throw new Error("DeJoy login did not return an access token");
+    }
+
+    const auth: MatrixAuth = {
+      homeserver: resolved.homeserver,
+      userId: login.user_id ?? resolved.userId,
+      accessToken,
+      deviceName: resolved.deviceName,
+      initialSyncLimit: resolved.initialSyncLimit,
+      encryption: resolved.encryption,
+    };
+
+    saveMatrixCredentials({
+      homeserver: auth.homeserver,
+      userId: auth.userId,
+      accessToken: auth.accessToken,
+      deviceId: login.device_id,
+    });
+
+    return auth;
+  } finally {
+    await release();
   }
-
-  const login = (await loginResponse.json()) as {
-    access_token?: string;
-    user_id?: string;
-    device_id?: string;
-  };
-
-  const accessToken = login.access_token?.trim();
-  if (!accessToken) {
-    throw new Error("DeJoy login did not return an access token");
-  }
-
-  const auth: MatrixAuth = {
-    homeserver: resolved.homeserver,
-    userId: login.user_id ?? resolved.userId,
-    accessToken,
-    deviceName: resolved.deviceName,
-    initialSyncLimit: resolved.initialSyncLimit,
-    encryption: resolved.encryption,
-  };
-
-  saveMatrixCredentials({
-    homeserver: auth.homeserver,
-    userId: auth.userId,
-    accessToken: auth.accessToken,
-    deviceId: login.device_id,
-  });
-
-  return auth;
 }
