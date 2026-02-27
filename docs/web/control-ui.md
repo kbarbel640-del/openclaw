@@ -59,6 +59,7 @@ you revoke it with `openclaw devices revoke --device <id> --role <role>`. See
 - Remote connections (LAN, Tailnet, etc.) require explicit approval.
 - Each browser profile generates a unique device ID, so switching browsers or
   clearing browser data will require re-pairing.
+- **Docker**: see [Docker pairing](/install/docker#control-ui-token-+-pairing-docker) for the container-specific workflow.
 
 ## What it can do (today)
 
