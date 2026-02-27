@@ -302,8 +302,10 @@ export async function maybeRepairGatewayServiceConfig(
     return;
   }
 
+  const serviceEmbeddedToken = command.environment?.OPENCLAW_GATEWAY_TOKEN?.trim() || undefined;
+  const gatewayTokenForRepair = expectedGatewayToken ?? serviceEmbeddedToken;
   let cfgForServiceInstall = cfg;
-  if (!cfg.gateway?.auth?.token?.trim() && expectedGatewayToken) {
+  if (!cfg.gateway?.auth?.token?.trim() && gatewayTokenForRepair) {
     const nextCfg: OpenClawConfig = {
       ...cfg,
       gateway: {
@@ -311,14 +313,19 @@ export async function maybeRepairGatewayServiceConfig(
         auth: {
           ...cfg.gateway?.auth,
           mode: cfg.gateway?.auth?.mode ?? "token",
-          token: expectedGatewayToken,
+          token: gatewayTokenForRepair,
         },
       },
     };
     try {
       await writeConfigFile(nextCfg);
       cfgForServiceInstall = nextCfg;
-      note("Persisted gateway.auth.token from environment before reinstalling service.", "Gateway");
+      note(
+        expectedGatewayToken
+          ? "Persisted gateway.auth.token from environment before reinstalling service."
+          : "Persisted gateway.auth.token from existing service definition before reinstalling service.",
+        "Gateway",
+      );
     } catch (err) {
       runtime.error(`Failed to persist gateway.auth.token before service repair: ${String(err)}`);
       return;

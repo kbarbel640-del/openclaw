@@ -197,6 +197,51 @@ describe("maybeRepairGatewayServiceConfig", () => {
       expect(mocks.install).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("falls back to embedded service token when config and shell token are missing", async () => {
+    await withEnvAsync(
+      {
+        OPENCLAW_GATEWAY_TOKEN: undefined,
+        CLAWDBOT_GATEWAY_TOKEN: undefined,
+      },
+      async () => {
+        setupGatewayTokenRepairScenario();
+
+        const cfg: OpenClawConfig = {
+          gateway: {},
+        };
+
+        await runRepair(cfg);
+
+        expect(mocks.auditGatewayServiceConfig).toHaveBeenCalledWith(
+          expect.objectContaining({
+            expectedGatewayToken: undefined,
+          }),
+        );
+        expect(mocks.writeConfigFile).toHaveBeenCalledWith(
+          expect.objectContaining({
+            gateway: expect.objectContaining({
+              auth: expect.objectContaining({
+                token: "stale-token",
+              }),
+            }),
+          }),
+        );
+        expect(mocks.buildGatewayInstallPlan).toHaveBeenCalledWith(
+          expect.objectContaining({
+            config: expect.objectContaining({
+              gateway: expect.objectContaining({
+                auth: expect.objectContaining({
+                  token: "stale-token",
+                }),
+              }),
+            }),
+          }),
+        );
+        expect(mocks.install).toHaveBeenCalledTimes(1);
+      },
+    );
+  });
 });
 
 describe("maybeScanExtraGatewayServices", () => {
