@@ -329,6 +329,31 @@ describe("buildServiceEnvironment", () => {
     expect(env.http_proxy).toBe("http://proxy.local:7890");
     expect(env.all_proxy).toBe("socks5://proxy.local:1080");
   });
+
+  it("forwards NODE_USE_SYSTEM_CA for launchd/systemd runtime when set", () => {
+    const env = buildServiceEnvironment({
+      env: {
+        HOME: "/home/user",
+        NODE_USE_SYSTEM_CA: " 1 ",
+      },
+      port: 18789,
+    });
+
+    expect(env.NODE_USE_SYSTEM_CA).toBe("1");
+  });
+
+  it("omits NODE_USE_SYSTEM_CA for launchd/systemd runtime when not set", () => {
+    const env = buildServiceEnvironment({
+      env: {
+        HOME: "/home/user",
+      },
+      port: 18789,
+      platform: "linux",
+    });
+
+    expect(env.NODE_USE_SYSTEM_CA).toBeUndefined();
+  });
+
   it("defaults NODE_EXTRA_CA_CERTS to system cert bundle on macOS", () => {
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user" },
@@ -375,6 +400,27 @@ describe("buildNodeServiceEnvironment", () => {
 
     expect(env.HTTPS_PROXY).toBe("https://proxy.local:7890");
     expect(env.no_proxy).toBe("localhost,127.0.0.1");
+  });
+
+  it("forwards NODE_USE_SYSTEM_CA for node services when set", () => {
+    const env = buildNodeServiceEnvironment({
+      env: {
+        HOME: "/home/user",
+        NODE_USE_SYSTEM_CA: " true ",
+      },
+    });
+
+    expect(env.NODE_USE_SYSTEM_CA).toBe("true");
+  });
+
+  it("omits NODE_USE_SYSTEM_CA for node services when not set", () => {
+    const env = buildNodeServiceEnvironment({
+      env: {
+        HOME: "/home/user",
+      },
+    });
+
+    expect(env.NODE_USE_SYSTEM_CA).toBeUndefined();
   });
 
   it("forwards TMPDIR for node services", () => {
