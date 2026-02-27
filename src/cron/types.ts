@@ -65,6 +65,8 @@ export type CronPayload =
       thinking?: string;
       timeoutSeconds?: number;
       allowUnsafeExternalContent?: boolean;
+      /** If true, run with lightweight bootstrap context. */
+      lightContext?: boolean;
       deliver?: boolean;
       channel?: CronMessageChannel;
       to?: string;
@@ -80,6 +82,8 @@ export type CronPayloadPatch =
       thinking?: string;
       timeoutSeconds?: number;
       allowUnsafeExternalContent?: boolean;
+      /** If true, run with lightweight bootstrap context. */
+      lightContext?: boolean;
       deliver?: boolean;
       channel?: CronMessageChannel;
       to?: string;
