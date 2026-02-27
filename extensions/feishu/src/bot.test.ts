@@ -288,7 +288,6 @@ describe("handleFeishuMessage command authorization", () => {
       channel: "feishu",
       accountId: "default",
       id: "ou-unapproved",
-      accountId: "default",
       meta: { name: undefined },
     });
     expect(mockBuildPairingReply).toHaveBeenCalledWith({
@@ -308,9 +307,8 @@ describe("handleFeishuMessage command authorization", () => {
 
   it("uses account-scoped pairing store for non-default accounts", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
-    mockReadAllowFromStore.mockImplementation(
-      async (_channel: string, _env: NodeJS.ProcessEnv | undefined, accountId?: string) =>
-        accountId ? [] : ["ou-attacker"],
+    mockReadAllowFromStore.mockImplementation(async (opts: { accountId?: string }) =>
+      opts.accountId ? [] : ["ou-attacker"],
     );
     mockUpsertPairingRequest.mockResolvedValue({ code: "ZXCVBN12", created: true });
 
@@ -346,7 +344,10 @@ describe("handleFeishuMessage command authorization", () => {
 
     await dispatchMessage({ cfg, event, accountId: "work" });
 
-    expect(mockReadAllowFromStore).toHaveBeenCalledWith("feishu", process.env, "work");
+    expect(mockReadAllowFromStore).toHaveBeenCalledWith({
+      channel: "feishu",
+      accountId: "work",
+    });
     expect(mockUpsertPairingRequest).toHaveBeenCalledWith({
       channel: "feishu",
       id: "ou-attacker",
