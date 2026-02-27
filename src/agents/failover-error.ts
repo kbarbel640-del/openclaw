@@ -176,6 +176,10 @@ export function resolveFailoverReasonFromError(err: unknown): FailoverReason | n
   if (status === 502 || status === 503 || status === 504) {
     return "timeout";
   }
+  if (status === 529) {
+    // Anthropic non-standard "overloaded" status
+    return "timeout";
+  }
   if (status === 400) {
     return "format";
   }
