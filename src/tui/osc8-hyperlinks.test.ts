@@ -169,7 +169,7 @@ describe("addOsc8Hyperlinks", () => {
   it("does not double-wrap link text that overlaps with URL ranges", () => {
     const url = "https://example.com";
     // Link text IS the URL — should not get a second wrapping
-    const line = `${url}`;
+    const line = url;
     const linkTexts = [{ text: url, url }];
     const result = addOsc8Hyperlinks([line], [url], linkTexts);
 
