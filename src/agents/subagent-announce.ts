@@ -1031,9 +1031,9 @@ function buildAnnounceReplyInstruction(params: {
     return `Convert this completion into a concise internal orchestration update for your parent agent in your own words. Keep this internal context private (don't mention system/log/stats/session details or announce type). If this result is duplicate or no update is needed, reply ONLY: ${SILENT_REPLY_TOKEN}.`;
   }
   if (params.expectsCompletionMessage) {
-    return `A completed ${params.announceType} is ready for user delivery. Convert the result above into your normal assistant voice and send that user-facing update now. Keep this internal context private (don't mention system/log/stats/session details or announce type).`;
+    return `A completed ${params.announceType} is ready for user delivery. Convert the result above into your normal assistant voice and return it as plain text. Delivery is handled automatically by the system — do not call the message tool. Keep this internal context private (don't mention system/log/stats/session details or announce type).`;
   }
-  return `A completed ${params.announceType} is ready for user delivery. Convert the result above into your normal assistant voice and send that user-facing update now. Keep this internal context private (don't mention system/log/stats/session details or announce type), and do not copy the system message verbatim. Reply ONLY: ${SILENT_REPLY_TOKEN} if this exact result was already delivered to the user in this same turn.`;
+  return `A completed ${params.announceType} is ready for user delivery. Convert the result above into your normal assistant voice and return it as plain text. Delivery is handled automatically by the system — do not call the message tool. Keep this internal context private (don't mention system/log/stats/session details or announce type), and do not copy the system message verbatim. Reply ONLY: ${SILENT_REPLY_TOKEN} if this exact result was already delivered to the user in this same turn.`;
 }
 
 export async function runSubagentAnnounceFlow(params: {
