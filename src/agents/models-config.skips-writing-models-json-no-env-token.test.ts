@@ -115,4 +115,49 @@ describe("models-config", () => {
       });
     });
   });
+
+  it("adds openai-codex provider when openai-codex oauth profile exists", async () => {
+    await withTempHome(async (home) => {
+      await withTempEnv(MODELS_CONFIG_IMPLICIT_ENV_VARS, async () => {
+        unsetEnv(MODELS_CONFIG_IMPLICIT_ENV_VARS);
+
+        const agentDir = path.join(home, "agent-openai-codex");
+        process.env.OPENCLAW_AGENT_DIR = agentDir;
+        process.env.PI_CODING_AGENT_DIR = agentDir;
+
+        await fs.mkdir(agentDir, { recursive: true, mode: 0o700 });
+        await fs.writeFile(
+          path.join(agentDir, "auth-profiles.json"),
+          `${JSON.stringify(
+            {
+              version: 1,
+              profiles: {
+                "openai-codex:default": {
+                  type: "oauth",
+                  provider: "openai-codex",
+                  access: "access-token",
+                  refresh: "refresh-token",
+                  expires: Date.now() + 60_000,
+                },
+              },
+            },
+            null,
+            2,
+          )}\n`,
+          "utf8",
+        );
+
+        const result = await ensureOpenClawModelsJson({ models: { providers: {} } }, agentDir);
+
+        const raw = await fs.readFile(path.join(agentDir, "models.json"), "utf8");
+        const parsed = JSON.parse(raw) as {
+          providers: Record<string, { baseUrl?: string; models?: unknown[] }>;
+        };
+
+        expect(result.wrote).toBe(true);
+        expect(parsed.providers["openai-codex"]?.baseUrl).toBe("https://api.openai.com/v1");
+        expect(parsed.providers["openai-codex"]?.models?.length ?? 0).toBe(0);
+      });
+    });
+  });
 });
