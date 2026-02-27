@@ -24,7 +24,9 @@ helm install tetragon cilium/tetragon \
 
 ```bash
 # Debian/Ubuntu
-curl -sL https://github.com/cilium/tetragon/releases/latest/download/tetragon-linux-amd64.tar.gz \
+# Detect architecture (amd64 or arm64)
+ARCH=$(uname -m | sed "s/x86_64/amd64/" | sed "s/aarch64/arm64/")
+curl -sL https://github.com/cilium/tetragon/releases/latest/download/tetragon-linux-$(ARCH).tar.gz \
   | sudo tar -xz -C /usr/local/bin/
 
 # Create systemd unit
@@ -112,13 +114,14 @@ LOGROTATE
 
 ## 4. Set up OTel Collector
 
-Use the provided [collector-config.yaml](/security/tetragon/collector-config) as a starting point.
+Use the provided [collector-config.yaml](collector-config.yaml) as a starting point.
 
 ### Install the Collector
 
 ```bash
 # Download the contrib distribution (includes filelog receiver)
-curl -sL https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_linux_amd64.tar.gz \
+ARCH=$(uname -m | sed "s/x86_64/amd64/" | sed "s/aarch64/arm64/")
+curl -sL https://github.com/open-telemetry/opentelemetry-collector-releases/releases/latest/download/otelcol-contrib_linux_$(ARCH).tar.gz \
   | sudo tar -xz -C /usr/local/bin/
 ```
 
@@ -228,7 +231,7 @@ The default policies are intentionally broad. In production you will want to red
 
 ## Combining with diagnostics-otel
 
-For a complete picture, run the OpenClaw `diagnostics-otel` plugin alongside Tetragon:
+For a complete picture, run the OpenClaw [diagnostics-otel](/diagnostics) plugin alongside Tetragon:
 
 - **diagnostics-otel** provides application-level spans: message processing, tool calls, token usage, and security pattern detection
 - **Tetragon** provides kernel-level events: actual process execution, file access, privilege changes

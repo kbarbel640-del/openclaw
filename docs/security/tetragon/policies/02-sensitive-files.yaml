@@ -47,13 +47,13 @@ spec:
         # must hold so we don't fire on every file under /home.
         - matchArgs:
             - index: 1
-              operator: Prefix
+              operator: Regex
               values:
-                - /home/
-            - index: 1
-              operator: InStr
-              values:
-                - /.ssh/
+                - /home/[^/]+/\.ssh/
+                - /home/[^/]+/\.gnupg/
+                - /home/[^/]+/\.aws/
+                - /home/[^/]+/\.kube/config
+                - /home/[^/]+/\.docker/config\.json
     - call: security_file_open
       args:
         - index: 0

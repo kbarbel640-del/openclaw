@@ -10,6 +10,7 @@ spec:
   kprobes:
     # Detect setuid calls
     - call: __x64_sys_setuid
+      # NOTE: On arm64, replace __x64_sys_setuid with __arm64_sys_setuid
       syscall: true
       args:
         - index: 0
@@ -25,6 +26,7 @@ spec:
 
     # Detect setgid calls
     - call: __x64_sys_setgid
+      # NOTE: On arm64, replace __x64_sys_setgid with __arm64_sys_setgid
       syscall: true
       args:
         - index: 0
@@ -40,6 +42,7 @@ spec:
 
     # Detect setresuid (set real, effective, saved UID)
     - call: __x64_sys_setresuid
+      # NOTE: On arm64, replace __x64_sys_setresuid with __arm64_sys_setresuid
       syscall: true
       args:
         - index: 0
@@ -58,6 +61,12 @@ spec:
             - action: Post
 
     # Detect capability changes via capset
+    # NOTE: cap_capable is a check hook and can be very noisy. It fires
+    # every time the kernel checks whether a process has a capability,
+    # not only when capabilities are actually changed. For lower noise,
+    # consider hooking sys_capset instead (actual capability mutation).
+    # We keep cap_capable here for maximum visibility; tune with
+    # matchBinaries or matchPIDs if the volume is too high.
     - call: cap_capable
       args:
         - index: 0

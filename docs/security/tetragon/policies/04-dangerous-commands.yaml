@@ -9,6 +9,7 @@ metadata:
 spec:
   kprobes:
     - call: __x64_sys_execve
+      # NOTE: On arm64, replace __x64_sys_execve with __arm64_sys_execve
       syscall: true
       args:
         - index: 0
