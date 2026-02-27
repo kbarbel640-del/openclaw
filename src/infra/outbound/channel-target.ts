@@ -11,17 +11,24 @@ export function applyTargetToParams(params: {
   args: Record<string, unknown>;
 }): void {
   const target = typeof params.args.target === "string" ? params.args.target.trim() : "";
-  const hasLegacyTo = typeof params.args.to === "string";
-  const hasLegacyChannelId = typeof params.args.channelId === "string";
+  const legacyTo = typeof params.args.to === "string" ? params.args.to.trim() : "";
+  const legacyChannelId =
+    typeof params.args.channelId === "string" ? params.args.channelId.trim() : "";
+  const hasLegacyTo = legacyTo.length > 0;
+  const hasLegacyChannelId = legacyChannelId.length > 0;
   const mode =
     MESSAGE_ACTION_TARGET_MODE[params.action as keyof typeof MESSAGE_ACTION_TARGET_MODE] ?? "none";
 
   if (mode !== "none") {
     if (hasLegacyTo || hasLegacyChannelId) {
-      throw new Error("Use `target` instead of `to`/`channelId`.");
+      throw new Error(
+        `Action "${params.action}" expects "target" for the destination. Replace legacy "to"/"channelId" with "target".`,
+      );
     }
   } else if (hasLegacyTo) {
-    throw new Error("Use `target` for actions that accept a destination.");
+    throw new Error(
+      `Action "${params.action}" does not use recipient routing. Remove "to" and use action-specific filters instead.`,
+    );
   }
 
   if (!target) {
@@ -35,5 +42,7 @@ export function applyTargetToParams(params: {
     params.args.to = target;
     return;
   }
-  throw new Error(`Action ${params.action} does not accept a target.`);
+  throw new Error(
+    `Action "${params.action}" does not accept a destination target. Remove "target"/"to"/"channelId" for this action.`,
+  );
 }

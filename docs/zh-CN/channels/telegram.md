@@ -324,7 +324,7 @@ Telegram 支持带回调按钮的内联键盘。
 {
   action: "send",
   channel: "telegram",
-  to: "123456789",
+  target: "123456789",
   message: "选择一个选项：",
   buttons: [
     [
@@ -432,7 +432,7 @@ OpenClaw 默认使用音频文件以保持向后兼容性。
 {
   action: "send",
   channel: "telegram",
-  to: "123456789",
+  target: "123456789",
   media: "https://example.com/voice.ogg",
   asVoice: true,
 }
@@ -514,7 +514,7 @@ OpenClaw 支持接收和发送 Telegram 贴纸，并具有智能缓存功能。
 {
   action: "sticker",
   channel: "telegram",
-  to: "123456789",
+  target: "123456789",
   fileId: "CAACAgIAAxkBAAI...",
 }
 ```
@@ -563,7 +563,7 @@ OpenClaw 支持接收和发送 Telegram 贴纸，并具有智能缓存功能。
 {
   action: "sticker",
   channel: "telegram",
-  to: "-1001234567890",
+  target: "-1001234567890",
   fileId: "CAACAgIAAxkBAAI...",
   replyTo: 42,
   threadId: 123,
