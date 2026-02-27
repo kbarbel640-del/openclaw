@@ -386,6 +386,7 @@ describe("pairing store", () => {
       const created = await upsertChannelPairingRequest({
         channel: "telegram",
         id: "12345",
+        accountId: DEFAULT_ACCOUNT_ID,
       });
       expect(created.created).toBe(true);
 
@@ -419,6 +420,7 @@ describe("pairing store", () => {
       const created = await upsertChannelPairingRequest({
         channel: "telegram",
         id: "12345",
+        accountId: DEFAULT_ACCOUNT_ID,
       });
       expect(created.created).toBe(true);
 
