@@ -22,6 +22,7 @@ type ActiveLogin = {
   accountId: string;
   authDir: string;
   isLegacyAuthDir: boolean;
+  proxy?: string;
   id: string;
   sock: WaSocket;
   startedAt: number;
@@ -91,6 +92,7 @@ async function restartLoginSocket(login: ActiveLogin, runtime: RuntimeEnv) {
   try {
     const sock = await createWaSocket(false, login.verbose, {
       authDir: login.authDir,
+      proxy: login.proxy,
     });
     login.sock = sock;
     login.connected = false;
@@ -155,6 +157,7 @@ export async function startWebLoginWithQr(
   try {
     sock = await createWaSocket(false, Boolean(opts.verbose), {
       authDir: account.authDir,
+      proxy: account.proxy,
       onQr: (qr: string) => {
         if (pendingQr) {
           return;
@@ -180,6 +183,7 @@ export async function startWebLoginWithQr(
     accountId: account.accountId,
     authDir: account.authDir,
     isLegacyAuthDir: account.isLegacyAuthDir,
+    proxy: account.proxy,
     id: randomUUID(),
     sock,
     startedAt: Date.now(),

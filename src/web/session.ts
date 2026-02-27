@@ -7,7 +7,9 @@ import {
   makeWASocket,
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import qrcode from "qrcode-terminal";
+import { ProxyAgent } from "undici";
 import { formatCliCommand } from "../cli/command-format.js";
 import { danger, success } from "../globals.js";
 import { getChildLogger, toPinoLikeLogger } from "../logging.js";
@@ -90,7 +92,7 @@ async function safeSaveCreds(
 export async function createWaSocket(
   printQr: boolean,
   verbose: boolean,
-  opts: { authDir?: string; onQr?: (qr: string) => void } = {},
+  opts: { authDir?: string; onQr?: (qr: string) => void; proxy?: string } = {},
 ): Promise<ReturnType<typeof makeWASocket>> {
   const baseLogger = getChildLogger(
     { module: "baileys" },
@@ -105,6 +107,18 @@ export async function createWaSocket(
   maybeRestoreCredsFromBackup(authDir);
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
+  const proxyUrl = opts.proxy?.trim();
+  let wsAgent: InstanceType<typeof HttpsProxyAgent> | undefined;
+  let httpAgent: InstanceType<typeof ProxyAgent> | undefined;
+  if (proxyUrl) {
+    try {
+      wsAgent = new HttpsProxyAgent(proxyUrl);
+      httpAgent = new ProxyAgent(proxyUrl);
+      sessionLogger.info("WhatsApp proxy enabled");
+    } catch (err) {
+      sessionLogger.warn({ error: String(err) }, "Invalid proxy URL, connecting without proxy");
+    }
+  }
   const sock = makeWASocket({
     auth: {
       creds: state.creds,
@@ -116,6 +130,8 @@ export async function createWaSocket(
     browser: ["openclaw", "cli", VERSION],
     syncFullHistory: false,
     markOnlineOnConnect: false,
+    ...(wsAgent && { agent: wsAgent }),
+    ...(httpAgent && { fetchAgent: httpAgent }),
   });
 
   sock.ev.on("creds.update", () => enqueueSaveCreds(authDir, saveCreds, sessionLogger));
