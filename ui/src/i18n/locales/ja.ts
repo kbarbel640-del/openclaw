@@ -120,7 +120,12 @@ export const ja: TranslationMap = {
     zhCN: "简体中文（簡体字中国語）",
     zhTW: "繁體中文（繁体字中国語）",
     ptBR: "Português（ブラジルポルトガル語）",
+    nl: "Nederlands（オランダ語）",
+    fr: "Français（フランス語）",
+    de: "Deutsch（ドイツ語）",
+    it: "Italiano（イタリア語）",
     es: "Español（スペイン語）",
     ja: "日本語",
+    ko: "한국어（韓国語）",
   },
 };

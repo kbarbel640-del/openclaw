@@ -120,6 +120,12 @@ export const es: TranslationMap = {
     zhCN: "简体中文 (Chino Simplificado)",
     zhTW: "繁體中文 (Chino Tradicional)",
     ptBR: "Português (Portugués Brasileño)",
+    nl: "Nederlands (Neerlandés)",
+    fr: "Français (Francés)",
+    de: "Deutsch (Alemán)",
+    it: "Italiano",
     es: "Español",
+    ja: "日本語 (Japonés)",
+    ko: "한국어 (Coreano)",
   },
 };
