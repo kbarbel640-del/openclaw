@@ -240,6 +240,13 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   }
 
   if (payload.state === "delta") {
+    if (!state.chatRunId && state.lastError && payload.runId) {
+      // Recovery: a new stream arrived after an error state for this session.
+      // Restore run tracking so the UI can display fallback output.
+      state.chatRunId = payload.runId;
+      state.chatStreamStartedAt = state.chatStreamStartedAt ?? Date.now();
+      state.lastError = null;
+    }
     const next = extractText(payload.message);
     if (typeof next === "string") {
       const current = state.chatStream ?? "";
@@ -255,6 +262,7 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
+    state.lastError = null;
   } else if (payload.state === "aborted") {
     const normalizedMessage = normalizeAbortedAssistantMessage(payload.message);
     if (normalizedMessage) {
