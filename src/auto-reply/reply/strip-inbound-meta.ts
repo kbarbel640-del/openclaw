@@ -20,6 +20,8 @@ const INBOUND_META_SENTINELS = [
   "Replied message (untrusted, for context):",
   "Forwarded message context (untrusted metadata):",
   "Chat history since last reply (untrusted, for context):",
+  "[Thread starter - for context]",
+  "[Thread history - for context]",
 ] as const;
 
 const UNTRUSTED_CONTEXT_HEADER =
@@ -78,6 +80,10 @@ export function stripInboundMetadata(text: string): string {
   const result: string[] = [];
   let inMetaBlock = false;
   let inFencedJson = false;
+  // Unfenced blocks (e.g. "[Thread starter - for context]\n<text>") consume
+  // non-blank lines until the next blank line, unlike fenced blocks which
+  // look for ``` delimiters.
+  let inUnfencedBlock = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -92,11 +98,12 @@ export function stripInboundMetadata(text: string): string {
     if (!inMetaBlock && INBOUND_META_SENTINELS.some((s) => line.startsWith(s))) {
       inMetaBlock = true;
       inFencedJson = false;
+      inUnfencedBlock = line.startsWith("[");
       continue;
     }
 
     if (inMetaBlock) {
-      if (!inFencedJson && line.trim() === "```json") {
+      if (!inFencedJson && !inUnfencedBlock && line.trim() === "```json") {
         inFencedJson = true;
         continue;
       }
@@ -104,6 +111,14 @@ export function stripInboundMetadata(text: string): string {
         if (line.trim() === "```") {
           inMetaBlock = false;
           inFencedJson = false;
+        }
+        continue;
+      }
+      if (inUnfencedBlock) {
+        // Unfenced blocks end at the first blank line.
+        if (line.trim() === "") {
+          inMetaBlock = false;
+          inUnfencedBlock = false;
         }
         continue;
       }
