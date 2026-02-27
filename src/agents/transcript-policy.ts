@@ -95,10 +95,17 @@ export function resolveTranscriptPolicy(params: {
     modelId.toLowerCase().includes("gemini");
   const isCopilotClaude = provider === "github-copilot" && modelId.toLowerCase().includes("claude");
 
-  // GitHub Copilot's Claude endpoints can reject persisted `thinking` blocks with
-  // non-binary/non-base64 signatures (e.g. thinkingSignature: "reasoning_text").
-  // Drop these blocks at send-time to keep sessions usable.
-  const dropThinkingBlocks = isCopilotClaude;
+  // Anthropic's API requires thinking/redacted_thinking blocks in the latest
+  // assistant message to be byte-for-byte identical to the original response.
+  // During session compaction or gateway restart, these blocks can be modified
+  // (signatures altered, content truncated), causing permanent 400 rejections
+  // that brick the session until /reset.  Stripping thinking blocks from the
+  // transcript at send-time avoids this — Anthropic accepts omitted thinking
+  // blocks, it only rejects *modified* ones.  (#19524, #25194)
+  //
+  // GitHub Copilot's Claude endpoints have a similar issue with non-base64
+  // thinkingSignature values.
+  const dropThinkingBlocks = isAnthropic || isCopilotClaude;
 
   const needsNonImageSanitize = isGoogle || isAnthropic || isMistral || isOpenRouterGemini;
 

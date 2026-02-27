@@ -66,6 +66,50 @@ describe("resolveTranscriptPolicy", () => {
     expect(policy.sanitizeMode).toBe("full");
   });
 
+  it("enables dropThinkingBlocks for Anthropic provider", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "anthropic",
+      modelId: "claude-opus-4-6",
+      modelApi: "anthropic-messages",
+    });
+    expect(policy.dropThinkingBlocks).toBe(true);
+  });
+
+  it("enables dropThinkingBlocks for Bedrock Anthropic models", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "amazon-bedrock",
+      modelId: "us.anthropic.claude-opus-4-6-v1",
+      modelApi: "bedrock-converse-stream",
+    });
+    expect(policy.dropThinkingBlocks).toBe(true);
+  });
+
+  it("enables dropThinkingBlocks for GitHub Copilot Claude models", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "github-copilot",
+      modelId: "claude-sonnet-4",
+    });
+    expect(policy.dropThinkingBlocks).toBe(true);
+  });
+
+  it("does not enable dropThinkingBlocks for OpenAI", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "openai",
+      modelId: "gpt-4o",
+      modelApi: "openai",
+    });
+    expect(policy.dropThinkingBlocks).toBe(false);
+  });
+
+  it("does not enable dropThinkingBlocks for Google", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "google",
+      modelId: "gemini-2.0-flash",
+      modelApi: "google-generative-ai",
+    });
+    expect(policy.dropThinkingBlocks).toBe(false);
+  });
+
   it("keeps OpenRouter on its existing turn-validation path", () => {
     const policy = resolveTranscriptPolicy({
       provider: "openrouter",
