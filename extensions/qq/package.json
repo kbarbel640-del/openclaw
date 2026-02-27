@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/qq",
+  "version": "2026.2.26",
+  "private": true,
+  "description": "OpenClaw QQ channel plugin (Bot API v2)",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

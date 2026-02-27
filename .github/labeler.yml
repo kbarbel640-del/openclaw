@@ -73,6 +73,11 @@
           - "src/slack/**"
           - "extensions/slack/**"
           - "docs/channels/slack.md"
+"channel: qq":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/qq/**"
+          - "docs/channels/qq.md"
 "channel: telegram":
   - changed-files:
       - any-glob-to-any-file:
