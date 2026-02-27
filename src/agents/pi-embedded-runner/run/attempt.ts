@@ -50,6 +50,7 @@ import {
   validateAnthropicTurns,
   validateGeminiTurns,
 } from "../../pi-embedded-helpers.js";
+import { resolveContextInjection } from "../../pi-embedded-helpers/bootstrap.js";
 import { subscribeEmbeddedPiSession } from "../../pi-embedded-subscribe.js";
 import { createPreparedEmbeddedPiSettingsManager } from "../../pi-project-settings.js";
 import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
@@ -305,7 +306,38 @@ export async function runEmbeddedAttempt(
     });
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
-    const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles } =
+
+    // Check context injection mode: when "first-message-only", skip workspace context
+    // files on subsequent messages to reduce token usage (~93% savings over conversations).
+    // We count actual user messages in the session transcript rather than checking file
+    // existence, because pre-created, aborted, or repaired sessions can have a file
+    // without any real conversation history.
+    const contextInjectionMode = resolveContextInjection(params.config);
+    const hasUserMessages = await (async () => {
+      try {
+        const content = await fs.readFile(params.sessionFile, "utf-8");
+        // Each line is a JSON record; count lines with "role":"user" as real messages
+        let count = 0;
+        for (const line of content.split("\n")) {
+          if (!line.trim()) {
+            continue;
+          }
+          // Fast substring check before full parse
+          if (line.includes('"role":"user"') || line.includes('"role": "user"')) {
+            count++;
+            if (count > 0) {
+              return true;
+            }
+          }
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    })();
+    const skipContextInjection = contextInjectionMode === "first-message-only" && hasUserMessages;
+
+    const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles: rawContextFiles } =
       await resolveBootstrapContextForRun({
         workspaceDir: effectiveWorkspace,
         config: params.config,
@@ -313,6 +345,9 @@ export async function runEmbeddedAttempt(
         sessionId: params.sessionId,
         warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
       });
+    // When skipping context injection, clear context files but keep bootstrap metadata
+    // (needed for workspaceNotes and systemPromptReport).
+    const contextFiles = skipContextInjection ? [] : rawContextFiles;
     const workspaceNotes = hookAdjustedBootstrapFiles.some(
       (file) => file.name === DEFAULT_BOOTSTRAP_FILENAME && !file.missing,
     )
