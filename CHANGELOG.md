@@ -4,6 +4,10 @@ Docs: https://docs.openclaw.ai
 
 ## 2026.2.26 (Unreleased)
 
+### Changes
+
+- Web Search/SearXNG: add `searxng` as a first-class `web_search` provider. Point OpenClaw at any self-hosted SearXNG instance for no-API-key, multi-engine aggregated search with support for category filtering (`general`, `images`, `news`, `videos`, `files`, `social media`), engine selection, language, and safe-search controls. Configure via `tools.web.search.provider: "searxng"` and `tools.web.search.searxng.url`.
+
 ### Fixes
 
 - CI/Windows: shard the Windows `checks-windows` test lane into two matrix jobs and honor explicit shard index overrides in `scripts/test-parallel.mjs` to reduce CI critical-path wall time. (#27234) Thanks @joshavant.
