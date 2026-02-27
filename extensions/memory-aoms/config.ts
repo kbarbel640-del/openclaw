@@ -9,7 +9,11 @@ export const DEFAULT_AOMS_TIMEOUT_MS = 10_000;
 
 const ALLOWED_CONFIG_KEYS = ["baseUrl", "timeoutMs", "apiKey"] as const;
 
-function assertAllowedKeys(value: Record<string, unknown>, allowed: readonly string[], label: string) {
+function assertAllowedKeys(
+  value: Record<string, unknown>,
+  allowed: readonly string[],
+  label: string,
+) {
   const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
   if (unknown.length === 0) {
     return;
