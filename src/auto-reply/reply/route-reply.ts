@@ -37,6 +37,8 @@ export type RouteReplyParams = {
   abortSignal?: AbortSignal;
   /** Mirror reply into session transcript (default: true when sessionKey is set). */
   mirror?: boolean;
+  /** Links outbound to inbound turn for orphan-recovery coordination. */
+  inboundId?: string;
 };
 
 export type RouteReplyResult = {
@@ -138,6 +140,7 @@ export async function routeReply(params: RouteReplyParams): Promise<RouteReplyRe
       threadId: resolvedThreadId,
       session: outboundSession,
       abortSignal,
+      inboundId: params.inboundId,
       mirror:
         params.mirror !== false && params.sessionKey
           ? {
