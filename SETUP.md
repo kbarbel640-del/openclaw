@@ -1,6 +1,6 @@
 # Brock — Mac Mini Setup Guide
 
-Step-by-step setup for running Brock on a Mac Mini with local GLM-5, z.ai API, and OpenAI backup.
+Step-by-step setup for running Brock on a Mac Mini with Kimi K2.5 (primary), z.ai GLM-5, DeepSeek, and OpenAI fallback. Optional local Ollama for offline/free-tier work.
 
 ## Prerequisites
 
@@ -14,8 +14,8 @@ Step-by-step setup for running Brock on a Mac Mini with local GLM-5, z.ai API, a
 ## Step 1: Install System Dependencies
 
 ```bash
-# Node.js 20+ (openclaw runtime)
-brew install node@20
+# Node.js 22+ (openclaw runtime — requires >=22.12.0)
+brew install node@22
 
 # pnpm (openclaw's package manager)
 brew install pnpm
@@ -79,25 +79,30 @@ ollama run glm-4.7 "Say hello in exactly 5 words"
 
 ## Step 4: Get API Keys
 
-You need two (optionally three) API keys:
+You need API keys for the model tiers. See `CLOUD_STRATEGY.md` for full details on the four-tier stack.
 
-### z.ai (Strong Tier — Required)
+### Kimi / Moonshot (Code + Bulk + Reasoning — Primary)
+1. **Kimi Coding** (code tier): Go to [kimi.com](https://kimi.com) → subscribe to the Coding Plan → get API key
+2. **Moonshot API** (bulk/reasoning tier): Go to [platform.moonshot.ai](https://platform.moonshot.ai) → create API key
+3. These two share the same ecosystem but use different endpoints/keys
+
+### z.ai (Code Tier — Fallback)
 1. Go to [z.ai console](https://console.z.ai)
 2. Create an account / log in
 3. Subscribe to the **GLM Coding Plan** (this gives cheaper rates for coding tasks)
 4. Go to API Keys → Create new key
 5. Save the key somewhere safe
 
-### OpenAI (Backup Tier — Recommended)
+### DeepSeek (Bulk Tier — Recommended)
+1. Go to [platform.deepseek.com](https://platform.deepseek.com)
+2. Create API key
+3. Extremely cheap ($0.28/$0.42 per 1M tokens) — great for routine work
+
+### OpenAI (Last Resort Fallback)
 1. Go to [platform.openai.com](https://platform.openai.com)
 2. Create API key under Settings → API Keys
 3. Add billing (pay-as-you-go)
 4. Save the key
-
-### Anthropic (Optional Fallback)
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Create API key
-3. Save the key
 
 ---
 
@@ -134,10 +139,19 @@ mkdir -p ~/.openclaw/workspace
 ### Copy Brock's personality files into the workspace:
 
 ```bash
-# Copy your custom SOUL.md BEFORE first run
-# This way bootstrap won't overwrite it with the default template
+# Copy core personality files BEFORE first run
+# This way bootstrap won't overwrite them with default templates
 cp ~/brock/openclaw/docs/personality/brock/SOUL.md ~/.openclaw/workspace/SOUL.md
 cp ~/brock/openclaw/docs/personality/brock/IDENTITY.md ~/.openclaw/workspace/IDENTITY.md
+cp ~/brock/openclaw/docs/personality/brock/PERSONALITY-GUIDE.md ~/.openclaw/workspace/PERSONALITY-GUIDE.md
+
+# Optional: copy supplementary personality files
+# These enrich Brock's voice and self-awareness but aren't required for bootstrap
+cp ~/brock/openclaw/docs/personality/brock/SMALL-TALK.md ~/.openclaw/workspace/SMALL-TALK.md
+cp ~/brock/openclaw/docs/personality/brock/JOURNAL.md ~/.openclaw/workspace/JOURNAL.md
+cp ~/brock/openclaw/docs/personality/brock/DREAM-JOURNAL.md ~/.openclaw/workspace/DREAM-JOURNAL.md
+cp ~/brock/openclaw/docs/personality/brock/DREAM-CYCLE.md ~/.openclaw/workspace/DREAM-CYCLE.md
+cp ~/brock/openclaw/docs/personality/brock/SOUL-SEARCH.md ~/.openclaw/workspace/SOUL-SEARCH.md
 ```
 
 **Important:** Do NOT copy USER.md — let bootstrap create the template so Brock asks you about yourself on first run. Do NOT set `skipBootstrap: true` — you want the first-run ritual.
@@ -153,10 +167,11 @@ cat > ~/.openclaw/.env << 'EOF'
 OPENCLAW_GATEWAY_TOKEN=CHANGE_ME_RUN_openssl_rand_hex_32
 
 # Model provider keys (see CLOUD_STRATEGY.md for tier details)
-ZAI_API_KEY=your-z-ai-key-here          # Code tier: z.ai GLM-5
-DEEPSEEK_API_KEY=your-deepseek-key-here  # Bulk tier: DeepSeek V3.2
-MOONSHOT_API_KEY=your-moonshot-key-here  # Reasoning tier: Kimi K2 Thinking
-OPENAI_API_KEY=your-openai-key-here      # Fallback tier: GPT-4o / o3
+KIMI_API_KEY=your-kimi-coding-key-here   # Code tier: Kimi K2.5 (primary)
+MOONSHOT_API_KEY=your-moonshot-key-here   # Bulk/reasoning tier: Kimi K2 / K2.5
+ZAI_API_KEY=your-z-ai-key-here           # Code tier fallback: z.ai GLM-5
+DEEPSEEK_API_KEY=your-deepseek-key-here   # Bulk tier fallback: DeepSeek V3.2
+OPENAI_API_KEY=your-openai-key-here       # Last resort fallback: GPT-4o / o3
 
 # Channel tokens (add as you connect channels)
 # TELEGRAM_BOT_TOKEN=
@@ -185,31 +200,61 @@ chmod 600 ~/.openclaw/.env
 
 ## Step 8: Configure openclaw.json
 
-Create `~/.openclaw/openclaw.json`:
+Create `~/.openclaw/openclaw.json`. This is a minimal starter config — the full reference with all providers and tiers is at `configs/model_config.json`.
 
 ```json5
 {
   // ── Model Providers ──────────────────────────────────────────
+  // Full reference: configs/model_config.json · Strategy: CLOUD_STRATEGY.md
   "models": {
     "mode": "merge",
     "providers": {
-      // Fast tier: local Ollama
-      "local": {
-        "baseUrl": "http://localhost:11434/v1",
-        "api": "ollama",
+      // Code tier (primary): Kimi for Coding
+      "kimi-coding": {
+        "baseUrl": "https://api.kimi.com/coding/",
+        "api": "anthropic-messages",
+        "auth": "api-key",
+        "apiKey": "${KIMI_API_KEY}",
         "models": [
           {
-            "id": "glm-4.7",            // change to match what you pulled in Step 3
-            "name": "GLM-4.7 (local)",
+            "id": "k2p5",
+            "name": "Kimi for Coding (K2.5)",
             "reasoning": true,
-            "input": ["text"],
+            "input": ["text", "image"],
             "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
-            "contextWindow": 131072,
-            "maxTokens": 8192
+            "contextWindow": 262144,
+            "maxTokens": 32768
           }
         ]
       },
-      // Strong tier: z.ai API
+      // Bulk + reasoning tier: Moonshot (Kimi K2 family)
+      "moonshot": {
+        "baseUrl": "https://api.moonshot.ai/v1",
+        "api": "openai-completions",
+        "auth": "api-key",
+        "apiKey": "${MOONSHOT_API_KEY}",
+        "models": [
+          {
+            "id": "kimi-k2.5",
+            "name": "Kimi K2.5 (multimodal, bulk)",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 256000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "kimi-k2-thinking",
+            "name": "Kimi K2 Thinking (reasoning)",
+            "reasoning": true,
+            "input": ["text"],
+            "cost": { "input": 0.6, "output": 2.5, "cacheRead": 0.15, "cacheWrite": 0.6 },
+            "contextWindow": 256000,
+            "maxTokens": 65536
+          }
+        ]
+      },
+      // Code tier fallback: z.ai GLM-5
       "zai": {
         "baseUrl": "https://api.z.ai/api/coding/paas/v4",
         "api": "openai-completions",
@@ -218,12 +263,64 @@ Create `~/.openclaw/openclaw.json`:
         "models": [
           {
             "id": "glm-5",
-            "name": "GLM-5 (z.ai)",
+            "name": "GLM-5 (z.ai Coding)",
             "reasoning": true,
+            "input": ["text"],
+            "cost": { "input": 1.0, "output": 3.2, "cacheRead": 0.2, "cacheWrite": 1.0 },
+            "contextWindow": 200000,
+            "maxTokens": 128000
+          }
+        ]
+      },
+      // Bulk tier fallback: DeepSeek
+      "deepseek": {
+        "baseUrl": "https://api.deepseek.com/v1",
+        "api": "openai-completions",
+        "auth": "api-key",
+        "apiKey": "${DEEPSEEK_API_KEY}",
+        "models": [
+          {
+            "id": "deepseek-chat",
+            "name": "DeepSeek V3.2 Chat (cheap bulk)",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0.28, "output": 0.42, "cacheRead": 0.028, "cacheWrite": 0.28 },
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          }
+        ]
+      },
+      // Last resort fallback: OpenAI
+      "openai": {
+        "baseUrl": "https://api.openai.com/v1",
+        "api": "openai-completions",
+        "auth": "api-key",
+        "apiKey": "${OPENAI_API_KEY}",
+        "models": [
+          {
+            "id": "gpt-4o",
+            "name": "GPT-4o (fallback)",
+            "reasoning": false,
             "input": ["text", "image"],
-            "cost": { "input": 0.002, "output": 0.006, "cacheRead": 0.001, "cacheWrite": 0.002 },
-            "contextWindow": 131072,
+            "cost": { "input": 2.5, "output": 10.0, "cacheRead": 1.25, "cacheWrite": 2.5 },
+            "contextWindow": 128000,
             "maxTokens": 16384
+          }
+        ]
+      },
+      // Optional: local Ollama (change model to match what you pulled in Step 3)
+      "local": {
+        "baseUrl": "http://localhost:11434/v1",
+        "api": "ollama",
+        "models": [
+          {
+            "id": "glm-4.7",
+            "name": "GLM-4.7 (local)",
+            "reasoning": true,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 131072,
+            "maxTokens": 8192
           }
         ]
       }
@@ -235,20 +332,32 @@ Create `~/.openclaw/openclaw.json`:
     "defaults": {
       "workspace": "~/.openclaw/workspace",
       "model": {
-        "primary": "zai/glm-5",
-        "fallbacks": ["local/glm-4.7", "openai/gpt-4o"]
+        "primary": "kimi-coding/k2p5",
+        "fallbacks": ["zai/glm-5", "deepseek/deepseek-chat", "openai/gpt-4o"]
+      },
+      "bulkModel": {
+        "primary": "moonshot/kimi-k2.5",
+        "fallbacks": ["deepseek/deepseek-chat", "openai/gpt-4o"]
+      },
+      "reasoningModel": {
+        "primary": "moonshot/kimi-k2.5",
+        "fallbacks": ["zai/glm-5", "openai/gpt-4o"]
       },
       "models": {
-        "zai/glm-5":    { "alias": "glm5",  "streaming": true },
-        "local/glm-4.7": { "alias": "local", "streaming": true },
-        "openai/gpt-4o": { "alias": "gpt",   "streaming": true }
+        "kimi-coding/k2p5":          { "alias": "kc",    "streaming": true },
+        "moonshot/kimi-k2.5":        { "alias": "kimi-v", "streaming": true },
+        "moonshot/kimi-k2-thinking": { "alias": "kimi",  "streaming": true },
+        "zai/glm-5":                 { "alias": "glm5",  "streaming": true },
+        "deepseek/deepseek-chat":    { "alias": "ds",    "streaming": true },
+        "openai/gpt-4o":             { "alias": "gpt",   "streaming": true },
+        "local/glm-4.7":             { "alias": "local", "streaming": true }
       }
     }
   }
 }
 ```
 
-> **Tip:** The reference config at `configs/model_config.json` in this repo has the full version with all three tiers and routing notes. Use it as a reference if you want to customize further.
+> **Tip:** The full reference config at `configs/model_config.json` has all providers, all models (including turbo/reasoner variants), and routing notes. Copy sections from there as needed. See `CLOUD_STRATEGY.md` for tier rationale and cost analysis.
 
 ---
 
@@ -257,9 +366,17 @@ Create `~/.openclaw/openclaw.json`:
 ```bash
 cd ~/brock/openclaw
 
-# Start openclaw
-pnpm start
+# Build first (compiles TypeScript to dist/)
+pnpm build
+
+# Run the onboarding / setup wizard
+pnpm openclaw setup
+
+# Or, to start the gateway directly (after setup):
+pnpm openclaw gateway run
 ```
+
+> `pnpm openclaw` is the dev CLI entry point. You can also use `pnpm start` (equivalent to `pnpm openclaw` with no arguments). For production, use the globally installed `openclaw` binary.
 
 **What happens on first run:**
 1. openclaw detects the workspace at `~/.openclaw/workspace/`
