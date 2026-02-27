@@ -1346,6 +1346,10 @@ export function getRuntimeConfigSnapshot(): OpenClawConfig | null {
   return runtimeConfigSnapshot;
 }
 
+export function getRuntimeConfigSourceSnapshot(): OpenClawConfig | null {
+  return runtimeConfigSourceSnapshot;
+}
+
 export function loadConfig(): OpenClawConfig {
   if (runtimeConfigSnapshot) {
     return runtimeConfigSnapshot;
