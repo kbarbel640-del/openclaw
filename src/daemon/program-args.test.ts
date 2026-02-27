@@ -123,6 +123,35 @@ describe("resolveGatewayProgramArguments", () => {
     ]);
   });
 
+  it("keeps npx entrypoint when PATH openclaw points to a different install", async () => {
+    const argv1 = path.resolve("/tmp/.npm/_npx/63c3/node_modules/.bin/openclaw");
+    const npxEntrypoint = path.resolve("/tmp/.npm/_npx/63c3/node_modules/openclaw/dist/entry.js");
+    const globalBin = path.resolve("/Users/test/Library/pnpm/global/5/node_modules/.bin/openclaw");
+    const globalSymlinkEntrypoint = path.resolve(
+      "/Users/test/Library/pnpm/global/5/node_modules/openclaw/dist/index.js",
+    );
+
+    process.argv = ["node", argv1];
+    childProcessMocks.execFileSync.mockReturnValue(`${globalBin}\n`);
+    fsMocks.realpath.mockImplementation(async (target: string) => {
+      if (target === argv1) {
+        return npxEntrypoint;
+      }
+      return target;
+    });
+    fsMocks.access.mockImplementation(async (target: string) => {
+      if (target === npxEntrypoint || target === globalBin || target === globalSymlinkEntrypoint) {
+        return;
+      }
+      throw new Error("missing");
+    });
+
+    const result = await resolveGatewayProgramArguments({ port: 18789 });
+
+    expect(result.programArguments[1]).toBe(npxEntrypoint);
+    expect(result.programArguments[1]).not.toBe(globalSymlinkEntrypoint);
+  });
+
   it("prefers symlinked path over realpath for stable service config", async () => {
     // Simulates pnpm global install where node_modules/openclaw is a symlink
     // to .pnpm/openclaw@X.Y.Z/node_modules/openclaw
