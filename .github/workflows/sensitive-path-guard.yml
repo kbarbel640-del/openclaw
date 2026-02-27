@@ -18,7 +18,7 @@ jobs:
           app-id: "2729701"
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
 
-      - name: Block non-org changes to restricted paths
+      - name: Block non-maintainer changes to restricted paths
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ steps.app-token.outputs.token }}
@@ -29,13 +29,30 @@ jobs:
               return;
             }
 
-            const internalAssociations = new Set(["OWNER", "MEMBER"]);
-            const authorAssociation = (pullRequest.author_association ?? "NONE").toUpperCase();
-            if (internalAssociations.has(authorAssociation)) {
-              core.info(
-                `Author association is ${authorAssociation}; skipping restricted-path policy for org members.`,
-              );
-              return;
+            const login = pullRequest.user?.login;
+            if (!login) {
+              core.warning("Could not determine PR author login; restricted-path policy will be enforced.");
+            } else {
+              let isMaintainer = false;
+              try {
+                const membership = await github.rest.teams.getMembershipForUserInOrg({
+                  org: context.repo.owner,
+                  team_slug: "maintainer",
+                  username: login,
+                });
+                isMaintainer = membership?.data?.state === "active";
+              } catch (error) {
+                if (error?.status !== 404) {
+                  throw error;
+                }
+              }
+
+              if (isMaintainer) {
+                core.info(`PR author @${login} is an active maintainer; skipping restricted-path policy.`);
+                return;
+              }
+
+              core.info(`PR author @${login} is not an active maintainer; restricted-path policy applies.`);
             }
 
             // Keep this list tight and explicit. Expand only for high-risk surfaces.
@@ -134,7 +151,7 @@ jobs:
               {
                 name: "r: external-sensitive-path",
                 color: "d93f0b",
-                description: "Auto-close: non-org contributor touched restricted path",
+                description: "Auto-close: non-maintainer contributor touched restricted path",
               },
             ];
             const warningCommentMarker = "<!-- sensitive-path-guard-warning -->";
@@ -168,7 +185,7 @@ jobs:
                 warningCommentMarker,
                 "WARNING: **Security policy warning**",
                 "",
-                "This PR was opened by a non-org contributor and modifies restricted security or execution-sensitive files.",
+                "This PR was opened by a non-maintainer contributor and modifies restricted security or execution-sensitive files.",
                 "OpenClaw policy is to block and auto-close these PRs for maintainer-assisted handling.",
                 "",
                 "**Restricted files touched:**",
@@ -227,7 +244,7 @@ jobs:
                   name: label.name,
                 });
               }
-              core.info("No restricted paths touched by this external contributor PR.");
+              core.info("No restricted paths touched by this non-maintainer contributor PR.");
               return;
             }
 
@@ -249,11 +266,11 @@ jobs:
 
             const changedSensitiveFiles = [...new Set(matchedFiles.map((item) => item.filename))].sort();
             await upsertWarningComment(changedSensitiveFiles);
-            core.error("Restricted paths modified by non-org contributor:");
+            core.error("Restricted paths modified by non-maintainer contributor:");
             for (const filename of changedSensitiveFiles) {
               core.error(`- ${filename}`);
             }
 
             core.setFailed(
-              `PR touches ${changedSensitiveFiles.length} restricted path(s). Only org members can modify these files.`,
+              `PR touches ${changedSensitiveFiles.length} restricted path(s). Only maintainers can modify these files.`,
             );
