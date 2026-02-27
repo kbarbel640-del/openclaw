@@ -2,6 +2,11 @@ import { resolveHumanDelayConfig } from "../../../agents/identity.js";
 import { dispatchInboundMessage } from "../../../auto-reply/dispatch.js";
 import { clearHistoryEntriesIfEnabled } from "../../../auto-reply/reply/history.js";
 import { createReplyDispatcherWithTyping } from "../../../auto-reply/reply/reply-dispatcher.js";
+import {
+  isSilentReplyPrefixText,
+  isSilentReplyText,
+  SILENT_REPLY_TOKEN,
+} from "../../../auto-reply/tokens.js";
 import type { ReplyPayload } from "../../../auto-reply/types.js";
 import { removeAckReactionAfterReply } from "../../../channels/ack-reactions.js";
 import { logAckFailure, logTypingFailure } from "../../../channels/logging.js";
@@ -49,6 +54,14 @@ export function resolveSlackStreamingThreadHint(params: {
     hasReplied: false,
     isThreadReply: params.isThreadReply,
   });
+}
+
+export function shouldSuppressSlackDraftPreviewText(
+  text: string,
+  silentToken: string = SILENT_REPLY_TOKEN,
+): boolean {
+  const trimmed = text.trim();
+  return isSilentReplyText(trimmed, silentToken) || isSilentReplyPrefixText(trimmed, silentToken);
 }
 
 function shouldUseStreaming(params: {
@@ -325,6 +338,11 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
   const updateDraftFromPartial = (text?: string) => {
     const trimmed = text?.trimEnd();
     if (!trimmed) {
+      return;
+    }
+    // Prevent sentinel leakage (e.g. NO_REPLY / NO_ / NO_RE...) into Slack draft previews.
+    // These previews are often deleted on finalize, which looks like a creepy “ghost message”.
+    if (shouldSuppressSlackDraftPreviewText(trimmed, SILENT_REPLY_TOKEN)) {
       return;
     }
 
