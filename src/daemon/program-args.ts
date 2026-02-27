@@ -29,12 +29,12 @@ async function resolveCliEntrypointPathForService(): Promise<string> {
     if (normalizedLooksLikeDist && normalized !== resolvedPath) {
       try {
         await fs.access(normalized);
-        return normalized;
+        return await resolveHomebrewStablePath(normalized);
       } catch {
         // Fall through to return resolvedPath
       }
     }
-    return resolvedPath;
+    return await resolveHomebrewStablePath(resolvedPath);
   }
 
   const distCandidates = buildDistCandidates(resolvedPath, normalized);
@@ -60,6 +60,29 @@ async function resolveRealpathSafe(inputPath: string): Promise<string> {
     return inputPath;
   }
 }
+
+/**
+ * If the path is inside a Homebrew Cellar version directory, resolve it through
+ * the stable /opt/homebrew/opt/<pkg>/ symlink so that LaunchAgent/systemd paths
+ * survive brew upgrade without manual intervention.
+ */
+async function resolveHomebrewStablePath(inputPath: string): Promise<string> {
+  const cellarMatch = inputPath.match(
+    /^\/opt\/homebrew\/Cellar\/([^/]+)\/[^/]+\/(.+)$/,
+  );
+  if (!cellarMatch) {
+    return inputPath;
+  }
+  const [, pkg, rest] = cellarMatch;
+  const stablePath = `/opt/homebrew/opt/${pkg}/${rest}`;
+  try {
+    await fs.access(stablePath);
+    return stablePath;
+  } catch {
+    return inputPath;
+  }
+}
+
 
 function buildDistCandidates(...inputs: string[]): string[] {
   const candidates: string[] = [];
@@ -167,8 +190,9 @@ async function resolveCliProgramArguments(params: {
   const runtime = params.runtime ?? "auto";
 
   if (runtime === "node") {
-    const nodePath =
+    const rawNodePath =
       params.nodePath ?? (isNodeRuntime(execPath) ? execPath : await resolveNodePath());
+    const nodePath = await resolveHomebrewStablePath(rawNodePath);
     const cliEntrypointPath = await resolveCliEntrypointPathForService();
     return {
       programArguments: [nodePath, cliEntrypointPath, ...params.args],
@@ -197,8 +221,9 @@ async function resolveCliProgramArguments(params: {
   if (!params.dev) {
     try {
       const cliEntrypointPath = await resolveCliEntrypointPathForService();
+      const stableExecPath = await resolveHomebrewStablePath(execPath);
       return {
-        programArguments: [execPath, cliEntrypointPath, ...params.args],
+        programArguments: [stableExecPath, cliEntrypointPath, ...params.args],
       };
     } catch (error) {
       // If running under bun or another runtime that can execute TS directly
