@@ -4,7 +4,11 @@ import { CHAT_CHANNEL_ORDER } from "../channels/registry.js";
 import { isVerbose } from "../globals.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { clearActiveProgressLine } from "../terminal/progress-line.js";
-import { getConsoleSettings, shouldLogSubsystemToConsole } from "./console.js";
+import {
+  formatConsoleTimestamp,
+  getConsoleSettings,
+  shouldLogSubsystemToConsole,
+} from "./console.js";
 import { type LogLevel, levelToMinLevel } from "./levels.js";
 import { getChildLogger, isFileLogLevelEnabled } from "./logger.js";
 import { loggingState } from "./state.js";
@@ -208,11 +212,8 @@ function formatConsoleLine(opts: {
           : color.cyan;
   const displayMessage = stripRedundantSubsystemPrefixForConsole(opts.message, displaySubsystem);
   const time = (() => {
-    if (opts.style === "pretty") {
-      return color.gray(new Date().toISOString().slice(11, 19));
-    }
-    if (loggingState.consoleTimestampPrefix) {
-      return color.gray(new Date().toISOString());
+    if (opts.style === "pretty" || loggingState.consoleTimestampPrefix) {
+      return color.gray(formatConsoleTimestamp(opts.style));
     }
     return "";
   })();
