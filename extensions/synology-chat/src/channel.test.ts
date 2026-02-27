@@ -11,6 +11,7 @@ vi.mock("openclaw/plugin-sdk", () => ({
 vi.mock("./client.js", () => ({
   sendMessage: vi.fn().mockResolvedValue(true),
   sendFileUrl: vi.fn().mockResolvedValue(true),
+  sendToChannel: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("./webhook-handler.js", () => ({
@@ -41,6 +42,28 @@ vi.mock("zod", () => ({
 const { createSynologyChatPlugin } = await import("./channel.js");
 const { registerPluginHttpRoute } = await import("openclaw/plugin-sdk");
 
+/** Helper: base account with all required fields for tests */
+function makeAccount(overrides: Record<string, unknown> = {}) {
+  return {
+    accountId: "default",
+    enabled: true,
+    token: "t",
+    incomingUrl: "https://nas/incoming",
+    nasHost: "h",
+    webhookPath: "/w",
+    dmPolicy: "allowlist" as const,
+    allowedUserIds: ["user1"],
+    groupPolicy: "disabled" as const,
+    groupAllowFrom: [] as string[],
+    channelWebhooks: {} as Record<string, string>,
+    channelTokens: {} as Record<string, string>,
+    rateLimitPerMinute: 30,
+    botName: "Bot",
+    allowInsecureSsl: false,
+    ...overrides,
+  };
+}
+
 describe("createSynologyChatPlugin", () => {
   it("returns a plugin object with all required sections", () => {
     const plugin = createSynologyChatPlugin();
@@ -63,9 +86,9 @@ describe("createSynologyChatPlugin", () => {
   });
 
   describe("capabilities", () => {
-    it("supports direct chat with media", () => {
+    it("supports direct and group chat with media", () => {
       const plugin = createSynologyChatPlugin();
-      expect(plugin.capabilities.chatTypes).toEqual(["direct"]);
+      expect(plugin.capabilities.chatTypes).toEqual(["direct", "group"]);
       expect(plugin.capabilities.media).toBe(true);
       expect(plugin.capabilities.threads).toBe(false);
     });
@@ -94,19 +117,7 @@ describe("createSynologyChatPlugin", () => {
   describe("security", () => {
     it("resolveDmPolicy returns policy, allowFrom, normalizeEntry", () => {
       const plugin = createSynologyChatPlugin();
-      const account = {
-        accountId: "default",
-        enabled: true,
-        token: "t",
-        incomingUrl: "u",
-        nasHost: "h",
-        webhookPath: "/w",
-        dmPolicy: "allowlist" as const,
-        allowedUserIds: ["user1"],
-        rateLimitPerMinute: 30,
-        botName: "Bot",
-        allowInsecureSsl: true,
-      };
+      const account = makeAccount({ allowInsecureSsl: true });
       const result = plugin.security.resolveDmPolicy({ cfg: {}, account });
       expect(result.policy).toBe("allowlist");
       expect(result.allowFrom).toEqual(["user1"]);
@@ -128,95 +139,59 @@ describe("createSynologyChatPlugin", () => {
   describe("security.collectWarnings", () => {
     it("warns when token is missing", () => {
       const plugin = createSynologyChatPlugin();
-      const account = {
-        accountId: "default",
-        enabled: true,
-        token: "",
-        incomingUrl: "https://nas/incoming",
-        nasHost: "h",
-        webhookPath: "/w",
-        dmPolicy: "allowlist" as const,
-        allowedUserIds: [],
-        rateLimitPerMinute: 30,
-        botName: "Bot",
-        allowInsecureSsl: false,
-      };
+      const account = makeAccount({ token: "" });
       const warnings = plugin.security.collectWarnings({ account });
       expect(warnings.some((w: string) => w.includes("token"))).toBe(true);
     });
 
     it("warns when allowInsecureSsl is true", () => {
       const plugin = createSynologyChatPlugin();
-      const account = {
-        accountId: "default",
-        enabled: true,
-        token: "t",
-        incomingUrl: "https://nas/incoming",
-        nasHost: "h",
-        webhookPath: "/w",
-        dmPolicy: "allowlist" as const,
-        allowedUserIds: [],
-        rateLimitPerMinute: 30,
-        botName: "Bot",
-        allowInsecureSsl: true,
-      };
+      const account = makeAccount({ allowInsecureSsl: true });
       const warnings = plugin.security.collectWarnings({ account });
       expect(warnings.some((w: string) => w.includes("SSL"))).toBe(true);
     });
 
     it("warns when dmPolicy is open", () => {
       const plugin = createSynologyChatPlugin();
-      const account = {
-        accountId: "default",
-        enabled: true,
-        token: "t",
-        incomingUrl: "https://nas/incoming",
-        nasHost: "h",
-        webhookPath: "/w",
-        dmPolicy: "open" as const,
-        allowedUserIds: [],
-        rateLimitPerMinute: 30,
-        botName: "Bot",
-        allowInsecureSsl: false,
-      };
+      const account = makeAccount({ dmPolicy: "open" });
       const warnings = plugin.security.collectWarnings({ account });
       expect(warnings.some((w: string) => w.includes("open"))).toBe(true);
     });
 
     it("warns when dmPolicy is allowlist and allowedUserIds is empty", () => {
       const plugin = createSynologyChatPlugin();
-      const account = {
-        accountId: "default",
-        enabled: true,
-        token: "t",
-        incomingUrl: "https://nas/incoming",
-        nasHost: "h",
-        webhookPath: "/w",
-        dmPolicy: "allowlist" as const,
-        allowedUserIds: [],
-        rateLimitPerMinute: 30,
-        botName: "Bot",
-        allowInsecureSsl: false,
-      };
+      const account = makeAccount({ dmPolicy: "allowlist", allowedUserIds: [] });
       const warnings = plugin.security.collectWarnings({ account });
       expect(warnings.some((w: string) => w.includes("empty allowedUserIds"))).toBe(true);
     });
 
+    it("warns when groupPolicy enabled but no channelTokens", () => {
+      const plugin = createSynologyChatPlugin();
+      const account = makeAccount({ groupPolicy: "open", channelTokens: {} });
+      const warnings = plugin.security.collectWarnings({ account });
+      expect(warnings.some((w: string) => w.includes("channelTokens"))).toBe(true);
+    });
+
+    it("warns when groupPolicy enabled but no channelWebhooks", () => {
+      const plugin = createSynologyChatPlugin();
+      const account = makeAccount({ groupPolicy: "open", channelWebhooks: {} });
+      const warnings = plugin.security.collectWarnings({ account });
+      expect(warnings.some((w: string) => w.includes("channelWebhooks"))).toBe(true);
+    });
+
+    it("warns when groupPolicy is open", () => {
+      const plugin = createSynologyChatPlugin();
+      const account = makeAccount({
+        groupPolicy: "open",
+        channelWebhooks: { "9": "https://nas/channel" },
+      });
+      const warnings = plugin.security.collectWarnings({ account });
+      expect(warnings.some((w: string) => w.includes("groupPolicy"))).toBe(true);
+    });
+
     it("returns no warnings for fully configured account", () => {
       const plugin = createSynologyChatPlugin();
-      const account = {
-        accountId: "default",
-        enabled: true,
-        token: "t",
-        incomingUrl: "https://nas/incoming",
-        nasHost: "h",
-        webhookPath: "/w",
-        dmPolicy: "allowlist" as const,
-        allowedUserIds: ["user1"],
-        rateLimitPerMinute: 30,
-        botName: "Bot",
-        allowInsecureSsl: false,
-      };
+      const account = makeAccount();
       const warnings = plugin.security.collectWarnings({ account });
       expect(warnings).toHaveLength(0);
     });
@@ -263,19 +238,7 @@ describe("createSynologyChatPlugin", () => {
       const plugin = createSynologyChatPlugin();
       await expect(
         plugin.outbound.sendText({
-          account: {
-            accountId: "default",
-            enabled: true,
-            token: "t",
-            incomingUrl: "",
-            nasHost: "h",
-            webhookPath: "/w",
-            dmPolicy: "open",
-            allowedUserIds: [],
-            rateLimitPerMinute: 30,
-            botName: "Bot",
-            allowInsecureSsl: true,
-          },
+          account: makeAccount({ incomingUrl: "", allowInsecureSsl: true }),
           text: "hello",
           to: "user1",
         }),
@@ -285,19 +248,7 @@ describe("createSynologyChatPlugin", () => {
     it("sendText returns OutboundDeliveryResult on success", async () => {
       const plugin = createSynologyChatPlugin();
       const result = await plugin.outbound.sendText({
-        account: {
-          accountId: "default",
-          enabled: true,
-          token: "t",
-          incomingUrl: "https://nas/incoming",
-          nasHost: "h",
-          webhookPath: "/w",
-          dmPolicy: "open",
-          allowedUserIds: [],
-          rateLimitPerMinute: 30,
-          botName: "Bot",
-          allowInsecureSsl: true,
-        },
+        account: makeAccount({ dmPolicy: "open", allowInsecureSsl: true }),
         text: "hello",
         to: "user1",
       });
@@ -306,23 +257,36 @@ describe("createSynologyChatPlugin", () => {
       expect(result.chatId).toBe("user1");
     });
 
+    it("sendText routes to channel when 'to' is group-encoded", async () => {
+      const plugin = createSynologyChatPlugin();
+      const result = await plugin.outbound.sendText({
+        account: makeAccount({
+          allowInsecureSsl: true,
+          channelWebhooks: { "9": "https://nas/channel-webhook" },
+        }),
+        text: "hello channel",
+        to: "group:9:456",
+      });
+      expect(result.channel).toBe("synology-chat");
+      expect(result.chatId).toBe("456");
+    });
+
+    it("sendText falls back to DM when group channel has no webhook", async () => {
+      const plugin = createSynologyChatPlugin();
+      const result = await plugin.outbound.sendText({
+        account: makeAccount({ allowInsecureSsl: true }),
+        text: "hello fallback",
+        to: "group:99:456",
+      });
+      expect(result.channel).toBe("synology-chat");
+      expect(result.chatId).toBe("456");
+    });
+
     it("sendMedia throws when missing incomingUrl", async () => {
       const plugin = createSynologyChatPlugin();
       await expect(
         plugin.outbound.sendMedia({
-          account: {
-            accountId: "default",
-            enabled: true,
-            token: "t",
-            incomingUrl: "",
-            nasHost: "h",
-            webhookPath: "/w",
-            dmPolicy: "open",
-            allowedUserIds: [],
-            rateLimitPerMinute: 30,
-            botName: "Bot",
-            allowInsecureSsl: true,
-          },
+          account: makeAccount({ incomingUrl: "", allowInsecureSsl: true }),
           mediaUrl: "https://example.com/img.png",
           to: "user1",
         }),
@@ -331,7 +295,7 @@ describe("createSynologyChatPlugin", () => {
   });
 
   describe("gateway", () => {
-    it("startAccount returns stop function for disabled account", async () => {
+    it("startAccount returns pending promise for disabled account", async () => {
       const plugin = createSynologyChatPlugin();
       const ctx = {
         cfg: {
@@ -340,11 +304,16 @@ describe("createSynologyChatPlugin", () => {
         accountId: "default",
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       };
-      const result = await plugin.gateway.startAccount(ctx);
-      expect(typeof result.stop).toBe("function");
+      const result = plugin.gateway.startAccount(ctx);
+      expect(result).toBeInstanceOf(Promise);
+      const resolved = await Promise.race([
+        result,
+        new Promise((r) => setTimeout(() => r("pending"), 50)),
+      ]);
+      expect(resolved).toBe("pending");
     });
 
-    it("startAccount returns stop function for account without token", async () => {
+    it("startAccount returns pending promise for account without token", async () => {
       const plugin = createSynologyChatPlugin();
       const ctx = {
         cfg: {
@@ -353,8 +322,13 @@ describe("createSynologyChatPlugin", () => {
         accountId: "default",
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       };
-      const result = await plugin.gateway.startAccount(ctx);
-      expect(typeof result.stop).toBe("function");
+      const result = plugin.gateway.startAccount(ctx);
+      expect(result).toBeInstanceOf(Promise);
+      const resolved = await Promise.race([
+        result,
+        new Promise((r) => setTimeout(() => r("pending"), 50)),
+      ]);
+      expect(resolved).toBe("pending");
     });
 
     it("startAccount refuses allowlist accounts with empty allowedUserIds", async () => {
@@ -391,7 +365,9 @@ describe("createSynologyChatPlugin", () => {
       registerMock.mockReturnValueOnce(unregisterFirst).mockReturnValueOnce(unregisterSecond);
 
       const plugin = createSynologyChatPlugin();
-      const ctx = {
+      const abortFirst = new AbortController();
+      const abortSecond = new AbortController();
+      const makeCtx = (abortCtrl: AbortController) => ({
         cfg: {
           channels: {
             "synology-chat": {
@@ -406,18 +382,21 @@ describe("createSynologyChatPlugin", () => {
         },
         accountId: "default",
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      };
+        abortSignal: abortCtrl.signal,
+      });
 
-      const first = await plugin.gateway.startAccount(ctx);
-      const second = await plugin.gateway.startAccount(ctx);
+      const firstPromise = plugin.gateway.startAccount(makeCtx(abortFirst));
+      const secondPromise = plugin.gateway.startAccount(makeCtx(abortSecond));
+
+      await new Promise((r) => setTimeout(r, 10));
 
       expect(registerMock).toHaveBeenCalledTimes(2);
       expect(unregisterFirst).toHaveBeenCalledTimes(1);
       expect(unregisterSecond).not.toHaveBeenCalled();
 
-      // Clean up active route map so this module-level state doesn't leak across tests.
-      first.stop();
-      second.stop();
+      abortFirst.abort();
+      abortSecond.abort();
+      await Promise.allSettled([firstPromise, secondPromise]);
     });
   });
 });
