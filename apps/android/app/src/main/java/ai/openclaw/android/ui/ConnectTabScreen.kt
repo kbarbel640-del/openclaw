@@ -23,11 +23,13 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -91,7 +93,7 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
       text = {
         Text(
           "First-time TLS connection.\n\nVerify this SHA-256 fingerprint before trusting:\n${prompt.fingerprintSha256}",
-          style = mobileCallout,
+          style = MaterialTheme.typography.bodyMedium,
         )
       },
       confirmButton = {
@@ -128,36 +130,32 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
     verticalArrangement = Arrangement.spacedBy(14.dp),
   ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-      Text("Connection Control", style = mobileCaption1.copy(fontWeight = FontWeight.Bold), color = mobileAccent)
-      Text("Gateway Connection", style = mobileTitle1, color = mobileText)
+      Text("Connection Control", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+      Text("Gateway Connection", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurface)
       Text(
         "One primary action. Open advanced controls only when needed.",
-        style = mobileCallout,
-        color = mobileTextSecondary,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
 
-    Surface(
+    ElevatedCard(
       modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(14.dp),
-      color = mobileSurface,
-      border = BorderStroke(1.dp, mobileBorder),
+      shape = RoundedCornerShape(16.dp),
     ) {
       Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Active endpoint", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
-        Text(activeEndpoint, style = mobileBody.copy(fontFamily = FontFamily.Monospace), color = mobileText)
+        Text("Active endpoint", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(activeEndpoint, style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace), color = MaterialTheme.colorScheme.onSurface)
       }
     }
 
-    Surface(
+    ElevatedCard(
       modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(14.dp),
-      color = mobileSurface,
-      border = BorderStroke(1.dp, mobileBorder),
+      shape = RoundedCornerShape(16.dp),
     ) {
       Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Gateway state", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
-        Text(statusText, style = mobileBody, color = mobileText)
+        Text("Gateway state", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(statusText, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
       }
     }
 
@@ -207,21 +205,19 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
         viewModel.connectManual()
       },
       modifier = Modifier.fillMaxWidth().height(52.dp),
-      shape = RoundedCornerShape(14.dp),
+      shape = RoundedCornerShape(50),
       colors =
         ButtonDefaults.buttonColors(
-          containerColor = if (isConnected) mobileDanger else mobileAccent,
-          contentColor = Color.White,
+          containerColor = if (isConnected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
     ) {
-      Text(primaryLabel, style = mobileHeadline.copy(fontWeight = FontWeight.Bold))
+      Text(primaryLabel, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
     }
 
-    Surface(
+    ElevatedCard(
       modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(14.dp),
-      color = mobileSurface,
-      border = BorderStroke(1.dp, mobileBorder),
+      shape = RoundedCornerShape(16.dp),
       onClick = { advancedOpen = !advancedOpen },
     ) {
       Row(
@@ -230,29 +226,27 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
         horizontalArrangement = Arrangement.SpaceBetween,
       ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-          Text("Advanced controls", style = mobileHeadline, color = mobileText)
-          Text("Setup code, endpoint, TLS, token, password, onboarding.", style = mobileCaption1, color = mobileTextSecondary)
+          Text("Advanced controls", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+          Text("Setup code, endpoint, TLS, token, password, onboarding.", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(
           imageVector = if (advancedOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
           contentDescription = if (advancedOpen) "Collapse advanced controls" else "Expand advanced controls",
-          tint = mobileTextSecondary,
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
     }
 
     AnimatedVisibility(visible = advancedOpen) {
-      Surface(
+      ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, mobileBorder),
+        shape = RoundedCornerShape(16.dp),
       ) {
         Column(
           modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
           verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-          Text("Connection method", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
+          Text("Connection method", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MethodChip(
               label = "Setup Code",
@@ -266,25 +260,25 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
             )
           }
 
-          Text("Run these on the gateway host:", style = mobileCallout, color = mobileTextSecondary)
+          Text("Run these on the gateway host:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
           CommandBlock("openclaw qr --setup-code-only")
           CommandBlock("openclaw qr --json")
 
           if (inputMode == ConnectInputMode.SetupCode) {
-            Text("Setup Code", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
+            Text("Setup Code", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(
               value = setupCode,
               onValueChange = {
                 setupCode = it
                 validationText = null
               },
-              placeholder = { Text("Paste setup code", style = mobileBody, color = mobileTextTertiary) },
+              placeholder = { Text("Paste setup code", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
               modifier = Modifier.fillMaxWidth(),
               minLines = 3,
               maxLines = 5,
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-              textStyle = mobileBody.copy(fontFamily = FontFamily.Monospace, color = mobileText),
-              shape = RoundedCornerShape(14.dp),
+              textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface),
+              shape = RoundedCornerShape(16.dp),
               colors = outlinedColors(),
             )
             if (!setupResolvedEndpoint.isNullOrBlank()) {
@@ -312,35 +306,35 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
               )
             }
 
-            Text("Host", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
+            Text("Host", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(
               value = manualHostInput,
               onValueChange = {
                 manualHostInput = it
                 validationText = null
               },
-              placeholder = { Text("10.0.2.2", style = mobileBody, color = mobileTextTertiary) },
+              placeholder = { Text("10.0.2.2", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-              textStyle = mobileBody.copy(color = mobileText),
-              shape = RoundedCornerShape(14.dp),
+              textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+              shape = RoundedCornerShape(16.dp),
               colors = outlinedColors(),
             )
 
-            Text("Port", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
+            Text("Port", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(
               value = manualPortInput,
               onValueChange = {
                 manualPortInput = it
                 validationText = null
               },
-              placeholder = { Text("18789", style = mobileBody, color = mobileTextTertiary) },
+              placeholder = { Text("18789", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-              textStyle = mobileBody.copy(fontFamily = FontFamily.Monospace, color = mobileText),
-              shape = RoundedCornerShape(14.dp),
+              textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface),
+              shape = RoundedCornerShape(16.dp),
               colors = outlinedColors(),
             )
 
@@ -350,8 +344,8 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
               horizontalArrangement = Arrangement.SpaceBetween,
             ) {
               Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Use TLS", style = mobileHeadline, color = mobileText)
-                Text("Switch to secure websocket (`wss`).", style = mobileCallout, color = mobileTextSecondary)
+                Text("Use TLS", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                Text("Switch to secure websocket (`wss`).", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
               }
               Switch(
                 checked = manualTlsInput,
@@ -361,37 +355,37 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
                 },
                 colors =
                   SwitchDefaults.colors(
-                    checkedTrackColor = mobileAccent,
-                    uncheckedTrackColor = mobileBorderStrong,
-                    checkedThumbColor = Color.White,
-                    uncheckedThumbColor = Color.White,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
                   ),
               )
             }
 
-            Text("Token (optional)", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
+            Text("Token (optional)", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(
               value = gatewayToken,
               onValueChange = { viewModel.setGatewayToken(it) },
-              placeholder = { Text("token", style = mobileBody, color = mobileTextTertiary) },
+              placeholder = { Text("token", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-              textStyle = mobileBody.copy(color = mobileText),
-              shape = RoundedCornerShape(14.dp),
+              textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+              shape = RoundedCornerShape(16.dp),
               colors = outlinedColors(),
             )
 
-            Text("Password (optional)", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
+            Text("Password (optional)", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(
               value = passwordInput,
               onValueChange = { passwordInput = it },
-              placeholder = { Text("password", style = mobileBody, color = mobileTextTertiary) },
+              placeholder = { Text("password", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-              textStyle = mobileBody.copy(color = mobileText),
-              shape = RoundedCornerShape(14.dp),
+              textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+              shape = RoundedCornerShape(16.dp),
               colors = outlinedColors(),
             )
 
@@ -400,17 +394,17 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
             }
           }
 
-          HorizontalDivider(color = mobileBorder)
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-          TextButton(onClick = { viewModel.setOnboardingCompleted(false) }) {
-            Text("Run onboarding again", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold), color = mobileAccent)
+          FilledTonalButton(onClick = { viewModel.setOnboardingCompleted(false) }) {
+            Text("Run onboarding again", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
           }
         }
       }
     }
 
     if (!validationText.isNullOrBlank()) {
-      Text(validationText!!, style = mobileCaption1, color = mobileWarning)
+      Text(validationText!!, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
     }
   }
 }
@@ -420,51 +414,46 @@ private fun MethodChip(label: String, active: Boolean, onClick: () -> Unit) {
   Button(
     onClick = onClick,
     modifier = Modifier.height(40.dp),
-    shape = RoundedCornerShape(12.dp),
+    shape = RoundedCornerShape(50),
     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
     colors =
       ButtonDefaults.buttonColors(
-        containerColor = if (active) mobileAccent else mobileSurface,
-        contentColor = if (active) Color.White else mobileText,
+        containerColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
       ),
-    border = BorderStroke(1.dp, if (active) Color(0xFF184DAF) else mobileBorderStrong),
+    border = BorderStroke(1.dp, if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
   ) {
-    Text(label, style = mobileCaption1.copy(fontWeight = FontWeight.Bold))
+    Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
   }
 }
 
 @Composable
 private fun QuickFillChip(label: String, onClick: () -> Unit) {
-  Button(
+  FilledTonalButton(
     onClick = onClick,
-    shape = RoundedCornerShape(999.dp),
+    shape = RoundedCornerShape(50),
     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-    colors =
-      ButtonDefaults.buttonColors(
-        containerColor = mobileAccentSoft,
-        contentColor = mobileAccent,
-      ),
-    elevation = null,
   ) {
-    Text(label, style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold))
+    Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
   }
 }
 
 @Composable
 private fun CommandBlock(command: String) {
-  Surface(
+  ElevatedCard(
     modifier = Modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(12.dp),
-    color = mobileCodeBg,
-    border = BorderStroke(1.dp, Color(0xFF2B2E35)),
+    shape = RoundedCornerShape(16.dp),
+    colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+      containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    ),
   ) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      Box(modifier = Modifier.width(3.dp).height(42.dp).background(Color(0xFF3FC97A)))
+      Box(modifier = Modifier.width(3.dp).height(42.dp).background(MaterialTheme.colorScheme.primary))
       Text(
         text = command,
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-        style = mobileCallout.copy(fontFamily = FontFamily.Monospace),
-        color = mobileCodeText,
+        style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
   }
@@ -473,21 +462,21 @@ private fun CommandBlock(command: String) {
 @Composable
 private fun EndpointPreview(endpoint: String) {
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-    HorizontalDivider(color = mobileBorder)
-    Text("Resolved endpoint", style = mobileCaption1.copy(fontWeight = FontWeight.SemiBold), color = mobileTextSecondary)
-    Text(endpoint, style = mobileCallout.copy(fontFamily = FontFamily.Monospace), color = mobileText)
-    HorizontalDivider(color = mobileBorder)
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Text("Resolved endpoint", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(endpoint, style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace), color = MaterialTheme.colorScheme.onSurface)
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
   }
 }
 
 @Composable
 private fun outlinedColors() =
   OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = mobileSurface,
-    unfocusedContainerColor = mobileSurface,
-    focusedBorderColor = mobileAccent,
-    unfocusedBorderColor = mobileBorder,
-    focusedTextColor = mobileText,
-    unfocusedTextColor = mobileText,
-    cursorColor = mobileAccent,
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    cursorColor = MaterialTheme.colorScheme.primary,
   )

@@ -61,6 +61,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val gatewayToken: StateFlow<String> = runtime.gatewayToken
   val onboardingCompleted: StateFlow<Boolean> = runtime.onboardingCompleted
   val canvasDebugStatusEnabled: StateFlow<Boolean> = runtime.canvasDebugStatusEnabled
+  val themeMode: StateFlow<SecurePrefsThemeMode> = runtime.themeMode
 
   val chatSessionKey: StateFlow<String> = runtime.chatSessionKey
   val chatSessionId: StateFlow<String?> = runtime.chatSessionId
@@ -127,6 +128,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
   fun setCanvasDebugStatusEnabled(value: Boolean) {
     runtime.setCanvasDebugStatusEnabled(value)
+  }
+
+  fun setThemeMode(mode: SecurePrefsThemeMode) {
+    runtime.setThemeMode(mode)
   }
 
   fun setMicEnabled(enabled: Boolean) {

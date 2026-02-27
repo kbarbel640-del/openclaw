@@ -1,27 +1,26 @@
 package ai.openclaw.android.ui.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ai.openclaw.android.chat.ChatMessage
 import ai.openclaw.android.chat.ChatPendingToolCall
-import ai.openclaw.android.ui.mobileBorder
-import ai.openclaw.android.ui.mobileCallout
-import ai.openclaw.android.ui.mobileHeadline
-import ai.openclaw.android.ui.mobileText
-import ai.openclaw.android.ui.mobileTextSecondary
 
 @Composable
 fun ChatMessageListCard(
@@ -33,23 +32,33 @@ fun ChatMessageListCard(
   modifier: Modifier = Modifier,
 ) {
   val listState = rememberLazyListState()
+  val surfaceColor = MaterialTheme.colorScheme.surface
+  val isDark = surfaceColor.red * 0.299 + surfaceColor.green * 0.587 + surfaceColor.blue * 0.114 < 0.5
+  val bgColor = if (isDark) Color(0xFF17212B) else Color(0xFFEFEFF3)
 
-  // With reverseLayout the newest item is at index 0 (bottom of screen).
   LaunchedEffect(messages.size, pendingRunCount, pendingToolCalls.size, streamingAssistantText) {
-    listState.animateScrollToItem(index = 0)
+    if (messages.isNotEmpty()) {
+      listState.animateScrollToItem(index = 0)
+    }
   }
 
-  Box(modifier = modifier.fillMaxWidth()) {
+  Box(
+    modifier = modifier
+      .fillMaxWidth()
+      .background(bgColor),
+  ) {
     LazyColumn(
-      modifier = Modifier.fillMaxSize(),
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(horizontal = 16.dp),
       state = listState,
       reverseLayout = true,
-      verticalArrangement = Arrangement.spacedBy(10.dp),
-      contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 8.dp),
+      verticalArrangement = Arrangement.spacedBy(2.dp),
+      contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        top = 4.dp,
+        bottom = 8.dp,
+      ),
     ) {
-      // With reverseLayout = true, index 0 renders at the BOTTOM.
-      // So we emit newest items first: streaming → tools → typing → messages (newest→oldest).
-
       val stream = streamingAssistantText?.trim()
       if (!stream.isNullOrEmpty()) {
         item(key = "stream") {
@@ -75,33 +84,37 @@ fun ChatMessageListCard(
     }
 
     if (messages.isEmpty() && pendingRunCount == 0 && pendingToolCalls.isEmpty() && streamingAssistantText.isNullOrBlank()) {
-      EmptyChatHint(modifier = Modifier.align(Alignment.Center), healthOk = healthOk)
+      EmptyChatHint(
+        modifier = Modifier.align(Alignment.Center),
+        healthOk = healthOk,
+        isDark = isDark,
+      )
     }
   }
 }
 
 @Composable
-private fun EmptyChatHint(modifier: Modifier = Modifier, healthOk: Boolean) {
-  Surface(
-    modifier = modifier.fillMaxWidth(),
-    shape = RoundedCornerShape(14.dp),
-    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-    border = androidx.compose.foundation.BorderStroke(1.dp, mobileBorder),
+private fun EmptyChatHint(modifier: Modifier = Modifier, healthOk: Boolean, isDark: Boolean) {
+  val hintBg = if (isDark) Color(0xFF17212B).copy(alpha = 0.8f) else Color(0xFFEFEFF3).copy(alpha = 0.8f)
+  val textColor = if (isDark) Color(0xFFA8B2BC) else Color(0xFF5D6472)
+
+  Column(
+    modifier = modifier.padding(32.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(4.dp),
   ) {
-    androidx.compose.foundation.layout.Column(
-      modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-      verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-      Text("No messages yet", style = mobileHeadline, color = mobileText)
+    Text(
+      if (healthOk) "Start a conversation" else "Connect gateway first",
+      style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+      color = textColor,
+      textAlign = TextAlign.Center,
+    )
+    if (healthOk) {
       Text(
-        text =
-          if (healthOk) {
-            "Send the first prompt to start this session."
-          } else {
-            "Connect gateway first, then return to chat."
-          },
-        style = mobileCallout,
-        color = mobileTextSecondary,
+        "Send a message to begin",
+        style = MaterialTheme.typography.bodySmall,
+        color = textColor.copy(alpha = 0.7f),
+        textAlign = TextAlign.Center,
       )
     }
   }

@@ -5,6 +5,9 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
@@ -44,7 +47,8 @@ class MainActivity : ComponentActivity() {
     }
 
     setContent {
-      OpenClawTheme {
+      val themeMode by viewModel.themeMode.collectAsState()
+      OpenClawTheme(themeMode = themeMode) {
         Surface(modifier = Modifier) {
           RootScreen(viewModel = viewModel)
         }
