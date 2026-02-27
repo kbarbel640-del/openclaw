@@ -8,6 +8,7 @@ import {
   isMessageReceivedEvent,
   isMessageSentEvent,
   registerInternalHook,
+  registerPluginHook,
   triggerInternalHook,
   unregisterInternalHook,
   type AgentBootstrapHookContext,
@@ -453,6 +454,29 @@ describe("hooks", () => {
 
       const keys = getRegisteredEventKeys();
       expect(keys).toEqual([]);
+    });
+
+    it("should preserve plugin-registered handlers", async () => {
+      const pluginHandler = vi.fn();
+      const configHandler = vi.fn();
+
+      registerPluginHook("message:received", pluginHandler);
+      registerInternalHook("message:received", configHandler);
+
+      clearInternalHooks();
+
+      const keys = getRegisteredEventKeys();
+      expect(keys).toContain("message:received");
+
+      const event = createInternalHookEvent("message", "received", "test-session", {
+        from: "user1",
+        channelId: "telegram",
+        content: "hello",
+      });
+      await triggerInternalHook(event);
+
+      expect(pluginHandler).toHaveBeenCalledTimes(1);
+      expect(configHandler).not.toHaveBeenCalled();
     });
   });
 });

@@ -112,6 +112,8 @@ export type InternalHookHandler = (event: InternalHookEvent) => Promise<void> | 
 
 /** Registry of hook handlers by event key */
 const handlers = new Map<string, InternalHookHandler[]>();
+/** Handlers registered by plugins survive clearInternalHooks() */
+const pluginHandlers = new Map<string, InternalHookHandler[]>();
 const log = createSubsystemLogger("internal-hooks");
 
 /**
@@ -141,6 +143,18 @@ export function registerInternalHook(eventKey: string, handler: InternalHookHand
 }
 
 /**
+ * Register a hook handler from a plugin.  Plugin-registered handlers are
+ * preserved when clearInternalHooks() is called during gateway startup.
+ */
+export function registerPluginHook(eventKey: string, handler: InternalHookHandler): void {
+  registerInternalHook(eventKey, handler);
+  if (!pluginHandlers.has(eventKey)) {
+    pluginHandlers.set(eventKey, []);
+  }
+  pluginHandlers.get(eventKey)!.push(handler);
+}
+
+/**
  * Unregister a specific hook handler
  *
  * @param eventKey - Event key the handler was registered for
@@ -164,10 +178,17 @@ export function unregisterInternalHook(eventKey: string, handler: InternalHookHa
 }
 
 /**
- * Clear all registered hooks (useful for testing)
+ * Clear config-loaded hooks while preserving plugin-registered handlers.
+ * Called during gateway startup to ensure fresh loading from disk-based
+ * hook definitions without losing hooks registered by plugins.
  */
 export function clearInternalHooks(): void {
   handlers.clear();
+  for (const [eventKey, list] of pluginHandlers) {
+    if (list.length > 0) {
+      handlers.set(eventKey, [...list]);
+    }
+  }
 }
 
 /**
