@@ -299,7 +299,9 @@ pnpm vitest run --coverage
 □ pnpm check                        # Format + type check + lint (always)
 □ pnpm test                         # Required by policy unless docs-only criteria pass
 □ pnpm check:docs                   # Required when docs files changed
-□ CHANGELOG.md update               # Required for maintainer workflow PRs (including internal/test-only)
+□ CI checks green                   # Required before merge
+□ Branch up-to-date with main       # Required before merge
+□ CHANGELOG.md update               # Required for maintainer workflow PRs (including internal/test-only), with `(#<PR>)` and `thanks @<pr-author>` when available
 □ git diff --stat                   # Review staged scope
 □ grep all callers                  # If changing exported signatures
 □ Squash fix-on-fix commits         # Keep logical commits only
@@ -353,7 +355,7 @@ Conditional checks:
 5. **Guard numeric comparisons against NaN** - use `Number.isFinite()` before `>` / `<`.
 6. **Normalize paths before string comparison** - `path.resolve()` before `===`.
 7. **Derive context from parameters, not global state** - use explicit paths, not env var fallbacks.
-8. **Run FULL `pnpm lint` before every push** - not just changed files. Type-aware linting catches cross-file issues.
+8. **Run FULL `pnpm check` before every push** - not just changed files. This is the canonical type+lint+format gate used in contributor and maintainer policy.
 
 ### Safety Invariants (Never Violate)
 
@@ -590,7 +592,7 @@ src/<module>/
 
 22. **Anthropic 1M context is explicit opt-in** — `params.context1m: true` controls the beta header (`anthropic-beta: context-1m-2025-08-07`). Don't assume larger windows without this flag and provider support.
 
-### v2026.2.18 New Gotchas
+### Additional Release-window Gotchas (between v2026.2.17 and v2026.2.19)
 
 23. **Pass API tokens explicitly in every call** — When one call in a flow passes a token explicitly, all calls must. Missing token causes silent auth failure; SDK defaults aren't guaranteed to carry the right credentials.
 
@@ -730,6 +732,28 @@ src/<module>/
 
 82. **Exec safe-bin trust defaults tightened** — implicit trust in mutable PATH-derived directories is reduced; review `tools.exec.safeBinTrustedDirs` and audit findings before assuming previous behavior.
 
+### v2026.2.25 Specific
+
+**BREAKING / OPERATIONAL SHIFTS (v2026.2.25):**
+
+83. **Heartbeat `directPolicy` opt-in to block DMs** — v2026.2.25 reverts the heartbeat DM default back to `allow`. If you were relying on v2026.2.24's blocked-DM behavior, you **must** set `agents.defaults.heartbeat.directPolicy: "block"` (or per-agent `agents.list[].heartbeat.directPolicy: "block"`) explicitly. Silent regression: heartbeat runs may now deliver to DM targets that were previously blocked.
+
+84. **Gateway WebSocket origin enforcement is stricter** — origin checks now apply to all direct browser WebSocket clients beyond just Control UI/Webchat. Password-auth failure throttling applies to browser-origin loopback attempts including `localhost`. Cross-origin WebSocket handshakes that previously succeeded may now be rejected. Affects custom browser integrations connecting to the gateway directly.
+
+85. **macOS beta OAuth path removed** — the Anthropic OAuth sign-in and legacy `oauth.json` onboarding path (which exposed the PKCE verifier via OAuth `state`) have been removed. The macOS beta onboarding path is now setup-token-only. Any automation or tooling relying on `oauth.json` or the OAuth-state onboarding flow will break silently.
+
+86. **Exec approval matching now bound to exact argv identity** — `system.run` approval matching is bound to exact argv and whitespace in rendered command text. Trailing-space executable path swaps and payload-only `rawCommand` mismatches for wrapper-carrier forms are now rejected. Exec workflows that relied on flexible approval matching (e.g., shell wrapper payloads without positional argv) need updating; symlink `cwd` paths and non-canonical executable argv are also rejected at spawn time.
+
+87. **Workspace FS hardlink rejection** — `tools.fs.workspaceOnly` and `tools.exec.applyPatch.workspaceOnly` boundary checks (including sandbox mount-root guards) now reject in-workspace hardlinked file aliases pointing outside the workspace. Scripts or sandboxes that use hardlinks to alias workspace paths for cross-boundary access will fail closed.
+
+88. **Reaction events require channel authorization** — Signal, Discord, Slack, and Telegram reaction events are now gated through full sender authorization (DM `dmPolicy`/`allowFrom`, channel `users` allowlists, group `groupPolicy`) before system-event enqueue. Previously, reaction events bypassed the authorization preflight that normal messages required. Any reaction-triggered workflows that depended on unauthorized senders delivering reactions will silently stop working.
+
+89. **MS Teams file consent bound to originating conversation** — `fileConsent/invoke` upload acceptance and decline are now bound to the originating conversation before consuming pending uploads. Cross-conversation pending-file upload or cancellation via a leaked `uploadId` is blocked. Integrations that manually route Teams file consent invocations across conversations will break.
+
+90. **Slack channel allowlist matching is now case-insensitive** — channel IDs in `groupPolicy: "allowlist"` config are matched case-insensitively. If you used uppercase channel IDs (e.g., `C0ABC12345`) in config expecting case-sensitive matching to intentionally exclude channels, that behavior is now gone. Verify your allowlist entries still produce the intended filtering.
+
+91. **Slack `session.parentForkMaxTokens` guard added** — oversized parent-session inheritance is now capped by `session.parentForkMaxTokens` (default `100000`; `0` disables). Thread sessions forked from very large parent sessions will no longer silently inherit unbounded context. Workflows that relied on inheriting large parent contexts into thread sessions will be cut off at the cap unless the value is increased.
+
 ---
 
 ## 10. PR & Bug Filing Best Practices
@@ -740,7 +764,7 @@ src/<module>/
 
 ### Test Matrices
 
-- **Test across ALL config permutations.** Telegram has 3 `streamMode` values (`partial` / `block` / `off`), each with different code paths. A fix for one mode can break another. Build a test matrix covering every mode × every failure scenario before claiming a fix is complete.
+- **Test across ALL config permutations.** The unified `streaming` config uses a 4-value enum (`off` / `partial` / `block` / `progress`) across all channels, each with different code paths. A fix for one mode can break another. Build a test matrix covering every mode × every failure scenario before claiming a fix is complete.
 - File bugs with full test matrices. Include: reproduction steps for each mode, all root causes identified, and a gap matrix showing which PRs fix which scenarios. Detailed issues attract better reviews and prevent partial fixes (e.g., #19001).
 
 ### Issue & PR Workflow
@@ -750,9 +774,12 @@ src/<module>/
 - **Scope PRs to one logical change when possible.** If root causes are independent, separate PRs are easier to review, revert, and bisect.
 - **Call out behavior-default shifts explicitly in PR descriptions.** If a release changes defaults (for example cron stagger, include confinement, tool streaming), include a short "old assumption vs new behavior" note so reviewers can validate migration risk quickly.
 - **Maintainer flow is ordered and explicit.** Use `review-pr` -> `prepare-pr` -> `merge-pr`, and do not skip stages.
+- **Use script-first wrappers in maintainer flow.** Prefer `scripts/pr-review`, `scripts/pr-prepare`, and `scripts/pr-merge`; treat manual low-level runs as debugging-only.
 - **Rebase is mandatory before substantive review/prep.** Rebase PR branch onto current `main` first, resolve conflicts, then evaluate correctness.
 - **Resolve all BLOCKER/IMPORTANT findings before merge.** Treat review artifacts as requirements, not suggestions.
-- **For AI-assisted PRs, require transparency.** Mark AI assistance and state testing depth in PR description.
+- **Required maintainer artifacts must exist.** Ensure `.local/pr-meta.json`, `.local/pr-meta.env` (from review init), `.local/review.json`, `.local/review.md` (from review output), `.local/prep-context.env`, `.local/prep.md`, and `.local/prep.env` (from prepare) are present before merge.
+- **Stop if you cannot verify the fix.** If the problem cannot be reproduced or there is no meaningful verification path, escalate instead of merging.
+- **For AI-assisted PRs, require transparency.** Mark AI assistance in the PR title or description, state testing depth (untested / lightly tested / fully tested), include prompts or session logs when possible, and confirm you understand what the code does.
 
 ### Documentation Update Guardrails (from recent failures)
 
@@ -769,6 +796,63 @@ src/<module>/
 - **Ensure trailing newline when writing/converting text files.** Symlink→regular-file conversion and programmatic writes often drop the POSIX newline, causing format failures and noisy diffs.
 - **Apply style rules to ALL locale variants.** AGENTS.md rules (no emojis in headings, etc.) apply to `docs/zh-CN`, `docs/ja-JP`, etc. Run the same checks on all locales.
 - **Edit i18n docs via pipeline, not directly.** `docs/zh-CN/**` is generated by `scripts/docs-i18n`. Manual edits get overwritten. Workflow: update English → glossary → i18n pipeline → targeted fixes.
+
+### Code & Gateway Safety Patterns (from recent PR reviews)
+
+- **Atomic writes for critical config files.** `writeFileSync()` truncates then writes —
+  a SIGTERM mid-write leaves an empty file. Use write-to-tmp + `fdatasyncSync` + rename
+  for all critical config files (`auth-profiles.json`, lock files, etc.). A backup `.bak`
+  before write provides a recovery path. (ref: #23980)
+
+- **Never mutate live state before validation passes.** `cron.update` mutated the live
+  cron job object before patch validation succeeded, leaving the job in a partially mutated
+  state when the patch was rejected. Always validate on a copy, then apply to live state
+  atomically if validation passes. (ref: #26852)
+
+- **Error catch blocks must enumerate all thrower message strings.** Gateway handlers that
+  classify exceptions as `INVALID_REQUEST` vs `UNAVAILABLE` by string matching must cover
+  every error message emitted by all called functions. A single missing pattern (e.g.
+  `"unknown cron job id"` from `findJobOrThrow`) silently routes client errors as server
+  errors — obscuring root cause for both client and operator. (ref: #26852)
+
+- **Wide catch blocks in gateway handlers must not suppress server-side errors.** Converting
+  all exceptions to `UNAVAILABLE` without logging or rethrowing non-client failures removes
+  operator visibility into server faults. Only intercept known client validation error
+  patterns; rethrow (or explicitly log) anything else so the outer WS handler can emit
+  `request handler failed`. (ref: #26852)
+
+- **Config-declared transport ≠ runtime-active trust.** Bypassing the `ws://` plaintext
+  check based on `gateway.remote.transport === "ssh"` is only safe if a tunnel is actually
+  established at runtime. In CLI mode SSH tunnels are NOT auto-started — only the macOS app
+  manages `RemoteTunnelManager`. Any security-check bypass conditioned on a config flag must
+  verify the corresponding invariant is operationally active, not merely declared. (ref: #26573)
+
+- **Platform-guard Linux `/proc` paths in tests.** Tests that read
+  `/proc/sys/kernel/random/boot_id`, `/proc/<pid>/stat`, or other procfs paths must guard
+  with `if (process.platform !== "linux") { return; }`. On macOS `/proc` doesn't exist and
+  PID 1 (launchd) is always alive, silently skewing stale-lock detection tests.
+  Follow the pattern established in `pid-alive.test.ts`. (ref: #27272)
+
+- **Test provider-specific params on ALL API mode paths.** When a provider supports multiple
+  API modes (native + OpenAI-compat), provider-specific request params (e.g. `num_ctx` for
+  Ollama, which prevents the server-side 4096-token cap) must be injected on each path
+  independently — they share config but run through separate injection chains. (ref: #27292)
+
+- **macOS LaunchAgent crash-only keepalive + proxy passthrough.** `KeepAlive: true` causes
+  infinite restart loops on clean exits. Use `KeepAlive.SuccessfulExit: false` +
+  `ThrottleInterval: 5` (crash-only restart with 5-second backoff). Additionally: macOS
+  strips proxy env vars (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `ALL_PROXY` and lowercase
+  variants) from LaunchAgent environments — forward them explicitly in the plist
+  `EnvironmentVariables` block. (ref: #27276)
+
+### Control UI Development
+
+- **Use legacy decorators only.** The Control UI uses Lit with legacy decorators — the
+  current Rollup build does not support `accessor` fields required by standard decorators.
+  Use `@state() foo = "bar"` and `@property({ type: Number }) count = 0` syntax. The root
+  `tsconfig.json` sets `experimentalDecorators: true` with `useDefineForClassFields: false`.
+  Do not flip these settings unless you are also updating the UI build tooling to support
+  standard decorators.
 
 ---
 

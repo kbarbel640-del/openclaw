@@ -107,12 +107,17 @@
 
 **Maintainer PR workflow (required):** Use `.agents/skills/PR_WORKFLOW.md` as the source of truth. Execute `review-pr` -> `prepare-pr` -> `merge-pr` in order, with a maintainer checkpoint between stages.
 
+- Script-first contract: use wrapper scripts (`scripts/pr-review`, `scripts/pr-prepare`, `scripts/pr-merge`) in normal maintainer flow; manual low-level commands are for debugging only.
+- Required maintainer artifacts: `.local/pr-meta.json`, `.local/pr-meta.env`, `.local/review.md`, `.local/review.json`, `.local/prep-context.env`, `.local/prep.md`, and `.local/prep.env`.
 - Create commits with `scripts/committer "<msg>" <file...>`; avoid manual `git add`/`git commit` so staging stays scoped.
 - Follow concise, action-oriented commit messages (e.g., `CLI: add verbose flag to send`).
 - Group related changes; avoid bundling unrelated refactors.
 - Before substantive review or prep, rebase the PR branch onto current `main` and resolve conflicts.
 - Run gates before merge: `pnpm build`, `pnpm check`, and `pnpm test` unless docs-only criteria explicitly allow skipping heavy lanes.
-- Keep PRs focused, describe what/why, and mark AI-assisted PRs with testing depth.
+- Resolve all `BLOCKER` and `IMPORTANT` review findings before merge.
+- Merge only when required checks are green and the branch is up to date with `main`.
+- Do not continue workflow if the problem cannot be validated or no meaningful verification path exists.
+- Keep PRs focused, describe what/why, and for AI-assisted PRs include AI marker, testing depth, prompts/session logs when possible, and explicit confirmation you understand the code.
 - For new feature/architecture work, start with GitHub Discussion before implementation.
 - PR submission template (canonical): `.github/pull_request_template.md`
 - Issue submission templates (canonical): `.github/ISSUE_TEMPLATE/`
@@ -185,7 +190,7 @@
 - **Restart apps:** “restart iOS/Android apps” means rebuild (recompile/install) and relaunch, not just kill/launch.
 - **Device checks:** before testing, verify connected real devices (iOS/Android) before reaching for simulators/emulators.
 - iOS Team ID lookup: `security find-identity -p codesigning -v` → use Apple Development (…) TEAMID. Fallback: `defaults read com.apple.dt.Xcode IDEProvisioningTeamIdentifiers`.
-- A2UI bundle hash: `src/canvas-host/a2ui/.bundle.hash` is auto-generated; ignore unexpected changes, and only regenerate via `pnpm canvas:a2ui:bundle` (or `scripts/bundle-a2ui.sh`) when needed. Commit the hash as a separate commit.
+- A2UI bundle hash: `.bundle.hash` under `src/canvas-host/a2ui/` is auto-generated; ignore unexpected changes, and only regenerate via `pnpm canvas:a2ui:bundle` (or `scripts/bundle-a2ui.sh`) when needed. Commit the hash as a separate commit.
 - Release signing/notary keys are managed outside the repo; follow internal release docs.
 - Notary auth env vars (`APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_API_KEY_P8`) are expected in your environment (per internal release docs).
 - **Multi-agent safety:** do **not** create/apply/drop `git stash` entries unless explicitly requested (this includes `git pull --rebase --autostash`). Assume other agents may be working; keep unrelated WIP untouched and avoid cross-cutting state changes.
@@ -239,7 +244,7 @@
   - skip if package is missing on npm or version already matches.
 - Keep `openclaw` untouched: never run publish from repo root unless explicitly requested.
 - Post-check for each release:
-  - per-plugin: `npm view @openclaw/<name> version --userconfig "$(mktemp)"` should be `2026.2.17`
+  - per-plugin: `npm view @openclaw/<name> version --userconfig "$(mktemp)"` should match the current stable release line (currently `2026.2.25`)
   - core guard: `npm view openclaw version --userconfig "$(mktemp)"` should stay at previous version unless explicitly requested.
 
 ## Changelog Release Notes

@@ -4,23 +4,40 @@
 
 Consolidated changelog assembled from versioned changelog files in this repository.
 
-Release policy: this file tracks published releases only (stable tags). It does not track unreleased branch snapshots.
+Release policy: this file tracks published releases only (stable tags). It does not track unreleased branch snapshots; when historically relevant, notes may mention npm republished builds tied to a stable tag.
 
 ---
 
-## OpenClaw v2026.2.24 — Current Released Summary
+## OpenClaw v2026.2.26 — Latest Documented Release Summary
 
-> **Released:** 2026-02-25 | **Policy note:** latest released section stays at top.
+> **Released:** 2026-02-27 | **Policy note:** latest _documented_ released section stays at top.
+> **Window analyzed:** `v2026.2.25..v2026.2.26` | **Scan stats:** 340 commits, 856 files changed, +58,881 / -7,073 lines
 
 ## Highlights
 
-- Auto-reply stop controls significantly expanded: multilingual standalone stop phrases, punctuation-tolerant matching, and exact `do not do that` stop trigger support.
-- Heartbeat safety hardened: default delivery target shifted to `none`, direct/DM heartbeat targets are now blocked, and blocked-delivery prompts are internalized.
-- Cross-channel shared-session routing now fails closed and preserves route metadata for followup/overflow delivery to prevent channel hijacking.
-- Security hardening wave across sandbox, exec, workspace FS, and ingress authorization boundaries (including container namespace-join default block for sandbox).
-- Broad reliability fixes landed across Discord voice/DAVE, typing keepalive, WhatsApp reconnect behavior, model fallback traversal, and allowlisted-model selection.
+- **External secrets management:** new `openclaw secrets` workflow (audit/configure/apply/reload) with strict path validation and safer migration scrubbing.
+- **ACP thread-bound agents:** ACP runtimes now own thread sessions with lifecycle controls and coalesced thread replies.
+- **Agents routing CLI:** `openclaw agents bindings/bind/unbind` for account-scoped route management and binding upgrades.
+- **Codex WebSocket transport:** `openai-codex` defaults to WebSocket-first with SSE fallback and transport docs.
+- **Onboarding + reliability fixes:** plugin-owned onboarding hooks, Gemini CLI OAuth risk confirmation, DM allowlist inheritance enforcement, delivery-queue backoff, and typing cleanup guardrails.
 
-For full detail, see the v2026.2.24 synthesis section below.
+For full detail, see the v2026.2.26 notes in the upstream release changelog (`openclaw/openclaw` tag `v2026.2.26`).
+
+---
+
+## OpenClaw v2026.2.25 — Release Summary
+
+> **Released:** 2026-02-26
+
+## Highlights
+
+- **Breaking behavior shift:** heartbeat direct/DM delivery default changed back to `allow`; use `agents.defaults.heartbeat.directPolicy: "block"` to preserve v2026.2.24 behavior.
+- **Security hardening wave:** broad ingress authorization enforcement for reaction/pin/interaction system events across channels, plus gateway/browser auth and workspace FS protections.
+- **Delivery reliability upgrades:** subagent announce/delivery pipeline hardened with clearer queue/direct/fallback behavior and stricter Telegram delivery success criteria.
+- **Webhook/session stability:** Telegram webhook and polling handling hardened; Slack parent-thread forking gained guardrails (`session.parentForkMaxTokens`).
+- **Model/fallback resilience:** multiple fallback traversal and cooldown classification fixes keep failover moving under more error and profile-state combinations.
+
+For full detail, see the v2026.2.25 notes in the upstream release changelog (`openclaw/openclaw` tag `v2026.2.25`).
 
 ---
 
@@ -34,9 +51,9 @@ For full detail, see the v2026.2.24 synthesis section below.
 
 | Area          | Files changed |
 | ------------- | ------------: |
-| `src/`        |           247 |
-| `apps/`       |            86 |
-| `extensions/` |            66 |
+| `src/`        |           224 |
+| `apps/`       |            34 |
+| `extensions/` |            63 |
 | `docs/`       |            28 |
 | `ui/`         |            12 |
 | `scripts/`    |             5 |
@@ -75,7 +92,7 @@ For full detail, see the v2026.2.24 synthesis section below.
 
 # Changelog: v2026.2.14 -> v2026.2.15
 
-> **Released:** 2026-02-15 | **Commits:** 880 | **Files changed:** 1,526 | **Lines changed:** ~113,000
+> **Released:** 2026-02-16 | **Commits:** 705 | **Files changed:** 1,492 | **Lines changed:** 108,031 (+62,497 / -45,534)
 
 ---
 
@@ -262,9 +279,9 @@ Agent/tool orchestration prompts and automation scripts need explicit progress c
 
 # Synthesis Review: v2026.2.17 → v2026.2.19
 
-> **Window analyzed:** `v2026.2.17..v2026.2.19` (~900+ commits)
+> **Window analyzed:** `v2026.2.17..v2026.2.19` (572 commits)
 > **Method:** behavior and operator/developer impact focus; ignore low-signal test/style churn
-> **Package version confirmed:** `2026.2.19-2` (npm)
+> **Tag/package note:** stable release tag is `v2026.2.19`; npm also published a repackaged build `2026.2.19-2` in this release window.
 
 ---
 
@@ -617,7 +634,7 @@ _Generated: 2026-02-23_
 # OpenClaw v2026.2.22 — Synthesis Review
 
 **Cycle:** v2026.2.21 → v2026.2.22  
-**Released:** 2026-02-24  
+**Released:** 2026-02-23  
 **Scope:** Platform expansion, runtime hardening, multilingual memory, and a major security cycle  
 **Breaking changes:** 4  
 **Security fixes:** 30+

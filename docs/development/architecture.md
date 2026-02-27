@@ -2,7 +2,7 @@
 
 # OpenClaw — Master Architecture Document
 
-> Updated: 2026-02-25 (source package: 2026.2.24) | Release-only architecture snapshot for contributors
+> Updated: 2026-02-27 (source package: 2026.2.26) | Release-only architecture snapshot for contributors
 
 ---
 
@@ -30,7 +30,7 @@
 
 **OpenClaw** is an open-source, self-hosted AI agent platform that connects Large Language Models to messaging channels (Telegram, Discord, Slack, WhatsApp, Signal, iMessage, BlueBubbles, LINE, IRC, Synology Chat, and more). It runs as a persistent gateway daemon on macOS/Linux/Windows, accepting messages from any connected channel, routing them to configured AI agents, executing tool calls on behalf of the agent, and delivering responses back to users. OpenClaw supports multi-agent configurations, per-channel routing, sandboxed execution environments (Docker), browser automation, semantic memory search, scheduled cron jobs, mobile node pairing, and a rich plugin/extension ecosystem.
 
-Architecturally, OpenClaw follows a **hub-and-spoke model**: the `gateway` module is the central server process that orchestrates all subsystems. It exposes a WebSocket JSON-RPC API for CLI/TUI clients, an OpenAI-compatible HTTP API, and channel plugin connections. The `config` module provides the foundation — nearly every module depends on it for typed configuration. The `agents` module (the largest at ~649 files) contains the AI runtime: model selection, system prompt construction, tool registration, streaming response processing, sandbox management, and the embedded pi-agent integration (`@mariozechner/pi-ai`). The `auto-reply` module (~223 files) is the message processing pipeline that sits between channels and agents — handling commands, directives, session management, model routing, queue management, and reply delivery.
+Architecturally, OpenClaw follows a **hub-and-spoke model**: the `gateway` module is the central server process that orchestrates all subsystems. It exposes a WebSocket JSON-RPC API for CLI/TUI clients, an OpenAI-compatible HTTP API, and channel plugin connections. The `config` module provides the foundation — nearly every module depends on it for typed configuration. The `agents` module (the largest at ~683 `.ts` files) contains the AI runtime: model selection, system prompt construction, tool registration, streaming response processing, sandbox management, and the embedded pi-agent integration (`@mariozechner/pi-ai`). The `auto-reply` module (~248 `.ts` files) is the message processing pipeline that sits between channels and agents — handling commands, directives, session management, model routing, queue management, and reply delivery.
 
 The codebase is written entirely in TypeScript (Node.js), uses Vitest for testing, and employs a plugin architecture where messaging channels, LLM providers, and feature extensions are loaded dynamically from an `extensions/` directory. Configuration is stored in `openclaw.json` (JSON5), validated via Zod schemas, and supports hot-reload. The system is designed for single-user or small-team self-hosting with strong security defaults: exec approval workflows, tool policies, SSRF protection, timing-safe auth, and filesystem permission hardening.
 
@@ -97,7 +97,7 @@ The codebase is written entirely in TypeScript (Node.js), uses Vitest for testin
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      AGENTS MODULE (src/agents/)  ~530 files                    │
+│                      AGENTS MODULE (src/agents/)  ~683 files                    │
 │                                                                                 │
 │  ┌─────────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐ │
 │  │ PI Embedded      │  │ System Prompt│  │Model Selection│  │  Auth Profiles  │ │
@@ -106,7 +106,7 @@ The codebase is written entirely in TypeScript (Node.js), uses Vitest for testin
 │           │                                                                     │
 │  ┌────────▼────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐ │
 │  │ Tool Registry    │  │  Sandbox     │  │  Skills      │  │  Subagent       │ │
-│  │ 40+ tools:       │  │  (Docker)    │  │  System      │  │  Registry       │ │
+│  │ 75 tools:        │  │  (Docker)    │  │  System      │  │  Registry       │ │
 │  │ exec, browser,   │  └──────────────┘  └──────────────┘  └──────────────────┘ │
 │  │ web, memory,     │                                                           │
 │  │ message, cron,   │                                                           │
@@ -155,9 +155,9 @@ The codebase is written entirely in TypeScript (Node.js), uses Vitest for testin
 
 | Module                             | Files (src) | Lines (approx) | Purpose                                                                                                                            | Key Dependencies                                            |
 | ---------------------------------- | ----------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `agents/`                          | 649         | ~123,000+      | AI agent runtime: model selection, tool execution, system prompt, sandbox, skills, subagents (nested orchestration), auth profiles | config, routing, sessions, hooks, channels, infra, pi-ai    |
-| `auto-reply/`                      | 223         | ~47,000+       | Message processing pipeline: dispatch, directives, commands, model routing, queue, reply delivery                                  | agents, config, channels, routing, tts, media-understanding |
-| `gateway/`                         | 282         | ~62,000+       | HTTP/WS server, RPC methods, protocol schema, cron service, node management, browser control                                       | agents, config, routing, channels, plugins, infra           |
+| `agents/`                          | 683         | ~123,000+      | AI agent runtime: model selection, tool execution, system prompt, sandbox, skills, subagents (nested orchestration), auth profiles | config, routing, sessions, hooks, channels, infra, pi-ai    |
+| `auto-reply/`                      | 248         | ~47,000+       | Message processing pipeline: dispatch, directives, commands, model routing, queue, reply delivery                                  | agents, config, channels, routing, tts, media-understanding |
+| `gateway/`                         | 294         | ~62,000+       | HTTP/WS server, RPC methods, protocol schema, cron service, node management, browser control                                       | agents, config, routing, channels, plugins, infra           |
 | `config/`                          | 191         | ~34,000+       | Config loading, Zod schemas, session store, legacy migration, path resolution                                                      | channels (types), infra                                     |
 | `infra/`                           | 297         | ~53,000+       | Utilities: retry, restart, outbound delivery, heartbeat, exec approvals, device pairing, updates                                   | config, agents, process                                     |
 | `channels/`                        | 137         | ~17,000+       | Channel plugin abstraction, registry, dock, normalization, outbound adapters                                                       | config, plugins                                             |
@@ -176,7 +176,7 @@ The codebase is written entirely in TypeScript (Node.js), uses Vitest for testin
 | `cron/`                            | 71          | ~14,800+       | Scheduled jobs: cron/interval/one-shot, isolated agent sessions, delivery                                                          | config, agents, routing                                     |
 | `hooks/`                           | 38          | ~6,600+        | Event-driven hooks: lifecycle events, Gmail integration, slug generation                                                           | config, agents, plugins                                     |
 | `plugins/`                         | 62          | ~12,000+       | Plugin discovery, loading (jiti), registry, hook runner, HTTP routes, services                                                     | config, agents, channels                                    |
-| `plugin-sdk/`                      | 28          | ~2,400+        | SDK re-exports for plugin authors                                                                                                  | channels, config, routing                                   |
+| `plugin-sdk/`                      | 36          | ~2,400+        | SDK re-exports for plugin authors                                                                                                  | channels, config, routing                                   |
 | `cli/`                             | 254         | ~35,900+       | CLI entry point (Commander.js), subcommands, argument parsing                                                                      | commands, config, agents                                    |
 | `commands/`                        | 304         | ~52,400+       | Command implementations: agent, doctor, onboard, configure, models, status                                                         | cli, config, agents, gateway, daemon                        |
 | `tui/`                             | 45          | ~7,500+        | Terminal UI (pi-tui): interactive chat, slash commands, streaming                                                                  | @mariozechner/pi-tui, gateway                               |
@@ -187,14 +187,14 @@ The codebase is written entirely in TypeScript (Node.js), uses Vitest for testin
 | `tts/`                             | 4           | ~2,200+        | Text-to-speech: Edge TTS, OpenAI, ElevenLabs; auto-mode, directives                                                                | node-edge-tts, agents (model-auth)                          |
 | `markdown/`                        | 14          | ~2,600+        | Markdown IR parser/renderer, WhatsApp conversion, frontmatter, tables                                                              | markdown-it, yaml                                           |
 | `canvas-host/`                     | 5           | ~1,100+        | Canvas/A2UI web server for node displays with live-reload                                                                          | ws, chokidar                                                |
-| `security/`                        | 28          | ~10,800+       | Audit framework, content sanitization, code scanning, SSRF, permission fix                                                         | config, agents, channels                                    |
+| `security/`                        | 29          | ~10,800+       | Audit framework, content sanitization, code scanning, SSRF, permission fix                                                         | config, agents, channels                                    |
 | `logging/`                         | 24          | ~2,700+        | Structured logging (tslog), subsystem filtering, redaction, diagnostics                                                            | config, tslog                                               |
 | `process/`                         | 24          | ~3,100+        | Process execution, lane-based command queue, signal bridging                                                                       | globals, logging                                            |
 | `daemon/`                          | 40          | ~5,700+        | OS service management: launchd (macOS), systemd (Linux), schtasks (Windows)                                                        | infra, cli                                                  |
 | `routing/`                         | 10          | ~1,800+        | Agent route resolution, session key construction, binding matching                                                                 | config, channels, sessions                                  |
 | `sessions/`                        | 8           | ~600+          | Session utilities: key parsing, send policy, transcript events, provenance                                                         | config, channels                                            |
 | `providers/`                       | 11          | ~1,200+        | Provider-specific auth: GitHub Copilot OAuth, Qwen refresh                                                                         | config, agents (auth-profiles)                              |
-| `acp/`                             | 17          | ~2,800+        | Agent Client Protocol bridge for IDE/editor integration                                                                            | @agentclientprotocol/sdk, gateway                           |
+| `acp/`                             | 43          | ~2,800+        | Agent Client Protocol bridge for IDE/editor integration                                                                            | @agentclientprotocol/sdk, gateway                           |
 | `pairing/`                         | 7           | ~1,500+        | Device pairing: code generation, approval, account-scoped channel allowlists                                                       | channels, config, infra                                     |
 | `node-host/`                       | 11          | ~2,300+        | Remote node agent: gateway connection, command invocation, browser proxy, APNs wake support                                        | gateway, browser, config                                    |
 | `node-host/invoke-system-run`      | ~2          | ~300           | Extracted system.run hardened command resolver (security-critical)                                                                 | node-host, config, process                                  |
@@ -507,7 +507,7 @@ openclaw.json defaults → per-agent config → session entry override → inlin
 ### Audit & Remediation
 
 - **Security audit:** `security/audit.ts` → `runSecurityAudit()` scans config + filesystem + channels
-- **Auto-fix:** `security/fix.ts` → `runSecurityFix()` — chmod state dirs to safe permissions
+- **Auto-fix:** `security/fix.ts` → `fixSecurityFootguns()` — chmod state dirs to safe permissions
 - **Code scanning:** `security/skill-scanner.ts` scans skill/plugin code for dangerous patterns (eval, exec, fetch)
 - **Filesystem inspection:** `security/audit-fs.ts` checks POSIX mode bits and Windows ACLs
 
@@ -676,7 +676,7 @@ Parsed by `plugins/manifest.ts`.
 | Type                     | Count | Examples                                                                                       |
 | ------------------------ | ----- | ---------------------------------------------------------------------------------------------- |
 | **Channel plugins**      | 21    | telegram, discord, slack, signal, whatsapp, line, irc, matrix, msteams, nostr, twitch, zalo    |
-| **Provider plugins**     | 5     | copilot-proxy, google-antigravity-auth, gemini-cli-auth, minimax-portal-auth, qwen-portal-auth |
+| **Provider plugins**     | 4     | copilot-proxy, google-gemini-cli-auth, minimax-portal-auth, qwen-portal-auth                   |
 | **Tool/Feature plugins** | 10    | memory-core, memory-lancedb, llm-task, lobster, open-prose, diagnostics-otel, thread-ownership |
 
 ---
@@ -727,20 +727,19 @@ OpenClaw delegates LLM API calls to `@mariozechner/pi-ai` — the external AI ag
 
 ### Supported Providers
 
-Via pi-ai and auth profiles: **Anthropic**, **OpenAI**, **Google (Gemini, incl. Gemini 3.1)**, **xAI (Grok)**, **AWS Bedrock**, **Azure OpenAI**, **Ollama** (local), **Together.ai**, **Venice.ai**, **HuggingFace**, **MiniMax**, **Qwen**, **Volcengine/BytePlus (Doubao)**, **OpenCode/Zen**, **GitHub Copilot**, **Cloudflare AI Gateway**, **Chutes**, **Mistral**, and any OpenAI-compatible API.
+Via pi-ai and auth profiles: **Anthropic**, **OpenAI**, **Google (Gemini, incl. Gemini 3.1)**, **xAI (Grok)**, **AWS Bedrock**, **Azure OpenAI**, **Ollama** (local), **Together.ai**, **Venice.ai**, **HuggingFace**, **MiniMax**, **Qwen**, **Volcengine/BytePlus (Doubao)**, **OpenCode/Zen**, **GitHub Copilot**, **Cloudflare AI Gateway**, **Chutes**, **Mistral**, **SiliconFlow**, and any OpenAI-compatible API.
 
 ### Provider-Specific Auth
 
-| Provider           | Auth Method                        | Module                                             |
-| ------------------ | ---------------------------------- | -------------------------------------------------- |
-| GitHub Copilot     | Device code OAuth → token exchange | `providers/github-copilot-auth.ts`                 |
-| Qwen Portal        | OAuth2 refresh token               | `providers/qwen-portal-oauth.ts`                   |
-| Google Antigravity | OAuth (plugin)                     | `extensions/google-antigravity-auth/`              |
-| Gemini CLI         | OAuth (plugin)                     | `extensions/google-gemini-cli-auth/`               |
-| MiniMax Portal     | OAuth (plugin)                     | `extensions/minimax-portal-auth/`                  |
-| Mistral            | API key                            | auth profiles                                      |
-| Vercel AI Gateway  | API key + shorthand normalization  | auth profiles, `agents/models-config.providers.ts` |
-| Google Vertex AI   | OAuth / service account            | auth profiles                                      |
+| Provider          | Auth Method                        | Module                                             |
+| ----------------- | ---------------------------------- | -------------------------------------------------- |
+| GitHub Copilot    | Device code OAuth → token exchange | `providers/github-copilot-auth.ts`                 |
+| Qwen Portal       | OAuth2 refresh token               | `providers/qwen-portal-oauth.ts`                   |
+| Gemini CLI        | OAuth (plugin)                     | `extensions/google-gemini-cli-auth/`               |
+| MiniMax Portal    | OAuth (plugin)                     | `extensions/minimax-portal-auth/`                  |
+| Mistral           | API key                            | auth profiles                                      |
+| Vercel AI Gateway | API key + shorthand normalization  | auth profiles, `agents/models-config.providers.ts` |
+| Google Vertex AI  | OAuth / service account            | auth profiles                                      |
 
 ### Provider Auto-Detection and Normalization
 
@@ -825,11 +824,11 @@ Every channel implements `ChannelPlugin` (defined in `channels/plugins/types.plu
 
 ### 3. Registry Pattern
 
-**Where:** `plugins/registry.ts` (PluginRegistry), `agents/bash-process-registry.ts` (running processes), `agents/subagent-registry.ts`, `gateway/node-registry.ts`, `auto-reply/dispatcher-registry.ts`, `auto-reply/commands-registry.ts`.
+**Where:** `plugins/registry.ts` (PluginRegistry), `agents/bash-process-registry.ts` (running processes), `agents/subagent-registry.ts`, `gateway/node-registry.ts`, `auto-reply/reply/dispatcher-registry.ts`, `auto-reply/commands-registry.ts`.
 
 ### 4. Factory Pattern
 
-**Where:** `memory/embeddings.ts` (createEmbeddingProvider), `plugins/registry.ts` (createPluginRegistry), `auto-reply/reply-dispatcher.ts` (createReplyDispatcher), `agents/pi-tools.ts` (createOpenClawTools).
+**Where:** `memory/embeddings.ts` (createEmbeddingProvider), `plugins/registry.ts` (createPluginRegistry), `auto-reply/reply/reply-dispatcher.ts` (createReplyDispatcher), `agents/pi-tools.ts` (createOpenClawTools).
 
 ### 5. Strategy / Tiered Matching
 
@@ -837,7 +836,7 @@ Every channel implements `ChannelPlugin` (defined in `channels/plugins/types.plu
 
 ### 6. Middleware Pattern
 
-**Where:** `agents/tool-policy-pipeline.ts` (tool call policies), `agents/pi-tools.before-tool-call.ts` (pre-tool hooks), `gateway/server-middleware.ts` (HTTP auth), `telegram/bot.ts` (grammY middleware).
+**Where:** `agents/tool-policy-pipeline.ts` (tool call policies), `agents/pi-tools.before-tool-call.ts` (pre-tool hooks), `gateway/http-auth-helpers.ts` (HTTP auth boundary helpers), `telegram/bot.ts` (grammY middleware).
 
 ### 7. Builder Pattern
 
@@ -845,7 +844,7 @@ Every channel implements `ChannelPlugin` (defined in `channels/plugins/types.plu
 
 ### 8. Guard / Circuit Breaker
 
-**Where:** `agents/context-window-guard.ts` (context overflow), `agents/session-tool-result-guard.ts` (oversized results), `agents/pi-extensions/compaction-safeguard.ts` (infinite compaction loops), `auto-reply/agent-runner-execution.ts` (error recovery with session reset).
+**Where:** `agents/context-window-guard.ts` (context overflow), `agents/session-tool-result-guard.ts` (oversized results), `agents/pi-extensions/compaction-safeguard.ts` (infinite compaction loops), `auto-reply/reply/agent-runner-execution.ts` (error recovery with session reset).
 
 ### 9. Barrel / Re-export Pattern
 
@@ -926,11 +925,11 @@ Every channel implements `ChannelPlugin` (defined in `channels/plugins/types.plu
 
 | Metric                                           | Count |
 | ------------------------------------------------ | ----- |
-| Extension directories (`extensions/*`)           | 40    |
-| Extension packages (`extensions/*/package.json`) | 31    |
+| Extension directories (`extensions/*`)           | 39    |
+| Extension packages (`extensions/*/package.json`) | 32    |
 | Bundled skills (`skills/*`)                      | 52    |
 
-> Current source package: `2026.2.23` (git `097a6a83a`, post-release fixes included). Counts measured from the current `/Users/mudrii/src/openclaw` checkout.
+> Current analyzed source package: `2026.2.26` (tag `v2026.2.26`). Counts measured from that released tag snapshot.
 
 ### Key External Dependencies
 
@@ -987,7 +986,7 @@ Every channel implements `ChannelPlugin` (defined in `channels/plugins/types.plu
 
 ### Major Refactor
 
-- **Channel deduplication** — Shared helpers extracted from per-channel send/normalize code into `channels/plugins/outbound/shared.ts` and `channels/plugins/normalize/shared.ts`; reduces duplicated media-upload, markdown-conversion, and chunk-splitting logic across Telegram, Discord, Slack, LINE, and Signal
+- **Channel deduplication** — Shared helpers extracted from per-channel send/normalize code into `channels/plugins/outbound/direct-text-media.ts` and `channels/plugins/normalize/shared.ts`; reduces duplicated media-upload, markdown-conversion, and chunk-splitting logic across Telegram, Discord, Slack, LINE, and Signal
 
 ### Performance
 
@@ -1002,7 +1001,7 @@ Every channel implements `ChannelPlugin` (defined in `channels/plugins/types.plu
 
 ---
 
-## v2026.2.21 Changes (2026-02-23)
+## v2026.2.21 Changes (2026-02-21)
 
 ### New Modules
 
@@ -1040,7 +1039,7 @@ See [§9 v2026.2.21 Security Hardening](#v20262121-security-hardening) for detai
 
 ---
 
-## v2026.2.22 Changes (2026-02-24)
+## v2026.2.22 Changes (2026-02-23)
 
 ### New Channel
 
