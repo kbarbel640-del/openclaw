@@ -92,6 +92,44 @@ function resolveXiaomiApiKey(): string | undefined {
   });
 }
 
+/**
+ * Resolve Ollama session cookie.
+ *
+ * Ollama doesn't have a public API for usage. We need the browser session cookie
+ * to fetch usage data from ollama.com/settings.
+ *
+ * The cookie can be provided via:
+ * 1. OLLAMA_COOKIE environment variable
+ * 2. Auth profile store (token type)
+ *
+ * The cookie string should be in format: "name1=value1; name2=value2"
+ * Common session cookie names: __Secure-session, session, next-auth.session-token
+ */
+function resolveOllamaCookie(): string | undefined {
+  // Check environment variable first
+  const envCookie = normalizeSecretInput(process.env.OLLAMA_COOKIE);
+  if (envCookie) {
+    return envCookie;
+  }
+
+  // Check auth profile store for token credential
+  const store = ensureAuthProfileStore();
+  const profiles = listProfilesForProvider(store, "ollama");
+
+  for (const profileId of profiles) {
+    const cred = store.profiles[profileId];
+    if (cred?.type === "token" && normalizeSecretInput(cred.token)) {
+      return normalizeSecretInput(cred.token);
+    }
+    // Also support api_key type for backwards compatibility
+    if (cred?.type === "api_key" && normalizeSecretInput(cred.key)) {
+      return normalizeSecretInput(cred.key);
+    }
+  }
+
+  return undefined;
+}
+
 function resolveProviderApiKeyFromConfigAndStore(params: {
   providerId: UsageProviderId;
   envDirect: Array<string | undefined>;
@@ -239,6 +277,13 @@ export async function resolveProviderAuths(params: {
       const apiKey = resolveXiaomiApiKey();
       if (apiKey) {
         auths.push({ provider, token: apiKey });
+      }
+      continue;
+    }
+    if (provider === "ollama") {
+      const cookie = resolveOllamaCookie();
+      if (cookie) {
+        auths.push({ provider, token: cookie });
       }
       continue;
     }
