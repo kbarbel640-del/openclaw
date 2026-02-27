@@ -6,7 +6,14 @@ import { resolveImplicitProviders, resolveOllamaApiBase } from "./models-config.
 
 describe("resolveOllamaApiBase", () => {
   it("returns default localhost base when no configured URL is provided", () => {
-    expect(resolveOllamaApiBase()).toBe("http://127.0.0.1:11434");
+    const prev = process.env.OLLAMA_HOST;
+    try {
+      delete process.env.OLLAMA_HOST;
+      expect(resolveOllamaApiBase()).toBe("http://127.0.0.1:11434");
+    } finally {
+      if (prev === undefined) delete process.env.OLLAMA_HOST;
+      else process.env.OLLAMA_HOST = prev;
+    }
   });
 
   it("strips /v1 suffix from OpenAI-compatible URLs", () => {
