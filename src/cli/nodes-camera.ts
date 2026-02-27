@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { retryHttpAsync } from "../infra/retry-http.js";
 import { resolveCliName } from "./cli-name.js";
 import {
   asBoolean,
@@ -78,10 +79,10 @@ export async function writeUrlToFile(filePath: string, url: string) {
     throw new Error(`writeUrlToFile: only https URLs are allowed, got ${parsed.protocol}`);
   }
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`failed to download ${url}: ${res.status} ${res.statusText}`);
-  }
+  const res = await retryHttpAsync(() => fetch(url), {
+    label: "camera-url-download",
+    initialUrl: url,
+  });
 
   const contentLengthRaw = res.headers.get("content-length");
   const contentLength = contentLengthRaw ? Number.parseInt(contentLengthRaw, 10) : undefined;
