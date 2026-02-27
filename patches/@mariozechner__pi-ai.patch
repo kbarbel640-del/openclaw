@@ -1,0 +1,13 @@
+diff --git a/dist/providers/anthropic.js b/dist/providers/anthropic.js
+index 0bf2b894799bbc9ef5fda07bc44ea4301c9f395a..bbb92df2b0e686a044159a081aa195a601029933 100644
+--- a/dist/providers/anthropic.js
++++ b/dist/providers/anthropic.js
+@@ -586,7 +586,7 @@ function convertMessages(messages, model, isOAuthToken, cacheControl) {
+                     else {
+                         blocks.push({
+                             type: "thinking",
+-                            thinking: sanitizeSurrogates(block.thinking),
++                            thinking: block.thinking,
+                             signature: block.thinkingSignature,
+                         });
+                     }
