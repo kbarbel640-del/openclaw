@@ -38,6 +38,7 @@ describe("loadModelCatalog", () => {
       __setModelCatalogImportForTest(
         async () =>
           ({
+            discoverAuthStorage: () => ({}),
             AuthStorage: class {},
             ModelRegistry: class {
               getAll() {
@@ -69,6 +70,7 @@ describe("loadModelCatalog", () => {
     __setModelCatalogImportForTest(
       async () =>
         ({
+          discoverAuthStorage: () => ({}),
           AuthStorage: class {},
           ModelRegistry: class {
             getAll() {
@@ -108,6 +110,7 @@ describe("loadModelCatalog", () => {
     __setModelCatalogImportForTest(
       async () =>
         ({
+          discoverAuthStorage: () => ({}),
           AuthStorage: class {},
           ModelRegistry: class {
             getAll() {
@@ -122,13 +125,17 @@ describe("loadModelCatalog", () => {
         models: {
           providers: {
             kilocode: {
+              baseUrl: "https://api.kilo.ai/api/gateway/",
+              api: "openai-completions",
               models: [
                 {
                   id: "google/gemini-3-pro-preview",
                   name: "Gemini 3 Pro Preview",
                   input: ["text", "image"],
                   reasoning: true,
+                  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
                   contextWindow: 1048576,
+                  maxTokens: 65536,
                 },
               ],
             },
@@ -150,6 +157,7 @@ describe("loadModelCatalog", () => {
     __setModelCatalogImportForTest(
       async () =>
         ({
+          discoverAuthStorage: () => ({}),
           AuthStorage: class {},
           ModelRegistry: class {
             getAll() {
@@ -164,10 +172,17 @@ describe("loadModelCatalog", () => {
         models: {
           providers: {
             qianfan: {
+              baseUrl: "https://qianfan.baidubce.com/v2",
+              api: "openai-completions",
               models: [
                 {
                   id: "deepseek-v3.2",
                   name: "DEEPSEEK V3.2",
+                  reasoning: true,
+                  input: ["text"],
+                  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                  contextWindow: 98304,
+                  maxTokens: 32768,
                 },
               ],
             },
@@ -185,6 +200,7 @@ describe("loadModelCatalog", () => {
     __setModelCatalogImportForTest(
       async () =>
         ({
+          discoverAuthStorage: () => ({}),
           AuthStorage: class {},
           ModelRegistry: class {
             getAll() {
@@ -205,10 +221,17 @@ describe("loadModelCatalog", () => {
         models: {
           providers: {
             kilocode: {
+              baseUrl: "https://api.kilo.ai/api/gateway/",
+              api: "openai-completions",
               models: [
                 {
                   id: "anthropic/claude-opus-4.6",
                   name: "Configured Claude Opus 4.6",
+                  reasoning: true,
+                  input: ["text", "image"],
+                  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+                  contextWindow: 1000000,
+                  maxTokens: 128000,
                 },
               ],
             },
