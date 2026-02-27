@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   auditPostCompactionReads,
   extractReadPaths,
@@ -107,27 +109,53 @@ describe("extractReadPaths", () => {
 });
 
 describe("auditPostCompactionReads", () => {
-  const workspaceDir = "/Users/test/workspace";
+  const tmpDir = path.join("/tmp", "test-post-compaction-audit-" + Date.now());
+
+  beforeEach(() => {
+    fs.mkdirSync(path.join(tmpDir, "memory"), { recursive: true });
+    // Create the files that should be checked by the audit
+    fs.writeFileSync(path.join(tmpDir, "WORKFLOW_AUTO.md"), "# Workflow\n");
+    fs.writeFileSync(path.join(tmpDir, "custom.md"), "# Custom\n");
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 
   it("passes when all required files are read", () => {
     const readPaths = ["WORKFLOW_AUTO.md", "memory/2026-02-16.md"];
-    const result = auditPostCompactionReads(readPaths, workspaceDir);
+    const result = auditPostCompactionReads(readPaths, tmpDir);
 
     expect(result.passed).toBe(true);
     expect(result.missingPatterns).toEqual([]);
   });
 
-  it("fails when no files are read", () => {
-    const result = auditPostCompactionReads([], workspaceDir);
+  it("reports missing files that exist on disk but were not read", () => {
+    // WORKFLOW_AUTO.md exists on disk (created in beforeEach) but is not in readPaths
+    const result = auditPostCompactionReads([], tmpDir);
 
     expect(result.passed).toBe(false);
     expect(result.missingPatterns).toContain("WORKFLOW_AUTO.md");
+    // RegExp patterns are always checked regardless of disk presence
+    expect(result.missingPatterns.some((p) => p.includes("memory"))).toBe(true);
+  });
+
+  it("skips string entries that do not exist on disk (#20444)", () => {
+    // Use a workspace where WORKFLOW_AUTO.md does NOT exist
+    const emptyDir = path.join(tmpDir, "empty-workspace");
+    fs.mkdirSync(emptyDir, { recursive: true });
+
+    const result = auditPostCompactionReads([], emptyDir);
+
+    // WORKFLOW_AUTO.md should NOT appear in missing patterns since it doesn't exist
+    expect(result.missingPatterns).not.toContain("WORKFLOW_AUTO.md");
+    // RegExp patterns are still checked
     expect(result.missingPatterns.some((p) => p.includes("memory"))).toBe(true);
   });
 
   it("reports only missing files", () => {
     const readPaths = ["WORKFLOW_AUTO.md"];
-    const result = auditPostCompactionReads(readPaths, workspaceDir);
+    const result = auditPostCompactionReads(readPaths, tmpDir);
 
     expect(result.passed).toBe(false);
     expect(result.missingPatterns).not.toContain("WORKFLOW_AUTO.md");
@@ -136,7 +164,7 @@ describe("auditPostCompactionReads", () => {
 
   it("matches RegExp patterns against relative paths", () => {
     const readPaths = ["memory/2026-02-16.md"];
-    const result = auditPostCompactionReads(readPaths, workspaceDir);
+    const result = auditPostCompactionReads(readPaths, tmpDir);
 
     expect(result.passed).toBe(false);
     expect(result.missingPatterns).toContain("WORKFLOW_AUTO.md");
@@ -145,7 +173,7 @@ describe("auditPostCompactionReads", () => {
 
   it("normalizes relative paths when matching", () => {
     const readPaths = ["./WORKFLOW_AUTO.md", "memory/2026-02-16.md"];
-    const result = auditPostCompactionReads(readPaths, workspaceDir);
+    const result = auditPostCompactionReads(readPaths, tmpDir);
 
     expect(result.passed).toBe(true);
     expect(result.missingPatterns).toEqual([]);
@@ -153,10 +181,10 @@ describe("auditPostCompactionReads", () => {
 
   it("normalizes absolute paths when matching", () => {
     const readPaths = [
-      "/Users/test/workspace/WORKFLOW_AUTO.md",
-      "/Users/test/workspace/memory/2026-02-16.md",
+      path.join(tmpDir, "WORKFLOW_AUTO.md"),
+      path.join(tmpDir, "memory/2026-02-16.md"),
     ];
-    const result = auditPostCompactionReads(readPaths, workspaceDir);
+    const result = auditPostCompactionReads(readPaths, tmpDir);
 
     expect(result.passed).toBe(true);
     expect(result.missingPatterns).toEqual([]);
@@ -165,7 +193,7 @@ describe("auditPostCompactionReads", () => {
   it("accepts custom required reads list", () => {
     const readPaths = ["custom.md"];
     const customRequired = ["custom.md"];
-    const result = auditPostCompactionReads(readPaths, workspaceDir, customRequired);
+    const result = auditPostCompactionReads(readPaths, tmpDir, customRequired);
 
     expect(result.passed).toBe(true);
     expect(result.missingPatterns).toEqual([]);
