@@ -108,6 +108,7 @@ const MAX_NETWORK_REQUESTS = 500;
 
 let cached: ConnectedBrowser | null = null;
 let connecting: Promise<ConnectedBrowser> | null = null;
+const TARGET_LOOKUP_TIMEOUT_MS = 1200;
 
 function normalizeCdpUrl(raw: string) {
   return raw.replace(/\/$/, "");
@@ -384,6 +385,22 @@ async function pageTargetId(page: Page): Promise<string | null> {
   }
 }
 
+async function pageTargetIdWithTimeout(page: Page, timeoutMs = TARGET_LOOKUP_TIMEOUT_MS) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error("target id lookup timed out"));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([pageTargetId(page), timeoutPromise]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 async function findPageByTargetId(
   browser: Browser,
   targetId: string,
@@ -391,13 +408,17 @@ async function findPageByTargetId(
 ): Promise<Page | null> {
   const pages = await getAllPages(browser);
   let resolvedViaCdp = false;
+  let lookupTimedOut = false;
   // First, try the standard CDP session approach
   for (const page of pages) {
     let tid: string | null = null;
     try {
-      tid = await pageTargetId(page);
+      tid = await pageTargetIdWithTimeout(page);
       resolvedViaCdp = true;
-    } catch {
+    } catch (err) {
+      if (String(err).includes("target id lookup timed out")) {
+        lookupTimedOut = true;
+      }
       tid = null;
     }
     if (tid && tid === targetId) {
@@ -407,6 +428,16 @@ async function findPageByTargetId(
   // Extension relays can block CDP attachment APIs entirely. If that happens and
   // Playwright only exposes one page, return it as the best available mapping.
   if (!resolvedViaCdp && pages.length === 1) {
+    if (lookupTimedOut && cdpUrl) {
+      // Even when we can recover by using the only page, a timed-out target lookup
+      // indicates the current Playwright CDP pipe may be wedged. Reset it so
+      // subsequent commands don't inherit a stale connection.
+      await forceDisconnectPlaywrightForTarget({
+        cdpUrl,
+        targetId,
+        reason: "target id lookup timed out (single page fallback)",
+      }).catch(() => {});
+    }
     return pages[0];
   }
   // If CDP sessions fail (e.g., extension relay blocks Target.attachToBrowserTarget),
@@ -418,29 +449,28 @@ async function findPageByTargetId(
         .replace(/^ws:/, "http:")
         .replace(/\/cdp$/, "");
       const listUrl = `${baseUrl}/json/list`;
-      const response = await fetch(listUrl, { headers: getHeadersWithAuth(listUrl) });
-      if (response.ok) {
-        const targets = (await response.json()) as Array<{
+      const targets = await fetchJson<
+        Array<{
           id: string;
           url: string;
           title?: string;
-        }>;
-        const target = targets.find((t) => t.id === targetId);
-        if (target) {
-          // Try to find a page with matching URL
-          const urlMatch = pages.filter((p) => p.url() === target.url);
-          if (urlMatch.length === 1) {
-            return urlMatch[0];
-          }
-          // If multiple URL matches, use index-based matching as fallback
-          // This works when Playwright and the relay enumerate tabs in the same order
-          if (urlMatch.length > 1) {
-            const sameUrlTargets = targets.filter((t) => t.url === target.url);
-            if (sameUrlTargets.length === urlMatch.length) {
-              const idx = sameUrlTargets.findIndex((t) => t.id === targetId);
-              if (idx >= 0 && idx < urlMatch.length) {
-                return urlMatch[idx];
-              }
+        }>
+      >(listUrl, TARGET_LOOKUP_TIMEOUT_MS, { headers: getHeadersWithAuth(listUrl) });
+      const target = targets.find((t) => t.id === targetId);
+      if (target) {
+        // Try to find a page with matching URL
+        const urlMatch = pages.filter((p) => p.url() === target.url);
+        if (urlMatch.length === 1) {
+          return urlMatch[0];
+        }
+        // If multiple URL matches, use index-based matching as fallback
+        // This works when Playwright and the relay enumerate tabs in the same order
+        if (urlMatch.length > 1) {
+          const sameUrlTargets = targets.filter((t) => t.url === target.url);
+          if (sameUrlTargets.length === urlMatch.length) {
+            const idx = sameUrlTargets.findIndex((t) => t.id === targetId);
+            if (idx >= 0 && idx < urlMatch.length) {
+              return urlMatch[idx];
             }
           }
         }
@@ -449,6 +479,17 @@ async function findPageByTargetId(
       // Ignore fetch errors and fall through to return null
     }
   }
+
+  if (lookupTimedOut && cdpUrl) {
+    // Best-effort self-heal: a stuck target lookup usually means the CDP pipe is wedged.
+    // Drop this Playwright connection so the next request reconnects cleanly.
+    await forceDisconnectPlaywrightForTarget({
+      cdpUrl,
+      targetId,
+      reason: "target id lookup timed out",
+    }).catch(() => {});
+  }
+
   return null;
 }
 

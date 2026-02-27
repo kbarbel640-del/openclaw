@@ -188,10 +188,6 @@ export function sanitizeToolCallInputs(
   return repairToolCallInputs(messages, options).messages;
 }
 
-export function sanitizeToolUseResultPairing(messages: AgentMessage[]): AgentMessage[] {
-  return repairToolUseResultPairing(messages).messages;
-}
-
 export type ToolUseRepairReport = {
   messages: AgentMessage[];
   added: Array<Extract<AgentMessage, { role: "toolResult" }>>;
@@ -200,7 +196,21 @@ export type ToolUseRepairReport = {
   moved: boolean;
 };
 
-export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRepairReport {
+export type ToolUseRepairOptions = {
+  allowSyntheticToolResults?: boolean;
+};
+
+export function sanitizeToolUseResultPairing(
+  messages: AgentMessage[],
+  options?: ToolUseRepairOptions,
+): AgentMessage[] {
+  return repairToolUseResultPairing(messages, options).messages;
+}
+
+export function repairToolUseResultPairing(
+  messages: AgentMessage[],
+  options?: ToolUseRepairOptions,
+): ToolUseRepairReport {
   // Anthropic (and Cloud Code Assist) reject transcripts where assistant tool calls are not
   // immediately followed by matching tool results. Session files can end up with results
   // displaced (e.g. after user turns) or duplicated. Repair by:
@@ -214,6 +224,7 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
   let droppedOrphanCount = 0;
   let moved = false;
   let changed = false;
+  const allowSyntheticToolResults = options?.allowSyntheticToolResults ?? true;
 
   const pushToolResult = (msg: Extract<AgentMessage, { role: "toolResult" }>) => {
     const id = extractToolResultId(msg);
@@ -323,7 +334,7 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
       const existing = spanResultsById.get(call.id);
       if (existing) {
         pushToolResult(existing);
-      } else {
+      } else if (allowSyntheticToolResults) {
         const missing = makeMissingToolResult({
           toolCallId: call.id,
           toolName: call.name,

@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
       },
     },
   })),
+  startBrowserControlServiceFromConfig: vi.fn(async () => ({ ok: true })),
+  dispatch: vi.fn<() => Promise<{ status: number; body: Record<string, unknown> }>>(async () => ({
+    status: 200,
+    body: { ok: true },
+  })),
 }));
 
 vi.mock("../config/config.js", async (importOriginal) => {
@@ -20,12 +25,12 @@ vi.mock("../config/config.js", async (importOriginal) => {
 
 vi.mock("./control-service.js", () => ({
   createBrowserControlContext: vi.fn(() => ({})),
-  startBrowserControlServiceFromConfig: vi.fn(async () => ({ ok: true })),
+  startBrowserControlServiceFromConfig: mocks.startBrowserControlServiceFromConfig,
 }));
 
 vi.mock("./routes/dispatcher.js", () => ({
   createBrowserRouteDispatcher: vi.fn(() => ({
-    dispatch: vi.fn(async () => ({ status: 200, body: { ok: true } })),
+    dispatch: mocks.dispatch,
   })),
 }));
 
@@ -47,6 +52,10 @@ describe("fetchBrowserJson loopback auth", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     mocks.loadConfig.mockClear();
+    mocks.startBrowserControlServiceFromConfig.mockReset();
+    mocks.startBrowserControlServiceFromConfig.mockResolvedValue({ ok: true });
+    mocks.dispatch.mockReset();
+    mocks.dispatch.mockResolvedValue({ status: 200, body: { ok: true } });
     mocks.loadConfig.mockReturnValue({
       gateway: {
         auth: {
@@ -113,5 +122,30 @@ describe("fetchBrowserJson loopback auth", () => {
     const init = fetchMock.mock.calls[0]?.[1];
     const headers = new Headers(init?.headers);
     expect(headers.get("authorization")).toBe("Bearer loopback-token");
+  });
+
+  it("preserves local dispatcher validation errors", async () => {
+    mocks.dispatch.mockResolvedValueOnce({
+      status: 400,
+      body: { error: "refs=aria does not support selector/frame snapshots yet." },
+    });
+
+    let caught: unknown;
+    try {
+      await fetchBrowserJson("/snapshot");
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(String(caught)).toContain("refs=aria does not support selector/frame snapshots yet.");
+    expect(String(caught)).not.toContain("Can't reach the OpenClaw browser control service");
+  });
+
+  it("uses local timeout messaging for in-process dispatcher timeouts", async () => {
+    mocks.dispatch.mockImplementationOnce(async () => await new Promise<never>(() => {}));
+
+    await expect(fetchBrowserJson("/snapshot", { timeoutMs: 20 })).rejects.toThrow(
+      "Browser request timed out after 20ms.",
+    );
   });
 });

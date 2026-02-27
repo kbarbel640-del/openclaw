@@ -15,6 +15,9 @@ const ANTHROPIC_1M_MODEL_PREFIXES = ["claude-opus-4", "claude-sonnet-4"] as cons
 // Codex responses (chatgpt.com/backend-api/codex/responses) require `store=false`.
 const OPENAI_RESPONSES_APIS = new Set(["openai-responses"]);
 const OPENAI_RESPONSES_PROVIDERS = new Set(["openai", "azure-openai-responses"]);
+const RESPONSES_TOOL_CHAIN_APIS = new Set(["openai-responses", "openai-codex-responses"]);
+const RESPONSES_TOOL_CHAIN_DEBUG_ENV = "OPENCLAW_RESPONSES_TOOL_CHAIN_DEBUG";
+const RESPONSES_TOOL_CHAIN_CORRUPT_CODE = "OPENCLAW_RESPONSES_TOOL_CHAIN_CORRUPT";
 
 /**
  * Resolve provider-specific extra params from model config.
@@ -234,6 +237,152 @@ function createOpenAIResponsesStoreWrapper(baseStreamFn: StreamFn | undefined): 
       onPayload: (payload) => {
         if (payload && typeof payload === "object") {
           (payload as { store?: unknown }).store = true;
+        }
+        originalOnPayload?.(payload);
+      },
+    });
+  };
+}
+
+type ResponsesPayloadItem = {
+  type?: unknown;
+  call_id?: unknown;
+};
+
+function isResponsesToolChainDebugEnabled(): boolean {
+  const raw = process.env[RESPONSES_TOOL_CHAIN_DEBUG_ENV]?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function shouldGuardResponsesToolChainPayload(model: { api?: unknown }): boolean {
+  return typeof model.api === "string" && RESPONSES_TOOL_CHAIN_APIS.has(model.api);
+}
+
+function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>): void {
+  const inputRaw = payload.input;
+  if (!Array.isArray(inputRaw)) {
+    return;
+  }
+
+  const input = inputRaw as ResponsesPayloadItem[];
+  const callCounts = new Map<string, number>();
+  const allFunctionCalls: string[] = [];
+  const allFunctionCallOutputs: string[] = [];
+  const dropped: Array<{
+    callId: string;
+    reason: "missing_call" | "duplicate_output" | "cross_response";
+  }> = [];
+
+  for (const item of input) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    if (item.type === "function_call") {
+      const callId = asString(item.call_id);
+      if (!callId) {
+        continue;
+      }
+      allFunctionCalls.push(callId);
+      callCounts.set(callId, (callCounts.get(callId) ?? 0) + 1);
+      continue;
+    }
+    if (item.type === "function_call_output") {
+      const callId = asString(item.call_id);
+      if (callId) {
+        allFunctionCallOutputs.push(callId);
+      }
+    }
+  }
+
+  const seenFunctionCalls = new Set<string>();
+  const seenFunctionCallOutputs = new Set<string>();
+  const repairedInput: ResponsesPayloadItem[] = [];
+
+  for (const item of input) {
+    if (!item || typeof item !== "object") {
+      repairedInput.push(item);
+      continue;
+    }
+    if (item.type === "function_call") {
+      const callId = asString(item.call_id);
+      if (callId) {
+        seenFunctionCalls.add(callId);
+      }
+      repairedInput.push(item);
+      continue;
+    }
+    if (item.type !== "function_call_output") {
+      repairedInput.push(item);
+      continue;
+    }
+
+    const callId = asString(item.call_id);
+    if (!callId || !seenFunctionCalls.has(callId)) {
+      dropped.push({ callId: callId ?? "<missing>", reason: "missing_call" });
+      continue;
+    }
+    if ((callCounts.get(callId) ?? 0) > 1) {
+      dropped.push({ callId, reason: "cross_response" });
+      continue;
+    }
+    if (seenFunctionCallOutputs.has(callId)) {
+      dropped.push({ callId, reason: "duplicate_output" });
+      continue;
+    }
+
+    seenFunctionCallOutputs.add(callId);
+    repairedInput.push(item);
+  }
+
+  const responseId = asString(payload.response_id) ?? asString(payload.id);
+  const previousResponseId = asString(payload.previous_response_id);
+  const debugEnabled = isResponsesToolChainDebugEnabled();
+  if (debugEnabled) {
+    log.debug(
+      `[responses-tool-chain] response_id=${responseId ?? "-"} previous_response_id=${previousResponseId ?? "-"} ` +
+        `function_call_ids=[${allFunctionCalls.join(",")}] function_call_output_ids=[${allFunctionCallOutputs.join(",")}]`,
+    );
+  }
+
+  if (dropped.length === 0) {
+    return;
+  }
+
+  payload.input = repairedInput.filter(
+    (item) => !item || typeof item !== "object" || item.type !== "function_call_output",
+  );
+  delete payload.previous_response_id;
+
+  const details = dropped.map((entry) => `${entry.reason}:${entry.callId}`).join(",");
+  log.warn(
+    `[responses-tool-chain] repaired invalid tool chain; response_id=${responseId ?? "-"} ` +
+      `previous_response_id=${previousResponseId ?? "-"} dropped=${details}`,
+  );
+  const error = new Error(
+    `${RESPONSES_TOOL_CHAIN_CORRUPT_CODE}: session tool call chain corrupted; retry required`,
+  ) as Error & { code?: string };
+  error.name = "ResponsesToolChainCorruptError";
+  error.code = RESPONSES_TOOL_CHAIN_CORRUPT_CODE;
+  throw error;
+}
+
+function createOpenAIResponsesToolChainGuardWrapper(baseStreamFn: StreamFn | undefined): StreamFn {
+  const underlying = baseStreamFn ?? streamSimple;
+  return (model, context, options) => {
+    if (!shouldGuardResponsesToolChainPayload(model)) {
+      return underlying(model, context, options);
+    }
+
+    const originalOnPayload = options?.onPayload;
+    return underlying(model, context, {
+      ...options,
+      onPayload: (payload) => {
+        if (payload && typeof payload === "object") {
+          guardOpenAIResponsesToolChainPayload(payload as Record<string, unknown>);
         }
         originalOnPayload?.(payload);
       },
@@ -736,5 +885,6 @@ export function applyExtraParamsToAgent(
   // Work around upstream pi-ai hardcoding `store: false` for Responses API.
   // Force `store=true` for direct OpenAI/OpenAI Codex providers so multi-turn
   // server-side conversation state is preserved.
+  agent.streamFn = createOpenAIResponsesToolChainGuardWrapper(agent.streamFn);
   agent.streamFn = createOpenAIResponsesStoreWrapper(agent.streamFn);
 }

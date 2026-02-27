@@ -127,6 +127,21 @@ function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number):
   );
 }
 
+function enhanceLocalBrowserError(err: unknown, timeoutMs: number): Error {
+  const msg = String(err);
+  const msgLower = msg.toLowerCase();
+  const looksLikeTimeout =
+    msgLower.includes("timed out") ||
+    msgLower.includes("timeout") ||
+    msgLower.includes("aborted") ||
+    msgLower.includes("abort") ||
+    msgLower.includes("aborterror");
+  if (looksLikeTimeout) {
+    return new Error(`Browser request timed out after ${timeoutMs}ms.`);
+  }
+  return err instanceof Error ? err : new Error(msg);
+}
+
 async function fetchHttpJson<T>(
   url: string,
   init: RequestInit & { timeoutMs?: number },
@@ -250,6 +265,9 @@ export async function fetchBrowserJson<T>(
   } catch (err) {
     if (err instanceof BrowserServiceError) {
       throw err;
+    }
+    if (!isAbsoluteHttp(url)) {
+      throw enhanceLocalBrowserError(err, timeoutMs);
     }
     throw enhanceBrowserFetchError(url, err, timeoutMs);
   }

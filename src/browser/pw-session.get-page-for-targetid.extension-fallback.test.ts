@@ -50,4 +50,52 @@ describe("pw-session getPageForTargetId", () => {
     await closePlaywrightBrowserConnection();
     expect(browserClose).toHaveBeenCalled();
   });
+
+  it("drops stale Playwright connection when target-id lookup hangs", async () => {
+    connectOverCdpSpy.mockClear();
+    getChromeWebSocketUrlSpy.mockClear();
+    vi.useFakeTimers();
+    try {
+      const pageOn = vi.fn();
+      const contextOn = vi.fn();
+      const browserOn = vi.fn();
+      const browserOff = vi.fn();
+      const browserClose = vi.fn(async () => {});
+
+      const context = {
+        pages: () => [],
+        on: contextOn,
+        newCDPSession: vi.fn(() => new Promise<never>(() => {})),
+      } as unknown as import("playwright-core").BrowserContext;
+
+      const page = {
+        on: pageOn,
+        context: () => context,
+        url: () => "https://example.com/",
+      } as unknown as import("playwright-core").Page;
+
+      (context as unknown as { pages: () => unknown[] }).pages = () => [page];
+
+      const browser = {
+        contexts: () => [context],
+        on: browserOn,
+        off: browserOff,
+        close: browserClose,
+      } as unknown as import("playwright-core").Browser;
+
+      connectOverCdpSpy.mockResolvedValue(browser);
+      getChromeWebSocketUrlSpy.mockResolvedValue(null);
+
+      const pending = getPageForTargetId({
+        cdpUrl: "http://127.0.0.1:18792",
+        targetId: "MISSING_TAB",
+      });
+      await vi.advanceTimersByTimeAsync(1300);
+      await expect(pending).resolves.toBe(page);
+      expect(browserClose).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      await closePlaywrightBrowserConnection();
+    }
+  });
 });
