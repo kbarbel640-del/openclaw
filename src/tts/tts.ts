@@ -558,6 +558,9 @@ export async function textToSpeech(params: {
   // if the plugin registry hasn't been initialized yet.
   const voiceNative = isVoiceNativeChannel(params.channel) || isVoiceNativeChannel(channelId);
   const output = voiceNative ? TELEGRAM_OUTPUT : resolveOutputFormat(channelId);
+  console.log(
+    `[tts] channel=${params.channel ?? "none"} channelId=${channelId ?? "null"} voiceNative=${voiceNative} outputExt=${output.extension} voiceCompat=${output.voiceCompatible}`,
+  );
 
   if (params.text.length > config.maxTextLength) {
     return {
@@ -613,7 +616,13 @@ export async function textToSpeech(params: {
         try {
           edgeResult = await attemptEdgeTts(edgeOutputFormat);
         } catch (err) {
-          if (fallbackEdgeOutputFormat && fallbackEdgeOutputFormat !== edgeOutputFormat) {
+          // When voice-native channel forced opus, don't fall back to MP3 —
+          // a non-opus file would be sent as a generic attachment, not a voice message.
+          const canFallback =
+            fallbackEdgeOutputFormat &&
+            fallbackEdgeOutputFormat !== edgeOutputFormat &&
+            !voiceNative;
+          if (canFallback) {
             logVerbose(
               `TTS: Edge output ${edgeOutputFormat} failed; retrying with ${fallbackEdgeOutputFormat}.`,
             );
@@ -712,13 +721,17 @@ export async function textToSpeech(params: {
         voiceCompatible: output.voiceCompatible,
       };
     } catch (err) {
-      errors.push(formatTtsProviderError(provider, err));
+      const errMsg = formatTtsProviderError(provider, err);
+      errors.push(errMsg);
+      console.log(`[tts] provider ${provider} failed: ${errMsg}`);
     }
   }
 
+  const errorSummary = `TTS conversion failed: ${errors.join("; ") || "no providers available"}`;
+  console.log(`[tts] all providers failed: ${errorSummary}`);
   return {
     success: false,
-    error: `TTS conversion failed: ${errors.join("; ") || "no providers available"}`,
+    error: errorSummary,
   };
 }
 
@@ -934,6 +947,9 @@ export async function maybeApplyTtsToPayload(params: {
     };
 
     const shouldVoice = isVoiceNativeChannel(params.channel) && result.voiceCompatible === true;
+    console.log(
+      `[tts] auto: channel=${params.channel ?? "none"} provider=${result.provider} path=${result.audioPath} voiceCompat=${result.voiceCompatible} shouldVoice=${shouldVoice}`,
+    );
     const finalPayload = {
       ...nextPayload,
       mediaUrl: result.audioPath,

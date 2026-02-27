@@ -396,7 +396,8 @@ export async function sendFileFeishu(params: {
 }
 
 /**
- * Helper to detect file type from extension
+ * Helper to detect file type from extension.
+ * Feishu upload API supports: opus, mp4, pdf, doc, xls, ppt, stream.
  */
 export function detectFileType(
   fileName: string,
@@ -492,8 +493,10 @@ export async function sendMediaFeishu(params: {
       accountId,
     });
 
-    // Use native audio message type if requested and file is audio
     const isAudio = fileType === "opus";
+    console.log(
+      `[feishu] sendMediaFeishu: file=${name} fileType=${fileType} isAudio=${isAudio} useAudioType=${useAudioType}`,
+    );
     if (useAudioType && isAudio) {
       return sendAudioFeishu({
         cfg,

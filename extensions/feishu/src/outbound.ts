@@ -22,9 +22,9 @@ export const feishuOutbound: ChannelOutboundAdapter = {
     // Upload and send media if URL provided
     if (mediaUrl) {
       try {
-        // Check if native audio message mode is enabled
         const account = resolveFeishuAccount({ cfg, accountId: accountId ?? undefined });
         const useNativeAudio = account.config?.useNativeAudioMessage ?? false;
+        console.log(`[feishu] sendMedia: url=${mediaUrl} useNativeAudio=${useNativeAudio}`);
 
         const result = await sendMediaFeishu({
           cfg,
