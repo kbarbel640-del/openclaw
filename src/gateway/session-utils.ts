@@ -657,7 +657,16 @@ export function resolveSessionModelRef(
   let model = resolved.model;
   const storedModelOverride = entry?.modelOverride?.trim();
   if (storedModelOverride) {
-    const overrideProvider = entry?.providerOverride?.trim() || provider || DEFAULT_PROVIDER;
+    const explicitOverrideProvider = entry?.providerOverride?.trim();
+    // If the user explicitly chose a provider (e.g. openrouter) via /model,
+    // preserve it even when the model id contains slashes (e.g. anthropic/claude-*).
+    // Re-parsing `modelOverride` would incorrectly treat the vendor prefix as the provider
+    // and route through the wrong credentials.
+    if (explicitOverrideProvider) {
+      return { provider: explicitOverrideProvider, model: storedModelOverride };
+    }
+
+    const overrideProvider = provider || DEFAULT_PROVIDER;
     const parsedOverride = parseModelRef(storedModelOverride, overrideProvider);
     if (parsedOverride) {
       provider = parsedOverride.provider;

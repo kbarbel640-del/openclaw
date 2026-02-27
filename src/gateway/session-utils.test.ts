@@ -305,6 +305,28 @@ describe("resolveSessionModelRef", () => {
     expect(resolved).toEqual({ provider: "anthropic", model: "claude-opus-4-6" });
   });
 
+  test("preserves providerOverride for slash-containing modelOverride (wrapper providers)", () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "anthropic/claude-opus-4-6" },
+        },
+      },
+    } as OpenClawConfig;
+
+    const resolved = resolveSessionModelRef(cfg, {
+      sessionId: "s-wrap",
+      updatedAt: Date.now(),
+      modelOverride: "anthropic/claude-sonnet-4-6",
+      providerOverride: "openrouter",
+    });
+
+    expect(resolved).toEqual({
+      provider: "openrouter",
+      model: "anthropic/claude-sonnet-4-6",
+    });
+  });
+
   test("preserves openrouter provider when model contains vendor prefix", () => {
     const cfg = {
       agents: {
