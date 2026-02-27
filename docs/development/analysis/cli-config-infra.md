@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD024 -->
 
-> Updated: 2026-02-27 | Version: v2026.2.26 | Codebase: ~/src/openclaw | Cluster: CLI, CONFIG & INFRASTRUCTURE
+> Updated: 2026-02-27 | Version: v2026.2.26 | Codebase: /path/to/openclaw | Cluster: CLI, CONFIG & INFRASTRUCTURE
 
 ---
 
