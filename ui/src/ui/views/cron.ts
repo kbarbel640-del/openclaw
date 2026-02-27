@@ -1102,6 +1102,17 @@ export function renderCron(props: CronProps) {
               : nothing
           }
         </div>
+        <div class="row" style="margin-top: 14px;">
+          <button class="btn primary" ?disabled=${props.busy} @click=${props.onAdd}>
+            ${props.busy ? "Saving…" : props.editingJobId ? "Save changes" : "Add job"}
+          </button>
+          ${
+            props.editingJobId
+              ? html`<button class="btn" ?disabled=${props.busy} @click=${props.onCancelEdit}>Cancel</button>`
+              : nothing
+          }
+        </div>
+      </div>
       </section>
     </section>
 
@@ -1275,6 +1286,17 @@ function renderJob(job: CronJob, props: CronProps) {
             ?disabled=${props.busy}
             @click=${(event: Event) => {
               event.stopPropagation();
+              props.onEdit?.(job);
+            }}
+          >
+            Edit
+          </button>
+          <button
+            class="btn"
+            ?disabled=${props.busy}
+            @click=${(event: Event) => {
+              event.stopPropagation();
+              props.onRun(job);
               selectAnd(() => props.onRun(job));
             }}
           >

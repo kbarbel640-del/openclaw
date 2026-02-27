@@ -539,21 +539,22 @@ export async function addCronJob(state: CronState) {
       payload,
       delivery,
     };
-    if (!job.name) {
+    if (job.name) {
+      if (state.cronEditingJobId) {
+        await state.client.request("cron.update", {
+          id: state.cronEditingJobId,
+          patch: job,
+        });
+        clearCronEditState(state);
+      } else {
+        await state.client.request("cron.add", job);
+        resetCronFormToDefaults(state);
+      }
+      await loadCronJobs(state);
+      await loadCronStatus(state);
+    } else {
       throw new Error("Name required.");
     }
-    if (state.cronEditingJobId) {
-      await state.client.request("cron.update", {
-        id: state.cronEditingJobId,
-        patch: job,
-      });
-      clearCronEditState(state);
-    } else {
-      await state.client.request("cron.add", job);
-      resetCronFormToDefaults(state);
-    }
-    await loadCronJobs(state);
-    await loadCronStatus(state);
   } catch (err) {
     state.cronError = String(err);
   } finally {

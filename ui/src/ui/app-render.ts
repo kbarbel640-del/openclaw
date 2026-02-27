@@ -454,7 +454,7 @@ export function renderApp(state: AppViewState) {
                 form: state.cronForm,
                 fieldErrors: state.cronFieldErrors,
                 canSubmit: !hasCronFormErrors(state.cronFieldErrors),
-                editingJobId: state.cronEditingJobId,
+                editingJobId: state.cronEditingJobId ?? null,
                 channels: state.channelsSnapshot?.channelMeta?.length
                   ? state.channelsSnapshot.channelMeta.map((entry) => entry.id)
                   : (state.channelsSnapshot?.channelOrder ?? []),
