@@ -242,6 +242,13 @@ export async function ensureLoaded(
   const jobs = (loaded.jobs ?? []) as unknown as Array<Record<string, unknown>>;
   let mutated = false;
   for (const raw of jobs) {
+    // Normalize jobId → id (jobs.json may use either; internal code expects id)
+    if (!raw.id && typeof raw.jobId === "string") {
+      raw.id = raw.jobId;
+      delete raw.jobId;
+      mutated = true;
+    }
+
     const state = raw.state;
     if (!state || typeof state !== "object" || Array.isArray(state)) {
       raw.state = {};
