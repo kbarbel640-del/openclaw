@@ -63,7 +63,7 @@ function makeParams(overrides?: Record<string, unknown>) {
         slug: "test-guild",
         reactionNotifications: "all" as const,
         reactionTrigger: "off" as const,
-        ...(overrides ?? {}),
+        ...overrides,
       },
     },
     logger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
@@ -88,8 +88,7 @@ describe("discord reactionTrigger", () => {
             reactionTrigger: "off",
           },
         },
-      }) as Parameters<typeof DiscordReactionListener.prototype.handle>[1] &
-        ConstructorParameters<typeof DiscordReactionListener>[0],
+      }) as unknown as ConstructorParameters<typeof DiscordReactionListener>[0],
     );
     await listener.handle(makeReactionData() as never, makeClient());
 
