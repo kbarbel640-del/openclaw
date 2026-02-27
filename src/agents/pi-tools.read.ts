@@ -10,10 +10,9 @@ import type { ImageSanitizationLimits } from "./image-sanitization.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import { assertSandboxPath } from "./sandbox-paths.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
-import { sanitizeToolResultImages } from "./tool-images.js";
 
 // NOTE(steipete): Upstream read now does file-magic MIME detection; we keep the wrapper
-// to normalize payloads and sanitize oversized images before they hit providers.
+// to normalize payloads (MIME sniffing, adaptive paging) before they hit providers.
 type ToolContentBlock = AgentToolResult<unknown>["content"][number];
 type ImageContentBlock = Extract<ToolContentBlock, { type: "image" }>;
 type TextContentBlock = Extract<ToolContentBlock, { type: "text" }>;
@@ -704,11 +703,9 @@ export function createOpenClawReadTool(
       const filePath = typeof record?.path === "string" ? String(record.path) : "<unknown>";
       const strippedDetailsResult = stripReadTruncationContentDetails(result);
       const normalizedResult = await normalizeReadImageResult(strippedDetailsResult, filePath);
-      return sanitizeToolResultImages(
-        normalizedResult,
-        `read:${filePath}`,
-        options?.imageSanitization,
-      );
+      // Skip image sanitization for read tool to preserve original image content
+      // Sanitization (resize) should only happen at delivery time, not at read time
+      return normalizedResult;
     },
   };
 }
