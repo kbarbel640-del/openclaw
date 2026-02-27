@@ -456,7 +456,8 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
     job.delivery = undefined;
   }
   if (patch.state) {
-    job.state = { ...job.state, ...patch.state };
+    const { nextRunAtMs: _drop, ...safeState } = patch.state;
+    job.state = { ...job.state, ...safeState };
   }
   if ("agentId" in patch) {
     job.agentId = normalizeOptionalAgentId((patch as { agentId?: unknown }).agentId);
