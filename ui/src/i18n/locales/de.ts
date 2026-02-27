@@ -121,9 +121,9 @@ export const de: TranslationMap = {
     zhCN: "简体中文 (Vereinfachtes Chinesisch)",
     zhTW: "繁體中文 (Traditionelles Chinesisch)",
     ptBR: "Português (Brasilianisches Portugiesisch)",
-    nl: "Nederlands",
-    fr: "Français",
+    nl: "Nederlands (Niederländisch)",
+    fr: "Français (Französisch)",
     de: "Deutsch",
-    it: "Italiano",
+    it: "Italiano (Italienisch)",
   },
 };
