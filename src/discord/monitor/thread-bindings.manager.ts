@@ -455,7 +455,14 @@ export function createThreadBindingManager(
         } catch {
           return;
         }
-        for (const binding of bindings) {
+        for (const snapshotBinding of bindings) {
+          // Re-read live state after any awaited work from earlier iterations.
+          // This avoids unbinding based on stale snapshot data when activity touches
+          // happen while the sweeper loop is in-flight.
+          const binding = manager.getByThreadId(snapshotBinding.threadId);
+          if (!binding) {
+            continue;
+          }
           const now = Date.now();
           const inactivityExpiresAt = resolveThreadBindingInactivityExpiresAt({
             record: binding,

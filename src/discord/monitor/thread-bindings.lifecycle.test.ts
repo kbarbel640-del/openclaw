@@ -354,6 +354,66 @@ describe("thread binding lifecycle", () => {
     }
   });
 
+  it("keeps a binding when activity is touched during the same sweep pass", async () => {
+    vi.useFakeTimers();
+    try {
+      const manager = createThreadBindingManager({
+        accountId: "default",
+        persist: false,
+        enableSweeper: true,
+        idleTimeoutMs: 60_000,
+        maxAgeMs: 0,
+      });
+
+      await manager.bindTarget({
+        threadId: "thread-1",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:first",
+        agentId: "main",
+        webhookId: "wh-1",
+        webhookToken: "tok-1",
+      });
+      await manager.bindTarget({
+        threadId: "thread-2",
+        channelId: "parent-1",
+        targetKind: "subagent",
+        targetSessionKey: "agent:main:subagent:second",
+        agentId: "main",
+        webhookId: "wh-2",
+        webhookToken: "tok-2",
+      });
+
+      // Keep the first binding off the idle-expire path so the sweep performs
+      // an awaited probe and gives a window for in-pass touches.
+      setThreadBindingIdleTimeoutBySessionKey({
+        accountId: "default",
+        targetSessionKey: "agent:main:subagent:first",
+        idleTimeoutMs: 0,
+      });
+
+      hoisted.restGet.mockImplementation(async (...args: unknown[]) => {
+        const route = typeof args[0] === "string" ? args[0] : "";
+        if (route.includes("thread-1")) {
+          manager.touchThread({ threadId: "thread-2", persist: false });
+        }
+        return {
+          id: route.split("/").at(-1) ?? "thread-1",
+          type: 11,
+          parent_id: "parent-1",
+        };
+      });
+      hoisted.sendMessageDiscord.mockClear();
+
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(manager.getByThreadId("thread-2")).toBeDefined();
+      expect(hoisted.sendMessageDiscord).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refreshes inactivity window when thread activity is touched", async () => {
     vi.useFakeTimers();
     try {
