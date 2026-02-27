@@ -1077,6 +1077,7 @@
                   "providers/openai",
                   "providers/openrouter",
                   "providers/litellm",
+                  "providers/azure-openai",
                   "providers/bedrock",
                   "providers/vercel-ai-gateway",
                   "providers/moonshot",
