@@ -29,6 +29,7 @@ import {
   renderFilterChips,
   renderSessionsCard,
   renderUsageInsights,
+  renderUsageOverviewQuotaPanel,
 } from "./usage-render-overview.ts";
 import { usageStylesString } from "./usageStyles.ts";
 import {
@@ -751,6 +752,8 @@ export function renderUsage(props: UsageProps) {
           : nothing
       }
     </section>
+
+    ${renderUsageOverviewQuotaPanel(props.providerUsage, props.providerUsageError)}
 
     ${renderUsageInsights(
       displayTotals,

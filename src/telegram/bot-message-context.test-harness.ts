@@ -4,6 +4,7 @@ import {
   type BuildTelegramMessageContextParams,
   type TelegramMediaRef,
 } from "./bot-message-context.js";
+import type { TelegramSendChatActionHandler } from "./sendchataction-401-backoff.js";
 
 export const baseTelegramMessageContextConfig = {
   agents: { defaults: { model: "anthropic/claude-opus-4-5", workspace: "/tmp/openclaw" } },
@@ -24,6 +25,12 @@ type BuildTelegramMessageContextForTestParams = {
 export async function buildTelegramMessageContextForTest(
   params: BuildTelegramMessageContextForTestParams,
 ): Promise<Awaited<ReturnType<typeof buildTelegramMessageContext>>> {
+  const sendChatActionHandler: TelegramSendChatActionHandler = {
+    sendChatAction: async () => {},
+    isSuspended: () => false,
+    reset: () => {},
+  };
+
   return await buildTelegramMessageContext({
     primaryCtx: {
       message: {
@@ -61,6 +68,6 @@ export async function buildTelegramMessageContextForTest(
         groupConfig: { requireMention: false },
         topicConfig: undefined,
       })),
-    sendChatActionHandler: { sendChatAction: vi.fn() } as never,
+    sendChatActionHandler,
   });
 }

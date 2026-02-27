@@ -459,6 +459,9 @@ export type SessionsPatchResult = {
 export type {
   CostUsageDailyEntry,
   CostUsageSummary,
+  ProviderUsageSnapshot,
+  ProviderUsageSummary,
+  ProviderUsageWindow,
   SessionsUsageEntry,
   SessionsUsageResult,
   SessionsUsageTotals,
