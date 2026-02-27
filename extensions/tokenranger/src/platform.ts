@@ -1,5 +1,9 @@
 /**
  * Cross-platform detection for service management.
+ *
+ * Supported: Linux (systemd), macOS (launchd).
+ * Windows: Use WSL2 — the extension runs as a Linux service inside WSL.
+ * Native Windows is not a target platform.
  */
 
 import fs from "node:fs";

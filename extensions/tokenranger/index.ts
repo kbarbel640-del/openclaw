@@ -372,14 +372,11 @@ const tokenRangerPlugin = {
               const row: Array<{ text: string; callback_data: string }> = [];
               for (let j = i; j < Math.min(i + 2, models.length, 8); j++) {
                 const name = models[j];
-                const label = name === current ? `${name.slice(0, 18)} ✓` : name.slice(0, 20);
                 const cbData = `/tokenranger model ${name}`;
-                // Telegram 64-byte callback_data limit
-                row.push({
-                  text: label,
-                  callback_data:
-                    cbData.length <= 64 ? cbData : `/tokenranger model ${name.slice(0, 44)}`,
-                });
+                // Skip models that exceed Telegram's 64-byte callback_data limit
+                if (cbData.length > 64) continue;
+                const label = name === current ? `${name.slice(0, 18)} ✓` : name.slice(0, 20);
+                row.push({ text: label, callback_data: cbData });
               }
               buttonRows.push(row);
             }

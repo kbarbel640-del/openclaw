@@ -41,6 +41,25 @@ function venvBin(serviceDir: string, name: string): string {
   return path.join(serviceDir, "venv", subdir, `${name}${ext}`);
 }
 
+function parseServiceUrl(serviceUrl: string): { host: string; port: string } {
+  try {
+    const url = new URL(serviceUrl);
+    return { host: url.hostname || "127.0.0.1", port: url.port || "8100" };
+  } catch {
+    return { host: "127.0.0.1", port: "8100" };
+  }
+}
+
+function isLocalOllamaUrl(ollamaUrl: string): boolean {
+  try {
+    const url = new URL(ollamaUrl);
+    const host = url.hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  } catch {
+    return true;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -233,10 +252,16 @@ export function pullOllamaModel(model: string, ollamaUrl: string, logger: Logger
     return;
   }
 
-  ensureOllamaRunning(logger);
-
   // Resolve model — use default if empty
   const resolvedModel = model || DEFAULT_GPU_MODEL;
+
+  // Skip local CLI operations when Ollama is on a remote host
+  if (!isLocalOllamaUrl(ollamaUrl)) {
+    logger.info(`  remote Ollama at ${ollamaUrl} — ensure ${resolvedModel} is pulled there`);
+    return;
+  }
+
+  ensureOllamaRunning(logger);
 
   // Check if model already exists (match exact model name in first column)
   try {
@@ -280,6 +305,8 @@ export function installLaunchdService(
   const logDir = path.join(os.homedir(), ".openclaw", "logs");
   fs.mkdirSync(logDir, { recursive: true });
 
+  const { host: serviceHost, port: servicePort } = parseServiceUrl(config.serviceUrl);
+
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -291,9 +318,9 @@ export function installLaunchdService(
         <string>${uvicornBin}</string>
         <string>main:app</string>
         <string>--host</string>
-        <string>127.0.0.1</string>
+        <string>${serviceHost}</string>
         <string>--port</string>
-        <string>8100</string>
+        <string>${servicePort}</string>
         <string>--workers</string>
         <string>1</string>
     </array>
@@ -343,6 +370,8 @@ export function installSystemdService(
   const logDir = path.join(os.homedir(), ".openclaw", "logs");
   fs.mkdirSync(logDir, { recursive: true });
 
+  const { host: serviceHost, port: servicePort } = parseServiceUrl(config.serviceUrl);
+
   const unit = `[Unit]
 Description=OpenClaw TokenRanger Compression Service
 After=ollama.service
@@ -350,7 +379,7 @@ After=ollama.service
 [Service]
 Type=simple
 WorkingDirectory=${serviceDir}
-ExecStart=${uvicornBin} main:app --host 127.0.0.1 --port 8100 --workers 1
+ExecStart=${uvicornBin} main:app --host ${serviceHost} --port ${servicePort} --workers 1
 Environment="TOKENRANGER_OLLAMA_BASE_URL=${config.ollamaUrl}"
 Restart=on-failure
 RestartSec=5
