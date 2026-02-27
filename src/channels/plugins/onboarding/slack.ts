@@ -101,7 +101,7 @@ async function noteSlackTokenHelp(prompter: WizardPrompter, botName: string): Pr
     [
       "1) Slack API → Create App → From scratch or From manifest (with the JSON below)",
       "2) Add Socket Mode + enable it to get the app-level token (xapp-...)",
-      "3) Installed App to workspace to get the xoxb- bot token",
+      "3) Install App to workspace to get the xoxb- bot token",
       "4) Enable Event Subscriptions (socket) for message events",
       "5) App Home → enable the Messages tab for DMs",
       "Tip: set SLACK_BOT_TOKEN + SLACK_APP_TOKEN in your env.",
