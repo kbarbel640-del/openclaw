@@ -113,6 +113,13 @@ export const FeishuGroupSchema = z
   .strict();
 
 const FeishuSharedConfigShape = {
+  /**
+   * Probe cache TTL in minutes.
+   * Controls how long bot/v3/info API results are cached to reduce API calls.
+   * Default: 1 minute (matches the health check interval).
+   * Increase this value to reduce API quota usage.
+   */
+  probeCacheTtlMinutes: z.number().int().positive().optional(),
   webhookHost: z.string().optional(),
   webhookPort: z.number().int().positive().optional(),
   capabilities: z.array(z.string()).optional(),

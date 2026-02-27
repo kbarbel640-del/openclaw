@@ -108,6 +108,7 @@ export const feishuPlugin: ChannelPlugin<ResolvedFeishuAccount> = {
         chunkMode: { type: "string", enum: ["length", "newline"] },
         mediaMaxMb: { type: "number", minimum: 0 },
         renderMode: { type: "string", enum: ["auto", "raw", "card"] },
+        probeCacheTtlMinutes: { type: "integer", minimum: 1 },
         accounts: {
           type: "object",
           additionalProperties: {
@@ -124,6 +125,7 @@ export const feishuPlugin: ChannelPlugin<ResolvedFeishuAccount> = {
               webhookHost: { type: "string" },
               webhookPath: { type: "string" },
               webhookPort: { type: "integer", minimum: 1 },
+              probeCacheTtlMinutes: { type: "integer", minimum: 1 },
             },
           },
         },
@@ -323,7 +325,11 @@ export const feishuPlugin: ChannelPlugin<ResolvedFeishuAccount> = {
       probe: snapshot.probe,
       lastProbeAt: snapshot.lastProbeAt ?? null,
     }),
-    probeAccount: async ({ account }) => await probeFeishu(account),
+    probeAccount: async ({ account }) =>
+      await probeFeishu({
+        ...account,
+        probeCacheTtlMinutes: account.config?.probeCacheTtlMinutes,
+      }),
     buildAccountSnapshot: ({ account, runtime, probe }) => ({
       accountId: account.accountId,
       enabled: account.enabled,
