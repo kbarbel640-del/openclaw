@@ -65,9 +65,9 @@ async function getGatewayToken() {
 
 function setBadge(tabId, kind) {
   const cfg = BADGE[kind]
-  void chrome.action.setBadgeText({ tabId, text: cfg.text })
-  void chrome.action.setBadgeBackgroundColor({ tabId, color: cfg.color })
-  void chrome.action.setBadgeTextColor({ tabId, color: '#FFFFFF' }).catch(() => {})
+  void chrome.action.setBadgeText({ tabId, text: cfg.text }).catch(() => { })
+  void chrome.action.setBadgeBackgroundColor({ tabId, color: cfg.color }).catch(() => { })
+  void chrome.action.setBadgeTextColor({ tabId, color: '#FFFFFF' }).catch(() => { })
 }
 
 // Persist attached tab state to survive MV3 service worker restarts.
@@ -210,7 +210,7 @@ function onRelayClosed(reason) {
       void chrome.action.setTitle({
         tabId,
         title: 'OpenClaw Browser Relay: relay reconnecting…',
-      })
+      }).catch(() => { })
     }
   }
 
@@ -457,7 +457,7 @@ function getTabByTargetId(targetId) {
 async function attachTab(tabId, opts = {}) {
   const debuggee = { tabId }
   await chrome.debugger.attach(debuggee, '1.3')
-  await chrome.debugger.sendCommand(debuggee, 'Page.enable').catch(() => {})
+  await chrome.debugger.sendCommand(debuggee, 'Page.enable').catch(() => { })
 
   const info = /** @type {any} */ (await chrome.debugger.sendCommand(debuggee, 'Target.getTargetInfo'))
   const targetInfo = info?.targetInfo
@@ -475,7 +475,7 @@ async function attachTab(tabId, opts = {}) {
   void chrome.action.setTitle({
     tabId,
     title: 'OpenClaw Browser Relay: attached (click to detach)',
-  })
+  }).catch(() => { })
 
   if (!opts.skipAttachedEvent) {
     sendToRelay({
@@ -546,7 +546,7 @@ async function detachTab(tabId, reason) {
   void chrome.action.setTitle({
     tabId,
     title: 'OpenClaw Browser Relay (click to attach/detach)',
-  })
+  }).catch(() => { })
 
   await persistState()
 }
@@ -567,7 +567,7 @@ async function connectOrToggleForActiveTab() {
       void chrome.action.setTitle({
         tabId,
         title: 'OpenClaw Browser Relay (click to attach/detach)',
-      })
+      }).catch(() => { })
       return
     }
 
@@ -585,7 +585,7 @@ async function connectOrToggleForActiveTab() {
     void chrome.action.setTitle({
       tabId,
       title: 'OpenClaw Browser Relay: connecting to local relay…',
-    })
+    }).catch(() => { })
 
     try {
       await ensureRelayConnection()
@@ -596,7 +596,7 @@ async function connectOrToggleForActiveTab() {
       void chrome.action.setTitle({
         tabId,
         title: 'OpenClaw Browser Relay: relay not running (open options for setup)',
-      })
+      }).catch(() => { })
       void maybeOpenHelpOnce()
       const message = err instanceof Error ? err.message : String(err)
       console.warn('attach failed', message, nowStack())
@@ -666,9 +666,9 @@ async function handleForwardCdpCommand(msg) {
     const tab = await chrome.tabs.get(toActivate).catch(() => null)
     if (!tab) return {}
     if (tab.windowId) {
-      await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {})
+      await chrome.windows.update(tab.windowId, { focused: true }).catch(() => { })
     }
-    await chrome.tabs.update(toActivate, { active: true }).catch(() => {})
+    await chrome.tabs.update(toActivate, { active: true }).catch(() => { })
     return {}
   }
 
