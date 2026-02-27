@@ -122,6 +122,19 @@ describe("runCommandWithTimeout", () => {
     expect(result.stdout.length).toBeGreaterThanOrEqual(7);
   });
 
+  it("does not throw when child closes stdin early (EPIPE)", async () => {
+    const result = await runCommandWithTimeout(
+      [process.execPath, "-e", "process.stdin.destroy(); process.exit(0)"],
+      {
+        timeoutMs: 5_000,
+        input: "some data that will trigger EPIPE",
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(result.termination).toBe("exit");
+  });
+
   it("reports global timeout termination when overall timeout elapses", async () => {
     const result = await runCommandWithTimeout(
       [process.execPath, "-e", "setTimeout(() => {}, 40)"],
