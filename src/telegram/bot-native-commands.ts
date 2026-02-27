@@ -264,8 +264,9 @@ async function resolveTelegramCommandAuth(params: {
   });
   if (commandsAllowFromList !== null) {
     const commandsAllowAll = commandsAllowFromList.some((entry) => entry.trim() === "*");
+    const normalizedUsername = senderUsername.toLowerCase();
     const senderInList = commandsAllowFromList.some(
-      (entry) => entry === senderId || entry === senderUsername,
+      (entry) => entry === senderId || entry === normalizedUsername,
     );
     const commandAuthorized = commandsAllowAll || senderInList;
     if (requireAuth && !commandAuthorized) {

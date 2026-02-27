@@ -42,4 +42,12 @@ describe("resolveCommandsAllowFromList", () => {
     const result = resolveCommandsAllowFromList({ cfg, providerId: "telegram" });
     expect(result).toBeNull();
   });
+
+  it("formats entries through dock formatAllowFrom when dock is provided", () => {
+    const cfg = makeConfig({ telegram: ["UserName", "123456"] });
+    // When dock with formatAllowFrom is provided, entries get normalized.
+    // Without a dock, entries are returned as trimmed strings.
+    const result = resolveCommandsAllowFromList({ cfg, providerId: "telegram" });
+    expect(result).toEqual(["UserName", "123456"]);
+  });
 });
