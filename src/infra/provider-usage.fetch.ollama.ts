@@ -129,7 +129,8 @@ function parseOllamaUsageFromHtml(html: string): UsageWindow[] {
 
 /**
  * Parse a percentage value from a string.
- * Handles both "42%" and "0.42" formats.
+ * The regex already captures the percentage number (e.g., "17.6" from "17.6%"),
+ * so we just return it directly - no conversion needed.
  */
 function parsePercentage(value: string): number | null {
   const cleaned = value.replace("%", "").trim();
@@ -139,9 +140,8 @@ function parsePercentage(value: string): number | null {
     return null;
   }
 
-  // If value is > 1, it's already a percentage (e.g., "42")
-  // If value is <= 1, it's a fraction (e.g., "0.42")
-  return num > 1 ? num : num * 100;
+  // The captured value is already a percentage, return as-is
+  return num;
 }
 
 /**

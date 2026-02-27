@@ -71,4 +71,34 @@ describe("fetchOllamaUsage", () => {
       }),
     );
   });
+
+  it("parses low percentage values correctly (not inflated)", async () => {
+    // Test that 0.5% stays as 0.5, not inflated to 50
+    // Bug fix: parsePercentage was incorrectly multiplying small values by 100
+    const mockHtml = `
+      <html>
+        <body>
+          <div>Session usage</div>
+          <span>0.5% used</span>
+          <div>Weekly usage</div>
+          <span>1% used</span>
+        </body>
+      </html>
+    `;
+
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(mockHtml, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      }),
+    );
+
+    const result = await fetchOllamaUsage("session=test", 5000, mockFetch, "ollama");
+
+    expect(result.windows.length).toBe(2);
+    // Session should be 0.5%, not 50%
+    expect(result.windows[0].usedPercent).toBe(0.5);
+    // Weekly should be 1%, not 100%
+    expect(result.windows[1].usedPercent).toBe(1);
+  });
 });
