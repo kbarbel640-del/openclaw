@@ -326,8 +326,10 @@ export async function registerSlackMonitorSlashCommands(params: {
         return;
       }
 
+      const allowFromScope =
+        ctx.accountId === account.accountId ? ctx : { ...ctx, accountId: account.accountId };
       const { allowFromLower: effectiveAllowFromLower } = await resolveSlackEffectiveAllowFrom(
-        ctx,
+        allowFromScope,
         {
           includePairingStore: isDirectMessage,
         },
@@ -340,7 +342,7 @@ export async function registerSlackMonitorSlashCommands(params: {
       if (isDirectMessage) {
         const allowed = await authorizeSlackDirectMessage({
           ctx,
-          accountId: ctx.accountId,
+          accountId: account.accountId,
           senderId: command.user_id,
           allowFromLower: effectiveAllowFromLower,
           resolveSenderName: ctx.resolveUserName,
