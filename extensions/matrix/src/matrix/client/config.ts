@@ -1,8 +1,6 @@
-import { MatrixClient } from "@vector-im/matrix-bot-sdk";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";
 import { getMatrixRuntime } from "../../runtime.js";
 import type { CoreConfig } from "../../types.js";
-import { ensureMatrixSdkLoggingConfigured } from "./logging.js";
 import type { MatrixAuth, MatrixResolvedConfig } from "./types.js";
 
 function clean(value?: string): string {
@@ -117,17 +115,30 @@ export async function resolveMatrixAuth(params?: {
   if (resolved.accessToken) {
     let userId = resolved.userId;
     if (!userId) {
-      // Fetch userId from access token via whoami
-      ensureMatrixSdkLoggingConfigured();
-      const tempClient = new MatrixClient(resolved.homeserver, resolved.accessToken);
-      const whoami = await tempClient.getUserId();
-      userId = whoami;
-      // Save the credentials with the fetched userId
+      // Fetch userId + deviceId from whoami endpoint
+      const whoamiResponse = await fetch(
+        `${resolved.homeserver}/_matrix/client/v3/account/whoami`,
+        { headers: { Authorization: `Bearer ${resolved.accessToken}` } },
+      );
+      if (!whoamiResponse.ok) {
+        const errorText = await whoamiResponse.text();
+        throw new Error(`Matrix whoami failed: ${errorText}`);
+      }
+      const whoami = (await whoamiResponse.json()) as {
+        user_id?: string;
+        device_id?: string;
+      };
+      userId = whoami.user_id ?? "";
+      if (!userId) {
+        throw new Error("Matrix whoami did not return a user_id");
+      }
+      // Save credentials including deviceId so E2EE survives restarts
       saveMatrixCredentials(
         {
           homeserver: resolved.homeserver,
           userId,
           accessToken: resolved.accessToken,
+          ...(whoami.device_id ? { deviceId: whoami.device_id } : {}),
         },
         env,
         accountId,
