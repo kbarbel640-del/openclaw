@@ -47,6 +47,34 @@ const { App, HTTPReceiver } = slackBolt;
 const SLACK_WEBHOOK_MAX_BODY_BYTES = 1024 * 1024;
 const SLACK_WEBHOOK_BODY_TIMEOUT_MS = 30_000;
 
+type SlackSocketLifecycleClient = {
+  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  off?: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  removeListener?: (event: string, listener: (...args: unknown[]) => void) => unknown;
+};
+
+function resolveSlackSocketLifecycleClient(app: unknown): SlackSocketLifecycleClient | null {
+  const candidate = (app as { receiver?: { client?: unknown } }).receiver?.client;
+  if (!candidate || typeof (candidate as { on?: unknown }).on !== "function") {
+    return null;
+  }
+  return candidate as SlackSocketLifecycleClient;
+}
+
+function detachSocketLifecycleListener(
+  client: SlackSocketLifecycleClient,
+  event: string,
+  listener: (...args: unknown[]) => void,
+): void {
+  if (typeof client.off === "function") {
+    client.off(event, listener);
+    return;
+  }
+  if (typeof client.removeListener === "function") {
+    client.removeListener(event, listener);
+  }
+}
+
 function parseApiAppIdFromAppToken(raw?: string) {
   const token = raw?.trim();
   if (!token) {
@@ -348,6 +376,43 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   };
   opts.abortSignal?.addEventListener("abort", stopOnAbort, { once: true });
 
+  type SlackSocketLifecycleWaitResult =
+    | { kind: "abort" }
+    | { kind: "disconnected"; event: string; error?: unknown };
+
+  const waitForSocketDisconnect =
+    slackMode === "socket"
+      ? (() => {
+          const lifecycleClient = resolveSlackSocketLifecycleClient(app);
+          if (!lifecycleClient) {
+            return null;
+          }
+          const listeners: Array<{ event: string; handler: (...args: unknown[]) => void }> = [];
+          const cleanup = () => {
+            for (const entry of listeners) {
+              detachSocketLifecycleListener(lifecycleClient, entry.event, entry.handler);
+            }
+            listeners.length = 0;
+          };
+          const promise = new Promise<SlackSocketLifecycleWaitResult>((resolve) => {
+            const onDisconnect = (event: string, error?: unknown) => {
+              if (opts.abortSignal?.aborted) {
+                return;
+              }
+              cleanup();
+              // Intentionally exit the provider on disconnect. The gateway's channel manager
+              // will auto-restart it (and for manual invocations, the user sees a clear error).
+              runtime.error?.(`slack socket mode disconnected (${event}); restarting provider`);
+              resolve({ kind: "disconnected", event, error });
+            };
+            const onDisconnected = (error?: unknown) => onDisconnect("disconnected", error);
+            listeners.push({ event: "disconnected", handler: onDisconnected });
+            lifecycleClient.on("disconnected", onDisconnected);
+          });
+          return { cleanup, promise };
+        })()
+      : null;
+
   try {
     if (slackMode === "socket") {
       await app.start();
@@ -358,12 +423,19 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
     if (opts.abortSignal?.aborted) {
       return;
     }
-    await new Promise<void>((resolve) => {
-      opts.abortSignal?.addEventListener("abort", () => resolve(), {
+    const waitForAbort = new Promise<SlackSocketLifecycleWaitResult>((resolve) => {
+      opts.abortSignal?.addEventListener("abort", () => resolve({ kind: "abort" }), {
         once: true,
       });
     });
+    const result = await (waitForSocketDisconnect
+      ? Promise.race([waitForAbort, waitForSocketDisconnect.promise])
+      : waitForAbort);
+    if (result.kind === "disconnected") {
+      throw new Error(`slack socket mode disconnected (${result.event})`);
+    }
   } finally {
+    waitForSocketDisconnect?.cleanup();
     opts.abortSignal?.removeEventListener("abort", stopOnAbort);
     unregisterHttpHandler?.();
     await app.stop().catch(() => undefined);
