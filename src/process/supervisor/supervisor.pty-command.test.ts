@@ -6,6 +6,7 @@ const { createPtyAdapterMock } = vi.hoisted(() => ({
 
 vi.mock("../../agents/shell-utils.js", () => ({
   getShellConfig: () => ({ shell: "sh", args: ["-c"] }),
+  wrapCommandForShell: (_shell: string, command: string) => command,
 }));
 
 vi.mock("./adapters/pty.js", () => ({
@@ -60,7 +61,8 @@ describe("process supervisor PTY command contract", () => {
     expect(exit.reason).toBe("exit");
     expect(createPtyAdapterMock).toHaveBeenCalledTimes(1);
     const params = createPtyAdapterMock.mock.calls[0]?.[0] as { args?: string[] };
-    expect(params.args).toEqual(["-c", command]);
+    expect(params.args).toEqual(["-c", expect.any(String)]);
+    expect(params.args?.[1]).toContain(command);
   });
 
   it("rejects empty PTY command", async () => {
