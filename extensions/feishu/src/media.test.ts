@@ -253,6 +253,43 @@ describe("sendMediaFeishu msg_type routing", () => {
     expectPathIsolatedToTmpRoot(capturedPath as string, fileKey);
   });
 
+  it("forwards mediaLocalRoots to loadWebMedia", async () => {
+    loadWebMediaMock.mockResolvedValueOnce({
+      buffer: Buffer.from("image-bytes"),
+      fileName: "photo.png",
+      kind: "image",
+      contentType: "image/png",
+    });
+
+    createFeishuClientMock.mockReturnValue({
+      im: {
+        image: {
+          create: vi.fn().mockResolvedValue({ code: 0, image_key: "img_key_1" }),
+          get: imageGetMock,
+        },
+        message: {
+          create: messageCreateMock,
+          reply: messageReplyMock,
+        },
+        messageResource: { get: messageResourceGetMock },
+        file: { create: fileCreateMock },
+      },
+    });
+
+    const roots = ["/Users/alice/clawd", "/tmp/openclaw"];
+    await sendMediaFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      mediaUrl: "/Users/alice/clawd/photo.png",
+      mediaLocalRoots: roots,
+    });
+
+    expect(loadWebMediaMock).toHaveBeenCalledWith(
+      "/Users/alice/clawd/photo.png",
+      expect.objectContaining({ localRoots: roots }),
+    );
+  });
+
   it("rejects invalid image keys before calling feishu api", async () => {
     await expect(
       downloadImageFeishu({
