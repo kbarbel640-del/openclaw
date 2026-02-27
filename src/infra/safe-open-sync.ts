@@ -55,6 +55,7 @@ export function openVerifiedFileSync(params: {
     typeof ioFs.constants.O_NOFOLLOW === "number" ? ioFs.constants.O_NOFOLLOW : 0;
   const openReadFlags = readOnlyFlags | noFollowFlag;
   let fd: number | null = null;
+  let usedNoFollowFallback = false;
   try {
     if (params.rejectPathSymlink) {
       const candidateStat = ioFs.lstatSync(params.filePath);
@@ -80,6 +81,7 @@ export function openVerifiedFileSync(params: {
     } catch (error) {
       // Some environments expose O_NOFOLLOW but reject it at runtime.
       if (noFollowFlag !== 0 && isUnsupportedNoFollowError(error)) {
+        usedNoFollowFallback = true;
         fd = ioFs.openSync(realPath, readOnlyFlags);
       } else {
         throw error;
@@ -94,6 +96,21 @@ export function openVerifiedFileSync(params: {
     }
     if (params.maxBytes !== undefined && openedStat.size > params.maxBytes) {
       return { ok: false, reason: "validation" };
+    }
+    if (usedNoFollowFallback) {
+      // Without O_NOFOLLOW support, re-check that the opened path node is still
+      // a regular file and still resolves to the same inode/device as the fd.
+      // This closes the obvious rename+symlink race on the fallback path.
+      const postOpenPathStat = ioFs.lstatSync(realPath);
+      if (!postOpenPathStat.isFile()) {
+        return { ok: false, reason: "validation" };
+      }
+      if (params.rejectHardlinks && postOpenPathStat.nlink > 1) {
+        return { ok: false, reason: "validation" };
+      }
+      if (!sameFileIdentity(postOpenPathStat, openedStat)) {
+        return { ok: false, reason: "validation" };
+      }
     }
     if (!sameFileIdentity(preOpenStat, openedStat)) {
       return { ok: false, reason: "validation" };
