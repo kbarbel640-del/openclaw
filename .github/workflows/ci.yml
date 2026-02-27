@@ -425,12 +425,12 @@ jobs:
             task: test
             shard_index: 1
             shard_count: 2
-            command: pnpm canvas:a2ui:bundle && pnpm test
+            command: pnpm test
           - runtime: node
             task: test
             shard_index: 2
             shard_count: 2
-            command: pnpm canvas:a2ui:bundle && pnpm test
+            command: pnpm test
           - runtime: node
             task: protocol
             shard_index: 0
