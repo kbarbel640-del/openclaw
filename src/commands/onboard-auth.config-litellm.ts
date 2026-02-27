@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
+import type { ModelInputModality } from "../config/types.models.js";
 import {
   applyAgentDefaultModelPrimary,
   applyProviderConfigWithDefaultModel,
@@ -20,7 +21,7 @@ function buildLitellmModelDefinition(): {
   id: string;
   name: string;
   reasoning: boolean;
-  input: Array<"text" | "image">;
+  input: Array<ModelInputModality>;
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
   contextWindow: number;
   maxTokens: number;

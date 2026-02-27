@@ -2,11 +2,13 @@ export const KILOCODE_BASE_URL = "https://api.kilo.ai/api/gateway/";
 export const KILOCODE_DEFAULT_MODEL_ID = "anthropic/claude-opus-4.6";
 export const KILOCODE_DEFAULT_MODEL_REF = `kilocode/${KILOCODE_DEFAULT_MODEL_ID}`;
 export const KILOCODE_DEFAULT_MODEL_NAME = "Claude Opus 4.6";
+import type { ModelInputModality } from "../config/types.models.js";
+
 export type KilocodeModelCatalogEntry = {
   id: string;
   name: string;
   reasoning: boolean;
-  input: Array<"text" | "image">;
+  input: Array<ModelInputModality>;
   contextWindow?: number;
   maxTokens?: number;
 };

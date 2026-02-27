@@ -1,4 +1,5 @@
 import { type OpenClawConfig, loadConfig } from "../config/config.js";
+import type { ModelInputModality } from "../config/types.models.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import { ensureOpenClawModelsJson } from "./models-config.js";
@@ -11,7 +12,7 @@ export type ModelCatalogEntry = {
   provider: string;
   contextWindow?: number;
   reasoning?: boolean;
-  input?: Array<"text" | "image">;
+  input?: Array<ModelInputModality>;
 };
 
 type DiscoveredModel = {
@@ -20,7 +21,7 @@ type DiscoveredModel = {
   provider: string;
   contextWindow?: number;
   reasoning?: boolean;
-  input?: Array<"text" | "image">;
+  input?: Array<ModelInputModality>;
 };
 
 type PiSdkModule = typeof import("./pi-model-discovery.js");
@@ -60,12 +61,15 @@ function applyOpenAICodexSparkFallback(models: ModelCatalogEntry[]): void {
   });
 }
 
-function normalizeConfiguredModelInput(input: unknown): Array<"text" | "image"> | undefined {
+const VALID_INPUT_MODALITIES = new Set<ModelInputModality>(["text", "image", "video", "audio"]);
+
+function normalizeConfiguredModelInput(input: unknown): Array<ModelInputModality> | undefined {
   if (!Array.isArray(input)) {
     return undefined;
   }
   const normalized = input.filter(
-    (item): item is "text" | "image" => item === "text" || item === "image",
+    (item): item is ModelInputModality =>
+      typeof item === "string" && VALID_INPUT_MODALITIES.has(item as ModelInputModality),
   );
   return normalized.length > 0 ? normalized : undefined;
 }
