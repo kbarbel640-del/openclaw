@@ -12,6 +12,7 @@ import {
   resolveDiscordEmbedText,
   resolveDiscordMessageChannelId,
 } from "./message-utils.js";
+import { DEFAULT_DISCORD_THREAD_AUTO_ARCHIVE_DURATION } from "./thread-bindings.config.js";
 
 export type DiscordThreadChannel = {
   id: string;
@@ -402,7 +403,7 @@ export async function maybeCreateDiscordAutoThread(params: {
       {
         body: {
           name: threadName,
-          auto_archive_duration: 60,
+          auto_archive_duration: DEFAULT_DISCORD_THREAD_AUTO_ARCHIVE_DURATION,
         },
       },
     )) as { id?: string };

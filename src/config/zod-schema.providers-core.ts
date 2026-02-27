@@ -487,6 +487,7 @@ export const DiscordAccountSchema = z
         ttlHours: z.number().nonnegative().optional(),
         spawnSubagentSessions: z.boolean().optional(),
         spawnAcpSessions: z.boolean().optional(),
+        autoArchiveDuration: z.number().int().positive().optional(),
       })
       .strict()
       .optional(),

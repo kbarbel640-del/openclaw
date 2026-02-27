@@ -334,7 +334,7 @@ describe("thread binding ttl", () => {
     expect(hoisted.createThreadDiscord).toHaveBeenCalledTimes(1);
     expect(hoisted.createThreadDiscord).toHaveBeenCalledWith(
       "parent-1",
-      expect.objectContaining({ autoArchiveMinutes: 60 }),
+      expect.objectContaining({ autoArchiveMinutes: 10_080 }),
       expect.objectContaining({ accountId: "default" }),
     );
     expect(manager.getByThreadId("thread-1")?.targetSessionKey).toBe("agent:main:subagent:parent");
@@ -373,7 +373,7 @@ describe("thread binding ttl", () => {
     expect(hoisted.restGet).toHaveBeenCalledTimes(1);
     expect(hoisted.createThreadDiscord).toHaveBeenCalledWith(
       "parent-1",
-      expect.objectContaining({ autoArchiveMinutes: 60 }),
+      expect.objectContaining({ autoArchiveMinutes: 10_080 }),
       expect.objectContaining({ accountId: "default" }),
     );
   });
@@ -446,7 +446,7 @@ describe("thread binding ttl", () => {
     expect(bound).not.toBeNull();
     expect(hoisted.createThreadDiscord).toHaveBeenCalledWith(
       "parent-runtime",
-      expect.objectContaining({ autoArchiveMinutes: 60 }),
+      expect.objectContaining({ autoArchiveMinutes: 10_080 }),
       expect.objectContaining({ accountId: "runtime", token: "token-new" }),
     );
     const usedTokenNew = hoisted.createDiscordRestClient.mock.calls.some(
