@@ -106,11 +106,15 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   let channelsConfig = slackCfg.channels;
   const defaultGroupPolicy = resolveDefaultGroupPolicy(cfg);
   const providerConfigPresent = cfg.channels?.slack !== undefined;
-  const { groupPolicy, providerMissingFallbackApplied } = resolveOpenProviderRuntimeGroupPolicy({
-    providerConfigPresent,
-    groupPolicy: slackCfg.groupPolicy,
-    defaultGroupPolicy,
-  });
+  const { groupPolicy: rawGroupPolicy, providerMissingFallbackApplied } =
+    resolveOpenProviderRuntimeGroupPolicy({
+      providerConfigPresent,
+      groupPolicy: slackCfg.groupPolicy,
+      defaultGroupPolicy,
+    });
+  // "members" is Telegram-only; normalize to "open" for Slack
+  const groupPolicy: "open" | "allowlist" | "disabled" =
+    rawGroupPolicy === "members" ? "open" : rawGroupPolicy;
   warnMissingProviderGroupPolicyFallbackOnce({
     providerMissingFallbackApplied,
     providerKey: "slack",

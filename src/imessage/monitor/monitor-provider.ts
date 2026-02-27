@@ -107,11 +107,15 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       (imessageCfg.allowFrom && imessageCfg.allowFrom.length > 0 ? imessageCfg.allowFrom : []),
   );
   const defaultGroupPolicy = resolveDefaultGroupPolicy(cfg);
-  const { groupPolicy, providerMissingFallbackApplied } = resolveOpenProviderRuntimeGroupPolicy({
-    providerConfigPresent: cfg.channels?.imessage !== undefined,
-    groupPolicy: imessageCfg.groupPolicy,
-    defaultGroupPolicy,
-  });
+  const { groupPolicy: rawGroupPolicy, providerMissingFallbackApplied } =
+    resolveOpenProviderRuntimeGroupPolicy({
+      providerConfigPresent: cfg.channels?.imessage !== undefined,
+      groupPolicy: imessageCfg.groupPolicy,
+      defaultGroupPolicy,
+    });
+  // "members" is Telegram-only; normalize to "open" for iMessage
+  const groupPolicy: "open" | "allowlist" | "disabled" =
+    rawGroupPolicy === "members" ? "open" : rawGroupPolicy;
   warnMissingProviderGroupPolicyFallbackOnce({
     providerMissingFallbackApplied,
     providerKey: "imessage",
