@@ -14,6 +14,7 @@ import {
   markAuthProfileGood,
   markAuthProfileUsed,
   resolveProfilesUnavailableReason,
+  saveAuthProfileStore,
 } from "../auth-profiles.js";
 import {
   CONTEXT_WINDOW_HARD_MIN_TOKENS,
@@ -27,6 +28,7 @@ import {
   ensureAuthProfileStore,
   getApiKeyForModel,
   resolveAuthProfileOrder,
+  SYSTEM_KEYCHAIN_PROVIDERS,
   type ResolvedProviderAuth,
 } from "../model-auth.js";
 import { normalizeProviderId } from "../model-selection.js";
@@ -333,6 +335,45 @@ export async function runEmbeddedPiAgent(
       }
 
       const authStore = ensureAuthProfileStore(agentDir, { allowKeychainPrompt: false });
+
+      // Claude SDK runtime: system-keychain providers (claude-pro, claude-max) use the
+      // Claude CLI subprocess. No API key is needed — auth is handled by the CLI's own
+      // OAuth credentials from ~/.claude/. On failure, model failover (FailoverError)
+      // handles switching to a different provider/model.
+      //
+      // A synthetic auth profile (e.g. "claude-pro:system-keychain") is registered so
+      // the cooldown system can track failures across sessions — without it, every new
+      // session would retry a broken OAuth token before failing over.
+      const normalizedProvider = normalizeProviderId(provider);
+      const isSystemKeychainProvider = SYSTEM_KEYCHAIN_PROVIDERS.has(normalizedProvider);
+      let runtimeOverride: "pi" | "claude-sdk" | undefined;
+      let systemKeychainProfileId: string | undefined;
+      let attemptedSystemKeychainRuntimeFallback = false;
+      if (isSystemKeychainProvider) {
+        systemKeychainProfileId = `${normalizedProvider}:system-keychain`;
+        if (!authStore.profiles[systemKeychainProfileId]) {
+          authStore.profiles[systemKeychainProfileId] = {
+            type: "token",
+            provider: normalizedProvider,
+            token: "system-keychain",
+          };
+          saveAuthProfileStore(authStore, agentDir);
+        }
+        if (isProfileInCooldown(authStore, systemKeychainProfileId)) {
+          // System-keychain auth recently failed; skip claude-sdk and trigger
+          // model failover immediately so we don't block on a broken OAuth token.
+          throw fallbackConfigured
+            ? new FailoverError(`Claude SDK auth for ${provider} is in cooldown.`, {
+                reason: "auth",
+                provider,
+                model: modelId,
+                status: resolveFailoverStatus("auth"),
+              })
+            : new Error(`Claude SDK auth for ${provider} is in cooldown.`);
+        }
+        runtimeOverride = "claude-sdk";
+      }
+
       const preferredProfileId = params.authProfileId?.trim();
       let lockedProfileId = params.authProfileIdSource === "user" ? preferredProfileId : undefined;
       if (lockedProfileId) {
@@ -430,7 +471,7 @@ export async function runEmbeddedPiAgent(
         apiKeyInfo = await resolveApiKeyForCandidate(candidate);
         const resolvedProfileId = apiKeyInfo.profileId ?? candidate;
         if (!apiKeyInfo.apiKey) {
-          if (apiKeyInfo.mode !== "aws-sdk") {
+          if (apiKeyInfo.mode !== "aws-sdk" && apiKeyInfo.mode !== "system-keychain") {
             throw new Error(
               `No API key resolved for provider "${model.provider}" (auth mode: ${apiKeyInfo.mode}).`,
             );
@@ -478,6 +519,21 @@ export async function runEmbeddedPiAgent(
         return false;
       };
 
+      const fallbackSystemKeychainRuntime = async (): Promise<boolean> => {
+        if (
+          attemptedSystemKeychainRuntimeFallback ||
+          !isSystemKeychainProvider ||
+          runtimeOverride !== "claude-sdk"
+        ) {
+          return false;
+        }
+        attemptedSystemKeychainRuntimeFallback = true;
+        runtimeOverride = "pi";
+        systemKeychainProfileId = undefined;
+        await applyApiKeyInfo(profileCandidates[profileIndex]);
+        return true;
+      };
+
       try {
         while (profileIndex < profileCandidates.length) {
           const candidate = profileCandidates[profileIndex];
@@ -499,13 +555,30 @@ export async function runEmbeddedPiAgent(
         if (err instanceof FailoverError) {
           throw err;
         }
-        if (profileCandidates[profileIndex] === lockedProfileId) {
-          throwAuthProfileFailover({ allInCooldown: false, error: err });
+        let authError: unknown = err;
+        try {
+          const switchedRuntime = await fallbackSystemKeychainRuntime();
+          if (switchedRuntime) {
+            authError = undefined;
+          }
+        } catch (fallbackErr) {
+          authError = fallbackErr;
         }
-        const advanced = await advanceAuthProfile();
-        if (!advanced) {
-          throwAuthProfileFailover({ allInCooldown: false, error: err });
+        if (authError && profileCandidates[profileIndex] === lockedProfileId) {
+          throwAuthProfileFailover({ allInCooldown: false, error: authError });
         }
+        if (authError) {
+          const advanced = await advanceAuthProfile();
+          if (!advanced) {
+            throwAuthProfileFailover({ allInCooldown: false, error: authError });
+          }
+        }
+      }
+
+      // For system-keychain providers, pin lastProfileId to the synthetic profile
+      // so cooldown tracking works on failure paths.
+      if (systemKeychainProfileId && runtimeOverride === "claude-sdk") {
+        lastProfileId = systemKeychainProfileId;
       }
 
       const MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
@@ -601,6 +674,8 @@ export async function runEmbeddedPiAgent(
             provider,
             modelId,
             model,
+            runtimeOverride,
+            resolvedProviderAuth: apiKeyInfo ?? undefined,
             authStorage,
             modelRegistry,
             agentId: workspaceResolution.agentId,
