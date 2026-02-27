@@ -91,7 +91,6 @@ export async function maybeInstallDaemon(params: {
         const { programArguments, workingDirectory, environment } = await buildGatewayInstallPlan({
           env: process.env,
           port: params.port,
-          token: params.gatewayToken,
           runtime: daemonRuntime,
           warn: (message, title) => note(message, title),
           config: cfg,

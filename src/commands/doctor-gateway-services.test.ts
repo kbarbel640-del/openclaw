@@ -5,6 +5,7 @@ import { withEnvAsync } from "../test-utils/env.js";
 const mocks = vi.hoisted(() => ({
   readCommand: vi.fn(),
   install: vi.fn(),
+  writeConfigFile: vi.fn().mockResolvedValue(undefined),
   auditGatewayServiceConfig: vi.fn(),
   buildGatewayInstallPlan: vi.fn(),
   resolveGatewayPort: vi.fn(() => 18789),
@@ -18,6 +19,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../config/paths.js", () => ({
   resolveGatewayPort: mocks.resolveGatewayPort,
   resolveIsNixMode: mocks.resolveIsNixMode,
+}));
+
+vi.mock("../config/config.js", () => ({
+  writeConfigFile: mocks.writeConfigFile,
 }));
 
 vi.mock("../daemon/inspect.js", () => ({
@@ -90,7 +95,7 @@ const gatewayProgramArguments = [
   "18789",
 ];
 
-function setupGatewayTokenRepairScenario(expectedToken: string) {
+function setupGatewayTokenRepairScenario() {
   mocks.readCommand.mockResolvedValue({
     programArguments: gatewayProgramArguments,
     environment: {
@@ -110,9 +115,7 @@ function setupGatewayTokenRepairScenario(expectedToken: string) {
   mocks.buildGatewayInstallPlan.mockResolvedValue({
     programArguments: gatewayProgramArguments,
     workingDirectory: "/tmp",
-    environment: {
-      OPENCLAW_GATEWAY_TOKEN: expectedToken,
-    },
+    environment: {},
   });
   mocks.install.mockResolvedValue(undefined);
 }
@@ -123,7 +126,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
   });
 
   it("treats gateway.auth.token as source of truth for service token repairs", async () => {
-    setupGatewayTokenRepairScenario("config-token");
+    setupGatewayTokenRepairScenario();
 
     const cfg: OpenClawConfig = {
       gateway: {
@@ -143,15 +146,22 @@ describe("maybeRepairGatewayServiceConfig", () => {
     );
     expect(mocks.buildGatewayInstallPlan).toHaveBeenCalledWith(
       expect.objectContaining({
-        token: "config-token",
+        config: expect.objectContaining({
+          gateway: expect.objectContaining({
+            auth: expect.objectContaining({
+              token: "config-token",
+            }),
+          }),
+        }),
       }),
     );
+    expect(mocks.writeConfigFile).not.toHaveBeenCalled();
     expect(mocks.install).toHaveBeenCalledTimes(1);
   });
 
   it("uses OPENCLAW_GATEWAY_TOKEN when config token is missing", async () => {
     await withEnvAsync({ OPENCLAW_GATEWAY_TOKEN: "env-token" }, async () => {
-      setupGatewayTokenRepairScenario("env-token");
+      setupGatewayTokenRepairScenario();
 
       const cfg: OpenClawConfig = {
         gateway: {},
@@ -166,7 +176,22 @@ describe("maybeRepairGatewayServiceConfig", () => {
       );
       expect(mocks.buildGatewayInstallPlan).toHaveBeenCalledWith(
         expect.objectContaining({
-          token: "env-token",
+          config: expect.objectContaining({
+            gateway: expect.objectContaining({
+              auth: expect.objectContaining({
+                token: "env-token",
+              }),
+            }),
+          }),
+        }),
+      );
+      expect(mocks.writeConfigFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gateway: expect.objectContaining({
+            auth: expect.objectContaining({
+              token: "env-token",
+            }),
+          }),
         }),
       );
       expect(mocks.install).toHaveBeenCalledTimes(1);
