@@ -105,9 +105,10 @@ vi.mock("ws", () => ({
 
 describe("createDiscordGatewayPlugin", () => {
   let createDiscordGatewayPlugin: typeof import("./gateway-plugin.js").createDiscordGatewayPlugin;
+  let ResilientGatewayPlugin: typeof import("./gateway-plugin.js").ResilientGatewayPlugin;
 
   beforeAll(async () => {
-    ({ createDiscordGatewayPlugin } = await import("./gateway-plugin.js"));
+    ({ createDiscordGatewayPlugin, ResilientGatewayPlugin } = await import("./gateway-plugin.js"));
   });
 
   function createRuntime() {
@@ -161,7 +162,7 @@ describe("createDiscordGatewayPlugin", () => {
       runtime,
     });
 
-    expect(Object.getPrototypeOf(plugin)).toBe(GatewayPlugin.prototype);
+    expect(Object.getPrototypeOf(plugin)).toBe(ResilientGatewayPlugin.prototype);
     expect(runtime.error).toHaveBeenCalled();
     expect(runtime.log).not.toHaveBeenCalled();
   });
