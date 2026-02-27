@@ -403,7 +403,8 @@ export async function prepareSlackMessage(params: {
   const trimmedMessageText = (message.text ?? "").trim();
   const blockBody = resolveSlackInboundBlocksText(message.blocks);
   const primaryBody =
-    blockBody && (isBotMessage ? blockBody.length >= trimmedMessageText.length : !trimmedMessageText)
+    blockBody &&
+    (isBotMessage ? blockBody.length >= trimmedMessageText.length : !trimmedMessageText)
       ? blockBody
       : trimmedMessageText;
 
