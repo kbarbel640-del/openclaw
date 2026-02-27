@@ -24,6 +24,7 @@ interface BuildLineMessageContextParams {
   allMedia: MediaRef[];
   cfg: OpenClawConfig;
   account: ResolvedLineAccount;
+  commandAuthorized: boolean;
 }
 
 export type LineSourceInfo = {
@@ -217,6 +218,7 @@ async function finalizeLineInboundContext(params: {
   rawBody: string;
   timestamp: number;
   messageSid: string;
+  commandAuthorized: boolean;
   media: {
     firstPath: string | undefined;
     firstContentType?: string;
@@ -291,6 +293,7 @@ async function finalizeLineInboundContext(params: {
     MediaUrls: params.media.paths,
     MediaTypes: params.media.types,
     ...params.locationContext,
+    CommandAuthorized: params.commandAuthorized,
     OriginatingChannel: "line" as const,
     OriginatingTo: originatingTo,
   });
@@ -332,7 +335,7 @@ async function finalizeLineInboundContext(params: {
 }
 
 export async function buildLineMessageContext(params: BuildLineMessageContextParams) {
-  const { event, allMedia, cfg, account } = params;
+  const { event, allMedia, cfg, account, commandAuthorized } = params;
 
   const source = event.source;
   const { userId, groupId, roomId, isGroup, peerId, route } = resolveLineInboundRoute({
@@ -378,6 +381,7 @@ export async function buildLineMessageContext(params: BuildLineMessageContextPar
     rawBody,
     timestamp,
     messageSid: messageId,
+    commandAuthorized,
     media: {
       firstPath: allMedia[0]?.path,
       firstContentType: allMedia[0]?.contentType,
@@ -408,8 +412,9 @@ export async function buildLinePostbackContext(params: {
   event: PostbackEvent;
   cfg: OpenClawConfig;
   account: ResolvedLineAccount;
+  commandAuthorized: boolean;
 }) {
-  const { event, cfg, account } = params;
+  const { event, cfg, account, commandAuthorized } = params;
 
   const source = event.source;
   const { userId, groupId, roomId, isGroup, peerId, route } = resolveLineInboundRoute({
@@ -441,6 +446,7 @@ export async function buildLinePostbackContext(params: {
     rawBody,
     timestamp,
     messageSid,
+    commandAuthorized,
     media: {
       firstPath: "",
       firstContentType: undefined,
