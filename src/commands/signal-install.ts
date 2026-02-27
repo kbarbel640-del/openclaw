@@ -1,4 +1,4 @@
-import { createWriteStream } from "node:fs";
+import { createWriteStream, unlink as fsUnlink } from "node:fs";
 import fs from "node:fs/promises";
 import { request } from "node:https";
 import os from "node:os";
@@ -110,7 +110,13 @@ async function downloadToFile(url: string, dest: string, maxRedirects = 5): Prom
         return;
       }
       const out = createWriteStream(dest);
-      pipeline(res, out).then(resolve).catch(reject);
+      pipeline(res, out)
+        .then(resolve)
+        .catch((err) => {
+          out.destroy();
+          fsUnlink(dest, () => {}); // best-effort cleanup of partial file
+          reject(err);
+        });
     });
     req.on("error", reject);
     req.end();
