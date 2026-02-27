@@ -78,12 +78,14 @@ export type RuntimeVersionEnv = {
 export function resolveRuntimeServiceVersion(
   env: RuntimeVersionEnv = process.env as RuntimeVersionEnv,
   fallback = "dev",
+  moduleUrl = import.meta.url,
 ): string {
   return (
     firstNonEmpty(
       env["OPENCLAW_VERSION"],
       env["OPENCLAW_SERVICE_VERSION"],
       env["npm_package_version"],
+      resolveVersionFromModuleUrl(moduleUrl) ?? undefined,
     ) ?? fallback
   );
 }
