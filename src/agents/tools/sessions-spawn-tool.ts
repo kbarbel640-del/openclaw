@@ -22,6 +22,24 @@ const SessionsSpawnToolSchema = Type.Object({
   thread: Type.Optional(Type.Boolean()),
   mode: optionalStringEnum(SUBAGENT_SPAWN_MODES),
   cleanup: optionalStringEnum(["delete", "keep"] as const),
+
+  // MVP: Inline attachments (snapshot-by-value).
+  attachments: Type.Optional(
+    Type.Array(
+      Type.Object({
+        name: Type.String(),
+        content: Type.String(),
+        encoding: Type.Optional(optionalStringEnum(["utf8", "base64"] as const)),
+        mimeType: Type.Optional(Type.String()),
+      }),
+      { maxItems: 50 },
+    ),
+  ),
+  attachAs: Type.Optional(
+    Type.Object({
+      mountPath: Type.Optional(Type.String()),
+    }),
+  ),
 });
 
 export function createSessionsSpawnTool(opts?: {
@@ -68,6 +86,11 @@ export function createSessionsSpawnTool(opts?: {
           : undefined;
       const thread = params.thread === true;
 
+      const requestedAttachments = Array.isArray(params.attachments)
+        ? (params.attachments as Array<Record<string, unknown>>)
+        : [];
+      const attachAs = params.attachAs as { mountPath?: string } | undefined;
+
       const result =
         runtime === "acp"
           ? await spawnAcpDirect(
@@ -99,6 +122,8 @@ export function createSessionsSpawnTool(opts?: {
                 mode,
                 cleanup,
                 expectsCompletionMessage: true,
+                attachments: requestedAttachments,
+                attachAs,
               },
               {
                 agentSessionKey: opts?.agentSessionKey,
