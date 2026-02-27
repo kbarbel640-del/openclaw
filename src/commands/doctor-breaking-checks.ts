@@ -14,8 +14,17 @@ export type DoctorBreakingChangeCheck = {
   collectWarnings: (cfg: OpenClawConfig) => string[];
 };
 
-function hasExplicitAllowEntries(entries?: Array<string | number>): boolean {
-  return (entries ?? []).some((entry) => String(entry).trim().length > 0);
+function hasEffectiveTelegramAllowEntries(entries?: Array<string | number>): boolean {
+  return (entries ?? []).some((entry) => {
+    const value = String(entry).trim();
+    if (!value) {
+      return false;
+    }
+    if (value === "*") {
+      return true;
+    }
+    return /^\d+$/.test(value.replace(/^(telegram|tg):/i, ""));
+  });
 }
 
 function hasAccountConfigEntry(cfg: OpenClawConfig, accountId: string): boolean {
@@ -46,24 +55,19 @@ function collectTelegramGroupAllowlistUpgradeWarnings(cfg: OpenClawConfig): stri
       continue;
     }
 
-    const hasGroupOrTopicAllowFrom = Object.values(account.config.groups ?? {}).some((group) => {
-      if (hasExplicitAllowEntries(group?.allowFrom)) {
+    const hasScopedChatOverrides = Object.values(account.config.groups ?? {}).some((group) => {
+      if (group?.groupPolicy === "open" || hasEffectiveTelegramAllowEntries(group?.allowFrom)) {
         return true;
       }
-      return Object.values(group?.topics ?? {}).some((topic) =>
-        hasExplicitAllowEntries(topic?.allowFrom),
+      return Object.values(group?.topics ?? {}).some(
+        (topic) =>
+          topic?.groupPolicy === "open" || hasEffectiveTelegramAllowEntries(topic?.allowFrom),
       );
     });
-    const hasOpenGroupOrTopicOverride = Object.values(account.config.groups ?? {}).some(
-      (group) =>
-        group?.groupPolicy === "open" ||
-        Object.values(group?.topics ?? {}).some((topic) => topic?.groupPolicy === "open"),
-    );
-    const hasSenderAllowlist =
-      hasExplicitAllowEntries(account.config.groupAllowFrom) ||
-      hasExplicitAllowEntries(account.config.allowFrom) ||
-      hasGroupOrTopicAllowFrom;
-    if (hasSenderAllowlist || hasOpenGroupOrTopicOverride) {
+    const hasAccountSenderAllowlist =
+      hasEffectiveTelegramAllowEntries(account.config.groupAllowFrom) ||
+      hasEffectiveTelegramAllowEntries(account.config.allowFrom);
+    if (hasAccountSenderAllowlist) {
       continue;
     }
 
@@ -74,8 +78,12 @@ function collectTelegramGroupAllowlistUpgradeWarnings(cfg: OpenClawConfig): stri
       ? `channels.telegram.accounts.${account.accountId}`
       : "channels.telegram";
 
+    const impact = hasScopedChatOverrides
+      ? `only chats with explicit per-group/per-topic open or allowFrom overrides will work until you configure ${basePath}.groupAllowFrom with numeric sender IDs.`
+      : `group senders will be blocked until you configure ${basePath}.groupAllowFrom (or per-group/per-topic allowFrom) with numeric sender IDs.`;
+
     warnings.push(
-      `- [2026.2.25] Telegram account "${account.accountId}": groupPolicy resolves to "allowlist" but no sender allowlist is configured; group senders will be blocked. Configure ${basePath}.groupAllowFrom (or per-group/per-topic allowFrom) with numeric sender IDs.`,
+      `- [2026.2.25] Telegram account "${account.accountId}": groupPolicy resolves to "allowlist" but no account-level sender allowlist is configured; ${impact}`,
     );
   }
 

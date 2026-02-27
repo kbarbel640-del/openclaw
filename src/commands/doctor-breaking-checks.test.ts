@@ -98,7 +98,7 @@ describe("doctor breaking-change upgrade checks", () => {
     expect(collectBreakingChangeUpgradeWarnings(cfg)).toEqual([]);
   });
 
-  it("does not warn when open overrides are configured", () => {
+  it("warns when only some chats are opened via overrides", () => {
     const cfg = {
       channels: {
         telegram: {
@@ -110,6 +110,40 @@ describe("doctor breaking-change upgrade checks", () => {
               groupPolicy: "open",
             },
           },
+        },
+      },
+    } as OpenClawConfig;
+
+    expect(collectBreakingChangeUpgradeWarnings(cfg).join("\n")).toContain(
+      "no account-level sender allowlist is configured; only chats with explicit per-group/per-topic open or allowFrom overrides will work",
+    );
+  });
+
+  it("warns when telegram allowlist entries are invalid usernames", () => {
+    const cfg = {
+      channels: {
+        telegram: {
+          enabled: true,
+          botToken: "token",
+          groupPolicy: "allowlist",
+          groupAllowFrom: ["@legacy-user"],
+        },
+      },
+    } as OpenClawConfig;
+
+    expect(collectBreakingChangeUpgradeWarnings(cfg).join("\n")).toContain(
+      "no account-level sender allowlist is configured",
+    );
+  });
+
+  it("does not warn when telegram sender allowlist uses normalized numeric ids", () => {
+    const cfg = {
+      channels: {
+        telegram: {
+          enabled: true,
+          botToken: "token",
+          groupPolicy: "allowlist",
+          groupAllowFrom: [" tg:123456789 "],
         },
       },
     } as OpenClawConfig;
