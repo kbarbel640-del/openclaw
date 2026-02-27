@@ -17,6 +17,7 @@ const OPENAI_RESPONSES_APIS = new Set(["openai-responses"]);
 const OPENAI_RESPONSES_PROVIDERS = new Set(["openai", "azure-openai-responses"]);
 const RESPONSES_TOOL_CHAIN_APIS = new Set(["openai-responses", "openai-codex-responses"]);
 const RESPONSES_TOOL_CHAIN_DEBUG_ENV = "OPENCLAW_RESPONSES_TOOL_CHAIN_DEBUG";
+const RESPONSES_TOOL_CHAIN_CORRUPT_CODE = "OPENCLAW_RESPONSES_TOOL_CHAIN_CORRUPT";
 
 /**
  * Resolve provider-specific extra params from model config.
@@ -247,6 +248,9 @@ type ResponsesPayloadItem = {
   type?: unknown;
   call_id?: unknown;
 };
+const RESPONSES_TOOL_CHAIN_SESSION_KEYS_MAX = 256;
+const RESPONSES_TOOL_CHAIN_CALL_IDS_PER_SESSION_MAX = 4096;
+const responsesToolChainSeenCallIds = new Map<string, Set<string>>();
 
 function isResponsesToolChainDebugEnabled(): boolean {
   const raw = process.env[RESPONSES_TOOL_CHAIN_DEBUG_ENV]?.trim().toLowerCase();
@@ -262,6 +266,22 @@ function shouldGuardResponsesToolChainPayload(model: { api?: unknown }): boolean
 }
 
 function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>): void {
+  const sessionKey =
+    asString(payload.prompt_cache_key) ??
+    asString(payload.session_id) ??
+    asString(payload.sessionId) ??
+    "__default__";
+  let seenInSession = responsesToolChainSeenCallIds.get(sessionKey);
+  if (!seenInSession) {
+    seenInSession = new Set<string>();
+    responsesToolChainSeenCallIds.set(sessionKey, seenInSession);
+    if (responsesToolChainSeenCallIds.size > RESPONSES_TOOL_CHAIN_SESSION_KEYS_MAX) {
+      const oldest = responsesToolChainSeenCallIds.keys().next().value;
+      if (typeof oldest === "string") {
+        responsesToolChainSeenCallIds.delete(oldest);
+      }
+    }
+  }
   const inputRaw = payload.input;
   if (!Array.isArray(inputRaw)) {
     return;
@@ -271,6 +291,10 @@ function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>):
   const callCounts = new Map<string, number>();
   const allFunctionCalls: string[] = [];
   const allFunctionCallOutputs: string[] = [];
+  const dropped: Array<{
+    callId: string;
+    reason: "missing_call" | "duplicate_output" | "cross_response";
+  }> = [];
 
   for (const item of input) {
     if (!item || typeof item !== "object") {
@@ -280,6 +304,9 @@ function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>):
       const callId = asString(item.call_id);
       if (!callId) {
         continue;
+      }
+      if (seenInSession.has(callId)) {
+        dropped.push({ callId, reason: "cross_response" });
       }
       allFunctionCalls.push(callId);
       callCounts.set(callId, (callCounts.get(callId) ?? 0) + 1);
@@ -295,10 +322,6 @@ function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>):
 
   const seenFunctionCalls = new Set<string>();
   const seenFunctionCallOutputs = new Set<string>();
-  const dropped: Array<{
-    callId: string;
-    reason: "missing_call" | "duplicate_output" | "cross_response";
-  }> = [];
   const repairedInput: ResponsesPayloadItem[] = [];
 
   for (const item of input) {
@@ -342,12 +365,21 @@ function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>):
   const debugEnabled = isResponsesToolChainDebugEnabled();
   if (debugEnabled) {
     log.debug(
-      `[responses-tool-chain] response_id=${responseId ?? "-"} previous_response_id=${previousResponseId ?? "-"} ` +
+      `[responses-tool-chain] session=${sessionKey} response_id=${responseId ?? "-"} previous_response_id=${previousResponseId ?? "-"} ` +
         `function_call_ids=[${allFunctionCalls.join(",")}] function_call_output_ids=[${allFunctionCallOutputs.join(",")}]`,
     );
   }
 
   if (dropped.length === 0) {
+    for (const callId of allFunctionCalls) {
+      seenInSession.add(callId);
+      if (seenInSession.size > RESPONSES_TOOL_CHAIN_CALL_IDS_PER_SESSION_MAX) {
+        const oldest = seenInSession.values().next().value;
+        if (typeof oldest === "string") {
+          seenInSession.delete(oldest);
+        }
+      }
+    }
     return;
   }
 
@@ -361,6 +393,12 @@ function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>):
     `[responses-tool-chain] repaired invalid tool chain; response_id=${responseId ?? "-"} ` +
       `previous_response_id=${previousResponseId ?? "-"} dropped=${details}`,
   );
+  const error = new Error(
+    `${RESPONSES_TOOL_CHAIN_CORRUPT_CODE}: session tool call chain corrupted; retry required`,
+  ) as Error & { code?: string };
+  error.name = "ResponsesToolChainCorruptError";
+  error.code = RESPONSES_TOOL_CHAIN_CORRUPT_CODE;
+  throw error;
 }
 
 function createOpenAIResponsesToolChainGuardWrapper(baseStreamFn: StreamFn | undefined): StreamFn {

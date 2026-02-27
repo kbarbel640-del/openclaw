@@ -8,6 +8,7 @@ type ResponsesPayload = {
   model: string;
   input: Array<Record<string, unknown>>;
   previous_response_id?: string;
+  prompt_cache_key?: string;
   store?: boolean;
 };
 
@@ -50,7 +51,7 @@ describe("extra-params: OpenAI Responses tool chain guard", () => {
     expect(payload.previous_response_id).toBe("resp_prev_1");
   });
 
-  it("drops function_call_output when no matching prior function_call exists", () => {
+  it("throws explicit error when output has no matching prior function_call", () => {
     const payload: ResponsesPayload = {
       model: "gpt-oss",
       previous_response_id: "resp_prev_2",
@@ -60,7 +61,9 @@ describe("extra-params: OpenAI Responses tool chain guard", () => {
       ],
     };
 
-    runResponsesPayload(payload);
+    expect(() => runResponsesPayload(payload)).toThrow(
+      "OPENCLAW_RESPONSES_TOOL_CHAIN_CORRUPT: session tool call chain corrupted; retry required",
+    );
 
     expect(payload.input).toEqual([
       { type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] },
@@ -68,7 +71,7 @@ describe("extra-params: OpenAI Responses tool chain guard", () => {
     expect(payload.previous_response_id).toBeUndefined();
   });
 
-  it("drops outputs for duplicate function_call ids (cross-turn reuse)", () => {
+  it("throws explicit error for duplicate function_call ids (cross-turn reuse)", () => {
     const payload: ResponsesPayload = {
       model: "gpt-oss",
       previous_response_id: "resp_prev_3",
@@ -92,7 +95,9 @@ describe("extra-params: OpenAI Responses tool chain guard", () => {
       ],
     };
 
-    runResponsesPayload(payload);
+    expect(() => runResponsesPayload(payload)).toThrow(
+      "OPENCLAW_RESPONSES_TOOL_CHAIN_CORRUPT: session tool call chain corrupted; retry required",
+    );
 
     expect(payload.input).toEqual([
       { type: "function_call", call_id: "call_reused", id: "fc_1", name: "tool", arguments: "{}" },
@@ -120,7 +125,7 @@ describe("extra-params: OpenAI Responses tool chain guard", () => {
     expect(payload.input[3]?.call_id).toBe("call_1");
   });
 
-  it("rebuilds whole tool-output turn when any call_id mapping is invalid", () => {
+  it("rebuilds whole tool-output turn and throws explicit error when any mapping is invalid", () => {
     const payload: ResponsesPayload = {
       model: "gpt-oss",
       previous_response_id: "resp_prev_4",
@@ -138,12 +143,49 @@ describe("extra-params: OpenAI Responses tool chain guard", () => {
       ],
     };
 
-    runResponsesPayload(payload);
+    expect(() => runResponsesPayload(payload)).toThrow(
+      "OPENCLAW_RESPONSES_TOOL_CHAIN_CORRUPT: session tool call chain corrupted; retry required",
+    );
 
     expect(payload.input).toEqual([
       { type: "function_call", call_id: "call_good", id: "fc_good", name: "good", arguments: "{}" },
       { type: "message", role: "user", content: [{ type: "input_text", text: "continue" }] },
     ]);
     expect(payload.previous_response_id).toBeUndefined();
+  });
+
+  it("throws explicit error when a call_id is reused across requests in one session", () => {
+    const firstPayload: ResponsesPayload = {
+      model: "gpt-oss",
+      prompt_cache_key: "session_reuse_1",
+      input: [
+        {
+          type: "function_call",
+          call_id: "call_reused_cross_req",
+          id: "fc_1",
+          name: "x",
+          arguments: "{}",
+        },
+      ],
+    };
+    runResponsesPayload(firstPayload);
+
+    const secondPayload: ResponsesPayload = {
+      model: "gpt-oss",
+      prompt_cache_key: "session_reuse_1",
+      input: [
+        {
+          type: "function_call",
+          call_id: "call_reused_cross_req",
+          id: "fc_2",
+          name: "x",
+          arguments: "{}",
+        },
+      ],
+    };
+
+    expect(() => runResponsesPayload(secondPayload)).toThrow(
+      "OPENCLAW_RESPONSES_TOOL_CHAIN_CORRUPT: session tool call chain corrupted; retry required",
+    );
   });
 });
