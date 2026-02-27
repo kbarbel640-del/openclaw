@@ -144,11 +144,13 @@ describe("createGeminiEmbeddingProvider retry behavior", () => {
     });
 
     const { provider } = await getProvider();
-    try {
-      await provider.embedQuery("test");
-    } catch (err) {
-      expect((err as Error).message).toContain("429");
-      expect((err as { status: number }).status).toBe(429);
-    }
+    const err: Error & { status?: number } = await provider
+      .embedQuery("test")
+      .then(() => {
+        throw new Error("expected embedQuery to reject");
+      })
+      .catch((e: Error) => e);
+    expect(err.message).toContain("429");
+    expect(err.status).toBe(429);
   });
 });
