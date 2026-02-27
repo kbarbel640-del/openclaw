@@ -597,7 +597,9 @@ describe("legacy config detection", () => {
           },
         },
         assert: (config: NonNullable<OpenClawConfig>) => {
-          expect(config.channels?.slack?.streaming).toBe("partial");
+          // streaming: false now maps to "off" (disables all streaming, including draft preview),
+          // consistent with resolveDiscordPreviewStreamMode / resolveTelegramPreviewStreamMode.
+          expect(config.channels?.slack?.streaming).toBe("off");
           expect(config.channels?.slack?.nativeStreaming).toBe(false);
         },
       },
