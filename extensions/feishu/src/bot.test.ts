@@ -53,11 +53,16 @@ function createRuntimeEnv(): RuntimeEnv {
   } as RuntimeEnv;
 }
 
-async function dispatchMessage(params: { cfg: ClawdbotConfig; event: FeishuMessageEvent }) {
+async function dispatchMessage(params: {
+  cfg: ClawdbotConfig;
+  event: FeishuMessageEvent;
+  accountId?: string;
+}) {
   await handleFeishuMessage({
     cfg: params.cfg,
     event: params.event,
     runtime: createRuntimeEnv(),
+    accountId: params.accountId,
   });
 }
 
@@ -294,6 +299,65 @@ describe("handleFeishuMessage command authorization", () => {
       expect.objectContaining({
         to: "user:ou-unapproved",
         accountId: "default",
+      }),
+    );
+    expect(mockFinalizeInboundContext).not.toHaveBeenCalled();
+    expect(mockDispatchReplyFromConfig).not.toHaveBeenCalled();
+  });
+
+  it("uses account-scoped pairing store for non-default accounts", async () => {
+    mockShouldComputeCommandAuthorized.mockReturnValue(false);
+    mockReadAllowFromStore.mockImplementation(async (opts: { accountId?: string }) =>
+      opts.accountId ? [] : ["ou-attacker"],
+    );
+    mockUpsertPairingRequest.mockResolvedValue({ code: "ZXCVBN12", created: true });
+
+    const cfg: ClawdbotConfig = {
+      channels: {
+        feishu: {
+          dmPolicy: "pairing",
+          allowFrom: [],
+          accounts: {
+            work: {
+              dmPolicy: "pairing",
+              allowFrom: [],
+            },
+          },
+        },
+      },
+    } as ClawdbotConfig;
+
+    const event: FeishuMessageEvent = {
+      sender: {
+        sender_id: {
+          open_id: "ou-attacker",
+        },
+      },
+      message: {
+        message_id: "msg-account-scope",
+        chat_id: "oc-dm-work",
+        chat_type: "p2p",
+        message_type: "text",
+        content: JSON.stringify({ text: "hello from work account" }),
+      },
+    };
+
+    await dispatchMessage({ cfg, event, accountId: "work" });
+
+    expect(mockReadAllowFromStore).toHaveBeenCalledWith({
+      channel: "feishu",
+      accountId: "work",
+    });
+    expect(mockUpsertPairingRequest).toHaveBeenCalledWith({
+      channel: "feishu",
+      id: "ou-attacker",
+      accountId: "work",
+      meta: { name: undefined },
+    });
+    expect(mockSendMessageFeishu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "user:ou-attacker",
+        accountId: "work",
       }),
     );
     expect(mockFinalizeInboundContext).not.toHaveBeenCalled();
