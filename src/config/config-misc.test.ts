@@ -201,6 +201,24 @@ describe("gateway.healthRefreshIntervalSeconds", () => {
     });
     expect(res.ok).toBe(false);
   });
+
+  it("accepts max bound (86400 = 24h)", () => {
+    const res = validateConfigObject({
+      gateway: {
+        healthRefreshIntervalSeconds: 86_400,
+      },
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("rejects values above 86400", () => {
+    const res = validateConfigObject({
+      gateway: {
+        healthRefreshIntervalSeconds: 86_401,
+      },
+    });
+    expect(res.ok).toBe(false);
+  });
 });
 
 describe("channels.defaults.healthProbe", () => {

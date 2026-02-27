@@ -599,8 +599,9 @@ export async function startGatewayServer(
   let healthInterval = noopInterval();
   let dedupeCleanup = noopInterval();
   if (!minimalTestGateway) {
-    const cfgRefreshSec = cfgAtStart.gateway?.healthRefreshIntervalSeconds;
-    const healthRefreshIntervalMs = cfgRefreshSec && cfgRefreshSec > 0 ? cfgRefreshSec * 1000 : undefined;
+    const cfgSec = cfgAtStart.gateway?.healthRefreshIntervalSeconds;
+    const healthRefreshIntervalMs =
+      cfgSec && cfgSec > 0 ? cfgSec * 1000 : undefined;
     ({ tickInterval, healthInterval, dedupeCleanup } = startGatewayMaintenanceTimers({
       broadcast,
       nodeSendToAllSubscribed,
