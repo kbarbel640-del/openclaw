@@ -139,7 +139,12 @@ export function parseTtsDirectives(
             if (!policy.allowProvider) {
               break;
             }
-            if (rawValue === "openai" || rawValue === "elevenlabs" || rawValue === "edge") {
+            if (
+              rawValue === "openai" ||
+              rawValue === "elevenlabs" ||
+              rawValue === "edge" ||
+              rawValue === "minimax"
+            ) {
               overrides.provider = rawValue;
             } else {
               warnings.push(`unsupported provider "${rawValue}"`);
@@ -170,17 +175,32 @@ export function parseTtsDirectives(
               warnings.push(`invalid ElevenLabs voiceId "${rawValue}"`);
             }
             break;
-          case "model":
-          case "modelid":
-          case "model_id":
-          case "elevenlabs_model":
-          case "elevenlabsmodel":
           case "openai_model":
           case "openaimodel":
             if (!policy.allowModelId) {
               break;
             }
-            if (isValidOpenAIModel(rawValue)) {
+            overrides.openai = { ...overrides.openai, model: rawValue };
+            break;
+          case "elevenlabs_model":
+          case "elevenlabsmodel":
+            if (!policy.allowModelId) {
+              break;
+            }
+            overrides.elevenlabs = { ...overrides.elevenlabs, modelId: rawValue };
+            break;
+          case "model":
+          case "modelid":
+          case "model_id":
+            if (!policy.allowModelId) {
+              break;
+            }
+            // Check MiniMax first: its model set is finite and known, while
+            // isValidOpenAIModel accepts any string when a custom endpoint is
+            // configured, which would swallow MiniMax model names.
+            if (isValidMinimaxModel(rawValue)) {
+              overrides.minimax = { ...overrides.minimax, model: rawValue };
+            } else if (isValidOpenAIModel(rawValue)) {
               overrides.openai = { ...overrides.openai, model: rawValue };
             } else {
               overrides.elevenlabs = { ...overrides.elevenlabs, modelId: rawValue };
@@ -254,6 +274,7 @@ export function parseTtsDirectives(
                 ...overrides.elevenlabs,
                 voiceSettings: { ...overrides.elevenlabs?.voiceSettings, speed: value },
               };
+              overrides.minimax = { ...overrides.minimax, speed: value };
             }
             break;
           case "speakerboost":
@@ -305,6 +326,70 @@ export function parseTtsDirectives(
               ...overrides.elevenlabs,
               seed: normalizeSeed(Number.parseInt(rawValue, 10)),
             };
+            break;
+          case "minimax_voice":
+          case "minimaxvoice":
+            if (!policy.allowVoice) {
+              break;
+            }
+            overrides.minimax = { ...overrides.minimax, voiceId: rawValue };
+            break;
+          case "minimax_model":
+          case "minimaxmodel":
+            if (!policy.allowModelId) {
+              break;
+            }
+            if (isValidMinimaxModel(rawValue)) {
+              overrides.minimax = { ...overrides.minimax, model: rawValue };
+            } else {
+              warnings.push(`invalid MiniMax model "${rawValue}"`);
+            }
+            break;
+          case "emotion":
+            if (!policy.allowVoiceSettings) {
+              break;
+            }
+            if (!(MINIMAX_TTS_EMOTIONS as readonly string[]).includes(rawValue.toLowerCase())) {
+              warnings.push(`invalid MiniMax emotion "${rawValue}"`);
+              break;
+            }
+            overrides.minimax = { ...overrides.minimax, emotion: rawValue.toLowerCase() };
+            break;
+          case "vol":
+          case "volume":
+            if (!policy.allowVoiceSettings) {
+              break;
+            }
+            {
+              const value = parseNumberValue(rawValue);
+              if (value == null) {
+                warnings.push("invalid vol value");
+                break;
+              }
+              requireInRange(value, 0, 10, "vol");
+              overrides.minimax = { ...overrides.minimax, vol: value };
+            }
+            break;
+          case "pitch":
+            if (!policy.allowVoiceSettings) {
+              break;
+            }
+            {
+              const value = parseNumberValue(rawValue);
+              if (value == null) {
+                warnings.push("invalid pitch value");
+                break;
+              }
+              requireInRange(value, -12, 12, "pitch");
+              overrides.minimax = { ...overrides.minimax, pitch: value };
+            }
+            break;
+          case "language_boost":
+          case "languageboost":
+            if (!policy.allowVoiceSettings) {
+              break;
+            }
+            overrides.minimax = { ...overrides.minimax, languageBoost: rawValue };
             break;
           default:
             break;
@@ -629,6 +714,164 @@ export async function openaiTTS(params: {
     }
 
     return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// -- MiniMax T2A --
+
+const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io";
+
+export const MINIMAX_TTS_MODELS = [
+  "speech-2.8-hd",
+  "speech-2.8-turbo",
+  "speech-2.6-hd",
+  "speech-2.6-turbo",
+  "speech-02-hd",
+  "speech-02-turbo",
+] as const;
+
+export const MINIMAX_TTS_EMOTIONS = [
+  "happy",
+  "sad",
+  "angry",
+  "fearful",
+  "disgusted",
+  "surprised",
+  "calm",
+  "fluent",
+  "whisper",
+] as const;
+
+/** A few representative system voices for the gateway providers listing. */
+export const MINIMAX_TTS_VOICES = [
+  "English_expressive_narrator",
+  "English_radiant_girl",
+  "English_Trustworth_Man",
+  "English_CalmWoman",
+  "English_Graceful_Lady",
+] as const;
+
+export function isValidMinimaxModel(model: string): boolean {
+  return MINIMAX_TTS_MODELS.includes(model as (typeof MINIMAX_TTS_MODELS)[number]);
+}
+
+type MiniMaxT2AResponse = {
+  data?: {
+    audio?: string;
+    status?: number;
+  };
+  extra_info?: {
+    audio_format?: string;
+    audio_sample_rate?: number;
+  };
+  base_resp?: {
+    status_code?: number;
+    status_msg?: string;
+  };
+};
+
+export async function minimaxTTS(params: {
+  text: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  voiceId: string;
+  audioFormat: "mp3" | "pcm" | "flac";
+  sampleRate?: number;
+  speed: number;
+  vol: number;
+  pitch: number;
+  emotion?: string;
+  languageBoost?: string;
+  timeoutMs: number;
+}): Promise<Buffer> {
+  const {
+    text,
+    apiKey,
+    baseUrl,
+    model,
+    voiceId,
+    audioFormat,
+    sampleRate,
+    speed,
+    vol,
+    pitch,
+    emotion,
+    languageBoost,
+    timeoutMs,
+  } = params;
+
+  requireInRange(speed, 0.5, 2, "speed");
+  requireInRange(vol, 0, 10, "vol");
+  requireInRange(pitch, -12, 12, "pitch");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const normalizedBase = baseUrl.trim().replace(/\/+$/, "") || DEFAULT_MINIMAX_BASE_URL;
+    const url = `${normalizedBase}/v1/t2a_v2`;
+
+    const body: Record<string, unknown> = {
+      model,
+      text,
+      stream: false,
+      output_format: "hex",
+      voice_setting: {
+        voice_id: voiceId,
+        speed,
+        vol,
+        pitch,
+        ...(emotion ? { emotion } : {}),
+      },
+      audio_setting: {
+        format: audioFormat,
+        ...(sampleRate ? { sample_rate: sampleRate } : {}),
+      },
+    };
+    if (languageBoost) {
+      body.language_boost = languageBoost;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`MiniMax T2A API error (${response.status})`);
+    }
+
+    const json = (await response.json()) as MiniMaxT2AResponse;
+
+    if (json.base_resp?.status_code && json.base_resp.status_code !== 0) {
+      throw new Error(
+        `MiniMax T2A error ${json.base_resp.status_code}: ${json.base_resp.status_msg ?? "unknown"}`,
+      );
+    }
+
+    const hexAudio = json.data?.audio;
+    if (!hexAudio) {
+      throw new Error("MiniMax T2A returned no audio data");
+    }
+
+    if (hexAudio.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(hexAudio)) {
+      throw new Error("MiniMax T2A returned malformed hex audio data");
+    }
+
+    const audioBuffer = Buffer.from(hexAudio, "hex");
+    if (audioBuffer.length === 0) {
+      throw new Error("MiniMax T2A hex audio decoded to empty buffer");
+    }
+
+    return audioBuffer;
   } finally {
     clearTimeout(timeout);
   }
