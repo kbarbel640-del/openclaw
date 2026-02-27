@@ -9,6 +9,7 @@ type SessionManagerCacheEntry = {
 
 const SESSION_MANAGER_CACHE = new Map<string, SessionManagerCacheEntry>();
 const DEFAULT_SESSION_MANAGER_TTL_MS = 45_000; // 45 seconds
+const MAX_CACHE_SIZE = 500;
 
 function getSessionManagerTtl(): number {
   return resolveCacheTtlMs({
@@ -30,6 +31,19 @@ export function trackSessionManagerAccess(sessionFile: string): void {
     sessionFile,
     loadedAt: now,
   });
+
+  if (SESSION_MANAGER_CACHE.size > MAX_CACHE_SIZE) {
+    // Evict oldest entries (Map iterates in insertion order)
+    const toEvict = SESSION_MANAGER_CACHE.size - MAX_CACHE_SIZE;
+    let evicted = 0;
+    for (const key of SESSION_MANAGER_CACHE.keys()) {
+      if (evicted >= toEvict) {
+        break;
+      }
+      SESSION_MANAGER_CACHE.delete(key);
+      evicted++;
+    }
+  }
 }
 
 function isSessionManagerCached(sessionFile: string): boolean {
