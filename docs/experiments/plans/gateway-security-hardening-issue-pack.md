@@ -13,6 +13,10 @@ title: "Gateway Security Hardening Issue Pack"
 
 Review-first final draft set. Do not post yet.
 
+Source of truth note:
+After issues are filed and accepted, the canonical requirements move to those GitHub issues and linked implementation PRs.
+This experiments plan is a pre-filing snapshot and should not be treated as long-term normative security guidance.
+
 ## Active Overlap Baseline (Verified 2026-02-25)
 
 - [#15035](https://github.com/openclaw/openclaw/pull/15035) merged: gateway auth brute-force + auth rate limiting.
