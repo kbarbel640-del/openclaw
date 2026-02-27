@@ -44,6 +44,7 @@ export type ResolvedBrowserProfile = {
   cdpIsLoopback: boolean;
   color: string;
   driver: "openclaw" | "extension";
+  stealth: boolean;
 };
 
 function normalizeHexColor(raw: string | undefined) {
@@ -302,6 +303,7 @@ export function resolveProfile(
     cdpIsLoopback: isLoopbackHost(cdpHost),
     color: profile.color,
     driver,
+    stealth: profile.stealth !== false,
   };
 }
 
