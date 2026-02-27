@@ -90,12 +90,13 @@ function fileHash(filePath: string): string {
 }
 
 function nowId(): string {
-  // e.g. "20260227_103045"
+  // e.g. "20260227_103045_482" — ms suffix prevents collisions
   const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
   return (
     `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
-    `_${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`
+    `_${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}` +
+    `_${pad(d.getUTCMilliseconds(), 3)}`
   );
 }
 
@@ -389,11 +390,11 @@ function jsonDiff(a: unknown, b: unknown, prefix = ""): string[] {
 
 // ─── prune ────────────────────────────────────────────────────────────────────
 
-export function guardianPrune(
+export async function guardianPrune(
   runtime: RuntimeEnv,
-  opts: Pick<GuardianOptions, "keep" | "yes">,
-): void {
-  const keep = opts.keep ?? 10;
+  opts: Pick<GuardianOptions, "keep" | "yes" | "nonInteractive">,
+): Promise<void> {
+  const keep = Math.max(1, opts.keep ?? 10);
   const meta = loadMeta();
 
   if (meta.snapshots.length <= keep) {
@@ -405,6 +406,20 @@ export function guardianPrune(
   const toRemove = meta.snapshots
     .slice(0, meta.snapshots.length - keep)
     .filter((s) => s.id !== meta.lastHealthyId);
+
+  if (toRemove.length === 0) {
+    console.log("Nothing to prune (all candidates are protected).");
+    return;
+  }
+
+  const interactive = !opts.nonInteractive && !opts.yes;
+  if (interactive) {
+    const ok = await confirm({ message: `Delete ${toRemove.length} old snapshot(s)?` });
+    if (isCancel(ok) || !ok) {
+      console.log("Cancelled.");
+      return;
+    }
+  }
 
   for (const s of toRemove) {
     const snapDir = path.join(SNAPSHOTS_DIR, s.id);
