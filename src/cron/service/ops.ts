@@ -283,24 +283,19 @@ export async function update(state: CronServiceState, id: string, patch: CronJob
         };
       }
     }
-    const scheduleChanged = patch.schedule !== undefined;
     const enabledChanged = patch.enabled !== undefined;
 
     job.updatedAtMs = now;
-    if (scheduleChanged || enabledChanged) {
-      if (job.enabled) {
-        job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
-      } else {
+    if (!job.enabled) {
+      if (enabledChanged) {
         job.state.nextRunAtMs = undefined;
         job.state.runningAtMs = undefined;
       }
-    } else if (job.enabled) {
-      // Non-schedule edits should not mutate other jobs, but still repair a
-      // missing/corrupt nextRunAtMs for the updated job.
-      const nextRun = job.state.nextRunAtMs;
-      if (typeof nextRun !== "number" || !Number.isFinite(nextRun)) {
-        job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
-      }
+    } else {
+      // Always recompute nextRunAtMs for enabled jobs on any update.
+      // This guards against stale values from patch.state, schedule/tz
+      // edits that didn't propagate, or file-level corruption (#27996).
+      job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
     }
 
     await persist(state);
