@@ -104,13 +104,13 @@ function resolveSnapshot(meta: GuardianMeta, query?: string): SnapshotMeta | und
   if (!query) {
     return meta.snapshots.find((s) => s.id === meta.lastHealthyId);
   }
-  return [...meta.snapshots].reverse().find((s) => s.id === query || s.tag === query);
+  return [...meta.snapshots].toReversed().find((s) => s.id === query || s.tag === query);
 }
 
 async function checkHealth(): Promise<{ healthy: boolean; checks: HealthChecks }> {
   const checks: HealthChecks = { configValid: false, gatewayResponsive: false };
   try {
-    readConfigFileSnapshot();
+    void readConfigFileSnapshot();
     checks.configValid = true;
   } catch {
     // invalid
@@ -128,7 +128,9 @@ function copyFiles(snapDir: string): string[] {
   const saved: string[] = [];
   for (const rel of [...CRITICAL_FILES, ...OPTIONAL_FILES]) {
     const src = path.join(STATE_DIR, rel);
-    if (!fs.existsSync(src)) continue;
+    if (!fs.existsSync(src)) {
+      continue;
+    }
     const dst = path.join(snapDir, rel);
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.copyFileSync(src, dst);
@@ -141,7 +143,9 @@ function restoreFiles(snapDir: string): string[] {
   const restored: string[] = [];
   for (const rel of CRITICAL_FILES) {
     const src = path.join(snapDir, rel);
-    if (!fs.existsSync(src)) continue;
+    if (!fs.existsSync(src)) {
+      continue;
+    }
     const dst = path.join(STATE_DIR, rel);
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.copyFileSync(src, dst);
@@ -192,7 +196,9 @@ export async function guardianSnapshot(
 
   const meta = loadMeta();
   meta.snapshots.push(snap);
-  if (healthy) meta.lastHealthyId = id;
+  if (healthy) {
+    meta.lastHealthyId = id;
+  }
   saveMeta(meta);
 
   const tagStr = opts.tag ? ` (tag: ${opts.tag})` : "";
