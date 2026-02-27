@@ -30,7 +30,6 @@ import { resolveOpenClawAgentDir } from "../../agent-paths.js";
 import { resolveSessionAgentIds } from "../../agent-scope.js";
 import { createAnthropicPayloadLogger } from "../../anthropic-payload-log.js";
 import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../../bootstrap-files.js";
-import { resolveContextInjection } from "../../pi-embedded-helpers/bootstrap.js";
 import { createCacheTrace } from "../../cache-trace.js";
 import {
   listChannelSupportedActions,
@@ -51,6 +50,7 @@ import {
   validateAnthropicTurns,
   validateGeminiTurns,
 } from "../../pi-embedded-helpers.js";
+import { resolveContextInjection } from "../../pi-embedded-helpers/bootstrap.js";
 import { subscribeEmbeddedPiSession } from "../../pi-embedded-subscribe.js";
 import { createPreparedEmbeddedPiSettingsManager } from "../../pi-project-settings.js";
 import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
@@ -314,8 +314,7 @@ export async function runEmbeddedAttempt(
       .stat(params.sessionFile)
       .then(() => true)
       .catch(() => false);
-    const skipContextInjection =
-      contextInjectionMode === "first-message-only" && sessionFileExists;
+    const skipContextInjection = contextInjectionMode === "first-message-only" && sessionFileExists;
 
     const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles: rawContextFiles } =
       await resolveBootstrapContextForRun({
