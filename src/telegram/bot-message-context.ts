@@ -30,7 +30,12 @@ import {
 import type { OpenClawConfig } from "../config/config.js";
 import { loadConfig } from "../config/config.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../config/sessions.js";
-import type { DmPolicy, TelegramGroupConfig, TelegramTopicConfig } from "../config/types.js";
+import type {
+  DmPolicy,
+  TelegramAccountConfig,
+  TelegramGroupConfig,
+  TelegramTopicConfig,
+} from "../config/types.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";
 import { recordChannelActivity } from "../infra/channel-activity.js";
 import { resolveAgentRoute } from "../routing/resolve-route.js";
@@ -106,6 +111,8 @@ export type BuildTelegramMessageContextParams = {
   bot: Bot;
   cfg: OpenClawConfig;
   account: { accountId: string };
+  /** Resolved Telegram account config (for channels.telegram.reactions). */
+  telegramCfg?: TelegramAccountConfig;
   historyLimit: number;
   groupHistories: Map<string, HistoryEntry[]>;
   dmPolicy: DmPolicy;
@@ -148,6 +155,7 @@ export const buildTelegramMessageContext = async ({
   bot,
   cfg,
   account,
+  telegramCfg,
   historyLimit,
   groupHistories,
   dmPolicy,
@@ -481,8 +489,22 @@ export const buildTelegramMessageContext = async ({
 
   // Status Reactions controller (lifecycle reactions)
   const statusReactionsConfig = cfg.messages?.statusReactions;
+  const channelReactions = telegramCfg?.reactions;
   const statusReactionsEnabled =
-    statusReactionsConfig?.enabled === true && Boolean(reactionApi) && shouldAckReaction();
+    (statusReactionsConfig?.enabled === true || channelReactions?.enabled === true) &&
+    Boolean(reactionApi) &&
+    shouldAckReaction();
+  const statusReactionPhases: Set<string> | null =
+    channelReactions != null
+      ? new Set(
+          (channelReactions.phases?.length
+            ? channelReactions.phases
+            : channelReactions.mode === "minimal"
+              ? (["done", "error"] as const)
+              : (["thinking", "tool", "done", "error"] as const)
+          ).map(String),
+        )
+      : null;
   const resolvedStatusReactionEmojis = resolveTelegramStatusReactionEmojis({
     initialEmoji: ackReaction,
     overrides: statusReactionsConfig?.emojis,
@@ -777,6 +799,7 @@ export const buildTelegramMessageContext = async ({
     reactionApi,
     removeAckAfterReply,
     statusReactionController,
+    statusReactionPhases,
     accountId: account.accountId,
   };
 };

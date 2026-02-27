@@ -1324,6 +1324,14 @@ export const FIELD_HELP: Record<string, string> = {
     "Legacy Slack preview mode alias (replace | status_final | append); auto-migrated to channels.slack.streaming.",
   "channels.telegram.customCommands":
     "Additional Telegram bot menu commands (merged with native; conflicts ignored).",
+  "channels.telegram.reactions":
+    "Agent status reactions on the trigger message (thinking, tool, done, error).",
+  "channels.telegram.reactions.enabled":
+    "Enable status reactions for Telegram. When enabled, the ack reaction progresses through phases. Default: false.",
+  "channels.telegram.reactions.mode":
+    '"minimal" = only done/error; "full" = all phases (thinking, tool, done, error). Default: full.',
+  "channels.telegram.reactions.phases":
+    'Override phases to show, e.g. ["thinking", "tool", "done", "error"].',
   "messages.suppressToolErrors":
     "When true, suppress ⚠️ tool-error warnings from being shown to the user. The agent already sees errors in context and can retry. Default: false.",
   "messages.ackReaction": "Emoji reaction used to acknowledge inbound messages (empty disables).",

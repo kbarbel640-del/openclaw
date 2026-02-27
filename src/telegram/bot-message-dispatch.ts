@@ -125,6 +125,7 @@ export const dispatchTelegramMessage = async ({
     reactionApi,
     removeAckAfterReply,
     statusReactionController,
+    statusReactionPhases,
   } = context;
 
   const draftMaxChars = Math.min(textLimit, 4096);
@@ -414,7 +415,7 @@ export const dispatchTelegramMessage = async ({
 
   let queuedFinal = false;
 
-  if (statusReactionController) {
+  if (statusReactionController && (!statusReactionPhases || statusReactionPhases.has("thinking"))) {
     void statusReactionController.setThinking();
   }
 
@@ -589,11 +590,13 @@ export const dispatchTelegramMessage = async ({
               splitReasoningOnNextStream = reasoningLane.hasStreamedMessage;
             }
           : undefined,
-        onToolStart: statusReactionController
-          ? async (payload) => {
-              await statusReactionController.setTool(payload.name);
-            }
-          : undefined,
+        onToolStart:
+          statusReactionController &&
+          (!statusReactionPhases || statusReactionPhases.has("tool"))
+            ? async (payload) => {
+                await statusReactionController.setTool(payload.name);
+              }
+            : undefined,
         onModelSelected,
       },
     }));
@@ -660,7 +663,11 @@ export const dispatchTelegramMessage = async ({
 
   const hasFinalResponse = queuedFinal || sentFallback;
 
-  if (statusReactionController && !hasFinalResponse) {
+  if (
+    statusReactionController &&
+    (!statusReactionPhases || statusReactionPhases.has("error")) &&
+    !hasFinalResponse
+  ) {
     void statusReactionController.setError().catch((err) => {
       logVerbose(`telegram: status reaction error finalize failed: ${String(err)}`);
     });
@@ -671,11 +678,14 @@ export const dispatchTelegramMessage = async ({
     return;
   }
 
-  if (statusReactionController) {
+  if (
+    statusReactionController &&
+    (!statusReactionPhases || statusReactionPhases.has("done"))
+  ) {
     void statusReactionController.setDone().catch((err) => {
       logVerbose(`telegram: status reaction finalize failed: ${String(err)}`);
     });
-  } else {
+  } else if (!statusReactionController) {
     removeAckReactionAfterReply({
       removeAfterReply: removeAckAfterReply,
       ackReactionPromise,
