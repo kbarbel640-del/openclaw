@@ -58,7 +58,7 @@ describe("stripInboundMetadata", () => {
     expect(stripInboundMetadata(input)).toBe("Got it, thanks!");
   });
 
-  it("strips all six known sentinel types", () => {
+  it("strips all known fenced sentinel types", () => {
     const sentinels = [
       "Conversation info (untrusted metadata):",
       "Sender (untrusted metadata):",
@@ -71,6 +71,16 @@ describe("stripInboundMetadata", () => {
       const input = `${sentinel}\n\`\`\`json\n{"x": 1}\n\`\`\`\n\nUser message`;
       expect(stripInboundMetadata(input)).toBe("User message");
     }
+  });
+
+  it("strips unfenced [Thread starter - for context] block", () => {
+    const input = `[Thread starter - for context]\nSome thread starter text\n\nUser message`;
+    expect(stripInboundMetadata(input)).toBe("User message");
+  });
+
+  it("strips unfenced [Thread history - for context] block", () => {
+    const input = `[Thread history - for context]\nLine 1\nLine 2\n\nUser message`;
+    expect(stripInboundMetadata(input)).toBe("User message");
   });
 
   it("handles metadata block with no user text after it", () => {
