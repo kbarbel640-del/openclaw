@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { healthCommand } from "../../commands/health.js";
 import { sessionsCleanupCommand } from "../../commands/sessions-cleanup.js";
+import { sessionsScrubCommand } from "../../commands/sessions-scrub.js";
 import { sessionsCommand } from "../../commands/sessions.js";
 import { statusCommand } from "../../commands/status.js";
 import { setVerbose } from "../../globals.js";
@@ -114,6 +115,16 @@ export function registerStatusHealthSessionsCommands(program: Command) {
 
   const sessionsCmd = program
     .command("sessions")
+    .description("Manage conversation sessions")
+    .addHelpText(
+      "after",
+      () =>
+        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/sessions", "docs.openclaw.ai/cli/sessions")}\n`,
+    );
+
+  // List subcommand (default: runs when no subcommand is given)
+  sessions
+    .command("list", { isDefault: true })
     .description("List stored conversation sessions")
     .option("--json", "Output as JSON", false)
     .option("--verbose", "Verbose logging", false)
@@ -134,11 +145,6 @@ export function registerStatusHealthSessionsCommands(program: Command) {
         ])}\n\n${theme.muted(
           "Shows token usage per session when the agent reports it; set agents.defaults.contextTokens to cap the window and show %.",
         )}`,
-    )
-    .addHelpText(
-      "after",
-      () =>
-        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/sessions", "docs.openclaw.ai/cli/sessions")}\n`,
     )
     .action(async (opts) => {
       setVerbose(Boolean(opts.verbose));
@@ -211,6 +217,44 @@ export function registerStatusHealthSessionsCommands(program: Command) {
           },
           defaultRuntime,
         );
+      });
+    });
+
+  // Scrub subcommand
+  sessionsCmd
+    .command("scrub")
+    .description("Scrub secrets from session transcripts")
+    .option("--dry-run", "Report what would be scrubbed without modifying files", false)
+    .option("--verbose", "Show per-file details", false)
+    .option("--no-backup", "Skip creating .bak backups")
+    .option("--concurrency <n>", "Number of files to process in parallel (default: 20)", parseInt)
+    .addHelpText(
+      "after",
+      () =>
+        `\n${theme.heading("Examples:")}\n${formatHelpExamples([
+          ["openclaw sessions scrub --dry-run", "Preview what would be scrubbed."],
+          ["openclaw sessions scrub", "Scrub secrets from all session files."],
+          ["openclaw sessions scrub --verbose", "Show details for each file processed."],
+          ["openclaw sessions scrub --no-backup", "Skip backup creation."],
+        ])}\n\n${theme.muted(
+          "Scrubs API keys, tokens, passwords and other secrets from session transcript files (.jsonl). " +
+            "Creates .bak backups by default. Complements runtime redaction (read-time protection) with at-rest scrubbing.",
+        )}`,
+    )
+    .addHelpText(
+      "after",
+      () =>
+        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/sessions-scrub", "docs.openclaw.ai/cli/sessions-scrub")}\n`,
+    )
+    .action(async (opts) => {
+      setVerbose(Boolean(opts.verbose));
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await sessionsScrubCommand(defaultRuntime, {
+          dryRun: Boolean(opts.dryRun),
+          verbose: Boolean(opts.verbose),
+          noBackup: !opts.backup,
+          concurrency: opts.concurrency as number | undefined,
+        });
       });
     });
 }
