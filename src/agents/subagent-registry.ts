@@ -80,7 +80,7 @@ const LIFECYCLE_ERROR_RETRY_GRACE_MS = 15_000;
 const LIFECYCLE_TRANSIENT_ERROR_RETRY_GRACE_MS = 90_000;
 
 const TRANSIENT_ERROR_RE =
-  /\b(429|rate.?limit|too.?many.?requests|overloaded|5\d{2}|timeout|ECONNRESET|ETIMEDOUT)\b/i;
+  /\b(429|rate.?limit|too.?many.?requests|overloaded|50[0-4]|timeout|timed.?out|ECONNRESET|ETIMEDOUT)\b/i;
 
 function resolveLifecycleErrorGraceMs(error?: string): number {
   if (error && TRANSIENT_ERROR_RE.test(error)) {
