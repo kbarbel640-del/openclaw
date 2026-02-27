@@ -35,6 +35,12 @@ import {
   updateSessionStore,
 } from "../config/sessions.js";
 import type { AgentDefaultsConfig } from "../config/types.agent-defaults.js";
+import {
+  createInternalHookEvent,
+  triggerInternalHook,
+  type HeartbeatAfterHookContext,
+  type HeartbeatBeforeHookContext,
+} from "../hooks/internal-hooks.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getQueueSize } from "../process/command-queue.js";
 import { CommandLane } from "../process/lanes.js";
@@ -734,6 +740,25 @@ export async function runHeartbeatOnce(opts: {
   };
 
   try {
+    // ── heartbeat:after helper ──
+    // Emits a single after-hook at each exit point so external hooks can
+    // observe every heartbeat outcome (sent, ok, skipped, failed).
+    const emitAfterHook = async (
+      status: HeartbeatAfterHookContext["status"],
+      extra?: Partial<Pick<HeartbeatAfterHookContext, "preview" | "channel" | "hasMedia">>,
+    ) => {
+      await triggerInternalHook(
+        createInternalHookEvent("heartbeat", "after", sessionKey, {
+          agentId,
+          sessionKey,
+          reason: opts.reason,
+          status,
+          durationMs: Date.now() - startedAt,
+          ...extra,
+        } satisfies HeartbeatAfterHookContext),
+      );
+    };
+
     // Capture transcript state before the heartbeat run so we can prune if HEARTBEAT_OK
     const transcriptState = await captureTranscriptState({
       storePath,
@@ -746,6 +771,17 @@ export async function runHeartbeatOnce(opts: {
     const replyOpts = heartbeatModelOverride
       ? { isHeartbeat: true, heartbeatModelOverride, suppressToolErrorWarnings }
       : { isHeartbeat: true, suppressToolErrorWarnings };
+
+    // ── heartbeat:before hook ──
+    await triggerInternalHook(
+      createInternalHookEvent("heartbeat", "before", sessionKey, {
+        agentId,
+        sessionKey,
+        reason: opts.reason,
+        prompt,
+      } satisfies HeartbeatBeforeHookContext),
+    );
+
     const replyResult = await getReplyFromConfig(ctx, replyOpts, cfg);
     const replyPayload = resolveHeartbeatReplyPayload(replyResult);
     const includeReasoning = heartbeat?.includeReasoning === true;
@@ -773,6 +809,9 @@ export async function runHeartbeatOnce(opts: {
         accountId: delivery.accountId,
         silent: !okSent,
         indicatorType: visibility.useIndicator ? resolveIndicatorType("ok-empty") : undefined,
+      });
+      await emitAfterHook("ok-empty", {
+        channel: delivery.channel !== "none" ? delivery.channel : undefined,
       });
       return { status: "ran", durationMs: Date.now() - startedAt };
     }
@@ -809,6 +848,9 @@ export async function runHeartbeatOnce(opts: {
         accountId: delivery.accountId,
         silent: !okSent,
         indicatorType: visibility.useIndicator ? resolveIndicatorType("ok-token") : undefined,
+      });
+      await emitAfterHook("ok-token", {
+        channel: delivery.channel !== "none" ? delivery.channel : undefined,
       });
       return { status: "ran", durationMs: Date.now() - startedAt };
     }
@@ -847,6 +889,9 @@ export async function runHeartbeatOnce(opts: {
         channel: delivery.channel !== "none" ? delivery.channel : undefined,
         accountId: delivery.accountId,
       });
+      await emitAfterHook("skipped", {
+        channel: delivery.channel !== "none" ? delivery.channel : undefined,
+      });
       return { status: "ran", durationMs: Date.now() - startedAt };
     }
 
@@ -867,6 +912,7 @@ export async function runHeartbeatOnce(opts: {
         hasMedia: mediaUrls.length > 0,
         accountId: delivery.accountId,
       });
+      await emitAfterHook("skipped");
       return { status: "ran", durationMs: Date.now() - startedAt };
     }
 
@@ -886,6 +932,7 @@ export async function runHeartbeatOnce(opts: {
         accountId: delivery.accountId,
         indicatorType: visibility.useIndicator ? resolveIndicatorType("sent") : undefined,
       });
+      await emitAfterHook("skipped", { channel: delivery.channel });
       return { status: "ran", durationMs: Date.now() - startedAt };
     }
 
@@ -911,6 +958,7 @@ export async function runHeartbeatOnce(opts: {
           channel: delivery.channel,
           reason: readiness.reason,
         });
+        await emitAfterHook("skipped", { channel: delivery.channel });
         return { status: "skipped", reason: readiness.reason };
       }
     }
@@ -960,6 +1008,11 @@ export async function runHeartbeatOnce(opts: {
       accountId: delivery.accountId,
       indicatorType: visibility.useIndicator ? resolveIndicatorType("sent") : undefined,
     });
+    await emitAfterHook("sent", {
+      preview: previewText?.slice(0, 200),
+      channel: delivery.channel,
+      hasMedia: mediaUrls.length > 0,
+    });
     return { status: "ran", durationMs: Date.now() - startedAt };
   } catch (err) {
     const reason = formatErrorMessage(err);
@@ -972,6 +1025,16 @@ export async function runHeartbeatOnce(opts: {
       indicatorType: visibility.useIndicator ? resolveIndicatorType("failed") : undefined,
     });
     log.error(`heartbeat failed: ${reason}`, { error: reason });
+    // Fire after-hook in catch; swallow errors to avoid masking the original failure.
+    await triggerInternalHook(
+      createInternalHookEvent("heartbeat", "after", sessionKey, {
+        agentId,
+        sessionKey,
+        reason: opts.reason,
+        status: "failed",
+        durationMs: Date.now() - startedAt,
+      } satisfies HeartbeatAfterHookContext),
+    ).catch(() => {});
     return { status: "failed", reason };
   }
 }
