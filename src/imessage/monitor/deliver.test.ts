@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeEnv } from "../../runtime.js";
 
+const emitMessageSentHookMock = vi.hoisted(() => vi.fn());
+vi.mock("../../hooks/emit-message-sent.js", () => ({
+  emitMessageSentHook: (...args: unknown[]) => emitMessageSentHookMock(...args),
+}));
+
 const sendMessageIMessageMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ messageId: "imsg-1" }),
 );
@@ -39,6 +44,7 @@ describe("deliverReplies", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    emitMessageSentHookMock.mockClear();
     chunkTextWithModeMock.mockImplementation((text: string) => [text]);
   });
 
@@ -148,5 +154,56 @@ describe("deliverReplies", () => {
       text: "second",
       messageId: "imsg-1",
     });
+  });
+
+  it("emits message:sent hook on successful text delivery", async () => {
+    await deliverReplies({
+      replies: [{ text: "hey there" }],
+      target: "chat_id:40",
+      client,
+      accountId: "acct-4",
+      runtime,
+      maxBytes: 4096,
+      textLimit: 4000,
+      sessionKey: "agent:main:main",
+    });
+
+    expect(emitMessageSentHookMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "chat_id:40",
+        content: "hey there",
+        success: true,
+        channelId: "imessage",
+        accountId: "acct-4",
+        sessionKey: "agent:main:main",
+        messageId: "imsg-1",
+      }),
+    );
+  });
+
+  it("emits message:sent failure hook when send throws", async () => {
+    sendMessageIMessageMock.mockRejectedValueOnce(new Error("connection lost"));
+
+    await expect(
+      deliverReplies({
+        replies: [{ text: "hello" }],
+        target: "chat_id:50",
+        client,
+        accountId: "acct-5",
+        runtime,
+        maxBytes: 4096,
+        textLimit: 4000,
+        sessionKey: "sess-fail",
+      }),
+    ).rejects.toThrow("connection lost");
+
+    expect(emitMessageSentHookMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "chat_id:50",
+        success: false,
+        error: "connection lost",
+        channelId: "imessage",
+      }),
+    );
   });
 });
