@@ -900,7 +900,8 @@ export function classifyFailoverReason(raw: string): FailoverReason | null {
     return "rate_limit";
   }
   if (isOverloadedErrorMessage(raw)) {
-    return "rate_limit";
+    // Overloaded/service-unavailable errors are transient capacity issues, not quota exhaustion.
+    return "timeout";
   }
   if (isCloudCodeAssistFormatError(raw)) {
     return "format";
