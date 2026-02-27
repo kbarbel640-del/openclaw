@@ -1,16 +1,14 @@
+import { MODEL_AUTH_ENV_VARS } from "../model-auth.js";
+
 /**
  * Hard denylist: platform/infrastructure secrets that can NEVER be bypassed by
  * skill `allowedKeys` declarations.  These protect credentials whose leakage
  * would compromise the gateway, provider billing, or channel integrations.
+ *
+ * Model/provider auth vars are imported from `model-auth.ts` so they stay in
+ * sync when new providers are added.
  */
 const HARD_BLOCKED_ENV_VAR_PATTERNS: ReadonlyArray<RegExp> = [
-  /^ANTHROPIC_API_KEY$/i,
-  /^OPENAI_API_KEY$/i,
-  /^GEMINI_API_KEY$/i,
-  /^OPENROUTER_API_KEY$/i,
-  /^MINIMAX_API_KEY$/i,
-  /^ELEVENLABS_API_KEY$/i,
-  /^SYNTHETIC_API_KEY$/i,
   /^TELEGRAM_BOT_TOKEN$/i,
   /^DISCORD_BOT_TOKEN$/i,
   /^SLACK_(BOT|APP)_TOKEN$/i,
@@ -19,7 +17,6 @@ const HARD_BLOCKED_ENV_VAR_PATTERNS: ReadonlyArray<RegExp> = [
   /^OPENCLAW_GATEWAY_(TOKEN|PASSWORD)$/i,
   /^AWS_(SECRET_ACCESS_KEY|SECRET_KEY|SESSION_TOKEN)$/i,
   /^(GH|GITHUB)_TOKEN$/i,
-  /^(AZURE|AZURE_OPENAI|COHERE|AI_GATEWAY|OPENROUTER)_API_KEY$/i,
 ];
 
 /**
@@ -96,8 +93,8 @@ export function sanitizeEnvVars(
       continue;
     }
 
-    // Hard-blocked keys (platform/infra secrets) can never be bypassed by allowedKeys.
-    if (matchesAnyPattern(key, HARD_BLOCKED_ENV_VAR_PATTERNS)) {
+    // Hard-blocked keys (platform/infra/model-auth secrets) can never be bypassed by allowedKeys.
+    if (matchesAnyPattern(key, HARD_BLOCKED_ENV_VAR_PATTERNS) || MODEL_AUTH_ENV_VARS.has(key)) {
       blocked.push(key);
       continue;
     }

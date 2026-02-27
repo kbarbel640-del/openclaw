@@ -77,8 +77,6 @@ describe("sanitizeEnvVars", () => {
 
   it("never allows hard-blocked platform secrets through allowedKeys", () => {
     const hardBlockedKeys = [
-      "ANTHROPIC_API_KEY",
-      "OPENAI_API_KEY",
       "GITHUB_TOKEN",
       "GH_TOKEN",
       "OPENCLAW_GATEWAY_TOKEN",
@@ -98,6 +96,30 @@ describe("sanitizeEnvVars", () => {
 
     expect(result.allowed).toEqual({});
     expect(result.blocked).toEqual(expect.arrayContaining(hardBlockedKeys));
+  });
+
+  it("never allows model auth env vars through allowedKeys", () => {
+    const modelAuthKeys = [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "COPILOT_GITHUB_TOKEN",
+      "ANTHROPIC_OAUTH_TOKEN",
+      "GEMINI_API_KEY",
+      "GROQ_API_KEY",
+      "MISTRAL_API_KEY",
+      "HF_TOKEN",
+      "HUGGINGFACE_HUB_TOKEN",
+    ];
+    const envVars: Record<string, string> = {};
+    for (const key of modelAuthKeys) {
+      envVars[key] = "test-value";
+    }
+    const result = sanitizeEnvVars(envVars, {
+      allowedKeys: new Set(modelAuthKeys),
+    });
+
+    expect(result.allowed).toEqual({});
+    expect(result.blocked).toEqual(expect.arrayContaining(modelAuthKeys));
   });
 
   it("still blocks allowedKeys vars with null bytes in values", () => {
