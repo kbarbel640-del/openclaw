@@ -7,7 +7,7 @@ import type { HeartbeatRunResult } from "../infra/heartbeat-wake.js";
 import * as schedule from "./schedule.js";
 import { CronService } from "./service.js";
 import { createDeferred, createRunningCronServiceState } from "./service.test-harness.js";
-import { computeJobNextRunAtMs } from "./service/jobs.js";
+import { computeJobNextRunAtMs, nextWakeAtMs } from "./service/jobs.js";
 import { createCronServiceState, type CronEvent } from "./service/state.js";
 import { executeJobCore, onTimer, runMissedJobs } from "./service/timer.js";
 import type { CronJob, CronJobState } from "./types.js";
@@ -419,6 +419,66 @@ describe("Cron issue regressions", () => {
 
     cron.stop();
     timeoutSpy.mockRestore();
+  });
+
+  it("#28403: ignores and repairs obviously-corrupt nextRunAtMs when computing nextWakeAtMs", async () => {
+    const store = await makeStorePath();
+    const now = Date.parse("2026-02-27T06:00:00.000Z");
+
+    // Healthy job with a reasonable nextRunAtMs in the near future.
+    const healthyNext = now + 60_000;
+    const healthyJob = createIsolatedRegressionJob({
+      id: "healthy-next",
+      name: "healthy",
+      scheduledAt: now,
+      schedule: { kind: "every", everyMs: 60_000, anchorMs: now },
+      payload: { kind: "agentTurn", message: "healthy" },
+      state: { nextRunAtMs: healthyNext },
+    });
+
+    // Corrupted job with an absurdly far-future nextRunAtMs that would render
+    // `cron status` unreadable (for example year 58128) and could wedge the
+    // scheduler if not treated defensively.
+    const corruptedNext = now + 1_000 * 365 * 24 * 60 * 60 * 1000; // ~1000 years
+    const corruptedJob = createIsolatedRegressionJob({
+      id: "corrupted-next",
+      name: "corrupted",
+      scheduledAt: now,
+      schedule: { kind: "every", everyMs: 60_000, anchorMs: now },
+      payload: { kind: "agentTurn", message: "corrupted" },
+      state: { nextRunAtMs: corruptedNext },
+    });
+
+    await writeCronJobs(store.storePath, [healthyJob, corruptedJob]);
+
+    const state = createCronServiceState({
+      cronEnabled: true,
+      storePath: store.storePath,
+      log: noopLogger,
+      nowMs: () => now,
+      enqueueSystemEvent: vi.fn(),
+      requestHeartbeatNow: vi.fn(),
+      runIsolatedAgentJob: createDefaultIsolatedRunner(),
+    });
+
+    // Load the store fixture directly; nextWakeAtMs only relies on in-memory state.
+    const raw = await fs.readFile(store.storePath, "utf8");
+    state.store = JSON.parse(raw) as { version: number; jobs: CronJob[] };
+
+    const schedulerNext = nextWakeAtMs(state);
+
+    // Scheduler should pick the healthy near-future time, not the absurdly
+    // far-future corrupted timestamp.
+    expect(schedulerNext).toBe(healthyNext);
+
+    const repairedCorruptedJob = state.store?.jobs.find((job) => job.id === "corrupted-next");
+    expect(repairedCorruptedJob).toBeDefined();
+    expect(typeof repairedCorruptedJob?.state.nextRunAtMs).toBe("number");
+    expect(repairedCorruptedJob?.state.nextRunAtMs).toBeGreaterThan(now);
+    // Repaired value should be within a sane window (certainly not ~1000 years ahead).
+    expect(repairedCorruptedJob?.state.nextRunAtMs).toBeLessThan(
+      now + 10 * 365 * 24 * 60 * 60 * 1000,
+    );
   });
 
   it("re-arms timer without hot-looping when a run is already in progress", async () => {
