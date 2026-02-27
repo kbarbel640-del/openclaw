@@ -326,23 +326,33 @@ export async function deliverReplies(params: {
               logVerbose(
                 "telegram sendVoice forbidden (recipient has voice messages blocked in privacy settings); falling back to text",
               );
-              await sendTelegramVoiceFallbackText({
-                bot,
-                chatId,
-                runtime,
-                text: fallbackText,
-                chunkText,
-                replyToId: replyToMessageIdForPayload,
-                thread,
-                linkPreview,
-                replyMarkup,
-                replyQuoteText,
-              });
-              if (replyToMessageIdForPayload && !hasReplied) {
-                hasReplied = true;
+              try {
+                await sendTelegramVoiceFallbackText({
+                  bot,
+                  chatId,
+                  runtime,
+                  text: fallbackText,
+                  chunkText,
+                  replyToId: replyToMessageIdForPayload,
+                  thread,
+                  linkPreview,
+                  replyMarkup,
+                  replyQuoteText,
+                });
+                if (replyToMessageIdForPayload && !hasReplied) {
+                  hasReplied = true;
+                }
+                markDelivered();
+                emitMessageSentHook({ ...hookBase, content: fallbackText, success: true });
+              } catch (fallbackErr) {
+                emitMessageSentHook({
+                  ...hookBase,
+                  content: fallbackText,
+                  success: false,
+                  error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+                });
+                throw fallbackErr;
               }
-              markDelivered();
-              emitMessageSentHook({ ...hookBase, content: fallbackText, success: true });
               // Skip this media item; continue with next.
               continue;
             }
