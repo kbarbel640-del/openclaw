@@ -1,0 +1,210 @@
+[
+  {
+    "source": "OpenClaw",
+    "target": "OpenClaw"
+  },
+  {
+    "source": "Gateway",
+    "target": "Ağ Geçidi"
+  },
+  {
+    "source": "Pi",
+    "target": "Pi"
+  },
+  {
+    "source": "Skills",
+    "target": "Yetenekler"
+  },
+  {
+    "source": "Skills config",
+    "target": "Yetenek yapılandırması"
+  },
+  {
+    "source": "Skills Config",
+    "target": "Yetenek Yapılandırması"
+  },
+  {
+    "source": "local loopback",
+    "target": "yerel geri döngü"
+  },
+  {
+    "source": "Tailscale",
+    "target": "Tailscale"
+  },
+  {
+    "source": "Getting Started",
+    "target": "Başlangıç"
+  },
+  {
+    "source": "Getting started",
+    "target": "Başlangıç"
+  },
+  {
+    "source": "Quick start",
+    "target": "Hızlı başlangıç"
+  },
+  {
+    "source": "Quick Start",
+    "target": "Hızlı Başlangıç"
+  },
+  {
+    "source": "Docs directory",
+    "target": "Belgeler dizini"
+  },
+  {
+    "source": "Credits",
+    "target": "Katkıda Bulunanlar"
+  },
+  {
+    "source": "Features",
+    "target": "Özellikler"
+  },
+  {
+    "source": "DMs",
+    "target": "Özel mesajlar"
+  },
+  {
+    "source": "DM",
+    "target": "Özel mesaj"
+  },
+  {
+    "source": "sandbox",
+    "target": "sanal alan"
+  },
+  {
+    "source": "Sandbox",
+    "target": "Sanal Alan"
+  },
+  {
+    "source": "sandboxing",
+    "target": "sanal alan izolasyonu"
+  },
+  {
+    "source": "Sandboxing",
+    "target": "Sanal Alan İzolasyonu"
+  },
+  {
+    "source": "sandboxed",
+    "target": "izole edilmiş"
+  },
+  {
+    "source": "Sandboxed",
+    "target": "İzole Edilmiş"
+  },
+  {
+    "source": "Sandboxing note",
+    "target": "Sanal alan notu"
+  },
+  {
+    "source": "Companion apps",
+    "target": "Yardımcı uygulamalar"
+  },
+  {
+    "source": "expected keys",
+    "target": "beklenen anahtarlar"
+  },
+  {
+    "source": "block streaming",
+    "target": "blok akışı"
+  },
+  {
+    "source": "Block streaming",
+    "target": "Blok Akışı"
+  },
+  {
+    "source": "Discovery + transports",
+    "target": "Keşif + iletim protokolleri"
+  },
+  {
+    "source": "Discovery",
+    "target": "Keşif"
+  },
+  {
+    "source": "Network model",
+    "target": "Ağ modeli"
+  },
+  {
+    "source": "for full details",
+    "target": "tüm detaylar için"
+  },
+  {
+    "source": "First 60 seconds",
+    "target": "İlk 60 saniye"
+  },
+  {
+    "source": "Auth: where it lives (important)",
+    "target": "Kimlik doğrulama: nerede saklanır (önemli)"
+  },
+  {
+    "source": "agent",
+    "target": "ajan"
+  },
+  {
+    "source": "channel",
+    "target": "kanal"
+  },
+  {
+    "source": "session",
+    "target": "oturum"
+  },
+  {
+    "source": "provider",
+    "target": "sağlayıcı"
+  },
+  {
+    "source": "model",
+    "target": "model"
+  },
+  {
+    "source": "tool",
+    "target": "araç"
+  },
+  {
+    "source": "CLI",
+    "target": "CLI"
+  },
+  {
+    "source": "install sanity",
+    "target": "kurulum doğrulama"
+  },
+  {
+    "source": "get unstuck",
+    "target": "sorunları çözme"
+  },
+  {
+    "source": "troubleshooting",
+    "target": "sorun giderme"
+  },
+  {
+    "source": "FAQ",
+    "target": "SSS"
+  },
+  {
+    "source": "onboarding",
+    "target": "hazırlık"
+  },
+  {
+    "source": "Onboarding",
+    "target": "Hazırlık"
+  },
+  {
+    "source": "wizard",
+    "target": "sihirbaz"
+  },
+  {
+    "source": "environment variables",
+    "target": "ortam değişkenleri"
+  },
+  {
+    "source": "environment variable",
+    "target": "ortam değişkeni"
+  },
+  {
+    "source": "env vars",
+    "target": "ortam değişkenleri"
+  },
+  {
+    "source": "env var",
+    "target": "ortam değişkeni"
+  }
+]
