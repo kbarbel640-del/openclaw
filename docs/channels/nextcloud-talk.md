@@ -97,14 +97,19 @@ Minimal config:
 
 ## Capabilities
 
-| Feature         | Status        |
-| --------------- | ------------- |
-| Direct messages | Supported     |
-| Rooms           | Supported     |
-| Threads         | Not supported |
-| Media           | URL-only      |
-| Reactions       | Supported     |
-| Native commands | Not supported |
+| Feature          | Status        |
+| ---------------- | ------------- |
+| Direct messages  | Supported     |
+| Rooms            | Supported     |
+| Threads          | Not supported |
+| Media            | URL-only      |
+| Reactions        | Supported     |
+| Native commands  | Not supported |
+| Typing indicator | Supported¹    |
+
+¹ Requires `apiUser` and `apiPassword` (or `apiPasswordFile`) to be configured. The typing
+indicator connects to the NC Talk HPB (High Performance Backend) signaling server via WebSocket.
+If HPB is not configured or credentials are missing, typing is silently skipped.
 
 ## Configuration reference (Nextcloud Talk)
 
