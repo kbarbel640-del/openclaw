@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { fetchWithSsrFGuard, type OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { aomsMemoryConfigSchema } from "./config.js";
 
 type AomsToolResult = {
@@ -23,8 +23,6 @@ async function postJson(params: {
   apiKey?: string;
   body: Record<string, unknown>;
 }): Promise<AomsToolResult> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), params.timeoutMs);
   try {
     const headers: Record<string, string> = {
       "content-type": "application/json",
@@ -32,44 +30,50 @@ async function postJson(params: {
     if (params.apiKey) {
       headers.authorization = `Bearer ${params.apiKey}`;
     }
-    const response = await fetch(`${params.baseUrl}${params.path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(params.body),
-      signal: controller.signal,
+
+    const { response, release } = await fetchWithSsrFGuard({
+      url: `${params.baseUrl}${params.path}`,
+      timeoutMs: params.timeoutMs,
+      init: {
+        method: "POST",
+        headers,
+        body: JSON.stringify(params.body),
+      },
     });
 
-    let parsed: unknown = null;
-    const text = await response.text();
-    if (text) {
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = { text };
+    try {
+      let parsed: unknown = null;
+      const text = await response.text();
+      if (text) {
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = { text };
+        }
       }
-    }
 
-    if (!response.ok) {
+      if (!response.ok) {
+        return {
+          ok: false,
+          status: response.status,
+          data: parsed,
+          error: `AOMS request failed (${response.status})`,
+        };
+      }
+
       return {
-        ok: false,
+        ok: true,
         status: response.status,
         data: parsed,
-        error: `AOMS request failed (${response.status})`,
       };
+    } finally {
+      await release();
     }
-
-    return {
-      ok: true,
-      status: response.status,
-      data: parsed,
-    };
   } catch (err) {
     return {
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
