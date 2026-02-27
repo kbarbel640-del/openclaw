@@ -13,13 +13,25 @@ import {
 import { getRemoteSkillEligibility } from "../../infra/skills-remote.js";
 import { drainSystemEventEntries } from "../../infra/system-events.js";
 
+export type SystemEventsResult = {
+  /** The user message body — unchanged; system events are NOT mixed in. */
+  body: string;
+  /**
+   * Formatted system events block (e.g. "System: [ts] text\nSystem: [ts] text2").
+   * Empty string when there are no queued events.
+   * Callers should inject this into the system prompt, NOT into the user message body,
+   * to prevent spoofing via user-controlled channels (see issue #21656).
+   */
+  systemBlock: string;
+};
+
 export async function prependSystemEvents(params: {
   cfg: OpenClawConfig;
   sessionKey: string;
   isMainSession: boolean;
   isNewSession: boolean;
   prefixedBodyBase: string;
-}): Promise<string> {
+}): Promise<SystemEventsResult> {
   const compactSystemEvent = (line: string): string | null => {
     const trimmed = line.trim();
     if (!trimmed) {
@@ -104,11 +116,15 @@ export async function prependSystemEvents(params: {
     }
   }
   if (systemLines.length === 0) {
-    return params.prefixedBodyBase;
+    return { body: params.prefixedBodyBase, systemBlock: "" };
   }
 
   const block = systemLines.map((l) => `System: ${l}`).join("\n");
-  return `${block}\n\n${params.prefixedBodyBase}`;
+  // Return body and systemBlock separately so the caller injects system events
+  // into the system prompt (role: system) rather than the user message body.
+  // This prevents external users from spoofing system events via Telegram/WhatsApp
+  // by crafting a message with the same "System: ..." prefix. (issue #21656)
+  return { body: params.prefixedBodyBase, systemBlock: block };
 }
 
 export async function ensureSkillSnapshot(params: {

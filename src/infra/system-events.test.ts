@@ -29,7 +29,9 @@ describe("system events (session routing)", () => {
       isNewSession: false,
       prefixedBodyBase: "hello",
     });
-    expect(main).toBe("hello");
+    // body is unchanged; no events for this session
+    expect(main.body).toBe("hello");
+    expect(main.systemBlock).toBe("");
     expect(peekSystemEvents("discord:group:123")).toEqual(["Discord reaction added: ✅"]);
 
     const discord = await prependSystemEvents({
@@ -39,7 +41,10 @@ describe("system events (session routing)", () => {
       isNewSession: false,
       prefixedBodyBase: "hi",
     });
-    expect(discord).toMatch(/^System: \[[^\]]+\] Discord reaction added: ✅\n\nhi$/);
+    // System events must be in systemBlock, NOT mixed into the user body. (issue #21656)
+    expect(discord.systemBlock).toMatch(/^System: \[[^\]]+\] Discord reaction added: ✅$/);
+    expect(discord.body).toBe("hi");
+    expect(discord.body).not.toContain("System:");
     expect(peekSystemEvents("discord:group:123")).toEqual([]);
   });
 

@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-// Default required files — constants, extensible to config later
+// Default required files — constants, extensible to config later.
+// Intentionally minimal: only files that are guaranteed to exist in all workspaces.
+// WORKFLOW_AUTO.md is NOT included because it doesn't exist by default, causing
+// spurious post-compaction warnings on every session after compaction. (#22674)
 const DEFAULT_REQUIRED_READS: Array<string | RegExp> = [
-  "WORKFLOW_AUTO.md",
   /memory\/\d{4}-\d{2}-\d{2}\.md/, // daily memory files
 ];
 
