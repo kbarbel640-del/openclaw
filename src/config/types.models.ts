@@ -47,6 +47,8 @@ export type ModelDefinitionConfig = {
   compat?: ModelCompatConfig;
 };
 
+import type { OutboundRetryConfig } from "./types.base.js";
+
 export type ModelProviderConfig = {
   baseUrl: string;
   apiKey?: SecretInput;
@@ -55,6 +57,7 @@ export type ModelProviderConfig = {
   headers?: Record<string, string>;
   authHeader?: boolean;
   models: ModelDefinitionConfig[];
+  retry?: OutboundRetryConfig;
 };
 
 export type BedrockDiscoveryConfig = {

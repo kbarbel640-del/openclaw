@@ -113,6 +113,7 @@ import {
 } from "./compaction-timeout.js";
 import { pruneProcessedHistoryImages } from "./history-image-prune.js";
 import { detectAndLoadPromptImages } from "./images.js";
+import { getRetryConfig, runWithPromptRetry } from "./prompt-retry.js";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 
 type PromptBuildHookRunner = {
@@ -1119,10 +1120,23 @@ export async function runEmbeddedAttempt(
 
           // Only pass images option if there are actually images to pass
           // This avoids potential issues with models that don't expect the images parameter
+          const retryConfig = getRetryConfig(params.provider, params.config);
           if (imageResult.images.length > 0) {
-            await abortable(activeSession.prompt(effectivePrompt, { images: imageResult.images }));
+            await abortable(
+              runWithPromptRetry(
+                () => activeSession.prompt(effectivePrompt, { images: imageResult.images }),
+                retryConfig,
+                runAbortController.signal,
+              ),
+            );
           } else {
-            await abortable(activeSession.prompt(effectivePrompt));
+            await abortable(
+              runWithPromptRetry(
+                () => activeSession.prompt(effectivePrompt),
+                retryConfig,
+                runAbortController.signal,
+              ),
+            );
           }
         } catch (err) {
           promptError = err;
