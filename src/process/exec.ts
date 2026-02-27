@@ -50,12 +50,13 @@ export async function runExec(
 ): Promise<{ stdout: string; stderr: string }> {
   const options =
     typeof opts === "number"
-      ? { timeout: opts, encoding: "utf8" as const }
+      ? { timeout: opts, encoding: "utf8" as const, windowsHide: true }
       : {
           timeout: opts.timeoutMs,
           maxBuffer: opts.maxBuffer,
           cwd: opts.cwd,
           encoding: "utf8" as const,
+          windowsHide: true,
         };
   try {
     const { stdout, stderr } = await execFileAsync(resolveCommand(command), args, options);
@@ -139,6 +140,7 @@ export async function runCommandWithTimeout(
     stdio,
     cwd,
     env: resolvedEnv,
+    windowsHide: true,
     windowsVerbatimArguments,
     ...(shouldSpawnWithShell({ resolvedCommand, platform: process.platform })
       ? { shell: true }
