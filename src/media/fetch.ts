@@ -32,6 +32,7 @@ type FetchMediaOptions = {
   maxRedirects?: number;
   ssrfPolicy?: SsrFPolicy;
   lookupFn?: LookupFn;
+  timeoutMs?: number;
 };
 
 function stripQuotes(value: string): string {
@@ -79,7 +80,7 @@ async function readErrorBodySnippet(res: Response, maxChars = 200): Promise<stri
 }
 
 export async function fetchRemoteMedia(options: FetchMediaOptions): Promise<FetchMediaResult> {
-  const { url, fetchImpl, filePathHint, maxBytes, maxRedirects, ssrfPolicy, lookupFn } = options;
+  const { url, fetchImpl, filePathHint, maxBytes, maxRedirects, ssrfPolicy, lookupFn, timeoutMs } = options;
 
   let res: Response;
   let finalUrl = url;
@@ -91,6 +92,7 @@ export async function fetchRemoteMedia(options: FetchMediaOptions): Promise<Fetc
       maxRedirects,
       policy: ssrfPolicy,
       lookupFn,
+      timeoutMs,
     });
     res = result.response;
     finalUrl = result.finalUrl;
