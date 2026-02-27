@@ -134,8 +134,20 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
       return;
     }
 
+    // Stagger Discord account startups to avoid Cloudflare IP bans.
+    // Discord rate-limits Gateway IDENTIFY to 1 per 5 seconds per IP.
+    // Multiple simultaneous IDENTIFY requests trigger Cloudflare-level
+    // IP bans lasting hours. See: https://github.com/openclaw/openclaw/issues/27781
+    const DISCORD_STARTUP_STAGGER_MS = 6_000;
+    const isDiscord = channelId === "discord";
+
     await Promise.all(
-      accountIds.map(async (id) => {
+      accountIds.map(async (id, index) => {
+        if (isDiscord && index > 0) {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, index * DISCORD_STARTUP_STAGGER_MS),
+          );
+        }
         if (store.tasks.has(id)) {
           return;
         }
