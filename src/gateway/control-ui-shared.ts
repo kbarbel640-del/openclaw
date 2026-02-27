@@ -65,4 +65,29 @@ export function resolveAssistantAvatarUrl(params: {
   return avatar;
 }
 
+export const CONTROL_UI_USER_AVATAR_PATH = `${CONTROL_UI_AVATAR_PREFIX}/__user`;
+
+export function resolveUserAvatarUrl(params: {
+  avatar?: string | null;
+  basePath?: string;
+}): string | undefined {
+  const avatar = params.avatar?.trim();
+  if (!avatar) {
+    return undefined;
+  }
+  if (isAvatarHttpUrl(avatar) || isAvatarImageDataUrl(avatar)) {
+    return avatar;
+  }
+
+  const basePath = normalizeControlUiBasePath(params.basePath);
+  const userAvatarPath = basePath
+    ? `${basePath}${CONTROL_UI_USER_AVATAR_PATH}`
+    : CONTROL_UI_USER_AVATAR_PATH;
+
+  if (looksLikeAvatarPath(avatar)) {
+    return userAvatarPath;
+  }
+  return avatar;
+}
+
 export { CONTROL_UI_AVATAR_PREFIX };
