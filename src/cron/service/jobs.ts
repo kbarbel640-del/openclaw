@@ -330,16 +330,61 @@ export function recomputeNextRunsForMaintenance(state: CronServiceState): boolea
   });
 }
 
+/**
+ * Resolve the next wall-clock time the scheduler should wake up.
+ *
+ * Defensively ignores obviously-corrupt `nextRunAtMs` values that can appear
+ * in persisted state (for example due to older bugs or manual edits) and
+ * repairs them from the job schedule when possible. This prevents a single
+ * bad timestamp from wedging the scheduler or producing nonsensical dates in
+ * `cron status` (see #28403).
+ */
 export function nextWakeAtMs(state: CronServiceState) {
   const jobs = state.store?.jobs ?? [];
-  const enabled = jobs.filter((j) => j.enabled && typeof j.state.nextRunAtMs === "number");
-  if (enabled.length === 0) {
+  if (jobs.length === 0) {
     return undefined;
   }
-  return enabled.reduce(
-    (min, j) => Math.min(min, j.state.nextRunAtMs as number),
-    enabled[0].state.nextRunAtMs as number,
-  );
+
+  const now = state.deps.nowMs();
+  // Allow generous drift for clocks and long schedules, but treat values that
+  // are many years in the future or far in the past as corrupt.
+  const MAX_FUTURE_AHEAD_MS = 10 * 365 * 24 * 60 * 60 * 1000; // ~10 years
+  const MAX_PAST_DRIFT_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+  let minNext: number | undefined;
+
+  for (const job of jobs) {
+    if (!job.enabled) {
+      continue;
+    }
+    const rawNext = job.state.nextRunAtMs;
+    if (typeof rawNext !== "number" || !Number.isFinite(rawNext)) {
+      continue;
+    }
+
+    const delta = rawNext - now;
+    const isClearlyCorrupt =
+      delta > MAX_FUTURE_AHEAD_MS || delta < -MAX_PAST_DRIFT_MS || rawNext <= 0;
+
+    if (isClearlyCorrupt) {
+      // Attempt to repair from schedule; if that fails, skip this job for the
+      // purposes of scheduler wake computation.
+      const repaired = computeJobNextRunAtMs(job, now);
+      if (typeof repaired === "number" && Number.isFinite(repaired)) {
+        job.state.nextRunAtMs = repaired;
+        if (minNext === undefined || repaired < minNext) {
+          minNext = repaired;
+        }
+      }
+      continue;
+    }
+
+    if (minNext === undefined || rawNext < minNext) {
+      minNext = rawNext;
+    }
+  }
+
+  return minNext;
 }
 
 export function createJob(state: CronServiceState, input: CronJobCreate): CronJob {
