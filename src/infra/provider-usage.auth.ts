@@ -98,59 +98,20 @@ function resolveXiaomiApiKey(): string | undefined {
  * Ollama doesn't have a public API for usage. We need the browser session cookie
  * to fetch usage data from ollama.com/settings.
  *
- * The cookie can be provided via:
- * 1. OLLAMA_COOKIE environment variable
- * 2. Auth profile store (token type only - NOT api_key)
+ * SECURITY: Only accept explicit OLLAMA_COOKIE environment variable.
  *
- * SECURITY: We explicitly DO NOT fall back to api_key credentials because
- * Ollama api_key profiles are also used for model authentication.
- * Sending an API key as a Cookie header to ollama.com would leak secrets.
+ * We do NOT read from auth profile store because token profiles are also
+ * used for Ollama model/API authentication (resolveApiKeyFromProfiles for ollama).
+ * Using a token as a Cookie header would:
+ * 1. Leak API secrets to https://ollama.com/settings
+ * 2. Fail usage auth anyway (it's an API token, not a browser cookie)
  *
+ * Users must explicitly set OLLAMA_COOKIE env var for usage tracking.
  * The cookie string should be in format: "name1=value1; name2=value2"
  * Common session cookie names: __Secure-session, session, next-auth.session-token
  */
-async function resolveOllamaCookie(params: { agentDir?: string }): Promise<string | undefined> {
-  // Check environment variable first
-  const envCookie = normalizeSecretInput(process.env.OLLAMA_COOKIE);
-  if (envCookie) {
-    return envCookie;
-  }
-
-  // Check auth profile store for token credential ONLY
-  // SECURITY: Do NOT use api_key type - those are for model auth, not cookies
-  const store = ensureAuthProfileStore(params.agentDir, {
-    allowKeychainPrompt: false,
-  });
-
-  // Use listProfilesForProvider instead of resolveAuthProfileOrder because
-  // resolveAuthProfileOrder's isValidProfile filters out token profiles without
-  // an inline token value. But we need to include profiles with tokenRef for
-  // secret resolution (saveAuthProfileStore strips inline token when tokenRef exists).
-  const profiles = listProfilesForProvider(store, "ollama");
-
-  for (const profileId of profiles) {
-    const cred = store.profiles[profileId];
-    if (cred?.type !== "token") {
-      continue;
-    }
-    try {
-      // Use resolveApiKeyForProfile to properly handle tokenRef (secret references)
-      // This resolves both inline tokens AND tokenRef-based secrets
-      const resolved = await resolveApiKeyForProfile({
-        cfg: undefined,
-        store,
-        profileId,
-        agentDir: params.agentDir,
-      });
-      if (resolved?.apiKey) {
-        return resolved.apiKey;
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  return undefined;
+async function resolveOllamaCookie(): Promise<string | undefined> {
+  return normalizeSecretInput(process.env.OLLAMA_COOKIE);
 }
 function resolveProviderApiKeyFromConfigAndStore(params: {
   providerId: UsageProviderId;
@@ -303,7 +264,7 @@ export async function resolveProviderAuths(params: {
       continue;
     }
     if (provider === "ollama") {
-      const cookie = await resolveOllamaCookie({ agentDir: params.agentDir });
+      const cookie = await resolveOllamaCookie();
       if (cookie) {
         auths.push({ provider, token: cookie });
       }
