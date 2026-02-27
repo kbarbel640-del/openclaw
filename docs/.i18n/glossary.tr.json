@@ -1,0 +1,147 @@
+[
+  {
+    "source": "OpenClaw",
+    "target": "OpenClaw",
+    "note": "Product name, never translated"
+  },
+  {
+    "source": "Gateway",
+    "target": "Gateway",
+    "note": "Core architecture term; Turkish developers use this as-is"
+  },
+  {
+    "source": "Agent",
+    "target": "Agent",
+    "note": "AI agent, not a secret agent. Keep English form"
+  },
+  {
+    "source": "Skills",
+    "target": "Skill'ler",
+    "note": "Plugin-like capabilities; keep English root, add Turkish plural suffix"
+  },
+  {
+    "source": "Nodes",
+    "target": "Node'lar",
+    "note": "Paired devices; keep English root, add Turkish plural suffix"
+  },
+  {
+    "source": "Session",
+    "target": "Oturum",
+    "note": "Well-established Turkish equivalent"
+  },
+  {
+    "source": "Session Key",
+    "target": "Session Key",
+    "note": "Technical identifier, keep as-is"
+  },
+  {
+    "source": "Channel",
+    "target": "Kanal",
+    "note": "Well-established Turkish equivalent"
+  },
+  {
+    "source": "Token",
+    "target": "Token",
+    "note": "Auth token; universally understood, do not translate"
+  },
+  {
+    "source": "Config",
+    "target": "Config",
+    "note": "Developer term, keep as-is"
+  },
+  {
+    "source": "Debug",
+    "target": "Debug",
+    "note": "Developer term, keep as-is"
+  },
+  {
+    "source": "Cron",
+    "target": "Cron",
+    "note": "Unix cron; universally understood, do not translate"
+  },
+  {
+    "source": "WebSocket",
+    "target": "WebSocket",
+    "note": "Protocol name, never translated"
+  },
+  {
+    "source": "API",
+    "target": "API",
+    "note": "Acronym, never translated"
+  },
+  {
+    "source": "Proxy",
+    "target": "Proxy",
+    "note": "Network term, keep as-is"
+  },
+  {
+    "source": "Tailscale",
+    "target": "Tailscale",
+    "note": "Product name, never translated"
+  },
+  {
+    "source": "Sandbox",
+    "target": "Sandbox",
+    "note": "Technical term, keep as-is"
+  },
+  {
+    "source": "CLI",
+    "target": "CLI",
+    "note": "Acronym, never translated"
+  },
+  {
+    "source": "Heartbeat",
+    "target": "Heartbeat",
+    "note": "Technical term for presence signals"
+  },
+  {
+    "source": "Snapshot",
+    "target": "Snapshot",
+    "note": "Technical term, keep as-is"
+  },
+  {
+    "source": "Overview",
+    "target": "Genel Bakış",
+    "note": "UI navigation term, well-established Turkish equivalent"
+  },
+  {
+    "source": "Settings",
+    "target": "Ayarlar",
+    "note": "UI term, well-established Turkish equivalent"
+  },
+  {
+    "source": "Enabled",
+    "target": "Etkin",
+    "note": "Toggle state"
+  },
+  {
+    "source": "Disabled",
+    "target": "Devre Dışı",
+    "note": "Toggle state"
+  },
+  {
+    "source": "Connect",
+    "target": "Bağlan",
+    "note": "Action button"
+  },
+  {
+    "source": "Refresh",
+    "target": "Yenile",
+    "note": "Action button"
+  },
+  {
+    "source": "Logs",
+    "target": "Günlükler",
+    "note": "Well-established Turkish equivalent for log files"
+  },
+  {
+    "source": "Usage",
+    "target": "Kullanım",
+    "note": "API usage tracking"
+  },
+  {
+    "source": "Instances",
+    "target": "Bağlantılar",
+    "note": "Connected clients sending heartbeats; 'Bağlantılar' (connections) is clearer than literal 'Örnekler'"
+  }
+]
