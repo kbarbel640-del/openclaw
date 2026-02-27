@@ -24,7 +24,7 @@ describe("sanitizeToolsForGoogle", () => {
     expect(params.properties?.foo?.format).toBeUndefined();
   };
 
-  it("strips unsupported schema keywords for Google providers", () => {
+  it("strips unsupported schema keywords for google-gemini-cli", () => {
     const tool = createTool({
       type: "object",
       additionalProperties: false,
@@ -38,6 +38,24 @@ describe("sanitizeToolsForGoogle", () => {
     const [sanitized] = sanitizeToolsForGoogle({
       tools: [tool],
       provider: "google-gemini-cli",
+    });
+    expectFormatRemoved(sanitized, "additionalProperties");
+  });
+
+  it("strips unsupported schema keywords for google-generative-ai", () => {
+    const tool = createTool({
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        foo: {
+          type: "string",
+          format: "uuid",
+        },
+      },
+    });
+    const [sanitized] = sanitizeToolsForGoogle({
+      tools: [tool],
+      provider: "google-generative-ai",
     });
     expectFormatRemoved(sanitized, "additionalProperties");
   });
