@@ -365,6 +365,8 @@ export const MODEL_AUTH_ENV_VARS: ReadonlySet<string> = new Set([
   // huggingface
   "HUGGINGFACE_HUB_TOKEN",
   "HF_TOKEN",
+  // amazon-bedrock (AWS SDK auth)
+  "AWS_BEARER_TOKEN_BEDROCK",
   // envMap providers
   "OPENAI_API_KEY",
   "GEMINI_API_KEY",

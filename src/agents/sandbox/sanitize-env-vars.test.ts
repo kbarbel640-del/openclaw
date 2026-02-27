@@ -104,6 +104,7 @@ describe("sanitizeEnvVars", () => {
       "OPENAI_API_KEY",
       "COPILOT_GITHUB_TOKEN",
       "ANTHROPIC_OAUTH_TOKEN",
+      "AWS_BEARER_TOKEN_BEDROCK",
       "GEMINI_API_KEY",
       "GROQ_API_KEY",
       "MISTRAL_API_KEY",
