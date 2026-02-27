@@ -56,4 +56,14 @@ export default defineConfig([
     fixedExtension: false,
     platform: "node",
   },
+  {
+    // Compaction isolation worker — bundled as a separate entry so it can run
+    // inside worker_threads.Worker without pulling in the full gateway bundle.
+    // Lands at dist/compaction-worker.js, resolved from compaction.ts at runtime
+    // via: new URL("./compaction-worker.js", import.meta.url)
+    entry: "src/agents/compaction-worker.ts",
+    env,
+    fixedExtension: false,
+    platform: "node",
+  },
 ]);

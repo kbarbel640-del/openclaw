@@ -788,20 +788,20 @@ export async function runMessageAction(
     mediaPolicy,
   });
 
-  const resolvedTarget = await resolveActionTarget({
-    cfg,
-    channel,
-    action,
-    args: params,
-    accountId,
-  });
-
   enforceCrossContextPolicy({
     channel,
     action,
     args: params,
     toolContext: input.toolContext,
     cfg,
+  });
+
+  const resolvedTarget = await resolveActionTarget({
+    cfg,
+    channel,
+    action,
+    args: params,
+    accountId,
   });
 
   const gateway = resolveGateway(input);

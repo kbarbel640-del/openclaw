@@ -40,7 +40,7 @@ export async function resolveLinkChannelContext(
     }
     const authAgeMs =
       summaryRecord && typeof summaryRecord.authAgeMs === "number" ? summaryRecord.authAgeMs : null;
-    return { linked, authAgeMs, account, accountId: defaultAccountId, plugin };
+    return { linked, authAgeMs, account, accountId: defaultAccountId ?? "", plugin };
   }
   return null;
 }
