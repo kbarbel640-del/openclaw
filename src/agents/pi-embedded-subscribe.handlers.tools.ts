@@ -311,17 +311,13 @@ export async function handleToolExecutionEnd(
   const toolCallId = String(evt.toolCallId);
   const isError = Boolean(evt.isError);
   const result = evt.result;
+  const wasUnsubscribedAtStart = ctx.state.unsubscribed;
 
   try {
-    // Early return if run was already unsubscribed (aborted).
-    // This is a race condition where the tool event fired after unsubscribe was called
-    // (e.g., timeout during tool execution). We skip the normal cleanup logic which may
-    // access already-cleared maps or attempt to emit events to a closed subscription.
-    // State clearing happens in finally block to ensure it runs in all cases.
-    if (ctx.state.unsubscribed) {
-      ctx.log.debug(`tool_execution_end skipped (unsubscribed): tool=${toolName}`);
-      return;
-    }
+    // Process late tool-end events even after unsubscribe. The tool may have completed
+    // and sent a message before/while unsubscribe was happening. We must commit pending
+    // messaging data to maintain accurate didSendViaMessagingTool state and prevent
+    // downstream duplicate sends. Skip event emission to avoid closed subscriptions.
 
     const isToolError = isError || isToolResultError(result);
     const sanitizedResult = sanitizeToolResult(result);
@@ -401,79 +397,88 @@ export async function handleToolExecutionEnd(
       ctx.state.successfulCronAdds += 1;
     }
 
-    emitAgentEvent({
-      runId: ctx.params.runId,
-      stream: "tool",
-      data: {
-        phase: "result",
-        name: toolName,
-        toolCallId,
-        meta,
-        isError: isToolError,
-        result: sanitizedResult,
-      },
-    });
-    void ctx.params.onAgentEvent?.({
-      stream: "tool",
-      data: {
-        phase: "result",
-        name: toolName,
-        toolCallId,
-        meta,
-        isError: isToolError,
-      },
-    });
+    // Skip event emission if unsubscribed to avoid closed subscriptions,
+    // but still commit pending messaging data above for accurate delivery tracking.
+    if (!wasUnsubscribedAtStart) {
+      emitAgentEvent({
+        runId: ctx.params.runId,
+        stream: "tool",
+        data: {
+          phase: "result",
+          name: toolName,
+          toolCallId,
+          meta,
+          isError: isToolError,
+          result: sanitizedResult,
+        },
+      });
+      void ctx.params.onAgentEvent?.({
+        stream: "tool",
+        data: {
+          phase: "result",
+          name: toolName,
+          toolCallId,
+          meta,
+          isError: isToolError,
+        },
+      });
+    }
 
     ctx.log.debug(
       `embedded run tool end: runId=${ctx.params.runId} tool=${toolName} toolCallId=${toolCallId}`,
     );
 
-    if (ctx.params.onToolResult && ctx.shouldEmitToolOutput()) {
-      const outputText = extractToolResultText(sanitizedResult);
-      if (outputText) {
-        ctx.emitToolOutput(toolName, meta, outputText);
+    // Skip onToolResult callbacks if unsubscribed to avoid closed subscriptions.
+    if (!wasUnsubscribedAtStart && ctx.params.onToolResult) {
+      if (ctx.shouldEmitToolOutput()) {
+        const outputText = extractToolResultText(sanitizedResult);
+        if (outputText) {
+          ctx.emitToolOutput(toolName, meta, outputText);
+        }
       }
-    }
 
-    // Deliver media from tool results when the verbose emitToolOutput path is off.
-    // When shouldEmitToolOutput() is true, emitToolOutput already delivers media
-    // via parseReplyDirectives (MEDIA: text extraction), so skip to avoid duplicates.
-    if (ctx.params.onToolResult && !isToolError && !ctx.shouldEmitToolOutput()) {
-      const mediaPaths = filterToolResultMediaUrls(toolName, extractToolResultMediaPaths(result));
-      if (mediaPaths.length > 0) {
-        try {
-          void ctx.params.onToolResult({ mediaUrls: mediaPaths });
-        } catch {
-          // ignore delivery failures
+      // Deliver media from tool results when the verbose emitToolOutput path is off.
+      // When shouldEmitToolOutput() is true, emitToolOutput already delivers media
+      // via parseReplyDirectives (MEDIA: text extraction), so skip to avoid duplicates.
+      if (!isToolError && !ctx.shouldEmitToolOutput()) {
+        const mediaPaths = filterToolResultMediaUrls(toolName, extractToolResultMediaPaths(result));
+        if (mediaPaths.length > 0) {
+          try {
+            void ctx.params.onToolResult({ mediaUrls: mediaPaths });
+          } catch {
+            // ignore delivery failures
+          }
         }
       }
     }
 
-    // Run after_tool_call plugin hook (fire-and-forget).
-    const hookRunnerAfter = ctx.hookRunner ?? getGlobalHookRunner();
-    if (hookRunnerAfter?.hasHooks("after_tool_call")) {
-      const durationMs =
-        startData?.startTime != null ? Date.now() - startData.startTime : undefined;
-      const toolArgs = startData?.args;
-      const hookEvent: PluginHookAfterToolCallEvent = {
-        toolName,
-        params: (toolArgs && typeof toolArgs === "object" ? toolArgs : {}) as Record<
-          string,
-          unknown
-        >,
-        result: sanitizedResult,
-        error: isToolError ? extractToolErrorMessage(sanitizedResult) : undefined,
-        durationMs,
-      };
-      void hookRunnerAfter
-        .runAfterToolCall(hookEvent, {
+    // Run after_tool_call plugin hook (fire-and-forget) only if not unsubscribed.
+    if (!wasUnsubscribedAtStart) {
+      const hookRunnerAfter = ctx.hookRunner ?? getGlobalHookRunner();
+      if (hookRunnerAfter?.hasHooks("after_tool_call")) {
+        const durationMs =
+          startData?.startTime != null ? Date.now() - startData.startTime : undefined;
+        const toolArgs = startData?.args;
+        const hookEvent: PluginHookAfterToolCallEvent = {
           toolName,
-          agentId: undefined,
-          sessionKey: undefined,
-        })
-        .catch((err) => {
-          ctx.log.warn(`after_tool_call hook failed: tool=${toolName} error=${String(err)}`);
-        });
+          params: (toolArgs && typeof toolArgs === "object" ? toolArgs : {}) as Record<
+            string,
+            unknown
+          >,
+          result: sanitizedResult,
+          error: isToolError ? extractToolErrorMessage(sanitizedResult) : undefined,
+          durationMs,
+        };
+        void hookRunnerAfter
+          .runAfterToolCall(hookEvent, {
+            toolName,
+            agentId: undefined,
+            sessionKey: undefined,
+          })
+          .catch((err) => {
+            ctx.log.warn(`after_tool_call hook failed: tool=${toolName} error=${String(err)}`);
+          });
+      }
     }
   } finally {
     // Skip all state updates if unsubscribed to prevent interfering with
