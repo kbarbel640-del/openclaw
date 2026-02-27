@@ -232,6 +232,14 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         unit: "1",
         description: "Run attempts",
       });
+      const toolCallCounter = meter.createCounter("openclaw.tool.calls", {
+        unit: "1",
+        description: "Tool call invocations",
+      });
+      const toolCallDurationHistogram = meter.createHistogram("openclaw.tool.duration_ms", {
+        unit: "ms",
+        description: "Tool call execution duration",
+      });
 
       if (logsEnabled) {
         const logExporter = new OTLPLogExporter({
@@ -609,6 +617,62 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         queueDepthHistogram.record(evt.queued, { "openclaw.channel": "heartbeat" });
       };
 
+      const MAX_PARAMS_ATTR_LENGTH = 2048;
+      const truncateParamsForSpan = (params: Record<string, unknown>): string => {
+        try {
+          const jsonStr = JSON.stringify(params);
+          if (jsonStr.length <= MAX_PARAMS_ATTR_LENGTH) {
+            return jsonStr;
+          }
+          return jsonStr.slice(0, MAX_PARAMS_ATTR_LENGTH - 12) + "…[truncated]";
+        } catch {
+          return '{"error":"Failed to serialize params"}';
+        }
+      };
+
+      const recordToolCall = (evt: Extract<DiagnosticEventPayload, { type: "tool.call" }>) => {
+        const attrs: Record<string, string | number> = {
+          "openclaw.toolName": evt.toolName,
+        };
+        if (evt.toolCallId) {
+          attrs["openclaw.toolCallId"] = evt.toolCallId;
+        }
+        toolCallCounter.add(1, attrs);
+
+        if (typeof evt.durationMs === "number" && evt.outcome) {
+          toolCallDurationHistogram.record(evt.durationMs, {
+            ...attrs,
+            "openclaw.tool.outcome": evt.outcome,
+          });
+        }
+
+        if (!tracesEnabled) {
+          return;
+        }
+
+        const spanAttrs: Record<string, string | number> = { ...attrs };
+        addSessionIdentityAttrs(spanAttrs, evt);
+
+        if (evt.params) {
+          spanAttrs["openclaw.tool.params"] = truncateParamsForSpan(evt.params);
+        }
+        if (typeof evt.durationMs === "number") {
+          spanAttrs["openclaw.tool.durationMs"] = evt.durationMs;
+        }
+        if (evt.outcome) {
+          spanAttrs["openclaw.tool.outcome"] = evt.outcome;
+        }
+        if (evt.error) {
+          spanAttrs["openclaw.tool.error"] = redactSensitiveText(evt.error);
+        }
+
+        const span = spanWithDuration("openclaw.tool.call", spanAttrs, evt.durationMs);
+        if (evt.outcome === "error" && evt.error) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: redactSensitiveText(evt.error) });
+        }
+        span.end();
+      };
+
       unsubscribe = onDiagnosticEvent((evt: DiagnosticEventPayload) => {
         try {
           switch (evt.type) {
@@ -647,6 +711,9 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
               return;
             case "diagnostic.heartbeat":
               recordHeartbeat(evt);
+              return;
+            case "tool.call":
+              recordToolCall(evt);
               return;
           }
         } catch (err) {

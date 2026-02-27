@@ -396,4 +396,84 @@ export function resetDiagnosticStateForTest(): void {
   stopDiagnosticHeartbeat();
 }
 
+const MAX_PARAMS_LENGTH = 2000;
+
+function truncateParams(params: Record<string, unknown>): Record<string, unknown> {
+  try {
+    const jsonStr = JSON.stringify(params);
+    if (jsonStr.length <= MAX_PARAMS_LENGTH) {
+      return params;
+    }
+    // Truncate large string values within params
+    const truncated: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (typeof value === "string" && value.length > 500) {
+        truncated[key] = value.slice(0, 500) + "…[truncated]";
+      } else {
+        truncated[key] = value;
+      }
+    }
+    return truncated;
+  } catch {
+    return { error: "Failed to serialize params" };
+  }
+}
+
+export function logToolCall(params: {
+  sessionKey?: string;
+  sessionId?: string;
+  toolName: string;
+  toolCallId?: string;
+  params?: Record<string, unknown>;
+}) {
+  if (diag.isEnabled("debug")) {
+    diag.debug(
+      `tool call: sessionId=${params.sessionId ?? "unknown"} sessionKey=${
+        params.sessionKey ?? "unknown"
+      } tool=${params.toolName} toolCallId=${params.toolCallId ?? "unknown"}`,
+    );
+  }
+  const truncatedParams = params.params ? truncateParams(params.params) : undefined;
+  emitDiagnosticEvent({
+    type: "tool.call",
+    sessionId: params.sessionId,
+    sessionKey: params.sessionKey,
+    toolName: params.toolName,
+    toolCallId: params.toolCallId,
+    params: truncatedParams,
+  });
+  markActivity();
+}
+
+export function logToolCallCompleted(params: {
+  sessionKey?: string;
+  sessionId?: string;
+  toolName: string;
+  toolCallId?: string;
+  durationMs?: number;
+  outcome: "success" | "error";
+  error?: string;
+}) {
+  if (diag.isEnabled("debug")) {
+    diag.debug(
+      `tool call completed: sessionId=${params.sessionId ?? "unknown"} sessionKey=${
+        params.sessionKey ?? "unknown"
+      } tool=${params.toolName} toolCallId=${params.toolCallId ?? "unknown"} outcome=${
+        params.outcome
+      } duration=${params.durationMs ?? 0}ms${params.error ? ` error="${params.error}"` : ""}`,
+    );
+  }
+  emitDiagnosticEvent({
+    type: "tool.call",
+    sessionId: params.sessionId,
+    sessionKey: params.sessionKey,
+    toolName: params.toolName,
+    toolCallId: params.toolCallId,
+    durationMs: params.durationMs,
+    outcome: params.outcome,
+    error: params.error,
+  });
+  markActivity();
+}
+
 export { diag as diagnosticLogger };
