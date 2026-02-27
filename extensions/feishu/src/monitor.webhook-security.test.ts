@@ -180,4 +180,29 @@ describe("Feishu webhook security hardening", () => {
       },
     );
   });
+
+  it("does not let off-path traffic consume webhook rate-limit budget", async () => {
+    probeFeishuMock.mockResolvedValue({ ok: true, botOpenId: "bot_open_id" });
+    await withRunningWebhookMonitor(
+      {
+        accountId: "off-path-budget",
+        path: "/hook-off-path-budget",
+        verificationToken: "verify_token",
+      },
+      async (url) => {
+        const offPathBase = url.replace("/hook-off-path-budget", "/hook-off-path-budget-noise");
+        for (let i = 0; i < 130; i += 1) {
+          await fetch(offPathBase, { method: "GET" });
+        }
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "text/plain" },
+          body: "{}",
+        });
+
+        expect(response.status).toBe(415);
+      },
+    );
+  });
 });

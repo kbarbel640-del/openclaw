@@ -260,6 +260,24 @@ async function monitorWebhook({
       recordWebhookStatus(runtime, accountId, path, res.statusCode);
     });
 
+    let requestPath = "/";
+    try {
+      requestPath = new URL(req.url ?? "/", "http://localhost").pathname;
+    } catch {
+      requestPath = req.url ?? "/";
+    }
+    if (requestPath !== path) {
+      res.statusCode = 404;
+      res.end("Not Found");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.setHeader("Allow", "POST");
+      res.end("Method Not Allowed");
+      return;
+    }
+
     const rateLimitKey = `${accountId}:${path}:${req.socket.remoteAddress ?? "unknown"}`;
     if (isWebhookRateLimited(rateLimitKey, Date.now())) {
       res.statusCode = 429;
@@ -267,7 +285,7 @@ async function monitorWebhook({
       return;
     }
 
-    if (req.method === "POST" && !isJsonContentType(req.headers["content-type"])) {
+    if (!isJsonContentType(req.headers["content-type"])) {
       res.statusCode = 415;
       res.end("Unsupported Media Type");
       return;
