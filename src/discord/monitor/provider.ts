@@ -32,6 +32,7 @@ import { danger, logVerbose, shouldLogVerbose, warn } from "../../globals.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { createDiscordRetryRunner } from "../../infra/retry-policy.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { getPluginCommandSpecs } from "../../plugins/commands.js";
 import { createNonExitingRuntime, type RuntimeEnv } from "../../runtime.js";
 import { resolveDiscordAccount } from "../accounts.js";
 import { fetchDiscordApplicationId } from "../probe.js";
@@ -66,6 +67,9 @@ import {
   createDiscordModelPickerFallbackButton,
   createDiscordModelPickerFallbackSelect,
   createDiscordNativeCommand,
+  createDiscordPluginCommand,
+  createPluginCommandFallbackButton,
+  createPluginCommandFallbackSelect,
 } from "./native-command.js";
 import { resolveDiscordPresenceUpdate } from "./presence.js";
 import { resolveDiscordAllowlistConfig } from "./provider.allowlist.js";
@@ -427,6 +431,23 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       );
     }
 
+    // Register plugin commands as Discord native slash commands
+    if (nativeEnabled) {
+      const pluginCommandSpecs = getPluginCommandSpecs();
+      for (const spec of pluginCommandSpecs) {
+        commands.push(
+          createDiscordPluginCommand({
+            pluginCommand: spec,
+            cfg,
+            discordConfig: discordCfg,
+            accountId: account.accountId,
+            ephemeralDefault,
+            threadBindings,
+          }),
+        );
+      }
+    }
+
     // Initialize exec approvals handler if enabled
     const execApprovalsConfig = discordCfg.execApprovals ?? {};
     const execApprovalsHandler = execApprovalsConfig.enabled
@@ -463,6 +484,14 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         accountId: account.accountId,
         sessionPrefix,
         threadBindings,
+      }),
+      createPluginCommandFallbackButton({
+        cfg,
+        accountId: account.accountId,
+      }),
+      createPluginCommandFallbackSelect({
+        cfg,
+        accountId: account.accountId,
       }),
     ];
     const modals: Modal[] = [];
