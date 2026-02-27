@@ -49,7 +49,7 @@ function applyTelegramNetworkWorkarounds(network?: TelegramNetworkConfig): void 
         new Agent({
           connect: {
             autoSelectFamily: autoSelectDecision.value,
-            autoSelectFamilyAttemptTimeout: 300,
+            autoSelectFamilyAttemptTimeout: 5000,
           },
         }),
       );
