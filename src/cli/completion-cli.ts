@@ -352,6 +352,11 @@ export async function installCompletion(shell: string, yes: boolean, binName = "
 function generateZshCompletion(program: Command): string {
   const rootCmd = program.name();
   const script = `
+if ! (( $+functions[compdef] )); then
+  autoload -Uz compinit
+  compinit
+fi
+
 #compdef ${rootCmd}
 
 _${rootCmd}_root_completion() {
