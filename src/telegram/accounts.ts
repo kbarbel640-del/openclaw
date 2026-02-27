@@ -53,14 +53,24 @@ function listConfiguredAccountIds(cfg: OpenClawConfig): string[] {
 }
 
 export function listTelegramAccountIds(cfg: OpenClawConfig): string[] {
-  const ids = Array.from(
-    new Set([...listConfiguredAccountIds(cfg), ...listBoundAccountIds(cfg, "telegram")]),
-  );
-  debugAccounts("listTelegramAccountIds", ids);
-  if (ids.length === 0) {
+  const ids = new Set([...listConfiguredAccountIds(cfg), ...listBoundAccountIds(cfg, "telegram")]);
+
+  // The default account is configured via top-level botToken / TELEGRAM_BOT_TOKEN
+  // and is not listed under `accounts`. Always include it when a token is
+  // resolvable so it is not silently dropped when sub-accounts exist.
+  if (!ids.has(DEFAULT_ACCOUNT_ID)) {
+    const defaultToken = resolveTelegramToken(cfg, { accountId: DEFAULT_ACCOUNT_ID });
+    if (defaultToken.source !== "none") {
+      ids.add(DEFAULT_ACCOUNT_ID);
+    }
+  }
+
+  const result = Array.from(ids);
+  debugAccounts("listTelegramAccountIds", result);
+  if (result.length === 0) {
     return [DEFAULT_ACCOUNT_ID];
   }
-  return ids.toSorted((a, b) => a.localeCompare(b));
+  return result.toSorted((a, b) => a.localeCompare(b));
 }
 
 export function resolveDefaultTelegramAccountId(cfg: OpenClawConfig): string {
