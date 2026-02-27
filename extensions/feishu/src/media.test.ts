@@ -36,7 +36,13 @@ vi.mock("./runtime.js", () => ({
   }),
 }));
 
-import { downloadImageFeishu, downloadMessageResourceFeishu, sendMediaFeishu } from "./media.js";
+import {
+  downloadImageFeishu,
+  downloadMessageResourceFeishu,
+  sendMediaFeishu,
+  sendImageFeishu,
+  sendFileFeishu,
+} from "./media.js";
 
 function expectPathIsolatedToTmpRoot(pathValue: string, key: string): void {
   expect(pathValue).not.toContain(key);
@@ -275,5 +281,211 @@ describe("sendMediaFeishu msg_type routing", () => {
     ).rejects.toThrow("invalid file_key");
 
     expect(messageResourceGetMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendImageFeishu reply fallback on withdrawn/deleted message", () => {
+  const imageCreateMock = vi.hoisted(() => vi.fn());
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    resolveFeishuAccountMock.mockReturnValue({
+      configured: true,
+      accountId: "main",
+      config: {},
+      appId: "app_id",
+      appSecret: "app_secret",
+      domain: "feishu",
+    });
+
+    normalizeFeishuTargetMock.mockReturnValue("ou_target");
+    resolveReceiveIdTypeMock.mockReturnValue("open_id");
+
+    createFeishuClientMock.mockReturnValue({
+      im: {
+        file: { create: fileCreateMock },
+        image: { get: imageGetMock, create: imageCreateMock },
+        message: { create: messageCreateMock, reply: messageReplyMock },
+        messageResource: { get: messageResourceGetMock },
+      },
+    });
+
+    messageCreateMock.mockResolvedValue({
+      code: 0,
+      data: { message_id: "msg_fallback" },
+    });
+  });
+
+  it("falls back to direct send when reply target is withdrawn (230011)", async () => {
+    messageReplyMock.mockResolvedValue({
+      code: 230011,
+      msg: "message has been withdrawn",
+    });
+
+    const result = await sendImageFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      imageKey: "img_key_1",
+      replyToMessageId: "om_withdrawn",
+    });
+
+    expect(messageReplyMock).toHaveBeenCalledOnce();
+    expect(messageCreateMock).toHaveBeenCalledOnce();
+    expect(messageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ msg_type: "image" }),
+      }),
+    );
+    expect(result.messageId).toBe("msg_fallback");
+  });
+
+  it("falls back to direct send when reply target is deleted (231003)", async () => {
+    messageReplyMock.mockResolvedValue({
+      code: 231003,
+      msg: "message not found",
+    });
+
+    const result = await sendImageFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      imageKey: "img_key_1",
+      replyToMessageId: "om_deleted",
+    });
+
+    expect(messageReplyMock).toHaveBeenCalledOnce();
+    expect(messageCreateMock).toHaveBeenCalledOnce();
+    expect(result.messageId).toBe("msg_fallback");
+  });
+
+  it("throws when reply fails with a non-gone error", async () => {
+    messageReplyMock.mockResolvedValue({
+      code: 99999,
+      msg: "other error",
+    });
+
+    await expect(
+      sendImageFeishu({
+        cfg: {} as any,
+        to: "user:ou_target",
+        imageKey: "img_key_1",
+        replyToMessageId: "om_other",
+      }),
+    ).rejects.toThrow("Feishu image reply failed: other error");
+
+    expect(messageCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendFileFeishu reply fallback on withdrawn/deleted message", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    resolveFeishuAccountMock.mockReturnValue({
+      configured: true,
+      accountId: "main",
+      config: {},
+      appId: "app_id",
+      appSecret: "app_secret",
+      domain: "feishu",
+    });
+
+    normalizeFeishuTargetMock.mockReturnValue("ou_target");
+    resolveReceiveIdTypeMock.mockReturnValue("open_id");
+
+    createFeishuClientMock.mockReturnValue({
+      im: {
+        file: { create: fileCreateMock },
+        image: { get: imageGetMock },
+        message: { create: messageCreateMock, reply: messageReplyMock },
+        messageResource: { get: messageResourceGetMock },
+      },
+    });
+
+    messageCreateMock.mockResolvedValue({
+      code: 0,
+      data: { message_id: "msg_fallback" },
+    });
+  });
+
+  it("falls back to direct send when reply target is withdrawn (230011)", async () => {
+    messageReplyMock.mockResolvedValue({
+      code: 230011,
+      msg: "message has been withdrawn",
+    });
+
+    const result = await sendFileFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      fileKey: "file_key_1",
+      replyToMessageId: "om_withdrawn",
+    });
+
+    expect(messageReplyMock).toHaveBeenCalledOnce();
+    expect(messageCreateMock).toHaveBeenCalledOnce();
+    expect(messageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ msg_type: "file" }),
+      }),
+    );
+    expect(result.messageId).toBe("msg_fallback");
+  });
+
+  it("falls back to direct send when reply target is deleted (231003)", async () => {
+    messageReplyMock.mockResolvedValue({
+      code: 231003,
+      msg: "message not found",
+    });
+
+    const result = await sendFileFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      fileKey: "file_key_1",
+      replyToMessageId: "om_deleted",
+    });
+
+    expect(messageReplyMock).toHaveBeenCalledOnce();
+    expect(messageCreateMock).toHaveBeenCalledOnce();
+    expect(result.messageId).toBe("msg_fallback");
+  });
+
+  it("falls back with correct msg_type for media files", async () => {
+    messageReplyMock.mockResolvedValue({
+      code: 230011,
+      msg: "message has been withdrawn",
+    });
+
+    const result = await sendFileFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      fileKey: "file_key_1",
+      msgType: "media",
+      replyToMessageId: "om_withdrawn",
+    });
+
+    expect(messageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ msg_type: "media" }),
+      }),
+    );
+    expect(result.messageId).toBe("msg_fallback");
+  });
+
+  it("throws when reply fails with a non-gone error", async () => {
+    messageReplyMock.mockResolvedValue({
+      code: 99999,
+      msg: "other error",
+    });
+
+    await expect(
+      sendFileFeishu({
+        cfg: {} as any,
+        to: "user:ou_target",
+        fileKey: "file_key_1",
+        replyToMessageId: "om_other",
+      }),
+    ).rejects.toThrow("Feishu file reply failed: other error");
+
+    expect(messageCreateMock).not.toHaveBeenCalled();
   });
 });
