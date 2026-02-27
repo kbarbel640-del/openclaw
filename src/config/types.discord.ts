@@ -168,6 +168,11 @@ export type DiscordThreadBindingsConfig = {
    * sessions. Default: false (opt-in).
    */
   spawnAcpSessions?: boolean;
+  /**
+   * Auto-archive duration in minutes for newly created Discord threads.
+   * Valid Discord values: 60, 1440, 4320, 10080. Default: 10080 (1 week).
+   */
+  autoArchiveDuration?: number;
 };
 
 export type DiscordSlashCommandConfig = {

@@ -3,6 +3,7 @@ import { logVerbose } from "../../globals.js";
 import { createDiscordRestClient } from "../client.js";
 import { sendMessageDiscord, sendWebhookMessageDiscord } from "../send.js";
 import { createThreadDiscord } from "../send.messages.js";
+import { DEFAULT_DISCORD_THREAD_AUTO_ARCHIVE_DURATION } from "./thread-bindings.config.js";
 import { resolveThreadBindingPersonaFromRecord } from "./thread-bindings.persona.js";
 import {
   BINDINGS_BY_THREAD_ID,
@@ -265,13 +266,16 @@ export async function createThreadForBinding(params: {
   token?: string;
   channelId: string;
   threadName: string;
+  /** Auto-archive duration in minutes (default: 10080 = 1 week). */
+  autoArchiveDuration?: number;
 }): Promise<string | null> {
   try {
     const created = await createThreadDiscord(
       params.channelId,
       {
         name: params.threadName,
-        autoArchiveMinutes: 60,
+        autoArchiveMinutes:
+          params.autoArchiveDuration ?? DEFAULT_DISCORD_THREAD_AUTO_ARCHIVE_DURATION,
       },
       {
         accountId: params.accountId,

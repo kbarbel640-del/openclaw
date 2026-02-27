@@ -1392,6 +1392,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Allow subagent spawns with thread=true to auto-create and bind Discord threads (default: false; opt-in). Set true to enable thread-bound subagent spawns for this account/channel.",
   "channels.discord.threadBindings.spawnAcpSessions":
     "Allow /acp spawn to auto-create and bind Discord threads for ACP sessions (default: false; opt-in). Set true to enable thread-bound ACP spawns for this account/channel.",
+  "channels.discord.threadBindings.autoArchiveDuration":
+    "Auto-archive duration in minutes for newly created Discord threads (valid: 60, 1440, 4320, 10080). Default: 10080 (1 week). Lower values cause threads to hide from the channel view sooner after inactivity.",
   "channels.discord.ui.components.accentColor":
     "Accent color for Discord component containers (hex). Set per account via channels.discord.accounts.<id>.ui.components.accentColor.",
   "channels.discord.voice.enabled":
