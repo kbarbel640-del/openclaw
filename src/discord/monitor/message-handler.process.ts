@@ -10,6 +10,11 @@ import {
 } from "../../auto-reply/reply/history.js";
 import { finalizeInboundContext } from "../../auto-reply/reply/inbound-context.js";
 import { createReplyDispatcherWithTyping } from "../../auto-reply/reply/reply-dispatcher.js";
+import {
+  isSilentReplyPrefixText,
+  isSilentReplyText,
+  SILENT_REPLY_TOKEN,
+} from "../../auto-reply/tokens.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import { shouldAckReaction as shouldAckReactionGate } from "../../channels/ack-reactions.js";
 import { logTypingFailure, logAckFailure } from "../../channels/logging.js";
@@ -50,6 +55,14 @@ import { buildDirectLabel, buildGuildLabel, resolveReplyContext } from "./reply-
 import { deliverDiscordReply } from "./reply-delivery.js";
 import { resolveDiscordAutoThreadReplyPlan, resolveDiscordThreadStarter } from "./threading.js";
 import { sendTyping } from "./typing.js";
+
+export function shouldSuppressDiscordDraftPreviewText(
+  text: string,
+  silentToken: string = SILENT_REPLY_TOKEN,
+): boolean {
+  const trimmed = text.trim();
+  return isSilentReplyText(trimmed, silentToken) || isSilentReplyPrefixText(trimmed, silentToken);
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -497,6 +510,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     const cleaned = stripReasoningTagsFromText(text, { mode: "strict", trim: "both" });
     // Skip pure-reasoning messages (e.g. "Reasoning:\n…") that contain no answer text.
     if (!cleaned || cleaned.startsWith("Reasoning:\n")) {
+      return;
+    }
+    // Prevent sentinel leakage (e.g. NO_REPLY / NO_ / NO_RE...) into Discord draft previews.
+    if (shouldSuppressDiscordDraftPreviewText(cleaned, SILENT_REPLY_TOKEN)) {
       return;
     }
     if (cleaned === lastPartialText) {
