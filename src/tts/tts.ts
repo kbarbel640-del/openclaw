@@ -480,9 +480,11 @@ export function setLastTtsAttempt(entry: TtsStatusEntry | undefined): void {
   lastTtsAttempt = entry;
 }
 
+// Channels that support native voice messages and need opus output
+const VOICE_NATIVE_CHANNELS = new Set(["telegram", "feishu"]);
+
 function resolveOutputFormat(channelId?: string | null) {
-  // Telegram and Feishu both need opus for native voice message support
-  if (channelId === "telegram" || channelId === "feishu") {
+  if (channelId && VOICE_NATIVE_CHANNELS.has(channelId)) {
     return TELEGRAM_OUTPUT;
   }
   return DEFAULT_OUTPUT;
@@ -490,6 +492,17 @@ function resolveOutputFormat(channelId?: string | null) {
 
 function resolveChannelId(channel: string | undefined): ChannelId | null {
   return channel ? normalizeChannelId(channel) : null;
+}
+
+/**
+ * Check if a channel needs voice-compatible audio output (opus).
+ * Uses raw channel string to avoid dependency on plugin registry initialization.
+ */
+function isVoiceNativeChannel(channel?: string | null): boolean {
+  if (!channel) {
+    return false;
+  }
+  return VOICE_NATIVE_CHANNELS.has(channel.trim().toLowerCase());
 }
 
 function resolveEdgeOutputFormat(config: ResolvedTtsConfig): string {
@@ -540,7 +553,11 @@ export async function textToSpeech(params: {
   const config = resolveTtsConfig(params.cfg);
   const prefsPath = params.prefsPath ?? resolveTtsPrefsPath(config);
   const channelId = resolveChannelId(params.channel);
-  const output = resolveOutputFormat(channelId);
+  // Use both normalized channelId AND raw channel string for voice detection.
+  // Plugin channels (e.g. feishu) may not resolve through normalizeChannelId
+  // if the plugin registry hasn't been initialized yet.
+  const voiceNative = isVoiceNativeChannel(params.channel) || isVoiceNativeChannel(channelId);
+  const output = voiceNative ? TELEGRAM_OUTPUT : resolveOutputFormat(channelId);
 
   if (params.text.length > config.maxTextLength) {
     return {
@@ -916,9 +933,7 @@ export async function maybeApplyTtsToPayload(params: {
       latencyMs: result.latencyMs,
     };
 
-    const channelId = resolveChannelId(params.channel);
-    const shouldVoice =
-      (channelId === "telegram" || channelId === "feishu") && result.voiceCompatible === true;
+    const shouldVoice = isVoiceNativeChannel(params.channel) && result.voiceCompatible === true;
     const finalPayload = {
       ...nextPayload,
       mediaUrl: result.audioPath,
