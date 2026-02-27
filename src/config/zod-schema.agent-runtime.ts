@@ -305,6 +305,16 @@ export const ToolsWebSearchSchema = z
   .strict()
   .optional();
 
+export const SsrFPolicySchema = z
+  .object({
+    allowPrivateNetwork: z.boolean().optional(),
+    dangerouslyAllowPrivateNetwork: z.boolean().optional(),
+    allowRfc2544BenchmarkRange: z.boolean().optional(),
+    allowedHostnames: z.array(z.string()).optional(),
+    hostnameAllowlist: z.array(z.string()).optional(),
+  })
+  .strict();
+
 export const ToolsWebFetchSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -314,6 +324,7 @@ export const ToolsWebFetchSchema = z
     cacheTtlMinutes: z.number().nonnegative().optional(),
     maxRedirects: z.number().int().nonnegative().optional(),
     userAgent: z.string().optional(),
+    ssrfPolicy: SsrFPolicySchema.optional(),
   })
   .strict()
   .optional();
