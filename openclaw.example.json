@@ -1,0 +1,18 @@
+{
+  "gateway": {
+    "bind": "loopback",
+    "port": 18789
+  },
+  "channels": {
+    "dingtalk-connector": {
+      "enabled": true,
+      "clientId": "YOUR_DINGTALK_CLIENT_ID",
+      "clientSecret": "YOUR_DINGTALK_CLIENT_SECRET",
+      "dmPolicy": "pairing",
+      "allowFrom": ["YOUR_DINGTALK_USER_ID"]
+    }
+  },
+  "plugins": {
+    "allow": ["dingtalk-connector"]
+  }
+}

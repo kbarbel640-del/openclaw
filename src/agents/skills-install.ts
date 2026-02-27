@@ -7,6 +7,7 @@ import { scanDirectoryWithSummary } from "../security/skill-scanner.js";
 import { resolveUserPath } from "../utils.js";
 import { installDownloadSpec } from "./skills-install-download.js";
 import { formatInstallFailureMessage } from "./skills-install-output.js";
+import { registerSkillsUsageEntries } from "./skills-usage-store.js";
 import {
   hasBinary,
   loadWorkspaceSkillEntries,
@@ -420,6 +421,9 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
   }
   if (spec.kind === "download") {
     const downloadResult = await installDownloadSpec({ entry, spec, timeoutMs });
+    if (downloadResult.ok) {
+      await registerSkillsUsageEntries([entry.skill.name]);
+    }
     return withWarnings(downloadResult, warnings);
   }
 
@@ -466,5 +470,9 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
     }
   }
 
-  return withWarnings(await executeInstallCommand({ argv, timeoutMs, env }), warnings);
+  const installResult = await executeInstallCommand({ argv, timeoutMs, env });
+  if (installResult.ok) {
+    await registerSkillsUsageEntries([entry.skill.name]);
+  }
+  return withWarnings(installResult, warnings);
 }

@@ -6,6 +6,7 @@ import "../cron/isolated-agent.mocks.js";
 import * as cliRunnerModule from "../agents/cli-runner.js";
 import { loadModelCatalog } from "../agents/model-catalog.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import * as skillsUsageTrackerModule from "../agents/skills-usage-tracker.js";
 import type { OpenClawConfig } from "../config/config.js";
 import * as configModule from "../config/config.js";
 import * as sessionsModule from "../config/sessions.js";
@@ -34,10 +35,22 @@ vi.mock("../agents/workspace.js", async (importOriginal) => {
 
 vi.mock("../agents/skills.js", () => ({
   buildWorkspaceSkillSnapshot: vi.fn(() => undefined),
+  buildWorkspaceSkillCommandSpecs: vi.fn(() => [
+    {
+      name: "hello",
+      skillName: "hello-skill",
+      description: "hello",
+    },
+  ]),
 }));
 
 vi.mock("../agents/skills/refresh.js", () => ({
   getSkillsSnapshotVersion: vi.fn(() => 0),
+}));
+
+vi.mock("../agents/skills-usage-tracker.js", () => ({
+  registerSkillsUsageTracking: vi.fn(),
+  trackSkillCommandInvocation: vi.fn(),
 }));
 
 const runtime: RuntimeEnv = {
@@ -51,6 +64,14 @@ const runtime: RuntimeEnv = {
 const configSpy = vi.spyOn(configModule, "loadConfig");
 const runCliAgentSpy = vi.spyOn(cliRunnerModule, "runCliAgent");
 const deliverAgentCommandResultSpy = vi.spyOn(agentDeliveryModule, "deliverAgentCommandResult");
+const registerSkillsUsageTrackingSpy = vi.spyOn(
+  skillsUsageTrackerModule,
+  "registerSkillsUsageTracking",
+);
+const trackSkillCommandInvocationSpy = vi.spyOn(
+  skillsUsageTrackerModule,
+  "trackSkillCommandInvocation",
+);
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
   return withTempHomeBase(fn, { prefix: "openclaw-agent-" });
@@ -164,6 +185,23 @@ describe("agentCommand", () => {
       >;
       const entry = Object.values(saved)[0];
       expect(entry.sessionId).toBeTruthy();
+    });
+  });
+
+  it("tracks explicit skill command in --local path", async () => {
+    await withTempHome(async (home) => {
+      const store = path.join(home, "sessions.json");
+      mockConfig(home, store);
+
+      await agentCommand({ message: "/skill hello test", to: "+1555" }, runtime);
+
+      expect(registerSkillsUsageTrackingSpy).toHaveBeenCalled();
+      expect(trackSkillCommandInvocationSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          runId: expect.any(String),
+        }),
+      );
     });
   });
 
