@@ -26,7 +26,10 @@ describe("prepareSessionManagerForRun", () => {
       "utf-8",
     );
 
-    const sm = SessionManager.open(sessionFile) as unknown as { fileEntries: Array<unknown> };
+    const sm = SessionManager.open(sessionFile) as unknown as {
+      fileEntries: Array<unknown>;
+      sessionId: string;
+    };
     await prepareSessionManagerForRun({
       sessionManager: sm,
       sessionFile,
@@ -43,11 +46,15 @@ describe("prepareSessionManagerForRun", () => {
     );
     expect(header?.id).toBe("new-session-id");
     expect(header?.cwd).toBe("/tmp/workspace");
+    expect(sm.sessionId).toBe("new-session-id");
     expect(fs.readFileSync(sessionFile, "utf-8")).toBe("");
   });
 
   it("stamps header.cwd when the transcript file does not exist yet", async () => {
-    const sm = SessionManager.inMemory() as unknown as { fileEntries: Array<unknown> };
+    const sm = SessionManager.inMemory() as unknown as {
+      fileEntries: Array<unknown>;
+      sessionId: string;
+    };
     await prepareSessionManagerForRun({
       sessionManager: sm,
       sessionFile: "/dev/null",
@@ -64,5 +71,6 @@ describe("prepareSessionManagerForRun", () => {
     );
     expect(header?.id).toBe("sess-1");
     expect(header?.cwd).toBe("/tmp/workspace");
+    expect(sm.sessionId).toBe("sess-1");
   });
 });
