@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { OpenClawSchema } from "../../src/config/zod-schema.js";
+import { OpenClawSchema } from "./zod-schema.js";
 
 describe("BrowserConfig in OpenClawSchema - extraArgs validation", () => {
   it("parses valid extraArgs", () => {
@@ -47,7 +47,7 @@ describe("BrowserConfig in OpenClawSchema - extraArgs validation", () => {
     expect(result.success).toBe(true);
 
     if (result.success) {
-      expect(result.data?.browser?.extraArgs).toEqual([]); // or undefined if no .default([])
+      expect(result.data?.browser?.extraArgs).toBeUndefined(); // or undefined if no .default([])
     }
   });
 });
