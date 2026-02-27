@@ -11,6 +11,7 @@ struct WideAreaGatewayBeacon: Sendable, Equatable {
     var gatewayPort: Int?
     var sshPort: Int?
     var cliPath: String?
+    var tlsFingerprintSha256: String?
 }
 
 enum WideAreaGatewayDiscovery {
@@ -94,7 +95,8 @@ enum WideAreaGatewayDiscovery {
                 tailnetDns: txt["tailnetDns"],
                 gatewayPort: parseInt(txt["gatewayPort"]),
                 sshPort: parseInt(txt["sshPort"]),
-                cliPath: txt["cliPath"])
+                cliPath: txt["cliPath"],
+                tlsFingerprintSha256: txt["gatewayTlsSha256"])
             beacons.append(beacon)
         }
 

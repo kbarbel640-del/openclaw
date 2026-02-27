@@ -147,6 +147,9 @@ class GatewayDiscovery(
         val tlsEnabled = txtBool(resolved, "gatewayTls")
         val tlsFingerprint = txt(resolved, "gatewayTlsSha256")
         val id = stableId(serviceName, "local.")
+        if (tlsFingerprint == null) {
+          Log.w(logTag, "discovered gateway '$displayName' ($host:$port) has no TLS fingerprint — identity unverified")
+        }
         localById[id] =
           GatewayEndpoint(
             stableId = id,
@@ -159,6 +162,7 @@ class GatewayDiscovery(
             canvasPort = canvasPort,
             tlsEnabled = tlsEnabled,
             tlsFingerprintSha256 = tlsFingerprint,
+            requiresVerification = true,
           )
         publish()
       }
@@ -263,6 +267,9 @@ class GatewayDiscovery(
       val tlsEnabled = txtBoolValue(txt, "gatewayTls")
       val tlsFingerprint = txtValue(txt, "gatewayTlsSha256")
       val id = stableId(instanceName, domain)
+      if (tlsFingerprint == null) {
+        Log.w(logTag, "wide-area gateway '$displayName' ($host:$port) has no TLS fingerprint — identity unverified")
+      }
       next[id] =
         GatewayEndpoint(
           stableId = id,
@@ -275,6 +282,7 @@ class GatewayDiscovery(
           canvasPort = canvasPort,
           tlsEnabled = tlsEnabled,
           tlsFingerprintSha256 = tlsFingerprint,
+          requiresVerification = true,
         )
     }
 
