@@ -480,8 +480,11 @@ export function setLastTtsAttempt(entry: TtsStatusEntry | undefined): void {
   lastTtsAttempt = entry;
 }
 
+// Channels that support native voice messages and need opus output
+const VOICE_NATIVE_CHANNELS = new Set(["telegram", "feishu"]);
+
 function resolveOutputFormat(channelId?: string | null) {
-  if (channelId === "telegram") {
+  if (channelId && VOICE_NATIVE_CHANNELS.has(channelId)) {
     return TELEGRAM_OUTPUT;
   }
   return DEFAULT_OUTPUT;
@@ -489,6 +492,17 @@ function resolveOutputFormat(channelId?: string | null) {
 
 function resolveChannelId(channel: string | undefined): ChannelId | null {
   return channel ? normalizeChannelId(channel) : null;
+}
+
+/**
+ * Check if a channel needs voice-compatible audio output (opus).
+ * Uses raw channel string to avoid dependency on plugin registry initialization.
+ */
+function isVoiceNativeChannel(channel?: string | null): boolean {
+  if (!channel) {
+    return false;
+  }
+  return VOICE_NATIVE_CHANNELS.has(channel.trim().toLowerCase());
 }
 
 function resolveEdgeOutputFormat(config: ResolvedTtsConfig): string {
@@ -539,7 +553,14 @@ export async function textToSpeech(params: {
   const config = resolveTtsConfig(params.cfg);
   const prefsPath = params.prefsPath ?? resolveTtsPrefsPath(config);
   const channelId = resolveChannelId(params.channel);
-  const output = resolveOutputFormat(channelId);
+  // Use both normalized channelId AND raw channel string for voice detection.
+  // Plugin channels (e.g. feishu) may not resolve through normalizeChannelId
+  // if the plugin registry hasn't been initialized yet.
+  const voiceNative = isVoiceNativeChannel(params.channel) || isVoiceNativeChannel(channelId);
+  const output = voiceNative ? TELEGRAM_OUTPUT : resolveOutputFormat(channelId);
+  console.log(
+    `[tts] channel=${params.channel ?? "none"} channelId=${channelId ?? "null"} voiceNative=${voiceNative} outputExt=${output.extension} voiceCompat=${output.voiceCompatible}`,
+  );
 
   if (params.text.length > config.maxTextLength) {
     return {
@@ -567,7 +588,12 @@ export async function textToSpeech(params: {
         const tempRoot = resolvePreferredOpenClawTmpDir();
         mkdirSync(tempRoot, { recursive: true, mode: 0o700 });
         const tempDir = mkdtempSync(path.join(tempRoot, "tts-"));
+        // When the channel needs opus (e.g. Telegram, Feishu for native voice),
+        // override Edge output to opus unless the user explicitly configured a format.
         let edgeOutputFormat = resolveEdgeOutputFormat(config);
+        if (output.voiceCompatible && !config.edge.outputFormatConfigured) {
+          edgeOutputFormat = "audio-24khz-16bit-mono-opus";
+        }
         const fallbackEdgeOutputFormat =
           edgeOutputFormat !== DEFAULT_EDGE_OUTPUT_FORMAT ? DEFAULT_EDGE_OUTPUT_FORMAT : undefined;
 
@@ -590,7 +616,13 @@ export async function textToSpeech(params: {
         try {
           edgeResult = await attemptEdgeTts(edgeOutputFormat);
         } catch (err) {
-          if (fallbackEdgeOutputFormat && fallbackEdgeOutputFormat !== edgeOutputFormat) {
+          // When voice-native channel forced opus, don't fall back to MP3 —
+          // a non-opus file would be sent as a generic attachment, not a voice message.
+          const canFallback =
+            fallbackEdgeOutputFormat &&
+            fallbackEdgeOutputFormat !== edgeOutputFormat &&
+            !voiceNative;
+          if (canFallback) {
             logVerbose(
               `TTS: Edge output ${edgeOutputFormat} failed; retrying with ${fallbackEdgeOutputFormat}.`,
             );
@@ -689,13 +721,17 @@ export async function textToSpeech(params: {
         voiceCompatible: output.voiceCompatible,
       };
     } catch (err) {
-      errors.push(formatTtsProviderError(provider, err));
+      const errMsg = formatTtsProviderError(provider, err);
+      errors.push(errMsg);
+      console.log(`[tts] provider ${provider} failed: ${errMsg}`);
     }
   }
 
+  const errorSummary = `TTS conversion failed: ${errors.join("; ") || "no providers available"}`;
+  console.log(`[tts] all providers failed: ${errorSummary}`);
   return {
     success: false,
-    error: `TTS conversion failed: ${errors.join("; ") || "no providers available"}`,
+    error: errorSummary,
   };
 }
 
@@ -910,8 +946,10 @@ export async function maybeApplyTtsToPayload(params: {
       latencyMs: result.latencyMs,
     };
 
-    const channelId = resolveChannelId(params.channel);
-    const shouldVoice = channelId === "telegram" && result.voiceCompatible === true;
+    const shouldVoice = isVoiceNativeChannel(params.channel) && result.voiceCompatible === true;
+    console.log(
+      `[tts] auto: channel=${params.channel ?? "none"} provider=${result.provider} path=${result.audioPath} voiceCompat=${result.voiceCompatible} shouldVoice=${shouldVoice}`,
+    );
     const finalPayload = {
       ...nextPayload,
       mediaUrl: result.audioPath,

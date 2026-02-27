@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FeishuConfigSchema } from "./config-schema.js";
+import { FeishuConfigSchema, FeishuGroupSchema } from "./config-schema.js";
 
 describe("FeishuConfigSchema webhook validation", () => {
   it("applies top-level defaults", () => {
@@ -84,5 +84,66 @@ describe("FeishuConfigSchema webhook validation", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe("FeishuConfigSchema replyInThread", () => {
+  it("accepts replyInThread at top level", () => {
+    const result = FeishuConfigSchema.parse({ replyInThread: "enabled" });
+    expect(result.replyInThread).toBe("enabled");
+  });
+
+  it("defaults replyInThread to undefined when not set", () => {
+    const result = FeishuConfigSchema.parse({});
+    expect(result.replyInThread).toBeUndefined();
+  });
+
+  it("rejects invalid replyInThread value", () => {
+    const result = FeishuConfigSchema.safeParse({ replyInThread: "always" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts replyInThread in group config", () => {
+    const result = FeishuGroupSchema.parse({ replyInThread: "enabled" });
+    expect(result.replyInThread).toBe("enabled");
+  });
+
+  it("accepts replyInThread in account config", () => {
+    const result = FeishuConfigSchema.parse({
+      accounts: {
+        main: { replyInThread: "enabled" },
+      },
+    });
+    expect(result.accounts?.main?.replyInThread).toBe("enabled");
+  });
+});
+
+describe("FeishuConfigSchema useNativeAudioMessage", () => {
+  it("accepts useNativeAudioMessage=true", () => {
+    const result = FeishuConfigSchema.parse({ useNativeAudioMessage: true });
+    expect(result.useNativeAudioMessage).toBe(true);
+  });
+
+  it("accepts useNativeAudioMessage=false", () => {
+    const result = FeishuConfigSchema.parse({ useNativeAudioMessage: false });
+    expect(result.useNativeAudioMessage).toBe(false);
+  });
+
+  it("useNativeAudioMessage defaults to undefined", () => {
+    const result = FeishuConfigSchema.parse({});
+    expect(result.useNativeAudioMessage).toBeUndefined();
+  });
+
+  it("accepts account-level useNativeAudioMessage override", () => {
+    const result = FeishuConfigSchema.parse({
+      useNativeAudioMessage: false,
+      accounts: {
+        main: {
+          useNativeAudioMessage: true,
+        },
+      },
+    });
+    expect(result.useNativeAudioMessage).toBe(false);
+    expect(result.accounts?.main?.useNativeAudioMessage).toBe(true);
   });
 });

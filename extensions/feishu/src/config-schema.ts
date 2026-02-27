@@ -100,6 +100,27 @@ const FeishuToolsConfigSchema = z
  */
 const TopicSessionModeSchema = z.enum(["disabled", "enabled"]).optional();
 
+/**
+ * Reply-in-thread mode for group chats.
+ * - "disabled" (default): Bot replies are normal inline replies
+ * - "enabled": Bot replies create or continue a Feishu topic thread
+ *
+ * When enabled, the Feishu reply API is called with `reply_in_thread: true`,
+ * causing the reply to appear as a topic (话题) under the original message.
+ */
+const ReplyInThreadSchema = z.enum(["disabled", "enabled"]).optional();
+
+/**
+ * Native audio message mode for voice/TTS replies.
+ * - "disabled" (default): Audio files sent as msg_type="media" (generic media player)
+ * - "enabled": Audio files sent as msg_type="audio" (native voice message UI with waveform)
+ *
+ * When enabled, opus/ogg audio files are sent using Feishu's native audio message type,
+ * displaying with voice message UI (similar to user-sent voice messages) instead of
+ * generic media player UI.
+ */
+const UseNativeAudioMessageSchema = z.boolean().optional();
+
 export const FeishuGroupSchema = z
   .object({
     requireMention: z.boolean().optional(),
@@ -109,6 +130,7 @@ export const FeishuGroupSchema = z
     allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     systemPrompt: z.string().optional(),
     topicSessionMode: TopicSessionModeSchema,
+    replyInThread: ReplyInThreadSchema,
   })
   .strict();
 
@@ -135,6 +157,8 @@ const FeishuSharedConfigShape = {
   renderMode: RenderModeSchema,
   streaming: StreamingModeSchema,
   tools: FeishuToolsConfigSchema,
+  replyInThread: ReplyInThreadSchema,
+  useNativeAudioMessage: UseNativeAudioMessageSchema,
 };
 
 /**
