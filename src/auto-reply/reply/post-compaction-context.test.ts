@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { readPostCompactionContext } from "./post-compaction-context.js";
+import {
+  extractSectionsWithAliases,
+  readPostCompactionContext,
+} from "./post-compaction-context.js";
 
 describe("readPostCompactionContext", () => {
   const tmpDir = path.join("/tmp", "test-post-compaction-" + Date.now());
@@ -165,5 +168,148 @@ Never do Y.
     expect(result).toContain("Rule 1");
     expect(result).toContain("Rule 2");
     expect(result).not.toContain("Other Section");
+  });
+
+  it("extracts 'Every Session' as alias for 'Session Startup'", async () => {
+    const content = `# Agent Rules
+
+## Every Session
+
+Before doing anything else:
+1. Read SOUL.md
+2. Read USER.md
+
+## Other Section
+
+Not relevant.
+`;
+    fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), content);
+    const result = await readPostCompactionContext(tmpDir);
+    expect(result).not.toBeNull();
+    expect(result).toContain("Every Session");
+    expect(result).toContain("Read SOUL.md");
+    expect(result).toContain("Post-compaction context refresh");
+  });
+
+  it("extracts 'Safety' as alias for 'Red Lines'", async () => {
+    const content = `# Rules
+
+## Safety
+
+Don't exfiltrate private data. Ever.
+
+## Other
+
+Stuff.
+`;
+    fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), content);
+    const result = await readPostCompactionContext(tmpDir);
+    expect(result).not.toBeNull();
+    expect(result).toContain("Safety");
+    expect(result).toContain("exfiltrate");
+  });
+
+  it("extracts 'Safety defaults' as alias for 'Red Lines'", async () => {
+    const content = `# Rules
+
+## Safety defaults
+
+- Don't exfiltrate secrets or private data.
+- Don't run destructive commands unless explicitly asked.
+
+## Other
+
+Stuff.
+`;
+    fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), content);
+    const result = await readPostCompactionContext(tmpDir);
+    expect(result).not.toBeNull();
+    expect(result).toContain("Safety defaults");
+    expect(result).toContain("destructive commands");
+  });
+
+  it("extracts both 'Every Session' + 'Safety' from default template", async () => {
+    const content = `# AGENTS.md
+
+## Every Session
+
+Before doing anything else:
+1. Read SOUL.md
+2. Read USER.md
+
+## Memory
+
+Keep daily notes.
+
+## Safety
+
+- Don't exfiltrate private data.
+- Don't run destructive commands.
+
+## Customize
+
+Add your own rules.
+`;
+    fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), content);
+    const result = await readPostCompactionContext(tmpDir);
+    expect(result).not.toBeNull();
+    expect(result).toContain("Every Session");
+    expect(result).toContain("Read SOUL.md");
+    expect(result).toContain("Safety");
+    expect(result).toContain("exfiltrate");
+    expect(result).not.toContain("Memory");
+    expect(result).not.toContain("Customize");
+  });
+
+  it("prefers 'Session Startup' over 'Every Session' when both exist", async () => {
+    const content = `# Rules
+
+## Session Startup
+
+This is the canonical section.
+
+## Every Session
+
+This is the alias.
+
+## Other
+`;
+    fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), content);
+    const result = await readPostCompactionContext(tmpDir);
+    expect(result).not.toBeNull();
+    expect(result).toContain("canonical section");
+    expect(result).not.toContain("alias");
+  });
+});
+
+describe("extractSectionsWithAliases", () => {
+  it("returns first matching alias from each group", () => {
+    const content = `## Every Session\n\nStartup content.\n\n## Safety\n\nSafety content.\n`;
+    const result = extractSectionsWithAliases(content, [
+      ["Session Startup", "Every Session"],
+      ["Red Lines", "Safety"],
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toContain("Startup content");
+    expect(result[1]).toContain("Safety content");
+  });
+
+  it("returns empty array when no aliases match", () => {
+    const content = `## Unrelated\n\nContent.\n`;
+    const result = extractSectionsWithAliases(content, [
+      ["Session Startup", "Every Session"],
+      ["Red Lines", "Safety"],
+    ]);
+    expect(result).toHaveLength(0);
+  });
+
+  it("returns partial results when only some groups match", () => {
+    const content = `## Every Session\n\nStartup.\n\n## Other\n\nStuff.\n`;
+    const result = extractSectionsWithAliases(content, [
+      ["Session Startup", "Every Session"],
+      ["Red Lines", "Safety"],
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toContain("Startup");
   });
 });
