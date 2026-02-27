@@ -376,14 +376,14 @@ export async function setOpenrouterApiKey(
   });
 }
 
-export async function setQwenApiKey(key: string, agentDir?: string) {
+export async function setQwenApiKey(
+  key: SecretInput,
+  agentDir?: string,
+  options?: ApiKeyStorageOptions,
+) {
   upsertAuthProfile({
     profileId: "qwen-portal:default",
-    credential: {
-      type: "api_key",
-      provider: "qwen-portal",
-      key,
-    },
+    credential: buildApiKeyCredential("qwen-portal", key, undefined, options),
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
