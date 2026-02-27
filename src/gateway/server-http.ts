@@ -365,7 +365,7 @@ export function createHooksRequestHandler(
         }),
         agentId: targetAgentId,
       });
-      sendJson(res, 202, { ok: true, runId });
+      sendJson(res, 200, { ok: true, runId });
       return true;
     }
 
@@ -431,7 +431,7 @@ export function createHooksRequestHandler(
             timeoutSeconds: mapped.action.timeoutSeconds,
             allowUnsafeExternalContent: mapped.action.allowUnsafeExternalContent,
           });
-          sendJson(res, 202, { ok: true, runId });
+          sendJson(res, 200, { ok: true, runId });
           return true;
         }
       } catch (err) {
