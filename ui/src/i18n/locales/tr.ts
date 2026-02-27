@@ -65,8 +65,8 @@ export const tr: TranslationMap = {
       trustedProxy: "Güvenilir Proxy üzerinden kimlik doğrulandı.",
     },
     snapshot: {
-      title: "Anlık Görünüm",
-      subtitle: "En güncel Gateway handshake bilgileri.",
+      title: "Durum Özeti",
+      subtitle: "Gateway'in güncel durum bilgisi.",
       status: "Durum",
       uptime: "Çalışma Süresi",
       tickInterval: "Tick Aralığı",
@@ -87,7 +87,7 @@ export const tr: TranslationMap = {
       subtitle: "Uzaktan kontrol kurulumları için hızlı hatırlatmalar.",
       tailscaleTitle: "Tailscale serve",
       tailscaleText: "Gateway'i tailnet auth ile loopback'te tutmak için serve modunu tercih edin.",
-      sessionTitle: "Oturum hijyeni",
+      sessionTitle: "Oturum temizliği",
       sessionText: "/new veya sessions.patch kullanarak bağlamı sıfırlayın.",
       cronTitle: "Cron görevleri",
       cronText: "Tekrarlayan çalıştırmalar için izole oturum kullanın.",
@@ -117,9 +117,9 @@ export const tr: TranslationMap = {
   },
   languages: {
     en: "English",
-    zhCN: "简体中文 (Basitleştirilmiş Çince)",
-    zhTW: "繁體中文 (Geleneksel Çince)",
-    ptBR: "Português (Brezilya Portekizcesi)",
+    zhCN: "简体中文 (Çince, Basit)",
+    zhTW: "繁體中文 (Çince, Geleneksel)",
+    ptBR: "Português (Portekizce, Brezilya)",
     tr: "Türkçe",
   },
 };
