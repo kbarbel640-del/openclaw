@@ -106,6 +106,55 @@ describe("CronService store migrations", () => {
     await store.cleanup();
   });
 
+  it("normalizes jobId to id when jobs.json uses jobId as the identifier", async () => {
+    const store = await makeStorePath();
+    await fs.mkdir(path.dirname(store.storePath), { recursive: true });
+    await fs.writeFile(
+      store.storePath,
+      JSON.stringify(
+        {
+          version: 1,
+          jobs: [
+            {
+              jobId: "jobid-norm-test",
+              name: "jobId normalization",
+              enabled: true,
+              createdAtMs: Date.parse("2026-02-01T12:00:00.000Z"),
+              updatedAtMs: Date.parse("2026-02-05T12:00:00.000Z"),
+              schedule: { kind: "cron", expr: "0 9 * * *", tz: "UTC" },
+              sessionTarget: "main",
+              wakeMode: "next-heartbeat",
+              payload: { kind: "systemEvent", text: "hello from jobId" },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const cron = await createStartedCron(store.storePath).start();
+
+    const jobs = await cron.list({ includeDisabled: true });
+    const job = jobs.find((entry) => entry.id === "jobid-norm-test");
+    expect(job).toBeDefined();
+    expect(job?.id).toBe("jobid-norm-test");
+    expect(job?.name).toBe("jobId normalization");
+
+    // Verify persisted file uses id (not jobId)
+    const persisted = JSON.parse(await fs.readFile(store.storePath, "utf-8")) as {
+      jobs: Array<Record<string, unknown>>;
+    };
+    const persistedJob = persisted.jobs.find((entry) => entry.id === "jobid-norm-test");
+    expect(persistedJob).toBeDefined();
+    expect(persistedJob?.id).toBe("jobid-norm-test");
+    expect("jobId" in (persistedJob ?? {})).toBe(false);
+
+    cron.stop();
+    await store.cleanup();
+  });
+
   it("preserves legacy timeoutSeconds=0 during top-level agentTurn field migration", async () => {
     const store = await makeStorePath();
     await fs.mkdir(path.dirname(store.storePath), { recursive: true });
