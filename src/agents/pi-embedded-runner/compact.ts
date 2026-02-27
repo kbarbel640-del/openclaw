@@ -16,6 +16,7 @@ import { generateSecureToken } from "../../infra/secure-random.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { type enqueueCommand, enqueueCommandInLane } from "../../process/command-queue.js";
 import { isCronSessionKey, isSubagentSessionKey } from "../../routing/session-key.js";
+import { emitSessionTranscriptUpdate } from "../../sessions/transcript-events.js";
 import { resolveSignalReactionLevel } from "../../signal/reaction-level.js";
 import { resolveTelegramInlineButtonsScope } from "../../telegram/inline-buttons.js";
 import { resolveTelegramReactionLevel } from "../../telegram/reaction-level.js";
@@ -238,6 +239,23 @@ function classifyCompactionReason(reason?: string): string {
     return "provider_error_5xx";
   }
   return "unknown";
+}
+
+function resolvePostCompactionIndexSyncMode(config?: OpenClawConfig): "off" | "async" | "await" {
+  const mode = config?.agents?.defaults?.compaction?.postIndexSync;
+  if (mode === "off" || mode === "async" || mode === "await") {
+    return mode;
+  }
+  return "async";
+}
+
+async function syncPostCompactionSessionMemory(params: {
+  config?: OpenClawConfig;
+  mode: "off" | "async" | "await";
+}): Promise<void> {
+  if (params.mode === "off" || !params.config) {
+    return;
+  }
 }
 
 /**
@@ -664,6 +682,11 @@ export async function compactEmbeddedPiSessionDirect(
         const result = await compactWithSafetyTimeout(() =>
           session.compact(params.customInstructions),
         );
+        emitSessionTranscriptUpdate(params.sessionFile);
+        await syncPostCompactionSessionMemory({
+          config: params.config,
+          mode: resolvePostCompactionIndexSyncMode(params.config),
+        });
         // Estimate tokens after compaction by summing token estimates for remaining messages
         let tokensAfter: number | undefined;
         try {
