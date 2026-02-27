@@ -54,4 +54,96 @@ describe("sanitizeEnvVars", () => {
     expect(result.allowed).toEqual({ NODE_ENV: "test" });
     expect(result.blocked).toEqual(["FOO"]);
   });
+
+  it("allows skill-declared env keys through allowedKeys for soft-blocked patterns only", () => {
+    const result = sanitizeEnvVars(
+      {
+        NOTION_API_KEY: "ntn_xxx",
+        MY_SECRET: "s3cret",
+        OPENAI_API_KEY: "sk-live-xxx",
+        FOO: "bar",
+      },
+      { allowedKeys: new Set(["NOTION_API_KEY", "MY_SECRET"]) },
+    );
+
+    expect(result.allowed).toEqual({
+      NOTION_API_KEY: "ntn_xxx",
+      MY_SECRET: "s3cret",
+      FOO: "bar",
+    });
+    // OPENAI_API_KEY is hard-blocked — cannot be bypassed by allowedKeys
+    expect(result.blocked).toEqual(["OPENAI_API_KEY"]);
+  });
+
+  it("never allows hard-blocked platform secrets through allowedKeys", () => {
+    const hardBlockedKeys = [
+      "GITHUB_TOKEN",
+      "GH_TOKEN",
+      "OPENCLAW_GATEWAY_TOKEN",
+      "OPENCLAW_GATEWAY_PASSWORD",
+      "TELEGRAM_BOT_TOKEN",
+      "DISCORD_BOT_TOKEN",
+      "AWS_SECRET_ACCESS_KEY",
+      "SLACK_BOT_TOKEN",
+    ];
+    const envVars: Record<string, string> = {};
+    for (const key of hardBlockedKeys) {
+      envVars[key] = "test-value";
+    }
+    const result = sanitizeEnvVars(envVars, {
+      allowedKeys: new Set(hardBlockedKeys),
+    });
+
+    expect(result.allowed).toEqual({});
+    expect(result.blocked).toEqual(expect.arrayContaining(hardBlockedKeys));
+  });
+
+  it("never allows model auth env vars through allowedKeys", () => {
+    const modelAuthKeys = [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "COPILOT_GITHUB_TOKEN",
+      "ANTHROPIC_OAUTH_TOKEN",
+      "AWS_BEARER_TOKEN_BEDROCK",
+      "GEMINI_API_KEY",
+      "GROQ_API_KEY",
+      "MISTRAL_API_KEY",
+      "HF_TOKEN",
+      "HUGGINGFACE_HUB_TOKEN",
+    ];
+    const envVars: Record<string, string> = {};
+    for (const key of modelAuthKeys) {
+      envVars[key] = "test-value";
+    }
+    const result = sanitizeEnvVars(envVars, {
+      allowedKeys: new Set(modelAuthKeys),
+    });
+
+    expect(result.allowed).toEqual({});
+    expect(result.blocked).toEqual(expect.arrayContaining(modelAuthKeys));
+  });
+
+  it("still blocks allowedKeys vars with null bytes in values", () => {
+    const result = sanitizeEnvVars(
+      { NOTION_API_KEY: "a\0b" },
+      { allowedKeys: new Set(["NOTION_API_KEY"]) },
+    );
+
+    expect(result.blocked).toEqual(["NOTION_API_KEY"]);
+    expect(result.allowed).toEqual({});
+  });
+
+  it("still warns for allowedKeys vars with suspicious values", () => {
+    const base64Like =
+      "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ==";
+    const result = sanitizeEnvVars(
+      { NOTION_API_KEY: base64Like },
+      { allowedKeys: new Set(["NOTION_API_KEY"]) },
+    );
+
+    expect(result.allowed).toEqual({ NOTION_API_KEY: base64Like });
+    expect(result.warnings).toContain(
+      "NOTION_API_KEY: Value looks like base64-encoded credential data",
+    );
+  });
 });

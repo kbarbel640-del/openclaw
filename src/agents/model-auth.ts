@@ -331,6 +331,68 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
   return pick(envVar);
 }
 
+/**
+ * All env var names consumed by `resolveEnvApiKey` for model/provider authentication.
+ * Used by the sandbox env sanitizer to hard-block these regardless of skill declarations.
+ */
+export const MODEL_AUTH_ENV_VARS: ReadonlySet<string> = new Set([
+  // github-copilot
+  "COPILOT_GITHUB_TOKEN",
+  // anthropic
+  "ANTHROPIC_OAUTH_TOKEN",
+  "ANTHROPIC_API_KEY",
+  // chutes
+  "CHUTES_OAUTH_TOKEN",
+  "CHUTES_API_KEY",
+  // zai
+  "ZAI_API_KEY",
+  "Z_AI_API_KEY",
+  // opencode
+  "OPENCODE_API_KEY",
+  "OPENCODE_ZEN_API_KEY",
+  // qwen-portal
+  "QWEN_OAUTH_TOKEN",
+  "QWEN_PORTAL_API_KEY",
+  // volcengine
+  "VOLCANO_ENGINE_API_KEY",
+  // byteplus
+  "BYTEPLUS_API_KEY",
+  // minimax-portal
+  "MINIMAX_OAUTH_TOKEN",
+  // kimi-coding
+  "KIMI_API_KEY",
+  "KIMICODE_API_KEY",
+  // huggingface
+  "HUGGINGFACE_HUB_TOKEN",
+  "HF_TOKEN",
+  // amazon-bedrock (AWS SDK auth)
+  "AWS_BEARER_TOKEN_BEDROCK",
+  // envMap providers
+  "OPENAI_API_KEY",
+  "GEMINI_API_KEY",
+  "VOYAGE_API_KEY",
+  "GROQ_API_KEY",
+  "DEEPGRAM_API_KEY",
+  "CEREBRAS_API_KEY",
+  "XAI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "LITELLM_API_KEY",
+  "AI_GATEWAY_API_KEY",
+  "CLOUDFLARE_AI_GATEWAY_API_KEY",
+  "MOONSHOT_API_KEY",
+  "MINIMAX_API_KEY",
+  "NVIDIA_API_KEY",
+  "XIAOMI_API_KEY",
+  "SYNTHETIC_API_KEY",
+  "VENICE_API_KEY",
+  "MISTRAL_API_KEY",
+  "TOGETHER_API_KEY",
+  "QIANFAN_API_KEY",
+  "OLLAMA_API_KEY",
+  "VLLM_API_KEY",
+  "KILOCODE_API_KEY",
+]);
+
 export function resolveModelAuthMode(
   provider?: string,
   cfg?: OpenClawConfig,
