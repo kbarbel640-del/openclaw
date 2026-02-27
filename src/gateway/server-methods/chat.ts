@@ -3,12 +3,16 @@ import path from "node:path";
 import { CURRENT_SESSION_VERSION } from "@mariozechner/pi-coding-agent";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { resolveThinkingDefault } from "../../agents/model-selection.js";
+import { abortEmbeddedPiRun } from "../../agents/pi-embedded.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
+import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
+import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
+import { isLlmOrApiClientError } from "../../infra/unhandled-rejections.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import {
   stripInlineDirectiveTagsForDisplay,
@@ -705,9 +709,13 @@ export const chatHandlers: GatewayRequestHandlers = {
       return;
     }
     const inboundMessage = sanitizedMessageResult.message;
-    const stopCommand = isChatStopCommandText(inboundMessage);
-    const normalizedAttachments = normalizeRpcAttachmentsToChatAttachments(p.attachments);
     const rawMessage = inboundMessage.trim();
+    const rawMessageLower = rawMessage.toLowerCase();
+    const stopCommand =
+      isChatStopCommandText(inboundMessage) ||
+      rawMessageLower === "/stop-session" ||
+      rawMessageLower === "/stop_session";
+    const normalizedAttachments = normalizeRpcAttachmentsToChatAttachments(p.attachments);
     if (!rawMessage && normalizedAttachments.length === 0) {
       respond(
         false,
@@ -757,6 +765,15 @@ export const chatHandlers: GatewayRequestHandlers = {
     }
 
     if (stopCommand) {
+      const { cfg, entry, canonicalKey: stopSessionKey } = loadSessionEntry(rawSessionKey);
+      const queueKeys = [stopSessionKey, entry?.sessionId, rawSessionKey].filter(
+        Boolean,
+      ) as string[];
+      clearSessionQueues(queueKeys);
+      if (entry?.sessionId) {
+        abortEmbeddedPiRun(entry.sessionId);
+      }
+      stopSubagentsForRequester({ cfg, requesterSessionKey: stopSessionKey });
       const res = abortChatRunsForSessionKeyWithPartials({
         context,
         ops: createChatAbortOps(context),
@@ -940,14 +957,17 @@ export const chatHandlers: GatewayRequestHandlers = {
           });
         })
         .catch((err) => {
-          const error = errorShape(ErrorCodes.UNAVAILABLE, String(err));
+          const errorMessage = isLlmOrApiClientError(err)
+            ? "[System Error: Model API failed]"
+            : String(err);
+          const error = errorShape(ErrorCodes.UNAVAILABLE, errorMessage);
           context.dedupe.set(`chat:${clientRunId}`, {
             ts: Date.now(),
             ok: false,
             payload: {
               runId: clientRunId,
               status: "error" as const,
-              summary: String(err),
+              summary: errorMessage,
             },
             error,
           });
@@ -955,7 +975,7 @@ export const chatHandlers: GatewayRequestHandlers = {
             context,
             runId: clientRunId,
             sessionKey: rawSessionKey,
-            errorMessage: String(err),
+            errorMessage,
           });
         })
         .finally(() => {
