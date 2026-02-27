@@ -11,10 +11,13 @@ export function isSilentReplyText(
     return false;
   }
   const escaped = escapeRegExp(token);
-  // Match only the exact silent token with optional surrounding whitespace.
-  // This prevents
-  // substantive replies ending with NO_REPLY from being suppressed (#19537).
-  return new RegExp(`^\\s*${escaped}\\s*$`).test(text);
+  // Use explicit ASCII whitespace [ \t\r\n] instead of \s to avoid false-positives
+  // with non-ASCII characters. JavaScript's \s matches all Unicode whitespace
+  // (including U+3000 ideographic space and other CJK-adjacent whitespace), and
+  // older versions of this regex used \W/\b which match all non-ASCII characters —
+  // causing CJK messages containing the token to be silently dropped (#24773).
+  // This ensures only the bare token (with optional ASCII spacing) is treated as silent.
+  return new RegExp(`^[ \\t\\r\\n]*${escaped}[ \\t\\r\\n]*$`).test(text);
 }
 
 export function isSilentReplyPrefixText(
