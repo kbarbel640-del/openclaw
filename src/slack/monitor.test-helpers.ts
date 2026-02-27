@@ -13,6 +13,7 @@ type SlackTestState = {
   replyMock: Mock<(...args: unknown[]) => unknown>;
   updateLastRouteMock: Mock<(...args: unknown[]) => unknown>;
   reactMock: Mock<(...args: unknown[]) => unknown>;
+  removeReactMock: Mock<(...args: unknown[]) => unknown>;
   readAllowFromStoreMock: Mock<(...args: unknown[]) => Promise<unknown>>;
   upsertPairingRequestMock: Mock<(...args: unknown[]) => Promise<unknown>>;
 };
@@ -23,6 +24,7 @@ const slackTestState: SlackTestState = vi.hoisted(() => ({
   replyMock: vi.fn(),
   updateLastRouteMock: vi.fn(),
   reactMock: vi.fn(),
+  removeReactMock: vi.fn(),
   readAllowFromStoreMock: vi.fn(),
   upsertPairingRequestMock: vi.fn(),
 }));
@@ -46,6 +48,7 @@ type SlackClient = {
   };
   reactions: {
     add: (...args: unknown[]) => unknown;
+    remove: (...args: unknown[]) => unknown;
   };
 };
 
@@ -140,6 +143,7 @@ export function resetSlackTestState(config: Record<string, unknown> = defaultSla
   slackTestState.replyMock.mockReset();
   slackTestState.updateLastRouteMock.mockReset();
   slackTestState.reactMock.mockReset();
+  slackTestState.removeReactMock.mockReset();
   slackTestState.readAllowFromStoreMock.mockReset().mockResolvedValue([]);
   slackTestState.upsertPairingRequestMock.mockReset().mockResolvedValue({
     code: "PAIRCODE",
@@ -212,6 +216,7 @@ vi.mock("@slack/bolt", () => {
     },
     reactions: {
       add: (...args: unknown[]) => slackTestState.reactMock(...args),
+      remove: (...args: unknown[]) => slackTestState.removeReactMock(...args),
     },
   };
   (globalThis as { __slackClient?: typeof client }).__slackClient = client;
