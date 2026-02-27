@@ -801,18 +801,18 @@ export function buildAvianProvider(): ProviderConfig {
     api: "openai-completions",
     models: [
       {
-        id: "deepseek/deepseek-v3.2",
+        id: AVIAN_DEFAULT_MODEL_ID,
         name: "DeepSeek V3.2",
         reasoning: false,
         input: ["text"],
         cost: { input: 0.26, output: 0.38, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 164000,
-        maxTokens: 65536,
+        contextWindow: AVIAN_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: AVIAN_DEFAULT_MAX_TOKENS,
       },
       {
         id: "moonshotai/kimi-k2.5",
         name: "Kimi K2.5",
-        reasoning: false,
+        reasoning: true,
         input: ["text"],
         cost: { input: 0.45, output: 2.2, cacheRead: 0, cacheWrite: 0 },
         contextWindow: 131000,
