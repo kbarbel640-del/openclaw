@@ -9,8 +9,8 @@ metadata:
 spec:
   kprobes:
     # Detect setuid calls
+    # x86_64: __x64_sys_setuid | arm64: __arm64_sys_setuid
     - call: __x64_sys_setuid
-      # NOTE: On arm64, replace __x64_sys_setuid with __arm64_sys_setuid
       syscall: true
       args:
         - index: 0
@@ -25,8 +25,8 @@ spec:
             - action: Post
 
     # Detect setgid calls
+    # x86_64: __x64_sys_setgid | arm64: __arm64_sys_setgid
     - call: __x64_sys_setgid
-      # NOTE: On arm64, replace __x64_sys_setgid with __arm64_sys_setgid
       syscall: true
       args:
         - index: 0
@@ -41,8 +41,8 @@ spec:
             - action: Post
 
     # Detect setresuid (set real, effective, saved UID)
+    # x86_64: __x64_sys_setresuid | arm64: __arm64_sys_setresuid
     - call: __x64_sys_setresuid
-      # NOTE: On arm64, replace __x64_sys_setresuid with __arm64_sys_setresuid
       syscall: true
       args:
         - index: 0

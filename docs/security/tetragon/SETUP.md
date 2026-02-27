@@ -187,7 +187,7 @@ sudo systemctl enable --now otelcol
 cat /etc/passwd > /dev/null
 
 # Verify it appears in the log
-tail -20 /var/log/tetragon/tetragon.log | jq 'select(.process_kprobe != null) | {event: .process_kprobe.function_name, file: .process_kprobe.args[0].file_arg}'
+tail -20 /var/log/tetragon/tetragon.log | jq 'select(.process_kprobe != null) | {event: .process_kprobe.function_name, file: .process_kprobe.args[1].file_arg}'
 ```
 
 ### Check OTel Collector
