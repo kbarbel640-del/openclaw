@@ -40,6 +40,13 @@ const RECOVERABLE_MESSAGE_SNIPPETS = [
   "timed out", // grammY getUpdates returns "timed out after X seconds" (not matched by "timeout")
 ];
 
+function isExplicitNetworkRequestFailureMessage(message: string): boolean {
+  if (!message) {
+    return false;
+  }
+  return message.includes("network request for") && message.includes("failed");
+}
+
 function normalizeCode(code?: string): string {
   return code?.trim().toUpperCase() ?? "";
 }
@@ -140,6 +147,11 @@ export function isRecoverableTelegramNetworkError(
 
     const message = formatErrorMessage(candidate).trim().toLowerCase();
     if (message && ALWAYS_RECOVERABLE_MESSAGES.has(message)) {
+      return true;
+    }
+    // Send context intentionally disables broad message snippet matching.
+    // Still treat explicit grammY network request failures as recoverable.
+    if (!allowMessageMatch && isExplicitNetworkRequestFailureMessage(message)) {
       return true;
     }
     if (allowMessageMatch && message) {
