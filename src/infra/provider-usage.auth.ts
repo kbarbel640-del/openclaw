@@ -109,7 +109,7 @@ function resolveXiaomiApiKey(): string | undefined {
  * The cookie string should be in format: "name1=value1; name2=value2"
  * Common session cookie names: __Secure-session, session, next-auth.session-token
  */
-function resolveOllamaCookie(): string | undefined {
+async function resolveOllamaCookie(params: { agentDir?: string }): Promise<string | undefined> {
   // Check environment variable first
   const envCookie = normalizeSecretInput(process.env.OLLAMA_COOKIE);
   if (envCookie) {
@@ -118,13 +118,35 @@ function resolveOllamaCookie(): string | undefined {
 
   // Check auth profile store for token credential ONLY
   // SECURITY: Do NOT use api_key type - those are for model auth, not cookies
-  const store = ensureAuthProfileStore();
-  const profiles = listProfilesForProvider(store, "ollama");
+  const cfg = loadConfig();
+  const store = ensureAuthProfileStore(params.agentDir, {
+    allowKeychainPrompt: false,
+  });
+  const order = resolveAuthProfileOrder({
+    cfg,
+    store,
+    provider: "ollama",
+  });
+  const deduped = dedupeProfileIds(order);
 
-  for (const profileId of profiles) {
+  for (const profileId of deduped) {
     const cred = store.profiles[profileId];
-    if (cred?.type === "token" && normalizeSecretInput(cred.token)) {
-      return normalizeSecretInput(cred.token);
+    if (cred?.type !== "token") {
+      continue;
+    }
+    try {
+      // Use resolveApiKeyForProfile to properly handle tokenRef (secret references)
+      const resolved = await resolveApiKeyForProfile({
+        cfg: undefined,
+        store,
+        profileId,
+        agentDir: params.agentDir,
+      });
+      if (resolved?.apiKey) {
+        return resolved.apiKey;
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -282,7 +304,7 @@ export async function resolveProviderAuths(params: {
       continue;
     }
     if (provider === "ollama") {
-      const cookie = resolveOllamaCookie();
+      const cookie = await resolveOllamaCookie({ agentDir: params.agentDir });
       if (cookie) {
         auths.push({ provider, token: cookie });
       }
