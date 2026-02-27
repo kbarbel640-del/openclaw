@@ -418,9 +418,6 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     if (!envelope) {
       return;
     }
-    if (envelope.syncMessage) {
-      return;
-    }
 
     const sender = resolveSignalSender(envelope);
     if (!sender) {
