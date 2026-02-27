@@ -213,6 +213,9 @@ vi.mock("./native-command.js", () => ({
   createDiscordModelPickerFallbackButton: () => ({ id: "model-fallback-btn" }),
   createDiscordModelPickerFallbackSelect: () => ({ id: "model-fallback-select" }),
   createDiscordNativeCommand: createDiscordNativeCommandMock,
+  createPluginCommandFallbackButton: () => ({ id: "plugin-fallback-btn" }),
+  createPluginCommandFallbackSelect: () => ({ id: "plugin-fallback-select" }),
+  createDiscordPluginCommand: vi.fn(),
 }));
 
 vi.mock("./presence.js", () => ({
