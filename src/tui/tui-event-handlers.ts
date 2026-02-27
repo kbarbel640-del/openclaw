@@ -205,7 +205,13 @@ export function createEventHandlers(context: EventHandlerContext) {
       const finalText = streamAssembler.finalize(evt.runId, evt.message, state.showThinking);
       const suppressEmptyExternalPlaceholder =
         finalText === "(no output)" && !isLocalRunId?.(evt.runId);
-      if (suppressEmptyExternalPlaceholder) {
+      const trimmedFinal = finalText.trim();
+      const suppressSilentReply =
+        !isLocalRunId?.(evt.runId) &&
+        (trimmedFinal === "NO_REPLY" ||
+          trimmedFinal === "HEARTBEAT_OK" ||
+          trimmedFinal === "NO_FLUSH");
+      if (suppressEmptyExternalPlaceholder || suppressSilentReply) {
         chatLog.dropAssistant(evt.runId);
       } else {
         chatLog.finalizeAssistant(finalText, evt.runId);
