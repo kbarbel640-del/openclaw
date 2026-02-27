@@ -269,6 +269,7 @@ export async function getReplyFromConfig(
     directiveAck,
     perMessageQueueMode,
     perMessageQueueOptions,
+    routingResult,
   } = directiveResult.result;
   provider = resolvedProvider;
   model = resolvedModel;
@@ -294,6 +295,16 @@ export async function getReplyFromConfig(
     });
   };
 
+  // Inject routing tier into onModelSelected so prefix template can use {tier}/{tierEmoji}.
+  const optsForRun: typeof resolvedOpts =
+    routingResult?.tier && resolvedOpts?.onModelSelected
+      ? {
+          ...resolvedOpts,
+          onModelSelected: (ctx) =>
+            resolvedOpts.onModelSelected!({ ...ctx, tier: routingResult.tier }),
+        }
+      : resolvedOpts;
+
   const inlineActionResult = await handleInlineActions({
     ctx,
     sessionCtx,
@@ -308,7 +319,7 @@ export async function getReplyFromConfig(
     sessionScope,
     workspaceDir,
     isGroup,
-    opts: resolvedOpts,
+    opts: optsForRun,
     typing,
     allowTextCommands,
     inlineStatusRequested,
@@ -378,7 +389,7 @@ export async function getReplyFromConfig(
     perMessageQueueMode,
     perMessageQueueOptions,
     typing,
-    opts: resolvedOpts,
+    opts: optsForRun,
     defaultProvider,
     defaultModel,
     timeoutMs,

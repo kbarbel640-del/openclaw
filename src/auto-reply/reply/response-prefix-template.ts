@@ -16,6 +16,8 @@ export type ResponsePrefixContext = {
   thinkingLevel?: string;
   /** Agent identity name */
   identityName?: string;
+  /** Routing tier (e.g., "fast", "standard", "deep") */
+  tier?: string;
 };
 
 // Regex pattern for template variables: {variableName} or {variable.name}
@@ -59,6 +61,20 @@ export function resolveResponsePrefixTemplate(
       case "identity.name":
       case "identityname":
         return context.identityName ?? match;
+      case "tier":
+        return context.tier ?? match;
+      case "tieremoji": {
+        const tier = context.tier;
+        if (!tier) {
+          return match;
+        }
+        const emojiMap: Record<string, string> = {
+          fast: "\u{1F7E2}",
+          standard: "\u{1F535}",
+          deep: "\u{1F7E3}",
+        };
+        return emojiMap[tier] ?? tier;
+      }
       default:
         // Leave unrecognized variables as-is
         return match;
