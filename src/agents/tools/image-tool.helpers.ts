@@ -47,7 +47,7 @@ export function coerceImageAssistantText(params: {
   if (errorMessage) {
     throw new Error(`Image model failed (${params.provider}/${params.model}): ${errorMessage}`);
   }
-  const text = extractAssistantText(params.message);
+  const text = extractAssistantText(params.message, { fallbackToThinking: false });
   if (text.trim()) {
     return text.trim();
   }

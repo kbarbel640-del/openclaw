@@ -419,6 +419,54 @@ File contents here`,
     expect(result).toBe("Here's what I found:\nDone checking.");
   });
 
+  it("falls back to thinking blocks when no text blocks exist (#27806)", () => {
+    const msg = makeAssistantMessage({
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "This is the actual answer from a reasoning model" },
+      ] as AssistantMessage["content"],
+      timestamp: Date.now(),
+    });
+    expect(extractAssistantText(msg)).toBe("This is the actual answer from a reasoning model");
+  });
+
+  it("does not fall back to thinking when text blocks are present", () => {
+    const msg = makeAssistantMessage({
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "Internal chain of thought" },
+        { type: "text", text: "The actual answer." },
+      ] as AssistantMessage["content"],
+      timestamp: Date.now(),
+    });
+    expect(extractAssistantText(msg)).toBe("The actual answer.");
+  });
+
+  it("falls back to multiple thinking blocks joined", () => {
+    const msg = makeAssistantMessage({
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "First part" },
+        { type: "thinking", thinking: "Second part" },
+      ] as AssistantMessage["content"],
+      timestamp: Date.now(),
+    });
+    expect(extractAssistantText(msg)).toBe("First part\nSecond part");
+  });
+
+  it("does not fall back to thinking when text is only empty", () => {
+    const msg = makeAssistantMessage({
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "Reasoning content" },
+        { type: "text", text: "   " },
+      ] as AssistantMessage["content"],
+      timestamp: Date.now(),
+    });
+    // text block exists but is whitespace-only → extracted as "" → falls back to thinking
+    expect(extractAssistantText(msg)).toBe("Reasoning content");
+  });
+
   it("strips reasoning/thinking tag variants", () => {
     const cases = [
       {
