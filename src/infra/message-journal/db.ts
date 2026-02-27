@@ -92,6 +92,11 @@ export function ensureJournalSchema(db: DatabaseSync): void {
       ON outbound_messages(idempotency_key)
       WHERE idempotency_key IS NOT NULL;
   `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_outbound_inbound_status
+      ON outbound_messages(inbound_id, status)
+      WHERE inbound_id IS NOT NULL;
+  `);
 
   ensureColumnExists(db, "inbound_events", "recovery_attempts", "INTEGER NOT NULL DEFAULT 0");
   ensureColumnExists(db, "inbound_events", "last_recovery_at", "INTEGER");

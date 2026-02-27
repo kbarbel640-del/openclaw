@@ -659,13 +659,28 @@ export async function startGatewayServer(
     void cron.start().catch((err) => logCron.error(`failed to start: ${String(err)}`));
   }
 
-  // Recover pending outbound deliveries from previous crash/restart.
+  // Recover pending outbound deliveries and orphaned inbound turns from previous crash/restart.
+  // Run delivery recovery first so orphan recovery can skip turns that already have queued outbound.
   if (!minimalTestGateway) {
     void (async () => {
-      const { migrateFileQueueToJournal, recoverPendingDeliveries } =
+      const { migrateFileQueueToJournal, recoverPendingDeliveries, getOutboundStatusForInbound } =
         await import("../infra/message-journal/outbound.js");
       const { deliverOutboundPayloads } = await import("../infra/outbound/deliver.js");
+      const {
+        failStaleProcessingInbound,
+        findProcessingInbound,
+        completeInboundTurn,
+        recordInboundRecoveryFailure,
+        MAX_INBOUND_RECOVERY_ATTEMPTS,
+        MAX_INBOUND_RECOVERY_AGE_MS,
+        pruneInboundJournal,
+        INBOUND_PRUNE_AGE_MS,
+      } = await import("../infra/message-journal/inbound.js");
+      const { dispatchRecoveredPendingReply } = await import("../auto-reply/dispatch.js");
+      const { createReplyDispatcher } = await import("../auto-reply/reply/reply-dispatcher.js");
       const logRecovery = log.child("delivery-recovery");
+      const logOrphan = log.child("orphan-recovery");
+
       // One-time migration from old file-based queue (no-op if already migrated).
       await migrateFileQueueToJournal();
       await recoverPendingDeliveries({
@@ -673,27 +688,15 @@ export async function startGatewayServer(
         log: logRecovery,
         cfg: cfgAtStart,
       });
-    })().catch((err) => log.error(`Delivery recovery failed: ${String(err)}`));
-  }
-
-  // Recover orphaned inbound turns that were in-flight when gateway was killed.
-  if (!minimalTestGateway) {
-    void (async () => {
-      const {
-        findProcessingInbound,
-        completeInboundTurn,
-        recordInboundRecoveryFailure,
-        MAX_INBOUND_RECOVERY_ATTEMPTS,
-        pruneInboundJournal,
-        INBOUND_PRUNE_AGE_MS,
-      } = await import("../infra/message-journal/inbound.js");
-      const { dispatchRecoveredPendingReply } = await import("../auto-reply/dispatch.js");
-      const { createReplyDispatcher } = await import("../auto-reply/reply/reply-dispatcher.js");
-      const { deliverOutboundPayloads } = await import("../infra/outbound/deliver.js");
-      const logOrphan = log.child("orphan-recovery");
 
       // Prune old completed rows to keep the journal small.
       pruneInboundJournal(INBOUND_PRUNE_AGE_MS);
+      const staleFailed = failStaleProcessingInbound(MAX_INBOUND_RECOVERY_AGE_MS);
+      if (staleFailed > 0) {
+        logOrphan.warn(
+          `Marked ${staleFailed} stale processing turn(s) as failed (age>${MAX_INBOUND_RECOVERY_AGE_MS}ms)`,
+        );
+      }
 
       // Find turns still marked 'processing' — these are orphans from a crash.
       // minAgeMs=0 so quick restarts (e.g. process supervisor) recover in-flight turns.
@@ -704,6 +707,27 @@ export async function startGatewayServer(
       logOrphan.info(`Found ${orphans.length} orphaned inbound turn(s) — starting recovery`);
 
       for (const row of orphans) {
+        const outboundStatus = getOutboundStatusForInbound(row.id);
+        if (outboundStatus.queued > 0) {
+          logOrphan.info(
+            `Skipping orphan ${row.id} — queued outbound exists (will deliver without re-dispatch)`,
+          );
+          continue;
+        }
+        if (outboundStatus.delivered > 0) {
+          completeInboundTurn(row.id, "delivered");
+          logOrphan.info(
+            `Skipping orphan ${row.id} — outbound history exists (already delivered/recovered)`,
+          );
+          continue;
+        }
+        if (outboundStatus.failed > 0) {
+          completeInboundTurn(row.id, "failed");
+          logOrphan.warn(
+            `Skipping orphan ${row.id} — linked outbound exhausted/failing; marking inbound failed`,
+          );
+          continue;
+        }
         if (row.recovery_attempts >= MAX_INBOUND_RECOVERY_ATTEMPTS) {
           completeInboundTurn(row.id, "failed");
           logOrphan.warn(

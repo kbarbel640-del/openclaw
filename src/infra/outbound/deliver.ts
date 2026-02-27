@@ -219,6 +219,8 @@ type DeliverOutboundPayloadsCoreParams = {
     mediaUrls?: string[];
   };
   silent?: boolean;
+  /** Links outbound to inbound turn for orphan-recovery coordination. */
+  inboundId?: string;
 };
 
 type DeliverOutboundPayloadsParams = DeliverOutboundPayloadsCoreParams & {
@@ -245,6 +247,7 @@ export async function deliverOutboundPayloads(
         gifPlayback: params.gifPlayback,
         silent: params.silent,
         mirror: params.mirror,
+        inboundId: params.inboundId,
       }).catch(() => null); // Best-effort — don't block delivery if queue write fails.
 
   // Wrap onError to detect partial failures under bestEffort mode.

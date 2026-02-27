@@ -9,6 +9,8 @@ import {
   computeBackoffMs,
   enqueueDelivery,
   failDelivery,
+  getOutboundStatusForInbound,
+  hasAnyOutboundForInbound,
   isEntryEligibleForRecoveryRetry,
   isPermanentDeliveryError,
   loadPendingDeliveries,
@@ -79,6 +81,57 @@ describe("enqueue + ack lifecycle", () => {
     expect(entry.mirror).toEqual({ sessionKey: "agent:main:main", text: "hi" });
   });
 
+  it("tracks inbound-linked rows for orphan-recovery coordination", async () => {
+    const inboundId = "turn-123";
+    const id = await enqueueDelivery(
+      {
+        channel: "telegram",
+        to: "chat123",
+        payloads: [{ text: "hi" }],
+        inboundId,
+      },
+      tmpDir,
+    );
+
+    const [pending] = await loadPendingDeliveries(tmpDir);
+    expect(pending.inboundId).toBe(inboundId);
+    expect(hasAnyOutboundForInbound(inboundId, tmpDir)).toBe(true);
+    expect(getOutboundStatusForInbound(inboundId, tmpDir)).toEqual({
+      queued: 1,
+      delivered: 0,
+      failed: 0,
+    });
+    expect(hasAnyOutboundForInbound("missing-turn", tmpDir)).toBe(false);
+
+    await ackDelivery(id, tmpDir);
+    // Delivered rows still count as outbound history for inbound replay gating.
+    expect(hasAnyOutboundForInbound(inboundId, tmpDir)).toBe(true);
+    expect(getOutboundStatusForInbound(inboundId, tmpDir)).toEqual({
+      queued: 0,
+      delivered: 1,
+      failed: 0,
+    });
+  });
+
+  it("reports failed status for inbound-linked rows", async () => {
+    const inboundId = "turn-failed";
+    const id = await enqueueDelivery(
+      {
+        channel: "telegram",
+        to: "chat987",
+        payloads: [{ text: "retry me" }],
+        inboundId,
+      },
+      tmpDir,
+    );
+    await failDelivery(id, "chat not found", tmpDir);
+    expect(getOutboundStatusForInbound(inboundId, tmpDir)).toEqual({
+      queued: 0,
+      delivered: 0,
+      failed: 1,
+    });
+  });
+
   it("ackDelivery is idempotent (no-op on already-delivered)", async () => {
     const id = await enqueueDelivery(
       { channel: "whatsapp", to: "+1555", payloads: [{ text: "x" }] },
@@ -88,6 +141,29 @@ describe("enqueue + ack lifecycle", () => {
     await expect(ackDelivery(id, tmpDir)).resolves.toBeUndefined();
     const pending = await loadPendingDeliveries(tmpDir);
     expect(pending).toHaveLength(0);
+  });
+
+  it("quarantines malformed queued payloads without blocking valid entries", async () => {
+    const validId = await enqueueDelivery(
+      { channel: "whatsapp", to: "+1555", payloads: [{ text: "ok" }] },
+      tmpDir,
+    );
+    const db = getJournalDb(tmpDir);
+    db.prepare(
+      `INSERT INTO outbound_messages
+         (id, channel, account_id, target, payload, queued_at, status, retry_count)
+       VALUES ('bad-row', 'whatsapp', '', '+1666', '{not-json', ?, 'queued', 0)`,
+    ).run(Date.now());
+
+    const pending = await loadPendingDeliveries(tmpDir);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].id).toBe(validId);
+
+    const quarantined = db
+      .prepare(`SELECT status, error_class FROM outbound_messages WHERE id='bad-row'`)
+      .get() as { status: string; error_class: string | null } | undefined;
+    expect(quarantined?.status).toBe("failed");
+    expect(quarantined?.error_class).toBe("terminal");
   });
 });
 
@@ -491,6 +567,30 @@ describe("migrateFileQueueToJournal", () => {
 
     const pending = await loadPendingDeliveries(tmpDir);
     expect(pending).toHaveLength(0);
+  });
+
+  it("preserves lastAttemptAt so recovery honors backoff", async () => {
+    const queueDir = path.join(tmpDir, "delivery-queue");
+    fs.mkdirSync(queueDir, { recursive: true });
+    const lastAttemptAt = Date.now() - 10_000; // 10s ago
+    const oldEntry = {
+      id: "retried-entry-1",
+      channel: "whatsapp",
+      to: "+1999",
+      payloads: [{ text: "retried" }],
+      enqueuedAt: Date.now() - 60_000,
+      retryCount: 1,
+      lastAttemptAt,
+      lastError: "network error",
+    };
+    fs.writeFileSync(path.join(queueDir, "retried-entry-1.json"), JSON.stringify(oldEntry));
+
+    await migrateFileQueueToJournal(tmpDir);
+
+    const pending = await loadPendingDeliveries(tmpDir);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].lastAttemptAt).toBe(lastAttemptAt);
+    expect(pending[0].retryCount).toBe(1);
   });
 
   it("uses INSERT OR IGNORE so duplicate ids are skipped", async () => {

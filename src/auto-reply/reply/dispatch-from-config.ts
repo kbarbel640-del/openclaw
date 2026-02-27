@@ -282,6 +282,7 @@ export async function dispatchReplyFromConfig(params: {
       cfg,
       abortSignal,
       mirror,
+      inboundId: ctx.PendingReplyId,
     });
     if (!result.ok) {
       logVerbose(`dispatch-from-config: route-reply failed: ${result.error ?? "unknown error"}`);
@@ -307,6 +308,7 @@ export async function dispatchReplyFromConfig(params: {
           accountId: ctx.AccountId,
           threadId: ctx.MessageThreadId,
           cfg,
+          inboundId: ctx.PendingReplyId,
         });
         queuedFinal = result.ok;
         if (result.ok) {
@@ -489,6 +491,7 @@ export async function dispatchReplyFromConfig(params: {
           accountId: ctx.AccountId,
           threadId: ctx.MessageThreadId,
           cfg,
+          inboundId: ctx.PendingReplyId,
         });
         if (!result.ok) {
           logVerbose(
@@ -539,6 +542,7 @@ export async function dispatchReplyFromConfig(params: {
               accountId: ctx.AccountId,
               threadId: ctx.MessageThreadId,
               cfg,
+              inboundId: ctx.PendingReplyId,
             });
             queuedFinal = result.ok || queuedFinal;
             if (result.ok) {

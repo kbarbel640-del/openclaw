@@ -9,6 +9,8 @@ import { getJournalDb, runJournalTransaction } from "./db.js";
 export const INBOUND_PRUNE_AGE_MS = 48 * 60 * 60_000; // 48 hours
 /** Startup orphan recovery stops retrying after this many failed attempts. */
 export const MAX_INBOUND_RECOVERY_ATTEMPTS = 3;
+/** Processing rows older than this are considered stale and not eligible for replay. */
+export const MAX_INBOUND_RECOVERY_AGE_MS = 24 * 60 * 60_000; // 24 hours
 
 const DEDUPE_FALLBACK_TTL_MS = 10 * 60_000;
 const JOURNAL_WARN_THROTTLE_MS = 60_000;
@@ -249,7 +251,7 @@ export function findProcessingInbound(opts?: {
   const db = getJournalDb(opts?.stateDir);
   const now = Date.now();
   const minAge = opts?.minAgeMs ?? 0;
-  const maxAge = opts?.maxAgeMs ?? 24 * 60 * 60_000;
+  const maxAge = opts?.maxAgeMs ?? MAX_INBOUND_RECOVERY_AGE_MS;
   const newerThan = now - maxAge;
   const olderThan = now - minAge;
 
@@ -268,6 +270,31 @@ export function findProcessingInbound(opts?: {
   } catch (err) {
     logVerbose(`message-journal/inbound: findProcessingInbound failed: ${String(err)}`);
     return [];
+  }
+}
+
+/**
+ * Mark stale processing rows as failed so they do not accumulate forever.
+ * Returns number of rows updated.
+ */
+export function failStaleProcessingInbound(
+  maxAgeMs: number = MAX_INBOUND_RECOVERY_AGE_MS,
+  opts?: { stateDir?: string },
+): number {
+  const db = getJournalDb(opts?.stateDir);
+  const cutoff = Date.now() - maxAgeMs;
+  try {
+    const result = db
+      .prepare(
+        `UPDATE inbound_events
+           SET status='failed', recovery_error='stale processing row exceeded recovery age'
+         WHERE status='processing' AND received_at < ?`,
+      )
+      .run(cutoff);
+    return Number(result.changes);
+  } catch (err) {
+    logVerbose(`message-journal/inbound: failStaleProcessingInbound failed: ${String(err)}`);
+    return 0;
   }
 }
 

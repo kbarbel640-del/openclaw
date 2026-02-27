@@ -8,6 +8,7 @@ import {
   abortProcessingInboundForSession,
   acceptInboundOrSkip,
   completeInboundTurn,
+  failStaleProcessingInbound,
   findProcessingInbound,
   MAX_INBOUND_RECOVERY_ATTEMPTS,
   pruneInboundJournal,
@@ -262,6 +263,33 @@ describe("findProcessingInbound", () => {
     const payload = JSON.parse(rows[0].payload);
     expect(payload.from).toBe("+1234");
     expect(payload.to).toBe("+5678");
+  });
+});
+
+describe("failStaleProcessingInbound", () => {
+  it("marks stale processing rows as failed and keeps fresh rows", () => {
+    acceptInboundOrSkip(makeCtx({ PendingReplyId: "stale-turn", MessageSid: "stale-sid" }), {
+      stateDir: tmpDir,
+    });
+    acceptInboundOrSkip(makeCtx({ PendingReplyId: "fresh-turn", MessageSid: "fresh-sid" }), {
+      stateDir: tmpDir,
+    });
+
+    const db = getJournalDb(tmpDir);
+    const twoHoursAgo = Date.now() - 2 * 60 * 60_000;
+    db.prepare("UPDATE inbound_events SET received_at=? WHERE id='stale-turn'").run(twoHoursAgo);
+
+    const updated = failStaleProcessingInbound(60 * 60_000, { stateDir: tmpDir });
+    expect(updated).toBe(1);
+
+    const processing = findProcessingInbound({ stateDir: tmpDir });
+    expect(processing).toHaveLength(1);
+    expect(processing[0].id).toBe("fresh-turn");
+
+    const staleRow = db.prepare("SELECT status FROM inbound_events WHERE id='stale-turn'").get() as
+      | { status: string }
+      | undefined;
+    expect(staleRow?.status).toBe("failed");
   });
 });
 

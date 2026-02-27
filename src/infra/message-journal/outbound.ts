@@ -46,7 +46,10 @@ type QueuedDeliveryPayload = {
   mirror?: DeliveryMirrorPayload;
 };
 
-export type QueuedDeliveryParams = QueuedDeliveryPayload;
+export type QueuedDeliveryParams = QueuedDeliveryPayload & {
+  /** Links outbound to inbound turn for orphan-recovery coordination. */
+  inboundId?: string;
+};
 
 /** Shape returned when loading pending entries for recovery. */
 export interface QueuedDelivery extends QueuedDeliveryPayload {
@@ -56,6 +59,8 @@ export interface QueuedDelivery extends QueuedDeliveryPayload {
   /** Timestamp of the most recent failed attempt; undefined for never-attempted entries. */
   lastAttemptAt?: number;
   lastError?: string;
+  /** Links to inbound turn for orphan-recovery coordination. */
+  inboundId?: string;
 }
 
 export type DeliverFn = (
@@ -90,9 +95,17 @@ export async function enqueueDelivery(
 
   db.prepare(
     `INSERT INTO outbound_messages
-       (id, channel, account_id, target, payload, queued_at, status, retry_count)
-     VALUES (?, ?, ?, ?, ?, ?, 'queued', 0)`,
-  ).run(id, String(params.channel), params.accountId ?? "", params.to, payload, Date.now());
+       (id, channel, account_id, target, payload, queued_at, status, retry_count, inbound_id)
+     VALUES (?, ?, ?, ?, ?, ?, 'queued', 0, ?)`,
+  ).run(
+    id,
+    String(params.channel),
+    params.accountId ?? "",
+    params.to,
+    payload,
+    Date.now(),
+    params.inboundId ?? null,
+  );
 
   return id;
 }
@@ -162,7 +175,7 @@ export async function loadPendingDeliveries(stateDir?: string): Promise<QueuedDe
   try {
     const rows = db
       .prepare(
-        `SELECT id, payload, queued_at, retry_count, last_attempt_at, last_error
+        `SELECT id, payload, queued_at, retry_count, last_attempt_at, last_error, inbound_id
            FROM outbound_messages
           WHERE status='queued'
           ORDER BY queued_at ASC`,
@@ -174,22 +187,119 @@ export async function loadPendingDeliveries(stateDir?: string): Promise<QueuedDe
       retry_count: number;
       last_attempt_at: number | null;
       last_error: string | null;
+      inbound_id: string | null;
     }>;
 
-    return rows.map((row) => {
-      const p = JSON.parse(row.payload) as QueuedDeliveryPayload;
-      return {
-        ...p,
-        id: row.id,
-        enqueuedAt: row.queued_at,
-        retryCount: row.retry_count,
-        ...(row.last_attempt_at != null ? { lastAttemptAt: row.last_attempt_at } : {}),
-        ...(row.last_error ? { lastError: row.last_error } : {}),
-      };
-    });
+    const entries: QueuedDelivery[] = [];
+    for (const row of rows) {
+      try {
+        const p = JSON.parse(row.payload) as QueuedDeliveryPayload;
+        entries.push({
+          ...p,
+          id: row.id,
+          enqueuedAt: row.queued_at,
+          retryCount: row.retry_count,
+          ...(row.last_attempt_at != null ? { lastAttemptAt: row.last_attempt_at } : {}),
+          ...(row.last_error ? { lastError: row.last_error } : {}),
+          ...(row.inbound_id ? { inboundId: row.inbound_id } : {}),
+        });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logVerbose(
+          `message-journal/outbound: invalid payload for ${row.id}; marking failed: ${errMsg}`,
+        );
+        try {
+          db.prepare(
+            `UPDATE outbound_messages
+               SET status='failed', error_class='terminal', last_error=?
+             WHERE id=?`,
+          ).run(`invalid queued payload: ${errMsg}`, row.id);
+        } catch (updateErr) {
+          logVerbose(
+            `message-journal/outbound: failed to quarantine invalid payload ${row.id}: ${String(updateErr)}`,
+          );
+        }
+      }
+    }
+    return entries;
   } catch (err) {
     logVerbose(`message-journal/outbound: loadPendingDeliveries failed: ${String(err)}`);
     return [];
+  }
+}
+
+export type InboundOutboundStatus = {
+  queued: number;
+  delivered: number;
+  failed: number;
+};
+
+/** Summarize outbound row statuses linked to an inbound turn. */
+export function getOutboundStatusForInbound(
+  inboundId: string,
+  stateDir?: string,
+): InboundOutboundStatus {
+  const db = getJournalDb(stateDir);
+  try {
+    const row = db
+      .prepare(
+        `SELECT
+           SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS queued_count,
+           SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) AS delivered_count,
+           SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count
+         FROM outbound_messages
+         WHERE inbound_id = ?`,
+      )
+      .get(inboundId) as
+      | {
+          queued_count: number | bigint | null;
+          delivered_count: number | bigint | null;
+          failed_count: number | bigint | null;
+        }
+      | undefined;
+
+    return {
+      queued: Number(row?.queued_count ?? 0),
+      delivered: Number(row?.delivered_count ?? 0),
+      failed: Number(row?.failed_count ?? 0),
+    };
+  } catch (err) {
+    logVerbose(`message-journal/outbound: getOutboundStatusForInbound failed: ${String(err)}`);
+    return { queued: 0, delivered: 0, failed: 0 };
+  }
+}
+
+/** Check if any queued outbound exists for the given inbound turn id. */
+export function hasQueuedOutboundForInbound(inboundId: string, stateDir?: string): boolean {
+  const db = getJournalDb(stateDir);
+  try {
+    const row = db
+      .prepare(
+        `SELECT 1 FROM outbound_messages
+          WHERE inbound_id = ? AND status = 'queued' LIMIT 1`,
+      )
+      .get(inboundId);
+    return row != null;
+  } catch (err) {
+    logVerbose(`message-journal/outbound: hasQueuedOutboundForInbound failed: ${String(err)}`);
+    return false;
+  }
+}
+
+/** Check whether any outbound row (queued/delivered/failed) exists for the inbound turn id. */
+export function hasAnyOutboundForInbound(inboundId: string, stateDir?: string): boolean {
+  const db = getJournalDb(stateDir);
+  try {
+    const row = db
+      .prepare(
+        `SELECT 1 FROM outbound_messages
+          WHERE inbound_id = ? LIMIT 1`,
+      )
+      .get(inboundId);
+    return row != null;
+  } catch (err) {
+    logVerbose(`message-journal/outbound: hasAnyOutboundForInbound failed: ${String(err)}`);
+    return false;
   }
 }
 
@@ -436,8 +546,8 @@ export async function migrateFileQueueToJournal(stateDir?: string): Promise<void
       try {
         db.prepare(
           `INSERT OR IGNORE INTO outbound_messages
-             (id, channel, account_id, target, payload, queued_at, status, retry_count, last_error)
-           VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)`,
+             (id, channel, account_id, target, payload, queued_at, status, retry_count, last_error, last_attempt_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
         ).run(
           entry.id,
           String(entry.channel),
@@ -447,6 +557,7 @@ export async function migrateFileQueueToJournal(stateDir?: string): Promise<void
           entry.enqueuedAt ?? Date.now(),
           entry.retryCount ?? 0,
           entry.lastError ?? null,
+          entry.lastAttemptAt ?? null,
         );
       } catch (err) {
         logVerbose(
