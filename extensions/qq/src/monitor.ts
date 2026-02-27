@@ -116,7 +116,12 @@ async function runWebSocketSession(opts: {
 
         if (!identified) {
           identified = true;
-          const token = await getQQAccessToken(config.appId, config.clientSecret).catch(() => "");
+          const token = await getQQAccessToken(config.appId, config.clientSecret).catch((err) => {
+            log?.error?.(`[${accountId}] failed to get access token: ${String(err)}`);
+            ws.close(1008, "token_fetch_failed");
+            return null;
+          });
+          if (!token) return;
           ws.send(JSON.stringify({
             op: 2,
             d: {

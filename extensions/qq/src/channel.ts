@@ -135,10 +135,17 @@ export const qqPlugin: ChannelPlugin = {
   outbound: {
     deliveryMode: "direct",
     chunker: (text, limit) => {
-      // Simple chunker: split on newlines respecting limit
       const chunks: string[] = [];
       let current = "";
       for (const line of text.split("\n")) {
+        // If a single line exceeds limit, split it by character
+        if (line.length > limit) {
+          if (current) { chunks.push(current); current = ""; }
+          for (let i = 0; i < line.length; i += limit) {
+            chunks.push(line.slice(i, i + limit));
+          }
+          continue;
+        }
         if (current.length + line.length + 1 > limit && current) {
           chunks.push(current);
           current = line;
