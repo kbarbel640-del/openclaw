@@ -104,4 +104,11 @@ describe("gateway agent prompt", () => {
       ]),
     ).toBe("line 1\nline 2");
   });
+
+  it("preserves leading indentation inside multiline body text", () => {
+    const body = "def foo():\n    return bar";
+    expect(
+      buildAgentMessageFromConversationEntries([{ role: "user", entry: { sender: "User", body } }]),
+    ).toBe(body);
+  });
 });

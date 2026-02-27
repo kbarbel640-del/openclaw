@@ -12,13 +12,7 @@ export type ConversationEntry = {
  * [object Object] if used directly in a template literal.
  */
 function normalizePromptBodyText(text: string): string {
-  return text
-    .replaceAll("\r\n", "\n")
-    .replaceAll("\r", "\n")
-    .split("\n")
-    .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
-    .join("\n")
-    .trim();
+  return text.replaceAll("\r\n", "\n").replaceAll("\r", "\n").trim();
 }
 
 function safeBody(body: unknown): string {
