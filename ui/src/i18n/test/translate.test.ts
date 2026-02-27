@@ -53,4 +53,51 @@ describe("i18n", () => {
     expect(fresh.i18n.getLocale()).toBe("zh-CN");
     expect(fresh.t("common.health")).toBe("健康状况");
   });
+
+  it("should load Turkish locale and verify core translations", async () => {
+    await i18n.setLocale("tr");
+    expect(i18n.getLocale()).toBe("tr");
+    expect(t("common.health")).toBe("Sağlık");
+    expect(t("common.connect")).toBe("Bağlan");
+    expect(t("common.refresh")).toBe("Yenile");
+    expect(t("nav.settings")).toBe("Ayarlar");
+    expect(t("tabs.overview")).toBe("Genel Bakış");
+  });
+
+  it("should persist Turkish locale to localStorage", async () => {
+    await i18n.setLocale("tr");
+    expect(localStorage.getItem("openclaw.i18n.locale")).toBe("tr");
+  });
+
+  it("should handle parameter interpolation in Turkish", async () => {
+    await i18n.setLocale("tr");
+    expect(t("overview.stats.cronNext", { time: "14:30" })).toBe("Sonraki wake: 14:30");
+  });
+
+  it("should preserve technical terms untranslated in Turkish", async () => {
+    await i18n.setLocale("tr");
+    // Technical terms must stay in English for developer familiarity
+    expect(t("tabs.config")).toBe("Config");
+    expect(t("tabs.debug")).toBe("Debug");
+    expect(t("tabs.cron")).toBe("Cron Görevleri");
+    expect(t("overview.access.wsUrl")).toBe("WebSocket URL");
+    expect(t("overview.access.token")).toBe("Gateway Token");
+  });
+
+  it("should round-trip English → Turkish → English", async () => {
+    expect(t("common.health")).toBe("Health");
+    await i18n.setLocale("tr");
+    expect(t("common.health")).toBe("Sağlık");
+    await i18n.setLocale("en");
+    expect(t("common.health")).toBe("Health");
+  });
+
+  it("should handle Turkish special characters (İ, ı, ğ, ş, ç, ö, ü)", async () => {
+    await i18n.setLocale("tr");
+    const health = t("common.health");
+    expect(health).toBe("Sağlık");
+    // Verify no mojibake or replacement chars
+    expect(health).not.toContain("?");
+    expect(health).not.toContain("�");
+  });
 });
