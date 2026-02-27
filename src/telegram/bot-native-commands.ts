@@ -12,7 +12,9 @@ import {
 import { finalizeInboundContext } from "../auto-reply/reply/inbound-context.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.js";
 import { listSkillCommandsForAgents } from "../auto-reply/skill-commands.js";
+import { resolveCommandsAllowFromList } from "../auto-reply/command-auth.js";
 import { resolveCommandAuthorizedFromAuthorizers } from "../channels/command-gating.js";
+import { getChannelDock } from "../channels/dock.js";
 import { createReplyPrefixOptions } from "../channels/reply-prefix.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { ChannelGroupPolicy } from "../config/group-policy.js";
@@ -251,6 +253,39 @@ async function resolveTelegramCommandAuth(params: {
     }
   }
 
+  // Check commands.allowFrom first — when configured, it is the sole authority
+  // for command authorization (consistent with resolveCommandAuthorization in
+  // the text command handler). See issue #28216.
+  const commandsAllowFromList = resolveCommandsAllowFromList({
+    dock: getChannelDock("telegram"),
+    cfg,
+    accountId,
+    providerId: "telegram",
+  });
+  if (commandsAllowFromList !== null) {
+    const commandsAllowAll = commandsAllowFromList.some((entry) => entry.trim() === "*");
+    const normalizedUsername = senderUsername.toLowerCase();
+    const senderInList = commandsAllowFromList.some(
+      (entry) => entry === senderId || entry === normalizedUsername,
+    );
+    const commandAuthorized = commandsAllowAll || senderInList;
+    if (requireAuth && !commandAuthorized) {
+      return await rejectNotAuthorized();
+    }
+    return {
+      chatId,
+      isGroup,
+      isForum,
+      resolvedThreadId,
+      senderId,
+      senderUsername,
+      groupConfig,
+      topicConfig,
+      commandAuthorized,
+    };
+  }
+
+  // Fall back to channel-level allowFrom when commands.allowFrom is not configured.
   const dmAllow = normalizeDmAllowFromWithStore({
     allowFrom: allowFrom,
     storeAllowFrom: isGroup ? [] : storeAllowFrom,
