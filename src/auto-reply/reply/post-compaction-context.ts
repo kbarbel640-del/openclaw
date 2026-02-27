@@ -17,9 +17,15 @@ export async function readPostCompactionContext(workspaceDir: string): Promise<s
 
     const content = await fs.promises.readFile(agentsPath, "utf-8");
 
-    // Extract "## Session Startup" and "## Red Lines" sections
+    // Extract "## Session Startup" + "## Red Lines" sections.
+    // Backwards-compatible with older templates that used "Every Session" + "Safety".
     // Each section ends at the next "## " heading or end of file
-    const sections = extractSections(content, ["Session Startup", "Red Lines"]);
+    const sections = extractSections(content, [
+      "Session Startup",
+      "Every Session",
+      "Red Lines",
+      "Safety",
+    ]);
 
     if (sections.length === 0) {
       return null;
