@@ -1125,7 +1125,6 @@ describe("createTelegramBot", () => {
     expect(sendAnimationSpy).toHaveBeenCalledWith("1234", expect.anything(), {
       caption: "caption",
       parse_mode: "HTML",
-      reply_to_message_id: undefined,
     });
     expect(sendPhotoSpy).not.toHaveBeenCalled();
   });
@@ -1687,7 +1686,7 @@ describe("createTelegramBot", () => {
     expect(sendMessageSpy.mock.calls.length).toBeGreaterThan(1);
     for (const call of sendMessageSpy.mock.calls) {
       expect(
-        (call[2] as { reply_to_message_id?: number } | undefined)?.reply_to_message_id,
+        (call[2] as { reply_parameters?: { message_id: number } } | undefined)?.reply_parameters,
       ).toBeUndefined();
     }
   });
@@ -1743,9 +1742,10 @@ describe("createTelegramBot", () => {
 
       expect(sendMessageSpy.mock.calls.length).toBeGreaterThan(1);
       for (const call of sendMessageSpy.mock.calls) {
-        expect((call[2] as { reply_to_message_id?: number } | undefined)?.reply_to_message_id).toBe(
-          messageId,
-        );
+        expect(
+          (call[2] as { reply_parameters?: { message_id: number } } | undefined)?.reply_parameters
+            ?.message_id,
+        ).toBe(messageId);
       }
     }
   });
@@ -2110,7 +2110,7 @@ describe("createTelegramBot", () => {
       expect(sendMessageSpy).toHaveBeenCalledWith(
         1234,
         "⚠️ Failed to download media. Please try again.",
-        { reply_to_message_id: 411 },
+        { reply_parameters: { message_id: 411 } },
       );
       expect(replySpy).not.toHaveBeenCalled();
     } finally {
