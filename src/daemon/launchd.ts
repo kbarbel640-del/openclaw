@@ -314,6 +314,20 @@ export async function uninstallLaunchAgent({
   }
 }
 
+/**
+ * Best-effort bootout of any launchd agent identified by label (e.g. the macOS
+ * menubar app). Errors are intentionally ignored — the agent may not be loaded.
+ */
+export async function bootoutLaunchAgentByLabel(
+  label: string,
+  env: Record<string, string | undefined>,
+): Promise<void> {
+  const domain = resolveGuiDomain();
+  const plistPath = resolveLaunchAgentPlistPathForLabel(env, label);
+  await execLaunchctl(["bootout", domain, plistPath]);
+  await execLaunchctl(["unload", plistPath]);
+}
+
 function isLaunchctlNotLoaded(res: { stdout: string; stderr: string; code: number }): boolean {
   const detail = (res.stderr || res.stdout).toLowerCase();
   return (
