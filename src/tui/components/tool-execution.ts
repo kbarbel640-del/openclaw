@@ -1,5 +1,16 @@
-import { Box, Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
+import { readFileSync, statSync } from "node:fs";
+import { extname } from "node:path";
+import {
+  Box,
+  Container,
+  getCapabilities,
+  Image as PiImage,
+  Markdown,
+  Spacer,
+  Text,
+} from "@mariozechner/pi-tui";
 import { formatToolDetail, resolveToolDisplay } from "../../agents/tool-display.js";
+import { MEDIA_TOKEN_RE } from "../../media/parse.js";
 import { markdownTheme, theme } from "../theme/theme.js";
 import { sanitizeRenderableText } from "../tui-formatters.js";
 
@@ -17,6 +28,70 @@ type ToolResult = {
 };
 
 const PREVIEW_LINES = 12;
+const MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+const MIME_BY_EXT: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
+const ALLOWED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+
+/** Check if the terminal supports inline image rendering via pi-tui. */
+function canRenderInlineImages(): boolean {
+  return getCapabilities().images !== null;
+}
+
+/**
+ * Validate a MEDIA: file path before reading.
+ * Rejects null bytes, non-image extensions, non-regular files, and oversized files.
+ */
+function validateMediaPath(filePath: string): boolean {
+  if (filePath.includes("\0")) {
+    return false;
+  }
+  const ext = extname(filePath).toLowerCase();
+  if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+    return false;
+  }
+  try {
+    const stat = statSync(filePath);
+    if (!stat.isFile()) {
+      return false;
+    }
+    if (stat.size > MAX_IMAGE_FILE_SIZE || stat.size === 0) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+/** Extract local file paths from MEDIA: text lines in a tool result. */
+function getMediaPaths(result?: ToolResult): string[] {
+  const paths: string[] = [];
+  for (const entry of result?.content ?? []) {
+    if (entry.type !== "text" || typeof entry.text !== "string") {
+      continue;
+    }
+    // matchAll() internally clones the regex, avoiding lastIndex statefulness.
+    // MEDIA_TOKEN_RE handles backticks, whitespace after colon, case-insensitive.
+    for (const match of entry.text.matchAll(MEDIA_TOKEN_RE)) {
+      // MEDIA_TOKEN_RE's greedy ([^\n]+) captures the trailing backtick when
+      // present (the leading backtick is consumed before the capture group).
+      // Strip trailing punctuation the same way parse.ts cleanCandidate() does.
+      const raw = match[1].replace(/[`"'\\})],]+$/, "").trim();
+      if (raw) {
+        paths.push(raw);
+      }
+    }
+  }
+  return paths;
+}
 
 function formatArgs(toolName: string, args: unknown): string {
   const display = resolveToolDisplay({ name: toolName, args });
@@ -38,11 +113,27 @@ function extractText(result?: ToolResult): string {
   if (!result?.content) {
     return "";
   }
+  // Only suppress image placeholders when images will actually render:
+  // terminal must support inline images AND at least one MEDIA path must be
+  // a valid, accessible image file. This avoids blank output when files are
+  // missing (e.g. stale history paths) or the terminal lacks image support.
+  const willRenderImages = canRenderInlineImages() && getMediaPaths(result).some(validateMediaPath);
   const lines: string[] = [];
   for (const entry of result.content) {
     if (entry.type === "text" && entry.text) {
-      lines.push(sanitizeRenderableText(entry.text));
+      // Filter out MEDIA: path lines (rendered as inline images instead)
+      const filtered = entry.text
+        .split("\n")
+        .filter((line) => !/^MEDIA:.+/.test(line.trim()))
+        .join("\n");
+      if (filtered.trim()) {
+        lines.push(sanitizeRenderableText(filtered));
+      }
     } else if (entry.type === "image") {
+      // Suppress placeholder only when images will actually render inline.
+      if (willRenderImages) {
+        continue;
+      }
       const mime = entry.mimeType ?? "image";
       const size = entry.bytes ? ` ${Math.round(entry.bytes / 1024)}kb` : "";
       const omitted = entry.omitted ? " (omitted)" : "";
@@ -60,6 +151,7 @@ export class ToolExecutionComponent extends Container {
   private toolName: string;
   private args: unknown;
   private result?: ToolResult;
+  private imageChildren: PiImage[] = [];
   private expanded = false;
   private isError = false;
   private isPartial = true;
@@ -132,6 +224,37 @@ export class ToolExecutionComponent extends Container {
       this.output.setText(preview);
     } else {
       this.output.setText(text);
+    }
+
+    // Render inline images from MEDIA: file paths when terminal supports it
+    for (const img of this.imageChildren) {
+      this.removeChild(img);
+    }
+    this.imageChildren = [];
+    if (!this.isPartial && canRenderInlineImages()) {
+      for (const filePath of getMediaPaths(this.result)) {
+        if (!validateMediaPath(filePath)) {
+          continue;
+        }
+        try {
+          const buf = readFileSync(filePath);
+          const base64 = buf.toString("base64");
+          const ext = extname(filePath).slice(1).toLowerCase();
+          const mime = MIME_BY_EXT[ext] ?? "image/png";
+          const img = new PiImage(
+            base64,
+            mime,
+            { fallbackColor: (s: string) => theme.dim(s) },
+            {
+              maxWidthCells: 60,
+            },
+          );
+          this.addChild(img);
+          this.imageChildren.push(img);
+        } catch {
+          // File not accessible on this host; text placeholder remains
+        }
+      }
     }
   }
 }
