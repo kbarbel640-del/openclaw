@@ -261,6 +261,12 @@ importers:
 
   extensions/copilot-proxy: {}
 
+  extensions/cost-guard:
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
   extensions/diagnostics-otel:
     dependencies:
       '@opentelemetry/api':
