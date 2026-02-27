@@ -39,7 +39,7 @@ const meta: ChannelMeta = {
 };
 
 export const feishuPlugin: ChannelPlugin<ResolvedFeishuAccount> = {
-  id: "feishu",
+  id: "feishu-channel",
   meta: {
     ...meta,
   },
