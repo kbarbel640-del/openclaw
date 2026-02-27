@@ -17,8 +17,8 @@ const SENSITIVE_FILE_PATTERNS: { pattern: RegExp; label: string; severity: Secur
   { pattern: /private[_-]?key/i, label: "private key reference", severity: "high" },
   { pattern: /\.env\b/, label: ".env file", severity: "medium" },
   { pattern: /credentials/i, label: "credentials file", severity: "medium" },
-  { pattern: /\.pem\b/i, label: ".pem file", severity: "high" },
-  { pattern: /\.key\b/i, label: ".key file", severity: "high" },
+  { pattern: /\.pem(?=\s|$)/i, label: ".pem file", severity: "high" },
+  { pattern: /\.key(?=\s|$)/i, label: ".key file", severity: "high" },
 ];
 
 const PROMPT_INJECTION_PATTERNS: { pattern: RegExp; label: string }[] = [
@@ -41,14 +41,22 @@ const DANGEROUS_COMMAND_PATTERNS: { pattern: RegExp; label: string; severity: Se
     { pattern: /\bsudo\s+/, label: "sudo", severity: "medium" },
   ];
 
-/** Extract all string-valued fields from an event for pattern matching. */
+/**
+ * Extract all string-valued fields from an event for pattern matching.
+ * Recurses into nested objects to capture fields at any depth.
+ */
 function extractTextFields(event: Record<string, unknown>): string[] {
   const texts: string[] = [];
-  for (const value of Object.values(event)) {
-    if (typeof value === "string") {
-      texts.push(value);
+  function walk(obj: Record<string, unknown>): void {
+    for (const value of Object.values(obj)) {
+      if (typeof value === "string") {
+        texts.push(value);
+      } else if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+        walk(value as Record<string, unknown>);
+      }
     }
   }
+  walk(event);
   return texts;
 }
 
@@ -121,30 +129,33 @@ function detectDangerousCommand(texts: string[]): SecurityDetection {
 }
 
 /**
- * Tracks token usage over a rolling window and detects spikes
- * exceeding 3x the rolling average.
+ * Tracks token usage over a rolling window per model and detects spikes
+ * exceeding 3x the rolling average. Scoped per model to avoid
+ * cross-model false positives (e.g. a large model vs a small one).
  */
 class TokenAnomalyTracker {
-  private history: number[] = [];
+  private historyByModel: Map<string, number[]> = new Map();
   private readonly maxHistory = 20;
   private readonly spikeMultiplier = 3;
 
-  check(totalTokens: number): SecurityDetection {
-    const result = this.evaluate(totalTokens);
-    this.history.push(totalTokens);
-    if (this.history.length > this.maxHistory) {
-      this.history.shift();
+  check(totalTokens: number, model = "unknown"): SecurityDetection {
+    const history = this.historyByModel.get(model) ?? [];
+    const result = this.evaluate(totalTokens, history);
+    history.push(totalTokens);
+    if (history.length > this.maxHistory) {
+      history.shift();
     }
+    this.historyByModel.set(model, history);
     return result;
   }
 
-  private evaluate(totalTokens: number): SecurityDetection {
-    if (this.history.length < 3) {
+  private evaluate(totalTokens: number, history: number[]): SecurityDetection {
+    if (history.length < 3) {
       // Not enough data to establish a baseline
       return { detected: false, severity: "low", detail: "", category: "token_anomaly" };
     }
-    const sum = this.history.reduce((a, b) => a + b, 0);
-    const avg = sum / this.history.length;
+    const sum = history.reduce((a, b) => a + b, 0);
+    const avg = sum / history.length;
     if (avg > 0 && totalTokens > avg * this.spikeMultiplier) {
       return {
         detected: true,
@@ -158,7 +169,7 @@ class TokenAnomalyTracker {
 
   /** Reset history (useful for testing). */
   reset(): void {
-    this.history = [];
+    this.historyByModel.clear();
   }
 }
 
@@ -167,6 +178,12 @@ export const tokenAnomalyTracker = new TokenAnomalyTracker();
 /**
  * Run all non-token security checks against a diagnostic event.
  * Returns only detections where `detected` is true.
+ *
+ * Note: `message.processed` events primarily contain metadata (channel,
+ * outcome, reason, etc.) rather than full message or tool-call content.
+ * Detections are therefore limited to patterns present in those metadata
+ * fields. For deeper content inspection, subscribe to events that carry
+ * the actual message body (e.g. `model.request` / `model.response`).
  */
 export function runSecurityChecks(event: DiagnosticEventPayload): SecurityDetection[] {
   const texts = extractTextFields(event as unknown as Record<string, unknown>);
@@ -187,7 +204,8 @@ export function runSecurityChecks(event: DiagnosticEventPayload): SecurityDetect
 /**
  * Check for token usage anomalies.
  * Call this with the total token count from model.usage events.
+ * Pass the model identifier to scope baselines per model.
  */
-export function checkTokenAnomaly(totalTokens: number): SecurityDetection {
-  return tokenAnomalyTracker.check(totalTokens);
+export function checkTokenAnomaly(totalTokens: number, model?: string): SecurityDetection {
+  return tokenAnomalyTracker.check(totalTokens, model);
 }

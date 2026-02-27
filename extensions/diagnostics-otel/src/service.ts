@@ -447,7 +447,7 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         // Check for token usage anomalies
         const totalTokens = usage.total ?? 0;
         if (totalTokens > 0) {
-          const anomaly = checkTokenAnomaly(totalTokens);
+          const anomaly = checkTokenAnomaly(totalTokens, evt.model);
           if (anomaly.detected) {
             securityEventsCounter.add(1, {
               "security.category": anomaly.category,
@@ -618,11 +618,13 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
         if (evt.outcome === "error" && evt.error) {
           span.setStatus({ code: SpanStatusCode.ERROR, message: redactSensitiveText(evt.error) });
         }
-        // Set span to ERROR for critical security findings
+        // Set span to ERROR for critical security findings, preserving any original error
         if (securityResults.some((r) => r.severity === "critical")) {
+          const originalMsg =
+            evt.outcome === "error" && evt.error ? redactSensitiveText(evt.error) + "; " : "";
           span.setStatus({
             code: SpanStatusCode.ERROR,
-            message: "critical security detection",
+            message: originalMsg + "critical security detection",
           });
         }
         span.end();
