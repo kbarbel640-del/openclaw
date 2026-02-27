@@ -93,6 +93,7 @@ export const AgentDefaultsSchema = z
           })
           .strict()
           .optional(),
+        auditReads: z.boolean().optional(),
       })
       .strict()
       .optional(),
