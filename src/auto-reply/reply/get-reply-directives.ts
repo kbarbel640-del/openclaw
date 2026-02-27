@@ -406,6 +406,8 @@ export async function resolveReplyDirectives(params: {
   }
 
   let contextTokens = resolveContextTokens({
+    cfg,
+    provider,
     agentCfg,
     model,
   });
