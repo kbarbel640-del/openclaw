@@ -124,6 +124,54 @@ describe("subagent registry lifecycle error grace", () => {
     expect(first.outcome?.status).toBe("ok");
   });
 
+  it("uses longer grace period for transient 429 rate limit errors", async () => {
+    mod.registerSubagentRun({
+      runId: "run-ratelimit",
+      childSessionKey: "agent:main:subagent:ratelimit",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      task: "rate limit test",
+      cleanup: "keep",
+      expectsCompletionMessage: true,
+    });
+
+    lifecycleHandler?.({
+      stream: "lifecycle",
+      runId: "run-ratelimit",
+      data: { phase: "error", error: "429 rate_limit_error", endedAt: 1_000 },
+    });
+    await flushAsync();
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    await flushAsync();
+    expect(announceSpy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await flushAsync();
+    expect(announceSpy).not.toHaveBeenCalled();
+
+    lifecycleHandler?.({
+      stream: "lifecycle",
+      runId: "run-ratelimit",
+      data: { phase: "start", startedAt: 1_050 },
+    });
+    await flushAsync();
+
+    lifecycleHandler?.({
+      stream: "lifecycle",
+      runId: "run-ratelimit",
+      data: { phase: "end", endedAt: 1_250 },
+    });
+    await flushAsync();
+
+    expect(announceSpy).toHaveBeenCalledTimes(1);
+    const announceCalls = announceSpy.mock.calls as unknown as Array<Array<unknown>>;
+    const first = (announceCalls[0]?.[0] ?? {}) as {
+      outcome?: { status?: string };
+    };
+    expect(first.outcome?.status).toBe("ok");
+  });
+
   it("announces error when lifecycle error remains terminal after grace window", async () => {
     mod.registerSubagentRun({
       runId: "run-terminal-error",
