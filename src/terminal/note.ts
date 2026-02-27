@@ -129,6 +129,17 @@ export function wrapNoteMessage(
     .join("\n");
 }
 
+/**
+ * Detect --json flag on argv so note() output never pollutes stdout
+ * when machine-readable JSON is expected (fixes #25132).
+ */
+function isJsonOutput(): boolean {
+  return process.argv.some((arg) => arg === "--json" || arg.startsWith("--json="));
+}
+
 export function note(message: string, title?: string) {
-  clackNote(wrapNoteMessage(message), stylePromptTitle(title));
+  // When --json is active, redirect informational notes to stderr
+  // so stdout remains valid JSON.
+  const options = isJsonOutput() ? { output: process.stderr } : undefined;
+  clackNote(wrapNoteMessage(message), stylePromptTitle(title), options);
 }
