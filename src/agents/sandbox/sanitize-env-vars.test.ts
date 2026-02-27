@@ -55,23 +55,49 @@ describe("sanitizeEnvVars", () => {
     expect(result.blocked).toEqual(["FOO"]);
   });
 
-  it("allows skill-declared env keys through allowedKeys even when they match blocked patterns", () => {
+  it("allows skill-declared env keys through allowedKeys for soft-blocked patterns only", () => {
     const result = sanitizeEnvVars(
       {
         NOTION_API_KEY: "ntn_xxx",
-        GITHUB_TOKEN: "gh-token",
+        MY_SECRET: "s3cret",
         OPENAI_API_KEY: "sk-live-xxx",
         FOO: "bar",
       },
-      { allowedKeys: new Set(["NOTION_API_KEY", "GITHUB_TOKEN"]) },
+      { allowedKeys: new Set(["NOTION_API_KEY", "MY_SECRET"]) },
     );
 
     expect(result.allowed).toEqual({
       NOTION_API_KEY: "ntn_xxx",
-      GITHUB_TOKEN: "gh-token",
+      MY_SECRET: "s3cret",
       FOO: "bar",
     });
+    // OPENAI_API_KEY is hard-blocked — cannot be bypassed by allowedKeys
     expect(result.blocked).toEqual(["OPENAI_API_KEY"]);
+  });
+
+  it("never allows hard-blocked platform secrets through allowedKeys", () => {
+    const hardBlockedKeys = [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GITHUB_TOKEN",
+      "GH_TOKEN",
+      "OPENCLAW_GATEWAY_TOKEN",
+      "OPENCLAW_GATEWAY_PASSWORD",
+      "TELEGRAM_BOT_TOKEN",
+      "DISCORD_BOT_TOKEN",
+      "AWS_SECRET_ACCESS_KEY",
+      "SLACK_BOT_TOKEN",
+    ];
+    const envVars: Record<string, string> = {};
+    for (const key of hardBlockedKeys) {
+      envVars[key] = "test-value";
+    }
+    const result = sanitizeEnvVars(envVars, {
+      allowedKeys: new Set(hardBlockedKeys),
+    });
+
+    expect(result.allowed).toEqual({});
+    expect(result.blocked).toEqual(expect.arrayContaining(hardBlockedKeys));
   });
 
   it("still blocks allowedKeys vars with null bytes in values", () => {

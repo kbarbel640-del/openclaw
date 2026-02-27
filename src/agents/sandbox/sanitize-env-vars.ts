@@ -1,4 +1,9 @@
-const BLOCKED_ENV_VAR_PATTERNS: ReadonlyArray<RegExp> = [
+/**
+ * Hard denylist: platform/infrastructure secrets that can NEVER be bypassed by
+ * skill `allowedKeys` declarations.  These protect credentials whose leakage
+ * would compromise the gateway, provider billing, or channel integrations.
+ */
+const HARD_BLOCKED_ENV_VAR_PATTERNS: ReadonlyArray<RegExp> = [
   /^ANTHROPIC_API_KEY$/i,
   /^OPENAI_API_KEY$/i,
   /^GEMINI_API_KEY$/i,
@@ -15,7 +20,20 @@ const BLOCKED_ENV_VAR_PATTERNS: ReadonlyArray<RegExp> = [
   /^AWS_(SECRET_ACCESS_KEY|SECRET_KEY|SESSION_TOKEN)$/i,
   /^(GH|GITHUB)_TOKEN$/i,
   /^(AZURE|AZURE_OPENAI|COHERE|AI_GATEWAY|OPENROUTER)_API_KEY$/i,
+];
+
+/**
+ * Soft blocked patterns: generic suffix-based heuristics that catch
+ * credential-like names.  These CAN be bypassed by skill `allowedKeys`
+ * declarations (e.g. a Notion skill declaring `primaryEnv: NOTION_API_KEY`).
+ */
+const SOFT_BLOCKED_ENV_VAR_PATTERNS: ReadonlyArray<RegExp> = [
   /_?(API_KEY|TOKEN|PASSWORD|PRIVATE_KEY|SECRET)$/i,
+];
+
+const BLOCKED_ENV_VAR_PATTERNS: ReadonlyArray<RegExp> = [
+  ...HARD_BLOCKED_ENV_VAR_PATTERNS,
+  ...SOFT_BLOCKED_ENV_VAR_PATTERNS,
 ];
 
 const ALLOWED_ENV_VAR_PATTERNS: ReadonlyArray<RegExp> = [
@@ -75,6 +93,12 @@ export function sanitizeEnvVars(
   for (const [rawKey, value] of Object.entries(envVars)) {
     const key = rawKey.trim();
     if (!key) {
+      continue;
+    }
+
+    // Hard-blocked keys (platform/infra secrets) can never be bypassed by allowedKeys.
+    if (matchesAnyPattern(key, HARD_BLOCKED_ENV_VAR_PATTERNS)) {
+      blocked.push(key);
       continue;
     }
 
