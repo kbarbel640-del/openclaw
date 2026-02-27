@@ -323,6 +323,7 @@ export function createAgentEventHandler({
     seq: number,
     jobState: "done" | "error",
     error?: unknown,
+    stopReason?: string,
   ) => {
     const bufferedText = stripInlineDirectiveTagsForDisplay(
       chatRunState.buffers.get(clientRunId) ?? "",
@@ -335,6 +336,27 @@ export function createAgentEventHandler({
     const text = normalizedHeartbeatText.text.trim();
     const shouldSuppressSilent =
       normalizedHeartbeatText.suppress || isSilentReplyText(text, SILENT_REPLY_TOKEN);
+    // Flush any throttled delta so streaming clients receive the complete text
+    // before the final event.  The 150 ms throttle in emitChatDelta may have
+    // suppressed the most recent chunk, leaving the client with stale text.
+    if (text && !shouldSuppressSilent) {
+      const lastSent = chatRunState.deltaSentAt.get(clientRunId) ?? 0;
+      if (lastSent > 0) {
+        const flushPayload = {
+          runId: clientRunId,
+          sessionKey,
+          seq,
+          state: "delta" as const,
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text }],
+            timestamp: Date.now(),
+          },
+        };
+        broadcast("chat", flushPayload, { dropIfSlow: true });
+        nodeSendToSession(sessionKey, "chat", flushPayload);
+      }
+    }
     chatRunState.buffers.delete(clientRunId);
     chatRunState.deltaSentAt.delete(clientRunId);
     if (jobState === "done") {
@@ -343,6 +365,7 @@ export function createAgentEventHandler({
         sessionKey,
         seq,
         state: "final" as const,
+        ...(stopReason && { stopReason }),
         message:
           text && !shouldSuppressSilent
             ? {
@@ -456,6 +479,8 @@ export function createAgentEventHandler({
       if (!isAborted && evt.stream === "assistant" && typeof evt.data?.text === "string") {
         emitChatDelta(sessionKey, clientRunId, evt.runId, evt.seq, evt.data.text);
       } else if (!isAborted && (lifecyclePhase === "end" || lifecyclePhase === "error")) {
+        const evtStopReason =
+          typeof evt.data?.stopReason === "string" ? evt.data.stopReason : undefined;
         if (chatLink) {
           const finished = chatRunState.registry.shift(evt.runId);
           if (!finished) {
@@ -469,6 +494,7 @@ export function createAgentEventHandler({
             evt.seq,
             lifecyclePhase === "error" ? "error" : "done",
             evt.data?.error,
+            evtStopReason,
           );
         } else {
           emitChatFinal(
@@ -478,6 +504,7 @@ export function createAgentEventHandler({
             evt.seq,
             lifecyclePhase === "error" ? "error" : "done",
             evt.data?.error,
+            evtStopReason,
           );
         }
       } else if (isAborted && (lifecyclePhase === "end" || lifecyclePhase === "error")) {
