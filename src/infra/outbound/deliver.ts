@@ -116,6 +116,7 @@ type ChannelHandlerParams = {
   identity?: OutboundIdentity;
   deps?: OutboundSendDeps;
   gifPlayback?: boolean;
+  sendAsSticker?: boolean;
   silent?: boolean;
   mediaLocalRoots?: readonly string[];
 };
@@ -188,6 +189,7 @@ function createChannelOutboundContextBase(
     threadId: params.threadId,
     identity: params.identity,
     gifPlayback: params.gifPlayback,
+    sendAsSticker: params.sendAsSticker,
     deps: params.deps,
     silent: params.silent,
     mediaLocalRoots: params.mediaLocalRoots,
@@ -207,6 +209,7 @@ type DeliverOutboundPayloadsCoreParams = {
   identity?: OutboundIdentity;
   deps?: OutboundSendDeps;
   gifPlayback?: boolean;
+  sendAsSticker?: boolean;
   abortSignal?: AbortSignal;
   bestEffort?: boolean;
   onError?: (err: unknown, payload: NormalizedOutboundPayload) => void;
@@ -244,6 +247,7 @@ export async function deliverOutboundPayloads(
         replyToId: params.replyToId,
         bestEffort: params.bestEffort,
         gifPlayback: params.gifPlayback,
+        sendAsSticker: params.sendAsSticker,
         silent: params.silent,
         mirror: params.mirror,
       }).catch(() => null); // Best-effort — don't block delivery if queue write fails.
@@ -311,6 +315,7 @@ async function deliverOutboundPayloadsCore(
     threadId: params.threadId,
     identity: params.identity,
     gifPlayback: params.gifPlayback,
+    sendAsSticker: params.sendAsSticker,
     silent: params.silent,
     mediaLocalRoots,
   });
