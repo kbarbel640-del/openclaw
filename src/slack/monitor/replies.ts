@@ -37,12 +37,14 @@ export async function deliverReplies(params: {
       accountId: params.accountId,
       sessionKey: params.sessionKey,
     };
+    let lastContent = text;
     try {
       if (mediaList.length === 0) {
         const trimmed = text.trim();
         if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) {
           continue;
         }
+        lastContent = trimmed;
         await sendMessageSlack(params.target, trimmed, {
           token: params.token,
           threadTs,
@@ -54,6 +56,7 @@ export async function deliverReplies(params: {
         for (const mediaUrl of mediaList) {
           const caption = first ? text : "";
           first = false;
+          lastContent = caption || mediaUrl;
           await sendMessageSlack(params.target, caption, {
             token: params.token,
             mediaUrl,
@@ -66,7 +69,7 @@ export async function deliverReplies(params: {
     } catch (err) {
       emitMessageSentHook({
         ...hookBase,
-        content: text,
+        content: lastContent,
         success: false,
         error: err instanceof Error ? err.message : String(err),
       });

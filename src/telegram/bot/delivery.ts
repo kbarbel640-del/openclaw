@@ -216,13 +216,18 @@ export async function deliverReplies(params: {
       const mediaContent = caption || mediaUrl;
       if (isGif) {
         try {
-          await withTelegramApiErrorLogging({
+          const sent = await withTelegramApiErrorLogging({
             operation: "sendAnimation",
             runtime,
             fn: () => bot.api.sendAnimation(chatId, file, { ...mediaParams }),
           });
           markDelivered();
-          emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+          emitMessageSentHook({
+            ...hookBase,
+            content: mediaContent,
+            success: true,
+            messageId: String(sent.message_id),
+          });
         } catch (err) {
           emitMessageSentHook({
             ...hookBase,
@@ -234,13 +239,18 @@ export async function deliverReplies(params: {
         }
       } else if (kind === "image") {
         try {
-          await withTelegramApiErrorLogging({
+          const sent = await withTelegramApiErrorLogging({
             operation: "sendPhoto",
             runtime,
             fn: () => bot.api.sendPhoto(chatId, file, { ...mediaParams }),
           });
           markDelivered();
-          emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+          emitMessageSentHook({
+            ...hookBase,
+            content: mediaContent,
+            success: true,
+            messageId: String(sent.message_id),
+          });
         } catch (err) {
           emitMessageSentHook({
             ...hookBase,
@@ -252,13 +262,18 @@ export async function deliverReplies(params: {
         }
       } else if (kind === "video") {
         try {
-          await withTelegramApiErrorLogging({
+          const sent = await withTelegramApiErrorLogging({
             operation: "sendVideo",
             runtime,
             fn: () => bot.api.sendVideo(chatId, file, { ...mediaParams }),
           });
           markDelivered();
-          emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+          emitMessageSentHook({
+            ...hookBase,
+            content: mediaContent,
+            success: true,
+            messageId: String(sent.message_id),
+          });
         } catch (err) {
           emitMessageSentHook({
             ...hookBase,
@@ -280,14 +295,19 @@ export async function deliverReplies(params: {
           // Switch typing indicator to record_voice before sending.
           await params.onVoiceRecording?.();
           try {
-            await withTelegramApiErrorLogging({
+            const sent = await withTelegramApiErrorLogging({
               operation: "sendVoice",
               runtime,
               shouldLog: (err) => !isVoiceMessagesForbidden(err),
               fn: () => bot.api.sendVoice(chatId, file, { ...mediaParams }),
             });
             markDelivered();
-            emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+            emitMessageSentHook({
+              ...hookBase,
+              content: mediaContent,
+              success: true,
+              messageId: String(sent.message_id),
+            });
           } catch (voiceErr) {
             // Fall back to text if voice messages are forbidden in this chat.
             // This happens when the recipient has Telegram Premium privacy settings
@@ -337,13 +357,18 @@ export async function deliverReplies(params: {
         } else {
           // Audio file - displays with metadata (title, duration) - DEFAULT
           try {
-            await withTelegramApiErrorLogging({
+            const sent = await withTelegramApiErrorLogging({
               operation: "sendAudio",
               runtime,
               fn: () => bot.api.sendAudio(chatId, file, { ...mediaParams }),
             });
             markDelivered();
-            emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+            emitMessageSentHook({
+              ...hookBase,
+              content: mediaContent,
+              success: true,
+              messageId: String(sent.message_id),
+            });
           } catch (err) {
             emitMessageSentHook({
               ...hookBase,
@@ -356,13 +381,18 @@ export async function deliverReplies(params: {
         }
       } else {
         try {
-          await withTelegramApiErrorLogging({
+          const sent = await withTelegramApiErrorLogging({
             operation: "sendDocument",
             runtime,
             fn: () => bot.api.sendDocument(chatId, file, { ...mediaParams }),
           });
           markDelivered();
-          emitMessageSentHook({ ...hookBase, content: mediaContent, success: true });
+          emitMessageSentHook({
+            ...hookBase,
+            content: mediaContent,
+            success: true,
+            messageId: String(sent.message_id),
+          });
         } catch (err) {
           emitMessageSentHook({
             ...hookBase,

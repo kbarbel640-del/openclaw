@@ -43,10 +43,12 @@ export async function deliverReplies(params: {
       accountId,
       sessionKey: params.sessionKey,
     };
+    let lastContent = text;
     try {
       if (mediaList.length === 0) {
         sentMessageCache?.remember(scope, { text });
         for (const chunk of chunkTextWithMode(text, textLimit, chunkMode)) {
+          lastContent = chunk;
           const sent = await sendMessageIMessage(target, chunk, {
             maxBytes,
             client,
@@ -66,6 +68,7 @@ export async function deliverReplies(params: {
         for (const url of mediaList) {
           const caption = first ? text : "";
           first = false;
+          lastContent = caption || url;
           const sent = await sendMessageIMessage(target, caption, {
             mediaUrl: url,
             maxBytes,
@@ -88,7 +91,7 @@ export async function deliverReplies(params: {
     } catch (err) {
       emitMessageSentHook({
         ...hookBase,
-        content: text,
+        content: lastContent,
         success: false,
         error: err instanceof Error ? err.message : String(err),
       });
