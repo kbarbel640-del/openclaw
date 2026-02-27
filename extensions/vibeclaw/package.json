@@ -2,7 +2,7 @@
   "name": "@openclaw/vibeclaw",
   "version": "2026.2.27",
   "private": true,
-  "description": "VibeClaw: Zero-Config skill discovery via Vibe Index (27,700+ resources)",
+  "description": "VibeClaw: Zero-Config skill discovery via Vibe Index (93,600+ resources)",
   "type": "module",
   "peerDependencies": {
     "openclaw": ">=2026.1.26"
