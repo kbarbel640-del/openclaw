@@ -294,11 +294,18 @@ export async function monitorMSTeamsProvider(
     });
   };
 
-  // Handle abort signal
+  // Keep the provider alive until the abort signal fires.
+  // Without this await the startAccount promise resolves immediately after
+  // expressApp.listen() binds to the port, causing the gateway to interpret
+  // the provider as "stopped" and triggering an auto-restart loop that quickly
+  // fails with EADDRINUSE on the second bind attempt.
   if (opts.abortSignal) {
-    opts.abortSignal.addEventListener("abort", () => {
-      void shutdown();
-    });
+    if (!opts.abortSignal.aborted) {
+      await new Promise<void>((resolve) => {
+        opts.abortSignal!.addEventListener("abort", () => resolve(), { once: true });
+      });
+    }
+    await shutdown();
   }
 
   return { app: expressApp, shutdown };
