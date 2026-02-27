@@ -253,6 +253,29 @@ describe("agents.create", () => {
     );
     expect(mocks.ensureAgentWorkspace).toHaveBeenCalled();
     expect(mocks.writeConfigFile).toHaveBeenCalled();
+    expect(mocks.applyAgentConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        skills: [],
+      }),
+    );
+  });
+
+  it("creates a new agent with explicit skills", async () => {
+    const { respond, promise } = makeCall("agents.create", {
+      name: "Skills Agent",
+      workspace: "/tmp/ws",
+      skills: ["github"],
+    });
+    await promise;
+
+    expect(respond).toHaveBeenCalledWith(true, expect.objectContaining({ ok: true }), undefined);
+    expect(mocks.applyAgentConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        skills: ["github"],
+      }),
+    );
   });
 
   it("ensures workspace is set up before writing config", async () => {
@@ -367,6 +390,28 @@ describe("agents.update", () => {
 
     expect(respond).toHaveBeenCalledWith(true, { ok: true, agentId: "test-agent" }, undefined);
     expect(mocks.writeConfigFile).toHaveBeenCalled();
+    expect(mocks.applyAgentConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        name: "Updated Name",
+      }),
+    );
+  });
+
+  it("updates agent skills", async () => {
+    const { respond, promise } = makeCall("agents.update", {
+      agentId: "test-agent",
+      skills: ["bash"],
+    });
+    await promise;
+
+    expect(respond).toHaveBeenCalledWith(true, { ok: true, agentId: "test-agent" }, undefined);
+    expect(mocks.applyAgentConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        skills: ["bash"],
+      }),
+    );
   });
 
   it("rejects updating a nonexistent agent", async () => {
