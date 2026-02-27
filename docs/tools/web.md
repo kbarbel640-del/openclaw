@@ -1,10 +1,11 @@
 ---
-summary: "Web search + fetch tools (Brave Search API, Perplexity direct/OpenRouter, Gemini Google Search grounding)"
+summary: "Web search + fetch tools (Brave Search API, Perplexity direct/OpenRouter, Gemini Google Search grounding, SearXNG)"
 read_when:
   - You want to enable web_search or web_fetch
   - You need Brave Search API key setup
   - You want to use Perplexity Sonar for web search
   - You want to use Gemini with Google Search grounding
+  - You want to use SearXNG (self-hosted, no API key)
 title: "Web Tools"
 ---
 
@@ -12,7 +13,7 @@ title: "Web Tools"
 
 OpenClaw ships two lightweight web tools:
 
-- `web_search` — Search the web via Brave Search API (default), Perplexity Sonar, or Gemini with Google Search grounding.
+- `web_search` — Search the web via Brave Search API (default), Perplexity Sonar, Gemini with Google Search grounding, or SearXNG (self-hosted).
 - `web_fetch` — HTTP fetch + readable extraction (HTML → markdown/text).
 
 These are **not** browser automation. For JS-heavy sites or logins, use the
@@ -24,6 +25,7 @@ These are **not** browser automation. For JS-heavy sites or logins, use the
   - **Brave** (default): returns structured results (title, URL, snippet).
   - **Perplexity**: returns AI-synthesized answers with citations from real-time web search.
   - **Gemini**: returns AI-synthesized answers grounded in Google Search with citations.
+  - **SearXNG**: self-hosted meta search engine, aggregates results from multiple search engines (no API key required).
 - Results are cached by query for 15 minutes (configurable).
 - `web_fetch` does a plain HTTP GET and extracts readable content
   (HTML → markdown/text). It does **not** execute JavaScript.
@@ -36,8 +38,9 @@ These are **not** browser automation. For JS-heavy sites or logins, use the
 | **Brave** (default) | Fast, structured results, free tier          | Traditional search results               | `BRAVE_API_KEY`                              |
 | **Perplexity**      | AI-synthesized answers, citations, real-time | Requires Perplexity or OpenRouter access | `OPENROUTER_API_KEY` or `PERPLEXITY_API_KEY` |
 | **Gemini**          | Google Search grounding, AI-synthesized      | Requires Gemini API key                  | `GEMINI_API_KEY`                             |
+| **SearXNG**         | Self-hosted, no API key, aggregates engines  | Requires running your own instance       | None (just `baseUrl`)                        |
 
-See [Brave Search setup](/brave-search) and [Perplexity Sonar](/perplexity) for provider-specific details.
+See [Brave Search setup](/brave-search), [Perplexity Sonar](/perplexity), and [SearXNG setup](/searxng) for provider-specific details.
 
 ### Auto-detection
 
@@ -59,7 +62,7 @@ Set the provider in config:
   tools: {
     web: {
       search: {
-        provider: "brave", // or "perplexity" or "gemini"
+        provider: "brave", // or "perplexity", "gemini", or "searxng"
       },
     },
   },
@@ -198,6 +201,33 @@ For a gateway install, put it in `~/.openclaw/.env`.
 - The default model (`gemini-2.5-flash`) is fast and cost-effective.
   Any Gemini model that supports grounding can be used.
 
+## Using SearXNG (self-hosted)
+
+[SearXNG](https://github.com/searxng/searxng) is a metasearch engine that
+aggregates results from multiple search engines. No API key is required -- just
+a running instance. See [SearXNG setup](/searxng) for Docker instructions and
+troubleshooting.
+
+### Config example
+
+```json5
+{
+  tools: {
+    web: {
+      search: {
+        provider: "searxng",
+        searxng: {
+          baseUrl: "http://localhost:8888",
+        },
+      },
+    },
+  },
+}
+```
+
+**Environment alternative:** set `SEARXNG_BASE_URL` in the Gateway environment
+instead of config. For a gateway install, put it in `~/.openclaw/.env`.
+
 ## web_search
 
 Search the web using your configured provider.
@@ -208,6 +238,7 @@ Search the web using your configured provider.
 - API key for your chosen provider:
   - **Brave**: `BRAVE_API_KEY` or `tools.web.search.apiKey`
   - **Perplexity**: `OPENROUTER_API_KEY`, `PERPLEXITY_API_KEY`, or `tools.web.search.perplexity.apiKey`
+  - **SearXNG**: No API key required — just set `tools.web.search.searxng.baseUrl` or `SEARXNG_BASE_URL`
 
 ### Config
 
