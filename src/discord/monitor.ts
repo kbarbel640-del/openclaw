@@ -21,7 +21,12 @@ export { registerDiscordListener } from "./monitor/listeners.js";
 
 export { createDiscordMessageHandler } from "./monitor/message-handler.js";
 export { buildDiscordMediaPayload } from "./monitor/message-utils.js";
-export { createDiscordNativeCommand } from "./monitor/native-command.js";
+export {
+  createDiscordNativeCommand,
+  createDiscordPluginCommand,
+  createPluginCommandFallbackButton,
+  createPluginCommandFallbackSelect,
+} from "./monitor/native-command.js";
 export type { MonitorDiscordOpts } from "./monitor/provider.js";
 export { monitorDiscordProvider } from "./monitor/provider.js";
 

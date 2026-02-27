@@ -47,6 +47,7 @@ import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { getAgentScopedMediaLocalRoots } from "../../media/local-roots.js";
 import { buildPairingReply } from "../../pairing/pairing-messages.js";
 import { upsertChannelPairingRequest } from "../../pairing/pairing-store.js";
+import { executePluginCommand, matchPluginCommand } from "../../plugins/commands.js";
 import { resolveAgentRoute } from "../../routing/resolve-route.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { buildUntrustedChannelMetadata } from "../../security/channel-metadata.js";
@@ -81,6 +82,14 @@ import {
   toDiscordModelPickerMessagePayload,
   type DiscordModelPickerCommandContext,
 } from "./model-picker.js";
+import {
+  PLUGIN_CMD_CUSTOM_ID_KEY,
+  buildPluginCommandNoticePayload,
+  parsePluginCommandPickerData,
+  renderPluginCommandView,
+  toPluginCommandPickerPayload,
+  type PluginCommandDiscordSpec,
+} from "./plugin-command-picker.js";
 import { resolveDiscordSenderIdentity } from "./sender-identity.js";
 import type { ThreadBindingManager } from "./thread-bindings.js";
 import { resolveDiscordThreadParentInfo } from "./threading.js";
@@ -1081,6 +1090,205 @@ export function createDiscordModelPickerFallbackSelect(
   params: DiscordModelPickerContext,
 ): StringSelectMenu {
   return new DiscordModelPickerFallbackSelect(params);
+}
+
+// ---------------------------------------------------------------------------
+// Plugin Command interactions — generic framework for plugin Discord components
+// ---------------------------------------------------------------------------
+
+type PluginCommandContext = {
+  cfg: ReturnType<typeof loadConfig>;
+  accountId: string;
+};
+
+async function handlePluginCommandPickerInteraction(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  data: ComponentData,
+  ctx: PluginCommandContext,
+) {
+  const parsed = parsePluginCommandPickerData(data);
+  if (!parsed) {
+    await safeDiscordInteractionCall("plugin cmd update", () =>
+      interaction.update(
+        buildPluginCommandNoticePayload("Sorry, that interaction is no longer available."),
+      ),
+    );
+    return;
+  }
+
+  // Validate user ownership
+  if (interaction.user?.id && interaction.user.id !== parsed.userId) {
+    await safeDiscordInteractionCall("plugin cmd ack", () => interaction.acknowledge());
+    return;
+  }
+
+  // Resolve callbackArgs: for selects, the user's selected value IS the callbackArgs
+  let callbackArgs = parsed.callbackArgs;
+  if ("values" in interaction && Array.isArray(interaction.values)) {
+    const selectValues = interaction.values;
+    if (selectValues.length > 0) {
+      callbackArgs = selectValues[0];
+    }
+  }
+
+  // Match and execute the plugin command
+  const commandBody = `/${parsed.plugin}${callbackArgs ? ` ${callbackArgs}` : ""}`;
+  const match = matchPluginCommand(commandBody);
+  if (!match) {
+    await safeDiscordInteractionCall("plugin cmd update", () =>
+      interaction.update(buildPluginCommandNoticePayload("Command not found.")),
+    );
+    return;
+  }
+
+  const result = await executePluginCommand({
+    command: match.command,
+    args: match.args,
+    senderId: interaction.user?.id,
+    channel: "discord",
+    isAuthorizedSender: true,
+    commandBody,
+    config: ctx.cfg,
+    from: interaction.user?.id ? `discord:${interaction.user.id}` : undefined,
+    to: interaction.user?.id ? `slash:${interaction.user.id}` : undefined,
+    accountId: ctx.accountId,
+  });
+
+  // If result has Discord component spec, render it
+  const discordSpec = result.channelData?.discord as PluginCommandDiscordSpec | undefined;
+  if (discordSpec && discordSpec.rows) {
+    const view = renderPluginCommandView(discordSpec, parsed.plugin, parsed.userId);
+    await safeDiscordInteractionCall("plugin cmd update", () =>
+      interaction.update(toPluginCommandPickerPayload(view)),
+    );
+    return;
+  }
+
+  // Plain text result
+  await safeDiscordInteractionCall("plugin cmd update", () =>
+    interaction.update(buildPluginCommandNoticePayload(result.text ?? "Done.")),
+  );
+}
+
+class PluginCommandFallbackButton extends Button {
+  label = PLUGIN_CMD_CUSTOM_ID_KEY;
+  customId = `${PLUGIN_CMD_CUSTOM_ID_KEY}:seed=btn`;
+  private ctx: PluginCommandContext;
+
+  constructor(ctx: PluginCommandContext) {
+    super();
+    this.ctx = ctx;
+  }
+
+  async run(interaction: ButtonInteraction, data: ComponentData) {
+    await handlePluginCommandPickerInteraction(interaction, data, this.ctx);
+  }
+}
+
+class PluginCommandFallbackSelect extends StringSelectMenu {
+  customId = `${PLUGIN_CMD_CUSTOM_ID_KEY}:seed=sel`;
+  options = [];
+  private ctx: PluginCommandContext;
+
+  constructor(ctx: PluginCommandContext) {
+    super();
+    this.ctx = ctx;
+  }
+
+  async run(interaction: StringSelectMenuInteraction, data: ComponentData) {
+    await handlePluginCommandPickerInteraction(interaction, data, this.ctx);
+  }
+}
+
+export function createPluginCommandFallbackButton(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  accountId: string;
+}): Button {
+  return new PluginCommandFallbackButton(params);
+}
+
+export function createPluginCommandFallbackSelect(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  accountId: string;
+}): StringSelectMenu {
+  return new PluginCommandFallbackSelect(params);
+}
+
+/**
+ * Create a Discord native slash command for a plugin command.
+ * When invoked, it runs the plugin handler and renders components if channelData.discord is present.
+ */
+export function createDiscordPluginCommand(params: {
+  pluginCommand: { name: string; description: string };
+  cfg: ReturnType<typeof loadConfig>;
+  discordConfig: DiscordConfig;
+  accountId: string;
+  ephemeralDefault: boolean;
+  threadBindings: ThreadBindingManager;
+}): Command {
+  const { pluginCommand, cfg, accountId, ephemeralDefault } = params;
+
+  class DiscordPluginCommand extends Command {
+    name = pluginCommand.name;
+    description = pluginCommand.description || `/${pluginCommand.name} plugin command`;
+    defer = false;
+    ephemeral = ephemeralDefault;
+    options: CommandOptions = [
+      {
+        name: "input",
+        description: "Command arguments",
+        type: ApplicationCommandOptionType.String,
+        required: false,
+      },
+    ];
+
+    async run(interaction: CommandInteraction) {
+      const user = interaction.user;
+      if (!user) {
+        return;
+      }
+
+      const rawInput = interaction.options.getString("input") ?? "";
+      const args = rawInput.trim() || undefined;
+      const commandBody = `/${pluginCommand.name}${args ? ` ${args}` : ""}`;
+
+      const match = matchPluginCommand(commandBody);
+      if (!match) {
+        await safeDiscordInteractionCall("plugin cmd reply", () =>
+          interaction.reply({ content: "Command not found.", ephemeral: true }),
+        );
+        return;
+      }
+
+      const result = await executePluginCommand({
+        command: match.command,
+        args: match.args,
+        senderId: user.id,
+        channel: "discord",
+        isAuthorizedSender: true,
+        commandBody,
+        config: cfg,
+        from: `discord:${user.id}`,
+        to: `slash:${user.id}`,
+        accountId,
+      });
+
+      const discordSpec = result.channelData?.discord as PluginCommandDiscordSpec | undefined;
+      if (discordSpec && discordSpec.rows) {
+        const view = renderPluginCommandView(discordSpec, pluginCommand.name, user.id);
+        await safeDiscordInteractionCall("plugin cmd reply", () =>
+          interaction.reply({ ...toPluginCommandPickerPayload(view), ephemeral: true }),
+        );
+        return;
+      }
+
+      await safeDiscordInteractionCall("plugin cmd reply", () =>
+        interaction.reply({ content: result.text ?? "Done.", ephemeral: true }),
+      );
+    }
+  }
+
+  return new DiscordPluginCommand();
 }
 
 function buildDiscordCommandArgMenu(params: {
