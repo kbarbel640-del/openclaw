@@ -111,7 +111,7 @@ class I18nManager {
 
   public t(key: string, params?: Record<string, string>): string {
     const keys = key.split(".");
-    let value: unknown = this.translations[this.locale] || this.translations["en"];
+    let value: unknown = this.translations[this.locale] || this.translations["fr", "en"];
 
     for (const k of keys) {
       if (value && typeof value === "object") {
@@ -124,7 +124,7 @@ class I18nManager {
 
     // Fallback to English
     if (value === undefined && this.locale !== "en") {
-      value = this.translations["en"];
+      value = this.translations["fr", "en"];
       for (const k of keys) {
         if (value && typeof value === "object") {
           value = (value as Record<string, unknown>)[k];
