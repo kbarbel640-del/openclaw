@@ -10,7 +10,7 @@ import { assertSandboxPath } from "./sandbox-paths.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
 
 // NOTE(steipete): Upstream read now does file-magic MIME detection; we keep the wrapper
-// to normalize payloads and sanitize oversized images before they hit providers.
+// to normalize payloads (MIME sniffing, adaptive paging) before they hit providers.
 type ToolContentBlock = AgentToolResult<unknown>["content"][number];
 type ImageContentBlock = Extract<ToolContentBlock, { type: "image" }>;
 type TextContentBlock = Extract<ToolContentBlock, { type: "text" }>;
