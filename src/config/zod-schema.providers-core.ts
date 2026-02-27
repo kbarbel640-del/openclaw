@@ -1417,3 +1417,32 @@ export const MSTeamsConfigSchema = z
         'channels.msteams.dmPolicy="allowlist" requires channels.msteams.allowFrom to contain at least one sender ID',
     });
   });
+
+// ── QQ Bot API v2 ─────────────────────────────────────────────────────────────
+
+export const QQAccountSchema = z
+  .object({
+    appId: z.string().optional(),
+    clientSecret: z.string().optional().register(sensitive),
+    name: z.string().optional(),
+    enabled: z.boolean().optional(),
+    webhookPath: z.string().optional(),
+    webhookPort: z.number().int().positive().optional(),
+    allowFrom: z.array(z.string()).optional(),
+    dmPolicy: DmPolicySchema.optional(),
+  })
+  .strict();
+
+export const QQConfigSchema = z
+  .object({
+    appId: z.string().optional(),
+    clientSecret: z.string().optional().register(sensitive),
+    name: z.string().optional(),
+    enabled: z.boolean().optional(),
+    webhookPath: z.string().optional(),
+    webhookPort: z.number().int().positive().optional(),
+    allowFrom: z.array(z.string()).optional(),
+    dmPolicy: DmPolicySchema.optional(),
+    accounts: z.record(z.string(), QQAccountSchema.optional()).optional(),
+  })
+  .strict();
