@@ -1278,6 +1278,31 @@
                 "pages": ["reference/wizard", "reference/token-use", "reference/prompt-caching"]
               },
               {
+                "group": "Development docs",
+                "pages": [
+                  "development/index",
+                  "development/developer-reference",
+                  "development/architecture",
+                  "development/changelog-analysis",
+                  "development/agents-guidelines"
+                ]
+              },
+              {
+                "group": "Development analysis",
+                "pages": [
+                  "development/analysis/core-engine",
+                  "development/analysis/agent-system",
+                  "development/analysis/channels",
+                  "development/analysis/cli-config-infra",
+                  "development/analysis/cli-tools-media",
+                  "development/analysis/gateway-config-infra",
+                  "development/analysis/memory-cron-media",
+                  "development/analysis/security-plugins",
+                  "development/analysis/security-web-browser",
+                  "development/analysis/utils-support"
+                ]
+              },
+              {
                 "group": "Concept internals",
                 "pages": [
                   "concepts/typebox",
