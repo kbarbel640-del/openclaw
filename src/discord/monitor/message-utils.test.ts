@@ -248,6 +248,136 @@ describe("resolveMediaList", () => {
     ]);
   });
 
+  it("falls back to original URL when attachment download fails", async () => {
+    const attachment = {
+      id: "att-fail",
+      url: "https://cdn.discordapp.com/attachments/1/report.pdf",
+      filename: "report.pdf",
+      content_type: "application/pdf",
+    };
+    fetchRemoteMedia.mockRejectedValueOnce(new Error("SSRF blocked"));
+
+    const result = await resolveMediaList(
+      asMessage({
+        attachments: [attachment],
+      }),
+      512,
+    );
+
+    expect(fetchRemoteMedia).toHaveBeenCalledTimes(1);
+    expect(saveMediaBuffer).not.toHaveBeenCalled();
+    expect(result).toEqual([
+      {
+        path: "https://cdn.discordapp.com/attachments/1/report.pdf",
+        contentType: "application/pdf",
+        placeholder: "<media:document>",
+      },
+    ]);
+  });
+
+  it("falls back to original URL when saveMediaBuffer fails", async () => {
+    const attachment = {
+      id: "att-save-fail",
+      url: "https://cdn.discordapp.com/attachments/1/photo.png",
+      filename: "photo.png",
+      content_type: "image/png",
+    };
+    fetchRemoteMedia.mockResolvedValueOnce({
+      buffer: Buffer.from("image"),
+      contentType: "image/png",
+    });
+    saveMediaBuffer.mockRejectedValueOnce(new Error("disk full"));
+
+    const result = await resolveMediaList(
+      asMessage({
+        attachments: [attachment],
+      }),
+      512,
+    );
+
+    expect(fetchRemoteMedia).toHaveBeenCalledTimes(1);
+    expect(saveMediaBuffer).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([
+      {
+        path: "https://cdn.discordapp.com/attachments/1/photo.png",
+        contentType: "image/png",
+        placeholder: "<media:image>",
+      },
+    ]);
+  });
+
+  it("preserves successfully downloaded attachments alongside failed ones", async () => {
+    const goodAttachment = {
+      id: "att-good",
+      url: "https://cdn.discordapp.com/attachments/1/good.png",
+      filename: "good.png",
+      content_type: "image/png",
+    };
+    const badAttachment = {
+      id: "att-bad",
+      url: "https://cdn.discordapp.com/attachments/1/bad.pdf",
+      filename: "bad.pdf",
+      content_type: "application/pdf",
+    };
+    fetchRemoteMedia
+      .mockResolvedValueOnce({
+        buffer: Buffer.from("image"),
+        contentType: "image/png",
+      })
+      .mockRejectedValueOnce(new Error("network timeout"));
+    saveMediaBuffer.mockResolvedValueOnce({
+      path: "/tmp/good.png",
+      contentType: "image/png",
+    });
+
+    const result = await resolveMediaList(
+      asMessage({
+        attachments: [goodAttachment, badAttachment],
+      }),
+      512,
+    );
+
+    expect(result).toEqual([
+      {
+        path: "/tmp/good.png",
+        contentType: "image/png",
+        placeholder: "<media:image>",
+      },
+      {
+        path: "https://cdn.discordapp.com/attachments/1/bad.pdf",
+        contentType: "application/pdf",
+        placeholder: "<media:document>",
+      },
+    ]);
+  });
+
+  it("falls back to original URL for failed forwarded attachment downloads", async () => {
+    const attachment = {
+      id: "fwd-att-fail",
+      url: "https://cdn.discordapp.com/attachments/2/forwarded.png",
+      filename: "forwarded.png",
+      content_type: "image/png",
+    };
+    fetchRemoteMedia.mockRejectedValueOnce(new Error("DNS resolution failed"));
+
+    const result = await resolveForwardedMediaList(
+      asMessage({
+        rawData: {
+          message_snapshots: [{ message: { attachments: [attachment] } }],
+        },
+      }),
+      512,
+    );
+
+    expect(result).toEqual([
+      {
+        path: "https://cdn.discordapp.com/attachments/2/forwarded.png",
+        contentType: "image/png",
+        placeholder: "<media:image>",
+      },
+    ]);
+  });
+
   it("forwards fetchImpl to sticker downloads", async () => {
     const proxyFetch = vi.fn() as unknown as typeof fetch;
     const sticker = {

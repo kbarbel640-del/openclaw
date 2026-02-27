@@ -243,6 +243,16 @@ async function appendResolvedMediaFromAttachments(params: {
     } catch (err) {
       const id = attachment.id ?? attachment.url;
       logVerbose(`${params.errorPrefix} ${id}: ${String(err)}`);
+      // Fallback: preserve the original CDN URL so the agent can still access
+      // the attachment via downstream media-understanding (which re-fetches by URL)
+      // instead of silently dropping it from the inbound context.
+      if (attachment.url) {
+        params.out.push({
+          path: attachment.url,
+          contentType: attachment.content_type ?? undefined,
+          placeholder: inferPlaceholder(attachment),
+        });
+      }
     }
   }
 }
