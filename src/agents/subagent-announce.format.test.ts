@@ -401,6 +401,47 @@ describe("subagent announce formatting", () => {
     expect(msg).not.toContain("Convert the result above into your normal assistant voice");
   });
 
+  it("strips reply tags from completion delivery message (#24600)", async () => {
+    sessionStore = {
+      "agent:main:subagent:test": {
+        sessionId: "child-session-reply-tags",
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+      },
+      "agent:main:main": {
+        sessionId: "requester-session",
+      },
+    };
+    chatHistoryMock.mockResolvedValueOnce({
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "[[reply_to:6100]] Got it. This is a test message." }],
+        },
+      ],
+    });
+    readLatestAssistantReplyMock.mockResolvedValue("");
+
+    const didAnnounce = await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:test",
+      childRunId: "run-reply-tags",
+      requesterSessionKey: "agent:main:main",
+      requesterDisplayKey: "main",
+      requesterOrigin: { channel: "imessage", to: "+15551234567", accountId: "acct-1" },
+      ...defaultOutcomeAnnounce,
+      expectsCompletionMessage: true,
+    });
+
+    expect(didAnnounce).toBe(true);
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    const call = sendSpy.mock.calls[0]?.[0] as { params?: Record<string, unknown> };
+    const msg = typeof call?.params?.message === "string" ? call.params.message : "";
+    expect(msg).toContain("Got it. This is a test message.");
+    expect(msg).not.toContain("[[reply_to:");
+    expect(msg).not.toContain("[[reply_to:6100]]");
+  });
+
   it("suppresses completion delivery when subagent reply is ANNOUNCE_SKIP", async () => {
     const didAnnounce = await runSubagentAnnounceFlow({
       childSessionKey: "agent:main:subagent:test",
