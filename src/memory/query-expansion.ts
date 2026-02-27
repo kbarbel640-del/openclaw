@@ -479,6 +479,366 @@ function isUsefulKoreanStem(stem: string): boolean {
   return /^[a-z0-9_]+$/i.test(stem);
 }
 
+// ---------------------------------------------------------------------------
+// Danish / Germanic compound-word decomposition
+// ---------------------------------------------------------------------------
+
+/**
+ * Common Danish word stems used for compound splitting.
+ * Covers frequent nouns, verbs (bare stems), adjectives, and generic
+ * municipal/public-sector vocabulary.  Sorted alphabetically.
+ * Domain-specific jargon is intentionally excluded.
+ */
+const DANISH_STEMS = new Set<string>([
+  // A
+  "afdeling",
+  "aftale",
+  "alder",
+  "analyse",
+  "ansat",
+  "ansvar",
+  "arbejd",
+  "arkiv",
+  "arm",
+  // B
+  "bane",
+  "barn",
+  "beboer",
+  "behandl",
+  "behandler",
+  "besked",
+  "bestand",
+  "bestem",
+  "bestyrelse",
+  "besvar",
+  "bil",
+  "blanket",
+  "blok",
+  "blå",
+  "borger",
+  "bred",
+  "brev",
+  "bro",
+  "brug",
+  "brugere",
+  "brugr",
+  "brun",
+  "brød",
+  "budget",
+  "bus",
+  "bygg",
+  "bygning",
+  "by",
+  // C
+  "center",
+  "chef",
+  // D
+  "dag",
+  "dal",
+  "data",
+  "dato",
+  "direktør",
+  "dokument",
+  "drift",
+  "dyr",
+  "døgn",
+  // E
+  "ejer",
+  "elev",
+  "eng",
+  "etage",
+  // F
+  "fag",
+  "familie",
+  "fil",
+  "find",
+  "firma",
+  "fisk",
+  "fjord",
+  "fod",
+  "folk",
+  "forvaltning",
+  "fri",
+  "frisk",
+  "frugt",
+  "fund",
+  "fundament",
+  "færge",
+  // G
+  "gade",
+  "gammel",
+  "gav",
+  "gavl",
+  "god",
+  "grøn",
+  "grønt",
+  "grund",
+  "gruppe",
+  "gul",
+  "guld",
+  "gård",
+  "gøre",
+  // H
+  "hals",
+  "handel",
+  "have",
+  "hav",
+  "havn",
+  "hede",
+  "henvendelse",
+  "hjerte",
+  "hjort",
+  "hjem",
+  "hjælp",
+  "holm",
+  "hospital",
+  "hoved",
+  "hudl",
+  "hund",
+  "hurtig",
+  "hus",
+  "hvid",
+  "hvede",
+  "høj",
+  "hård",
+  // I
+  "internet",
+  // J
+  "jernbane",
+  "jord",
+  "journal",
+  // K
+  "kaffe",
+  "kage",
+  "kend",
+  "klar",
+  "klass",
+  "knæ",
+  "kobber",
+  "kode",
+  "kontor",
+  "kontrakt",
+  "krop",
+  "kul",
+  "kommune",
+  "kursus",
+  "kvinde",
+  "kyst",
+  "kørsel",
+  "kør",
+  "kød",
+  // L
+  "land",
+  "lang",
+  "lav",
+  "ledelse",
+  "leder",
+  "leg",
+  "lejr",
+  "lektie",
+  "lille",
+  "linje",
+  "listen",
+  "lov",
+  "lovgivning",
+  "luft",
+  "luk",
+  "lys",
+  "læg",
+  "lægning",
+  "lærer",
+  "læs",
+  "løn",
+  // M
+  "mad",
+  "mand",
+  "mark",
+  "metal",
+  "minut",
+  "modtag",
+  "mor",
+  "mose",
+  "museum",
+  "mur",
+  "møde",
+  "mælk",
+  "myndighed",
+  "måned",
+  // N
+  "nem",
+  "notat",
+  "ny",
+  "næse",
+  // O
+  "onkel",
+  "organisation",
+  "ost",
+  "oversigt",
+  "område",
+  // P
+  "papir",
+  "park",
+  "patient",
+  "penge",
+  "personale",
+  "pig",
+  "plads",
+  "plan",
+  "planlægning",
+  "plast",
+  "port",
+  "program",
+  "projekt",
+  // R
+  "råd",
+  "region",
+  "registrering",
+  "regel",
+  "ret",
+  "rig",
+  "ris",
+  "rum",
+  "rund",
+  "rute",
+  "ryg",
+  "rapport",
+  // S
+  "sag",
+  "sagsbeh",
+  "sal",
+  "salt",
+  "sekretær",
+  "sekund",
+  "server",
+  "service",
+  "situation",
+  "skat",
+  "skema",
+  "skifte",
+  "skole",
+  "skulder",
+  "skov",
+  "slægt",
+  "slot",
+  "smal",
+  "smør",
+  "sne",
+  "sol",
+  "sommerhus",
+  "sommer",
+  "sort",
+  "spor",
+  "stad",
+  "start",
+  "station",
+  "sten",
+  "strand",
+  "studie",
+  "stue",
+  "stål",
+  "styrelse",
+  "søg",
+  "søn",
+  "søster",
+  "sø",
+  "system",
+  "slut",
+  "send",
+  "skriv",
+  "se",
+  // T
+  "tand",
+  "teknik",
+  "telt",
+  "tid",
+  "time",
+  "tilsyn",
+  "tin",
+  "tjeneste",
+  "tog",
+  "træ",
+  // U
+  "udvalg",
+  "uge",
+  "uld",
+  "undhed",
+  "undervisning",
+  "ung",
+  // V
+  "vagt",
+  "vand",
+  "vej",
+  "vindue",
+  "vinter",
+  // Y
+  "ydelse",
+  // Æ
+  "ære",
+  // Ø
+  "øje",
+  "øre",
+  // Å
+  "år",
+  "åbn",
+]);
+
+/**
+ * Linking morphemes (Fugenlaut) to try stripping from the end of the left
+ * component when attempting a compound split.  Sorted longest-first so that
+ * "er" is tried before "e", preventing partial matches.
+ */
+const DA_LINKERS = ["er", "en", "es", "e", "s", ""] as const;
+
+/**
+ * Attempt to decompose a Danish compound word into its constituent stems.
+ *
+ * Strategy – Germanic head-last, greedy longest-match from the right:
+ *   1. Skip tokens shorter than 8 characters.
+ *   2. Scan rightStart from 3 → (len-3): longest right component first.
+ *   3. For each candidate right part found in DANISH_STEMS, try each linker
+ *      (longest first) on the remaining left portion.
+ *   4. If the stripped left is ≥ 3 chars and in DANISH_STEMS, return the pair.
+ *
+ * Examples:
+ *   hundehus         → ["hund",  "hus"]   (e-linker)
+ *   sagsbehandler    → ["sag",   "behandler"] (s-linker)
+ *   jernbanestation  → ["jernbane", "station"] (direct)
+ *
+ * Not exported – internal to this module like stripKoreanTrailingParticle.
+ */
+function decompoundDanish(token: string): string[] {
+  if (token.length < 8) return [];
+
+  // Only operate on Latin-script tokens (incl. Danish diacritics æøå).
+  if (!/^[a-zA-ZæøåÆØÅ]+$/.test(token)) return [];
+
+  const lower = token.toLowerCase();
+
+  // Greedy longest-match from right: smallest rightStart → longest right part.
+  for (let rightStart = 3; rightStart <= lower.length - 3; rightStart++) {
+    const right = lower.slice(rightStart);
+    if (!DANISH_STEMS.has(right)) continue;
+
+    const leftRaw = lower.slice(0, rightStart);
+
+    for (const linker of DA_LINKERS) {
+      let left: string;
+      if (linker.length > 0) {
+        if (!leftRaw.endsWith(linker)) continue;
+        left = leftRaw.slice(0, -linker.length);
+      } else {
+        left = leftRaw;
+      }
+
+      if (left.length >= 3 && DANISH_STEMS.has(left)) {
+        return [left, right];
+      }
+    }
+  }
+
+  return [];
+}
+
 const STOP_WORDS_JA = new Set([
   // Pronouns and references
   "これ",
@@ -748,6 +1108,16 @@ export function extractKeywords(query: string): string[] {
     }
     seen.add(token);
     keywords.push(token);
+
+    // Danish / Germanic compound splitting: expand "sagsbehandler" into
+    // ["sagsbehandler", "sag", "behandler"] so FTS matches sub-components.
+    const parts = decompoundDanish(token);
+    for (const part of parts) {
+      if (!seen.has(part) && isValidKeyword(part)) {
+        seen.add(part);
+        keywords.push(part);
+      }
+    }
   }
 
   return keywords;

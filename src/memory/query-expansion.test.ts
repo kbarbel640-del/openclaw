@@ -174,6 +174,136 @@ describe("extractKeywords", () => {
     const testCount = keywords.filter((k) => k === "test").length;
     expect(testCount).toBe(1);
   });
+
+  // ---------------------------------------------------------------------------
+  // Danish compound-word decomposition
+  // ---------------------------------------------------------------------------
+
+  describe("Danish compound splitting", () => {
+    it("splits neutral compound: jernbanestation → jernbane + station", () => {
+      const keywords = extractKeywords("jernbanestation");
+      expect(keywords).toContain("jernbanestation");
+      expect(keywords).toContain("jernbane");
+      expect(keywords).toContain("station");
+    });
+
+    it("splits neutral compound with s-linker: handelsaftale → handel + aftale", () => {
+      const keywords = extractKeywords("handelsaftale");
+      expect(keywords).toContain("handelsaftale");
+      expect(keywords).toContain("handel");
+      expect(keywords).toContain("aftale");
+    });
+
+    it("splits neutral compound: sommerhusområde → sommerhus + område", () => {
+      const keywords = extractKeywords("sommerhusområde");
+      expect(keywords).toContain("sommerhusområde");
+      expect(keywords).toContain("sommerhus");
+      expect(keywords).toContain("område");
+    });
+
+    it("splits neutral compound: hovedstad → hoved + stad", () => {
+      const keywords = extractKeywords("hovedstad");
+      expect(keywords).toContain("hovedstad");
+      expect(keywords).toContain("hoved");
+      expect(keywords).toContain("stad");
+    });
+
+    it("splits municipal compound: borgerhenvendelse → borger + henvendelse", () => {
+      const keywords = extractKeywords("borgerhenvendelse");
+      expect(keywords).toContain("borgerhenvendelse");
+      expect(keywords).toContain("borger");
+      expect(keywords).toContain("henvendelse");
+    });
+
+    it("splits municipal compound with s-linker: sagsbehandler → sag + behandler", () => {
+      const keywords = extractKeywords("sagsbehandler");
+      expect(keywords).toContain("sagsbehandler");
+      expect(keywords).toContain("sag");
+      expect(keywords).toContain("behandler");
+    });
+
+    it("splits municipal compound: vagtskifte → vagt + skifte", () => {
+      const keywords = extractKeywords("vagtskifte");
+      expect(keywords).toContain("vagtskifte");
+      expect(keywords).toContain("vagt");
+      expect(keywords).toContain("skifte");
+    });
+
+    it("splits municipal compound: ruteplanlægning → rute + planlægning", () => {
+      const keywords = extractKeywords("ruteplanlægning");
+      expect(keywords).toContain("ruteplanlægning");
+      expect(keywords).toContain("rute");
+      expect(keywords).toContain("planlægning");
+    });
+
+    it("splits municipal compound with s-linker: tilsynsrapport → tilsyn + rapport", () => {
+      const keywords = extractKeywords("tilsynsrapport");
+      expect(keywords).toContain("tilsynsrapport");
+      expect(keywords).toContain("tilsyn");
+      expect(keywords).toContain("rapport");
+    });
+
+    it("handles s-linker morpheme: borgersundhed → borger + undhed", () => {
+      const keywords = extractKeywords("borgersundhed");
+      expect(keywords).toContain("borgersundhed");
+      expect(keywords).toContain("borger");
+      expect(keywords).toContain("undhed");
+    });
+
+    it("handles e-linker morpheme: hundehus → hund + hus", () => {
+      const keywords = extractKeywords("hundehus");
+      expect(keywords).toContain("hundehus");
+      expect(keywords).toContain("hund");
+      expect(keywords).toContain("hus");
+    });
+
+    it("does NOT split tokens shorter than 8 characters", () => {
+      // "borger" = 6 chars, "rapport" = 7 chars — both below threshold
+      const shortKeywords6 = extractKeywords("borger");
+      expect(shortKeywords6).toContain("borger");
+      // Should not yield extra components for a short token
+      expect(shortKeywords6.length).toBe(1);
+
+      const shortKeywords7 = extractKeywords("rapport");
+      expect(shortKeywords7).toContain("rapport");
+      expect(shortKeywords7.length).toBe(1);
+    });
+
+    it("does NOT split opaque long words that are not compound", () => {
+      // "strategi" (8 chars) looks long but has no valid stem split
+      const keywords = extractKeywords("strategi");
+      expect(keywords).toContain("strategi");
+      // Should not produce spurious sub-components
+      expect(keywords).not.toContain("strat");
+      expect(keywords).not.toContain("egi");
+    });
+
+    it("splits compounds found in a multi-token Danish query", () => {
+      const keywords = extractKeywords("ny sagsbehandler for borgerhenvendelse");
+      expect(keywords).toContain("sagsbehandler");
+      expect(keywords).toContain("sag");
+      expect(keywords).toContain("behandler");
+      expect(keywords).toContain("borgerhenvendelse");
+      expect(keywords).toContain("borger");
+      expect(keywords).toContain("henvendelse");
+    });
+
+    it("does not split mixed Danish/English tokens that have no stem pair", () => {
+      // "download" is 8 chars but has no DANISH_STEMS pair
+      const keywords = extractKeywords("download");
+      expect(keywords).toContain("download");
+      // Should not match spurious stems
+      expect(keywords).not.toContain("down");
+    });
+
+    it("does not emit duplicate compound components", () => {
+      const keywords = extractKeywords("sagsbehandler sagsbehandler");
+      const count = keywords.filter((k) => k === "sag").length;
+      expect(count).toBe(1);
+      const countBehandler = keywords.filter((k) => k === "behandler").length;
+      expect(countBehandler).toBe(1);
+    });
+  });
 });
 
 describe("expandQueryForFts", () => {
