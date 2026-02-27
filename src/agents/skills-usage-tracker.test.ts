@@ -29,11 +29,28 @@ async function setupStateDir() {
   return dir;
 }
 
+async function waitFor(condition: () => Promise<boolean>, timeoutMs = 2000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await condition()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`Timed out after ${timeoutMs}ms waiting for condition`);
+}
+
 beforeEach(async () => {
   await setupStateDir();
 });
 
 afterEach(async () => {
+  try {
+    const tracker = await import("./skills-usage-tracker.js");
+    tracker.__resetSkillsUsageTrackerForTest();
+  } catch {
+    // ignore module reset errors in cleanup
+  }
   if (ORIGINAL_STATE_DIR === undefined) {
     delete process.env.OPENCLAW_STATE_DIR;
   } else {
@@ -45,7 +62,7 @@ afterEach(async () => {
   );
 });
 
-describe("skills-usage-tracker", () => {
+describe.sequential("skills-usage-tracker", () => {
   it("tracks command invocations and mapped tool results with dedupe", async () => {
     const tracker = await import("./skills-usage-tracker.js");
     const storeMod = await import("./skills-usage-store.js");
@@ -83,7 +100,14 @@ describe("skills-usage-tracker", () => {
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(async () => {
+      const store = await storeMod.loadSkillsUsageStore();
+      return (
+        store.skills["hello-skill"]?.commandCalls === 1 &&
+        store.skills["hello-skill"]?.mappedToolCalls === 1 &&
+        store.meta.mappedByStaticDispatch === 1
+      );
+    });
     const store = await storeMod.loadSkillsUsageStore();
     expect(store.skills["hello-skill"]?.commandCalls).toBe(1);
     expect(store.skills["hello-skill"]?.mappedToolCalls).toBe(1);
@@ -114,7 +138,10 @@ describe("skills-usage-tracker", () => {
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(async () => {
+      const store = await storeMod.loadSkillsUsageStore();
+      return store.meta.unmappedToolCalls === 1;
+    });
     const store = await storeMod.loadSkillsUsageStore();
     expect(store.meta.unmappedToolCalls).toBe(1);
     expect(store.meta.mappedByRunContext).toBe(0);
@@ -142,7 +169,12 @@ describe("skills-usage-tracker", () => {
       },
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(async () => {
+      const store = await storeMod.loadSkillsUsageStore();
+      return (
+        store.skills["context-skill"]?.mappedToolCalls === 1 && store.meta.mappedByRunContext === 1
+      );
+    });
     const store = await storeMod.loadSkillsUsageStore();
     expect(store.skills["context-skill"]?.mappedToolCalls).toBe(1);
     expect(store.meta.mappedByRunContext).toBe(1);

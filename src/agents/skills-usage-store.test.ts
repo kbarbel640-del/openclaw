@@ -26,7 +26,7 @@ afterEach(async () => {
   );
 });
 
-describe("skills-usage-store", () => {
+describe.sequential("skills-usage-store", () => {
   it("registers skills and increments command/mapped counters", async () => {
     await withTempStateDir();
     const mod = await import("./skills-usage-store.js");
