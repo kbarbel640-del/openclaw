@@ -119,5 +119,6 @@ export const en: TranslationMap = {
     zhTW: "繁體中文 (Traditional Chinese)",
     ptBR: "Português (Brazilian Portuguese)",
     nl: "Nederlands (Dutch)",
+    fr: "Français (French)",
   },
 };
