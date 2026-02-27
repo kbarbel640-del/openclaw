@@ -823,7 +823,7 @@ export async function agentCommand(
       const cacheWrite = usage.cacheWrite ?? 0;
       const promptTokens = input + cacheRead + cacheWrite;
       const totalTokens = usage.total ?? promptTokens + output;
-      const providerUsed = fallbackProvider ?? provider;
+      const providerUsed = result.meta?.agentMeta?.provider ?? fallbackProvider ?? provider;
       const modelUsed = result.meta?.agentMeta?.model ?? fallbackModel ?? model;
       const costConfig = resolveModelCostConfig({
         provider: providerUsed,
