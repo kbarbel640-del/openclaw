@@ -386,11 +386,17 @@ export async function auditGatewayServiceConfig(params: {
   command: GatewayServiceCommand;
   platform?: NodeJS.Platform;
   expectedGatewayToken?: string;
+  /** When set, the service uses a custom launcher script; skip gateway-command audit. */
+  launcher?: string;
 }): Promise<ServiceConfigAudit> {
   const issues: ServiceConfigIssue[] = [];
   const platform = params.platform ?? process.platform;
 
-  auditGatewayCommand(params.command?.programArguments, issues);
+  // When a custom launcher is configured, ProgramArguments is [launcherPath] which
+  // won't contain a literal "gateway" arg — that's expected, so skip the check.
+  if (!params.launcher) {
+    auditGatewayCommand(params.command?.programArguments, issues);
+  }
   auditGatewayToken(params.command, issues, params.expectedGatewayToken);
   auditGatewayServicePath(params.command, issues, params.env, platform);
   await auditGatewayRuntime(params.env, params.command, issues, platform);
