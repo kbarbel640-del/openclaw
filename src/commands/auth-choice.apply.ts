@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
+import { applyAuthChoiceAbacusAI } from "./auth-choice.apply.abacusai.js";
 import { applyAuthChoiceAnthropic } from "./auth-choice.apply.anthropic.js";
 import { applyAuthChoiceApiProviders } from "./auth-choice.apply.api-providers.js";
 import { applyAuthChoiceBytePlus } from "./auth-choice.apply.byteplus.js";
@@ -49,6 +50,7 @@ export async function applyAuthChoice(
     applyAuthChoiceXAI,
     applyAuthChoiceVolcengine,
     applyAuthChoiceBytePlus,
+    applyAuthChoiceAbacusAI,
   ];
 
   for (const handler of handlers) {

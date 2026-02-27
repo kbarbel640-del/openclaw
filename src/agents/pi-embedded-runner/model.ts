@@ -13,11 +13,13 @@ import { discoverAuthStorage, discoverModels } from "../pi-model-discovery.js";
 type InlineModelEntry = ModelDefinitionConfig & {
   provider: string;
   baseUrl?: string;
+  compat?: Record<string, unknown>;
 };
 type InlineProviderConfig = {
   baseUrl?: string;
   api?: ModelDefinitionConfig["api"];
   models?: ModelDefinitionConfig[];
+  compat?: Record<string, unknown>;
 };
 
 export { buildModelAliasLines };
@@ -35,6 +37,8 @@ export function buildInlineProviderModels(
       provider: trimmed,
       baseUrl: entry?.baseUrl,
       api: model.api ?? entry?.api,
+      // Pass provider-level compat settings to model for pi-ai compatibility
+      ...(entry?.compat ? { compat: entry.compat } : {}),
     }));
   });
 }
@@ -54,9 +58,10 @@ export function resolveModel(
   const authStorage = discoverAuthStorage(resolvedAgentDir);
   const modelRegistry = discoverModels(authStorage, resolvedAgentDir);
   const model = modelRegistry.find(provider, modelId) as Model<Api> | null;
+  const providers = cfg?.models?.providers ?? {};
+  const providerCompat = providers[provider]?.compat;
 
   if (!model) {
-    const providers = cfg?.models?.providers ?? {};
     const inlineModels = buildInlineProviderModels(providers);
     const normalizedProvider = normalizeProviderId(provider);
     const inlineMatch = inlineModels.find(
@@ -107,6 +112,8 @@ export function resolveModel(
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: providerCfg?.models?.[0]?.contextWindow ?? DEFAULT_CONTEXT_TOKENS,
         maxTokens: providerCfg?.models?.[0]?.maxTokens ?? DEFAULT_CONTEXT_TOKENS,
+        // Pass provider-level compat settings to model for pi-ai compatibility
+        ...(providerCfg?.compat ? { compat: providerCfg.compat } : {}),
       } as Model<Api>);
       return { model: fallbackModel, authStorage, modelRegistry };
     }
@@ -116,7 +123,17 @@ export function resolveModel(
       modelRegistry,
     };
   }
-  return { model: normalizeModelCompat(model), authStorage, modelRegistry };
+  // Merge provider-level compat settings into the found model.
+  // ModelRegistry.find() returns models without provider-level compat,
+  // so we need to merge it here for providers like AbacusAI that require
+  // supportsStrictMode: false to avoid "strict" field validation errors.
+  const modelWithProviderCompat = providerCompat
+    ? {
+        ...model,
+        compat: { ...providerCompat, ...model.compat },
+      }
+    : model;
+  return { model: normalizeModelCompat(modelWithProviderCompat), authStorage, modelRegistry };
 }
 
 /**
