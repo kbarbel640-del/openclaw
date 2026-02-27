@@ -42,6 +42,44 @@ describe("sanitizeToolsForGoogle", () => {
     expectFormatRemoved(sanitized, "additionalProperties");
   });
 
+  it("strips unsupported schema keywords when modelApi is google-generative-ai", () => {
+    const tool = createTool({
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        foo: {
+          type: "string",
+          format: "uuid",
+        },
+      },
+    });
+    const [sanitized] = sanitizeToolsForGoogle({
+      tools: [tool],
+      provider: "nexos",
+      modelApi: "google-generative-ai",
+    });
+    expectFormatRemoved(sanitized, "additionalProperties");
+  });
+
+  it("returns original tools when provider is third-party but modelApi is not google", () => {
+    const tool = createTool({
+      type: "object",
+      patternProperties: { "^[a-z]+$": { type: "string" } },
+      properties: {
+        foo: { type: "string", format: "uuid" },
+      },
+    });
+    const [sanitized] = sanitizeToolsForGoogle({
+      tools: [tool],
+      provider: "nexos",
+      // modelApi omitted — nexos with a non-Gemini model should not be sanitized
+    });
+    expect((sanitized.parameters as Record<string, unknown>).patternProperties).toBeDefined();
+    const props = (sanitized.parameters as { properties?: Record<string, { format?: unknown }> })
+      .properties;
+    expect(props?.foo?.format).toBe("uuid");
+  });
+
   it("returns original tools for non-google providers", () => {
     const tool = createTool({
       type: "object",
