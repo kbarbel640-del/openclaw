@@ -69,6 +69,7 @@ async function readInstalledPackageVersion(dir: string): Promise<string | undefi
     absolutePath: manifestPath,
     rootPath: dir,
     boundaryLabel: "installed plugin directory",
+    rejectHardlinks: false,
   });
   if (!opened.ok) {
     return undefined;

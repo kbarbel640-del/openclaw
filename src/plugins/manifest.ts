@@ -48,6 +48,7 @@ export function loadPluginManifest(rootDir: string): PluginManifestLoadResult {
     absolutePath: manifestPath,
     rootPath: rootDir,
     boundaryLabel: "plugin root",
+    rejectHardlinks: false,
   });
   if (!opened.ok) {
     if (opened.reason === "path") {

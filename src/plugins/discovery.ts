@@ -229,6 +229,7 @@ function readPackageManifest(dir: string): PackageManifest | null {
     absolutePath: manifestPath,
     rootPath: dir,
     boundaryLabel: "plugin package directory",
+    rejectHardlinks: false,
   });
   if (!opened.ok) {
     return null;
@@ -330,6 +331,7 @@ function resolvePackageEntrySource(params: {
     absolutePath: source,
     rootPath: params.packageDir,
     boundaryLabel: "plugin package directory",
+    rejectHardlinks: false,
   });
   if (!opened.ok) {
     params.diagnostics.push({
