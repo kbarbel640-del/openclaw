@@ -36,6 +36,41 @@ import type {
 } from "./types.js";
 import { estimateBase64Size, resolveVideoMaxBase64Bytes } from "./video.js";
 
+/**
+ * Legacy placeholder aliases for CLI args.
+ * Maps intuitive single-brace placeholders to standard double-brace format.
+ */
+const LEGACY_PLACEHOLDER_MAP: Record<string, string> = {
+  "{file}": "{{MediaPath}}",
+  "{input}": "{{MediaPath}}",
+  "{media}": "{{MediaPath}}",
+  "{output}": "{{OutputDir}}",
+  "{output_dir}": "{{OutputDir}}",
+  "{output_base}": "{{OutputBase}}",
+  "{prompt}": "{{Prompt}}",
+  "{media_dir}": "{{MediaDir}}",
+};
+
+/**
+ * Normalize legacy single-brace placeholders to standard double-brace format.
+ * Supports case-insensitive matching for convenience.
+ * Uses negative lookbehind/lookahead to avoid corrupting already-correct double-braced placeholders.
+ */
+export function normalizePlaceholders(value: string): string {
+  let result = value;
+  for (const [legacy, standard] of Object.entries(LEGACY_PLACEHOLDER_MAP)) {
+    // Extract the placeholder name (without braces) for the regex
+    const placeholderName = legacy.slice(1, -1);
+    // Use negative lookbehind/lookahead to avoid matching inside {{Placeholder}}
+    // (?<!\{) = not preceded by {
+    // \{...\} = match the literal placeholder with single braces
+    // (?!\}) = not followed by }
+    const pattern = new RegExp(`(?<!\\{)\\{${placeholderName}\\}(?!\\})`, "gi");
+    result = result.replace(pattern, standard);
+  }
+  return result;
+}
+
 export type ProviderRegistry = Map<string, MediaUnderstandingProvider>;
 
 function trimOutput(text: string, maxChars?: number): string {
@@ -582,7 +617,7 @@ export async function runCliEntry(params: {
     MaxChars: maxChars,
   };
   const argv = [command, ...args].map((part, index) =>
-    index === 0 ? part : applyTemplate(part, templCtx),
+    index === 0 ? part : applyTemplate(normalizePlaceholders(part), templCtx),
   );
   try {
     if (shouldLogVerbose()) {
