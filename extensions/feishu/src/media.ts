@@ -1,7 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
+<<<<<<< HEAD
 import { withTempDownloadPath, type ClawdbotConfig } from "openclaw/plugin-sdk";
+=======
+>>>>>>> f3755a2f8 (refactor: revert upload layer rewrite, keep audio support and reply-dispatcher integration)
 import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
 import { normalizeFeishuExternalKey } from "./external-keys.js";
@@ -208,6 +211,71 @@ export async function uploadImageFeishu(params: {
 }
 
 /**
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+ * Resolve Feishu API base URL from domain config.
+ */
+function resolveBaseUrl(domain?: FeishuDomain): string {
+  if (domain === "lark") {
+    return "https://open.larksuite.com";
+  }
+  if (!domain || domain === "feishu") {
+    return "https://open.feishu.cn";
+  }
+  // Custom domain for private deployment
+  return domain.replace(/\/+$/, "");
+}
+
+// Simple in-memory token cache (appId → { token, expiresAt })
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+
+/**
+ * Get a Feishu tenant access token, with simple caching.
+ */
+async function getTenantAccessToken(
+  appId: string,
+  appSecret: string,
+  baseUrl: string,
+): Promise<string> {
+  const cacheKey = `${baseUrl}:${appId}`;
+  const cached = tokenCache.get(cacheKey);
+  // Refresh 60s before actual expiry
+  if (cached && Date.now() < cached.expiresAt - 60_000) {
+    return cached.token;
+  }
+
+  const res = await fetch(`${baseUrl}/open-apis/auth/v3/tenant_access_token/internal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+  });
+  if (!res.ok) {
+    throw new Error(`Feishu token request failed: HTTP ${res.status}`);
+  }
+
+  const data = (await res.json()) as {
+    code: number;
+    msg?: string;
+    tenant_access_token?: string;
+    expire?: number;
+  };
+  if (data.code !== 0 || !data.tenant_access_token) {
+    throw new Error(`Feishu token request failed: ${data.msg ?? `code ${data.code}`}`);
+  }
+
+  const token = data.tenant_access_token;
+  tokenCache.set(cacheKey, {
+    token,
+    expiresAt: Date.now() + (data.expire ?? 7200) * 1000,
+  });
+  return token;
+}
+
+/**
+>>>>>>> 89bf83cb5 (fix: address PR review feedback - lint, cache key, error handling)
+=======
+>>>>>>> f3755a2f8 (refactor: revert upload layer rewrite, keep audio support and reply-dispatcher integration)
  * Upload a file to Feishu and get a file_key for sending.
  * Max file size: 30MB
  */
@@ -227,28 +295,63 @@ export async function uploadFileFeishu(params: {
 
   const client = createFeishuClient(account);
 
+<<<<<<< HEAD
   // SDK accepts Buffer directly or fs.ReadStream for file paths
   // Using Readable.from(buffer) causes issues with form-data library
   // See: https://github.com/larksuite/node-sdk/issues/121
   const fileData = typeof file === "string" ? fs.createReadStream(file) : file;
+=======
+  // SDK expects a Readable stream, not a Buffer
+  // Use type assertion since SDK actually accepts any Readable at runtime
+  const fileStream = typeof file === "string" ? fs.createReadStream(file) : Readable.from(file);
+>>>>>>> f3755a2f8 (refactor: revert upload layer rewrite, keep audio support and reply-dispatcher integration)
 
   const response = await client.im.file.create({
     data: {
       file_type: fileType,
       file_name: fileName,
+<<<<<<< HEAD
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK accepts Buffer or ReadStream
       file: fileData as any,
+=======
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK stream type
+      file: fileStream as any,
+>>>>>>> f3755a2f8 (refactor: revert upload layer rewrite, keep audio support and reply-dispatcher integration)
       ...(duration !== undefined && { duration }),
     },
   });
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
   // SDK v1.30+ returns data directly without code wrapper on success
+>>>>>>> f3755a2f8 (refactor: revert upload layer rewrite, keep audio support and reply-dispatcher integration)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK response type
   const responseAny = response as any;
   if (responseAny.code !== undefined && responseAny.code !== 0) {
     throw new Error(`Feishu file upload failed: ${responseAny.msg || `code ${responseAny.code}`}`);
+<<<<<<< HEAD
+=======
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Feishu file upload failed: HTTP ${res.status}${body ? ` — ${body}` : ""}`);
   }
 
+  const data = (await res.json()) as {
+    code: number;
+    msg?: string;
+    file_key?: string;
+    data?: { file_key?: string };
+  };
+  if (data.code !== 0) {
+    throw new Error(`Feishu file upload failed: ${data.msg ?? `code ${data.code}`}`);
+>>>>>>> 89bf83cb5 (fix: address PR review feedback - lint, cache key, error handling)
+  }
+
+=======
+  }
+
+>>>>>>> f3755a2f8 (refactor: revert upload layer rewrite, keep audio support and reply-dispatcher integration)
   const fileKey = responseAny.file_key ?? responseAny.data?.file_key;
   if (!fileKey) {
     throw new Error("Feishu file upload failed: no file_key returned");
@@ -345,6 +448,49 @@ export async function sendFileFeishu(params: {
 }
 
 /**
+ * Send an audio message using a file_key.
+ * Displays as a playable voice message in Feishu (not a file download).
+ */
+export async function sendAudioFeishu(params: {
+  cfg: ClawdbotConfig;
+  to: string;
+  fileKey: string;
+  replyToMessageId?: string;
+  accountId?: string;
+}): Promise<SendMediaResult> {
+  const { cfg, to, fileKey, replyToMessageId, accountId } = params;
+  const { client, receiveId, receiveIdType } = resolveFeishuSendTarget({
+    cfg,
+    to,
+    accountId,
+  });
+  const content = JSON.stringify({ file_key: fileKey });
+
+  if (replyToMessageId) {
+    const response = await client.im.message.reply({
+      path: { message_id: replyToMessageId },
+      data: {
+        content,
+        msg_type: "audio",
+      },
+    });
+    assertFeishuMessageApiSuccess(response, "Feishu audio reply failed");
+    return toFeishuSendResult(response, receiveId);
+  }
+
+  const response = await client.im.message.create({
+    params: { receive_id_type: receiveIdType },
+    data: {
+      receive_id: receiveId,
+      content,
+      msg_type: "audio",
+    },
+  });
+  assertFeishuMessageApiSuccess(response, "Feishu audio send failed");
+  return toFeishuSendResult(response, receiveId);
+}
+
+/**
  * Helper to detect file type from extension
  */
 export function detectFileType(
@@ -401,12 +547,35 @@ export async function sendMediaFeishu(params: {
     buffer = mediaBuffer;
     name = fileName ?? "file";
   } else if (mediaUrl) {
+<<<<<<< HEAD
     const loaded = await getFeishuRuntime().media.loadWebMedia(mediaUrl, {
       maxBytes: mediaMaxBytes,
       optimizeImages: false,
     });
     buffer = loaded.buffer;
     name = fileName ?? loaded.fileName ?? "file";
+=======
+    if (isLocalPath(mediaUrl)) {
+      // Local file path - read directly
+      const filePath = mediaUrl.startsWith("~")
+        ? mediaUrl.replace("~", process.env.HOME ?? "")
+        : mediaUrl.replace("file://", "");
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Local file not found: ${filePath}`);
+      }
+      buffer = fs.readFileSync(filePath);
+      name = fileName ?? path.basename(filePath);
+    } else {
+      // Remote URL - fetch
+      const response = await fetch(mediaUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch media from URL: ${response.status}`);
+      }
+      buffer = Buffer.from(await response.arrayBuffer());
+      name = fileName ?? (path.basename(new URL(mediaUrl).pathname) || "file");
+    }
+>>>>>>> f3755a2f8 (refactor: revert upload layer rewrite, keep audio support and reply-dispatcher integration)
   } else {
     throw new Error("Either mediaUrl or mediaBuffer must be provided");
   }
@@ -418,24 +587,31 @@ export async function sendMediaFeishu(params: {
   if (isImage) {
     const { imageKey } = await uploadImageFeishu({ cfg, image: buffer, accountId });
     return sendImageFeishu({ cfg, to, imageKey, replyToMessageId, accountId });
-  } else {
-    const fileType = detectFileType(name);
-    const { fileKey } = await uploadFileFeishu({
-      cfg,
-      file: buffer,
-      fileName: name,
-      fileType,
-      accountId,
-    });
-    // Feishu requires msg_type "media" for audio/video, "file" for documents
-    const isMedia = fileType === "mp4" || fileType === "opus";
-    return sendFileFeishu({
-      cfg,
-      to,
-      fileKey,
-      msgType: isMedia ? "media" : "file",
-      replyToMessageId,
-      accountId,
-    });
   }
+
+  const isAudio = [".opus", ".ogg", ".mp3"].includes(ext);
+  // Upload audio as opus type so Feishu accepts it for voice playback
+  const fileType = isAudio ? ("opus" as const) : detectFileType(name);
+  const { fileKey } = await uploadFileFeishu({
+    cfg,
+    file: buffer,
+    fileName: name,
+    fileType,
+    accountId,
+  });
+
+  // Send audio as playable voice messages instead of file downloads
+  if (isAudio) {
+    return sendAudioFeishu({ cfg, to, fileKey, replyToMessageId, accountId });
+  }
+  // Feishu requires msg_type "media" for video, "file" for documents
+  const isMedia = fileType === "mp4";
+  return sendFileFeishu({
+    cfg,
+    to,
+    fileKey,
+    msgType: isMedia ? "media" : "file",
+    replyToMessageId,
+    accountId,
+  });
 }
