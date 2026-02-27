@@ -342,8 +342,13 @@ export function createSlackMonitorContext(params: {
           channelAllowed,
         })
       ) {
-        logVerbose(
-          `slack: drop channel ${p.channelId} (groupPolicy=${params.groupPolicy}, ${channelMatchMeta})`,
+        // Log at warn level so allowlist mismatches are visible without verbose mode.
+        // Case-sensitive channel ID mismatches (e.g. config has "c0abc" but Slack
+        // sends "C0ABC") used to cause silent drops that were hard to diagnose.
+        const channelLabel = p.channelName ? `${p.channelId} (#${p.channelName})` : p.channelId;
+        logger.warn(
+          { channelId: p.channelId, groupPolicy: params.groupPolicy },
+          `slack: channel event dropped for ${channelLabel} (groupPolicy=${params.groupPolicy}, ${channelMatchMeta}) — verify channel IDs in config match Slack's uppercase format`,
         );
         return false;
       }

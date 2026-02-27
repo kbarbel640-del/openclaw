@@ -110,6 +110,38 @@ describe("resolveChannelGroupPolicy", () => {
     expect(policy.allowed).toBe(true);
   });
 
+  it("allows groups via case-insensitive matching when groupIdCaseInsensitive is true", () => {
+    const cfg = {
+      channels: {
+        slack: {
+          groupPolicy: "allowlist",
+          groups: {
+            c0abc12345: { requireMention: false },
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    // Without case-insensitive flag, uppercase ID does not match lowercase config
+    const strictPolicy = resolveChannelGroupPolicy({
+      cfg,
+      channel: "slack",
+      groupId: "C0ABC12345",
+    });
+    expect(strictPolicy.allowed).toBe(false);
+    expect(strictPolicy.groupConfig).toBeUndefined();
+
+    // With case-insensitive flag, uppercase ID matches lowercase config
+    const relaxedPolicy = resolveChannelGroupPolicy({
+      cfg,
+      channel: "slack",
+      groupId: "C0ABC12345",
+      groupIdCaseInsensitive: true,
+    });
+    expect(relaxedPolicy.allowed).toBe(true);
+    expect(relaxedPolicy.groupConfig).toEqual({ requireMention: false });
+  });
+
   it("still fails closed when groupPolicy=allowlist without groups or groupAllowFrom", () => {
     const cfg = {
       channels: {
