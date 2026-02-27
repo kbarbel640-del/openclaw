@@ -61,7 +61,12 @@ import {
   validateRequestFrame,
 } from "../../protocol/index.js";
 import { parseGatewayRole } from "../../role-policy.js";
-import { MAX_BUFFERED_BYTES, MAX_PAYLOAD_BYTES, TICK_INTERVAL_MS } from "../../server-constants.js";
+import {
+  getMaxPreAuthFrameBytes,
+  MAX_BUFFERED_BYTES,
+  MAX_PAYLOAD_BYTES,
+  TICK_INTERVAL_MS,
+} from "../../server-constants.js";
 import { handleGatewayRequest } from "../../server-methods.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "../../server-methods/types.js";
 import { formatError } from "../../server-utils.js";
@@ -206,6 +211,26 @@ function resolvePinnedClientMetadata(params: {
   };
 }
 
+function rawDataByteLength(data: WebSocket.RawData): number {
+  if (typeof data === "string") {
+    return Buffer.byteLength(data, "utf8");
+  }
+  if (Buffer.isBuffer(data)) {
+    return data.byteLength;
+  }
+  if (Array.isArray(data)) {
+    let total = 0;
+    for (const chunk of data) {
+      total += chunk.byteLength;
+    }
+    return total;
+  }
+  if (data instanceof ArrayBuffer) {
+    return data.byteLength;
+  }
+  return Buffer.byteLength(String(data), "utf8");
+}
+
 export function attachGatewayWsMessageHandler(params: {
   socket: WebSocket;
   upgradeReq: IncomingMessage;
@@ -334,6 +359,23 @@ export function attachGatewayWsMessageHandler(params: {
   socket.on("message", async (data) => {
     if (isClosed()) {
       return;
+    }
+    const preAuthClient = getClient();
+    if (!preAuthClient) {
+      const preAuthFrameBytes = rawDataByteLength(data);
+      const maxPreAuthFrameBytes = getMaxPreAuthFrameBytes();
+      if (preAuthFrameBytes > maxPreAuthFrameBytes) {
+        setHandshakeState("failed");
+        setCloseCause("preauth-frame-too-large", {
+          preAuthFrameBytes,
+          maxPreAuthFrameBytes,
+        });
+        logWsControl.warn(
+          `pre-auth frame too large conn=${connId} remote=${remoteAddr ?? "?"} bytes=${preAuthFrameBytes} limit=${maxPreAuthFrameBytes}`,
+        );
+        close(1009, "pre-auth frame too large");
+        return;
+      }
     }
     const text = rawDataToString(data);
     try {
