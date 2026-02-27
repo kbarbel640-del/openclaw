@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "./config.js";
+import { isBlockedObjectKey } from "./prototype-keys.js";
 import type { WhatsAppConfig } from "./types.js";
 
 export type MergeSectionOptions<T> = {
@@ -12,6 +13,9 @@ export function mergeConfigSection<T extends Record<string, unknown>>(
 ): T {
   const next: Record<string, unknown> = { ...(base ?? undefined) };
   for (const [key, value] of Object.entries(patch) as [keyof T, T[keyof T]][]) {
+    if (isBlockedObjectKey(key as string)) {
+      continue;
+    }
     if (value === undefined) {
       if (options.unsetOnUndefined?.includes(key)) {
         delete next[key as string];
