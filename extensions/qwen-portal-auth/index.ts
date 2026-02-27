@@ -3,6 +3,10 @@ import {
   type OpenClawPluginApi,
   type ProviderAuthContext,
 } from "openclaw/plugin-sdk";
+import {
+  QWEN_DASHSCOPE_MODEL_CATALOG,
+  buildQwenDashscopeModelDefinition,
+} from "../../src/agents/qwen-models.js";
 import { loginQwenPortalOAuth } from "./oauth.js";
 
 const PROVIDER_ID = "qwen-portal";
@@ -190,53 +194,7 @@ const qwenPortalPlugin = {
                       baseUrl,
                       apiKey: `profile:${profileId}`,
                       api: "openai-completions",
-                      models: [
-                        buildModelDefinition({
-                          id: "qwen-plus",
-                          name: "Qwen Plus",
-                          input: ["text"],
-                        }),
-                        buildModelDefinition({
-                          id: "qwen-turbo",
-                          name: "Qwen Turbo",
-                          input: ["text"],
-                        }),
-                        buildModelDefinition({
-                          id: "qwen-max",
-                          name: "Qwen Max",
-                          input: ["text"],
-                        }),
-                        buildModelDefinition({
-                          id: "qwen-coder-plus",
-                          name: "Qwen Coder Plus",
-                          input: ["text"],
-                        }),
-                        buildModelDefinition({
-                          id: "qwen3-coder-plus",
-                          name: "Qwen3 Coder Plus",
-                          input: ["text"],
-                        }),
-                        buildModelDefinition({
-                          id: "qwen3-coder-flash",
-                          name: "Qwen3 Coder Flash",
-                          input: ["text"],
-                        }),
-                        buildModelDefinition({
-                          id: "qwen3-max",
-                          name: "Qwen3 Max",
-                          input: ["text"],
-                        }),
-                        buildModelDefinition({
-                          id: "qwen-vl-plus",
-                          name: "Qwen Vision Plus",
-                          input: ["text", "image"],
-                        }),
-                        buildModelDefinition({
-                          id: "qwen3-vl-plus",
-                          name: "Qwen3 Vision Plus",
-                          input: ["text", "image"],
-                        }),
-                      ],
+                      models: QWEN_DASHSCOPE_MODEL_CATALOG.map(buildQwenDashscopeModelDefinition),
                     },
                   },
                 },
@@ -263,7 +221,7 @@ const qwenPortalPlugin = {
                 region === "intl"
                   ? "Get your API key from: https://www.alibabacloud.com/help/en/model-studio/developer-reference/get-api-key"
                   : "Get your API key from: https://dashscope.aliyuncs.com/",
-                "Supported models: qwen-plus, qwen-turbo, qwen-max, qwen3-max, qwen-coder-plus, qwen3-coder-plus, qwen3-coder-flash, qwen-vl-plus, qwen3-vl-plus",
+                "Supported models include: qwen-plus, qwen-turbo, qwen-max, qwen3.5-plus, qwen3-max, qwen-coder-plus, qwen3-coder-plus, qwen3-coder-flash, qwen-vl-plus, qwen3-vl-plus",
               ],
             };
           },
