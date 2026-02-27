@@ -19,6 +19,8 @@ import {
 import type { ApiKeyStorageOptions } from "./onboard-auth.credentials.js";
 import {
   applyAuthProfileConfig,
+  applyAvianConfig,
+  applyAvianProviderConfig,
   applyCloudflareAiGatewayConfig,
   applyCloudflareAiGatewayProviderConfig,
   applyKilocodeConfig,
@@ -49,6 +51,7 @@ import {
   applyXiaomiProviderConfig,
   applyZaiConfig,
   applyZaiProviderConfig,
+  AVIAN_DEFAULT_MODEL_REF,
   CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF,
   KILOCODE_DEFAULT_MODEL_REF,
   LITELLM_DEFAULT_MODEL_REF,
@@ -61,6 +64,7 @@ import {
   VENICE_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
   XIAOMI_DEFAULT_MODEL_REF,
+  setAvianApiKey,
   setCloudflareAiGatewayConfig,
   setQianfanApiKey,
   setGeminiApiKey,
@@ -101,6 +105,7 @@ const API_KEY_TOKEN_PROVIDER_AUTH_CHOICE: Record<string, AuthChoice> = {
   opencode: "opencode-zen",
   kilocode: "kilocode-api-key",
   qianfan: "qianfan-api-key",
+  avian: "avian-api-key",
 };
 
 const ZAI_AUTH_CHOICE_ENDPOINT: Partial<
@@ -308,6 +313,23 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     applyProviderConfig: applySyntheticProviderConfig,
     normalize: (value) => String(value ?? "").trim(),
     validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
+  },
+  "avian-api-key": {
+    provider: "avian",
+    profileId: "avian:default",
+    expectedProviders: ["avian"],
+    envLabel: "AVIAN_API_KEY",
+    promptMessage: "Enter Avian API key",
+    setCredential: setAvianApiKey,
+    defaultModel: AVIAN_DEFAULT_MODEL_REF,
+    applyDefaultConfig: applyAvianConfig,
+    applyProviderConfig: applyAvianProviderConfig,
+    noteDefault: AVIAN_DEFAULT_MODEL_REF,
+    noteMessage: [
+      "Avian provides OpenAI-compatible access to DeepSeek, Kimi, GLM, and MiniMax models.",
+      "Get your API key at: https://avian.io",
+    ].join("\n"),
+    noteTitle: "Avian",
   },
 };
 
