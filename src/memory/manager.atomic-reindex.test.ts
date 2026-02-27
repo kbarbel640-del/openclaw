@@ -83,4 +83,53 @@ describe("memory manager atomic reindex", () => {
     const afterStatus = manager.status();
     expect(afterStatus.chunks).toBeGreaterThan(0);
   });
+
+  it("keeps status readable while atomic reindex swaps database files", async () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          workspace: workspaceDir,
+          memorySearch: {
+            provider: "openai",
+            model: "mock-embed",
+            store: { path: indexPath },
+            cache: { enabled: false },
+            chunking: { tokens: 4000, overlap: 0 },
+            sync: { watch: false, onSessionStart: false, onSearch: false },
+          },
+        },
+        list: [{ id: "main", default: true }],
+      },
+    } as OpenClawConfig;
+
+    manager = await getRequiredMemoryIndexManager({ cfg, agentId: "main" });
+    await manager.sync({ force: true });
+
+    const managerWithInternals = manager as unknown as {
+      swapIndexFiles: (targetPath: string, tempPath: string) => Promise<void>;
+    };
+    const originalSwap = managerWithInternals.swapIndexFiles.bind(managerWithInternals);
+    let releaseSwap: (() => void) | undefined;
+    const waitForSwap = new Promise<void>((resolve) => {
+      releaseSwap = resolve;
+    });
+
+    const swapSpy = vi
+      .spyOn(managerWithInternals, "swapIndexFiles")
+      .mockImplementation(async (targetPath, tempPath) => {
+        await waitForSwap;
+        await originalSwap(targetPath, tempPath);
+      });
+
+    const reindexPromise = manager.sync({ force: true });
+    try {
+      await vi.waitFor(() => expect(swapSpy).toHaveBeenCalledTimes(1));
+      expect(() => manager!.status()).not.toThrow();
+      releaseSwap?.();
+      await reindexPromise;
+    } finally {
+      releaseSwap?.();
+      swapSpy.mockRestore();
+    }
+  });
 });
