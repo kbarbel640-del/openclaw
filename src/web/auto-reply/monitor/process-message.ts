@@ -39,6 +39,7 @@ import { whatsappInboundLog, whatsappOutboundLog } from "../loggers.js";
 import type { WebInboundMsg } from "../types.js";
 import { elide } from "../util.js";
 import { maybeSendAckReaction } from "./ack-reaction.js";
+import type { DmHistoryEntry } from "./dm-gating.js";
 import { formatGroupMembers } from "./group-members.js";
 import { trackBackgroundTask, updateLastRouteInBackground } from "./last-route.js";
 import { buildInboundLine } from "./message-line.js";
@@ -140,6 +141,9 @@ export async function processMessage(params: {
   maxMediaTextChunkLimit?: number;
   groupHistory?: GroupHistoryEntry[];
   suppressGroupHistoryClear?: boolean;
+  dmHistory?: DmHistoryEntry[];
+  dmHistories?: Map<string, DmHistoryEntry[]>;
+  dmHistoryKey?: string;
 }) {
   const conversationId = params.msg.conversationId ?? params.msg.from;
   const storePath = resolveStorePath(params.cfg.session?.store, {
@@ -158,6 +162,7 @@ export async function processMessage(params: {
     envelope: envelopeOptions,
   });
   let shouldClearGroupHistory = false;
+  let shouldClearDmHistory = false;
 
   if (params.msg.chatType === "group") {
     const history = params.groupHistory ?? params.groupHistories.get(params.groupHistoryKey) ?? [];
@@ -185,6 +190,30 @@ export async function processMessage(params: {
       });
     }
     shouldClearGroupHistory = !(params.suppressGroupHistoryClear ?? false);
+  } else if (params.dmHistory && params.dmHistory.length > 0) {
+    // Include buffered outbound DM messages as context so the LLM is aware
+    // of what the owner said since its last reply.
+    const historyEntries: HistoryEntry[] = params.dmHistory.map((m) => ({
+      sender: m.sender,
+      body: `[${m.sender}]: ${m.body}`,
+      timestamp: m.timestamp,
+    }));
+    combinedBody = buildHistoryContextFromEntries({
+      entries: historyEntries,
+      currentMessage: combinedBody,
+      excludeLast: false,
+      formatEntry: (entry) => {
+        return formatInboundEnvelope({
+          channel: "WhatsApp",
+          from: conversationId,
+          timestamp: entry.timestamp,
+          body: entry.body,
+          chatType: "direct",
+          envelope: envelopeOptions,
+        });
+      },
+    });
+    shouldClearDmHistory = true;
   }
 
   // Echo detection uses combined body so we don't respond twice.
@@ -432,12 +461,18 @@ export async function processMessage(params: {
     if (shouldClearGroupHistory) {
       params.groupHistories.set(params.groupHistoryKey, []);
     }
+    if (shouldClearDmHistory && params.dmHistories && params.dmHistoryKey) {
+      params.dmHistories.set(params.dmHistoryKey, []);
+    }
     logVerbose("Skipping auto-reply: silent token or no text/media returned from resolver");
     return false;
   }
 
   if (shouldClearGroupHistory) {
     params.groupHistories.set(params.groupHistoryKey, []);
+  }
+  if (shouldClearDmHistory && params.dmHistories && params.dmHistoryKey) {
+    params.dmHistories.set(params.dmHistoryKey, []);
   }
 
   return didSendReply;

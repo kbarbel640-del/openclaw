@@ -330,6 +330,7 @@ export async function monitorWebInbox(options: {
         mediaPath,
         mediaType,
         mediaFileName,
+        fromMe: Boolean(msg.key?.fromMe),
       };
       try {
         const task = Promise.resolve(debouncer.enqueue(inboundMessage));

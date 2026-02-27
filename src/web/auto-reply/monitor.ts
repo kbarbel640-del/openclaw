@@ -26,6 +26,7 @@ import { formatError, getWebAuthAgeMs, readWebSelfId } from "../session.js";
 import { DEFAULT_WEB_MEDIA_BYTES } from "./constants.js";
 import { whatsappHeartbeatLog, whatsappLog } from "./loggers.js";
 import { buildMentionConfig } from "./mentions.js";
+import { DEFAULT_DM_HISTORY_LIMIT, type DmHistoryEntry } from "./monitor/dm-gating.js";
 import { createEchoTracker } from "./monitor/echo.js";
 import { createWebOnMessageHandler } from "./monitor/on-message.js";
 import type { WebChannelStatus, WebInboundMsg, WebMonitorTuning } from "./types.js";
@@ -116,6 +117,11 @@ export async function monitorWebChannel(
       senderJid?: string;
     }>
   >();
+  const dmHistories = new Map<string, DmHistoryEntry[]>();
+  const dmHistoryLimit =
+    cfg.channels?.whatsapp?.accounts?.[tuning.accountId ?? ""]?.historyLimit ??
+    cfg.channels?.whatsapp?.historyLimit ??
+    DEFAULT_DM_HISTORY_LIMIT;
   const groupMemberNames = new Map<string, Map<string, string>>();
   const echoTracker = createEchoTracker({ maxItems: 100, logVerbose });
 
@@ -174,6 +180,8 @@ export async function monitorWebChannel(
       groupHistoryLimit,
       groupHistories,
       groupMemberNames,
+      dmHistoryLimit,
+      dmHistories,
       echoTracker,
       backgroundTasks,
       replyResolver: replyResolver ?? getReplyFromConfig,

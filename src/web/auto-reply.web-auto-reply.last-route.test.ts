@@ -34,6 +34,8 @@ function createHandlerForTest(opts: { cfg: OpenClawConfig; replyResolver: unknow
     groupHistoryLimit: 3,
     groupHistories: new Map(),
     groupMemberNames: new Map(),
+    dmHistoryLimit: 20,
+    dmHistories: new Map(),
     echoTracker: createEchoTracker({ maxItems: 10 }),
     backgroundTasks,
     replyResolver: opts.replyResolver as Parameters<
