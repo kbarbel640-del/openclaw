@@ -10,6 +10,11 @@ type GatewayProgramArgs = {
 type GatewayRuntimePreference = "auto" | "node" | "bun";
 
 async function resolveCliEntrypointPathForService(): Promise<string> {
+  const globalEntrypoint = await resolveCliEntrypointFromGlobalBinary();
+  if (globalEntrypoint) {
+    return globalEntrypoint;
+  }
+
   const argv1 = process.argv[1];
   if (!argv1) {
     throw new Error("Unable to resolve CLI entrypoint path");
@@ -51,6 +56,29 @@ async function resolveCliEntrypointPathForService(): Promise<string> {
   throw new Error(
     `Cannot find built CLI at ${distCandidates.join(" or ")}. Run "pnpm build" first, or use dev mode.`,
   );
+}
+
+async function resolveCliEntrypointFromGlobalBinary(): Promise<string | null> {
+  let globalBinaryPath: string;
+  try {
+    globalBinaryPath = await resolveBinaryPath("openclaw");
+  } catch {
+    return null;
+  }
+
+  const normalizedBinaryPath = path.resolve(globalBinaryPath);
+  const resolvedBinaryPath = await resolveRealpathSafe(normalizedBinaryPath);
+  const distCandidates = buildDistCandidates(normalizedBinaryPath, resolvedBinaryPath);
+  for (const candidate of distCandidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // keep going
+    }
+  }
+
+  return null;
 }
 
 async function resolveRealpathSafe(inputPath: string): Promise<string> {
