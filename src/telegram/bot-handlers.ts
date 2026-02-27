@@ -579,7 +579,7 @@ export const registerTelegramHandlers = ({
     return { dmPolicy, ...groupAllowContext };
   };
 
-  const authorizeTelegramEventSender = (params: {
+  const authorizeTelegramEventSender = async (params: {
     chatId: number;
     chatTitle?: string;
     isGroup: boolean;
@@ -587,7 +587,7 @@ export const registerTelegramHandlers = ({
     senderUsername: string;
     mode: TelegramEventAuthorizationMode;
     context: TelegramEventAuthorizationContext;
-  }): TelegramEventAuthorizationResult => {
+  }): Promise<TelegramEventAuthorizationResult> => {
     const { chatId, chatTitle, isGroup, senderId, senderUsername, mode, context } = params;
     const {
       dmPolicy,
@@ -606,7 +606,7 @@ export const registerTelegramHandlers = ({
       deniedGroupReason,
     } = authRules;
     if (
-      shouldSkipGroupMessage({
+      await shouldSkipGroupMessage({
         isGroup,
         chatId,
         chatTitle,
@@ -684,7 +684,7 @@ export const registerTelegramHandlers = ({
         chatId,
         isForum,
       });
-      const senderAuthorization = authorizeTelegramEventSender({
+      const senderAuthorization = await authorizeTelegramEventSender({
         chatId,
         chatTitle: reaction.chat.title,
         isGroup,
@@ -1026,7 +1026,7 @@ export const registerTelegramHandlers = ({
       const senderUsername = callback.from?.username ?? "";
       const authorizationMode: TelegramEventAuthorizationMode =
         inlineButtonsScope === "allowlist" ? "callback-allowlist" : "callback-scope";
-      const senderAuthorization = authorizeTelegramEventSender({
+      const senderAuthorization = await authorizeTelegramEventSender({
         chatId,
         chatTitle: callbackMessage.chat.title,
         isGroup,

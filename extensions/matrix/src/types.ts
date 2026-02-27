@@ -99,7 +99,7 @@ export type CoreConfig = {
   channels?: {
     matrix?: MatrixConfig;
     defaults?: {
-      groupPolicy?: "open" | "allowlist" | "disabled";
+      groupPolicy?: GroupPolicy;
     };
   };
   commands?: {

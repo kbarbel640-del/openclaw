@@ -257,7 +257,10 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     blockedLabel: GROUP_POLICY_BLOCKED_LABEL.room,
     log: (message) => logVerboseMessage(message),
   });
-  const groupPolicy = allowlistOnly && groupPolicyRaw === "open" ? "allowlist" : groupPolicyRaw;
+  // "members" is Telegram-only; normalize to "open" for Matrix
+  const normalizedPolicy: "open" | "allowlist" | "disabled" =
+    groupPolicyRaw === "members" ? "open" : groupPolicyRaw;
+  const groupPolicy = allowlistOnly && normalizedPolicy === "open" ? "allowlist" : normalizedPolicy;
   const replyToMode = opts.replyToMode ?? accountConfig.replyToMode ?? "off";
   const threadReplies = accountConfig.threadReplies ?? "inbound";
   const dmConfig = accountConfig.dm;

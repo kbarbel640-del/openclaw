@@ -453,7 +453,8 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       await resolveSignalAccessState({
         accountId: deps.accountId,
         dmPolicy: deps.dmPolicy,
-        groupPolicy: deps.groupPolicy,
+        // "members" is Telegram-only; normalize to "open" for Signal
+        groupPolicy: deps.groupPolicy === "members" ? "open" : deps.groupPolicy,
         allowFrom: deps.allowFrom,
         groupAllowFrom: deps.groupAllowFrom,
         sender,

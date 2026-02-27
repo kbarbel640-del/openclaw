@@ -326,7 +326,10 @@ export const msteamsOnboardingAdapter: ChannelOnboardingAdapter = {
     });
     if (accessConfig) {
       if (accessConfig.policy !== "allowlist") {
-        next = setMSTeamsGroupPolicy(next, accessConfig.policy);
+        // "members" is Telegram-only; normalize to "open" for MS Teams
+        const normalizedPolicy: "open" | "allowlist" | "disabled" =
+          accessConfig.policy === "members" ? "open" : accessConfig.policy;
+        next = setMSTeamsGroupPolicy(next, normalizedPolicy);
       } else {
         let entries = accessConfig.entries
           .map((entry) => parseMSTeamsTeamEntry(entry))

@@ -603,11 +603,15 @@ export async function handleFeishuMessage(params: {
 
   if (isGroup) {
     const defaultGroupPolicy = resolveDefaultGroupPolicy(cfg);
-    const { groupPolicy, providerMissingFallbackApplied } = resolveOpenProviderRuntimeGroupPolicy({
-      providerConfigPresent: cfg.channels?.feishu !== undefined,
-      groupPolicy: feishuCfg?.groupPolicy,
-      defaultGroupPolicy,
-    });
+    const { groupPolicy: rawGroupPolicy, providerMissingFallbackApplied } =
+      resolveOpenProviderRuntimeGroupPolicy({
+        providerConfigPresent: cfg.channels?.feishu !== undefined,
+        groupPolicy: feishuCfg?.groupPolicy,
+        defaultGroupPolicy,
+      });
+    // "members" is Telegram-only; normalize to "open" for Feishu
+    const groupPolicy: "open" | "allowlist" | "disabled" =
+      rawGroupPolicy === "members" ? "open" : rawGroupPolicy;
     warnMissingProviderGroupPolicyFallbackOnce({
       providerMissingFallbackApplied,
       providerKey: "feishu",
