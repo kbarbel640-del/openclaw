@@ -101,6 +101,12 @@ export type ToolCallInputRepairReport = {
 
 export type ToolCallInputRepairOptions = {
   allowedToolNames?: Iterable<string>;
+  /**
+   * If true, skip filtering tool calls from the last assistant message if it contains
+   * thinking or redacted_thinking blocks. This is required for Anthropic API compatibility
+   * since they reject any modification to messages with thinking blocks.
+   */
+  skipLastAssistantMessageIfHasThinkingBlocks?: boolean;
 };
 
 export function stripToolResultDetails(messages: AgentMessage[]): AgentMessage[] {
@@ -122,6 +128,20 @@ export function stripToolResultDetails(messages: AgentMessage[]): AgentMessage[]
   return touched ? out : messages;
 }
 
+/**
+ * Check if a message content array contains thinking or redacted_thinking blocks.
+ */
+function hasThinkingBlocks(content: unknown[]): boolean {
+  return content.some(
+    (block) =>
+      block &&
+      typeof block === "object" &&
+      "type" in block &&
+      typeof block.type === "string" &&
+      (block.type === "thinking" || block.type === "redacted_thinking"),
+  );
+}
+
 export function repairToolCallInputs(
   messages: AgentMessage[],
   options?: ToolCallInputRepairOptions,
@@ -132,13 +152,39 @@ export function repairToolCallInputs(
   const out: AgentMessage[] = [];
   const allowedToolNames = normalizeAllowedToolNames(options?.allowedToolNames);
 
-  for (const msg of messages) {
+  // Find the index of the last assistant message if we need to skip it
+  const skipLastAssistantMessageIfHasThinkingBlocks =
+    options?.skipLastAssistantMessageIfHasThinkingBlocks ?? false;
+  let lastAssistantMessageIndex = -1;
+  if (skipLastAssistantMessageIfHasThinkingBlocks) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      if (msg && typeof msg === "object" && (msg as { role?: unknown }).role === "assistant") {
+        lastAssistantMessageIndex = i;
+        break;
+      }
+    }
+  }
+
+  for (let msgIndex = 0; msgIndex < messages.length; msgIndex += 1) {
+    const msg = messages[msgIndex];
     if (!msg || typeof msg !== "object") {
       out.push(msg);
       continue;
     }
 
     if (msg.role !== "assistant" || !Array.isArray(msg.content)) {
+      out.push(msg);
+      continue;
+    }
+
+    // Skip filtering tool calls from the last assistant message if it has thinking blocks
+    // This is required for Anthropic API compatibility
+    if (
+      skipLastAssistantMessageIfHasThinkingBlocks &&
+      msgIndex === lastAssistantMessageIndex &&
+      hasThinkingBlocks(msg.content)
+    ) {
       out.push(msg);
       continue;
     }
