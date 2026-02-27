@@ -45,8 +45,10 @@ If no `provider` is explicitly set, OpenClaw auto-detects which provider to use 
 
 1. **Brave** — `BRAVE_API_KEY` env var or `search.apiKey` config
 2. **Gemini** — `GEMINI_API_KEY` env var or `search.gemini.apiKey` config
-3. **Perplexity** — `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY` env var or `search.perplexity.apiKey` config
-4. **Grok** — `XAI_API_KEY` env var or `search.grok.apiKey` config
+3. **Kimi** — `KIMI_API_KEY` / `MOONSHOT_API_KEY` env var or `search.kimi.apiKey` config
+4. **Perplexity** — `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY` env var or `search.perplexity.apiKey` config
+5. **Grok** — `XAI_API_KEY` env var or `search.grok.apiKey` config
+6. **OpenAI** — `OPENAI_API_KEY` env var or `search.openai.apiKey` config (checked last to avoid hijacking your existing chat key)
 
 If no keys are found, it falls back to Brave (you'll get a missing-key error prompting you to configure one).
 
@@ -59,7 +61,7 @@ Set the provider in config:
   tools: {
     web: {
       search: {
-        provider: "brave", // or "perplexity" or "gemini"
+        provider: "brave", // or "perplexity", "gemini", "grok", "kimi", or "openai"
       },
     },
   },
@@ -198,6 +200,45 @@ For a gateway install, put it in `~/.openclaw/.env`.
 - The default model (`gemini-2.5-flash`) is fast and cost-effective.
   Any Gemini model that supports grounding can be used.
 
+## Using OpenAI (web_search_preview)
+
+OpenAI's Responses API supports a built-in `web_search_preview` tool that returns
+AI-synthesized answers with citations from real-time web search. If you already have
+`OPENAI_API_KEY` set for chat, you can use it for web search without a separate API key.
+
+> **Note:** `web_search_preview` is a preview feature from OpenAI and may change.
+
+### Setting up OpenAI search
+
+```json5
+{
+  tools: {
+    web: {
+      search: {
+        provider: "openai",
+        openai: {
+          // API key (optional if OPENAI_API_KEY is set)
+          apiKey: "sk-...",
+          // Model (defaults to "gpt-5.2")
+          model: "gpt-5.2",
+          // Base URL override for Azure OpenAI or proxy (optional)
+          baseUrl: "https://api.openai.com",
+        },
+      },
+    },
+  },
+}
+```
+
+**Environment alternative:** set `OPENAI_API_KEY` in the Gateway environment.
+For a gateway install, put it in `~/.openclaw/.env`.
+
+### Notes
+
+- OpenAI is checked **last** in auto-detection order because `OPENAI_API_KEY` is commonly
+  set for the main chat model. Set `provider: "openai"` explicitly if you want to use it.
+- The `freshness` parameter is not supported by the OpenAI provider.
+
 ## web_search
 
 Search the web using your configured provider.
@@ -208,6 +249,10 @@ Search the web using your configured provider.
 - API key for your chosen provider:
   - **Brave**: `BRAVE_API_KEY` or `tools.web.search.apiKey`
   - **Perplexity**: `OPENROUTER_API_KEY`, `PERPLEXITY_API_KEY`, or `tools.web.search.perplexity.apiKey`
+  - **Gemini**: `GEMINI_API_KEY` or `tools.web.search.gemini.apiKey`
+  - **Grok**: `XAI_API_KEY` or `tools.web.search.grok.apiKey`
+  - **Kimi**: `KIMI_API_KEY`, `MOONSHOT_API_KEY`, or `tools.web.search.kimi.apiKey`
+  - **OpenAI**: `OPENAI_API_KEY` or `tools.web.search.openai.apiKey`
 
 ### Config
 

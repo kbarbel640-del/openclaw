@@ -264,6 +264,7 @@ export const ToolsWebSearchSchema = z
         z.literal("grok"),
         z.literal("gemini"),
         z.literal("kimi"),
+        z.literal("openai"),
       ])
       .optional(),
     apiKey: z.string().optional().register(sensitive),
@@ -298,6 +299,14 @@ export const ToolsWebSearchSchema = z
         apiKey: z.string().optional().register(sensitive),
         baseUrl: z.string().optional(),
         model: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    openai: z
+      .object({
+        apiKey: z.string().optional().register(sensitive),
+        model: z.string().optional(),
+        baseUrl: z.string().optional(),
       })
       .strict()
       .optional(),
