@@ -126,6 +126,39 @@ describe("resolveMedia getFile retry", () => {
     );
   });
 
+  it("retries when getFile hangs and times out", async () => {
+    let calls = 0;
+    const getFile = vi.fn().mockImplementation(() => {
+      calls += 1;
+      if (calls === 1) {
+        return new Promise(() => {
+          // Intentionally never resolves to simulate a hung Telegram API call.
+        });
+      }
+      return Promise.resolve({ file_path: "voice/file_0.oga" });
+    });
+
+    fetchRemoteMedia.mockResolvedValueOnce({
+      buffer: Buffer.from("audio"),
+      contentType: "audio/ogg",
+      fileName: "file_0.oga",
+    });
+    saveMediaBuffer.mockResolvedValueOnce({
+      path: "/tmp/file_0.oga",
+      contentType: "audio/ogg",
+    });
+
+    const promise = resolveMedia(makeCtx("voice", getFile), MAX_MEDIA_BYTES, BOT_TOKEN);
+    await vi.advanceTimersByTimeAsync(15_001);
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(getFile).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(
+      expect.objectContaining({ path: "/tmp/file_0.oga", placeholder: "<media:audio>" }),
+    );
+  });
+
   it.each(["voice", "photo", "video"] as const)(
     "returns null for %s when getFile exhausts retries so message is not dropped",
     async (mediaField) => {

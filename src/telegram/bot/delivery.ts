@@ -42,6 +42,8 @@ const TELEGRAM_MEDIA_SSRF_POLICY = {
   allowedHostnames: ["api.telegram.org"],
   allowRfc2544BenchmarkRange: true,
 };
+const TELEGRAM_GET_FILE_TIMEOUT_MS = 15_000;
+const TELEGRAM_MEDIA_FETCH_TIMEOUT_MS = 30_000;
 
 export async function deliverReplies(params: {
   replies: ReplyPayload[];
@@ -327,6 +329,7 @@ export async function resolveMedia(
       fetchImpl,
       filePathHint: filePath,
       maxBytes,
+      timeoutMs: TELEGRAM_MEDIA_FETCH_TIMEOUT_MS,
       ssrfPolicy: TELEGRAM_MEDIA_SSRF_POLICY,
     });
     const originalName = fetched.fileName ?? filePath;
@@ -419,16 +422,19 @@ export async function resolveMedia(
 
   let file: { file_path?: string };
   try {
-    file = await retryAsync(() => ctx.getFile(), {
-      attempts: 3,
-      minDelayMs: 1000,
-      maxDelayMs: 4000,
-      jitter: 0.2,
-      label: "telegram:getFile",
-      shouldRetry: isRetryableGetFileError,
-      onRetry: ({ attempt, maxAttempts }) =>
-        logVerbose(`telegram: getFile retry ${attempt}/${maxAttempts}`),
-    });
+    file = await retryAsync(
+      () => withTimeout(() => ctx.getFile(), TELEGRAM_GET_FILE_TIMEOUT_MS, "telegram:getFile"),
+      {
+        attempts: 3,
+        minDelayMs: 1000,
+        maxDelayMs: 4000,
+        jitter: 0.2,
+        label: "telegram:getFile",
+        shouldRetry: isRetryableGetFileError,
+        onRetry: ({ attempt, maxAttempts }) =>
+          logVerbose(`telegram: getFile retry ${attempt}/${maxAttempts}`),
+      },
+    );
   } catch (err) {
     // Handle "file is too big" separately - Telegram Bot API has a 20MB download limit
     if (isFileTooBigError(err)) {
@@ -454,6 +460,27 @@ export async function resolveMedia(
   const saved = await downloadAndSaveTelegramFile(file.file_path, fetchImpl);
   const placeholder = resolveTelegramMediaPlaceholder(msg) ?? "<media:document>";
   return { path: saved.path, contentType: saved.contentType, placeholder };
+}
+
+async function withTimeout<T>(run: () => Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      run(),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () => {
+            reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+          },
+          Math.max(1, timeoutMs),
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 function isVoiceMessagesForbidden(err: unknown): boolean {
