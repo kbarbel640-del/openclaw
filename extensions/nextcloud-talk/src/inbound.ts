@@ -342,6 +342,7 @@ export async function handleNextcloudTalkInbound(params: {
       apiUser,
       apiPassword,
       roomToken,
+      allowInsecureSsl: account.config.allowInsecureSsl ?? false,
     });
     return createTypingCallbacks({
       start: () => mgr.sendTyping(),

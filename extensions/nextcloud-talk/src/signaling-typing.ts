@@ -34,6 +34,12 @@ export type NcTalkTypingManagerParams = {
   apiPassword: string;
   /** Room/conversation token to type in */
   roomToken: string;
+  /**
+   * Disable TLS certificate verification for HPB WebSocket connections.
+   * Only use for self-hosted instances with self-signed certificates.
+   * Default: false.
+   */
+  allowInsecureSsl?: boolean;
 };
 
 export type NcTalkTypingManager = {
@@ -52,6 +58,7 @@ const SIGNALING_PATH = "/spreed";
 const JWT_REFRESH_INTERVAL_MS = 50_000; // Refresh 10s before 60s expiry
 const CONNECT_TIMEOUT_MS = 8_000;
 const HELLO_TIMEOUT_MS = 5_000;
+const FETCH_TIMEOUT_MS = 8_000;
 
 async function fetchSignalingSettings(params: {
   baseUrl: string;
@@ -65,13 +72,21 @@ async function fetchSignalingSettings(params: {
     `?token=${encodeURIComponent(roomToken)}`;
   const creds = Buffer.from(`${apiUser}:${apiPassword}`).toString("base64");
 
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Basic ${creds}`,
-      "OCS-APIRequest": "true",
-      Accept: "application/json",
-    },
-  });
+  const controller = new AbortController();
+  const fetchTimer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Authorization: `Basic ${creds}`,
+        "OCS-APIRequest": "true",
+        Accept: "application/json",
+      },
+    });
+  } finally {
+    clearTimeout(fetchTimer);
+  }
 
   if (!res.ok) {
     throw new Error(`Signaling settings fetch failed: ${res.status} ${res.statusText}`);
@@ -121,10 +136,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-async function connectWebSocket(wsUrl: string): Promise<WebSocket> {
+async function connectWebSocket(wsUrl: string, allowInsecureSsl = false): Promise<WebSocket> {
   return withTimeout(
     new Promise<WebSocket>((resolve, reject) => {
-      const sock = new WebSocket(wsUrl, { rejectUnauthorized: false });
+      const opts = allowInsecureSsl ? { rejectUnauthorized: false } : {};
+      const sock = new WebSocket(wsUrl, opts);
       sock.once("open", () => resolve(sock));
       sock.once("error", reject);
     }),
@@ -216,12 +232,13 @@ function sendTypingMessage(ws: WebSocket, roomToken: string, typing: boolean): v
 }
 
 export function createNcTalkTypingManager(params: NcTalkTypingManagerParams): NcTalkTypingManager {
-  const { baseUrl, apiUser, apiPassword, roomToken } = params;
+  const { baseUrl, apiUser, apiPassword, roomToken, allowInsecureSsl = false } = params;
 
   let ws: WebSocket | null = null;
   let hello: HelloResult | null = null;
   let jwtRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
+  let connecting = false;
   let currentJwt = "";
 
   function clearJwtTimer(): void {
@@ -261,7 +278,7 @@ export function createNcTalkTypingManager(params: NcTalkTypingManagerParams): Nc
     currentJwt = settings.jwt;
     const wsUrl = buildWsUrl(settings.hpbUrl);
 
-    const sock = await connectWebSocket(wsUrl);
+    const sock = await connectWebSocket(wsUrl, allowInsecureSsl);
     sock.on("error", () => {
       if (ws === sock) ws = null;
     });
@@ -284,10 +301,16 @@ export function createNcTalkTypingManager(params: NcTalkTypingManagerParams): Nc
   const sendTyping = async (): Promise<void> => {
     if (stopped) return;
 
-    // Connect or reconnect if needed
+    // Connect or reconnect if needed — guard against concurrent connect() calls
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      hello = null;
-      await connect();
+      if (connecting) return; // Another connect is in flight; skip this pulse
+      connecting = true;
+      try {
+        hello = null;
+        await connect();
+      } finally {
+        connecting = false;
+      }
     }
 
     if (ws && ws.readyState === WebSocket.OPEN) {

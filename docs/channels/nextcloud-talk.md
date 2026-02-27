@@ -121,9 +121,10 @@ Provider options:
 - `channels.nextcloud-talk.baseUrl`: Nextcloud instance URL.
 - `channels.nextcloud-talk.botSecret`: bot shared secret.
 - `channels.nextcloud-talk.botSecretFile`: secret file path.
-- `channels.nextcloud-talk.apiUser`: API user for room lookups (DM detection).
-- `channels.nextcloud-talk.apiPassword`: API/app password for room lookups.
+- `channels.nextcloud-talk.apiUser`: API user for room lookups and typing indicators.
+- `channels.nextcloud-talk.apiPassword`: API/app password for room lookups and typing indicators.
 - `channels.nextcloud-talk.apiPasswordFile`: API password file path.
+- `channels.nextcloud-talk.allowInsecureSsl`: Disable TLS certificate verification for HPB WebSocket connections. Only use for self-hosted instances with self-signed certificates. Default: `false`.
 - `channels.nextcloud-talk.webhookPort`: webhook listener port (default: 8788).
 - `channels.nextcloud-talk.webhookHost`: webhook host (default: 0.0.0.0).
 - `channels.nextcloud-talk.webhookPath`: webhook path (default: /nextcloud-talk-webhook).
