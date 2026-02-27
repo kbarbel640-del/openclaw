@@ -1,7 +1,7 @@
 {
   "name": "@openclaw/nostr",
-  "version": "2026.2.25",
-  "description": "OpenClaw Nostr AI agent channel plugin using NIP-63 and NIP-44",
+  "version": "2026.2.26",
+  "description": "OpenClaw Nostr channel plugin for NIP-04 encrypted DMs",
   "type": "module",
   "dependencies": {
     "nostr-tools": "^2.23.1",
@@ -14,10 +14,10 @@
     "channel": {
       "id": "nostr",
       "label": "Nostr",
-      "selectionLabel": "Nostr (NIP-63 AI messages)",
+      "selectionLabel": "Nostr (NIP-04 DMs)",
       "docsPath": "/channels/nostr",
       "docsLabel": "nostr",
-      "blurb": "AI agent messages via NIP-63 and NIP-44 encrypted content.",
+      "blurb": "Decentralized protocol; encrypted DMs via NIP-04.",
       "order": 55,
       "quickstartAllowFrom": true
     },
