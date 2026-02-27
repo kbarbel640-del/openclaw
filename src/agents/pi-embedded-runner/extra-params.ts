@@ -351,7 +351,9 @@ function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>):
     return;
   }
 
-  payload.input = repairedInput;
+  payload.input = repairedInput.filter(
+    (item) => !item || typeof item !== "object" || item.type !== "function_call_output",
+  );
   delete payload.previous_response_id;
 
   const details = dropped.map((entry) => `${entry.reason}:${entry.callId}`).join(",");

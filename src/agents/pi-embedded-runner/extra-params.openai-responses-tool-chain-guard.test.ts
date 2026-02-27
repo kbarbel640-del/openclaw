@@ -119,4 +119,31 @@ describe("extra-params: OpenAI Responses tool chain guard", () => {
     expect(payload.input[2]?.call_id).toBe("call_2");
     expect(payload.input[3]?.call_id).toBe("call_1");
   });
+
+  it("rebuilds whole tool-output turn when any call_id mapping is invalid", () => {
+    const payload: ResponsesPayload = {
+      model: "gpt-oss",
+      previous_response_id: "resp_prev_4",
+      input: [
+        {
+          type: "function_call",
+          call_id: "call_good",
+          id: "fc_good",
+          name: "good",
+          arguments: "{}",
+        },
+        { type: "function_call_output", call_id: "call_good", output: "good-ok" },
+        { type: "function_call_output", call_id: "call_missing", output: "bad" },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "continue" }] },
+      ],
+    };
+
+    runResponsesPayload(payload);
+
+    expect(payload.input).toEqual([
+      { type: "function_call", call_id: "call_good", id: "fc_good", name: "good", arguments: "{}" },
+      { type: "message", role: "user", content: [{ type: "input_text", text: "continue" }] },
+    ]);
+    expect(payload.previous_response_id).toBeUndefined();
+  });
 });
