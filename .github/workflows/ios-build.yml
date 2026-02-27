@@ -12,6 +12,7 @@ on:
       - main
     paths:
       - 'apps/ios/**'
+      - '.github/workflows/ios-build.yml'
   workflow_dispatch:
 
 jobs:
@@ -21,19 +22,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
-
-      - name: Install dependencies
-        run: pnpm install
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -77,8 +65,3 @@ jobs:
           name: ios-build
           path: apps/ios/build/
           retention-days: 30
-
-      - name: Report status
-        if: always()
-        run: |
-          echo "iOS build completed successfully" >> $GITHUB_STEP_SUMMARY
