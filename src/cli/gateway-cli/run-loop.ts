@@ -58,6 +58,11 @@ export async function runGatewayLoop(params: {
       return false;
     }
   };
+  /**
+   * Handles gateway restart after the server has closed.
+   * Attempts full process restart first, falls back to in-process restart if that fails.
+   * Clears config cache to ensure fresh config is loaded on in-process restart.
+   */
   const handleRestartAfterServerClose = async () => {
     const hadLock = await releaseLockIfHeld();
     // Release the lock BEFORE spawning so the child can acquire it immediately.
