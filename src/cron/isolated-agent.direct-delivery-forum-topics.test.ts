@@ -41,7 +41,7 @@ describe("runCronIsolatedAgentTurn forum topic delivery", () => {
     });
   });
 
-  it("keeps text-only non-threaded targets on announce flow", async () => {
+  it("uses direct delivery for text-only non-threaded targets with explicit channel+to", async () => {
     await withTempCronHome(async (home) => {
       const storePath = await writeSessionStore(home, { lastProvider: "webchat", lastTo: "" });
       const deps = createCliDeps();
@@ -55,8 +55,9 @@ describe("runCronIsolatedAgentTurn forum topic delivery", () => {
       });
 
       expect(res.status).toBe("ok");
-      expect(runSubagentAnnounceFlow).toHaveBeenCalledTimes(1);
-      expect(deps.sendMessageTelegram).not.toHaveBeenCalled();
+      expect(res.delivered).toBe(true);
+      expect(runSubagentAnnounceFlow).not.toHaveBeenCalled();
+      expect(deps.sendMessageTelegram).toHaveBeenCalledTimes(1);
     });
   });
 });
