@@ -264,6 +264,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
       agentId,
       name: rawName,
       workspace: workspaceDir,
+      skills: Array.isArray(params.skills) ? params.skills : [],
     });
     const agentDir = resolveAgentDir(nextConfig, agentId);
     nextConfig = applyAgentConfig(nextConfig, { agentId, agentDir });
@@ -333,6 +334,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
         : {}),
       ...(workspaceDir ? { workspace: workspaceDir } : {}),
       ...(model ? { model } : {}),
+      ...(Array.isArray(params.skills) ? { skills: params.skills } : {}),
     });
 
     await writeConfigFile(nextConfig);
