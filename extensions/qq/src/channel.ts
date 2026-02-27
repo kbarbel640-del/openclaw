@@ -272,6 +272,10 @@ async function handleInboundQQMessage(params: {
       Provider: "qq",
       Channel: "qq" as const,
       ChatType: msg.chatType === "group" ? ("group" as const) : ("direct" as const),
+      // SenderId enables allowlist/owner matching for group chats
+      SenderId: msg.senderOpenid,
+      // CommandAuthorized allows /new, /reset and other commands to work
+      CommandAuthorized: true,
     };
 
     // Build a reply dispatcher that sends back to QQ.
