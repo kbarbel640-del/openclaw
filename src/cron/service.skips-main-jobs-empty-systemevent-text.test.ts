@@ -5,26 +5,9 @@ import {
   createNoopLogger,
   withCronServiceForTest,
 } from "./service.test-harness.js";
-import type { CronJob } from "./types.js";
 
 const noopLogger = createNoopLogger();
 const { makeStorePath } = createCronStoreHarness();
-
-async function waitForFirstJob(
-  cron: CronService,
-  predicate: (job: CronJob | undefined) => boolean,
-) {
-  let latest: CronJob | undefined;
-  for (let i = 0; i < 30; i++) {
-    const jobs = await cron.list({ includeDisabled: true });
-    latest = jobs[0];
-    if (predicate(latest)) {
-      return latest;
-    }
-    await vi.runOnlyPendingTimersAsync();
-  }
-  return latest;
-}
 
 async function withCronService(
   cronEnabled: boolean,
@@ -59,27 +42,97 @@ describe("CronService", () => {
     vi.useRealTimers();
   });
 
-  it("skips main jobs with empty systemEvent text", async () => {
+  it("rejects main jobs with empty systemEvent text on add", async () => {
     await withCronService(true, async ({ cron, enqueueSystemEvent, requestHeartbeatNow }) => {
       const atMs = Date.parse("2025-12-13T00:00:01.000Z");
-      await cron.add({
-        name: "empty systemEvent test",
-        enabled: true,
-        schedule: { kind: "at", at: new Date(atMs).toISOString() },
-        sessionTarget: "main",
-        wakeMode: "now",
-        payload: { kind: "systemEvent", text: "   " },
-      });
-
-      vi.setSystemTime(new Date("2025-12-13T00:00:01.000Z"));
-      await vi.runOnlyPendingTimersAsync();
+      await expect(
+        cron.add({
+          name: "empty systemEvent test",
+          enabled: true,
+          schedule: { kind: "at", at: new Date(atMs).toISOString() },
+          sessionTarget: "main",
+          wakeMode: "now",
+          payload: { kind: "systemEvent", text: "   " },
+        }),
+      ).rejects.toThrow('cron.add payload.kind="systemEvent" requires non-empty text');
 
       expect(enqueueSystemEvent).not.toHaveBeenCalled();
       expect(requestHeartbeatNow).not.toHaveBeenCalled();
+      expect(
+        noopLogger.warn.mock.calls.some(
+          ([obj, msg]) =>
+            msg === "cron: payload validation rejected" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).action === "add" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).payloadKind ===
+              "systemEvent" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).event ===
+              "payload_validation_rejected",
+        ),
+      ).toBe(true);
+    });
+  });
 
-      const job = await waitForFirstJob(cron, (current) => current?.state.lastStatus === "skipped");
-      expect(job?.state.lastStatus).toBe("skipped");
-      expect(job?.state.lastError).toMatch(/non-empty/i);
+  it("logs a warning when update rejects whitespace-only payload message", async () => {
+    await withCronService(true, async ({ cron }) => {
+      const atMs = Date.parse("2025-12-13T00:00:01.000Z");
+      const job = await cron.add({
+        name: "update payload reject",
+        enabled: true,
+        schedule: { kind: "at", at: new Date(atMs).toISOString() },
+        sessionTarget: "isolated",
+        wakeMode: "now",
+        payload: { kind: "agentTurn", message: "hello" },
+      });
+
+      await expect(
+        cron.update(job.id, {
+          payload: { kind: "agentTurn", message: "   " },
+        }),
+      ).rejects.toThrow('cron.update payload.kind="agentTurn" requires non-empty message');
+      expect(
+        noopLogger.warn.mock.calls.some(
+          ([obj, msg]) =>
+            msg === "cron: payload validation rejected" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).action ===
+              "update" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).payloadKind ===
+              "agentTurn" &&
+            (obj as { action?: string; payloadKind?: string; event?: string }).event ===
+              "payload_validation_rejected",
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("keeps job unchanged when update payload validation fails", async () => {
+    await withCronService(true, async ({ cron }) => {
+      const atMs = Date.parse("2025-12-13T00:00:01.000Z");
+      const job = await cron.add({
+        name: "atomic update payload reject",
+        enabled: true,
+        schedule: { kind: "at", at: new Date(atMs).toISOString() },
+        sessionTarget: "isolated",
+        wakeMode: "now",
+        payload: { kind: "agentTurn", message: "hello" },
+      });
+
+      await expect(
+        cron.update(job.id, {
+          name: "should-not-apply",
+          enabled: false,
+          payload: { kind: "agentTurn", message: "   " },
+        }),
+      ).rejects.toThrow('cron.update payload.kind="agentTurn" requires non-empty message');
+
+      const jobs = await cron.list({ includeDisabled: true });
+      const unchanged = jobs.find((entry) => entry.id === job.id);
+      expect(unchanged).toBeDefined();
+      expect(unchanged?.name).toBe("atomic update payload reject");
+      expect(unchanged?.enabled).toBe(true);
+      expect(unchanged?.payload.kind).toBe("agentTurn");
+      if (unchanged?.payload.kind === "agentTurn") {
+        expect(unchanged.payload.message).toBe("hello");
+      }
     });
   });
 
