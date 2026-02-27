@@ -37,7 +37,7 @@ function getStepLabel(step: UpdateStepInfo): string {
 }
 
 export function inferUpdateFailureHints(result: UpdateRunResult): string[] {
-  if (result.status !== "error") {
+  if (result.status !== "error" || result.mode !== "npm") {
     return [];
   }
   const failedStep = [...result.steps].toReversed().find((step) => step.exitCode !== 0);
