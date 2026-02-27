@@ -286,10 +286,24 @@ function formatGatewayCloseError(
   connectionDetails: GatewayConnectionDetails,
 ): string {
   const reasonText = reason?.trim() || "no close reason";
+  const pairingRequestIdMatch = reasonText.match(/requestId:\s*([^\s)]+)/i);
+  const pairingRequestId =
+    pairingRequestIdMatch && pairingRequestIdMatch[1] ? pairingRequestIdMatch[1].trim() : "";
+  const pairingRecoveryHint = /pairing required/i.test(reasonText)
+    ? [
+        "Recovery:",
+        pairingRequestId
+          ? `- openclaw devices approve ${pairingRequestId}`
+          : "- openclaw devices approve --latest",
+        "- openclaw devices approve --latest",
+        "- openclaw devices list",
+      ].join("\n")
+    : "";
   const hint =
     code === 1006 ? "abnormal closure (no close frame)" : code === 1000 ? "normal closure" : "";
   const suffix = hint ? ` ${hint}` : "";
-  return `gateway closed (${code}${suffix}): ${reasonText}\n${connectionDetails.message}`;
+  const recoverySuffix = pairingRecoveryHint ? `\n${pairingRecoveryHint}` : "";
+  return `gateway closed (${code}${suffix}): ${reasonText}\n${connectionDetails.message}${recoverySuffix}`;
 }
 
 function formatGatewayTimeoutError(

@@ -355,6 +355,43 @@ describe("callGateway error details", () => {
     expect(err?.message).toContain("Bind: loopback");
   });
 
+  it("adds pairing recovery hints with requestId when pairing is required", async () => {
+    startMode = "close";
+    closeCode = 1008;
+    closeReason = "pairing required (requestId: req-123)";
+    setLocalLoopbackGatewayConfig();
+
+    let err: Error | null = null;
+    try {
+      await callGateway({ method: "health" });
+    } catch (caught) {
+      err = caught as Error;
+    }
+
+    expect(err?.message).toContain("gateway closed (1008): pairing required (requestId: req-123)");
+    expect(err?.message).toContain("openclaw devices approve req-123");
+    expect(err?.message).toContain("openclaw devices approve --latest");
+    expect(err?.message).toContain("openclaw devices list");
+  });
+
+  it("adds fallback pairing recovery hints when requestId is unavailable", async () => {
+    startMode = "close";
+    closeCode = 1008;
+    closeReason = "pairing required";
+    setLocalLoopbackGatewayConfig();
+
+    let err: Error | null = null;
+    try {
+      await callGateway({ method: "health" });
+    } catch (caught) {
+      err = caught as Error;
+    }
+
+    expect(err?.message).toContain("gateway closed (1008): pairing required");
+    expect(err?.message).toContain("openclaw devices approve --latest");
+    expect(err?.message).toContain("openclaw devices list");
+  });
+
   it("includes connection details on timeout", async () => {
     startMode = "silent";
     setLocalLoopbackGatewayConfig();
