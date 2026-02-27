@@ -409,7 +409,7 @@ export async function loadWebMedia(
   return await loadWebMediaInternal(
     mediaUrl,
     resolveWebMediaOptions({ maxBytesOrOptions, options, optimizeImages: true }),
-  );
+  )
 }
 
 export async function loadWebMediaRaw(
@@ -420,7 +420,7 @@ export async function loadWebMediaRaw(
   return await loadWebMediaInternal(
     mediaUrl,
     resolveWebMediaOptions({ maxBytesOrOptions, options, optimizeImages: false }),
-  );
+  )
 }
 
 export async function optimizeImageToJpeg(
