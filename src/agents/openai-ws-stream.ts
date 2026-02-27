@@ -387,6 +387,14 @@ export function createOpenAIWebSocketStreamFn(
 
       if (session.broken || !session.manager.isConnected()) {
         log.warn(`[ws-stream] session=${sessionId} broken/disconnected; falling back to HTTP`);
+        // Clean up stale session to prevent next turn from using stale
+        // previousResponseId / lastContextLength after a mid-request drop.
+        try {
+          session.manager.close();
+        } catch {
+          /* ignore */
+        }
+        wsRegistry.delete(sessionId);
         return fallbackToHttp(model, context, options, eventStream, opts.signal);
       }
 
