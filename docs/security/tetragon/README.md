@@ -53,4 +53,4 @@ Tetragon operates below the application, so it cannot be bypassed by prompt inje
 
 1. Follow the [Setup Guide](SETUP.md) to deploy Tetragon and the OTel Collector.
 2. Apply the TracingPolicies from the `policies/` directory.
-3. Pair with the [diagnostics-otel](/diagnostics) plugin for application-level span enrichment.
+3. Pair with the [diagnostics-otel](/gateway/logging) plugin for application-level span enrichment.

@@ -231,7 +231,7 @@ The default policies are intentionally broad. In production you will want to red
 
 ## Combining with diagnostics-otel
 
-For a complete picture, run the OpenClaw [diagnostics-otel](/diagnostics) plugin alongside Tetragon:
+For a complete picture, run the OpenClaw [diagnostics-otel](/gateway/logging) plugin alongside Tetragon:
 
 - **diagnostics-otel** provides application-level spans: message processing, tool calls, token usage, and security pattern detection
 - **Tetragon** provides kernel-level events: actual process execution, file access, privilege changes
