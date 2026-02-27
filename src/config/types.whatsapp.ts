@@ -97,6 +97,8 @@ type WhatsAppConfigCore = {
 
 export type WhatsAppConfig = WhatsAppConfigCore &
   WhatsAppSharedConfig & {
+    /** If false, do not start the WhatsApp channel. Default: true. */
+    enabled?: boolean;
     /** Optional per-account WhatsApp configuration (multi-account). */
     accounts?: Record<string, WhatsAppAccountConfig>;
     /** Per-action tool gating (default: true for all). */
