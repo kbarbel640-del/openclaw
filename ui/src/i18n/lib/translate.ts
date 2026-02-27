@@ -3,7 +3,15 @@ import type { Locale, TranslationMap } from "./types.ts";
 
 type Subscriber = (locale: Locale) => void;
 
-export const SUPPORTED_LOCALES: ReadonlyArray<Locale> = ["en", "zh-CN", "zh-TW", "pt-BR"];
+export const SUPPORTED_LOCALES: ReadonlyArray<Locale> = [
+  "en",
+  "zh-CN",
+  "zh-TW",
+  "pt-BR",
+  "es",
+  "ja",
+  "ko",
+];
 
 export function isSupportedLocale(value: string | null | undefined): value is Locale {
   return value !== null && value !== undefined && SUPPORTED_LOCALES.includes(value as Locale);
@@ -29,6 +37,15 @@ class I18nManager {
     }
     if (navLang.startsWith("pt")) {
       return "pt-BR";
+    }
+    if (navLang.startsWith("es")) {
+      return "es";
+    }
+    if (navLang.startsWith("ja")) {
+      return "ja";
+    }
+    if (navLang.startsWith("ko")) {
+      return "ko";
     }
     return "en";
   }
@@ -64,6 +81,12 @@ class I18nManager {
           module = await import("../locales/zh-TW.ts");
         } else if (locale === "pt-BR") {
           module = await import("../locales/pt-BR.ts");
+        } else if (locale === "es") {
+          module = await import("../locales/es.ts");
+        } else if (locale === "ja") {
+          module = await import("../locales/ja.ts");
+        } else if (locale === "ko") {
+          module = await import("../locales/ko.ts");
         } else {
           return;
         }
