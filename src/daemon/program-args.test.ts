@@ -31,12 +31,13 @@ afterEach(() => {
 });
 
 describe("resolveGatewayProgramArguments", () => {
-  it("prefers global openclaw symlink path for stable service config", async () => {
+  it("prefers invoking CLI entrypoint over unrelated PATH openclaw", async () => {
     const globalBin = path.resolve("/Users/test/Library/pnpm/global/5/node_modules/.bin/openclaw");
-    const symlinkEntrypoint = path.resolve(
+    const globalSymlinkEntrypoint = path.resolve(
       "/Users/test/Library/pnpm/global/5/node_modules/openclaw/dist/index.js",
     );
-    process.argv = ["node", "/tmp/dev/openclaw/dist/entry.js"];
+    const invokedEntrypoint = path.resolve("/tmp/dev/openclaw/dist/entry.js");
+    process.argv = ["node", invokedEntrypoint];
     childProcessMocks.execFileSync.mockReturnValue(`${globalBin}\n`);
     fsMocks.realpath.mockImplementation(async (target: string) => {
       if (target === globalBin) {
@@ -45,7 +46,11 @@ describe("resolveGatewayProgramArguments", () => {
       return target;
     });
     fsMocks.access.mockImplementation(async (target: string) => {
-      if (target === symlinkEntrypoint || target === globalBin) {
+      if (
+        target === invokedEntrypoint ||
+        target === globalSymlinkEntrypoint ||
+        target === globalBin
+      ) {
         return;
       }
       throw new Error("missing");
@@ -53,7 +58,46 @@ describe("resolveGatewayProgramArguments", () => {
 
     const result = await resolveGatewayProgramArguments({ port: 18789 });
 
-    expect(result.programArguments[1]).toBe(symlinkEntrypoint);
+    expect(result.programArguments[1]).toBe(invokedEntrypoint);
+  });
+
+  it("prefers stable global symlink when it matches invoking install", async () => {
+    const globalBin = path.resolve("/Users/test/Library/pnpm/global/5/node_modules/.bin/openclaw");
+    const globalSymlinkEntrypoint = path.resolve(
+      "/Users/test/Library/pnpm/global/5/node_modules/openclaw/dist/index.js",
+    );
+    const invokedRealpath = path.resolve(
+      "/Users/test/Library/pnpm/global/5/node_modules/.pnpm/openclaw@2026.1.21-2/node_modules/openclaw/dist/index.js",
+    );
+    process.argv = ["node", invokedRealpath];
+    childProcessMocks.execFileSync.mockReturnValue(`${globalBin}\n`);
+    fsMocks.realpath.mockImplementation(async (target: string) => {
+      if (target === globalBin) {
+        return globalBin;
+      }
+      if (target === globalSymlinkEntrypoint) {
+        return invokedRealpath;
+      }
+      if (target === invokedRealpath) {
+        return invokedRealpath;
+      }
+      return target;
+    });
+    fsMocks.access.mockImplementation(async (target: string) => {
+      if (
+        target === invokedRealpath ||
+        target === globalSymlinkEntrypoint ||
+        target === globalBin
+      ) {
+        return;
+      }
+      throw new Error("missing");
+    });
+
+    const result = await resolveGatewayProgramArguments({ port: 18789 });
+
+    expect(result.programArguments[1]).toBe(globalSymlinkEntrypoint);
+    expect(result.programArguments[1]).not.toContain("@2026.1.21-2");
   });
 
   it("uses realpath-resolved dist entry when running via npx shim", async () => {
