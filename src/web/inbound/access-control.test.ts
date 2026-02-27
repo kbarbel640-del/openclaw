@@ -171,6 +171,8 @@ describe("WhatsApp dmPolicy precedence", () => {
         },
       },
     });
+    // Already had a pairing request (created: false) so we allow through without sending reply.
+    upsertPairingRequestMock.mockResolvedValueOnce({ code: "PAIRCODE", created: false });
 
     const result = await checkInboundAccessControl({
       accountId: "default",
@@ -185,7 +187,7 @@ describe("WhatsApp dmPolicy precedence", () => {
     });
 
     expect(result.allowed).toBe(true);
-    expect(upsertPairingRequestMock).not.toHaveBeenCalled();
+    expect(upsertPairingRequestMock).toHaveBeenCalledTimes(1);
     expect(sendMessageMock).not.toHaveBeenCalled();
   });
 });

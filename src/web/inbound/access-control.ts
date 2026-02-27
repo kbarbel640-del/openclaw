@@ -120,9 +120,7 @@ export async function checkInboundAccessControl(params: {
           .map((entry) => normalizeE164(String(entry)))
           .filter((entry): entry is string => Boolean(entry)),
       );
-      if (!params.group && isSamePhone) {
-        return true;
-      }
+      // Do not short-circuit same-phone here: owner not in list must get "pairing" so we can send reply and allow through.
       return params.group
         ? Boolean(normalizedGroupSender && normalizedEntrySet.has(normalizedGroupSender))
         : normalizedEntrySet.has(normalizedDmSender);
@@ -166,13 +164,10 @@ export async function checkInboundAccessControl(params: {
         resolvedAccountId: account.accountId,
       };
     }
-    if (dmPolicy !== "open") {
+    // Pairing: only send reply to owner (same number); same-phone message always allowed through.
+    if (access.decision === "pairing") {
       const candidate = params.from;
-      const allowed =
-        dmHasWildcard ||
-        (normalizedAllowFrom.length > 0 && normalizedAllowFrom.includes(candidate));
-      // Same-phone (owner) not in allowFrom: send pairing reply when policy is pairing, then allow through.
-      if (!allowed && isSamePhone && dmPolicy === "pairing") {
+      if (isSamePhone && dmPolicy === "pairing") {
         if (!suppressPairingReply) {
           const { code, created } = await upsertChannelPairingRequest({
             channel: "whatsapp",
@@ -204,21 +199,22 @@ export async function checkInboundAccessControl(params: {
           resolvedAccountId: account.accountId,
         };
       }
-      // Non-owner or non-pairing: block if not in allowFrom; never send pairing reply to non-owner.
-      const effectiveAllowed = allowed || isSamePhone;
-      if (!effectiveAllowed) {
-        if (dmPolicy === "pairing") {
-          logVerbose(`Skipping pairing reply for non-owner DM from ${candidate}.`);
-        } else {
-          logVerbose(`Blocked unauthorized sender ${candidate} (dmPolicy=${dmPolicy})`);
-        }
-        return {
-          allowed: false,
-          shouldMarkRead: false,
-          isSelfChat,
-          resolvedAccountId: account.accountId,
-        };
-      }
+      logVerbose(`Skipping pairing reply for non-owner DM from ${candidate}.`);
+      return {
+        allowed: false,
+        shouldMarkRead: false,
+        isSelfChat,
+        resolvedAccountId: account.accountId,
+      };
+    }
+    if (access.decision === "block") {
+      logVerbose(`Blocked unauthorized sender ${params.from} (dmPolicy=${dmPolicy})`);
+      return {
+        allowed: false,
+        shouldMarkRead: false,
+        isSelfChat,
+        resolvedAccountId: account.accountId,
+      };
     }
   }
 
