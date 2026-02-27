@@ -29,3 +29,7 @@ Fields:
 
 - Glossary entries are passed to the model as **prompt guidance** (no deterministic rewrites).
 - The translation memory is updated by `scripts/docs-i18n`.
+- After translation, internal links are automatically rewritten by `scripts/docs-i18n-fix-links.mjs`
+  (called from the Go pipeline). The translator preserves English links verbatim (`/install/docker`);
+  the post-processing step adds the locale prefix (`/zh-CN/install/docker`) when the page exists.
+  To run it manually: `node scripts/docs-i18n-fix-links.mjs` (or `--lang zh-CN --dry-run`).
