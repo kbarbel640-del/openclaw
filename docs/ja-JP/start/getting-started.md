@@ -58,7 +58,7 @@ x-i18n:
     ```
 
     ウィザードは認証、Gateway設定、およびオプションのチャンネルを構成します。
-    詳細は[オンボーディングウィザード](/start/wizard)を参照してください。
+    詳細は[オンボーディングウィザード](/ja-JP/start/wizard)を参照してください。
 
   </Step>
   <Step title="Gatewayを確認">
@@ -104,7 +104,7 @@ Control UIが読み込まれれば、Gatewayは使用可能な状態です。
 ## さらに詳しく
 
 <Columns>
-  <Card title="オンボーディングウィザード（詳細）" href="/start/wizard">
+  <Card title="オンボーディングウィザード（詳細）" href="/ja-JP/start/wizard">
     完全なCLIウィザードリファレンスと高度なオプション。
   </Card>
   <Card title="macOSアプリのオンボーディング" href="/start/onboarding">

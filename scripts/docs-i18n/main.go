@@ -39,13 +39,22 @@ func main() {
 	)
 	flag.Parse()
 	files := flag.Args()
-	if len(files) == 0 {
+	if *mode != "fix-links" && len(files) == 0 {
 		fatal(fmt.Errorf("no doc files provided"))
 	}
 
 	resolvedDocsRoot, err := filepath.Abs(*docsRoot)
 	if err != nil {
 		fatal(err)
+	}
+
+	if *mode == "fix-links" {
+		fixed, err := fixLinksInDir(resolvedDocsRoot, *targetLang)
+		if err != nil {
+			fatal(err)
+		}
+		log.Printf("docs-i18n: fix-links completed fixed=%d", fixed)
+		return
 	}
 
 	if *tmPath == "" {
