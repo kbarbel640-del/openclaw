@@ -367,6 +367,10 @@ export async function processMessage(params: {
   });
   trackBackgroundTask(params.backgroundTasks, metaTask);
 
+  const blockStreamingEnabled = resolveWhatsAppBlockStreamingEnabled({
+    cfg: params.cfg,
+    accountId: params.route.accountId,
+  });
   const { queuedFinal } = await dispatchReplyWithBufferedBlockDispatcher({
     ctx: ctxPayload,
     cfg: params.cfg,
@@ -381,6 +385,11 @@ export async function processMessage(params: {
         }
       },
       deliver: async (payload: ReplyPayload, info) => {
+        if (info.kind === "block" && !blockStreamingEnabled) {
+          // When block streaming is disabled (default), suppress block payloads
+          // so that ACP-backed replies don't leak intermediate text to end users.
+          return;
+        }
         if (info.kind !== "final" && info.kind !== "block") {
           // Only deliver final and block-streaming replies to external messaging channels (WhatsApp).
           // Reasoning/thinking and tool updates are meant for the internal
@@ -429,10 +438,7 @@ export async function processMessage(params: {
       onReplyStart: params.msg.sendComposing,
     },
     replyOptions: {
-      disableBlockStreaming: !resolveWhatsAppBlockStreamingEnabled({
-        cfg: params.cfg,
-        accountId: params.route.accountId,
-      }),
+      disableBlockStreaming: !blockStreamingEnabled,
       onModelSelected,
     },
   });
