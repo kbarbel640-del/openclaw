@@ -16,15 +16,13 @@ function jsonResult(payload: unknown) {
   };
 }
 
-async function postJson(
-  params: {
-    baseUrl: string;
-    path: string;
-    timeoutMs: number;
-    apiKey?: string;
-    body: Record<string, unknown>;
-  },
-): Promise<AomsToolResult> {
+async function postJson(params: {
+  baseUrl: string;
+  path: string;
+  timeoutMs: number;
+  apiKey?: string;
+  body: Record<string, unknown>;
+}): Promise<AomsToolResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs);
   try {
@@ -42,11 +40,13 @@ async function postJson(
     });
 
     let parsed: unknown = null;
-    try {
-      parsed = await response.json();
-    } catch {
-      const text = await response.text();
-      parsed = text ? { text } : null;
+    const text = await response.text();
+    if (text) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = { text };
+      }
     }
 
     if (!response.ok) {
