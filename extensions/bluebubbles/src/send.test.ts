@@ -1,6 +1,16 @@
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import "./test-mocks.js";
+
+vi.mock("./accounts.js", async () => {
+  const { createBlueBubblesAccountsMockModule } = await import("./test-harness.js");
+  return createBlueBubblesAccountsMockModule();
+});
+
+vi.mock("./probe.js", async () => {
+  const { createBlueBubblesProbeMockModule } = await import("./test-harness.js");
+  return createBlueBubblesProbeMockModule();
+});
+
 import { getCachedBlueBubblesPrivateApiStatus } from "./probe.js";
 import { clearBlueBubblesRuntime, setBlueBubblesRuntime } from "./runtime.js";
 import { sendMessageBlueBubbles, resolveChatGuidForTarget } from "./send.js";

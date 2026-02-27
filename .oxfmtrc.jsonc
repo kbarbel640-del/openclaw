@@ -15,6 +15,7 @@
     "docker-compose.yml",
     "dist/",
     "docs/_layouts/",
+    "docs/style.css",
     "node_modules/",
     "patches/",
     "pnpm-lock.yaml/",
