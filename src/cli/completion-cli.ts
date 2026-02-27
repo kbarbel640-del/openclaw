@@ -1,7 +1,7 @@
-import { Command, Option } from "commander";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { Command, Option } from "commander";
 import { resolveStateDir } from "../config/paths.js";
 import { pathExists } from "../utils.js";
 import { getSubCliEntries, registerSubCliByName } from "./program/register.subclis.js";
@@ -60,7 +60,7 @@ export async function completionCacheExists(
   return pathExists(cachePath);
 }
 
-function getCompletionScript(shell: CompletionShell, program: Command): string {
+export function getCompletionScript(shell: CompletionShell, program: Command): string {
   if (shell === "zsh") {
     return generateZshCompletion(program);
   }

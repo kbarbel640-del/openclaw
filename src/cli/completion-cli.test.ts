@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const { getSubCliEntries, registerSubCliByName } = vi.hoisted(() => ({
   getSubCliEntries: vi.fn(() => []),
@@ -11,25 +11,14 @@ vi.mock("./program/register.subclis.js", () => ({
   registerSubCliByName,
 }));
 
-const { registerCompletionCli } = await import("./completion-cli.js");
+const { getCompletionScript } = await import("./completion-cli.js");
 
 describe("completion-cli", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("generates zsh completion that initializes compinit before compdef", async () => {
+  it("generates zsh completion that initializes compinit before compdef", () => {
     const program = new Command();
     program.name("openclaw");
-    registerCompletionCli(program);
 
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-    await program.parseAsync(["node", "openclaw", "completion", "--shell", "zsh"], {
-      from: "node",
-    });
-
-    const script = String(logSpy.mock.calls.at(0)?.[0] ?? "");
+    const script = getCompletionScript("zsh", program);
     const compinitIndex = script.indexOf("autoload -Uz compinit");
     const compdefIndex = script.indexOf("compdef _openclaw_root_completion openclaw");
 
