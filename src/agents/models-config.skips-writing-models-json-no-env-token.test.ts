@@ -123,13 +123,23 @@ describe("models-config", () => {
 
   it("prefers runtime source config so SecretRef is not re-materialized to plaintext", async () => {
     await withTempHome(async () => {
+      const modelDef = {
+        id: "kimi-k2.5",
+        name: "Kimi K2.5",
+        reasoning: false,
+        input: ["text"] as Array<"text" | "image">,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 200000,
+        maxTokens: 8192,
+      };
+
       const runtimeResolved: OpenClawConfig = {
         models: {
           providers: {
             moonshot: {
               baseUrl: "https://api.moonshot.cn/v1",
               apiKey: "sk-live-plaintext-should-not-persist",
-              models: [{ id: "kimi-k2.5" }],
+              models: [modelDef],
             },
           },
         },
@@ -139,8 +149,8 @@ describe("models-config", () => {
           providers: {
             moonshot: {
               baseUrl: "https://api.moonshot.cn/v1",
-              apiKey: { source: "env", id: "KIMI_API_KEY" },
-              models: [{ id: "kimi-k2.5" }],
+              apiKey: { source: "env", provider: "default", id: "KIMI_API_KEY" },
+              models: [modelDef],
             },
           },
         },
@@ -155,7 +165,11 @@ describe("models-config", () => {
           providers: Record<string, { apiKey?: unknown }>;
         };
 
-        expect(parsed.providers.moonshot?.apiKey).toEqual({ source: "env", id: "KIMI_API_KEY" });
+        expect(parsed.providers.moonshot?.apiKey).toEqual({
+          source: "env",
+          provider: "default",
+          id: "KIMI_API_KEY",
+        });
       } finally {
         clearRuntimeConfigSnapshot();
       }
