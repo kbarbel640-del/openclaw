@@ -51,11 +51,11 @@ Think of Codex as exploring a path: a narrow bridge with cliffs needs specific g
 
 ---
 
-## ⚡ Community Best Practices (Hard Constraints)
+## ⚡ Community Best Practices (Recommended Guidelines)
 
-### The 500-Line Rule (Critical)
+### The 500-Line Target (Guideline)
 
-> **This is a hard constraint.** Without it, you get 2,000-line skills that eat half the context window.
+> **This is a guideline to aim for.** Without it, you risk getting 2,000-line skills that eat half the context window.
 
 - **SKILL.md body must be ≤500 lines**
 - If exceeded, move details to `references/` directory
