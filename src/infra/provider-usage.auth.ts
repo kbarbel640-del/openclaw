@@ -118,24 +118,24 @@ async function resolveOllamaCookie(params: { agentDir?: string }): Promise<strin
 
   // Check auth profile store for token credential ONLY
   // SECURITY: Do NOT use api_key type - those are for model auth, not cookies
-  const cfg = loadConfig();
   const store = ensureAuthProfileStore(params.agentDir, {
     allowKeychainPrompt: false,
   });
-  const order = resolveAuthProfileOrder({
-    cfg,
-    store,
-    provider: "ollama",
-  });
-  const deduped = dedupeProfileIds(order);
 
-  for (const profileId of deduped) {
+  // Use listProfilesForProvider instead of resolveAuthProfileOrder because
+  // resolveAuthProfileOrder's isValidProfile filters out token profiles without
+  // an inline token value. But we need to include profiles with tokenRef for
+  // secret resolution (saveAuthProfileStore strips inline token when tokenRef exists).
+  const profiles = listProfilesForProvider(store, "ollama");
+
+  for (const profileId of profiles) {
     const cred = store.profiles[profileId];
     if (cred?.type !== "token") {
       continue;
     }
     try {
       // Use resolveApiKeyForProfile to properly handle tokenRef (secret references)
+      // This resolves both inline tokens AND tokenRef-based secrets
       const resolved = await resolveApiKeyForProfile({
         cfg: undefined,
         store,
@@ -152,7 +152,6 @@ async function resolveOllamaCookie(params: { agentDir?: string }): Promise<strin
 
   return undefined;
 }
-
 function resolveProviderApiKeyFromConfigAndStore(params: {
   providerId: UsageProviderId;
   envDirect: Array<string | undefined>;
