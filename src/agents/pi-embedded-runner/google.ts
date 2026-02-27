@@ -27,6 +27,7 @@ import { resolveTranscriptPolicy } from "../transcript-policy.js";
 import { makeZeroUsageSnapshot } from "../usage.js";
 import { log } from "./logger.js";
 import { dropThinkingBlocks } from "./thinking.js";
+import { sanitizeAgentMessagesUnicode } from "./unicode-safety.js";
 import { describeUnknownError } from "./utils.js";
 
 const GOOGLE_TURN_ORDERING_CUSTOM_TYPE = "google-turn-ordering-bootstrap";
@@ -466,6 +467,13 @@ export async function sanitizeSessionHistory(params: {
   const sanitizedOpenAI = isOpenAIResponsesApi
     ? downgradeOpenAIReasoningBlocks(sanitizedCompactionUsage)
     : sanitizedCompactionUsage;
+  const unicodeSanitized = sanitizeAgentMessagesUnicode(sanitizedOpenAI);
+  if (unicodeSanitized.replacementCount > 0) {
+    log.warn(
+      `session unicode sanitizer repaired ${unicodeSanitized.replacementCount} invalid UTF-16 surrogate code unit(s) (sessionId=${params.sessionId})`,
+    );
+  }
+  const sanitizedUnicode = unicodeSanitized.messages;
 
   if (hasSnapshot && (!priorSnapshot || modelChanged)) {
     appendModelSnapshot(params.sessionManager, {
@@ -477,11 +485,11 @@ export async function sanitizeSessionHistory(params: {
   }
 
   if (!policy.applyGoogleTurnOrdering) {
-    return sanitizedOpenAI;
+    return sanitizedUnicode;
   }
 
   return applyGoogleTurnOrderingFix({
-    messages: sanitizedOpenAI,
+    messages: sanitizedUnicode,
     modelApi: params.modelApi,
     sessionManager: params.sessionManager,
     sessionId: params.sessionId,
