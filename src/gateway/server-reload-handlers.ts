@@ -81,7 +81,9 @@ export function createGatewayReloadHandlers(params: {
 
     if (plan.restartBrowserControl) {
       if (state.browserControl) {
-        await state.browserControl.stop().catch(() => {});
+        await state.browserControl
+          .stop()
+          .catch((err) => params.logBrowser.error(`failed to stop: ${String(err)}`));
       }
       try {
         nextState.browserControl = await startBrowserControlServerIfEnabled();
@@ -91,7 +93,9 @@ export function createGatewayReloadHandlers(params: {
     }
 
     if (plan.restartGmailWatcher) {
-      await stopGmailWatcher().catch(() => {});
+      await stopGmailWatcher().catch((err) =>
+        params.logHooks.warn(`failed to stop gmail watcher: ${String(err)}`),
+      );
       await startGmailWatcherWithLogs({
         cfg: nextConfig,
         log: params.logHooks,
