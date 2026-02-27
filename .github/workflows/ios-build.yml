@@ -1,0 +1,84 @@
+name: iOS Build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/ios/**'
+      - '.github/workflows/ios-build.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/ios/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Configure signing
+        run: |
+          cd apps/ios
+          if [ ! -f LocalSigning.xcconfig ]; then
+            cp LocalSigning.xcconfig.example LocalSigning.xcconfig
+          fi
+
+      - name: Generate Xcode project
+        run: |
+          cd apps/ios
+          xcodegen generate
+
+      - name: Build iOS app (Debug)
+        run: |
+          cd apps/ios
+          xcodebuild \
+            -scheme OpenClaw \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath ./build \
+            build
+
+      - name: Create archive
+        run: |
+          cd apps/ios
+          xcodebuild \
+            -scheme OpenClaw \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath ./build \
+            -archivePath ./build/OpenClaw.xcarchive \
+            archive
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: apps/ios/build/
+          retention-days: 30
+
+      - name: Report status
+        if: always()
+        run: |
+          echo "iOS build completed successfully" >> $GITHUB_STEP_SUMMARY
