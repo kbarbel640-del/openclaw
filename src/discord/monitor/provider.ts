@@ -24,6 +24,7 @@ import { loadConfig } from "../../config/config.js";
 import { isDangerousNameMatchingEnabled } from "../../config/dangerous-name-matching.js";
 import {
   GROUP_POLICY_BLOCKED_LABEL,
+  normalizeNonTelegramGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
@@ -226,8 +227,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       defaultGroupPolicy,
     });
   // "members" is Telegram-only; normalize to "open" for Discord
-  const groupPolicy: "open" | "allowlist" | "disabled" =
-    rawGroupPolicy === "members" ? "open" : rawGroupPolicy;
+  const groupPolicy = normalizeNonTelegramGroupPolicy(rawGroupPolicy);
   const discordCfg =
     rawDiscordCfg.groupPolicy === groupPolicy ? rawDiscordCfg : { ...rawDiscordCfg, groupPolicy };
   warnMissingProviderGroupPolicyFallbackOnce({

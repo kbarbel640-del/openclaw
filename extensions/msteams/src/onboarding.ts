@@ -11,6 +11,7 @@ import {
   DEFAULT_ACCOUNT_ID,
   formatDocsLink,
   mergeAllowFromEntries,
+  normalizeNonTelegramGroupPolicy,
   promptChannelAccessConfig,
 } from "openclaw/plugin-sdk";
 import {
@@ -327,8 +328,7 @@ export const msteamsOnboardingAdapter: ChannelOnboardingAdapter = {
     if (accessConfig) {
       if (accessConfig.policy !== "allowlist") {
         // "members" is Telegram-only; normalize to "open" for MS Teams
-        const normalizedPolicy: "open" | "allowlist" | "disabled" =
-          accessConfig.policy === "members" ? "open" : accessConfig.policy;
+        const normalizedPolicy = normalizeNonTelegramGroupPolicy(accessConfig.policy);
         next = setMSTeamsGroupPolicy(next, normalizedPolicy);
       } else {
         let entries = accessConfig.entries

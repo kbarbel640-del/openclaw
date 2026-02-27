@@ -2,6 +2,7 @@ import {
   createLoggerBackedRuntime,
   GROUP_POLICY_BLOCKED_LABEL,
   mergeAllowlist,
+  normalizeNonTelegramGroupPolicy,
   resolveAllowlistProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   summarizeMapping,
@@ -258,8 +259,7 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     log: (message) => logVerboseMessage(message),
   });
   // "members" is Telegram-only; normalize to "open" for Matrix
-  const normalizedPolicy: "open" | "allowlist" | "disabled" =
-    groupPolicyRaw === "members" ? "open" : groupPolicyRaw;
+  const normalizedPolicy = normalizeNonTelegramGroupPolicy(groupPolicyRaw);
   const groupPolicy = allowlistOnly && normalizedPolicy === "open" ? "allowlist" : normalizedPolicy;
   const replyToMode = opts.replyToMode ?? accountConfig.replyToMode ?? "off";
   const threadReplies = accountConfig.threadReplies ?? "inbound";

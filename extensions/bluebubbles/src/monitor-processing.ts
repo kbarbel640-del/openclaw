@@ -7,6 +7,7 @@ import {
   logAckFailure,
   logInboundDrop,
   logTypingFailure,
+  normalizeNonTelegramGroupPolicy,
   readStoreAllowFromForDmPolicy,
   recordPendingHistoryEntryIfEnabled,
   resolveAckReaction,
@@ -507,7 +508,8 @@ export async function processMessage(
   );
 
   const dmPolicy = account.config.dmPolicy ?? "pairing";
-  const groupPolicy = account.config.groupPolicy ?? "allowlist";
+  // "members" is Telegram-only; normalize to "open" for BlueBubbles
+  const groupPolicy = normalizeNonTelegramGroupPolicy(account.config.groupPolicy ?? "allowlist");
   const configuredAllowFrom = (account.config.allowFrom ?? []).map((entry) => String(entry));
   const storeAllowFrom = await readStoreAllowFromForDmPolicy({
     provider: "bluebubbles",
@@ -1397,7 +1399,8 @@ export async function processReaction(
   }
 
   const dmPolicy = account.config.dmPolicy ?? "pairing";
-  const groupPolicy = account.config.groupPolicy ?? "allowlist";
+  // "members" is Telegram-only; normalize to "open" for BlueBubbles
+  const groupPolicy = normalizeNonTelegramGroupPolicy(account.config.groupPolicy ?? "allowlist");
   const storeAllowFrom = await readStoreAllowFromForDmPolicy({
     provider: "bluebubbles",
     accountId: account.accountId,

@@ -3,6 +3,7 @@
  * Used by groupPolicy "members" to ensure all group participants are trusted.
  */
 
+import { createHash } from "node:crypto";
 import type { Api } from "grammy";
 import { logVerbose, warn } from "../globals.js";
 import type { NormalizedAllowFrom } from "./bot-access.js";
@@ -21,8 +22,15 @@ type CacheEntry = {
 
 const cache = new Map<string, CacheEntry>();
 
-function getChatKey(chatId: number | string): string {
-  return String(chatId);
+/**
+ * Build a cache key that includes both the chat ID and a hash of the
+ * allowFrom entries. This avoids collisions when two Telegram accounts
+ * share a gateway and monitor the same group with different allowlists.
+ */
+function getChatKey(chatId: number | string, allowFrom: NormalizedAllowFrom): string {
+  const sorted = allowFrom.entries.toSorted();
+  const hash = createHash("sha256").update(sorted.join(",")).digest("hex").slice(0, 12);
+  return `${chatId}:${hash}`;
 }
 
 /**
@@ -41,7 +49,7 @@ export async function verifyGroupMembership(params: {
   allowFrom: NormalizedAllowFrom;
 }): Promise<MembershipResult> {
   const { chatId, api, botId, allowFrom } = params;
-  const key = getChatKey(chatId);
+  const key = getChatKey(chatId, allowFrom);
 
   // Check cache
   const cached = cache.get(key);
@@ -118,9 +126,15 @@ export async function verifyGroupMembership(params: {
 
 /**
  * Invalidate cached membership for a specific chat (e.g. on member join/leave).
+ * Removes all entries for this chatId regardless of allowFrom hash.
  */
 export function invalidateGroupMembership(chatId: number | string): void {
-  cache.delete(getChatKey(chatId));
+  const prefix = `${chatId}:`;
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) {
+      cache.delete(key);
+    }
+  }
 }
 
 /**

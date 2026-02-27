@@ -133,7 +133,7 @@ Control how group/room messages are handled per channel:
 {
   channels: {
     whatsapp: {
-      groupPolicy: "disabled", // "open" | "disabled" | "allowlist" | "members"
+      groupPolicy: "disabled", // "open" | "disabled" | "allowlist" ("members" is Telegram-only)
       groupAllowFrom: ["+15551234567"],
     },
     telegram: {

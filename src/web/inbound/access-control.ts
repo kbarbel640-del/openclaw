@@ -1,5 +1,6 @@
 import { loadConfig } from "../../config/config.js";
 import {
+  normalizeNonTelegramGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
@@ -33,9 +34,12 @@ function resolveWhatsAppRuntimeGroupPolicy(params: {
   providerMissingFallbackApplied: boolean;
 } {
   // "members" is Telegram-only; treat it as "open" for WhatsApp
-  const normalizedGroupPolicy = params.groupPolicy === "members" ? "open" : params.groupPolicy;
-  const normalizedDefaultGroupPolicy =
-    params.defaultGroupPolicy === "members" ? "open" : params.defaultGroupPolicy;
+  const normalizedGroupPolicy = params.groupPolicy
+    ? normalizeNonTelegramGroupPolicy(params.groupPolicy)
+    : params.groupPolicy;
+  const normalizedDefaultGroupPolicy = params.defaultGroupPolicy
+    ? normalizeNonTelegramGroupPolicy(params.defaultGroupPolicy)
+    : params.defaultGroupPolicy;
   const result = resolveOpenProviderRuntimeGroupPolicy({
     providerConfigPresent: params.providerConfigPresent,
     groupPolicy: normalizedGroupPolicy,

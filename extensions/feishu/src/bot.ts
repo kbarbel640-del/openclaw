@@ -7,6 +7,7 @@ import {
   DEFAULT_GROUP_HISTORY_LIMIT,
   type HistoryEntry,
   recordPendingHistoryEntryIfEnabled,
+  normalizeNonTelegramGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
@@ -610,8 +611,7 @@ export async function handleFeishuMessage(params: {
         defaultGroupPolicy,
       });
     // "members" is Telegram-only; normalize to "open" for Feishu
-    const groupPolicy: "open" | "allowlist" | "disabled" =
-      rawGroupPolicy === "members" ? "open" : rawGroupPolicy;
+    const groupPolicy = normalizeNonTelegramGroupPolicy(rawGroupPolicy);
     warnMissingProviderGroupPolicyFallbackOnce({
       providerMissingFallbackApplied,
       providerKey: "feishu",

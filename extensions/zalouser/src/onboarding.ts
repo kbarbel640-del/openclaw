@@ -9,6 +9,7 @@ import {
   DEFAULT_ACCOUNT_ID,
   mergeAllowFromEntries,
   normalizeAccountId,
+  normalizeNonTelegramGroupPolicy,
   promptAccountId,
   promptChannelAccessConfig,
 } from "openclaw/plugin-sdk";
@@ -382,8 +383,7 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
     if (accessConfig) {
       if (accessConfig.policy !== "allowlist") {
         // "members" is Telegram-only; normalize to "open" for Zalo
-        const normalizedPolicy: "open" | "allowlist" | "disabled" =
-          accessConfig.policy === "members" ? "open" : accessConfig.policy;
+        const normalizedPolicy = normalizeNonTelegramGroupPolicy(accessConfig.policy);
         next = setZalouserGroupPolicy(next, accountId, normalizedPolicy);
       } else {
         let keys = accessConfig.entries;

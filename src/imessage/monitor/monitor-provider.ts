@@ -17,6 +17,7 @@ import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { recordInboundSession } from "../../channels/session.js";
 import { loadConfig } from "../../config/config.js";
 import {
+  normalizeNonTelegramGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
@@ -114,8 +115,7 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       defaultGroupPolicy,
     });
   // "members" is Telegram-only; normalize to "open" for iMessage
-  const groupPolicy: "open" | "allowlist" | "disabled" =
-    rawGroupPolicy === "members" ? "open" : rawGroupPolicy;
+  const groupPolicy = normalizeNonTelegramGroupPolicy(rawGroupPolicy);
   warnMissingProviderGroupPolicyFallbackOnce({
     providerMissingFallbackApplied,
     providerKey: "imessage",

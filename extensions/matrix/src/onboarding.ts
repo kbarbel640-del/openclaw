@@ -3,6 +3,7 @@ import {
   addWildcardAllowFrom,
   formatDocsLink,
   mergeAllowFromEntries,
+  normalizeNonTelegramGroupPolicy,
   promptChannelAccessConfig,
   type ChannelOnboardingAdapter,
   type ChannelOnboardingDmPolicy,
@@ -376,8 +377,7 @@ export const matrixOnboardingAdapter: ChannelOnboardingAdapter = {
     if (accessConfig) {
       if (accessConfig.policy !== "allowlist") {
         // "members" is Telegram-only; normalize to "open" for Matrix
-        const normalizedPolicy: "open" | "allowlist" | "disabled" =
-          accessConfig.policy === "members" ? "open" : accessConfig.policy;
+        const normalizedPolicy = normalizeNonTelegramGroupPolicy(accessConfig.policy);
         next = setMatrixGroupPolicy(next, normalizedPolicy);
       } else {
         let roomKeys = accessConfig.entries;

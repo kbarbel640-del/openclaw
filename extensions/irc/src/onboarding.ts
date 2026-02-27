@@ -2,6 +2,7 @@ import {
   addWildcardAllowFrom,
   DEFAULT_ACCOUNT_ID,
   formatDocsLink,
+  normalizeNonTelegramGroupPolicy,
   promptAccountId,
   promptChannelAccessConfig,
   type ChannelOnboardingAdapter,
@@ -429,8 +430,7 @@ export const ircOnboardingAdapter: ChannelOnboardingAdapter = {
     });
     if (accessConfig) {
       // "members" is Telegram-only; normalize to "open" for IRC
-      const normalizedPolicy: "open" | "allowlist" | "disabled" =
-        accessConfig.policy === "members" ? "open" : accessConfig.policy;
+      const normalizedPolicy = normalizeNonTelegramGroupPolicy(accessConfig.policy);
       next = setIrcGroupAccess(next, accountId, normalizedPolicy, accessConfig.entries);
 
       // Mention gating: groups/channels are mention-gated by default. Make this explicit in onboarding.
