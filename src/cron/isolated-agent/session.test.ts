@@ -143,6 +143,78 @@ describe("resolveCronSession", () => {
       expect(result.sessionEntry.providerOverride).toBe("anthropic");
     });
 
+    it("clears delivery routing context when forceNew is true (#27751)", () => {
+      const result = resolveWithStoredEntry({
+        entry: {
+          sessionId: "existing-session-id",
+          updatedAt: NOW_MS - 1000,
+          systemSent: true,
+          lastChannel: "slack",
+          lastTo: "C0XXXXXXXXX",
+          lastAccountId: "acc-1",
+          lastThreadId: "1234567890.123456",
+          deliveryContext: { channel: "slack", to: "C0XXXXXXXXX", threadId: "1234567890.123456" },
+          modelOverride: "sonnet-4",
+        },
+        fresh: true,
+        forceNew: true,
+      });
+
+      expect(result.isNewSession).toBe(true);
+      expect(result.sessionEntry.lastThreadId).toBeUndefined();
+      expect(result.sessionEntry.lastTo).toBeUndefined();
+      expect(result.sessionEntry.lastChannel).toBeUndefined();
+      expect(result.sessionEntry.lastAccountId).toBeUndefined();
+      expect(result.sessionEntry.deliveryContext).toBeUndefined();
+      // Model overrides should still be preserved
+      expect(result.sessionEntry.modelOverride).toBe("sonnet-4");
+    });
+
+    it("clears delivery routing context when session is stale (#27751)", () => {
+      const result = resolveWithStoredEntry({
+        entry: {
+          sessionId: "old-session-id",
+          updatedAt: NOW_MS - 86_400_000,
+          lastChannel: "telegram",
+          lastTo: "-100111",
+          lastThreadId: 9999,
+          lastAccountId: "acc-2",
+          deliveryContext: { channel: "telegram", to: "-100111", threadId: 9999 },
+          modelOverride: "gpt-4.1-mini",
+        },
+        fresh: false,
+      });
+
+      expect(result.isNewSession).toBe(true);
+      expect(result.sessionEntry.lastThreadId).toBeUndefined();
+      expect(result.sessionEntry.lastTo).toBeUndefined();
+      expect(result.sessionEntry.lastChannel).toBeUndefined();
+      expect(result.sessionEntry.lastAccountId).toBeUndefined();
+      expect(result.sessionEntry.deliveryContext).toBeUndefined();
+      expect(result.sessionEntry.modelOverride).toBe("gpt-4.1-mini");
+    });
+
+    it("preserves delivery routing context when reusing a fresh session", () => {
+      const result = resolveWithStoredEntry({
+        entry: {
+          sessionId: "fresh-session-id",
+          updatedAt: NOW_MS - 1000,
+          systemSent: true,
+          lastChannel: "slack",
+          lastTo: "C0XXXXXXXXX",
+          lastThreadId: "1234567890.123456",
+          lastAccountId: "acc-1",
+        },
+        fresh: true,
+      });
+
+      expect(result.isNewSession).toBe(false);
+      expect(result.sessionEntry.lastChannel).toBe("slack");
+      expect(result.sessionEntry.lastTo).toBe("C0XXXXXXXXX");
+      expect(result.sessionEntry.lastThreadId).toBe("1234567890.123456");
+      expect(result.sessionEntry.lastAccountId).toBe("acc-1");
+    });
+
     it("creates new sessionId when entry exists but has no sessionId", () => {
       const result = resolveWithStoredEntry({
         entry: {
