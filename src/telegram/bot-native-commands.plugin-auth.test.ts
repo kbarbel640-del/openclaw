@@ -15,7 +15,9 @@ vi.mock("../plugins/commands.js", () => ({
   executePluginCommand,
 }));
 
-const deliverReplies = vi.hoisted(() => vi.fn(async () => {}));
+const deliverReplies = vi.hoisted(() =>
+  vi.fn(async (): Promise<{ delivered: boolean }> => ({ delivered: true })),
+);
 vi.mock("./bot/delivery.js", () => ({ deliverReplies }));
 
 vi.mock("../pairing/pairing-store.js", () => ({
