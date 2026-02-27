@@ -90,6 +90,32 @@ describe("ensureConfigReady", () => {
     expect(gatewayRuntime.exit).not.toHaveBeenCalled();
   });
 
+  it("passes quiet flag when --json is present in argv", async () => {
+    const originalArgv = process.argv;
+    process.argv = ["node", "openclaw", "nodes", "status", "--json"];
+    try {
+      await runEnsureConfigReady(["nodes"]);
+      expect(loadAndMaybeMigrateDoctorConfigMock).toHaveBeenCalledWith(
+        expect.objectContaining({ quiet: true }),
+      );
+    } finally {
+      process.argv = originalArgv;
+    }
+  });
+
+  it("does not set quiet flag when --json is absent", async () => {
+    const originalArgv = process.argv;
+    process.argv = ["node", "openclaw", "nodes", "status"];
+    try {
+      await runEnsureConfigReady(["nodes"]);
+      expect(loadAndMaybeMigrateDoctorConfigMock).toHaveBeenCalledWith(
+        expect.objectContaining({ quiet: false }),
+      );
+    } finally {
+      process.argv = originalArgv;
+    }
+  });
+
   it("runs doctor migration flow only once per module instance", async () => {
     const runtimeA = makeRuntime();
     const runtimeB = makeRuntime();

@@ -3,7 +3,7 @@ import { readConfigFileSnapshot } from "../../config/config.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import { colorize, isRich, theme } from "../../terminal/theme.js";
 import { shortenHomePath } from "../../utils.js";
-import { shouldMigrateStateFromPath } from "../argv.js";
+import { hasFlag, shouldMigrateStateFromPath } from "../argv.js";
 import { formatCliCommand } from "../command-format.js";
 
 const ALLOWED_INVALID_COMMANDS = new Set(["doctor", "logs", "health", "help", "status"]);
@@ -43,9 +43,11 @@ export async function ensureConfigReady(params: {
   const commandPath = params.commandPath ?? [];
   if (!didRunDoctorConfigFlow && shouldMigrateStateFromPath(commandPath)) {
     didRunDoctorConfigFlow = true;
+    const quiet = hasFlag(process.argv, "--json");
     await loadAndMaybeMigrateDoctorConfig({
       options: { nonInteractive: true },
       confirm: async () => false,
+      quiet,
     });
   }
 
