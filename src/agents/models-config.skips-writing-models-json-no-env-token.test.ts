@@ -1,6 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  clearRuntimeConfigSnapshot,
+  setRuntimeConfigSnapshot,
+  type OpenClawConfig,
+} from "../config/config.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import {
   CUSTOM_PROXY_MODELS_CONFIG,
@@ -113,6 +118,47 @@ describe("models-config", () => {
         expectedApiKeyRef: "SYNTHETIC_API_KEY",
         expectedModelIds: ["hf:MiniMaxAI/MiniMax-M2.1"],
       });
+    });
+  });
+
+  it("prefers runtime source config so SecretRef is not re-materialized to plaintext", async () => {
+    await withTempHome(async () => {
+      const runtimeResolved: OpenClawConfig = {
+        models: {
+          providers: {
+            moonshot: {
+              baseUrl: "https://api.moonshot.cn/v1",
+              apiKey: "sk-live-plaintext-should-not-persist",
+              models: [{ id: "kimi-k2.5" }],
+            },
+          },
+        },
+      };
+      const runtimeSource: OpenClawConfig = {
+        models: {
+          providers: {
+            moonshot: {
+              baseUrl: "https://api.moonshot.cn/v1",
+              apiKey: { source: "env", id: "KIMI_API_KEY" },
+              models: [{ id: "kimi-k2.5" }],
+            },
+          },
+        },
+      };
+
+      setRuntimeConfigSnapshot(runtimeResolved, runtimeSource);
+      try {
+        await ensureOpenClawModelsJson();
+        const modelPath = path.join(resolveOpenClawAgentDir(), "models.json");
+        const raw = await fs.readFile(modelPath, "utf8");
+        const parsed = JSON.parse(raw) as {
+          providers: Record<string, { apiKey?: unknown }>;
+        };
+
+        expect(parsed.providers.moonshot?.apiKey).toEqual({ source: "env", id: "KIMI_API_KEY" });
+      } finally {
+        clearRuntimeConfigSnapshot();
+      }
     });
   });
 });
