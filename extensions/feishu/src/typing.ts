@@ -40,7 +40,12 @@ export async function addTypingIndicator(params: {
     const reactionId = (response as any)?.data?.reaction_id ?? null;
     return { messageId, reactionId };
   } catch (err) {
-    // Silently fail - typing indicator is not critical
+    // Re-throw rate-limit / quota errors so the circuit breaker in
+    // typing-start-guard can trip and stop the keepalive loop (#28062).
+    if (isRateLimitError(err)) {
+      throw err;
+    }
+    // Silently fail for other non-critical errors (e.g. message deleted)
     console.log(`[feishu] failed to add typing indicator: ${err}`);
     return { messageId, reactionId: null };
   }
@@ -74,7 +79,30 @@ export async function removeTypingIndicator(params: {
       },
     });
   } catch (err) {
-    // Silently fail - cleanup is not critical
+    // Re-throw rate-limit / quota errors so the circuit breaker can trip (#28062).
+    if (isRateLimitError(err)) {
+      throw err;
+    }
+    // Silently fail for other non-critical errors
     console.log(`[feishu] failed to remove typing indicator: ${err}`);
   }
+}
+
+/**
+ * Detect Feishu rate-limit or quota-exceeded errors (HTTP 429 / error code 99991403).
+ * These must propagate to the circuit breaker to stop the keepalive loop.
+ */
+function isRateLimitError(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) {
+    return false;
+  }
+  const response = (err as Record<string, unknown>).response as Record<string, unknown> | undefined;
+  if (!response) {
+    return false;
+  }
+  if (response.status === 429) {
+    return true;
+  }
+  const data = response.data as Record<string, unknown> | undefined;
+  return data?.code === 99991403;
 }
