@@ -1,6 +1,6 @@
 import { buildRelayWsUrl, isRetryableReconnectError, reconnectDelayMs } from './background-utils.js'
 
-const DEFAULT_PORT = 18792
+const DEFAULT_PORT = 18795
 
 const BADGE = {
   on: { text: 'ON', color: '#FF5A36' },
