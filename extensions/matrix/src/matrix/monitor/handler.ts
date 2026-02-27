@@ -139,6 +139,9 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
       const eventTs = event.origin_server_ts;
       const eventAge = event.unsigned?.age;
       if (typeof eventTs === "number" && eventTs < startupMs - startupGraceMs) {
+        logVerboseMessage(
+          `ignoring pre-startup event in ${roomId} (eventTs=${eventTs}, startupMs=${startupMs}, graceMs=${startupGraceMs})`,
+        );
         return;
       }
       if (
@@ -146,6 +149,9 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         typeof eventAge === "number" &&
         eventAge > startupGraceMs
       ) {
+        logVerboseMessage(
+          `ignoring old event in ${roomId} (eventAge=${eventAge}, graceMs=${startupGraceMs})`,
+        );
         return;
       }
 
