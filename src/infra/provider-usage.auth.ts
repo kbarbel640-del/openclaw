@@ -100,7 +100,11 @@ function resolveXiaomiApiKey(): string | undefined {
  *
  * The cookie can be provided via:
  * 1. OLLAMA_COOKIE environment variable
- * 2. Auth profile store (token type)
+ * 2. Auth profile store (token type only - NOT api_key)
+ *
+ * SECURITY: We explicitly DO NOT fall back to api_key credentials because
+ * Ollama api_key profiles are also used for model authentication.
+ * Sending an API key as a Cookie header to ollama.com would leak secrets.
  *
  * The cookie string should be in format: "name1=value1; name2=value2"
  * Common session cookie names: __Secure-session, session, next-auth.session-token
@@ -112,7 +116,8 @@ function resolveOllamaCookie(): string | undefined {
     return envCookie;
   }
 
-  // Check auth profile store for token credential
+  // Check auth profile store for token credential ONLY
+  // SECURITY: Do NOT use api_key type - those are for model auth, not cookies
   const store = ensureAuthProfileStore();
   const profiles = listProfilesForProvider(store, "ollama");
 
@@ -120,10 +125,6 @@ function resolveOllamaCookie(): string | undefined {
     const cred = store.profiles[profileId];
     if (cred?.type === "token" && normalizeSecretInput(cred.token)) {
       return normalizeSecretInput(cred.token);
-    }
-    // Also support api_key type for backwards compatibility
-    if (cred?.type === "api_key" && normalizeSecretInput(cred.key)) {
-      return normalizeSecretInput(cred.key);
     }
   }
 
