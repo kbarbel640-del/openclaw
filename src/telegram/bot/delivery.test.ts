@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeEnv } from "../../runtime.js";
 import { deliverReplies } from "./delivery.js";
 
+const emitMessageSentHookMock = vi.hoisted(() => vi.fn());
+vi.mock("../../hooks/emit-message-sent.js", () => ({
+  emitMessageSentHook: (...args: unknown[]) => emitMessageSentHookMock(...args),
+}));
+
 const loadWebMedia = vi.fn();
 const baseDeliveryParams = {
   chatId: "123",
@@ -93,6 +98,7 @@ function createVoiceFailureHarness(params: {
 describe("deliverReplies", () => {
   beforeEach(() => {
     loadWebMedia.mockClear();
+    emitMessageSentHookMock.mockClear();
   });
 
   it("skips audioAsVoice-only payloads without logging an error", async () => {
@@ -397,5 +403,77 @@ describe("deliverReplies", () => {
 
     expect(sendVoice).toHaveBeenCalledTimes(1);
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("emits message:sent hook on successful text delivery", async () => {
+    const { runtime, bot } = createSendMessageHarness(7);
+
+    await deliverWith({
+      replies: [{ text: "hello world" }],
+      runtime,
+      bot,
+      sessionKey: "agent:main:main",
+      accountId: "acct-1",
+    });
+
+    expect(emitMessageSentHookMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "123",
+        content: expect.stringContaining("hello world"),
+        success: true,
+        channelId: "telegram",
+        accountId: "acct-1",
+        sessionKey: "agent:main:main",
+        messageId: "7",
+      }),
+    );
+  });
+
+  it("emits message:sent failure hook when text send throws", async () => {
+    const runtime = createRuntime();
+    const sendMessage = vi.fn().mockRejectedValue(new Error("rate limited"));
+    const bot = createBot({ sendMessage });
+
+    await expect(
+      deliverWith({
+        replies: [{ text: "hello" }],
+        runtime,
+        bot,
+        sessionKey: "sess-1",
+      }),
+    ).rejects.toThrow("rate limited");
+
+    expect(emitMessageSentHookMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: "rate limited",
+      }),
+    );
+  });
+
+  it("emits message:sent hook on successful media delivery", async () => {
+    const runtime = createRuntime();
+    const sendPhoto = vi.fn().mockResolvedValue({
+      message_id: 9,
+      chat: { id: "123" },
+    });
+    const bot = createBot({ sendPhoto });
+
+    mockMediaLoad("pic.jpg", "image/jpeg", "img");
+
+    await deliverWith({
+      replies: [{ mediaUrl: "https://example.com/pic.jpg", text: "caption" }],
+      runtime,
+      bot,
+      sessionKey: "sess-2",
+    });
+
+    expect(emitMessageSentHookMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: "caption",
+        success: true,
+        messageId: "9",
+      }),
+    );
   });
 });
