@@ -136,7 +136,7 @@ Primary:    kimi-coding/k2p5
     ↓ (if unavailable)
 Fallback 1: zai/glm-5
     ↓ (if unavailable)
-Fallback 2: deepseek/deepseek-coder
+Fallback 2: deepseek/deepseek-chat
     ↓ (if unavailable)
 Fallback 3: openai/gpt-4o
 ```
@@ -188,8 +188,7 @@ For convenience in configs and CLI:
 | Alias | Resolves To | Notes |
 |-------|-------------|-------|
 | `glm5` | zai/glm-5 | Code tier primary |
-| `dsc` | deepseek/deepseek-coder | Code chain fallback (same V3.2 backend) |
-| `ds` | deepseek/deepseek-chat | Bulk tier (non-thinking) |
+| `ds` | deepseek/deepseek-chat | Bulk + code fallback (V3.2, chat+coder unified) |
 | `dsr` | deepseek/deepseek-reasoner | Bulk tier (thinking) |
 | `kimi` | moonshot/kimi-k2-thinking | Reasoning tier |
 | `kimi-turbo` | moonshot/kimi-k2-thinking-turbo | Fast reasoning |
