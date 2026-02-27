@@ -29,12 +29,15 @@ export type ModelCompatConfig = {
 
 export type ModelProviderAuthMode = "api-key" | "aws-sdk" | "oauth" | "token";
 
+/** Accepted modalities for model input declarations (config + catalog). */
+export type ModelInputModality = "text" | "image" | "video" | "audio";
+
 export type ModelDefinitionConfig = {
   id: string;
   name: string;
   api?: ModelApi;
   reasoning: boolean;
-  input: Array<"text" | "image">;
+  input: Array<ModelInputModality>;
   cost: {
     input: number;
     output: number;

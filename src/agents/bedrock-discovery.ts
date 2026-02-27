@@ -3,7 +3,11 @@ import {
   ListFoundationModelsCommand,
   type ListFoundationModelsCommandOutput,
 } from "@aws-sdk/client-bedrock";
-import type { BedrockDiscoveryConfig, ModelDefinitionConfig } from "../config/types.js";
+import type {
+  BedrockDiscoveryConfig,
+  ModelDefinitionConfig,
+  ModelInputModality,
+} from "../config/types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 
 const log = createSubsystemLogger("bedrock-discovery");
@@ -58,16 +62,20 @@ function isActive(summary: BedrockModelSummary): boolean {
   return typeof status === "string" ? status.toUpperCase() === "ACTIVE" : false;
 }
 
-function mapInputModalities(summary: BedrockModelSummary): Array<"text" | "image"> {
+const BEDROCK_MODALITY_MAP: Record<string, ModelInputModality> = {
+  text: "text",
+  image: "image",
+  video: "video",
+  audio: "audio",
+};
+
+function mapInputModalities(summary: BedrockModelSummary): Array<ModelInputModality> {
   const inputs = summary.inputModalities ?? [];
-  const mapped = new Set<"text" | "image">();
+  const mapped = new Set<ModelInputModality>();
   for (const modality of inputs) {
-    const lower = modality.toLowerCase();
-    if (lower === "text") {
-      mapped.add("text");
-    }
-    if (lower === "image") {
-      mapped.add("image");
+    const match = BEDROCK_MODALITY_MAP[modality.toLowerCase()];
+    if (match) {
+      mapped.add(match);
     }
   }
   if (mapped.size === 0) {
