@@ -22,6 +22,7 @@ import {
   applyMoonshotConfig,
   applyMoonshotConfigCn,
   applyOpencodeZenConfig,
+  applyFalOpenrouterConfig,
   applyOpenrouterConfig,
   applySyntheticConfig,
   applyVeniceConfig,
@@ -46,6 +47,7 @@ import {
   setMoonshotApiKey,
   setOpenaiApiKey,
   setOpencodeZenApiKey,
+  setFalOpenrouterApiKey,
   setOpenrouterApiKey,
   setSyntheticApiKey,
   setVolcengineApiKey,
@@ -576,6 +578,29 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyKilocodeConfig(nextConfig);
+  }
+
+  if (authChoice === "fal-openrouter-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "fal-openrouter",
+      cfg: baseConfig,
+      flagValue: opts.falOpenrouterApiKey,
+      flagName: "--fal-openrouter-api-key",
+      envVar: "FAL_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setFalOpenrouterApiKey(resolved.key);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "fal-openrouter:default",
+      provider: "fal-openrouter",
+      mode: "api_key",
+    });
+    return applyFalOpenrouterConfig(nextConfig);
   }
 
   if (authChoice === "litellm-api-key") {
