@@ -276,7 +276,10 @@ function handleDrop(e: DragEvent, props: ChatProps) {
     return;
   }
   
-  // Process each image file
+  // Process all files and update state once to avoid race conditions
+  const attachments: ChatAttachment[] = [];
+  let completedCount = 0;
+  
   for (const file of imageFiles) {
     const reader = new FileReader();
     reader.addEventListener("load", () => {
@@ -286,8 +289,14 @@ function handleDrop(e: DragEvent, props: ChatProps) {
         dataUrl,
         mimeType: file.type,
       };
-      const current = props.attachments ?? [];
-      props.onAttachmentsChange?.([...current, newAttachment]);
+      attachments.push(newAttachment);
+      completedCount++;
+      
+      // Update state only when all files are processed
+      if (completedCount === imageFiles.length) {
+        const current = props.attachments ?? [];
+        props.onAttachmentsChange?.([...current, ...attachments]);
+      }
     });
     reader.readAsDataURL(file);
   }
@@ -418,6 +427,9 @@ export function renderChat(props: ChatProps) {
 
       ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
 
+      ${renderFallbackIndicator(props.fallbackStatus)}
+      ${renderCompactionIndicator(props.compactionStatus)}
+
       ${
         props.focusMode
           ? html`
@@ -505,7 +517,7 @@ export function renderChat(props: ChatProps) {
         props.showNewMessages
           ? html`
             <button
-              class="chat-new-messages"
+              class="btn chat-new-messages"
               type="button"
               @click=${props.onScrollToBottom}
             >
