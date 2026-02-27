@@ -976,7 +976,21 @@ export function monitorGoogleChatProvider(options: GoogleChatMonitorOptions): ()
 export async function startGoogleChatMonitor(
   params: GoogleChatMonitorOptions,
 ): Promise<() => void> {
-  return monitorGoogleChatProvider(params);
+  const unregister = monitorGoogleChatProvider(params);
+
+  // Keep startGoogleChatMonitor alive until the abort signal fires.
+  // Without this await, the lifecycle manager interprets the instant return
+  // as a crash and restarts the channel, accumulating duplicate webhook
+  // targets on the same path (ambiguous webhook target bug, GitHub #23402).
+  await new Promise<void>((resolve) => {
+    if (params.abortSignal.aborted) {
+      resolve();
+      return;
+    }
+    params.abortSignal.addEventListener("abort", () => resolve(), { once: true });
+  });
+
+  return unregister;
 }
 
 export function resolveGoogleChatWebhookPath(params: {
