@@ -19,6 +19,10 @@ Docs: https://docs.openclaw.ai
 - Android/Gateway capability refresh: add live Android capability integration coverage and node canvas capability refresh wiring, plus runtime hardening for A2UI readiness retries, scoped canvas URL normalization, debug diagnostics JSON, and JavaScript MIME delivery. (#28388) Thanks @obviyus.
 - Docs/Contributing: add Nimrod Gutman to the maintainer roster in `CONTRIBUTING.md`. (#27840) Thanks @ngutman.
 
+### Changes
+
+- Web Search/SearXNG: add `searxng` as a first-class `web_search` provider. Point OpenClaw at any self-hosted SearXNG instance for no-API-key, multi-engine aggregated search with support for category filtering (`general`, `images`, `news`, `videos`, `files`, `social media`), engine selection, language, and safe-search controls. Configure via `tools.web.search.provider: "searxng"` and `tools.web.search.searxng.url`.
+
 ### Fixes
 
 - Telegram/DM allowlist runtime inheritance: enforce `dmPolicy: "allowlist"` `allowFrom` requirements using effective account-plus-parent config across account-capable channels (Telegram, Discord, Slack, Signal, iMessage, IRC, BlueBubbles, WhatsApp), and align `openclaw doctor` checks to the same inheritance logic so DM traffic is not silently dropped after upgrades. (#27936) Thanks @widingmarcus-cyber.
