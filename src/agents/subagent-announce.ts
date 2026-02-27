@@ -65,13 +65,21 @@ function resolveSubagentAnnounceTimeoutMs(cfg: ReturnType<typeof loadConfig>): n
   return Math.min(Math.max(1, Math.floor(configured)), MAX_TIMER_SAFE_TIMEOUT_MS);
 }
 
+/**
+ * Conservative upper bound for completion messages delivered directly to
+ * channels.  Telegram enforces a 4096 character limit and other channels have
+ * similar constraints.  We leave headroom for the header/emoji line and keep
+ * findings within a safe budget so the send never fails silently (#25110).
+ */
+const COMPLETION_MESSAGE_FINDINGS_LIMIT = 3500;
+
 function buildCompletionDeliveryMessage(params: {
   findings: string;
   subagentName: string;
   spawnMode?: SpawnSubagentMode;
   outcome?: SubagentRunOutcome;
 }): string {
-  const findingsText = params.findings.trim();
+  let findingsText = params.findings.trim();
   if (isAnnounceSkip(findingsText)) {
     return "";
   }
@@ -93,6 +101,9 @@ function buildCompletionDeliveryMessage(params: {
   })();
   if (!hasFindings) {
     return header;
+  }
+  if (findingsText.length > COMPLETION_MESSAGE_FINDINGS_LIMIT) {
+    findingsText = findingsText.slice(0, COMPLETION_MESSAGE_FINDINGS_LIMIT) + "… (truncated)";
   }
   return `${header}\n\n${findingsText}`;
 }
