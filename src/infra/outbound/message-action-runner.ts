@@ -53,6 +53,7 @@ import {
 import { executePollAction, executeSendAction } from "./outbound-send-service.js";
 import { ensureOutboundSessionEntry, resolveOutboundSessionRoute } from "./outbound-session.js";
 import { resolveChannelTarget, type ResolvedMessagingTarget } from "./target-resolver.js";
+import { resolveOutboundTarget } from "./targets.js";
 import { extractToolPayload } from "./tool-payload.js";
 
 export type MessageActionRunnerGateway = {
@@ -89,6 +90,66 @@ function resolveAndApplyOutboundThreadId(
     params.threadId = resolved;
   }
   return resolved ?? undefined;
+}
+
+// Actions that deliver content to an explicit target and should be gated by the
+// channel's outbound allowlist.  Read-only or management actions (react, delete,
+// search, etc.) are excluded intentionally.
+// Note: "broadcast" is not listed because handleBroadcastAction returns early
+// and recurses into runMessageAction with action="send" per target — each
+// individual send is checked there.
+const ALLOWLIST_GUARDED_ACTIONS = new Set<ChannelMessageActionName>([
+  "send",
+  "poll",
+  "reply",
+  "sendWithEffect",
+  "sendAttachment",
+  "thread-create",
+  "thread-reply",
+  "sticker",
+]);
+
+/** Mask a target identifier for error messages to avoid leaking PII (e.g. phone numbers). */
+function redactTarget(to: string): string {
+  // If it looks like a phone number (starts with + and has 7+ digits), mask all but last 4
+  const digits = to.replace(/\D/g, "");
+  if (/^\+?\d{7,}/.test(to) && digits.length >= 7) {
+    return `***${digits.slice(-4)}`;
+  }
+  return to;
+}
+
+/**
+ * Enforce the channel's outbound allowlist on the resolved target.
+ *
+ * Delegates to `resolveOutboundTarget` (the same path the CLI/heartbeat
+ * delivery uses) so the behaviour stays consistent across all send surfaces.
+ */
+function enforceOutboundAllowlist(params: {
+  cfg: OpenClawConfig;
+  channel: ChannelId;
+  action: ChannelMessageActionName;
+  to: string;
+  accountId?: string | null;
+}): void {
+  if (!ALLOWLIST_GUARDED_ACTIONS.has(params.action)) {
+    return;
+  }
+
+  const result = resolveOutboundTarget({
+    channel: params.channel,
+    to: params.to,
+    cfg: params.cfg,
+    accountId: params.accountId,
+    mode: "explicit",
+  });
+
+  if (!result.ok) {
+    const masked = redactTarget(params.to);
+    throw new Error(
+      `Target not in allowlist. The message tool cannot send to "${masked}" on ${params.channel} because it is not in the configured allowFrom list.`,
+    );
+  }
 }
 
 export type RunMessageActionParams = {
@@ -803,6 +864,20 @@ export async function runMessageAction(
     toolContext: input.toolContext,
     cfg,
   });
+
+  // Enforce outbound allowlist: reject sends to targets not in the configured
+  // allowFrom list for the channel.  Uses the resolved `to` from params
+  // (already written by resolveActionTarget / applyTargetToParams above).
+  const outboundTo = typeof params.to === "string" ? params.to.trim() : "";
+  if (outboundTo) {
+    enforceOutboundAllowlist({
+      cfg,
+      channel,
+      action,
+      to: outboundTo,
+      accountId,
+    });
+  }
 
   const gateway = resolveGateway(input);
 
