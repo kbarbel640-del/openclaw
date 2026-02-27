@@ -1,6 +1,12 @@
 import type { TypingCallbacks } from "../../channels/typing.js";
 import type { HumanDelayConfig } from "../../config/types.js";
+import {
+  ackDelivery,
+  enqueueDelivery,
+  failDelivery,
+} from "../../infra/message-journal/outbound.js";
 import { sleep } from "../../utils.js";
+import type { DeliverableMessageChannel } from "../../utils/message-channel.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { registerDispatcher } from "./dispatcher-registry.js";
 import { normalizeReplyPayload, type NormalizeReplySkipReason } from "./normalize-reply.js";
@@ -8,6 +14,25 @@ import type { ResponsePrefixContext } from "./response-prefix-template.js";
 import type { TypingController } from "./typing.js";
 
 export type ReplyDispatchKind = "tool" | "block" | "final";
+
+export type DeliveryJournalContext = {
+  /** Outbound channel id used for recovery replay. */
+  channel: DeliverableMessageChannel;
+  /** Destination identifier used for recovery replay. */
+  to: string;
+  /** Links outbound rows to the inbound turn id. */
+  inboundId: string;
+  accountId?: string;
+  threadId?: string | number | null;
+  replyToId?: string | null;
+  bestEffort?: boolean;
+  gifPlayback?: boolean;
+  silent?: boolean;
+};
+
+export type ReplyDeliveryStats = {
+  successfulSends: number;
+};
 
 type ReplyDispatchErrorHandler = (err: unknown, info: { kind: ReplyDispatchKind }) => void;
 
@@ -75,6 +100,13 @@ export type ReplyDispatcher = {
   sendToolResult: (payload: ReplyPayload) => boolean;
   sendBlockReply: (payload: ReplyPayload) => boolean;
   sendFinalReply: (payload: ReplyPayload) => boolean;
+  /**
+   * Configure write-ahead outbound journaling for dispatcher sends.
+   * When provided, each outbound payload is queued before provider delivery.
+   */
+  setDeliveryJournalContext?: (context: DeliveryJournalContext | undefined) => void;
+  /** Exposes minimal delivery outcome stats for inbound terminal-state resolution. */
+  getDeliveryStats?: () => ReplyDeliveryStats;
   waitForIdle: () => Promise<void>;
   getQueuedCounts: () => Record<ReplyDispatchKind, number>;
   markComplete: () => void;
@@ -117,6 +149,8 @@ export function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDis
     block: 0,
     final: 0,
   };
+  let deliveryJournalContext: DeliveryJournalContext | undefined;
+  let successfulSends = 0;
 
   // Register this dispatcher globally for gateway restart coordination.
   const { unregister } = registerDispatcher({
@@ -153,9 +187,36 @@ export function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDis
             await sleep(delayMs);
           }
         }
-        // Safe: deliver is called inside an async .then() callback, so even a synchronous
-        // throw becomes a rejection that flows through .catch()/.finally(), ensuring cleanup.
-        await options.deliver(normalized, { kind });
+        let queueId: string | null = null;
+        if (deliveryJournalContext) {
+          queueId = await enqueueDelivery({
+            channel: deliveryJournalContext.channel,
+            to: deliveryJournalContext.to,
+            accountId: deliveryJournalContext.accountId,
+            payloads: [normalized],
+            threadId: deliveryJournalContext.threadId,
+            replyToId: normalized.replyToId ?? deliveryJournalContext.replyToId,
+            bestEffort: deliveryJournalContext.bestEffort,
+            gifPlayback: deliveryJournalContext.gifPlayback,
+            silent: deliveryJournalContext.silent,
+            inboundId: deliveryJournalContext.inboundId,
+          }).catch(() => null);
+        }
+        try {
+          // Safe: deliver is called inside an async .then() callback, so even a synchronous
+          // throw becomes a rejection that flows through .catch()/.finally(), ensuring cleanup.
+          await options.deliver(normalized, { kind });
+          successfulSends += 1;
+          if (queueId) {
+            await ackDelivery(queueId).catch(() => {});
+          }
+        } catch (err) {
+          if (queueId) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            await failDelivery(queueId, errorMessage).catch(() => {});
+          }
+          throw err;
+        }
       })
       .catch((err) => {
         options.onError?.(err, { kind });
@@ -202,6 +263,12 @@ export function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDis
     sendToolResult: (payload) => enqueue("tool", payload),
     sendBlockReply: (payload) => enqueue("block", payload),
     sendFinalReply: (payload) => enqueue("final", payload),
+    setDeliveryJournalContext: (context) => {
+      deliveryJournalContext = context;
+    },
+    getDeliveryStats: () => ({
+      successfulSends,
+    }),
     waitForIdle: () => sendChain,
     getQueuedCounts: () => ({ ...queuedCounts }),
     markComplete,

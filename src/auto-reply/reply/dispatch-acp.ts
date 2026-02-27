@@ -212,6 +212,7 @@ export async function tryDispatchAcpReply(params: {
         accountId: params.ctx.AccountId,
         threadId: params.ctx.MessageThreadId,
         cfg: params.cfg,
+        inboundId: params.ctx.PendingReplyId,
       });
       if (!result.ok) {
         logVerbose(

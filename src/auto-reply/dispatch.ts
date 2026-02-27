@@ -1,10 +1,16 @@
 import type { OpenClawConfig } from "../config/config.js";
+import { logVerbose } from "../globals.js";
+import { acceptInboundOrSkip, completeInboundTurn } from "../infra/message-journal/inbound.js";
+import { getOutboundStatusForInbound } from "../infra/message-journal/outbound.js";
+import { generateSecureUuid } from "../infra/secure-random.js";
+import { isDeliverableMessageChannel, normalizeMessageChannel } from "../utils/message-channel.js";
 import type { DispatchFromConfigResult } from "./reply/dispatch-from-config.js";
 import { dispatchReplyFromConfig } from "./reply/dispatch-from-config.js";
 import { finalizeInboundContext } from "./reply/inbound-context.js";
 import {
   createReplyDispatcher,
   createReplyDispatcherWithTyping,
+  type DeliveryJournalContext,
   type ReplyDispatcher,
   type ReplyDispatcherOptions,
   type ReplyDispatcherWithTypingOptions,
@@ -32,6 +38,141 @@ export async function withReplyDispatcher<T>(params: {
   }
 }
 
+type DispatchInboundMessageInternalParams = {
+  ctx: MsgContext | FinalizedMsgContext;
+  cfg: OpenClawConfig;
+  dispatcher: ReplyDispatcher;
+  replyOptions?: Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
+  replyResolver?: typeof import("./reply.js").getReplyFromConfig;
+  /** True when re-dispatching a recovered orphan turn — skips dedup + journal insert. */
+  isOrphanReplyRecovery?: boolean;
+};
+
+function resolveDeliveryJournalContext(params: {
+  pendingReplyId: string;
+  ctx: FinalizedMsgContext;
+}): DeliveryJournalContext | undefined {
+  const channel = normalizeMessageChannel(
+    params.ctx.OriginatingChannel ?? params.ctx.Surface ?? params.ctx.Provider,
+  );
+  if (!channel || !isDeliverableMessageChannel(channel)) {
+    return undefined;
+  }
+  const to = params.ctx.OriginatingTo?.trim() || params.ctx.To?.trim();
+  if (!to) {
+    return undefined;
+  }
+  return {
+    channel,
+    to,
+    accountId: params.ctx.AccountId?.trim() || undefined,
+    threadId: params.ctx.MessageThreadId,
+    replyToId: params.ctx.ReplyToId?.trim() || undefined,
+    inboundId: params.pendingReplyId,
+  };
+}
+
+async function dispatchInboundMessageInternal({
+  ctx,
+  cfg,
+  dispatcher,
+  replyOptions,
+  replyResolver,
+  isOrphanReplyRecovery = false,
+}: DispatchInboundMessageInternalParams): Promise<DispatchInboundResult> {
+  const finalized = finalizeInboundContext(ctx);
+
+  // Journal-based dedup + orphan-recovery tracking.
+  // Only runs for real inbound turns (not heartbeats, not recovery replays).
+  const shouldTrackTurn = !isOrphanReplyRecovery && replyOptions?.isHeartbeat !== true;
+
+  let pendingReplyId: string | undefined;
+  let deliveryJournalEnabled = false;
+  if (shouldTrackTurn) {
+    // Generate a stable turn ID if the caller didn't provide one.
+    if (!finalized.PendingReplyId?.trim()) {
+      finalized.PendingReplyId = generateSecureUuid();
+    }
+    pendingReplyId = finalized.PendingReplyId;
+    // acceptInboundOrSkip returns false when this external_id was already processed
+    // (duplicate delivery from the channel). Skip immediately if so.
+    try {
+      const accepted = acceptInboundOrSkip(finalized);
+      if (!accepted) {
+        const channel =
+          finalized.OriginatingChannel ?? finalized.Surface ?? finalized.Provider ?? "unknown";
+        const externalId = finalized.MessageSid ?? "(no message id)";
+        logVerbose(
+          `dispatch: deduped inbound turn — channel=${channel} external_id=${externalId} account=${finalized.AccountId ?? ""} turn=${pendingReplyId}`,
+        );
+        // Release dispatcher reservation so deduped turns don't leak registry entries.
+        dispatcher.markComplete();
+        await dispatcher.waitForIdle();
+        return { queuedFinal: false, counts: dispatcher.getQueuedCounts() };
+      }
+    } catch (err) {
+      // Journal errors must not block message processing.
+      logVerbose(`dispatch: journal accept failed (continuing): ${String(err)}`);
+    }
+
+    // Register write-ahead outbound journaling so every dispatcher send path
+    // (including channel-specific direct callbacks) produces durable evidence.
+    if (pendingReplyId && dispatcher.setDeliveryJournalContext) {
+      const context = resolveDeliveryJournalContext({
+        pendingReplyId,
+        ctx: finalized,
+      });
+      dispatcher.setDeliveryJournalContext(context);
+      deliveryJournalEnabled = Boolean(context);
+    }
+  }
+
+  const result = await withReplyDispatcher({
+    dispatcher,
+    run: () =>
+      dispatchReplyFromConfig({
+        ctx: finalized,
+        cfg,
+        dispatcher,
+        replyOptions,
+        replyResolver,
+      }),
+  });
+
+  // Resolve terminal state after dispatcher fully drains (including queued replies).
+  if (pendingReplyId) {
+    try {
+      const successfulSends = dispatcher.getDeliveryStats?.().successfulSends ?? 0;
+      if (successfulSends > 0) {
+        // Actual provider sends succeeded, so this turn should not be replayed.
+        completeInboundTurn(pendingReplyId, "delivered");
+        return result;
+      }
+      if (deliveryJournalEnabled) {
+        const status = getOutboundStatusForInbound(pendingReplyId);
+        if (status.queued > 0) {
+          logVerbose(
+            `dispatch: leaving inbound processing for queued outbound recovery (turn=${pendingReplyId})`,
+          );
+        } else if (status.delivered > 0) {
+          completeInboundTurn(pendingReplyId, "delivered");
+        } else if (status.failed > 0) {
+          completeInboundTurn(pendingReplyId, "failed");
+        } else {
+          // No outbound rows found (for example, journal unavailable) — keep fail-open behavior.
+          completeInboundTurn(pendingReplyId, "delivered");
+        }
+      } else {
+        completeInboundTurn(pendingReplyId, "delivered");
+      }
+    } catch (err) {
+      logVerbose(`dispatch: journal complete failed: ${String(err)}`);
+    }
+  }
+
+  return result;
+}
+
 export async function dispatchInboundMessage(params: {
   ctx: MsgContext | FinalizedMsgContext;
   cfg: OpenClawConfig;
@@ -39,18 +180,18 @@ export async function dispatchInboundMessage(params: {
   replyOptions?: Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
   replyResolver?: typeof import("./reply.js").getReplyFromConfig;
 }): Promise<DispatchInboundResult> {
-  const finalized = finalizeInboundContext(params.ctx);
-  return await withReplyDispatcher({
-    dispatcher: params.dispatcher,
-    run: () =>
-      dispatchReplyFromConfig({
-        ctx: finalized,
-        cfg: params.cfg,
-        dispatcher: params.dispatcher,
-        replyOptions: params.replyOptions,
-        replyResolver: params.replyResolver,
-      }),
-  });
+  return dispatchInboundMessageInternal(params);
+}
+
+/** Re-dispatch a recovered orphan turn — skips dedup check and journal insert. */
+export async function dispatchRecoveredPendingReply(params: {
+  ctx: MsgContext | FinalizedMsgContext;
+  cfg: OpenClawConfig;
+  dispatcher: ReplyDispatcher;
+  replyOptions?: Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
+  replyResolver?: typeof import("./reply.js").getReplyFromConfig;
+}): Promise<DispatchInboundResult> {
+  return dispatchInboundMessageInternal({ ...params, isOrphanReplyRecovery: true });
 }
 
 export async function dispatchInboundMessageWithBufferedDispatcher(params: {
@@ -64,7 +205,7 @@ export async function dispatchInboundMessageWithBufferedDispatcher(params: {
     params.dispatcherOptions,
   );
   try {
-    return await dispatchInboundMessage({
+    return await dispatchInboundMessageInternal({
       ctx: params.ctx,
       cfg: params.cfg,
       dispatcher,
@@ -87,7 +228,7 @@ export async function dispatchInboundMessageWithDispatcher(params: {
   replyResolver?: typeof import("./reply.js").getReplyFromConfig;
 }): Promise<DispatchInboundResult> {
   const dispatcher = createReplyDispatcher(params.dispatcherOptions);
-  return await dispatchInboundMessage({
+  return await dispatchInboundMessageInternal({
     ctx: params.ctx,
     cfg: params.cfg,
     dispatcher,

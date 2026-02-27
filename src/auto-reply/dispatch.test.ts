@@ -1,8 +1,29 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import { dispatchInboundMessage, withReplyDispatcher } from "./dispatch.js";
+import {
+  dispatchInboundMessage,
+  dispatchRecoveredPendingReply,
+  withReplyDispatcher,
+} from "./dispatch.js";
 import type { ReplyDispatcher } from "./reply/reply-dispatcher.js";
 import { buildTestCtx } from "./reply/test-ctx.js";
+
+vi.mock("../infra/message-journal/inbound.js", () => ({
+  acceptInboundOrSkip: vi.fn(() => true),
+  completeInboundTurn: vi.fn(),
+}));
+vi.mock("../infra/message-journal/outbound.js", () => ({
+  getOutboundStatusForInbound: vi.fn(() => ({
+    queued: 0,
+    delivered: 0,
+    failed: 0,
+  })),
+}));
+
+// Import after mock registration so we get the spy instances.
+const { acceptInboundOrSkip, completeInboundTurn } =
+  await import("../infra/message-journal/inbound.js");
+const { getOutboundStatusForInbound } = await import("../infra/message-journal/outbound.js");
 
 function createDispatcher(record: string[]): ReplyDispatcher {
   return {
@@ -87,5 +108,197 @@ describe("withReplyDispatcher", () => {
     });
 
     expect(order).toEqual(["sendFinalReply", "markComplete", "waitForIdle"]);
+  });
+});
+
+describe("dispatchInboundMessage — journal integration", () => {
+  function makeDispatcher(): ReplyDispatcher {
+    return {
+      sendToolResult: () => true,
+      sendBlockReply: () => true,
+      sendFinalReply: () => true,
+      getQueuedCounts: () => ({ tool: 0, block: 0, final: 0 }),
+      markComplete: vi.fn(),
+      waitForIdle: vi.fn(async () => {}),
+    };
+  }
+
+  beforeEach(() => {
+    vi.mocked(acceptInboundOrSkip).mockClear().mockReturnValue(true);
+    vi.mocked(completeInboundTurn).mockClear();
+    vi.mocked(getOutboundStatusForInbound).mockClear().mockReturnValue({
+      queued: 0,
+      delivered: 0,
+      failed: 0,
+    });
+  });
+
+  it("calls acceptInboundOrSkip and assigns PendingReplyId when absent", async () => {
+    const ctx = buildTestCtx(); // no PendingReplyId set
+    expect(ctx.PendingReplyId).toBeUndefined();
+
+    await dispatchInboundMessage({
+      ctx,
+      cfg: {} as OpenClawConfig,
+      dispatcher: makeDispatcher(),
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(acceptInboundOrSkip).toHaveBeenCalledTimes(1);
+    // dispatch should have generated a UUID and set it on ctx
+    const calledCtx = vi.mocked(acceptInboundOrSkip).mock.calls[0][0];
+    expect(typeof calledCtx.PendingReplyId).toBe("string");
+    expect(calledCtx.PendingReplyId!.length).toBeGreaterThan(0);
+  });
+
+  it("calls completeInboundTurn('delivered') after successful dispatch", async () => {
+    await dispatchInboundMessage({
+      ctx: buildTestCtx(),
+      cfg: {} as OpenClawConfig,
+      dispatcher: makeDispatcher(),
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(completeInboundTurn).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(completeInboundTurn).mock.calls[0][1]).toBe("delivered");
+  });
+
+  it("marks delivered when dispatcher reports successful sends", async () => {
+    vi.mocked(getOutboundStatusForInbound).mockReturnValue({
+      queued: 1,
+      delivered: 0,
+      failed: 0,
+    });
+    const dispatcher: ReplyDispatcher = {
+      sendToolResult: () => true,
+      sendBlockReply: () => true,
+      sendFinalReply: () => true,
+      setDeliveryJournalContext: vi.fn(),
+      getDeliveryStats: () => ({ successfulSends: 1 }),
+      getQueuedCounts: () => ({ tool: 0, block: 0, final: 0 }),
+      markComplete: vi.fn(),
+      waitForIdle: vi.fn(async () => {}),
+    };
+
+    await dispatchInboundMessage({
+      ctx: buildTestCtx(),
+      cfg: {} as OpenClawConfig,
+      dispatcher,
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(completeInboundTurn).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(completeInboundTurn).mock.calls[0][1]).toBe("delivered");
+    // Successful sends short-circuit DB status checks.
+    expect(getOutboundStatusForInbound).not.toHaveBeenCalled();
+  });
+
+  it("configures delivery journal context when dispatcher supports it", async () => {
+    const setDeliveryJournalContext = vi.fn();
+    const dispatcher: ReplyDispatcher = {
+      sendToolResult: () => true,
+      sendBlockReply: () => true,
+      sendFinalReply: () => true,
+      setDeliveryJournalContext,
+      getQueuedCounts: () => ({ tool: 0, block: 0, final: 0 }),
+      markComplete: vi.fn(),
+      waitForIdle: vi.fn(async () => {}),
+    };
+
+    await dispatchInboundMessage({
+      ctx: buildTestCtx({
+        Surface: "slack",
+        OriginatingChannel: "slack",
+        OriginatingTo: "channel:C123",
+        AccountId: "work",
+      }),
+      cfg: {} as OpenClawConfig,
+      dispatcher,
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(setDeliveryJournalContext).toHaveBeenCalledTimes(1);
+    expect(setDeliveryJournalContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "slack",
+        to: "channel:C123",
+        accountId: "work",
+      }),
+    );
+  });
+
+  it("marks turn failed when outbound journal reports failed deliveries", async () => {
+    vi.mocked(getOutboundStatusForInbound).mockReturnValue({
+      queued: 0,
+      delivered: 0,
+      failed: 1,
+    });
+    const dispatcher: ReplyDispatcher = {
+      sendToolResult: () => true,
+      sendBlockReply: () => true,
+      sendFinalReply: () => true,
+      setDeliveryJournalContext: vi.fn(),
+      getQueuedCounts: () => ({ tool: 0, block: 0, final: 0 }),
+      markComplete: vi.fn(),
+      waitForIdle: vi.fn(async () => {}),
+    };
+
+    await dispatchInboundMessage({
+      ctx: buildTestCtx({
+        Surface: "signal",
+        OriginatingChannel: "signal",
+        OriginatingTo: "signal:+15550001111",
+      }),
+      cfg: {} as OpenClawConfig,
+      dispatcher,
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(completeInboundTurn).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(completeInboundTurn).mock.calls[0][1]).toBe("failed");
+  });
+
+  it("skips journal tracking for heartbeats", async () => {
+    await dispatchInboundMessage({
+      ctx: buildTestCtx(),
+      cfg: {} as OpenClawConfig,
+      dispatcher: makeDispatcher(),
+      replyOptions: { isHeartbeat: true },
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(acceptInboundOrSkip).not.toHaveBeenCalled();
+    expect(completeInboundTurn).not.toHaveBeenCalled();
+  });
+
+  it("returns early without dispatching when acceptInboundOrSkip returns false (duplicate)", async () => {
+    vi.mocked(acceptInboundOrSkip).mockReturnValue(false);
+    const dispatcher = makeDispatcher();
+    const sendFinalReply = vi.spyOn(dispatcher, "sendFinalReply");
+
+    await dispatchInboundMessage({
+      ctx: buildTestCtx({ MessageSid: "dup-msg-001" }),
+      cfg: {} as OpenClawConfig,
+      dispatcher,
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    expect(sendFinalReply).not.toHaveBeenCalled();
+    expect(completeInboundTurn).not.toHaveBeenCalled();
+    // Dispatcher reservation must be released so deduped turns don't leak registry entries.
+    expect(dispatcher.markComplete).toHaveBeenCalled();
+    expect(dispatcher.waitForIdle).toHaveBeenCalled();
+  });
+
+  it("skips journal insert for orphan recovery re-dispatches", async () => {
+    await dispatchRecoveredPendingReply({
+      ctx: buildTestCtx({ PendingReplyId: "orphan-turn-001" }),
+      cfg: {} as OpenClawConfig,
+      dispatcher: makeDispatcher(),
+      replyResolver: async () => ({ text: "ok" }),
+    });
+
+    // acceptInboundOrSkip must NOT be called — orphan recovery re-uses the existing row
+    expect(acceptInboundOrSkip).not.toHaveBeenCalled();
   });
 });
