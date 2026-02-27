@@ -74,6 +74,9 @@ function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
   if (typeof raw.targetDir === "string") {
     spec.targetDir = raw.targetDir;
   }
+  if (typeof raw.sha256 === "string") {
+    spec.sha256 = raw.sha256;
+  }
 
   return spec;
 }

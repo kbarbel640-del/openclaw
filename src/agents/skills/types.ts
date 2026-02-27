@@ -14,6 +14,7 @@ export type SkillInstallSpec = {
   extract?: boolean;
   stripComponents?: number;
   targetDir?: string;
+  sha256?: string;
 };
 
 export type OpenClawSkillMetadata = {
