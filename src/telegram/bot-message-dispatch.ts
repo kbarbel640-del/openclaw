@@ -43,6 +43,8 @@ import {
   createTelegramReasoningStepState,
   splitTelegramReasoningText,
 } from "./reasoning-lane-coordinator.js";
+import { editMessageTelegram } from "./send.js";
+import { cacheSticker, describeStickerImage } from "./sticker-cache.js";
 
 export function shouldSuppressTelegramDraftPreviewText(
   text: string,
@@ -51,8 +53,6 @@ export function shouldSuppressTelegramDraftPreviewText(
   const trimmed = text.trim();
   return isSilentReplyText(trimmed, silentToken) || isSilentReplyPrefixText(trimmed, silentToken);
 }
-import { editMessageTelegram } from "./send.js";
-import { cacheSticker, describeStickerImage } from "./sticker-cache.js";
 
 const EMPTY_RESPONSE_FALLBACK = "No response generated. Please try again.";
 
