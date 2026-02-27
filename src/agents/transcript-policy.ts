@@ -95,10 +95,13 @@ export function resolveTranscriptPolicy(params: {
     modelId.toLowerCase().includes("gemini");
   const isCopilotClaude = provider === "github-copilot" && modelId.toLowerCase().includes("claude");
 
-  // GitHub Copilot's Claude endpoints can reject persisted `thinking` blocks with
-  // non-binary/non-base64 signatures (e.g. thinkingSignature: "reasoning_text").
-  // Drop these blocks at send-time to keep sessions usable.
-  const dropThinkingBlocks = isCopilotClaude;
+  // Drop persisted `thinking` blocks at send-time to keep sessions usable.
+  // - Copilot Claude: rejects non-binary/non-base64 signatures.
+  // - Anthropic: the API rejects any modification of thinking/redacted_thinking
+  //   blocks in the latest assistant turn. Subtle round-trip changes (e.g.
+  //   sanitizeSurrogates, field renaming) can trigger this. Dropping all thinking
+  //   blocks is explicitly allowed by the API and also saves context tokens.
+  const dropThinkingBlocks = isCopilotClaude || isAnthropic;
 
   const needsNonImageSanitize = isGoogle || isAnthropic || isMistral || isOpenRouterGemini;
 
