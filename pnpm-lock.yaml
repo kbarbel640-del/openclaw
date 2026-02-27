@@ -261,6 +261,16 @@ importers:
 
   extensions/copilot-proxy: {}
 
+  extensions/coremem-tools:
+    dependencies:
+      '@openclaw/core-memories':
+        specifier: workspace:*
+        version: link:../../packages/core-memories
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
   extensions/diagnostics-otel:
     dependencies:
       '@opentelemetry/api':
