@@ -36,6 +36,8 @@ const SERVICE_PROXY_ENV_KEYS = [
   "all_proxy",
 ] as const;
 
+const SERVICE_TLS_ENV_KEYS = ["NODE_EXTRA_CA_CERTS", "NODE_USE_SYSTEM_CA"] as const;
+
 function readServiceProxyEnvironment(
   env: Record<string, string | undefined>,
 ): Record<string, string | undefined> {
@@ -51,6 +53,33 @@ function readServiceProxyEnvironment(
     }
     out[key] = trimmed;
   }
+  return out;
+}
+
+function readServiceTlsEnvironment(
+  env: Record<string, string | undefined>,
+  platform: NodeJS.Platform,
+): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const key of SERVICE_TLS_ENV_KEYS) {
+    const value = env[key];
+    if (typeof value !== "string") {
+      continue;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      continue;
+    }
+    out[key] = trimmed;
+  }
+
+  // On macOS, launchd services don't inherit the shell environment, so Node's undici/fetch
+  // cannot locate the system CA bundle. Default to /etc/ssl/cert.pem so TLS verification
+  // works correctly when running as a LaunchAgent without extra user configuration.
+  if (!out.NODE_EXTRA_CA_CERTS && platform === "darwin") {
+    out.NODE_EXTRA_CA_CERTS = "/etc/ssl/cert.pem";
+  }
+
   return out;
 }
 
@@ -249,17 +278,13 @@ export function buildServiceEnvironment(params: {
   // Keep a usable temp directory for supervised services even when the host env omits TMPDIR.
   const tmpDir = env.TMPDIR?.trim() || os.tmpdir();
   const proxyEnv = readServiceProxyEnvironment(env);
-  // On macOS, launchd services don't inherit the shell environment, so Node's undici/fetch
-  // cannot locate the system CA bundle. Default to /etc/ssl/cert.pem so TLS verification
-  // works correctly when running as a LaunchAgent without extra user configuration.
-  const nodeCaCerts =
-    env.NODE_EXTRA_CA_CERTS ?? (platform === "darwin" ? "/etc/ssl/cert.pem" : undefined);
+  const tlsEnv = readServiceTlsEnvironment(env, platform);
   return {
     HOME: env.HOME,
     TMPDIR: tmpDir,
     PATH: buildMinimalServicePath({ env }),
     ...proxyEnv,
-    NODE_EXTRA_CA_CERTS: nodeCaCerts,
+    ...tlsEnv,
     OPENCLAW_PROFILE: profile,
     OPENCLAW_STATE_DIR: stateDir,
     OPENCLAW_CONFIG_PATH: configPath,
@@ -283,17 +308,13 @@ export function buildNodeServiceEnvironment(params: {
   const configPath = env.OPENCLAW_CONFIG_PATH;
   const tmpDir = env.TMPDIR?.trim() || os.tmpdir();
   const proxyEnv = readServiceProxyEnvironment(env);
-  // On macOS, launchd services don't inherit the shell environment, so Node's undici/fetch
-  // cannot locate the system CA bundle. Default to /etc/ssl/cert.pem so TLS verification
-  // works correctly when running as a LaunchAgent without extra user configuration.
-  const nodeCaCerts =
-    env.NODE_EXTRA_CA_CERTS ?? (platform === "darwin" ? "/etc/ssl/cert.pem" : undefined);
+  const tlsEnv = readServiceTlsEnvironment(env, platform);
   return {
     HOME: env.HOME,
     TMPDIR: tmpDir,
     PATH: buildMinimalServicePath({ env }),
     ...proxyEnv,
-    NODE_EXTRA_CA_CERTS: nodeCaCerts,
+    ...tlsEnv,
     OPENCLAW_STATE_DIR: stateDir,
     OPENCLAW_CONFIG_PATH: configPath,
     OPENCLAW_LAUNCHD_LABEL: resolveNodeLaunchAgentLabel(),
