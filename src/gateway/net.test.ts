@@ -1,6 +1,9 @@
+import { EventEmitter } from "node:events";
+import net from "node:net";
 import os from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  canBindToHost,
   isPrivateOrLoopbackAddress,
   isSecureWebSocketUrl,
   isTrustedProxyAddress,
@@ -166,6 +169,46 @@ describe("resolveGatewayClientIp", () => {
       trustedProxies: ["127.0.0.1"],
     });
     expect(ip).toBe("2001:db8::5");
+  });
+});
+
+describe("canBindToHost", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns true for a bindable address", async () => {
+    const result = await canBindToHost("127.0.0.1");
+    expect(result).toBe(true);
+  });
+
+  it("returns false and closes the server on bind error", async () => {
+    const fakeServer = new EventEmitter() as EventEmitter & { listen: unknown; close: unknown };
+    fakeServer.listen = vi.fn(() => {
+      process.nextTick(() => fakeServer.emit("error", new Error("EADDRNOTAVAIL")));
+      return fakeServer;
+    });
+    fakeServer.close = vi.fn();
+    vi.spyOn(net, "createServer").mockReturnValueOnce(fakeServer as net.Server);
+
+    const result = await canBindToHost("10.255.255.1");
+    expect(result).toBe(false);
+    expect(fakeServer.close).toHaveBeenCalled();
+  });
+
+  it("returns false after timeout when listen stalls", async () => {
+    vi.useFakeTimers();
+    const fakeServer = new EventEmitter() as EventEmitter & { listen: unknown; close: unknown };
+    fakeServer.listen = vi.fn(() => fakeServer); // never emits
+    fakeServer.close = vi.fn();
+    vi.spyOn(net, "createServer").mockReturnValueOnce(fakeServer as net.Server);
+
+    const promise = canBindToHost("10.255.255.1");
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(await promise).toBe(false);
+    expect(fakeServer.close).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
 

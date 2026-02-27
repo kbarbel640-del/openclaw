@@ -338,13 +338,32 @@ export async function resolveGatewayBindHost(
  */
 export async function canBindToHost(host: string): Promise<boolean> {
   return new Promise((resolve) => {
+    let settled = false;
     const testServer = net.createServer();
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        testServer.close();
+        resolve(false);
+      }
+    }, 3_000);
+
     testServer.once("error", () => {
-      resolve(false);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        testServer.close();
+        resolve(false);
+      }
     });
     testServer.once("listening", () => {
-      testServer.close();
-      resolve(true);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        testServer.close();
+        resolve(true);
+      }
     });
     // Use port 0 to let OS pick an available port for testing
     testServer.listen(0, host);
