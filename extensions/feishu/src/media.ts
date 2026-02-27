@@ -302,6 +302,53 @@ export async function sendImageFeishu(params: {
 }
 
 /**
+ * Send an audio message using a file_key
+ * Audio messages use msg_type="audio" for native voice message UI in Feishu
+ */
+export async function sendAudioFeishu(params: {
+  cfg: ClawdbotConfig;
+  to: string;
+  fileKey: string;
+  duration?: number;
+  replyToMessageId?: string;
+  accountId?: string;
+}): Promise<SendMediaResult> {
+  const { cfg, to, fileKey, duration, replyToMessageId, accountId } = params;
+  const { client, receiveId, receiveIdType } = resolveFeishuSendTarget({
+    cfg,
+    to,
+    accountId,
+  });
+  const content = JSON.stringify({
+    file_key: fileKey,
+    ...(duration !== undefined && { duration: Math.floor(duration) }),
+  });
+
+  if (replyToMessageId) {
+    const response = await client.im.message.reply({
+      path: { message_id: replyToMessageId },
+      data: {
+        content,
+        msg_type: "audio",
+      },
+    });
+    assertFeishuMessageApiSuccess(response, "Feishu audio reply failed");
+    return toFeishuSendResult(response, receiveId);
+  }
+
+  const response = await client.im.message.create({
+    params: { receive_id_type: receiveIdType },
+    data: {
+      receive_id: receiveId,
+      content,
+      msg_type: "audio",
+    },
+  });
+  assertFeishuMessageApiSuccess(response, "Feishu audio send failed");
+  return toFeishuSendResult(response, receiveId);
+}
+
+/**
  * Send a file message using a file_key
  */
 export async function sendFileFeishu(params: {
@@ -391,9 +438,20 @@ export async function sendMediaFeishu(params: {
   replyToMessageId?: string;
   replyInThread?: boolean;
   accountId?: string;
+  /** When true, send audio files as msg_type="audio" for native voice message UI */
+  useAudioType?: boolean;
 }): Promise<SendMediaResult> {
-  const { cfg, to, mediaUrl, mediaBuffer, fileName, replyToMessageId, replyInThread, accountId } =
-    params;
+  const {
+    cfg,
+    to,
+    mediaUrl,
+    mediaBuffer,
+    fileName,
+    replyToMessageId,
+    replyInThread,
+    accountId,
+    useAudioType,
+  } = params;
   const account = resolveFeishuAccount({ cfg, accountId });
   if (!account.configured) {
     throw new Error(`Feishu account "${account.accountId}" not configured`);
@@ -433,6 +491,20 @@ export async function sendMediaFeishu(params: {
       fileType,
       accountId,
     });
+
+    // Use native audio message type if requested and file is audio
+    const isAudio = fileType === "opus";
+    if (useAudioType && isAudio) {
+      return sendAudioFeishu({
+        cfg,
+        to,
+        fileKey,
+        replyToMessageId,
+        accountId,
+      });
+    }
+
+    // Feishu requires msg_type "media" for audio/video, "file" for documents
     const isMedia = fileType === "mp4" || fileType === "opus";
     return sendFileFeishu({
       cfg,

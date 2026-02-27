@@ -36,7 +36,12 @@ vi.mock("./runtime.js", () => ({
   }),
 }));
 
-import { downloadImageFeishu, downloadMessageResourceFeishu, sendMediaFeishu } from "./media.js";
+import {
+  downloadImageFeishu,
+  downloadMessageResourceFeishu,
+  sendMediaFeishu,
+  sendAudioFeishu,
+} from "./media.js";
 
 function expectPathIsolatedToTmpRoot(pathValue: string, key: string): void {
   expect(pathValue).not.toContain(key);
@@ -146,6 +151,50 @@ describe("sendMediaFeishu msg_type routing", () => {
     expect(messageCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ msg_type: "media" }),
+      }),
+    );
+  });
+
+  it("uses msg_type=audio for opus when useAudioType is true", async () => {
+    await sendMediaFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      mediaBuffer: Buffer.from("audio"),
+      fileName: "voice.opus",
+      useAudioType: true,
+    });
+
+    expect(fileCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ file_type: "opus" }),
+      }),
+    );
+
+    expect(messageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ msg_type: "audio" }),
+      }),
+    );
+  });
+
+  it("uses msg_type=media for mp3 files (not affected by useAudioType)", async () => {
+    await sendMediaFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      mediaBuffer: Buffer.from("audio"),
+      fileName: "music.mp3",
+      useAudioType: true,
+    });
+
+    expect(fileCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ file_type: "stream" }),
+      }),
+    );
+
+    expect(messageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ msg_type: "file" }),
       }),
     );
   });
@@ -307,5 +356,108 @@ describe("sendMediaFeishu msg_type routing", () => {
     ).rejects.toThrow("invalid file_key");
 
     expect(messageResourceGetMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendAudioFeishu", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    resolveFeishuAccountMock.mockReturnValue({
+      configured: true,
+      accountId: "main",
+      config: {},
+      appId: "app_id",
+      appSecret: "app_secret",
+      domain: "feishu",
+    });
+
+    normalizeFeishuTargetMock.mockReturnValue("ou_target");
+    resolveReceiveIdTypeMock.mockReturnValue("open_id");
+
+    createFeishuClientMock.mockReturnValue({
+      im: {
+        message: {
+          create: messageCreateMock,
+          reply: messageReplyMock,
+        },
+      },
+    });
+
+    messageCreateMock.mockResolvedValue({
+      code: 0,
+      data: { message_id: "msg_audio_1", chat_id: "chat_1" },
+    });
+
+    messageReplyMock.mockResolvedValue({
+      code: 0,
+      data: { message_id: "reply_audio_1", chat_id: "chat_1" },
+    });
+  });
+
+  it("sends audio message with msg_type=audio", async () => {
+    const result = await sendAudioFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      fileKey: "file_audio_key",
+    });
+
+    expect(messageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: { receive_id_type: "open_id" },
+        data: expect.objectContaining({
+          msg_type: "audio",
+          content: JSON.stringify({ file_key: "file_audio_key" }),
+        }),
+      }),
+    );
+
+    expect(result).toEqual({
+      messageId: "msg_audio_1",
+      chatId: "ou_target",
+    });
+  });
+
+  it("sends audio message with duration", async () => {
+    await sendAudioFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      fileKey: "file_audio_key",
+      duration: 5234.67,
+    });
+
+    expect(messageCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          msg_type: "audio",
+          content: JSON.stringify({ file_key: "file_audio_key", duration: 5234 }),
+        }),
+      }),
+    );
+  });
+
+  it("sends audio reply with msg_type=audio", async () => {
+    const result = await sendAudioFeishu({
+      cfg: {} as any,
+      to: "user:ou_target",
+      fileKey: "file_audio_key",
+      replyToMessageId: "om_parent",
+    });
+
+    expect(messageReplyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: { message_id: "om_parent" },
+        data: expect.objectContaining({
+          msg_type: "audio",
+          content: JSON.stringify({ file_key: "file_audio_key" }),
+        }),
+      }),
+    );
+
+    expect(messageCreateMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      messageId: "reply_audio_1",
+      chatId: "ou_target",
+    });
   });
 });
