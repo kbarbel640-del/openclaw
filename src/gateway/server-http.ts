@@ -1,3 +1,4 @@
+import { installOpenAiRateLimitShaper } from "../infra/net/rate-limit-shaping.js";
 import {
   createServer as createHttpServer,
   type Server as HttpServer,
@@ -63,6 +64,8 @@ import { GATEWAY_CLIENT_MODES, normalizeGatewayClientMode } from "./protocol/cli
 import { isProtectedPluginRoutePath } from "./security-path.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 import { handleToolsInvokeHttpRequest } from "./tools-invoke-http.js";
+
+installOpenAiRateLimitShaper();
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
