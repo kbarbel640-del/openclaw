@@ -54,6 +54,7 @@ import { createExecApprovalButton, DiscordExecApprovalHandler } from "./exec-app
 import { attachEarlyGatewayErrorGuard } from "./gateway-error-guard.js";
 import { createDiscordGatewayPlugin } from "./gateway-plugin.js";
 import {
+  DiscordMemberAddListener,
   DiscordMessageListener,
   DiscordPresenceListener,
   DiscordReactionListener,
@@ -466,6 +467,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         publicKey: "a",
         token,
         autoDeploy: false,
+        // Extend listener timeout to 120 s (default 30 s) to accommodate slow
+        // operations like audio transcription and agent dispatch under load.
+        eventQueue: { listenerTimeout: 120_000 },
       },
       {
         commands,
@@ -578,6 +582,20 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         new DiscordPresenceListener({ logger, accountId: account.accountId }),
       );
       runtime.log?.("discord: GuildPresences intent enabled — presence listener registered");
+    }
+
+    if (discordCfg.intents?.guildMembers) {
+      registerDiscordListener(
+        client.listeners,
+        new DiscordMemberAddListener({
+          cfg,
+          accountId: account.accountId,
+          botUserId,
+          guildEntries,
+          logger,
+        }),
+      );
+      runtime.log?.("discord: GuildMembers intent enabled — member-add listener registered");
     }
 
     runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
