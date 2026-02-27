@@ -252,7 +252,7 @@ describe("resolveClaudeSdkConfig", () => {
 });
 
 describe("resolveRuntime", () => {
-  it("returns claude-sdk when resolved auth mode is system-keychain", () => {
+  it("returns pi when resolvedProviderAuth says system-keychain but provider is not claude-pro or claude-max", () => {
     const params = {
       provider: "not-claude-pro",
       resolvedProviderAuth: {
@@ -262,7 +262,8 @@ describe("resolveRuntime", () => {
       config: {},
     } as unknown as EmbeddedRunAttemptParams;
 
-    expect(resolveRuntime(params, "main")).toBe("claude-sdk");
+    // resolvedProviderAuth is no longer consulted; routing is driven solely by provider name.
+    expect(resolveRuntime(params, "main")).toBe("pi");
   });
 
   it("returns claude-sdk for known claude-sdk providers", () => {
@@ -292,18 +293,13 @@ describe("resolveRuntime", () => {
     expect(resolveRuntime(params, "main")).toBe("pi");
   });
 
-  it("warns when provider resembles claude-sdk but does not match", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // Use a dynamic import to access the subsystem logger's warn method.
-    // Instead, we test indirectly: resolveRuntime returns "pi" and does not throw.
+  it("returns pi for any provider that is not exactly claude-pro or claude-max", () => {
     const params = {
       provider: "claude-pro-custom",
       config: {},
     } as unknown as EmbeddedRunAttemptParams;
 
-    const result = resolveRuntime(params, "main");
-    expect(result).toBe("pi");
-    warnSpy.mockRestore();
+    expect(resolveRuntime(params, "main")).toBe("pi");
   });
 
   it("runtimeOverride pi forces pi even when provider is a known claude-sdk provider", () => {
@@ -356,7 +352,7 @@ describe("resolveRuntime", () => {
     expect(resolveRuntime(params, "main")).toBe("pi");
   });
 
-  it("returns claude-sdk for Claude model with system-keychain provider", () => {
+  it("returns claude-sdk for Claude model with claude-pro provider", () => {
     const params = {
       provider: "claude-pro",
       modelId: "claude-sonnet-4-5",
