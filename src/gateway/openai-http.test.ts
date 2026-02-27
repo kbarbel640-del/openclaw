@@ -132,6 +132,7 @@ describe("OpenAI-compatible HTTP API (e2e)", () => {
         | {
             sessionKey?: string;
             message?: string;
+            images?: Array<{ type: string; data: string; mimeType: string }>;
             extraSystemPrompt?: string;
           }
         | undefined;
@@ -315,6 +316,104 @@ describe("OpenAI-compatible HTTP API (e2e)", () => {
           history: ["User: What's the weather?", "Assistant: Checking the weather."],
           current: ["Tool: Sunny, 70F."],
         });
+        await res.text();
+      }
+
+      // image_url with data URI is extracted and passed as images
+      {
+        mockAgentOnce([{ text: "I see a cat" }]);
+        const base64Data = Buffer.from("fake-jpeg-data").toString("base64");
+        const res = await postChatCompletions(port, {
+          model: "openclaw",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "What is in this image?" },
+                {
+                  type: "image_url",
+                  image_url: { url: `data:image/jpeg;base64,${base64Data}` },
+                },
+              ],
+            },
+          ],
+        });
+        expect(res.status).toBe(200);
+
+        const call = getFirstAgentCall();
+        expect(call?.message).toBe("What is in this image?");
+        expect(call?.images).toEqual([{ type: "image", mimeType: "image/jpeg", data: base64Data }]);
+        await res.text();
+      }
+
+      // image_url with data URI for png
+      {
+        mockAgentOnce([{ text: "ok" }]);
+        const base64Data = Buffer.from("fake-png-data").toString("base64");
+        const res = await postChatCompletions(port, {
+          model: "openclaw",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "describe" },
+                {
+                  type: "image_url",
+                  image_url: { url: `data:image/png;base64,${base64Data}` },
+                },
+              ],
+            },
+          ],
+        });
+        expect(res.status).toBe(200);
+
+        const call = getFirstAgentCall();
+        expect(call?.images).toEqual([{ type: "image", mimeType: "image/png", data: base64Data }]);
+        await res.text();
+      }
+
+      // text-only multipart content has no images
+      {
+        mockAgentOnce([{ text: "ok" }]);
+        const res = await postChatCompletions(port, {
+          model: "openclaw",
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: "just text" }],
+            },
+          ],
+        });
+        expect(res.status).toBe(200);
+
+        const call = getFirstAgentCall();
+        expect(call?.message).toBe("just text");
+        expect(call?.images).toBeUndefined();
+        await res.text();
+      }
+
+      // HTTP image_url is not extracted (only data URIs supported)
+      {
+        mockAgentOnce([{ text: "ok" }]);
+        const res = await postChatCompletions(port, {
+          model: "openclaw",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "look at this" },
+                {
+                  type: "image_url",
+                  image_url: { url: "https://example.com/image.jpg" },
+                },
+              ],
+            },
+          ],
+        });
+        expect(res.status).toBe(200);
+
+        const call = getFirstAgentCall();
+        expect(call?.images).toBeUndefined();
         await res.text();
       }
 
