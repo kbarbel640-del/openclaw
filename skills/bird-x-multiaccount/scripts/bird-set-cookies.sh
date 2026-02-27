@@ -1,0 +1,1 @@
+/home/klabo/OneDrive/satsmax/scripts/bird-set-cookies.sh

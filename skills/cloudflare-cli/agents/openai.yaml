@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cloudflare CLI"
+  short_description: "Manage Cloudflare DNS via CLI"
+  default_prompt: "Use $cloudflare-cli to manage Cloudflare DNS records."

@@ -1,0 +1,104 @@
+{
+  "scrambles": [
+    {
+      "set": 0,
+      "words": [
+        {"scrambled": "OGD", "answer": "DOG"},
+        {"scrambled": "TAC", "answer": "CAT"},
+        {"scrambled": "NUS", "answer": "SUN"},
+        {"scrambled": "TARS", "answer": "STAR"},
+        {"scrambled": "OMNO", "answer": "MOON"}
+      ]
+    },
+    {
+      "set": 1,
+      "words": [
+        {"scrambled": "OKBO", "answer": "BOOK"},
+        {"scrambled": "RETE", "answer": "TREE"},
+        {"scrambled": "IRBD", "answer": "BIRD"},
+        {"scrambled": "HSIF", "answer": "FISH"},
+        {"scrambled": "KEAC", "answer": "CAKE"}
+      ]
+    },
+    {
+      "set": 2,
+      "words": [
+        {"scrambled": "PALEP", "answer": "APPLE"},
+        {"scrambled": "HOEUS", "answer": "HOUSE"},
+        {"scrambled": "RAINT", "answer": "TRAIN"},
+        {"scrambled": "DUOLC", "answer": "CLOUD"},
+        {"scrambled": "ROFLWE", "answer": "FLOWER"}
+      ]
+    },
+    {
+      "set": 3,
+      "words": [
+        {"scrambled": "LEPAN", "answer": "PLANE"},
+        {"scrambled": "CHBAE", "answer": "BEACH"},
+        {"scrambled": "NIGTH", "answer": "NIGHT"},
+        {"scrambled": "DREAB", "answer": "BREAD"},
+        {"scrambled": "PELES", "answer": "SLEEP"}
+      ]
+    },
+    {
+      "set": 4,
+      "words": [
+        {"scrambled": "RWAET", "answer": "WATER"},
+        {"scrambled": "CENAO", "answer": "OCEAN"},
+        {"scrambled": "GRANE", "answer": "RANGE"},
+        {"scrambled": "SOCHE", "answer": "CHOSE"},
+        {"scrambled": "MUSCI", "answer": "MUSIC"}
+      ]
+    },
+    {
+      "set": 5,
+      "words": [
+        {"scrambled": "AZZIP", "answer": "PIZZA"},
+        {"scrambled": "EPACS", "answer": "SPACE"},
+        {"scrambled": "ERTAH", "answer": "HEART"},
+        {"scrambled": "LANET", "answer": "PLANT"},
+        {"scrambled": "IMELS", "answer": "SMILE"}
+      ]
+    },
+    {
+      "set": 6,
+      "words": [
+        {"scrambled": "TOBOR", "answer": "ROBOT"},
+        {"scrambled": "THILG", "answer": "LIGHT"},
+        {"scrambled": "ADNAP", "answer": "PANDA"},
+        {"scrambled": "NAGRO", "answer": "ORGAN"},
+        {"scrambled": "RINTP", "answer": "PRINT"}
+      ]
+    },
+    {
+      "set": 7,
+      "words": [
+        {"scrambled": "KINTH", "answer": "THINK"},
+        {"scrambled": "ROLOC", "answer": "COLOR"},
+        {"scrambled": "EOHWL", "answer": "WHOLE"},
+        {"scrambled": "GINHT", "answer": "THING"},
+        {"scrambled": "TORHS", "answer": "SHORT"}
+      ]
+    },
+    {
+      "set": 8,
+      "words": [
+        {"scrambled": "EVRAB", "answer": "BRAVE"},
+        {"scrambled": "DNEIRF", "answer": "FRIEND"},
+        {"scrambled": "HGUAL", "answer": "LAUGH"},
+        {"scrambled": "NEERG", "answer": "GREEN"},
+        {"scrambled": "YPPAH", "answer": "HAPPY"}
+      ]
+    },
+    {
+      "set": 9,
+      "words": [
+        {"scrambled": "ECNIRP", "answer": "PRINCE"},
+        {"scrambled": "CIGAM", "answer": "MAGIC"},
+        {"scrambled": "DLROW", "answer": "WORLD"},
+        {"scrambled": "MAERD", "answer": "DREAM"},
+        {"scrambled": "ELIMS", "answer": "SMILE"}
+      ]
+    }
+  ]
+}

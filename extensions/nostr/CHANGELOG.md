@@ -11,6 +11,8 @@
 ### Changes
 
 - Version alignment with core OpenClaw release numbers.
+- NIP-63 migration completed for the Nostr plugin: protocol now uses NIP-44 encryption and
+  NIP-63 prompt/response events, with implicit `sender:{pubkey}` sessions plus explicit `s`-tag support.
 
 ## 2026.2.24
 
@@ -30,7 +32,7 @@ Initial release.
 
 ### Features
 
-- NIP-04 encrypted DM support (kind:4 events)
+- Legacy v1: NIP-04 encrypted DM support (kind:4 events)
 - Key validation (hex and nsec formats)
 - Multi-relay support with sequential fallback
 - Event signature verification
@@ -41,7 +43,7 @@ Initial release.
 ### Protocol Support
 
 - NIP-01: Basic event structure
-- NIP-04: Encrypted direct messages
+- Legacy v1: NIP-04 encrypted direct messages
 
 ### Planned for v2
 

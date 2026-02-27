@@ -1,0 +1,1731 @@
+# Skill Improvements Log
+
+This file tracks improvements made to skills via the creating-skills workflow.
+
+## Log Format
+
+Each entry follows this format:
+```
+## YYYY-MM-DD HH:MM - skill-name
+
+**Action:** new | improve | consolidate
+**Changes:**
+- Change 1
+- Change 2
+
+**Metrics:**
+- Lines before: X → after: Y
+- Description chars: X
+```
+
+---
+
+## Log Entries
+
+<!-- New entries are appended below this line -->
+
+## 2026-01-15 - swift-concurrency
+
+**Action:** improve
+**Changes:**
+- Compressed section headers (removed verbose parentheticals)
+- Tightened Agent Contract rules (7 → 6 rules, more concise)
+- Compressed Best Practices section
+- Shortened code examples in Core Patterns
+- Compressed Common Scenarios examples
+- Simplified Verification checklist
+
+**Metrics:**
+- Lines: 252 → 223 (29 lines saved, 11.5% reduction)
+- Description: 254 chars (unchanged, already optimal)
+
+## 2026-01-15 - creating-mise-tasks
+
+**Action:** improve (audit recommendation)
+**Changes:**
+- Split ios-patterns.md (354 lines) into 3 files:
+  - ios-patterns.md (128 lines) - Foundation
+  - ios-build-test.md (96 lines) - Build/test patterns
+  - ios-templates.md (150 lines) - Templates
+- Split task-properties.md (312 lines) into 3 files:
+  - task-properties.md (103 lines) - Core properties
+  - task-dependencies.md (107 lines) - Dependencies/caching
+  - task-advanced.md (159 lines) - Advanced features
+- Updated SKILL.md reference list
+
+**Metrics:**
+- Refs before: 3 files (2 oversized)
+- Refs after: 7 files (all in range)
+
+## 2026-01-15 - ensuring-ci-green
+
+**Action:** improve (audit recommendation)
+**Changes:**
+- Split ado-api-reference.md (337 lines) into 3 files:
+  - ado-api-reference.md (127 lines) - Core API (auth, timeline, logs)
+  - ado-api-tests.md (84 lines) - Test Results API
+  - ado-api-control.md (131 lines) - Build control, PR policies
+- Updated SKILL.md reference list
+
+**Metrics:**
+- Refs before: 2 files (1 oversized)
+- Refs after: 4 files (all in range)
+
+## 2026-01-15 12:20 - azure-cli
+
+**Action:** consolidate
+**Changes:**
+- Added --description flag note (not --body like gh CLI)
+- Added default branch detection tip before PR create
+
+**Metrics:**
+- Lines: 432 → 435
+- Learnings processed: 2
+Last check: 2026-01-15 12:44:05 - 0 pending
+Last check: 2026-01-15 12:44:15 - 0 pending
+Last check: 2026-01-15 12:48:53 - 0 pending
+Last check: 2026-01-15 12:51:18 - 0 pending
+Last check: 2026-01-15 12:54:51 - 0 pending
+Last check: 2026-01-15 12:55:44 - 0 pending
+Last check: 2026-01-15 12:56:21 - 0 pending
+Last check: 2026-01-15 12:58:32 - 0 pending
+Last check: 2026-01-15 12:59:17 - 3 pending
+
+## 2026-01-15 12:59 - consolidation-reminder
+
+**Action:** block
+**Changes:**
+- Blocked stop: 3 learnings pending in: azure-data-explorer-dashboards
+Last check: 2026-01-15 13:00:01 - 0 pending
+Last check: 2026-01-15 13:00:39 - 0 pending
+Last check: 2026-01-15 13:05:31 - 0 pending
+
+## 2026-01-15 13:07 - consolidation
+
+**Action:** consolidate
+**Changes:**
+- Archived learnings from 3 skills (azure-data-explorer-dashboards, azure-cli, creating-skills)
+- All entries were already marked as done/integrated
+
+**Skills processed:**
+- azure-data-explorer-dashboards: 4 learnings (stat tiles, version increment, RequestedFor column, table for KPIs)
+- azure-cli: 3 learnings (--description flag, default branch detection, test entry)
+- creating-skills: 3 learnings (false positive JSON metadata - all duplicates)
+Last check: 2026-01-15 13:07:33 - 0 pending
+Last check: 2026-01-15 16:08:08 - 0 pending
+Last check: 2026-01-15 16:14:42 - 0 pending
+
+## 2026-01-15 - reproducing-bugs (NEW)
+
+**Action:** new
+**Changes:**
+- Factored out bug reproduction workflow from bug-fix-workflow
+- Focused skill: identify bug → clean build → reproduce → BEFORE screenshots
+- Clear gate checklist before proceeding to implementation
+
+**Metrics:**
+- Lines: 236
+- Description: 183 chars
+
+## 2026-01-15 - bug-fix-workflow
+
+**Action:** improve
+**Changes:**
+- Phase 1 now references `/reproducing-bugs` skill instead of duplicating content
+- Removed phases/reproduction.md (content moved to new skill)
+- Updated Related Skills table
+
+**Metrics:**
+- Lines: ~291 → 263
+Last check: 2026-01-15 16:23:59 - 0 pending
+Last check: 2026-01-15 16:28:58 - 0 pending
+Last check: 2026-01-15 16:29:42 - 0 pending
+
+## 2026-01-15 16:32 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Updated Step 1 to extract image URLs from HTML description (embedded `<img>` tags)
+- Clarified that images exist in TWO places: embedded in description AND formal attachments
+- Added grep command to parse `src=` attributes from description HTML
+
+**Metrics:**
+- Lines: 272 → 280
+- Description: unchanged
+Last check: 2026-01-15 16:32:21 - 0 pending
+Last check: 2026-01-15 16:36:10 - 0 pending
+Last check: 2026-01-15 16:36:21 - 0 pending
+Last check: 2026-01-15 16:37:42 - 0 pending
+
+## 2026-01-15 16:42 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Rewrote Step 1 attachment extraction to scan ALL string fields (not just System.Description)
+- Added `yammer_engineering.SummaryofIssue` as primary image source
+- Changed download method from curl to `az rest` with ADO resource GUID
+- Added table showing which fields contain images
+- Added troubleshooting entries for attachment download issues
+
+**Metrics:**
+- Lines: 280 → 294
+- Description: unchanged
+Last check: 2026-01-15 16:39:52 - 0 pending
+Last check: 2026-01-15 16:40:32 - 0 pending
+Last check: 2026-01-15 16:41:23 - 0 pending
+Last check: 2026-01-15 16:42:38 - 0 pending
+Last check: 2026-01-15 16:43:47 - 0 pending
+Last check: 2026-01-15 16:46:29 - 0 pending
+
+## 2026-01-15 16:50 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Added critical rule: "YOU MUST CREATE YOUR OWN SCREENSHOTS" - never use pre-existing files
+- Added critical rule: "REPRODUCTION IS NON-NEGOTIABLE" - must use /simulator-navigation
+- Step 1 now deletes output directory first (rm -rf)
+- Step 1 renames attachments to "reference_*" to clarify they're not evidence
+- Step 5 now MANDATORY navigation with /simulator-navigation
+- Step 6 new: "Visually Confirm Bug" gate - must see bug before capturing
+- Added Failure Protocol section with FAILURE REPORT template
+- Added Output Report section with SUCCESS REPORT structure
+- Added Anti-Patterns table showing common mistakes
+- Removed Gate Checklist (replaced with inline gates)
+
+**Trigger:** Agent used pre-existing screenshots instead of reproducing bug itself
+
+**Metrics:**
+- Lines: 300 → 288
+- Description: 183 chars
+Last check: 2026-01-15 16:48:13 - 0 pending
+
+## 2026-01-15 16:52 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Changed isolation model: each attempt gets timestamped folder `attempt-<timestamp>/`
+- Reference attachments stored in `reference/` subfolder, separate from attempts
+- Critical rule now "EACH ATTEMPT GETS ITS OWN FOLDER" instead of "DELETE"
+- Only look at files in $ATTEMPT_DIR - ignore everything else
+- Preserves reference attachments across attempts
+
+**Trigger:** User feedback - don't delete, use isolated attempt folders
+
+**Metrics:**
+- Lines: 288 → 302
+Last check: 2026-01-15 16:50:03 - 0 pending
+Last check: 2026-01-15 16:50:36 - 0 pending
+Last check: 2026-01-15 16:51:25 - 0 pending
+Last check: 2026-01-15 16:55:35 - 0 pending
+Last check: 2026-01-15 16:55:46 - 0 pending
+
+## 2026-01-15 16:55 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Added Step 2: Determine Target App (Engage vs YammerSDKDemoApp)
+- Added table showing which scheme to use for each app
+- Added decision logic for determining app from bug details
+- Added prompt to ask user if unclear
+- Renumbered steps 3-10
+
+**Metrics:**
+- Lines: 303 → 335
+- Description: unchanged (218 chars)
+Last check: 2026-01-15 16:56:04 - 0 pending
+Last check: 2026-01-15 16:57:43 - 0 pending
+Last check: 2026-01-15 16:58:30 - 0 pending
+Last check: 2026-01-15 17:00:15 - 0 pending
+Last check: 2026-01-15 17:06:03 - 0 pending
+Last check: 2026-01-15 17:06:14 - 0 pending
+Last check: 2026-01-15 17:07:32 - 0 pending
+Last check: 2026-01-15 17:07:43 - 0 pending
+Last check: 2026-01-15 17:08:46 - 0 pending
+
+## 2026-01-15 17:14 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Made asking for app selection MANDATORY when not specified
+- Added new Critical Rule: "ASK WHICH APP IF NOT SPECIFIED"
+- Updated Step 2 header to include "(MUST ASK IF NOT SPECIFIED)"
+- Changed logic from "default to Engage" to "ASK if not explicit"
+
+**Metrics:**
+- Lines: 336 → 344
+- Reason: User feedback - wrong app choice wasted build time
+Last check: 2026-01-15 17:13:24 - 1 pending
+
+## 2026-01-15 17:13 - consolidation-reminder
+
+**Action:** block
+**Changes:**
+- Blocked stop: 1 learnings pending in: reproducing-bugs
+Last check: 2026-01-15 17:13:30 - 1 pending
+
+## 2026-01-15 17:13 - consolidation-reminder
+
+**Action:** block
+**Changes:**
+- Blocked stop: 1 learnings pending in: reproducing-bugs
+Last check: 2026-01-15 17:13:43 - 0 pending
+Last check: 2026-01-15 17:13:49 - 0 pending
+Last check: 2026-01-15 17:13:53 - 0 pending
+Last check: 2026-01-15 17:19:15 - 0 pending
+Last check: 2026-01-15 17:20:34 - 0 pending
+Last check: 2026-01-15 17:20:40 - 0 pending
+
+## 2026-01-15 17:23 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Changed attempt folder location from `$HOME/src/oncall/screenshots/` to `$TMPDIR/bug-repro/`
+- All files (attachments + screenshots) now go in single attempt directory
+- Removed separate `reference/` folder - attachments download to `$ATTEMPT_DIR/reference_*.png`
+- Reordered steps: Setup (create folder) is now Step 1, before fetching bug details
+- Simplified directory structure
+
+**Metrics:**
+- Lines: 363 → 358
+- Description: unchanged
+Last check: 2026-01-15 17:22:55 - 0 pending
+Last check: 2026-01-15 17:23:46 - 0 pending
+Last check: 2026-01-15 17:23:51 - 0 pending
+Last check: 2026-01-15 17:26:39 - 0 pending
+
+## 2026-01-15 17:35 - reproducing-bugs
+
+**Action:** consolidate
+**Changes:**
+- Added Bundle ID column to app selection table (com.yammer.* not com.microsoft.*)
+- Added BUNDLE_ID variable alongside SCHEME in Step 3
+- Added new Step 7 for Install and Launch App with clean install pattern
+- Renumbered steps 8-11 to accommodate new step
+- Added troubleshooting entries for app launch failures and wrong bundle ID
+- Updated Quick Reference table with new step
+
+**Metrics:**
+- Lines: 358 → ~375
+- Description: unchanged
+Last check: 2026-01-15 18:17:18 - 1 pending
+
+## 2026-01-15 18:17 - consolidation-reminder
+
+**Action:** block
+**Changes:**
+- Blocked stop: 1 learnings pending in: reproducing-bugs
+Last check: 2026-01-15 18:17:35 - 0 pending
+Last check: 2026-01-15 18:19:57 - 0 pending
+Last check: 2026-01-15 18:20:02 - 0 pending
+Last check: 2026-01-15 18:21:43 - 0 pending
+Last check: 2026-01-15 18:21:53 - 0 pending
+Last check: 2026-01-15 18:26:12 - 0 pending
+
+## 2026-01-15 18:30 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Added Step 12: Update ADO Work Item with reproduction steps
+- Updated Quick Reference table to include new step
+- Reproduction steps appended to bug description with <hr/> delimiter
+
+**Metrics:**
+- Lines: 375 → ~395
+- Description: unchanged
+Last check: 2026-01-15 18:29:35 - 0 pending
+Last check: 2026-01-15 18:35:23 - 0 pending
+Last check: 2026-01-15 18:35:56 - 0 pending
+Last check: 2026-01-15 18:37:43 - 0 pending
+Last check: 2026-01-15 18:39:44 - 0 pending
+Last check: 2026-01-15 18:41:03 - 0 pending
+Last check: 2026-01-15 18:42:55 - 0 pending
+
+## 2026-01-15 18:45 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Fixed ADO update to use Microsoft.VSTS.TCM.ReproSteps field (not System.Description)
+- Added inline screenshot support: upload → attach relation → reference in <img src="">
+- Key insight: image won't render without attachment relation being added first
+
+**Metrics:**
+- Lines: 406 → 432
+Last check: 2026-01-15 18:44:02 - 0 pending
+Last check: 2026-01-15 18:49:33 - 0 pending
+Last check: 2026-01-15 19:07:44 - 0 pending
+Last check: 2026-01-15 19:10:01 - 0 pending
+Last check: 2026-01-15 19:54:54 - 0 pending
+Last check: 2026-01-15 20:08:19 - 0 pending
+Last check: 2026-01-15 20:41:27 - 0 pending
+Last check: 2026-01-15 20:41:47 - 0 pending
+Last check: 2026-01-15 20:42:41 - 0 pending
+Last check: 2026-01-15 20:48:56 - 0 pending
+Last check: 2026-01-15 20:49:01 - 0 pending
+Last check: 2026-01-15 20:51:56 - 0 pending
+Last check: 2026-01-15 20:52:02 - 0 pending
+Last check: 2026-01-15 20:52:24 - 0 pending
+Last check: 2026-01-15 20:53:41 - 0 pending
+Last check: 2026-01-15 20:53:46 - 0 pending
+Last check: 2026-01-15 21:03:26 - 0 pending
+Last check: 2026-01-15 21:35:12 - 0 pending
+Last check: 2026-01-15 21:46:59 - 0 pending
+
+## 2026-01-15 21:52 - bug-fix-workflow
+
+**Action:** improve
+**Changes:**
+- Added MANDATORY `/ado-review` self-review step before creating PR
+- Added MANDATORY work item linking with `az repos pr work-item add`
+- Added PR description format showing newline after "Fixes"
+- Updated Related Skills table to include `/ado-review`
+- Strengthened error table for work item linking
+
+**Metrics:**
+- Lines: 264 → 282
+- Triggered by: PR #255567 missing work item link
+Last check: 2026-01-15 21:51:50 - 0 pending
+
+## 2026-01-15 - ado-review
+
+**Action:** improve
+**Changes:**
+- Changed DEFAULT behavior: now reviews local changes against origin/master (not PR lookup)
+- Added --base flag to specify custom base branch
+- Updated description to mention "Works on local changes (pre-PR) or existing PRs"
+- Added Step 3 to read all changed files before launching sub-agents
+- Updated output format header to work for both local and PR reviews
+- Updated Useful Commands section with local review commands
+- Updated Verification section for local reviews
+
+**Rationale:** Self-review before PR creation is the most common use case. The skill should work without requiring a PR to exist first.
+
+**Metrics:**
+- Lines: 372 → 415 (within limit)
+- Description: 244 chars
+Last check: 2026-01-15 21:53:58 - 0 pending
+Last check: 2026-01-15 21:59:59 - 0 pending
+Last check: 2026-01-15 22:00:05 - 0 pending
+
+## 2026-01-15 21:59 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Added app version detection logic to Step 3 (Determine Target App)
+- App Version format X.XX.X.XXXX (e.g., 10.71.0.2739) → Engage
+- MSTeams source → YammerSDKDemoApp (SDK embedded in Teams)
+
+**Metrics:**
+- Lines: 458 → 460
+- Description: unchanged
+Last check: 2026-01-15 22:01:29 - 0 pending
+Last check: 2026-01-15 22:07:50 - 0 pending
+Last check: 2026-01-15 22:07:57 - 0 pending
+Last check: 2026-01-15 22:16:41 - 0 pending
+Last check: 2026-01-15 22:18:47 - 0 pending
+
+## 2026-01-15 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Emphasized `describe_ui` as PRIMARY verification method over screenshots
+- Added "Context Efficiency" section explaining when to use each method
+- Updated workflow to use `describe_ui` for confirmation, screenshots ONLY for ADO attachments
+- Removed instructions to view screenshots with Read tool (wastes context)
+- Added anti-patterns for screenshot overuse
+- Simplified screenshot capture to single light-mode image unless appearance-specific bug
+
+**Metrics:**
+- Lines: 460 → ~470 (minor increase for clarity)
+- Key improvement: Prevents context window bloat from unnecessary screenshot reads
+Last check: 2026-01-15 22:21:20 - 0 pending
+Last check: 2026-01-15 22:25:26 - 0 pending
+Last check: 2026-01-15 22:31:00 - 0 pending
+Last check: 2026-01-15 22:31:09 - 0 pending
+Last check: 2026-01-15 22:32:11 - 0 pending
+Last check: 2026-01-15 22:33:06 - 0 pending
+Last check: 2026-01-15 22:33:43 - 0 pending
+Last check: 2026-01-15 22:34:32 - 0 pending
+Last check: 2026-01-15 22:39:09 - 0 pending
+Last check: 2026-01-15 22:52:55 - 0 pending
+Last check: 2026-01-15 22:53:10 - 0 pending
+
+## 2026-01-15 23:32 - swift-testing
+
+**Action:** new
+**Changes:**
+- Created new skill for Swift Testing migration guidance
+- Added SKILL.md with migration workflow, ObjC considerations, parallelization
+- Added references/assertion-mapping.md for XCTest -> Swift Testing conversions
+- Added references/ocmock-replacement.md for mocking strategy
+- Added references/parallel-debugging.md for CI failures
+
+**Metrics:**
+- SKILL.md: 243 lines
+- Description: 218 characters
+- Reference files: 3 (assertion-mapping, ocmock-replacement, parallel-debugging)
+Last check: 2026-01-15 23:46:07 - 0 pending
+Last check: 2026-01-15 23:46:14 - 0 pending
+
+## 2026-01-15 23:50 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Fixed Step 14 to extract base URL from work item instead of hardcoding org/project
+- Added extraction of `WI_URL`, `BASE_URL`, `PROJECT`, and `ORG_HOST` from API response
+- Changed upload/patch URLs to use `${BASE_URL}` variable
+- Changed output link to use extracted `${ORG_HOST}/${PROJECT}` 
+- Added `jq` for JSON construction instead of heredocs (better escaping)
+- Updated critical requirements to emphasize "NEVER hardcode org/project"
+
+**Metrics:**
+- Lines: 513 → 519
+- Issue fixed: Wrong work item URL (used hardcoded "yim" instead of actual project "MSTeams")
+Last check: 2026-01-15 23:48:09 - 0 pending
+Last check: 2026-01-15 23:48:39 - 0 pending
+Last check: 2026-01-15 23:50:01 - 0 pending
+Last check: 2026-01-15 23:50:42 - 0 pending
+
+## 2026-01-16 00:05 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Added Step 11b: Annotate Screenshots (REQUIRED for UI bugs)
+- Added Pillow-based annotation code template with arrow/circle/rectangle
+- Added image diff helper for finding subtle bug locations
+- Added critical rule: "ANNOTATE ALL UI BUG SCREENSHOTS"
+- Updated Quick Reference table to include annotation step
+- Screenshots without annotations explicitly called out as NOT acceptable
+
+**Metrics:**
+- Lines: 519 → 577
+- Issue fixed: Screenshots looked the same without annotation pointing to bug
+Last check: 2026-01-15 23:55:50 - 0 pending
+Last check: 2026-01-15 23:56:00 - 0 pending
+Last check: 2026-01-15 23:56:22 - 0 pending
+Last check: 2026-01-15 23:56:38 - 0 pending
+Last check: 2026-01-15 23:56:57 - 0 pending
+Last check: 2026-01-15 23:57:12 - 0 pending
+Last check: 2026-01-15 23:57:30 - 0 pending
+Last check: 2026-01-16 00:00:55 - 0 pending
+Last check: 2026-01-16 00:02:50 - 0 pending
+Last check: 2026-01-16 00:03:45 - 0 pending
+Last check: 2026-01-16 00:06:32 - 0 pending
+Last check: 2026-01-16 00:06:36 - 0 pending
+Last check: 2026-01-16 00:06:52 - 0 pending
+Last check: 2026-01-16 00:08:25 - 0 pending
+Last check: 2026-01-16 00:09:27 - 0 pending
+
+## 2026-01-16 - swift-testing
+
+**Action:** improve
+**Changes:**
+- Added OCMock conversion quick reference table to SKILL.md
+- Added framework comparison table
+- Added conversion workflow steps
+- Enhanced mock pattern with call tracking
+- Added singleton mocking pattern to reference file
+- Added @Mockable and Mockolo setup instructions
+- Added migration effort estimates table
+- Linked to detailed research documents
+
+**Metrics:**
+- SKILL.md: 306 → 336 lines
+- ocmock-replacement.md: 271 → 339 lines
+Last check: 2026-01-16 00:11:50 - 0 pending
+
+## 2026-01-16 00:15 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Added Teams as third app option in Step 3 with purple accent color indicator
+- Created references/teams-reproduction.md with full Teams workflow
+- Added critical rule about dual worktrees for Teams bugs
+- Added --shared-path requirement when using worktrees
+- Added Teams-specific troubleshooting entries
+
+**Metrics:**
+- SKILL.md lines: 622 → 718 (added Teams support)
+- New reference file: 190 lines
+- Description: 176 chars (unchanged)
+Last check: 2026-01-16 00:15:52 - 0 pending
+Last check: 2026-01-16 00:16:05 - 0 pending
+Last check: 2026-01-16 00:17:01 - 0 pending
+Last check: 2026-01-16 00:20:26 - 0 pending
+Last check: 2026-01-16 00:20:51 - 0 pending
+Last check: 2026-01-16 00:29:42 - 0 pending
+Last check: 2026-01-16 00:33:13 - 0 pending
+Last check: 2026-01-16 00:34:02 - 0 pending
+Last check: 2026-01-16 00:36:18 - 0 pending
+Last check: 2026-01-16 00:36:34 - 0 pending
+Last check: 2026-01-16 00:36:40 - 0 pending
+Last check: 2026-01-16 00:43:04 - 0 pending
+Last check: 2026-01-16 00:54:48 - 0 pending
+Last check: 2026-01-16 00:55:18 - 0 pending
+Last check: 2026-01-16 01:00:13 - 0 pending
+Last check: 2026-01-16 01:00:23 - 0 pending
+Last check: 2026-01-16 01:01:46 - 0 pending
+Last check: 2026-01-16 01:11:17 - 0 pending
+Last check: 2026-01-16 01:11:33 - 0 pending
+Last check: 2026-01-16 01:45:06 - 0 pending
+Last check: 2026-01-16 01:45:12 - 0 pending
+Last check: 2026-01-16 07:51:36 - 0 pending
+Last check: 2026-01-16 08:19:38 - 0 pending
+Last check: 2026-01-16 08:38:55 - 0 pending
+
+## 2026-01-16 08:39 - searching-sessions
+
+**Action:** new
+**Changes:**
+- Created skill for finding Claude Code session IDs by query
+- Added search script with 3-phase approach: history index, summaries, deep content
+- Added advanced-search.md reference with jq patterns and fuzzy search examples
+
+**Metrics:**
+- Lines: 106 (SKILL.md)
+- Description: 185 chars
+Last check: 2026-01-16 08:39:57 - 0 pending
+Last check: 2026-01-16 08:41:06 - 0 pending
+
+## 2026-01-16 08:42 - searching-sessions
+
+**Action:** improve
+**Changes:**
+- Added last message timestamp to search results
+- Handles both ISO format and epoch milliseconds
+- Displays as YYYY-MM-DD HH:MM format
+
+**Metrics:**
+- Lines: 107 → 107 (SKILL.md)
+- Script: 128 → 161 lines
+Last check: 2026-01-16 08:42:52 - 0 pending
+Last check: 2026-01-16 08:43:11 - 0 pending
+Last check: 2026-01-16 08:44:28 - 0 pending
+Last check: 2026-01-16 08:54:00 - 0 pending
+Last check: 2026-01-16 08:56:21 - 0 pending
+Last check: 2026-01-16 08:57:12 - 0 pending
+Last check: 2026-01-16 08:58:41 - 0 pending
+Last check: 2026-01-16 09:03:21 - 0 pending
+Last check: 2026-01-16 09:07:44 - 0 pending
+
+## 2026-01-16: Screenshot Context Bloat Prevention
+
+**Problem:** Bug reproduction sessions were taking screenshots during navigation, consuming 100-400KB per image and causing API errors like "image dimensions exceed max allowed size for many-image requests".
+
+**Files Updated:**
+- `~/.claude/skills/simulator-navigation/SKILL.md` - Added prominent warning about context cost
+- `~/.claude/skills/reproducing-bugs/SKILL.md` - Added CRITICAL warning, updated Step 8 navigation with explicit do/don't examples
+
+**Key Changes:**
+1. Made context cost explicit: screenshots = 100-400KB each, describe-ui = ~5KB
+2. Added ✅/❌ examples showing correct vs incorrect approach
+3. Emphasized "max 2 screenshots total" rule for BEFORE/AFTER only
+4. Noted the specific API error this prevents
+Last check: 2026-01-16 09:13:39 - 0 pending
+Last check: 2026-01-16 09:17:35 - 0 pending
+Last check: 2026-01-16 09:23:50 - 0 pending
+Last check: 2026-01-16 09:23:52 - 0 pending
+Last check: 2026-01-16 09:26:57 - 0 pending
+Last check: 2026-01-16 09:27:54 - 0 pending
+Last check: 2026-01-16 09:28:39 - 0 pending
+Last check: 2026-01-16 09:29:31 - 0 pending
+Last check: 2026-01-16 09:31:20 - 0 pending
+Last check: 2026-01-16 09:33:21 - 0 pending
+Last check: 2026-01-16 09:35:21 - 0 pending
+Last check: 2026-01-16 09:36:53 - 0 pending
+Last check: 2026-01-16 09:37:20 - 0 pending
+Last check: 2026-01-16 09:39:48 - 0 pending
+Last check: 2026-01-16 09:41:14 - 0 pending
+Last check: 2026-01-16 09:43:38 - 0 pending
+Last check: 2026-01-16 09:43:43 - 0 pending
+Last check: 2026-01-16 09:45:56 - 0 pending
+Last check: 2026-01-16 09:49:10 - 0 pending
+Last check: 2026-01-16 09:50:28 - 0 pending
+Last check: 2026-01-16 09:51:12 - 0 pending
+Last check: 2026-01-16 09:52:22 - 0 pending
+Last check: 2026-01-16 09:53:11 - 0 pending
+Last check: 2026-01-16 09:54:32 - 0 pending
+Last check: 2026-01-16 09:54:36 - 0 pending
+Last check: 2026-01-16 09:54:44 - 0 pending
+Last check: 2026-01-16 09:55:19 - 0 pending
+Last check: 2026-01-16 09:55:51 - 0 pending
+Last check: 2026-01-16 09:56:53 - 0 pending
+Last check: 2026-01-16 09:58:29 - 0 pending
+Last check: 2026-01-16 09:58:38 - 0 pending
+Last check: 2026-01-16 09:58:41 - 0 pending
+Last check: 2026-01-16 09:58:50 - 0 pending
+Last check: 2026-01-16 10:01:42 - 0 pending
+Last check: 2026-01-16 10:03:21 - 0 pending
+Last check: 2026-01-16 10:04:41 - 0 pending
+Last check: 2026-01-16 10:04:47 - 0 pending
+Last check: 2026-01-16 10:05:56 - 0 pending
+Last check: 2026-01-16 10:12:26 - 0 pending
+Last check: 2026-01-16 10:12:51 - 0 pending
+Last check: 2026-01-16 10:13:49 - 0 pending
+Last check: 2026-01-16 10:15:02 - 0 pending
+Last check: 2026-01-16 10:16:32 - 0 pending
+Last check: 2026-01-16 10:17:34 - 0 pending
+Last check: 2026-01-16 10:18:44 - 0 pending
+Last check: 2026-01-16 10:19:12 - 0 pending
+Last check: 2026-01-16 10:20:04 - 0 pending
+Last check: 2026-01-16 10:22:00 - 0 pending
+Last check: 2026-01-16 10:22:05 - 0 pending
+Last check: 2026-01-16 10:24:13 - 0 pending
+Last check: 2026-01-16 10:25:24 - 0 pending
+Last check: 2026-01-16 10:26:37 - 0 pending
+Last check: 2026-01-16 10:28:00 - 0 pending
+Last check: 2026-01-16 10:28:27 - 0 pending
+Last check: 2026-01-16 10:29:19 - 0 pending
+Last check: 2026-01-16 10:29:26 - 0 pending
+Last check: 2026-01-16 10:30:11 - 0 pending
+Last check: 2026-01-16 10:30:53 - 0 pending
+Last check: 2026-01-16 10:31:13 - 0 pending
+Last check: 2026-01-16 10:31:42 - 0 pending
+Last check: 2026-01-16 10:33:33 - 0 pending
+Last check: 2026-01-16 10:37:11 - 0 pending
+Last check: 2026-01-16 10:38:07 - 0 pending
+Last check: 2026-01-16 10:40:51 - 0 pending
+Last check: 2026-01-16 10:42:14 - 0 pending
+Last check: 2026-01-16 10:42:29 - 0 pending
+Last check: 2026-01-16 10:43:43 - 0 pending
+Last check: 2026-01-16 10:44:27 - 0 pending
+Last check: 2026-01-16 10:45:01 - 0 pending
+Last check: 2026-01-16 10:46:00 - 0 pending
+Last check: 2026-01-16 10:46:13 - 0 pending
+Last check: 2026-01-16 10:47:19 - 0 pending
+Last check: 2026-01-16 10:48:07 - 0 pending
+Last check: 2026-01-16 10:48:30 - 0 pending
+Last check: 2026-01-16 10:48:40 - 0 pending
+Last check: 2026-01-16 10:48:52 - 0 pending
+Last check: 2026-01-16 10:49:51 - 0 pending
+Last check: 2026-01-16 10:50:09 - 0 pending
+Last check: 2026-01-16 10:51:02 - 0 pending
+Last check: 2026-01-16 10:51:47 - 0 pending
+Last check: 2026-01-16 10:52:12 - 0 pending
+Last check: 2026-01-16 10:52:56 - 0 pending
+Last check: 2026-01-16 10:53:30 - 0 pending
+Last check: 2026-01-16 10:54:43 - 0 pending
+Last check: 2026-01-16 10:54:49 - 0 pending
+Last check: 2026-01-16 10:57:21 - 0 pending
+Last check: 2026-01-16 10:58:08 - 0 pending
+Last check: 2026-01-16 10:58:25 - 0 pending
+Last check: 2026-01-16 10:58:40 - 0 pending
+Last check: 2026-01-16 10:59:39 - 0 pending
+Last check: 2026-01-16 11:00:36 - 0 pending
+Last check: 2026-01-16 11:00:47 - 0 pending
+Last check: 2026-01-16 11:00:51 - 0 pending
+Last check: 2026-01-16 11:01:29 - 0 pending
+Last check: 2026-01-16 11:02:25 - 0 pending
+Last check: 2026-01-16 11:02:37 - 0 pending
+Last check: 2026-01-16 11:02:54 - 0 pending
+Last check: 2026-01-16 11:04:25 - 0 pending
+Last check: 2026-01-16 11:05:57 - 0 pending
+Last check: 2026-01-16 11:06:55 - 0 pending
+Last check: 2026-01-16 11:08:11 - 0 pending
+Last check: 2026-01-16 11:08:58 - 0 pending
+Last check: 2026-01-16 11:10:11 - 0 pending
+Last check: 2026-01-16 11:10:23 - 0 pending
+Last check: 2026-01-16 11:10:36 - 0 pending
+Last check: 2026-01-16 11:11:35 - 0 pending
+Last check: 2026-01-16 11:11:39 - 0 pending
+Last check: 2026-01-16 11:12:24 - 0 pending
+Last check: 2026-01-16 11:12:38 - 0 pending
+Last check: 2026-01-16 11:12:49 - 0 pending
+Last check: 2026-01-16 11:13:35 - 0 pending
+Last check: 2026-01-16 11:14:09 - 0 pending
+Last check: 2026-01-16 11:15:17 - 0 pending
+Last check: 2026-01-16 11:16:24 - 0 pending
+Last check: 2026-01-16 11:18:25 - 0 pending
+Last check: 2026-01-16 11:19:33 - 0 pending
+Last check: 2026-01-16 11:20:16 - 0 pending
+Last check: 2026-01-16 11:21:45 - 0 pending
+Last check: 2026-01-16 11:22:46 - 0 pending
+Last check: 2026-01-16 11:22:53 - 0 pending
+Last check: 2026-01-16 11:23:08 - 0 pending
+Last check: 2026-01-16 11:23:44 - 0 pending
+Last check: 2026-01-16 11:24:47 - 0 pending
+Last check: 2026-01-16 11:25:39 - 0 pending
+Last check: 2026-01-16 11:25:44 - 0 pending
+Last check: 2026-01-16 11:26:29 - 0 pending
+Last check: 2026-01-16 11:26:33 - 0 pending
+Last check: 2026-01-16 11:27:27 - 0 pending
+Last check: 2026-01-16 11:27:43 - 0 pending
+Last check: 2026-01-16 11:28:35 - 0 pending
+Last check: 2026-01-16 11:29:45 - 0 pending
+Last check: 2026-01-16 11:35:02 - 0 pending
+Last check: 2026-01-16 11:35:06 - 0 pending
+Last check: 2026-01-16 11:36:29 - 0 pending
+Last check: 2026-01-16 11:36:56 - 0 pending
+Last check: 2026-01-16 11:41:21 - 0 pending
+Last check: 2026-01-16 11:42:53 - 0 pending
+Last check: 2026-01-16 11:43:41 - 0 pending
+Last check: 2026-01-16 11:44:16 - 0 pending
+Last check: 2026-01-16 11:45:39 - 0 pending
+Last check: 2026-01-16 11:45:49 - 0 pending
+Last check: 2026-01-16 11:47:17 - 0 pending
+Last check: 2026-01-16 11:48:57 - 0 pending
+Last check: 2026-01-16 11:50:18 - 0 pending
+Last check: 2026-01-16 11:55:55 - 0 pending
+Last check: 2026-01-16 11:57:19 - 0 pending
+Last check: 2026-01-16 11:58:40 - 0 pending
+Last check: 2026-01-16 12:00:12 - 0 pending
+Last check: 2026-01-16 12:01:44 - 0 pending
+Last check: 2026-01-16 12:02:53 - 0 pending
+Last check: 2026-01-16 12:03:22 - 0 pending
+Last check: 2026-01-16 12:03:22 - 0 pending
+Last check: 2026-01-16 12:04:31 - 0 pending
+Last check: 2026-01-16 12:05:43 - 0 pending
+Last check: 2026-01-16 12:06:44 - 0 pending
+Last check: 2026-01-16 12:07:56 - 0 pending
+Last check: 2026-01-16 12:08:09 - 0 pending
+Last check: 2026-01-16 12:09:08 - 0 pending
+Last check: 2026-01-16 12:12:53 - 0 pending
+Last check: 2026-01-16 12:14:23 - 0 pending
+Last check: 2026-01-16 12:15:42 - 0 pending
+Last check: 2026-01-16 12:16:54 - 0 pending
+Last check: 2026-01-16 12:17:04 - 0 pending
+Last check: 2026-01-16 12:18:02 - 0 pending
+Last check: 2026-01-16 12:18:48 - 0 pending
+Last check: 2026-01-16 12:19:13 - 0 pending
+Last check: 2026-01-16 12:19:54 - 0 pending
+Last check: 2026-01-16 12:20:23 - 0 pending
+Last check: 2026-01-16 12:21:18 - 0 pending
+Last check: 2026-01-16 12:21:47 - 0 pending
+Last check: 2026-01-16 12:23:18 - 0 pending
+Last check: 2026-01-16 12:24:46 - 0 pending
+Last check: 2026-01-16 12:25:59 - 0 pending
+Last check: 2026-01-16 12:27:18 - 0 pending
+Last check: 2026-01-16 12:27:30 - 0 pending
+Last check: 2026-01-16 12:28:42 - 0 pending
+
+## 2026-01-16 - azure-data-explorer
+
+**Action:** improve
+**Changes:**
+- Added TeamsMessagingService database (teams.kusto.windows.net cluster)
+- Added --teams-messaging flag to kusto-query tool
+- Added entitlements URL (coreidentity.microsoft.com/manage/Entitlement)
+- Added Yammer/Engage Kusto wiki reference link
+- Updated CLI reference and verified test queries sections
+
+**Metrics:**
+- Lines: 346 → ~360
+- Description: unchanged
+
+## 2026-01-16 - azure-cli
+
+**Action:** improve
+**Changes:**
+- Added "Entitlements and Access Requests" section with Core Identity portal URL
+- Added MyAccess and Gaia links for access requests
+
+**Metrics:**
+- Lines: 480 → ~495
+- Description: unchanged
+Last check: 2026-01-16 12:29:47 - 0 pending
+Last check: 2026-01-16 12:29:52 - 0 pending
+Last check: 2026-01-16 12:33:25 - 0 pending
+Last check: 2026-01-16 12:35:33 - 0 pending
+Last check: 2026-01-16 12:42:18 - 0 pending
+Last check: 2026-01-16 12:44:49 - 0 pending
+Last check: 2026-01-16 12:48:14 - 0 pending
+Last check: 2026-01-16 12:50:14 - 0 pending
+Last check: 2026-01-16 12:56:24 - 0 pending
+Last check: 2026-01-16 13:01:36 - 0 pending
+Last check: 2026-01-16 13:01:42 - 0 pending
+Last check: 2026-01-16 13:01:54 - 0 pending
+Last check: 2026-01-16 13:09:23 - 0 pending
+Last check: 2026-01-16 13:09:34 - 0 pending
+Last check: 2026-01-16 13:11:02 - 0 pending
+Last check: 2026-01-16 13:11:39 - 0 pending
+Last check: 2026-01-16 13:13:51 - 0 pending
+Last check: 2026-01-16 13:17:38 - 0 pending
+Last check: 2026-01-16 13:18:08 - 0 pending
+Last check: 2026-01-16 13:19:53 - 0 pending
+Last check: 2026-01-16 13:23:57 - 0 pending
+Last check: 2026-01-16 13:24:48 - 0 pending
+Last check: 2026-01-16 13:26:54 - 0 pending
+Last check: 2026-01-16 13:29:05 - 0 pending
+Last check: 2026-01-16 13:30:08 - 0 pending
+Last check: 2026-01-16 13:30:19 - 0 pending
+Last check: 2026-01-16 13:31:53 - 0 pending
+Last check: 2026-01-16 13:32:16 - 0 pending
+Last check: 2026-01-16 13:36:48 - 0 pending
+Last check: 2026-01-16 13:46:27 - 0 pending
+Last check: 2026-01-16 13:47:27 - 0 pending
+Last check: 2026-01-16 13:47:39 - 0 pending
+Last check: 2026-01-16 13:51:22 - 0 pending
+Last check: 2026-01-16 13:52:21 - 0 pending
+Last check: 2026-01-16 14:29:55 - 0 pending
+Last check: 2026-01-16 14:40:41 - 0 pending
+Last check: 2026-01-16 14:40:56 - 0 pending
+Last check: 2026-01-16 14:41:39 - 0 pending
+Last check: 2026-01-16 14:41:50 - 0 pending
+Last check: 2026-01-16 14:42:51 - 0 pending
+Last check: 2026-01-16 14:45:08 - 0 pending
+Last check: 2026-01-16 14:45:30 - 0 pending
+Last check: 2026-01-16 14:46:32 - 0 pending
+Last check: 2026-01-16 14:47:42 - 0 pending
+Last check: 2026-01-16 14:48:43 - 0 pending
+Last check: 2026-01-16 14:49:33 - 0 pending
+Last check: 2026-01-16 14:52:32 - 0 pending
+Last check: 2026-01-16 14:53:32 - 0 pending
+Last check: 2026-01-16 14:55:31 - 0 pending
+Last check: 2026-01-16 14:55:45 - 0 pending
+Last check: 2026-01-16 14:56:23 - 0 pending
+Last check: 2026-01-16 14:57:42 - 0 pending
+
+## 2026-01-16 15:05 - bug-fix-workflow
+
+**Action:** improve
+**Changes:**
+- Added mandatory verification checkpoint after PR creation
+- Added explicit "After Creating PR" checklist requiring visual verification of screenshots
+- Updated Verification section to emphasize PR images must be VISIBLE, not just "created"
+- Added Step 7.5 in completion.md for mandatory screenshot verification
+
+**Reason:** PR #255765 was created without screenshots in description - skill had no verification step
+
+**Metrics:**
+- Lines: 284 → 298
+- Added explicit "STOP and verify" gate for PR screenshots
+Last check: 2026-01-16 15:00:03 - 0 pending
+Last check: 2026-01-16 15:01:25 - 0 pending
+Last check: 2026-01-16 15:04:20 - 0 pending
+Last check: 2026-01-16 15:04:33 - 0 pending
+Last check: 2026-01-16 15:07:31 - 0 pending
+Last check: 2026-01-16 15:13:15 - 0 pending
+Last check: 2026-01-16 15:15:03 - 0 pending
+Last check: 2026-01-16 15:15:42 - 0 pending
+Last check: 2026-01-16 15:15:52 - 0 pending
+Last check: 2026-01-16 15:23:26 - 0 pending
+Last check: 2026-01-16 15:24:01 - 0 pending
+Last check: 2026-01-16 15:25:06 - 0 pending
+Last check: 2026-01-16 15:25:44 - 0 pending
+Last check: 2026-01-16 15:27:39 - 0 pending
+Last check: 2026-01-16 15:28:00 - 0 pending
+Last check: 2026-01-16 15:29:30 - 0 pending
+
+## 2026-01-16 15:30 - swift-testing
+
+**Action:** consolidate
+**Changes:**
+- Added "Async Callback Patterns" section covering `confirmation` vs `withCheckedContinuation`
+- Added guidance on keeping objects alive when production code uses `[weak self]`
+- Updated Quick Reference: `XCTestExpectation` → `withCheckedContinuation` or `confirmation`
+- Condensed Parallelization section (removed redundant examples)
+- Removed Conversion Workflow (redundant with reference file)
+
+**Source:** YamChunkUpload migration session - discovered `confirmation` fails when callback doesn't fire before body returns
+
+**Metrics:**
+- Lines: 493 → 498
+- Description: unchanged (229 chars)
+Last check: 2026-01-16 15:33:05 - 0 pending
+Last check: 2026-01-16 15:36:57 - 0 pending
+Last check: 2026-01-16 15:37:33 - 0 pending
+Last check: 2026-01-16 15:44:18 - 0 pending
+Last check: 2026-01-16 15:45:01 - 0 pending
+Last check: 2026-01-16 15:46:30 - 0 pending
+Last check: 2026-01-16 15:47:17 - 0 pending
+Last check: 2026-01-16 15:49:13 - 0 pending
+Last check: 2026-01-16 15:52:25 - 0 pending
+Last check: 2026-01-16 15:54:15 - 0 pending
+
+## 2026-01-16 16:00 - simulator-navigation
+
+**Action:** improve
+**Changes:**
+- Added "YammerSDKDemoApp: Automated Token Injection" section under Prerequisites
+- Documents `mise run inject-token` and `mise run inject-token:restart` commands
+- Explains Azure CLI prerequisites and workflow for LLM automation
+
+**Metrics:**
+- Lines: 443 → 472
+- Description: unchanged
+
+## 2026-01-16 16:00 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Updated "Grayed-Out Buttons" troubleshooting to use automated token injection instead of manual login
+- Added note in Step 7 about using `mise run inject-token:restart` for YammerSDKDemoApp
+- Removed manual login instructions (no longer needed)
+
+**Metrics:**
+- Lines: 748 → 758
+- Description: unchanged
+Last check: 2026-01-16 15:56:49 - 0 pending
+Last check: 2026-01-16 16:09:09 - 0 pending
+Last check: 2026-01-16 16:10:27 - 0 pending
+
+## 2026-01-16 16:10 - swift-testing
+
+**Action:** consolidate
+**Changes:**
+- Added type name conflict gotcha (Trait, Test, Suite) with typealias solution
+- Added NSObject inheritance pattern (override init requirement)
+- Added anti-patterns: non-optional nil checks, optional dict unwrap with #require
+- Added CoreDataTestCase to "when to use final class" table
+- Trimmed inventory bash commands and verbose workflow steps
+
+**Metrics:**
+- Lines: 498 → 493
+- Description: unchanged (254 chars)
+Last check: 2026-01-16 16:10:47 - 0 pending
+Last check: 2026-01-16 16:17:40 - 0 pending
+Last check: 2026-01-16 16:17:50 - 0 pending
+Last check: 2026-01-16 16:19:23 - 0 pending
+
+## 2026-01-16 16:30 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Extracted annotation workflow to references/annotation-guide.md
+- Extracted ADO work item updates to references/ado-work-item-updates.md
+- Compressed critical rules and workflow steps
+- Archived completed learnings to learnings-archive/2026-01.md
+
+**Metrics:**
+- Lines: 758 → 294
+- Description: 191 chars
+
+## 2026-01-16 16:30 - searching-sessions
+
+**Action:** improve
+**Changes:**
+- Added Verification section with session validation steps
+
+**Metrics:**
+- Lines: 107 → ~120
+- Description: 200 chars
+
+## 2026-01-16 16:30 - azure-cli
+
+**Action:** improve
+**Changes:**
+- Extracted ECS queries, entitlements, pipeline monitoring to domain-specific.md
+- Added reference file pointer to Contents
+
+**Metrics:**
+- Lines: 494 → 412
+- Description: 292 chars
+
+## 2026-01-16 16:30 - swift-testing
+
+**Action:** improve
+**Changes:**
+- Extracted migration pitfalls and async patterns to references/migration-patterns.md
+- Compressed Common Migration Pitfalls section to reference pointer
+
+**Metrics:**
+- Lines: 493 → 341
+- Description: 248 chars
+Last check: 2026-01-16 16:26:24 - 0 pending
+Last check: 2026-01-16 16:30:16 - 0 pending
+Last check: 2026-01-16 16:38:11 - 0 pending
+Last check: 2026-01-16 16:38:41 - 0 pending
+Last check: 2026-01-16 16:44:10 - 0 pending
+Last check: 2026-01-16 16:44:42 - 0 pending
+Last check: 2026-01-16 16:45:15 - 0 pending
+Last check: 2026-01-16 16:48:13 - 0 pending
+Last check: 2026-01-16 16:56:17 - 0 pending
+Last check: 2026-01-16 17:02:33 - 0 pending
+Last check: 2026-01-16 17:08:08 - 0 pending
+Last check: 2026-01-16 17:09:33 - 0 pending
+Last check: 2026-01-16 17:16:40 - 0 pending
+Last check: 2026-01-16 17:16:50 - 0 pending
+Last check: 2026-01-16 17:19:53 - 0 pending
+Last check: 2026-01-16 17:19:58 - 0 pending
+
+## 2026-01-16 - simulator-authenticating (NEW)
+
+**Action:** new
+**Changes:**
+- Created new skill for iOS Simulator app authentication
+- Documents YammerSDKDemoApp and Engage token injection
+- Prerequisites, workflow, troubleshooting sections
+
+**Metrics:**
+- Lines: 0 → 180
+- Description: 156 chars
+
+## 2026-01-16 - simulator-navigation
+
+**Action:** improve
+**Changes:**
+- Replaced inline token injection docs with reference to /simulator-authenticating
+- Added /simulator-authenticating to Related Skills
+
+**Metrics:**
+- Lines: 473 → 453 (reduced)
+
+## 2026-01-16 - reproducing-bugs
+
+**Action:** improve
+**Changes:**
+- Updated Step 7 to reference /simulator-authenticating
+- Updated Troubleshooting to reference skill
+- Added Related Skills section
+
+**Metrics:**
+- Lines: 295 → 303 (added Related Skills)
+Last check: 2026-01-16 17:23:18 - 0 pending
+Last check: 2026-01-16 17:23:46 - 0 pending
+Last check: 2026-01-16 17:24:17 - 0 pending
+Last check: 2026-01-16 17:25:19 - 0 pending
+Last check: 2026-01-16 17:25:32 - 0 pending
+Last check: 2026-01-16 17:25:43 - 0 pending
+Last check: 2026-01-16 17:28:21 - 0 pending
+Last check: 2026-01-16 17:29:03 - 0 pending
+Last check: 2026-01-16 17:29:27 - 0 pending
+Last check: 2026-01-16 17:30:40 - 0 pending
+
+## 2026-01-16 - simulator-navigating (RENAME)
+
+**Action:** improve
+**Changes:**
+- Renamed from simulator-navigation to simulator-navigating (gerund form)
+- Strengthened describe-ui guidance with MANDATORY/FORBIDDEN language
+- Updated "When to Use Screenshots" section with stricter rules
+- Updated Related Skills to reference ios-simulator-logging, reproducing-bugs
+
+**Metrics:**
+- Lines: 454 → 458
+- Name: simulator-navigation → simulator-navigating
+
+## 2026-01-16 - simulator-authenticating
+
+**Action:** improve
+**Changes:**
+- Added Related Skills section
+
+**Metrics:**
+- Lines: 180 → 185
+
+## 2026-01-16 - ios-simulator-logging
+
+**Action:** improve
+**Changes:**
+- Added Related Skills section
+
+**Metrics:**
+- Lines: 192 → 198
+
+## 2026-01-16 - Cross-references updated
+
+**Action:** improve
+**Changes:**
+- Updated 6 files referencing simulator-navigation → simulator-navigating:
+  - creating-skills/references/content-guidelines.md
+  - bug-fix-workflow/helpers.md
+  - bug-fix-workflow/SKILL.md
+  - bug-fix-workflow/phases/implementation.md
+  - bug-fix-workflow/phases/evidence.md
+  - reproducing-bugs/SKILL.md
+Last check: 2026-01-16 17:32:09 - 0 pending
+Last check: 2026-01-16 17:32:34 - 0 pending
+
+## 2026-01-16 - simulator-logging (RENAME)
+
+**Action:** improve
+**Changes:**
+- Renamed from ios-simulator-logging to simulator-logging (consistent with simulator-* pattern)
+- Updated references in reproducing-bugs, simulator-navigating
+
+**Metrics:**
+- Name: ios-simulator-logging → simulator-logging
+Last check: 2026-01-16 17:33:32 - 0 pending
+Last check: 2026-01-16 17:34:46 - 0 pending
+Last check: 2026-01-16 17:37:24 - 0 pending
+Last check: 2026-01-16 17:38:16 - 0 pending
+
+## 2026-01-16 - MAJOR: Renamed 8 skills to gerund form
+
+**Action:** improve (bulk rename)
+**Changes:**
+- ado-pr-comments → responding-to-pr-comments
+- ado-review → reviewing-ado-prs
+- app-center-crashes → analyzing-app-center-crashes
+- azure-cli → using-azure-cli
+- azure-data-explorer → querying-azure-data-explorer
+- azure-data-explorer-dashboards → creating-adx-dashboards
+- bug-fix-workflow → fixing-bugs
+- swift-concurrency → using-swift-concurrency
+
+Updated:
+- Folder names
+- name field in frontmatter
+- Title headings (# Skill Name)
+- All cross-references in other skills
+
+## 2026-01-16 - Added Related Skills to 15 skills
+
+**Action:** improve (bulk cross-reference)
+**Changes:**
+Added ## Related Skills sections to all skills that were missing them:
+- analyzing-app-center-crashes
+- caching-in-ado
+- creating-adx-dashboards
+- creating-mise-tasks
+- creating-shortcuts
+- creating-skills
+- ensuring-ci-green
+- querying-azure-data-explorer
+- responding-to-pr-comments
+- reviewing-ado-prs
+- searching-sessions
+- swift-testing
+- using-azure-cli
+- using-git-worktrees
+- using-swift-concurrency
+
+All 20 skills now have Related Skills cross-references.
+Last check: 2026-01-16 17:44:18 - 0 pending
+Last check: 2026-01-16 17:44:49 - 0 pending
+Last check: 2026-01-16 17:45:02 - 0 pending
+Last check: 2026-01-16 17:45:13 - 0 pending
+Last check: 2026-01-16 17:45:49 - 0 pending
+Last check: 2026-01-16 17:57:16 - 0 pending
+Last check: 2026-01-16 17:57:27 - 0 pending
+Last check: 2026-01-16 17:57:44 - 0 pending
+Last check: 2026-01-16 19:17:10 - 0 pending
+Last check: 2026-01-16 19:17:30 - 0 pending
+Last check: 2026-01-16 19:24:10 - 0 pending
+Last check: 2026-01-16 19:31:33 - 0 pending
+Last check: 2026-01-16 19:52:25 - 0 pending
+Last check: 2026-01-16 19:59:05 - 0 pending
+
+## 2026-01-16 - using-swift-concurrency
+
+**Action:** improve
+**Changes:**
+- Expanded references/testing.md with Swift Testing + Swift Concurrency integration
+- Added Actor Isolation in Tests section with examples for actors and @MainActor classes
+- Added MainActor in Test Contexts section with decision table and patterns
+- Added Converting ObjC Tests to Async section (expectations, completion handlers, OCMock replacement)
+- Added Sendable in Tests section (Sendable mocks, capturing in confirmations)
+- Added cross-isolation testing patterns
+- Updated Error Triage in SKILL.md with testing-specific errors
+- Updated reference file description
+
+**Metrics:**
+- SKILL.md lines: 230 → 233
+- testing.md lines: 200 → 394
+- Description: 254 characters
+
+## 2026-01-16 - swift-testing
+
+**Action:** improve
+**Changes:**
+- Added comprehensive "Objective-C to Swift Testing" section with:
+  - Migration decision tree for ObjC test files
+  - ObjC XCTest to Swift Testing assertion mapping table
+  - Full conversion example (before/after)
+  - ObjC-specific gotchas table (nullable, NSError, id types, blocks)
+- Added "Mixed Test Suite Strategy" section with:
+  - Phased migration plan (3 phases over 12 weeks)
+  - Target directory structure
+  - Coexistence rules table
+  - OCMock transition priority matrix
+- Added "Objective-C Migration Pitfalls" section with:
+  - Common pitfalls table (OCMock, mixed assertions, swizzling, etc.)
+  - OCMock cannot-migrate patterns (system class mocking examples)
+- Created new reference file: references/objc-migration.md (449 lines)
+  - Complete assertion mapping with code examples
+  - 6 pattern conversions (setUp/tearDown, async, OCMock, verification, NSError, blocks)
+  - Bridging considerations (nullability, C arrays)
+  - Per-file migration checklist
+- Enhanced references/ocmock-replacement.md:
+  - Added protocol extraction for ObjC classes pattern
+  - Added OCMOCK_ANY replacement patterns
+- Enhanced references/parallel-debugging.md:
+  - Added ObjC-specific parallel issues (dispatch_once, @synchronized, NSNotificationCenter)
+  - Added Core Data context isolation pattern
+  - Added Keychain parallel access patterns
+  - Added mixed framework (XCTest + Swift Testing) parallel execution guidance
+
+**Metrics:**
+- SKILL.md lines: 347 → 489
+- ocmock-replacement.md lines: 361 → 470
+- parallel-debugging.md lines: 285 → 448
+- New file: objc-migration.md (449 lines)
+- Description: 233 characters (unchanged)
+Last check: 2026-01-16 20:13:02 - 0 pending
+Last check: 2026-01-16 20:13:14 - 0 pending
+Last check: 2026-01-16 21:10:29 - 0 pending
+Last check: 2026-01-16 21:11:52 - 0 pending
+Last check: 2026-01-16 21:12:33 - 0 pending
+Last check: 2026-01-16 21:13:52 - 0 pending
+Last check: 2026-01-16 21:15:17 - 0 pending
+Last check: 2026-01-16 21:17:37 - 0 pending
+Last check: 2026-01-16 21:19:53 - 0 pending
+Last check: 2026-01-16 21:42:11 - 0 pending
+Last check: 2026-01-16 21:51:27 - 0 pending
+Last check: 2026-01-16 22:08:08 - 0 pending
+Last check: 2026-01-16 22:13:57 - 0 pending
+
+## 2026-01-16 - Bulk Audit and Critical Fixes
+
+**Action:** audit + improve
+**Skills Audited:** 19
+**Pass Rate:** 17/19 (89%)
+
+**Critical Fixes Applied:**
+
+1. **using-azure-cli**
+   - Lines: 850 → 360 (58% reduction)
+   - Created references/azure-resources.md (236 lines)
+   - Created references/devops-commands.md (291 lines)
+   - Created references/common-gotchas.md (176 lines)
+
+2. **reviewing-ado-prs**
+   - Lines: 440 → 228 (48% reduction)
+   - Created references/review-agents.md (212 lines)
+   - Extracted sub-agent prompts and checklists
+
+3. **simulator-authenticating → injecting-simulator-tokens**
+   - Fixed naming convention to gerund form
+   - Removed off-topic Azure Key Vault section
+   - Updated cross-references in 3 skills
+
+4. **simulator-logging → capturing-simulator-logs**
+   - Fixed naming convention to gerund form
+   - Updated cross-references in 2 skills
+Last check: 2026-01-16 22:19:48 - 0 pending
+Last check: 2026-01-16 23:51:28 - 2 pending
+
+## 2026-01-16 23:51 - consolidation-reminder
+
+**Action:** block
+**Changes:**
+- Blocked stop: 2 learnings pending in: ensuring-ci-green
+Last check: 2026-01-17 01:55:35 - 2 pending
+
+## 2026-01-17 01:55 - consolidation-reminder
+
+**Action:** block
+**Changes:**
+- Blocked stop: 2 learnings pending in: ensuring-ci-green
+Last check: 2026-01-17 01:56:20 - 0 pending
+Last check: 2026-01-17 01:56:36 - 0 pending
+Last check: 2026-01-17 02:14:49 - 0 pending
+Last check: 2026-01-17 03:42:45 - 0 pending
+Last check: 2026-01-17 03:42:56 - 0 pending
+Last check: 2026-01-17 06:26:19 - 0 pending
+Last check: 2026-01-17 06:27:34 - 0 pending
+Last check: 2026-01-17 06:29:52 - 0 pending
+Last check: 2026-01-17 06:33:29 - 0 pending
+Last check: 2026-01-17 06:34:46 - 0 pending
+Last check: 2026-01-17 06:36:41 - 0 pending
+Last check: 2026-01-17 06:40:13 - 0 pending
+Last check: 2026-01-17 06:43:26 - 0 pending
+Last check: 2026-01-17 06:50:37 - 0 pending
+Last check: 2026-01-17 06:58:59 - 0 pending
+Last check: 2026-01-17 07:01:16 - 0 pending
+Last check: 2026-01-17 07:01:52 - 0 pending
+Last check: 2026-01-17 07:05:28 - 0 pending
+Last check: 2026-01-17 07:07:10 - 0 pending
+Last check: 2026-01-17 07:08:30 - 0 pending
+Last check: 2026-01-17 07:15:31 - 0 pending
+Last check: 2026-01-17 07:18:18 - 0 pending
+Last check: 2026-01-17 07:19:35 - 0 pending
+Last check: 2026-01-17 07:22:16 - 0 pending
+Last check: 2026-01-17 07:23:10 - 0 pending
+Last check: 2026-01-17 07:23:43 - 0 pending
+Last check: 2026-01-17 07:26:36 - 0 pending
+Last check: 2026-01-17 07:28:54 - 0 pending
+Last check: 2026-01-17 07:33:24 - 0 pending
+Last check: 2026-01-17 07:38:37 - 0 pending
+Last check: 2026-01-17 07:49:49 - 0 pending
+Last check: 2026-01-17 07:51:11 - 0 pending
+Last check: 2026-01-17 10:31:48 - 0 pending
+Last check: 2026-01-17 10:31:58 - 0 pending
+Last check: 2026-01-17 10:32:48 - 0 pending
+Last check: 2026-01-17 10:39:53 - 0 pending
+Last check: 2026-01-17 10:40:07 - 0 pending
+Last check: 2026-01-17 11:26:28 - 0 pending
+Last check: 2026-01-17 11:35:04 - 0 pending
+Last check: 2026-01-17 11:40:44 - 0 pending
+Last check: 2026-01-17 11:45:36 - 0 pending
+Last check: 2026-01-17 11:45:44 - 0 pending
+Last check: 2026-01-17 11:55:17 - 0 pending
+Last check: 2026-01-17 11:58:06 - 0 pending
+Last check: 2026-01-17 11:59:42 - 0 pending
+Last check: 2026-01-17 12:01:27 - 0 pending
+Last check: 2026-01-17 12:01:39 - 0 pending
+Last check: 2026-01-17 12:05:57 - 0 pending
+Last check: 2026-01-17 12:10:59 - 0 pending
+Last check: 2026-01-17 12:11:16 - 0 pending
+Last check: 2026-01-17 12:12:42 - 0 pending
+Last check: 2026-01-17 12:15:34 - 0 pending
+Last check: 2026-01-17 12:16:29 - 0 pending
+Last check: 2026-01-17 12:19:17 - 0 pending
+Last check: 2026-01-17 12:21:26 - 0 pending
+Last check: 2026-01-17 12:21:38 - 0 pending
+Last check: 2026-01-17 12:21:47 - 0 pending
+Last check: 2026-01-17 12:26:22 - 0 pending
+Last check: 2026-01-17 12:27:00 - 0 pending
+Last check: 2026-01-17 12:27:37 - 0 pending
+Last check: 2026-01-17 12:27:44 - 0 pending
+Last check: 2026-01-17 12:28:22 - 0 pending
+Last check: 2026-01-17 12:29:22 - 0 pending
+Last check: 2026-01-17 12:29:22 - 0 pending
+Last check: 2026-01-17 12:35:40 - 0 pending
+Last check: 2026-01-17 12:36:49 - 0 pending
+Last check: 2026-01-17 12:36:56 - 0 pending
+Last check: 2026-01-17 12:37:10 - 0 pending
+Last check: 2026-01-17 12:39:05 - 0 pending
+Last check: 2026-01-17 12:41:21 - 0 pending
+Last check: 2026-01-17 12:43:41 - 0 pending
+Last check: 2026-01-17 12:43:58 - 0 pending
+Last check: 2026-01-17 12:44:43 - 0 pending
+Last check: 2026-01-17 12:45:41 - 0 pending
+Last check: 2026-01-17 12:45:46 - 0 pending
+Last check: 2026-01-17 12:46:21 - 0 pending
+Last check: 2026-01-17 12:50:38 - 0 pending
+Last check: 2026-01-17 12:51:57 - 0 pending
+Last check: 2026-01-17 12:53:14 - 0 pending
+Last check: 2026-01-17 12:53:28 - 0 pending
+Last check: 2026-01-17 12:53:43 - 0 pending
+Last check: 2026-01-17 12:54:00 - 0 pending
+Last check: 2026-01-17 12:54:15 - 0 pending
+Last check: 2026-01-17 12:54:37 - 0 pending
+Last check: 2026-01-17 12:54:54 - 0 pending
+Last check: 2026-01-17 12:55:10 - 0 pending
+Last check: 2026-01-17 12:55:32 - 0 pending
+Last check: 2026-01-17 12:55:47 - 0 pending
+Last check: 2026-01-17 12:56:34 - 0 pending
+Last check: 2026-01-17 12:58:59 - 0 pending
+Last check: 2026-01-17 12:59:48 - 0 pending
+Last check: 2026-01-17 13:00:03 - 0 pending
+Last check: 2026-01-17 13:01:29 - 0 pending
+Last check: 2026-01-17 13:02:03 - 0 pending
+Last check: 2026-01-17 13:03:43 - 0 pending
+Last check: 2026-01-17 13:04:23 - 0 pending
+Last check: 2026-01-17 13:18:27 - 0 pending
+Last check: 2026-01-17 13:19:15 - 0 pending
+Last check: 2026-01-17 13:30:49 - 0 pending
+Last check: 2026-01-17 13:30:55 - 0 pending
+Last check: 2026-01-17 13:33:56 - 0 pending
+Last check: 2026-01-17 13:35:07 - 0 pending
+Last check: 2026-01-17 13:38:26 - 3 pending
+
+## 2026-01-17 13:38 - consolidation-reminder
+
+**Action:** block
+**Changes:**
+- Blocked stop: 3 learnings pending in: swift-testing
+Last check: 2026-01-17 13:39:20 - 0 pending
+Last check: 2026-01-17 13:39:41 - 0 pending
+Last check: 2026-01-17 13:39:53 - 0 pending
+Last check: 2026-01-17 13:41:05 - 0 pending
+Last check: 2026-01-17 13:41:35 - 0 pending
+
+## 2026-01-17 - klabo.world UI Skills Bundle
+
+**Action:** new
+**Changes:**
+- Created frontend-design skill (135 lines) - Anthropic's official skill adapted for klabo.world
+- Created auditing-web-design skill (190 lines) - Vercel Web Interface Guidelines
+- Created maintaining-design-system skill (156 lines) - Design tokens and patterns
+- Created creating-blog-posts skill (166 lines) - Visual feedback loop workflow
+
+**Sources:**
+- Anthropic's official frontend-design skill
+- Vercel's web-design-guidelines and react-best-practices
+- claude-design-engineer pattern
+- Session observations from blog post iteration
+
+**Metrics:**
+- Total new skills: 4
+- All skills under 500 lines
+- All descriptions under 1024 chars with triggers
+Last check: 2026-01-17 13:56:15 - 0 pending
+Last check: 2026-01-17 13:58:04 - 0 pending
+Last check: 2026-01-17 14:05:33 - 0 pending
+Last check: 2026-01-17 14:06:02 - 0 pending
+Last check: 2026-01-17 14:09:16 - 0 pending
+Last check: 2026-01-17 14:12:52 - 0 pending
+Last check: 2026-01-17 14:13:18 - 0 pending
+Last check: 2026-01-17 14:16:20 - 0 pending
+Last check: 2026-01-17 14:17:09 - 0 pending
+Last check: 2026-01-17 14:17:21 - 0 pending
+Last check: 2026-01-17 14:20:54 - 0 pending
+Last check: 2026-01-17 14:24:00 - 0 pending
+Last check: 2026-01-17 14:27:20 - 0 pending
+Last check: 2026-01-17 14:42:16 - 0 pending
+Last check: 2026-01-17 14:42:23 - 0 pending
+Last check: 2026-01-17 14:42:34 - 0 pending
+Last check: 2026-01-17 14:58:33 - 0 pending
+Last check: 2026-01-17 15:08:02 - 0 pending
+Last check: 2026-01-17 15:08:15 - 0 pending
+Last check: 2026-01-17 16:40:59 - 0 pending
+Last check: 2026-01-17 16:46:53 - 0 pending
+Last check: 2026-01-17 16:56:19 - 0 pending
+Last check: 2026-01-17 16:57:00 - 0 pending
+Last check: 2026-01-17 16:59:03 - 0 pending
+Last check: 2026-01-17 17:00:04 - 0 pending
+Last check: 2026-01-17 17:05:38 - 0 pending
+Last check: 2026-01-17 17:15:38 - 0 pending
+Last check: 2026-01-17 17:20:12 - 0 pending
+Last check: 2026-01-17 17:27:19 - 0 pending
+Last check: 2026-01-17 17:27:23 - 0 pending
+Last check: 2026-01-17 17:34:02 - 0 pending
+Last check: 2026-01-17 17:39:11 - 0 pending
+Last check: 2026-01-17 17:42:21 - 0 pending
+Last check: 2026-01-17 17:43:16 - 0 pending
+Last check: 2026-01-17 17:45:48 - 0 pending
+Last check: 2026-01-17 17:48:55 - 0 pending
+Last check: 2026-01-17 17:56:34 - 0 pending
+Last check: 2026-01-17 18:03:58 - 0 pending
+Last check: 2026-01-17 18:04:35 - 0 pending
+Last check: 2026-01-17 18:04:37 - 0 pending
+Last check: 2026-01-17 18:06:08 - 0 pending
+Last check: 2026-01-17 18:20:30 - 0 pending
+Last check: 2026-01-17 18:20:39 - 0 pending
+Last check: 2026-01-17 18:21:16 - 0 pending
+Last check: 2026-01-17 18:23:57 - 0 pending
+Last check: 2026-01-17 18:33:35 - 0 pending
+Last check: 2026-01-17 18:48:43 - 0 pending
+Last check: 2026-01-17 18:48:58 - 0 pending
+Last check: 2026-01-17 18:59:19 - 0 pending
+Last check: 2026-01-17 19:07:00 - 0 pending
+Last check: 2026-01-17 19:32:33 - 0 pending
+Last check: 2026-01-17 19:42:56 - 0 pending
+Last check: 2026-01-17 19:46:43 - 0 pending
+
+## 2026-01-17 19:35 - ensuring-ci-green
+
+**Action:** improve
+**Changes:**
+- Added "Log Tooling Gaps" section after Decision Tree
+- Guidance on using `mise run feedback` when encountering tool limitations
+- Examples of when to log feedback
+
+**Metrics:**
+- Lines: 536 → 550
+- Description: unchanged
+Last check: 2026-01-17 20:12:03 - 0 pending
+Last check: 2026-01-17 20:12:09 - 0 pending
+Last check: 2026-01-17 20:40:29 - 0 pending
+Last check: 2026-01-17 20:42:57 - 0 pending
+Last check: 2026-01-17 20:46:54 - 0 pending
+Last check: 2026-01-17 21:14:47 - 0 pending
+Last check: 2026-01-17 22:05:40 - 0 pending
+Last check: 2026-01-17 22:06:05 - 0 pending
+Last check: 2026-01-17 23:23:36 - 0 pending
+Last check: 2026-01-17 23:23:48 - 0 pending
+Last check: 2026-01-18 00:15:06 - 0 pending
+Last check: 2026-01-18 00:15:26 - 0 pending
+Last check: 2026-01-18 00:17:00 - 0 pending
+Last check: 2026-01-18 00:17:56 - 0 pending
+Last check: 2026-01-18 00:23:55 - 0 pending
+Last check: 2026-01-18 00:25:26 - 0 pending
+
+## 2026-01-18 - auditing-web-design
+
+**Action:** new
+**Source:** https://vercel.com/design/guidelines
+**Changes:**
+- Created SKILL.md with quick audit table, category checklists, common violations
+- Created references/interactions.md - keyboard, touch, focus patterns
+- Created references/forms.md - input, validation, submission rules
+- Created references/performance.md - rendering, optimization, loading
+
+**Metrics:**
+- SKILL.md: 182 lines
+- Description: 168 chars
+- References: 3 files (interactions, forms, performance)
+Last check: 2026-01-18 00:29:06 - 0 pending
+
+## 2026-01-18 - building-ui-components
+
+**Action:** new
+**Source:** https://www.ui-skills.com/
+**Changes:**
+- Created SKILL.md with opinionated constraints for AI-generated UI
+- Covers: stack requirements, component rules, animation constraints
+- Typography, layout/design, and performance guidelines
+- No references needed (content is concise enough for single file)
+
+**Metrics:**
+- SKILL.md: 221 lines
+- Description: 146 chars
+- References: none (all content fits in SKILL.md)
+Last check: 2026-01-18 00:31:08 - 0 pending
+Last check: 2026-01-18 00:37:04 - 0 pending
+Last check: 2026-01-18 01:02:43 - 0 pending
+Last check: 2026-01-18 01:05:18 - 0 pending
+Last check: 2026-01-18 08:23:20 - 0 pending
+Last check: 2026-01-18 08:24:20 - 0 pending
+Last check: 2026-01-18 08:25:28 - 0 pending
+Last check: 2026-01-18 08:32:51 - 0 pending
+Last check: 2026-01-18 08:33:10 - 0 pending
+Last check: 2026-01-18 08:33:15 - 0 pending
+Last check: 2026-01-18 08:33:41 - 0 pending
+Last check: 2026-01-18 08:34:05 - 0 pending
+Last check: 2026-01-18 08:38:06 - 0 pending
+Last check: 2026-01-18 08:38:18 - 0 pending
+Last check: 2026-01-18 08:40:52 - 0 pending
+Last check: 2026-01-18 08:41:15 - 0 pending
+Last check: 2026-01-18 08:42:42 - 0 pending
+Last check: 2026-01-18 08:43:56 - 0 pending
+Last check: 2026-01-18 08:44:17 - 0 pending
+Last check: 2026-01-18 08:45:22 - 0 pending
+Last check: 2026-01-18 08:46:19 - 0 pending
+Last check: 2026-01-18 08:49:34 - 0 pending
+Last check: 2026-01-18 08:53:32 - 0 pending
+Last check: 2026-01-18 08:57:10 - 0 pending
+Last check: 2026-01-18 08:59:07 - 0 pending
+Last check: 2026-01-18 08:59:19 - 0 pending
+Last check: 2026-01-18 08:59:49 - 0 pending
+Last check: 2026-01-18 09:04:15 - 0 pending
+Last check: 2026-01-18 09:11:17 - 0 pending
+Last check: 2026-01-18 09:11:23 - 0 pending
+Last check: 2026-01-18 10:26:16 - 0 pending
+Last check: 2026-01-18 10:51:11 - 0 pending
+Last check: 2026-01-18 10:59:22 - 0 pending
+Last check: 2026-01-18 10:59:46 - 0 pending
+Last check: 2026-01-18 18:01:24 - 0 pending
+Last check: 2026-01-18 18:05:11 - 0 pending
+Last check: 2026-01-18 18:05:55 - 0 pending
+Last check: 2026-01-18 18:06:51 - 0 pending
+Last check: 2026-01-18 18:07:23 - 0 pending
+Last check: 2026-01-18 18:13:18 - 0 pending
+Last check: 2026-01-18 18:13:38 - 0 pending
+Last check: 2026-01-18 18:15:59 - 0 pending
+Last check: 2026-01-18 18:18:23 - 0 pending
+Last check: 2026-01-18 18:19:24 - 0 pending
+Last check: 2026-01-18 18:20:22 - 0 pending
+Last check: 2026-01-18 18:23:43 - 0 pending
+Last check: 2026-01-18 18:28:04 - 0 pending
+
+## 2026-01-20 06:05 - using-omarchy
+
+**Action:** new
+**Changes:**
+- Created using-omarchy skill and reference docs.
+
+**Metrics:**
+- Lines: 0 -> 59
+- Description: 233 chars
+Last check: 2026-01-22 11:58:10 - 0 pending
+Last check: 2026-01-22 12:01:53 - 0 pending
+Last check: 2026-01-22 12:02:20 - 0 pending
+Last check: 2026-01-22 12:03:24 - 0 pending
+Last check: 2026-01-22 12:03:26 - 0 pending
+Last check: 2026-01-22 12:05:07 - 0 pending
+Last check: 2026-01-22 12:06:22 - 0 pending
+Last check: 2026-01-22 12:06:40 - 0 pending
+Last check: 2026-01-22 12:08:11 - 0 pending
+Last check: 2026-01-22 12:13:53 - 0 pending
+Last check: 2026-01-22 12:14:22 - 0 pending
+Last check: 2026-01-22 12:14:27 - 0 pending
+Last check: 2026-01-22 12:14:50 - 0 pending
+Last check: 2026-01-22 12:14:54 - 0 pending
+Last check: 2026-01-22 12:19:49 - 0 pending
+Last check: 2026-01-22 12:57:38 - 0 pending
+Last check: 2026-01-22 12:57:44 - 0 pending
+Last check: 2026-01-22 12:58:10 - 0 pending
+Last check: 2026-01-22 12:58:13 - 0 pending
+Last check: 2026-01-22 12:59:02 - 0 pending
+Last check: 2026-01-22 13:09:14 - 0 pending
+Last check: 2026-01-22 13:17:20 - 0 pending
+Last check: 2026-01-22 13:59:11 - 0 pending
+Last check: 2026-01-22 13:59:15 - 0 pending
+Last check: 2026-01-22 14:04:58 - 0 pending
+Last check: 2026-01-22 14:11:04 - 0 pending
+Last check: 2026-01-22 14:11:09 - 0 pending
+Last check: 2026-01-22 14:11:13 - 0 pending
+Last check: 2026-01-22 14:11:17 - 0 pending
+Last check: 2026-01-22 14:11:21 - 0 pending
+Last check: 2026-01-22 14:11:25 - 0 pending
+Last check: 2026-01-22 14:11:28 - 0 pending
+Last check: 2026-01-22 14:11:32 - 0 pending
+Last check: 2026-01-22 14:11:36 - 0 pending
+Last check: 2026-01-22 14:11:40 - 0 pending
+Last check: 2026-01-22 14:11:45 - 0 pending
+Last check: 2026-01-22 14:11:48 - 0 pending
+Last check: 2026-01-22 14:11:52 - 0 pending
+Last check: 2026-01-22 14:11:56 - 0 pending
+Last check: 2026-01-22 14:11:59 - 0 pending
+Last check: 2026-01-22 14:12:03 - 0 pending
+Last check: 2026-01-22 14:12:07 - 0 pending
+Last check: 2026-01-22 14:12:10 - 0 pending
+Last check: 2026-01-22 14:12:14 - 0 pending
+Last check: 2026-01-22 14:12:18 - 0 pending
+Last check: 2026-01-22 14:12:21 - 0 pending
+Last check: 2026-01-22 14:12:25 - 0 pending
+Last check: 2026-01-22 14:12:29 - 0 pending
+Last check: 2026-01-22 14:12:33 - 0 pending
+Last check: 2026-01-22 14:12:36 - 0 pending
+Last check: 2026-01-22 14:12:41 - 0 pending
+Last check: 2026-01-22 14:12:45 - 0 pending
+Last check: 2026-01-22 14:12:49 - 0 pending
+Last check: 2026-01-22 14:12:59 - 0 pending
+Last check: 2026-01-22 14:13:03 - 0 pending
+Last check: 2026-01-22 14:13:07 - 0 pending
+Last check: 2026-01-22 14:13:18 - 0 pending
+Last check: 2026-01-23 08:45:29 - 0 pending
+
+## 2026-02-02 13:20 - family
+
+**Action:** new
+**Changes:**
+- Added family persona skill with countdown workflow and dashboard data schema.
+
+**Metrics:**
+- Lines: 0 → 63
+- Description: 173
+
+## 2026-02-02 20:34 - family
+
+**Action:** improve
+**Changes:**
+- Aligned family notes path to ~/Shared/notes/family and expanded countdown schema with anniversaries.
+
+**Metrics:**
+- Lines: 63 → 70
+- Description: 173
+
+## 2026-02-02 20:37 - family
+
+**Action:** improve
+**Changes:**
+- Added learnings entry referencing FAMILY.md as source of truth for birthdays.
+
+**Metrics:**
+- Lines: 70 → 70
+- Description: 173
+
+## 2026-02-03 02:07 - tax-research
+
+**Action:** improve
+**Changes:**
+- Added reporting rule to always state completed vs pending tax years.
+
+**Metrics:**
+- Lines: (unchanged)
+- Description: (unchanged)
+
+## 2026-02-03 13:26 - openclaw-context
+
+**Action:** new
+**Changes:**
+- Added new skill with workflow for resolving OpenClaw context paths, agent workspaces, bindings, and HonkDash context logging
+
+**Metrics:**
+- Lines: new → 90
+- Description: 178
+
+## 2026-02-03 23:26 - refining-designs
+
+**Action:** new
+**Changes:**
+- Added refining-designs skill with workflow, prompts, and log templates
+- Added references for prompts and logging
+- Added Desktop/docs copies per documentation rule
+
+**Metrics:**
+- Lines: n/a → 61
+- Description: 142 chars
