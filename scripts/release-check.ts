@@ -3,6 +3,7 @@
 import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 type PackFile = { path: string };
 type PackResult = { files?: PackFile[] };
@@ -20,6 +21,8 @@ type PackageJson = {
   name?: string;
   version?: string;
 };
+
+const requiredPluginSdkExports = ["isDangerousNameMatchingEnabled"] as const;
 
 function normalizePluginSyncVersion(version: string): string {
   const normalized = version.trim().replace(/^v/, "");
@@ -87,7 +90,16 @@ function checkPluginVersions() {
   }
 }
 
-function main() {
+export async function verifyPluginSdkRuntimeExports(
+  modulePath = resolve("dist/plugin-sdk/index.js"),
+) {
+  const moduleUrl = pathToFileURL(modulePath).href;
+  const loaded = (await import(moduleUrl)) as Record<string, unknown>;
+  const missing = requiredPluginSdkExports.filter((key) => typeof loaded[key] !== "function");
+  return { missing, modulePath };
+}
+
+export async function main() {
   checkPluginVersions();
 
   const results = runPackDry();
@@ -122,7 +134,21 @@ function main() {
     process.exit(1);
   }
 
+  const runtimeExports = await verifyPluginSdkRuntimeExports();
+  if (runtimeExports.missing.length > 0) {
+    console.error(
+      `release-check: dist plugin-sdk missing runtime export(s) in ${runtimeExports.modulePath}:`,
+    );
+    for (const key of runtimeExports.missing) {
+      console.error(`  - ${key}`);
+    }
+    process.exit(1);
+  }
+
   console.log("release-check: npm pack contents look OK.");
 }
 
-main();
+const entryUrl = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : "";
+if (import.meta.url === entryUrl) {
+  await main();
+}
