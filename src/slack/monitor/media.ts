@@ -232,7 +232,13 @@ export async function resolveSlackMedia(params: {
           placeholder: label ? `[Slack file: ${label}]` : "[Slack file]",
         };
       } catch {
-        return null;
+        // File download failed — return a placeholder so file-only messages
+        // are not silently dropped (see #25064).
+        const label = file.name ?? "file";
+        return {
+          path: "",
+          placeholder: `[Slack file: ${label} — download failed]`,
+        };
       }
     },
   );
