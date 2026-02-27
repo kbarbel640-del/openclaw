@@ -30,8 +30,7 @@ jobs:
               {
                 label: "r: external-sensitive-path",
                 close: true,
-                message:
-                  "This PR touches restricted security/exec paths and was opened by a non-org contributor. For safety, only OpenClaw organization members can modify these files directly. Please open an issue/discussion for a maintainer-assisted path, or submit a PR that excludes these files.",
+                comment: false,
               },
               {
                 label: "r: skill",
@@ -204,12 +203,14 @@ jobs:
 
             const issueNumber = target.number;
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              body: rule.message,
-            });
+            if (rule.comment !== false && typeof rule.message === "string" && rule.message.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: rule.message,
+              });
+            }
 
             if (rule.close) {
               await github.rest.issues.update({
