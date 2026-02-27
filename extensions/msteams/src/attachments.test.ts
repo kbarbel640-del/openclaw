@@ -164,7 +164,9 @@ const IMAGE_ATTACHMENT = { contentType: CONTENT_TYPE_IMAGE_PNG, contentUrl: TEST
 const PNG_BUFFER = Buffer.from("png");
 const PNG_BASE64 = PNG_BUFFER.toString("base64");
 const PDF_BUFFER = Buffer.from("pdf");
-const createTokenProvider = () => ({ getAccessToken: vi.fn(async () => "token") });
+const createTokenProvider = (token = "token") => ({
+  getAccessToken: vi.fn(async () => token),
+});
 const asSingleItemArray = <T>(value: T) => [value];
 const withLabel = <T extends object>(label: string, fields: T): T & LabeledCase => ({
   label,
@@ -694,6 +696,48 @@ describe("msteams attachments", () => {
       runAttachmentAuthRetryCase,
     );
 
+    it("does not forward Authorization to redirects outside auth allowlist", async () => {
+      const tokenProvider = createTokenProvider("top-secret-token");
+      const graphFileUrl = createUrlForHost(GRAPH_HOST, "file");
+      const seen: Array<{ url: string; auth: string }> = [];
+      const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+        const auth = new Headers(opts?.headers).get("Authorization") ?? "";
+        seen.push({ url, auth });
+        if (url === graphFileUrl && !auth) {
+          return new Response("unauthorized", { status: 401 });
+        }
+        if (url === graphFileUrl && auth) {
+          return new Response("", {
+            status: 302,
+            headers: { location: "https://attacker.azureedge.net/collect" },
+          });
+        }
+        if (url === "https://attacker.azureedge.net/collect") {
+          return new Response(Buffer.from("png"), {
+            status: 200,
+            headers: { "content-type": CONTENT_TYPE_IMAGE_PNG },
+          });
+        }
+        return createNotFoundResponse();
+      });
+
+      const media = await downloadMSTeamsAttachments(
+        buildDownloadParams([{ contentType: CONTENT_TYPE_IMAGE_PNG, contentUrl: graphFileUrl }], {
+          tokenProvider,
+          allowHosts: [GRAPH_HOST, AZUREEDGE_HOST],
+          authAllowHosts: [GRAPH_HOST],
+          fetchFn: asFetchFn(fetchMock),
+        }),
+      );
+
+      expectSingleMedia(media);
+      const redirected = seen.find(
+        (entry) => entry.url === "https://attacker.azureedge.net/collect",
+      );
+      expect(redirected).toBeDefined();
+      expect(redirected?.auth).toBe("");
+    });
+
     it("skips urls outside the allowlist", async () => {
       const fetchMock = vi.fn();
       const media = await downloadAttachmentsWithFetch(
@@ -743,6 +787,49 @@ describe("msteams attachments", () => {
 
   describe("downloadMSTeamsGraphMedia", () => {
     it.each<GraphMediaSuccessCase>(GRAPH_MEDIA_SUCCESS_CASES)("$label", runGraphMediaSuccessCase);
+
+    it("does not forward Authorization for SharePoint redirects outside auth allowlist", async () => {
+      const tokenProvider = createTokenProvider("top-secret-token");
+      const escapedUrl = "https://example.com/collect";
+      const seen: Array<{ url: string; auth: string }> = [];
+      const referenceAttachment = createReferenceAttachment();
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const auth = new Headers(init?.headers).get("Authorization") ?? "";
+        seen.push({ url, auth });
+
+        if (url === DEFAULT_MESSAGE_URL) {
+          return createJsonResponse({ attachments: [referenceAttachment] });
+        }
+        if (url === `${DEFAULT_MESSAGE_URL}/hostedContents`) {
+          return createGraphCollectionResponse([]);
+        }
+        if (url === `${DEFAULT_MESSAGE_URL}/attachments`) {
+          return createGraphCollectionResponse([referenceAttachment]);
+        }
+        if (url.startsWith(GRAPH_SHARES_URL_PREFIX)) {
+          return createRedirectResponse(escapedUrl);
+        }
+        if (url === escapedUrl) {
+          return createPdfResponse();
+        }
+        return createNotFoundResponse();
+      });
+
+      const media = await downloadMSTeamsGraphMedia({
+        messageUrl: DEFAULT_MESSAGE_URL,
+        tokenProvider,
+        maxBytes: DEFAULT_MAX_BYTES,
+        allowHosts: [...DEFAULT_SHAREPOINT_ALLOW_HOSTS, "example.com"],
+        authAllowHosts: DEFAULT_SHAREPOINT_ALLOW_HOSTS,
+        fetchFn: asFetchFn(fetchMock),
+      });
+
+      expectAttachmentMediaLength(media.media, 1);
+      const redirected = seen.find((entry) => entry.url === escapedUrl);
+      expect(redirected).toBeDefined();
+      expect(redirected?.auth).toBe("");
+    });
 
     it("blocks SharePoint redirects to hosts outside allowHosts", async () => {
       const escapedUrl = "https://evil.example/internal.pdf";
