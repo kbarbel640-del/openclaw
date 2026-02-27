@@ -77,16 +77,18 @@ export async function retryHttpAsync<T>(
   const {
     logger = console.warn,
     onResponse: validate = onResponse(options),
-    transformResponse: transform = defaultResponseTransformer,
+    transformResponse: transform = promisedResponse,
     ...retryOptions
   } = options;
-  return retryAsync(fn, {
+  return retryAsync(() => fn().then(validate), {
     ...retryOptions,
     shouldRetry: (err) => isHttpRetryable(err),
     onRetry: (info) => onRetry(logger, info),
-  })
-    .then(validate)
-    .then(transform);
+  }).then(transform);
+}
+
+export function promisedResponse(res: Response): Promise<Response> {
+  return Promise.resolve(res);
 }
 
 function onRetry(logger: RetryLogger, info: RetryInfo) {
@@ -103,10 +105,6 @@ function onResponse(options: RetryHttpOptions<unknown>): ResponseValidator {
     }
     return res;
   };
-}
-
-async function defaultResponseTransformer(res: Response): Promise<Response> {
-  return Promise.resolve(res);
 }
 
 async function defaultCreateError(

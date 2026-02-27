@@ -97,12 +97,10 @@ describe("retryHttpAsync", () => {
       logger,
     } as const;
 
-    await expect(retryHttpAsync(mockRetry, options)).rejects.toThrow("HTTP 429");
-    // The validator throws on 429; retryAsync will retry the function, the second call returns 200
-    // The final response is 200, so it resolves
     const result = await retryHttpAsync(mockRetry, options);
     expect(result).toBeInstanceOf(MockResponse);
     expect(result!.status).toBe(200);
+    expect(mockRetry).toHaveBeenCalledTimes(2);
   });
 
   it("does not retry on non-retryable errors", async () => {
