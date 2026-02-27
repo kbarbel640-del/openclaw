@@ -18,6 +18,25 @@ function isExpectedPathError(error: unknown): boolean {
   return code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP";
 }
 
+function nodeErrorCode(error: unknown): string {
+  if (!(typeof error === "object" && error !== null && "code" in error)) {
+    return "";
+  }
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === "string") {
+    return code;
+  }
+  if (typeof code === "number") {
+    return `${code}`;
+  }
+  return "";
+}
+
+function isUnsupportedNoFollowError(error: unknown): boolean {
+  const code = nodeErrorCode(error);
+  return code === "EINVAL" || code === "ENOTSUP";
+}
+
 export function sameFileIdentity(left: fs.Stats, right: fs.Stats): boolean {
   return hasSameFileIdentity(left, right);
 }
@@ -31,9 +50,10 @@ export function openVerifiedFileSync(params: {
   ioFs?: SafeOpenSyncFs;
 }): SafeOpenSyncResult {
   const ioFs = params.ioFs ?? fs;
-  const openReadFlags =
-    ioFs.constants.O_RDONLY |
-    (typeof ioFs.constants.O_NOFOLLOW === "number" ? ioFs.constants.O_NOFOLLOW : 0);
+  const readOnlyFlags = ioFs.constants.O_RDONLY;
+  const noFollowFlag =
+    typeof ioFs.constants.O_NOFOLLOW === "number" ? ioFs.constants.O_NOFOLLOW : 0;
+  const openReadFlags = readOnlyFlags | noFollowFlag;
   let fd: number | null = null;
   try {
     if (params.rejectPathSymlink) {
@@ -55,7 +75,16 @@ export function openVerifiedFileSync(params: {
       return { ok: false, reason: "validation" };
     }
 
-    fd = ioFs.openSync(realPath, openReadFlags);
+    try {
+      fd = ioFs.openSync(realPath, openReadFlags);
+    } catch (error) {
+      // Some environments expose O_NOFOLLOW but reject it at runtime.
+      if (noFollowFlag !== 0 && isUnsupportedNoFollowError(error)) {
+        fd = ioFs.openSync(realPath, readOnlyFlags);
+      } else {
+        throw error;
+      }
+    }
     const openedStat = ioFs.fstatSync(fd);
     if (!openedStat.isFile()) {
       return { ok: false, reason: "validation" };
