@@ -97,26 +97,13 @@ actor GatewayEndpointStore {
             }
             return trimmed
         }
-        if isRemote {
-            if let gateway = root["gateway"] as? [String: Any],
-               let remote = gateway["remote"] as? [String: Any],
-               let password = remote["password"] as? String
-            {
-                let pw = password.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !pw.isEmpty {
-                    return pw
-                }
-            }
-            return nil
-        }
-        if let gateway = root["gateway"] as? [String: Any],
-           let auth = gateway["auth"] as? [String: Any],
-           let password = auth["password"] as? String
+        if let configPassword = self.resolveConfigPassword(isRemote: isRemote, root: root),
+           !configPassword.isEmpty
         {
-            let pw = password.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !pw.isEmpty {
-                return pw
-            }
+            return configPassword
+        }
+        if isRemote {
+            return nil
         }
         if let password = launchdSnapshot?.password?.trimmingCharacters(in: .whitespacesAndNewlines),
            !password.isEmpty
@@ -140,6 +127,12 @@ actor GatewayEndpointStore {
         if let gateway = root["gateway"] as? [String: Any],
            let auth = gateway["auth"] as? [String: Any],
            let password = auth["password"] as? String
+        {
+            return password.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let gateway = root["gateway"] as? [String: Any],
+           let remote = gateway["remote"] as? [String: Any],
+           let password = remote["password"] as? String
         {
             return password.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -200,6 +193,12 @@ actor GatewayEndpointStore {
         if let gateway = root["gateway"] as? [String: Any],
            let auth = gateway["auth"] as? [String: Any],
            let token = auth["token"] as? String
+        {
+            return token.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let gateway = root["gateway"] as? [String: Any],
+           let remote = gateway["remote"] as? [String: Any],
+           let token = remote["token"] as? String
         {
             return token.trimmingCharacters(in: .whitespacesAndNewlines)
         }
