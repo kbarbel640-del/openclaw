@@ -56,6 +56,7 @@ const { readChannelAllowFromStore, upsertChannelPairingRequest } = vi.hoisted(
     upsertChannelPairingRequest: vi.fn(async () => ({
       code: "PAIRCODE",
       created: true,
+      shouldRemind: true,
     })),
   }),
 );
@@ -273,7 +274,11 @@ beforeEach(() => {
   readChannelAllowFromStore.mockReset();
   readChannelAllowFromStore.mockResolvedValue([]);
   upsertChannelPairingRequest.mockReset();
-  upsertChannelPairingRequest.mockResolvedValue({ code: "PAIRCODE", created: true } as const);
+  upsertChannelPairingRequest.mockResolvedValue({
+    code: "PAIRCODE",
+    created: true,
+    shouldRemind: true,
+  } as const);
   onSpy.mockReset();
   commandSpy.mockReset();
   stopSpy.mockReset();
