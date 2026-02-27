@@ -43,6 +43,10 @@ export function resolveDiscordSystemEvent(message: Message, location: string): s
       return buildDiscordSystemEvent(message, location, "poll results posted");
     case MessageType.PurchaseNotification:
       return buildDiscordSystemEvent(message, location, "purchase notification");
+    case MessageType.ChannelNameChange:
+      return buildDiscordSystemEvent(message, location, "changed channel/thread name");
+    case MessageType.ChannelIconChange:
+      return buildDiscordSystemEvent(message, location, "changed channel icon");
     default:
       return null;
   }
