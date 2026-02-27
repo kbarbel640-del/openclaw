@@ -14,6 +14,16 @@ import type { SlackMonitorContext } from "../context.js";
 import { createSlackMonitorContext } from "../context.js";
 import { prepareSlackMessage } from "./prepare.js";
 
+const { readChannelAllowFromStoreMock, upsertChannelPairingRequestMock } = vi.hoisted(() => ({
+  readChannelAllowFromStoreMock: vi.fn(async () => [] as string[]),
+  upsertChannelPairingRequestMock: vi.fn(async () => ({ code: "PAIR", created: false })),
+}));
+
+vi.mock("../../../pairing/pairing-store.js", () => ({
+  readChannelAllowFromStore: (...args: unknown[]) => readChannelAllowFromStoreMock(...args),
+  upsertChannelPairingRequest: (...args: unknown[]) => upsertChannelPairingRequestMock(...args),
+}));
+
 describe("slack prepareSlackMessage inbound contract", () => {
   let fixtureRoot = "";
   let caseId = 0;
@@ -196,6 +206,40 @@ describe("slack prepareSlackMessage inbound contract", () => {
     expect(prepared).toBeTruthy();
     // oxlint-disable-next-line typescript/no-explicit-any
     expectInboundContextContract(prepared!.ctxPayload as any);
+  });
+
+  it("scopes DM pairing-store checks and requests to accountId", async () => {
+    readChannelAllowFromStoreMock.mockResolvedValueOnce([]);
+    upsertChannelPairingRequestMock.mockResolvedValueOnce({ code: "PAIR", created: false });
+
+    const slackCtx = createInboundSlackCtx({
+      cfg: {
+        channels: { slack: { enabled: true } },
+      } as OpenClawConfig,
+    });
+    slackCtx.dmPolicy = "pairing";
+    slackCtx.allowFrom = ["U_OWNER"];
+
+    const prepared = await prepareMessageWith(
+      slackCtx,
+      createSlackAccount(),
+      createSlackMessage({
+        channel: "D222",
+        channel_type: "im",
+        user: "U_ATTACKER",
+        text: "hello",
+      }),
+    );
+
+    expect(prepared).toBeNull();
+    expect(readChannelAllowFromStoreMock).toHaveBeenCalledWith("slack", undefined, "default");
+    expect(upsertChannelPairingRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: "slack",
+        id: "U_ATTACKER",
+        accountId: "default",
+      }),
+    );
   });
 
   it("includes forwarded shared attachment text in raw body", async () => {
@@ -615,6 +659,7 @@ describe("prepareSlackMessage sender prefix", () => {
     channels: Record<string, unknown>;
     allowFrom?: string[];
     useAccessGroups?: boolean;
+    dmPolicy?: "open" | "allowlist" | "pairing" | "disabled";
     slashCommand: Record<string, unknown>;
   }): SlackMonitorContext {
     return {
@@ -640,7 +685,7 @@ describe("prepareSlackMessage sender prefix", () => {
       sessionScope: "per-sender",
       mainKey: "agent:main:main",
       dmEnabled: true,
-      dmPolicy: "open",
+      dmPolicy: params.dmPolicy ?? "open",
       allowFrom: params.allowFrom ?? [],
       groupDmEnabled: false,
       groupDmChannels: [],
@@ -715,5 +760,27 @@ describe("prepareSlackMessage sender prefix", () => {
 
     expect(result).not.toBeNull();
     expect(result?.ctxPayload.CommandAuthorized).toBe(true);
+  });
+
+  it("blocks channel control commands for senders authorized only via DM pairing store", async () => {
+    readChannelAllowFromStoreMock.mockResolvedValueOnce(["U1"]);
+
+    const ctx = createSenderPrefixCtx({
+      channels: { dm: { enabled: true, policy: "pairing", allowFrom: ["U_OWNER"] } },
+      allowFrom: ["U_OWNER"],
+      useAccessGroups: true,
+      dmPolicy: "pairing",
+      slashCommand: {
+        enabled: false,
+        name: "openclaw",
+        sessionPrefix: "slack:slash",
+        ephemeral: true,
+      },
+    });
+
+    const result = await prepareSenderPrefixMessage(ctx, "<@BOT> /new", "1700000000.0003");
+
+    expect(result).toBeNull();
+    expect(readChannelAllowFromStoreMock).toHaveBeenCalledWith("slack", undefined, "default");
   });
 });

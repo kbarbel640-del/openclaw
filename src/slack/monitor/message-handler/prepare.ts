@@ -19,6 +19,7 @@ import {
   shouldAckReaction as shouldAckReactionGate,
   type AckReactionScope,
 } from "../../../channels/ack-reactions.js";
+import { formatAllowlistMatchMeta } from "../../../channels/allowlist-match.js";
 import { resolveControlCommandGate } from "../../../channels/command-gating.js";
 import { resolveConversationLabel } from "../../../channels/conversation-label.js";
 import { logInboundDrop } from "../../../channels/logging.js";
@@ -34,7 +35,12 @@ import { reactSlackMessage } from "../../actions.js";
 import { sendMessageSlack } from "../../send.js";
 import { resolveSlackThreadContext } from "../../threading.js";
 import type { SlackMessageEvent } from "../../types.js";
-import { resolveSlackAllowListMatch, resolveSlackUserAllowed } from "../allow-list.js";
+import {
+  normalizeAllowList,
+  normalizeAllowListLower,
+  resolveSlackAllowListMatch,
+  resolveSlackUserAllowed,
+} from "../allow-list.js";
 import { resolveSlackEffectiveAllowFrom } from "../auth.js";
 import { resolveSlackChannelConfig } from "../channel-config.js";
 import { stripSlackMentionsForCommandDetection } from "../commands.js";
@@ -125,9 +131,10 @@ export async function prepareSlackMessage(params: {
     return null;
   }
 
-  const { allowFromLower } = await resolveSlackEffectiveAllowFrom(ctx, {
-    includePairingStore: isDirectMessage,
-  });
+  const { allowFromLower } = await resolveSlackEffectiveAllowFrom(ctx);
+  const ownerAllowFromLower = isRoomish
+    ? normalizeAllowListLower(normalizeAllowList(ctx.allowFrom))
+    : allowFromLower;
 
   if (isDirectMessage) {
     const directUserId = message.user;
@@ -160,6 +167,55 @@ export async function prepareSlackMessage(params: {
     });
     if (!allowed) {
       return null;
+    }
+    if (ctx.dmPolicy !== "open") {
+      const allowMatch = resolveSlackAllowListMatch({
+        allowList: allowFromLower,
+        id: directUserId,
+        allowNameMatching: ctx.allowNameMatching,
+      });
+      const allowMatchMeta = formatAllowlistMatchMeta(allowMatch);
+      if (!allowMatch.allowed) {
+        if (ctx.dmPolicy === "pairing") {
+          const sender = await ctx.resolveUserName(directUserId);
+          const senderName = sender?.name ?? undefined;
+          const { code, created } = await upsertChannelPairingRequest({
+            channel: "slack",
+            id: directUserId,
+            accountId: account.accountId,
+            meta: { name: senderName },
+          });
+          if (created) {
+            logVerbose(
+              `slack pairing request sender=${directUserId} name=${
+                senderName ?? "unknown"
+              } (${allowMatchMeta})`,
+            );
+            try {
+              await sendMessageSlack(
+                message.channel,
+                buildPairingReply({
+                  channel: "slack",
+                  idLine: `Your Slack user id: ${directUserId}`,
+                  code,
+                }),
+                {
+                  token: ctx.botToken,
+                  client: ctx.app.client,
+                  accountId: account.accountId,
+                },
+              );
+            } catch (err) {
+              logVerbose(`slack pairing reply failed for ${message.user}: ${String(err)}`);
+            }
+          }
+        } else {
+          logVerbose(
+            `Blocked unauthorized slack sender ${message.user} (dmPolicy=${ctx.dmPolicy}, ${allowMatchMeta})`,
+          );
+        }
+        return null;
+      }
     }
   }
 
@@ -237,7 +293,7 @@ export async function prepareSlackMessage(params: {
   const hasControlCommandInMessage = hasControlCommand(textForCommandDetection, cfg);
 
   const ownerAuthorized = resolveSlackAllowListMatch({
-    allowList: allowFromLower,
+    allowList: ownerAllowFromLower,
     id: senderId,
     name: senderName,
     allowNameMatching: ctx.allowNameMatching,
@@ -256,7 +312,7 @@ export async function prepareSlackMessage(params: {
   const commandGate = resolveControlCommandGate({
     useAccessGroups: ctx.useAccessGroups,
     authorizers: [
-      { configured: allowFromLower.length > 0, allowed: ownerAuthorized },
+      { configured: ownerAllowFromLower.length > 0, allowed: ownerAuthorized },
       { configured: channelUsersAllowlistConfigured, allowed: channelCommandAuthorized },
     ],
     allowTextCommands,
