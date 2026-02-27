@@ -37,15 +37,18 @@ describe("printCronList", () => {
     // Simulate a job without sessionTarget (as reported in #9649)
     const jobWithUndefinedTarget = createBaseJob({
       id: "test-job-id",
+      agentId: undefined,
       // sessionTarget is intentionally omitted to simulate the bug
     });
 
     // This should not throw "Cannot read properties of undefined (reading 'trim')"
     expect(() => printCronList([jobWithUndefinedTarget], runtime)).not.toThrow();
 
-    // Verify output contains the job
+    // Verify output contains the updated Agent ID header and unset placeholder.
     expect(logs.length).toBeGreaterThan(1);
+    expect(logs[0]).toContain("Agent ID");
     expect(logs.some((line) => line.includes("test-job-id"))).toBe(true);
+    expect(logs.some((line) => line.includes(" -"))).toBe(true);
   });
 
   it("handles job with defined sessionTarget", () => {
