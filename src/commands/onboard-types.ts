@@ -129,6 +129,7 @@ export type OnboardOptions = {
   huggingfaceApiKey?: string;
   opencodeZenApiKey?: string;
   xaiApiKey?: string;
+  qwenApiKey?: string;
   volcengineApiKey?: string;
   byteplusApiKey?: string;
   qianfanApiKey?: string;

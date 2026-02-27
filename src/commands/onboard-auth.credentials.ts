@@ -215,6 +215,7 @@ export const HUGGINGFACE_DEFAULT_MODEL_REF = "huggingface/deepseek-ai/DeepSeek-R
 export const TOGETHER_DEFAULT_MODEL_REF = "together/moonshotai/Kimi-K2.5";
 export const LITELLM_DEFAULT_MODEL_REF = "litellm/claude-opus-4-6";
 export const VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF = "vercel-ai-gateway/anthropic/claude-opus-4.6";
+export const QWEN_DEFAULT_MODEL_REF = "qwen-portal/qwen-plus";
 
 export async function setZaiApiKey(key: string, agentDir?: string) {
   // Write to resolved agent dir so gateway finds credentials on startup.
@@ -250,6 +251,18 @@ export async function setOpenrouterApiKey(key: string, agentDir?: string) {
       type: "api_key",
       provider: "openrouter",
       key: safeKey,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
+export async function setQwenApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "qwen-portal:default",
+    credential: {
+      type: "api_key",
+      provider: "qwen-portal",
+      key,
     },
     agentDir: resolveAuthAgentDir(agentDir),
   });
