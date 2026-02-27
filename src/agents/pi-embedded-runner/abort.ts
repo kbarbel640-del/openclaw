@@ -1,7 +1,6 @@
 /**
  * Runner abort check. Catches any abort-related message for embedded runners.
- * More permissive than the core isAbortError since runners need to catch
- * various abort signals from different sources.
+ * Keep this strict enough to avoid swallowing non-abort failures.
  */
 export function isRunnerAbortError(err: unknown): boolean {
   if (!err || typeof err !== "object") {
@@ -11,7 +10,14 @@ export function isRunnerAbortError(err: unknown): boolean {
   if (name === "AbortError") {
     return true;
   }
+  const code = "code" in err ? String(err.code) : "";
+  if (code === "ABORT_ERR") {
+    return true;
+  }
   const message =
     "message" in err && typeof err.message === "string" ? err.message.toLowerCase() : "";
-  return message.includes("aborted");
+  if (message === "aborted") {
+    return true;
+  }
+  return /^(?:this|the) operation was aborted(?:[.:].*)?$/.test(message);
 }
