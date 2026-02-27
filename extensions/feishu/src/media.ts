@@ -345,6 +345,120 @@ export async function sendFileFeishu(params: {
 }
 
 /**
+ * Send an audio message using a file_key via REST API.
+ * The SDK rejects msg_type "audio" with error 230055, so we bypass it
+ * by calling the Feishu REST API directly.
+ */
+export async function sendAudioFeishu(params: {
+  cfg: ClawdbotConfig;
+  to: string;
+  fileKey: string;
+  replyToMessageId?: string;
+  accountId?: string;
+}): Promise<SendMediaResult> {
+  const { cfg, to, fileKey, replyToMessageId, accountId } = params;
+  const account = resolveFeishuAccount({ cfg, accountId });
+  if (!account.configured) {
+    throw new Error(`Feishu account "${account.accountId}" not configured`);
+  }
+
+  const client = createFeishuClient(account);
+  // Get tenant access token from the SDK client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal token manager
+  const tokenManager = (client as any).tokenManager;
+  let token: string;
+  if (tokenManager && typeof tokenManager.getTenantAccessToken === "function") {
+    const tokenResult = await tokenManager.getTenantAccessToken();
+    token =
+      typeof tokenResult === "string"
+        ? tokenResult
+        : (tokenResult?.token ?? tokenResult?.tenant_access_token);
+  } else {
+    // Fallback: request token directly
+    const appId = account.config?.appId;
+    const appSecret = account.config?.appSecret;
+    if (!appId || !appSecret) throw new Error("Feishu appId/appSecret required for audio send");
+    let tokenResp: Response;
+    try {
+      tokenResp = await fetch(
+        "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+        },
+      );
+    } catch (err) {
+      throw new Error(
+        `Feishu token fetch failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (!tokenResp.ok) {
+      throw new Error(`Feishu token fetch failed: HTTP ${tokenResp.status}`);
+    }
+    let tokenData: { tenant_access_token?: string };
+    try {
+      tokenData = (await tokenResp.json()) as { tenant_access_token?: string };
+    } catch {
+      throw new Error("Feishu token fetch failed: invalid JSON response");
+    }
+    token = tokenData.tenant_access_token ?? "";
+  }
+  if (!token) throw new Error("Failed to obtain Feishu tenant access token for audio send");
+
+  const content = JSON.stringify({ file_key: fileKey });
+  const { receiveId, receiveIdType } = resolveFeishuSendTarget({ cfg, to, accountId });
+
+  let url: string;
+  let body: Record<string, unknown>;
+
+  if (replyToMessageId) {
+    url = `https://open.feishu.cn/open-apis/im/v1/messages/${replyToMessageId}/reply`;
+    body = { content, msg_type: "audio" };
+  } else {
+    url = `https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
+    body = { receive_id: receiveId, content, msg_type: "audio" };
+  }
+
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new Error(
+      `Feishu audio send failed: network error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (!resp.ok) {
+    throw new Error(`Feishu audio send failed: HTTP ${resp.status}`);
+  }
+  let result: { code?: number; msg?: string; data?: { message_id?: string; chat_id?: string } };
+  try {
+    result = (await resp.json()) as {
+      code?: number;
+      msg?: string;
+      data?: { message_id?: string; chat_id?: string };
+    };
+  } catch {
+    throw new Error("Feishu audio send failed: invalid JSON response");
+  }
+  if (result.code !== undefined && result.code !== 0) {
+    throw new Error(`Feishu audio send failed: ${result.msg || `code ${result.code}`}`);
+  }
+
+  return {
+    messageId: result.data?.message_id ?? "",
+    chatId: result.data?.chat_id ?? receiveId,
+  };
+}
+
+/**
  * Helper to detect file type from extension
  */
 export function detectFileType(
@@ -427,8 +541,19 @@ export async function sendMediaFeishu(params: {
       fileType,
       accountId,
     });
-    // Feishu requires msg_type "media" for audio/video, "file" for documents
-    const isMedia = fileType === "mp4" || fileType === "opus";
+    // Feishu requires msg_type "audio" for voice messages (opus),
+    // "media" for video, "file" for documents.
+    // SDK rejects msg_type "audio" (error 230055), so we use REST API bypass.
+    if (fileType === "opus") {
+      return sendAudioFeishu({
+        cfg,
+        to,
+        fileKey,
+        replyToMessageId,
+        accountId,
+      });
+    }
+    const isMedia = fileType === "mp4";
     return sendFileFeishu({
       cfg,
       to,
