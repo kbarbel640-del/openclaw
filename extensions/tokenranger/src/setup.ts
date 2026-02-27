@@ -105,8 +105,9 @@ export function checkPrerequisites(logger: Logger): boolean {
   if (checkCommand("pip3") || checkCommand("pip")) {
     logger.info("  pip ✓");
   } else {
-    logger.error("  pip not found ✗");
-    ok = false;
+    // Global pip absence is not fatal — installPythonService uses the
+    // virtualenv-local pip binary (venv/bin/pip) which is created by python3 -m venv.
+    logger.warn("  pip not found on PATH — venv pip will be used for dependencies");
   }
 
   if (checkCommand("ollama")) {
@@ -246,6 +247,28 @@ export function ensureOllamaRunning(logger: Logger): void {
   spawnSync("sleep", ["2"]);
 }
 
+/**
+ * Build an OLLAMA_HOST env override so CLI invocations target the configured
+ * local Ollama instance even when it runs on a non-default port.
+ */
+function buildOllamaEnv(ollamaUrl: string): NodeJS.ProcessEnv {
+  try {
+    const url = new URL(ollamaUrl);
+    const host = url.hostname || "127.0.0.1";
+    const port = url.port || "11434";
+    // Only override when host:port differs from the CLI default (localhost:11434)
+    if (host !== "localhost" && host !== "127.0.0.1" && host !== "::1") {
+      return { ...process.env, OLLAMA_HOST: `${host}:${port}` };
+    }
+    if (port !== "11434") {
+      return { ...process.env, OLLAMA_HOST: `${host}:${port}` };
+    }
+  } catch {
+    // ignore malformed URLs
+  }
+  return process.env;
+}
+
 export function pullOllamaModel(model: string, ollamaUrl: string, logger: Logger): void {
   if (!checkCommand("ollama")) {
     logger.warn("  ollama not found, skipping model pull");
@@ -263,9 +286,12 @@ export function pullOllamaModel(model: string, ollamaUrl: string, logger: Logger
 
   ensureOllamaRunning(logger);
 
+  // Target the configured local Ollama instance (may run on a non-default port)
+  const ollamaEnv = buildOllamaEnv(ollamaUrl);
+
   // Check if model already exists (match exact model name in first column)
   try {
-    const list = execSync("ollama list", { encoding: "utf-8" });
+    const list = execSync("ollama list", { encoding: "utf-8", env: ollamaEnv });
     const installed = list
       .split("\n")
       .slice(1) // skip header
@@ -283,6 +309,7 @@ export function pullOllamaModel(model: string, ollamaUrl: string, logger: Logger
   const result = spawnSync("ollama", ["pull", resolvedModel], {
     stdio: "inherit",
     timeout: 600_000,
+    env: ollamaEnv,
   });
   if (result.status !== 0) {
     logger.warn(`  model pull failed — compression will fall back to passthrough`);

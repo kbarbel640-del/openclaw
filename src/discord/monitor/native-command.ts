@@ -1226,7 +1226,7 @@ export function createDiscordPluginCommand(params: {
   ephemeralDefault: boolean;
   threadBindings: ThreadBindingManager;
 }): Command {
-  const { pluginCommand, cfg, accountId, ephemeralDefault } = params;
+  const { pluginCommand, cfg, discordConfig, accountId, ephemeralDefault } = params;
 
   class DiscordPluginCommand extends Command {
     name = pluginCommand.name;
@@ -1248,6 +1248,27 @@ export function createDiscordPluginCommand(params: {
         return;
       }
 
+      // Check authorization against the configured allowFrom list.
+      // An empty allowFrom means owner-only (gateway owner); non-empty lists are
+      // checked against the sender's Discord identity.
+      const sender = resolveDiscordSenderIdentity({ author: user, pluralkitInfo: null });
+      const allowFrom = discordConfig?.allowFrom ?? discordConfig?.dm?.allowFrom ?? [];
+      const ownerAllowList = normalizeDiscordAllowList(allowFrom, ["discord:", "user:", "pk:"]);
+      const isAuthorizedSender = ownerAllowList
+        ? allowListMatches(
+            ownerAllowList,
+            { id: sender.id, name: sender.name, tag: sender.tag },
+            { allowNameMatching: isDangerousNameMatchingEnabled(discordConfig) },
+          )
+        : false;
+
+      if (!isAuthorizedSender) {
+        await safeDiscordInteractionCall("plugin cmd auth", () =>
+          interaction.reply({ content: "Not authorized.", ephemeral: true }),
+        );
+        return;
+      }
+
       const rawInput = interaction.options.getString("input") ?? "";
       const args = rawInput.trim() || undefined;
       const commandBody = `/${pluginCommand.name}${args ? ` ${args}` : ""}`;
@@ -1265,7 +1286,7 @@ export function createDiscordPluginCommand(params: {
         args: match.args,
         senderId: user.id,
         channel: "discord",
-        isAuthorizedSender: true,
+        isAuthorizedSender,
         commandBody,
         config: cfg,
         from: `discord:${user.id}`,
