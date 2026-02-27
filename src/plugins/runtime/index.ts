@@ -34,7 +34,7 @@ import {
   matchesMentionPatterns,
   matchesMentionWithExplicit,
 } from "../../auto-reply/reply/mentions.js";
-import { dispatchReplyWithBufferedBlockDispatcher } from "../../auto-reply/reply/provider-dispatcher.js";
+import { dispatchReplyWithBufferedBlockDispatcher as dispatchReplyWithBufferedBlockDispatcherCore } from "../../auto-reply/reply/provider-dispatcher.js";
 import { createReplyDispatcherWithTyping } from "../../auto-reply/reply/reply-dispatcher.js";
 import { removeAckReactionAfterReply, shouldAckReaction } from "../../channels/ack-reactions.js";
 import { resolveCommandAuthorizedFromAuthorizers } from "../../channels/command-gating.js";
@@ -286,6 +286,19 @@ function createRuntimeTools(): PluginRuntime["tools"] {
 }
 
 function createRuntimeChannel(): PluginRuntime["channel"] {
+  const dispatchReplyWithBufferedBlockDispatcher: PluginRuntime["channel"]["reply"]["dispatchReplyWithBufferedBlockDispatcher"] =
+    async (params) => {
+      // Plugins typically pass `cfg` as an override patch (often `{}`), not as a full resolved config.
+      // When `cfg` is empty, load the on-disk config so defaults like
+      // `agents.defaults.model.primary` are respected (see #28297).
+      const cfg = Object.keys(params.cfg ?? {}).length === 0 ? loadConfig() : params.cfg;
+
+      return await dispatchReplyWithBufferedBlockDispatcherCore({
+        ...params,
+        cfg,
+      });
+    };
+
   return {
     text: {
       chunkByNewline,
