@@ -9,6 +9,7 @@ import {
 } from "@buape/carbon";
 import { danger, logVerbose } from "../../globals.js";
 import { formatDurationSeconds } from "../../infra/format-time/format-duration.ts";
+import { requestHeartbeatNow } from "../../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { resolveAgentRoute } from "../../routing/resolve-route.js";
@@ -425,6 +426,15 @@ async function handleDiscordReactionEvent(params: {
         sessionKey: route.sessionKey,
         contextKey,
       });
+
+      // When reactionTrigger is enabled, wake the agent session immediately.
+      const reactionTrigger = guildInfo?.reactionTrigger ?? "off";
+      if (reactionTrigger !== "off" && reactionTrigger !== "allowlist") {
+        requestHeartbeatNow({
+          reason: "reaction",
+          sessionKey: route.sessionKey,
+        });
+      }
     };
     const shouldNotifyReaction = (options: {
       mode: "off" | "own" | "all" | "allowlist";

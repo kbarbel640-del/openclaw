@@ -7,9 +7,14 @@ import {
 
 const enqueueSystemEventMock = vi.fn();
 const readAllowFromStoreMock = vi.fn();
+const requestHeartbeatNowMock = vi.fn();
 
 vi.mock("../../../infra/system-events.js", () => ({
   enqueueSystemEvent: (...args: unknown[]) => enqueueSystemEventMock(...args),
+}));
+
+vi.mock("../../../infra/heartbeat-wake.js", () => ({
+  requestHeartbeatNow: (...args: unknown[]) => requestHeartbeatNowMock(...args),
 }));
 
 vi.mock("../../../pairing/pairing-store.js", () => ({
@@ -149,5 +154,68 @@ describe("registerSlackReactionEvents", () => {
     });
 
     expect(enqueueSystemEventMock).not.toHaveBeenCalled();
+  });
+
+  describe("reactionTrigger", () => {
+    it("does not call requestHeartbeatNow when reactionTrigger is off", async () => {
+      enqueueSystemEventMock.mockClear();
+      requestHeartbeatNowMock.mockClear();
+      readAllowFromStoreMock.mockReset().mockResolvedValue([]);
+      const { getAddedHandler } = createReactionContext({
+        dmPolicy: "open",
+        reactionTrigger: "off",
+      });
+      await getAddedHandler()!({ event: makeReactionEvent(), body: {} });
+
+      expect(enqueueSystemEventMock).toHaveBeenCalledTimes(1);
+      expect(requestHeartbeatNowMock).not.toHaveBeenCalled();
+    });
+
+    it("calls requestHeartbeatNow when reactionTrigger is 'all'", async () => {
+      enqueueSystemEventMock.mockClear();
+      requestHeartbeatNowMock.mockClear();
+      readAllowFromStoreMock.mockReset().mockResolvedValue([]);
+      const { getAddedHandler } = createReactionContext({
+        dmPolicy: "open",
+        reactionTrigger: "all",
+      });
+      await getAddedHandler()!({ event: makeReactionEvent(), body: {} });
+
+      expect(enqueueSystemEventMock).toHaveBeenCalledTimes(1);
+      expect(requestHeartbeatNowMock).toHaveBeenCalledTimes(1);
+      expect(requestHeartbeatNowMock).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "reaction" }),
+      );
+    });
+
+    it("calls requestHeartbeatNow for 'own' when item_user matches botUserId", async () => {
+      enqueueSystemEventMock.mockClear();
+      requestHeartbeatNowMock.mockClear();
+      readAllowFromStoreMock.mockReset().mockResolvedValue([]);
+      const { getAddedHandler } = createReactionContext({
+        dmPolicy: "open",
+        reactionTrigger: "own",
+        botUserId: "UBOT",
+      });
+      // item_user is "UBOT" in makeReactionEvent — matches botUserId
+      await getAddedHandler()!({ event: makeReactionEvent(), body: {} });
+
+      expect(requestHeartbeatNowMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not call requestHeartbeatNow for 'own' when item_user differs from botUserId", async () => {
+      enqueueSystemEventMock.mockClear();
+      requestHeartbeatNowMock.mockClear();
+      readAllowFromStoreMock.mockReset().mockResolvedValue([]);
+      const { getAddedHandler } = createReactionContext({
+        dmPolicy: "open",
+        reactionTrigger: "own",
+        botUserId: "UOTHER",
+      });
+      // item_user is "UBOT" — does not match botUserId "UOTHER"
+      await getAddedHandler()!({ event: makeReactionEvent(), body: {} });
+
+      expect(requestHeartbeatNowMock).not.toHaveBeenCalled();
+    });
   });
 });

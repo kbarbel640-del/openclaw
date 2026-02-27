@@ -58,6 +58,8 @@ export type DiscordGuildEntry = {
   toolsBySender?: GroupToolPolicyBySenderConfig;
   /** Reaction notification mode (off|own|all|allowlist). Default: own. */
   reactionNotifications?: DiscordReactionNotificationMode;
+  /** When set, reaction events also trigger an agent turn via heartbeat wake. Default: off. */
+  reactionTrigger?: DiscordReactionNotificationMode;
   /** Optional allowlist for guild senders (ids or names). */
   users?: string[];
   /** Optional allowlist for guild senders by role ID. */
