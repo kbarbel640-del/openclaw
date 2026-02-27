@@ -14,6 +14,7 @@ import {
   waitForActiveTasks,
 } from "../../process/command-queue.js";
 import { createRestartIterationHook } from "../../process/restart-recovery.js";
+import { clearConfigCache } from "../../config/config.js";
 import type { defaultRuntime } from "../../runtime.js";
 
 const gatewayLog = createSubsystemLogger("gateway");
@@ -77,6 +78,8 @@ export async function runGatewayLoop(params: {
     } else {
       gatewayLog.info("restart mode: in-process restart (OPENCLAW_NO_RESPAWN)");
     }
+    // Clear config cache before in-process restart to ensure fresh config load
+    clearConfigCache();
     if (hadLock && !(await reacquireLockForInProcessRestart())) {
       return;
     }
