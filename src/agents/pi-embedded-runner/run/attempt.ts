@@ -30,6 +30,7 @@ import { resolveOpenClawAgentDir } from "../../agent-paths.js";
 import { resolveSessionAgentIds } from "../../agent-scope.js";
 import { createAnthropicPayloadLogger } from "../../anthropic-payload-log.js";
 import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../../bootstrap-files.js";
+import { resolveContextInjection } from "../../pi-embedded-helpers/bootstrap.js";
 import { createCacheTrace } from "../../cache-trace.js";
 import {
   listChannelSupportedActions,
@@ -305,7 +306,18 @@ export async function runEmbeddedAttempt(
     });
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
-    const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles } =
+
+    // Check context injection mode: when "first-message-only", skip workspace context
+    // files on subsequent messages to reduce token usage (~93% savings over conversations).
+    const contextInjectionMode = resolveContextInjection(params.config);
+    const sessionFileExists = await fs
+      .stat(params.sessionFile)
+      .then(() => true)
+      .catch(() => false);
+    const skipContextInjection =
+      contextInjectionMode === "first-message-only" && sessionFileExists;
+
+    const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles: rawContextFiles } =
       await resolveBootstrapContextForRun({
         workspaceDir: effectiveWorkspace,
         config: params.config,
@@ -313,6 +325,9 @@ export async function runEmbeddedAttempt(
         sessionId: params.sessionId,
         warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
       });
+    // When skipping context injection, clear context files but keep bootstrap metadata
+    // (needed for workspaceNotes and systemPromptReport).
+    const contextFiles = skipContextInjection ? [] : rawContextFiles;
     const workspaceNotes = hookAdjustedBootstrapFiles.some(
       (file) => file.name === DEFAULT_BOOTSTRAP_FILENAME && !file.missing,
     )
