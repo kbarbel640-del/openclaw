@@ -282,16 +282,16 @@ export const usageStylesPart2 = `
     background: #06b6d4;
   }
   .legend-dot.system {
-    background: #ff4d4d;
+    background: #3b82f6;
   }
   .legend-dot.skills {
-    background: #8b5cf6;
+    background: #f97316;
   }
   .legend-dot.tools {
-    background: #ec4899;
+    background: #14b8a6;
   }
   .legend-dot.files {
-    background: #f59e0b;
+    background: #a855f7;
   }
   .cost-breakdown-note {
     margin-top: 10px;
@@ -582,16 +582,16 @@ export const usageStylesPart2 = `
     transition: width 0.3s ease;
   }
   .context-segment.system {
-    background: #ff4d4d;
+    background: #3b82f6;
   }
   .context-segment.skills {
-    background: #8b5cf6;
+    background: #f97316;
   }
   .context-segment.tools {
-    background: #ec4899;
+    background: #14b8a6;
   }
   .context-segment.files {
-    background: #f59e0b;
+    background: #a855f7;
   }
   .context-legend {
     display: flex;
