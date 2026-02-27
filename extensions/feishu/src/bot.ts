@@ -943,6 +943,7 @@ export async function handleFeishuMessage(params: {
       runtime: runtime as RuntimeEnv,
       chatId: ctx.chatId,
       replyToMessageId: ctx.messageId,
+      rootId: ctx.rootId,
       mentionTargets: ctx.mentionTargets,
       accountId: account.accountId,
     });
