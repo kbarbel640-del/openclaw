@@ -308,9 +308,7 @@ export function addOsc8Hyperlinks(
     pending = result.pending;
 
     // Merge link-text ranges (non-overlapping with URL ranges).
-    const linkTextRanges = linkTexts
-      ? findLinkTextRanges(visible, linkTexts, result.ranges)
-      : [];
+    const linkTextRanges = linkTexts ? findLinkTextRanges(visible, linkTexts, result.ranges) : [];
     const allRanges = [...result.ranges, ...linkTextRanges];
 
     return applyOsc8Ranges(line, allRanges);

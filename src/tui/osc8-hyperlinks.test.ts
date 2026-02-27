@@ -185,9 +185,7 @@ describe("extractLinkTextMappings", () => {
   it("extracts non-URL link text mappings", () => {
     const md = "[#16901](https://github.com/org/repo/issues/16901)";
     const mappings = extractLinkTextMappings(md);
-    expect(mappings).toEqual([
-      { text: "#16901", url: "https://github.com/org/repo/issues/16901" },
-    ]);
+    expect(mappings).toEqual([{ text: "#16901", url: "https://github.com/org/repo/issues/16901" }]);
   });
 
   it("skips links where text is a URL", () => {
