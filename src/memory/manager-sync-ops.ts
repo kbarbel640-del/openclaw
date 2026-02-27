@@ -67,6 +67,7 @@ const EMBEDDING_CACHE_TABLE = "embedding_cache";
 const SESSION_DIRTY_DEBOUNCE_MS = 5000;
 const SESSION_DELTA_READ_CHUNK_BYTES = 64 * 1024;
 const VECTOR_LOAD_TIMEOUT_MS = 30_000;
+const SQLITE_BUSY_TIMEOUT_MS = 5_000;
 const IGNORED_MEMORY_WATCH_DIR_NAMES = new Set([
   ".git",
   "node_modules",
@@ -254,7 +255,10 @@ export abstract class MemoryManagerSyncOps {
     const dir = path.dirname(dbPath);
     ensureDir(dir);
     const { DatabaseSync } = requireNodeSqlite();
-    return new DatabaseSync(dbPath, { allowExtension: this.settings.store.vector.enabled });
+    const db = new DatabaseSync(dbPath, { allowExtension: this.settings.store.vector.enabled });
+    // Tolerate brief write-lock contention from concurrent gateway/cron processes.
+    db.exec(`PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
+    return db;
   }
 
   private seedEmbeddingCache(sourceDb: DatabaseSync): void {
