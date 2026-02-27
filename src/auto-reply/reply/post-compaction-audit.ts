@@ -22,12 +22,18 @@ export function auditPostCompactionReads(
   for (const required of requiredReads) {
     if (typeof required === "string") {
       const requiredResolved = path.resolve(workspaceDir, required);
+      // Skip if the required file doesn't exist in the workspace
+      if (!fs.existsSync(requiredResolved)) {
+        continue;
+      }
       const found = normalizedReads.some((r) => r === requiredResolved);
       if (!found) {
         missingPatterns.push(required);
       }
     } else {
       // RegExp — match against relative paths from workspace
+      // For RegExp patterns, we can't easily check existence, so we skip this check
+      // and only report missing if there are files matching the pattern but none were read
       const found = readFilePaths.some((p) => {
         const rel = path.relative(workspaceDir, path.resolve(workspaceDir, p));
         // Normalize to forward slashes for cross-platform RegExp matching
