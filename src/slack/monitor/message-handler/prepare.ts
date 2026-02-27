@@ -77,7 +77,7 @@ export async function prepareSlackMessage(params: {
   const isRoom = resolvedChannelType === "channel" || resolvedChannelType === "group";
   const isRoomish = isRoom || isGroupDm;
 
-  const channelConfig = isRoom
+  const channelConfig = isRoomish
     ? resolveSlackChannelConfig({
         channelId: message.channel,
         channelName,
@@ -163,6 +163,21 @@ export async function prepareSlackMessage(params: {
     }
   }
 
+  if (isGroupDm) {
+    if (allowFromLower.length > 0) {
+      const allowMatch = resolveSlackAllowListMatch({
+        allowList: allowFromLower,
+        id: senderId,
+      });
+      if (!allowMatch.allowed) {
+        logVerbose(
+          `Blocked unauthorized slack sender ${senderId} in group dm (${formatAllowlistMatchMeta(allowMatch)})`,
+        );
+        return null;
+      }
+    }
+  }
+
   const route = resolveAgentRoute({
     cfg,
     channel: "slack",
@@ -215,7 +230,7 @@ export async function prepareSlackMessage(params: {
   const senderName =
     sender?.name ?? message.username?.trim() ?? message.user ?? message.bot_id ?? "unknown";
 
-  const channelUserAuthorized = isRoom
+  const channelUserAuthorized = isRoomish
     ? resolveSlackUserAllowed({
         allowList: channelConfig?.users,
         userId: senderId,
@@ -223,7 +238,7 @@ export async function prepareSlackMessage(params: {
         allowNameMatching: ctx.allowNameMatching,
       })
     : true;
-  if (isRoom && !channelUserAuthorized) {
+  if (isRoomish && !channelUserAuthorized) {
     logVerbose(`Blocked unauthorized slack sender ${senderId} (not in channel users)`);
     return null;
   }
@@ -243,9 +258,9 @@ export async function prepareSlackMessage(params: {
     allowNameMatching: ctx.allowNameMatching,
   }).allowed;
   const channelUsersAllowlistConfigured =
-    isRoom && Array.isArray(channelConfig?.users) && channelConfig.users.length > 0;
+    isRoomish && Array.isArray(channelConfig?.users) && channelConfig.users.length > 0;
   const channelCommandAuthorized =
-    isRoom && channelUsersAllowlistConfigured
+    isRoomish && channelUsersAllowlistConfigured
       ? resolveSlackUserAllowed({
           allowList: channelConfig?.users,
           userId: senderId,
@@ -274,14 +289,14 @@ export async function prepareSlackMessage(params: {
     return null;
   }
 
-  const shouldRequireMention = isRoom
+  const shouldRequireMention = isRoomish
     ? (channelConfig?.requireMention ?? ctx.defaultRequireMention)
     : false;
 
   // Allow "control commands" to bypass mention gating if sender is authorized.
   const canDetectMention = Boolean(ctx.botUserId) || mentionRegexes.length > 0;
   const mentionGate = resolveMentionGatingWithBypass({
-    isGroup: isRoom,
+    isGroup: isRoomish,
     requireMention: Boolean(shouldRequireMention),
     canDetectMention,
     wasMentioned,
@@ -292,7 +307,7 @@ export async function prepareSlackMessage(params: {
     commandAuthorized,
   });
   const effectiveWasMentioned = mentionGate.effectiveWasMentioned;
-  if (isRoom && shouldRequireMention && mentionGate.shouldSkip) {
+  if (isRoomish && shouldRequireMention && mentionGate.shouldSkip) {
     ctx.logger.info({ channel: message.channel, reason: "no-mention" }, "skipping channel message");
     const pendingText = (message.text ?? "").trim();
     const fallbackFile = message.files?.[0]?.name
@@ -370,7 +385,7 @@ export async function prepareSlackMessage(params: {
       shouldAckReactionGate({
         scope: ctx.ackReactionScope as AckReactionScope | undefined,
         isDirect: isDirectMessage,
-        isGroup: isRoomish,
+        isGroup: isRoom,
         isMentionableGroup: isRoom,
         requireMention: Boolean(shouldRequireMention),
         canDetectMention,
@@ -398,7 +413,9 @@ export async function prepareSlackMessage(params: {
   const preview = rawBody.replace(/\s+/g, " ").slice(0, 160);
   const inboundLabel = isDirectMessage
     ? `Slack DM from ${senderName}`
-    : `Slack message in ${roomLabel} from ${senderName}`;
+    : isGroupDm
+      ? `Slack group DM in ${roomLabel} from ${senderName}`
+      : `Slack message in ${roomLabel} from ${senderName}`;
   const slackFrom = isDirectMessage
     ? `slack:${message.user}`
     : isRoom
@@ -410,9 +427,10 @@ export async function prepareSlackMessage(params: {
     contextKey: `slack:message:${message.channel}:${message.ts ?? "unknown"}`,
   });
 
+  const chatType = isDirectMessage ? "direct" : isGroupDm ? "group" : "channel";
   const envelopeFrom =
     resolveConversationLabel({
-      ChatType: isDirectMessage ? "direct" : "channel",
+      ChatType: chatType,
       SenderName: senderName,
       GroupSubject: isRoomish ? roomLabel : undefined,
       From: slackFrom,
@@ -435,7 +453,7 @@ export async function prepareSlackMessage(params: {
     from: envelopeFrom,
     timestamp: message.ts ? Math.round(Number(message.ts) * 1000) : undefined,
     body: textWithId,
-    chatType: isDirectMessage ? "direct" : "channel",
+    chatType,
     sender: { name: senderName, id: senderId },
     previousTimestamp,
     envelope: envelopeOptions,
@@ -587,7 +605,7 @@ export async function prepareSlackMessage(params: {
     To: slackTo,
     SessionKey: sessionKey,
     AccountId: route.accountId,
-    ChatType: isDirectMessage ? "direct" : "channel",
+    ChatType: chatType,
     ConversationLabel: envelopeFrom,
     GroupSubject: isRoomish ? roomLabel : undefined,
     GroupSystemPrompt: isRoomish ? groupSystemPrompt : undefined,
