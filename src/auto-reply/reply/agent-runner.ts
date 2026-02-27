@@ -128,6 +128,8 @@ export async function runReplyAgent(params: {
   sessionCtx: TemplateContext;
   shouldInjectGroupIntro: boolean;
   typingMode: TypingMode;
+  /** Whether to run the post-compaction read audit (default: true). */
+  compactionAuditReads?: boolean;
 }): Promise<ReplyPayload | ReplyPayload[] | undefined> {
   const {
     commandBody,
@@ -154,6 +156,7 @@ export async function runReplyAgent(params: {
     sessionCtx,
     shouldInjectGroupIntro,
     typingMode,
+    compactionAuditReads = true,
   } = params;
 
   let activeSessionEntry = sessionEntry;
@@ -721,8 +724,8 @@ export async function runReplyAgent(params: {
       finalPayloads = appendUsageLine(finalPayloads, responseUsageLine);
     }
 
-    // Post-compaction read audit (Layer 3)
-    if (sessionKey && pendingPostCompactionAudits.get(sessionKey)) {
+    // Post-compaction read audit (Layer 3) — skipped when compaction.auditReads is false
+    if (sessionKey && compactionAuditReads && pendingPostCompactionAudits.get(sessionKey)) {
       pendingPostCompactionAudits.delete(sessionKey); // Delete FIRST — one-shot only
       try {
         const sessionFile = activeSessionEntry?.sessionFile;

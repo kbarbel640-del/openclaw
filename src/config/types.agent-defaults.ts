@@ -283,6 +283,8 @@ export type AgentCompactionConfig = {
   maxHistoryShare?: number;
   /** Pre-compaction memory flush (agentic turn). Default: enabled. */
   memoryFlush?: AgentCompactionMemoryFlushConfig;
+  /** Enable post-compaction read audit warnings (default: true). */
+  auditReads?: boolean;
 };
 
 export type AgentCompactionMemoryFlushConfig = {
