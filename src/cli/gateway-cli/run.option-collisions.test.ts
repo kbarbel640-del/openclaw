@@ -81,6 +81,7 @@ vi.mock("../command-format.js", () => ({
 
 vi.mock("../ports.js", () => ({
   forceFreePortAndWait: (port: number, opts: unknown) => forceFreePortAndWait(port, opts),
+  waitForPortBindable: async () => 0,
 }));
 
 vi.mock("./dev.js", () => ({
