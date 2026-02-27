@@ -41,7 +41,7 @@ import {
 } from "./includes.js";
 import { findLegacyConfigIssues } from "./legacy.js";
 import { applyMergePatch } from "./merge-patch.js";
-import { normalizeExecSafeBinProfilesInConfig } from "./normalize-exec-safe-bin.js";
+import { normalizeDiscordIdListsInResolved } from "./normalize-discord-ids.js";
 import { normalizeConfigPaths } from "./normalize-paths.js";
 import { resolveConfigPath, resolveDefaultConfigCandidates, resolveStateDir } from "./paths.js";
 import { isBlockedObjectKey } from "./prototype-keys.js";
@@ -966,8 +966,9 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           raw,
           parsed: parsedRes.parsed,
           // Use resolvedConfigRaw (after $include and ${ENV} substitution but BEFORE runtime defaults)
-          // for config set/unset operations (issue #6070)
-          resolved: coerceConfig(resolvedConfigRaw),
+          // for config set/unset operations (issue #6070). Normalize Discord ID lists to strings
+          // so merge/write does not persist numbers (64-bit IDs truncate in JS; #22437).
+          resolved: coerceConfig(normalizeDiscordIdListsInResolved(resolvedConfigRaw)),
           valid: true,
           config: snapshotConfig,
           hash,
