@@ -481,7 +481,8 @@ export function setLastTtsAttempt(entry: TtsStatusEntry | undefined): void {
 }
 
 function resolveOutputFormat(channelId?: string | null) {
-  if (channelId === "telegram") {
+  // Telegram and Feishu both need opus for native voice message support
+  if (channelId === "telegram" || channelId === "feishu") {
     return TELEGRAM_OUTPUT;
   }
   return DEFAULT_OUTPUT;
@@ -911,7 +912,8 @@ export async function maybeApplyTtsToPayload(params: {
     };
 
     const channelId = resolveChannelId(params.channel);
-    const shouldVoice = channelId === "telegram" && result.voiceCompatible === true;
+    const shouldVoice =
+      (channelId === "telegram" || channelId === "feishu") && result.voiceCompatible === true;
     const finalPayload = {
       ...nextPayload,
       mediaUrl: result.audioPath,
