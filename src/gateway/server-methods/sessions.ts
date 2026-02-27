@@ -400,6 +400,14 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       respond(false, undefined, applied.error);
       return;
     }
+
+    const hookEvent = createInternalHookEvent("session", "patch", target.canonicalKey ?? key, {
+      sessionEntry: applied.entry,
+      patch: p,
+      cfg,
+    });
+    await triggerInternalHook(hookEvent);
+
     const parsed = parseAgentSessionKey(target.canonicalKey ?? key);
     const agentId = normalizeAgentId(parsed?.agentId ?? resolveDefaultAgentId(cfg));
     const resolved = resolveSessionModelRef(cfg, applied.entry, agentId);
