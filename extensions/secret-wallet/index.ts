@@ -1,11 +1,27 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import {
   createSecretWalletInjectTool,
   createSecretWalletReadTools,
   createSecretWalletWriteTools,
 } from "./src/tools.js";
 
-export default function register(api: OpenClawPluginApi) {
+type ToolContext = {
+  sandboxed?: boolean;
+};
+
+type Tool = {
+  name: string;
+  [key: string]: unknown;
+};
+
+type PluginApi = {
+  pluginConfig?: unknown;
+  registerTool: (
+    factory: (ctx: ToolContext) => Tool | null,
+    options?: { optional?: boolean },
+  ) => void;
+};
+
+export default function register(api: PluginApi) {
   const config = (api.pluginConfig ?? {}) as {
     binaryPath?: string;
     allowWriteTools?: boolean;

@@ -11,11 +11,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "declaration": false,
-    "sourceMap": false,
-    "paths": {
-      "openclaw/plugin-sdk": ["./types/openclaw-plugin-sdk.d.ts"]
-    }
+    "sourceMap": false
   },
-  "include": ["index.ts", "src/**/*.ts", "types/**/*.d.ts"],
+  "include": ["index.ts", "src/**/*.ts"],
   "exclude": ["dist", "node_modules", "**/*.test.ts"]
 }
