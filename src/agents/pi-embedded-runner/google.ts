@@ -441,8 +441,17 @@ export async function sanitizeSessionHistory(params: {
   const droppedThinking = policy.dropThinkingBlocks
     ? dropThinkingBlocks(sanitizedImages)
     : sanitizedImages;
+
+  // For Anthropic API, we must not modify the last assistant message if it contains
+  // thinking blocks, as Anthropic requires byte-for-byte fidelity for those messages.
+  // See: https://github.com/openclaw/openclaw/issues/28414
+  const isAnthropicApi =
+    params.provider === "anthropic" ||
+    params.modelApi === "anthropic-messages" ||
+    params.modelApi === "anthropic";
   const sanitizedToolCalls = sanitizeToolCallInputs(droppedThinking, {
     allowedToolNames: params.allowedToolNames,
+    skipLastAssistantMessageIfHasThinkingBlocks: isAnthropicApi,
   });
   const repairedTools = policy.repairToolUseResultPairing
     ? sanitizeToolUseResultPairing(sanitizedToolCalls)
