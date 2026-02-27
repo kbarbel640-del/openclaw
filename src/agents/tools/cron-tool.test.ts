@@ -466,6 +466,20 @@ describe("cron tool", () => {
     expect(delivery).toEqual({ mode: "none" });
   });
 
+  it("rebinds explicit announce target to the creator session on add", async () => {
+    callGatewayMock.mockResolvedValueOnce({ ok: true });
+    const delivery = await executeAddAndReadDelivery({
+      callId: "call-announce-explicit-wrong-target",
+      agentSessionKey: "agent:main:discord:dm:buddy",
+      delivery: { mode: "announce", channel: "discord", to: "someone-else" },
+    });
+    expect(delivery).toEqual({
+      mode: "announce",
+      channel: "discord",
+      to: "buddy",
+    });
+  });
+
   it("does not infer announce delivery when mode is webhook", async () => {
     callGatewayMock.mockResolvedValueOnce({ ok: true });
     const delivery = await executeAddAndReadDelivery({
