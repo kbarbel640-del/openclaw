@@ -13,6 +13,9 @@ source of truth; the model only "remembers" what gets written to disk.
 
 Memory search tools are provided by the active memory plugin (default:
 `memory-core`). Disable memory plugins with `plugins.slots.memory = "none"`.
+For AOMS HTTP memory backends, switch to `plugins.slots.memory = "memory-aoms"`
+and configure `plugins.entries.memory-aoms.config.baseUrl` (defaults to
+`http://localhost:9100`).
 
 ## Memory files (Markdown)
 

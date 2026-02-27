@@ -1,0 +1,16 @@
+{
+  "name": "@openclaw/memory-aoms",
+  "version": "2026.2.26",
+  "private": true,
+  "description": "OpenClaw AOMS HTTP memory backend plugin",
+  "type": "module",
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  }
+}

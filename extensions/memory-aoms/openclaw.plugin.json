@@ -1,0 +1,31 @@
+{
+  "id": "memory-aoms",
+  "kind": "memory",
+  "uiHints": {
+    "baseUrl": {
+      "label": "AOMS Base URL",
+      "placeholder": "http://localhost:9100",
+      "help": "Base URL for the AOMS HTTP API."
+    },
+    "timeoutMs": {
+      "label": "Request Timeout (ms)",
+      "placeholder": "10000",
+      "advanced": true
+    },
+    "apiKey": {
+      "label": "AOMS API Key",
+      "sensitive": true,
+      "help": "Optional bearer token (or use ${AOMS_API_KEY}).",
+      "advanced": true
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": { "type": "string" },
+      "timeoutMs": { "type": "number", "minimum": 500, "maximum": 120000 },
+      "apiKey": { "type": "string" }
+    }
+  }
+}
