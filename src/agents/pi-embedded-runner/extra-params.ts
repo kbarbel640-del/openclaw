@@ -248,9 +248,6 @@ type ResponsesPayloadItem = {
   type?: unknown;
   call_id?: unknown;
 };
-const RESPONSES_TOOL_CHAIN_SESSION_KEYS_MAX = 256;
-const RESPONSES_TOOL_CHAIN_CALL_IDS_PER_SESSION_MAX = 4096;
-const responsesToolChainSeenCallIds = new Map<string, Set<string>>();
 
 function isResponsesToolChainDebugEnabled(): boolean {
   const raw = process.env[RESPONSES_TOOL_CHAIN_DEBUG_ENV]?.trim().toLowerCase();
@@ -266,22 +263,6 @@ function shouldGuardResponsesToolChainPayload(model: { api?: unknown }): boolean
 }
 
 function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>): void {
-  const sessionKey =
-    asString(payload.prompt_cache_key) ??
-    asString(payload.session_id) ??
-    asString(payload.sessionId) ??
-    "__default__";
-  let seenInSession = responsesToolChainSeenCallIds.get(sessionKey);
-  if (!seenInSession) {
-    seenInSession = new Set<string>();
-    responsesToolChainSeenCallIds.set(sessionKey, seenInSession);
-    if (responsesToolChainSeenCallIds.size > RESPONSES_TOOL_CHAIN_SESSION_KEYS_MAX) {
-      const oldest = responsesToolChainSeenCallIds.keys().next().value;
-      if (typeof oldest === "string") {
-        responsesToolChainSeenCallIds.delete(oldest);
-      }
-    }
-  }
   const inputRaw = payload.input;
   if (!Array.isArray(inputRaw)) {
     return;
@@ -304,9 +285,6 @@ function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>):
       const callId = asString(item.call_id);
       if (!callId) {
         continue;
-      }
-      if (seenInSession.has(callId)) {
-        dropped.push({ callId, reason: "cross_response" });
       }
       allFunctionCalls.push(callId);
       callCounts.set(callId, (callCounts.get(callId) ?? 0) + 1);
@@ -365,21 +343,12 @@ function guardOpenAIResponsesToolChainPayload(payload: Record<string, unknown>):
   const debugEnabled = isResponsesToolChainDebugEnabled();
   if (debugEnabled) {
     log.debug(
-      `[responses-tool-chain] session=${sessionKey} response_id=${responseId ?? "-"} previous_response_id=${previousResponseId ?? "-"} ` +
+      `[responses-tool-chain] response_id=${responseId ?? "-"} previous_response_id=${previousResponseId ?? "-"} ` +
         `function_call_ids=[${allFunctionCalls.join(",")}] function_call_output_ids=[${allFunctionCallOutputs.join(",")}]`,
     );
   }
 
   if (dropped.length === 0) {
-    for (const callId of allFunctionCalls) {
-      seenInSession.add(callId);
-      if (seenInSession.size > RESPONSES_TOOL_CHAIN_CALL_IDS_PER_SESSION_MAX) {
-        const oldest = seenInSession.values().next().value;
-        if (typeof oldest === "string") {
-          seenInSession.delete(oldest);
-        }
-      }
-    }
     return;
   }
 

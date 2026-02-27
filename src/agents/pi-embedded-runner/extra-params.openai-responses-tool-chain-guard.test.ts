@@ -8,7 +8,6 @@ type ResponsesPayload = {
   model: string;
   input: Array<Record<string, unknown>>;
   previous_response_id?: string;
-  prompt_cache_key?: string;
   store?: boolean;
 };
 
@@ -152,40 +151,5 @@ describe("extra-params: OpenAI Responses tool chain guard", () => {
       { type: "message", role: "user", content: [{ type: "input_text", text: "continue" }] },
     ]);
     expect(payload.previous_response_id).toBeUndefined();
-  });
-
-  it("throws explicit error when a call_id is reused across requests in one session", () => {
-    const firstPayload: ResponsesPayload = {
-      model: "gpt-oss",
-      prompt_cache_key: "session_reuse_1",
-      input: [
-        {
-          type: "function_call",
-          call_id: "call_reused_cross_req",
-          id: "fc_1",
-          name: "x",
-          arguments: "{}",
-        },
-      ],
-    };
-    runResponsesPayload(firstPayload);
-
-    const secondPayload: ResponsesPayload = {
-      model: "gpt-oss",
-      prompt_cache_key: "session_reuse_1",
-      input: [
-        {
-          type: "function_call",
-          call_id: "call_reused_cross_req",
-          id: "fc_2",
-          name: "x",
-          arguments: "{}",
-        },
-      ],
-    };
-
-    expect(() => runResponsesPayload(secondPayload)).toThrow(
-      "OPENCLAW_RESPONSES_TOOL_CHAIN_CORRUPT: session tool call chain corrupted; retry required",
-    );
   });
 });
