@@ -1,10 +1,12 @@
+import { CURRENT_SESSION_VERSION, SessionManager } from "@mariozechner/pi-coding-agent";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { CURRENT_SESSION_VERSION, SessionManager } from "@mariozechner/pi-coding-agent";
+import type { OpenClawConfig } from "../../config/config.js";
+import type { TtsAutoMode } from "../../config/types.tts.js";
+import type { MsgContext, TemplateContext } from "../templating.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { normalizeChatType } from "../../channels/chat-type.js";
-import type { OpenClawConfig } from "../../config/config.js";
 import {
   DEFAULT_RESET_TRIGGERS,
   deriveSessionMetaPatch,
@@ -19,13 +21,12 @@ import {
   resolveGroupSessionKey,
   resolveSessionFilePath,
   resolveSessionKey,
-  resolveSessionTranscriptPath,
+  resolveSessionTranscriptPathInDir,
   resolveStorePath,
   type SessionEntry,
   type SessionScope,
   updateSessionStore,
 } from "../../config/sessions.js";
-import type { TtsAutoMode } from "../../config/types.tts.js";
 import { archiveSessionTranscripts } from "../../gateway/session-utils.fs.js";
 import { deliverSessionMaintenanceWarning } from "../../infra/session-maintenance-warning.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
@@ -39,7 +40,6 @@ import {
   normalizeMessageChannel,
 } from "../../utils/message-channel.js";
 import { resolveCommandAuthorization } from "../command-auth.js";
-import type { MsgContext, TemplateContext } from "../templating.js";
 import { normalizeInboundTextNewlines } from "./inbound-text.js";
 import { stripMentions, stripStructuralPrefixes } from "./mentions.js";
 
@@ -125,11 +125,15 @@ function forkSessionFromParent(params: {
   agentId: string;
   sessionsDir: string;
 }): { sessionId: string; sessionFile: string } | null {
-  const parentSessionFile = resolveSessionFilePath(
-    params.parentEntry.sessionId,
-    params.parentEntry,
-    { agentId: params.agentId, sessionsDir: params.sessionsDir },
-  );
+  let parentSessionFile: string;
+  try {
+    parentSessionFile = resolveSessionFilePath(params.parentEntry.sessionId, params.parentEntry, {
+      agentId: params.agentId,
+      sessionsDir: params.sessionsDir,
+    });
+  } catch {
+    return null;
+  }
   if (!parentSessionFile || !fs.existsSync(parentSessionFile)) {
     return null;
   }
@@ -444,21 +448,55 @@ export async function initSessionState(params: {
       }
     }
   }
-  const fallbackSessionFile = !sessionEntry.sessionFile
-    ? resolveSessionTranscriptPath(sessionEntry.sessionId, agentId, ctx.MessageThreadId)
-    : undefined;
-  const resolvedSessionFile = await resolveAndPersistSessionFile({
-    sessionId: sessionEntry.sessionId,
-    sessionKey,
-    sessionStore,
-    storePath,
-    sessionEntry,
-    agentId,
-    sessionsDir: path.dirname(storePath),
-    fallbackSessionFile,
-    activeSessionKey: sessionKey,
-  });
-  sessionEntry = resolvedSessionFile.sessionEntry;
+  const sessionsDir = path.dirname(storePath);
+  let fallbackSessionFile: string | undefined;
+  let fallbackSessionFileResolved = false;
+  const getFallbackSessionFile = (): string | undefined => {
+    if (!fallbackSessionFileResolved) {
+      fallbackSessionFileResolved = true;
+      try {
+        fallbackSessionFile = resolveSessionTranscriptPathInDir(
+          sessionEntry.sessionId,
+          sessionsDir,
+          ctx.MessageThreadId,
+        );
+      } catch {
+        fallbackSessionFile = undefined;
+      }
+    }
+    return fallbackSessionFile;
+  };
+  try {
+    const resolvedSessionFile = await resolveAndPersistSessionFile({
+      sessionId: sessionEntry.sessionId,
+      sessionKey,
+      sessionStore,
+      storePath,
+      sessionEntry,
+      agentId,
+      sessionsDir,
+      fallbackSessionFile: !sessionEntry.sessionFile ? getFallbackSessionFile() : undefined,
+      activeSessionKey: sessionKey,
+    });
+    sessionEntry = resolvedSessionFile.sessionEntry;
+  } catch (error) {
+    const fallbackForRetry = getFallbackSessionFile();
+    if (!fallbackForRetry) {
+      throw error;
+    }
+    const resolvedSessionFile = await resolveAndPersistSessionFile({
+      sessionId: sessionEntry.sessionId,
+      sessionKey,
+      sessionStore,
+      storePath,
+      sessionEntry: { ...sessionEntry, sessionFile: fallbackForRetry },
+      agentId,
+      sessionsDir,
+      fallbackSessionFile: fallbackForRetry,
+      activeSessionKey: sessionKey,
+    });
+    sessionEntry = resolvedSessionFile.sessionEntry;
+  }
   if (isNewSession) {
     sessionEntry.compactionCount = 0;
     sessionEntry.memoryFlushCompactionCount = undefined;
