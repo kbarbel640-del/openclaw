@@ -1421,4 +1421,8 @@ export const FIELD_HELP: Record<string, string> = {
     'Direct message access control ("pairing" recommended). "open" requires channels.slack.allowFrom=["*"] (legacy: channels.slack.dm.allowFrom).',
   "channels.slack.dmPolicy":
     'Direct message access control ("pairing" recommended). "open" requires channels.slack.allowFrom=["*"].',
+  "skills.promptMode":
+    'Mode for injecting skills into the system prompt: "full" (default) includes everything, "compact" truncates descriptions to one line, and "lazy" omits descriptions (instructs models to read them manually).',
+  "skills.load.extraDirs":
+    "Additional directories to scan for skills (absolute or ~ relative paths). Use this to load skills from custom project locations.",
 };

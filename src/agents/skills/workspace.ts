@@ -199,7 +199,10 @@ function resolveNestedSkillsRoot(
   for (const name of toScan) {
     const skillMd = path.join(nested, name, "SKILL.md");
     if (fs.existsSync(skillMd)) {
-      return { baseDir: nested, note: `Detected nested skills root at ${nested}` };
+      return {
+        baseDir: nested,
+        note: `Detected nested skills root at ${nested}`,
+      };
     }
   }
   return { baseDir: dir };
@@ -303,7 +306,10 @@ function loadSkillEntries(
         continue;
       }
 
-      const loaded = loadSkillsFromDir({ dir: skillDir, source: params.source });
+      const loaded = loadSkillsFromDir({
+        dir: skillDir,
+        source: params.source,
+      });
       loadedSkills.push(...unwrapLoadedSkills(loaded));
 
       if (loadedSkills.length >= limits.maxSkillsLoadedPerSource) {
@@ -405,12 +411,82 @@ function loadSkillEntries(
   return skillEntries;
 }
 
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function truncateString(str: string, maxLength: number): string {
+  const inline = str.replace(/[\r\n]+/g, " ").trim();
+  return inline.length > maxLength ? inline.substring(0, maxLength - 1) + "…" : inline;
+}
+
+function formatSkillsLazy(skills: Skill[]): string {
+  if (skills.length === 0) {
+    return "";
+  }
+  const lines = [
+    "\n\nThe following skills are available in the workspace. Use the read tool on their location to load instructions when relevant.",
+    "",
+    "<available_skills>",
+  ];
+
+  for (const skill of skills) {
+    lines.push("  <skill>");
+    lines.push(`    <name>${escapeXml(skill.name)}</name>`);
+    lines.push(`    <location>${escapeXml(skill.filePath)}</location>`);
+    lines.push("  </skill>");
+  }
+
+  lines.push("</available_skills>");
+  return lines.join("\n");
+}
+
+function formatSkillsCompact(skills: Skill[]): string {
+  if (skills.length === 0) {
+    return "";
+  }
+  const lines = [
+    "\n\nThe following skills provide specialized instructions for specific tasks.",
+    "Use the read tool to load a skill's file when the task matches its description.",
+    "When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.",
+    "",
+    "<available_skills>",
+  ];
+
+  for (const skill of skills) {
+    lines.push("  <skill>");
+    lines.push(`    <name>${escapeXml(skill.name)}</name>`);
+    lines.push(
+      `    <description>${escapeXml(truncateString(skill.description, 100))}</description>`,
+    );
+    lines.push(`    <location>${escapeXml(skill.filePath)}</location>`);
+    lines.push("  </skill>");
+  }
+
+  lines.push("</available_skills>");
+  return lines.join("\n");
+}
+
 function applySkillsPromptLimits(params: { skills: Skill[]; config?: OpenClawConfig }): {
   skillsForPrompt: Skill[];
   truncated: boolean;
   truncatedReason: "count" | "chars" | null;
 } {
   const limits = resolveSkillsLimits(params.config);
+  const promptMode = params.config?.skills?.promptMode ?? "full";
+
+  const formatter =
+    promptMode === "lazy"
+      ? formatSkillsLazy
+      : promptMode === "compact"
+        ? formatSkillsCompact
+        : formatSkillsForPrompt;
+
   const total = params.skills.length;
   const byCount = params.skills.slice(0, Math.max(0, limits.maxSkillsInPrompt));
 
@@ -419,7 +495,7 @@ function applySkillsPromptLimits(params: { skills: Skill[]; config?: OpenClawCon
   let truncatedReason: "count" | "chars" | null = truncated ? "count" : null;
 
   const fits = (skills: Skill[]): boolean => {
-    const block = formatSkillsForPrompt(skills);
+    const block = formatter(skills);
     return block.length <= limits.maxSkillsPromptChars;
   };
 
@@ -499,6 +575,8 @@ function resolveWorkspaceSkillPromptState(
   );
   const remoteNote = opts?.eligibility?.remote?.note?.trim();
   const resolvedSkills = promptEntries.map((entry) => entry.skill);
+  const promptMode = opts?.config?.skills?.promptMode ?? "full";
+
   const { skillsForPrompt, truncated } = applySkillsPromptLimits({
     skills: resolvedSkills,
     config: opts?.config,
@@ -506,11 +584,15 @@ function resolveWorkspaceSkillPromptState(
   const truncationNote = truncated
     ? `⚠️ Skills truncated: included ${skillsForPrompt.length} of ${resolvedSkills.length}. Run \`openclaw skills check\` to audit.`
     : "";
-  const prompt = [
-    remoteNote,
-    truncationNote,
-    formatSkillsForPrompt(compactSkillPaths(skillsForPrompt)),
-  ]
+
+  const formatter =
+    promptMode === "lazy"
+      ? formatSkillsLazy
+      : promptMode === "compact"
+        ? formatSkillsCompact
+        : formatSkillsForPrompt;
+
+  const prompt = [remoteNote, truncationNote, formatter(compactSkillPaths(skillsForPrompt))]
     .filter(Boolean)
     .join("\n");
   return { eligible, prompt, resolvedSkills };

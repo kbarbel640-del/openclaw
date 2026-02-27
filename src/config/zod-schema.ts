@@ -693,6 +693,9 @@ export const OpenClawSchema = z
     memory: MemorySchema,
     skills: z
       .object({
+        promptMode: z
+          .union([z.literal("full"), z.literal("compact"), z.literal("lazy")])
+          .optional(),
         allowBundled: z.array(z.string()).optional(),
         load: z
           .object({

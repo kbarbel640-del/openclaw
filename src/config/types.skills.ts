@@ -38,6 +38,13 @@ export type SkillsLimitsConfig = {
 };
 
 export type SkillsConfig = {
+  /**
+   * The mode for injecting skills into the system prompt.
+   * - "full": (default) injects all skill metadata including full descriptions.
+   * - "compact": injects skill names and single-line truncated descriptions.
+   * - "lazy": omits descriptions entirely (provides only names/paths and instructs the model to use the read tool on-demand).
+   */
+  promptMode?: "full" | "compact" | "lazy";
   /** Optional bundled-skill allowlist (only affects bundled skills). */
   allowBundled?: string[];
   load?: SkillsLoadConfig;
