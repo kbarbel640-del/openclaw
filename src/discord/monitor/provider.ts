@@ -58,6 +58,7 @@ import {
   DiscordPresenceListener,
   DiscordReactionListener,
   DiscordReactionRemoveListener,
+  DiscordTypingListener,
   registerDiscordListener,
 } from "./listeners.js";
 import { createDiscordMessageHandler } from "./message-handler.js";
@@ -512,7 +513,6 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       voiceManagerRef.current = voiceManager;
       registerDiscordListener(client.listeners, new DiscordVoiceReadyListener(voiceManager));
     }
-
     const messageHandler = createDiscordMessageHandler({
       cfg,
       discordConfig: discordCfg,
@@ -535,6 +535,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     });
 
     registerDiscordListener(client.listeners, new DiscordMessageListener(messageHandler, logger));
+
     registerDiscordListener(
       client.listeners,
       new DiscordReactionListener({
@@ -571,6 +572,17 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
         logger,
       }),
     );
+    if (rawDiscordCfg.intents?.typingIndicator) {
+      registerDiscordListener(
+        client.listeners,
+        new DiscordTypingListener({
+          cfg,
+          accountId: account.accountId,
+          botUserId,
+          logger,
+        }),
+      );
+    }
 
     if (discordCfg.intents?.presence) {
       registerDiscordListener(
@@ -579,9 +591,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       );
       runtime.log?.("discord: GuildPresences intent enabled — presence listener registered");
     }
-
     runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
-
     lifecycleStarted = true;
     await runDiscordGatewayLifecycle({
       accountId: account.accountId,

@@ -93,6 +93,12 @@ export type DiscordIntentsConfig = {
   presence?: boolean;
   /** Enable Guild Members privileged intent (requires Portal opt-in). Default: false. */
   guildMembers?: boolean;
+  /**
+   * Surface TYPING_START events to the agent session when a user begins typing.
+   * Requires no privileged intent. When enabled, the agent receives a system event
+   * allowing it to wait for the full message before responding. Default: false.
+   */
+  typingIndicator?: boolean;
 };
 
 export type DiscordVoiceAutoJoinConfig = {
