@@ -40,14 +40,14 @@ Tetragon operates below the application, so it cannot be bypassed by prompt inje
 
 ## Contents
 
-| File | Description |
-|------|-------------|
-| [policies/01-process-exec.yaml](/security/tetragon/policies/01-process-exec) | Monitor all process execution by OpenClaw |
-| [policies/02-sensitive-files.yaml](/security/tetragon/policies/02-sensitive-files) | Alert on access to sensitive files |
-| [policies/03-privilege-escalation.yaml](/security/tetragon/policies/03-privilege-escalation) | Detect privilege escalation attempts |
-| [policies/04-dangerous-commands.yaml](/security/tetragon/policies/04-dangerous-commands) | Monitor dangerous command patterns |
-| [collector-config.yaml](/security/tetragon/collector-config) | OTel Collector config for Tetragon logs |
-| [SETUP.md](/security/tetragon/SETUP) | Step-by-step setup guide |
+| File                                                                                         | Description                               |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| [policies/01-process-exec.yaml](/security/tetragon/policies/01-process-exec)                 | Monitor all process execution by OpenClaw |
+| [policies/02-sensitive-files.yaml](/security/tetragon/policies/02-sensitive-files)           | Alert on access to sensitive files        |
+| [policies/03-privilege-escalation.yaml](/security/tetragon/policies/03-privilege-escalation) | Detect privilege escalation attempts      |
+| [policies/04-dangerous-commands.yaml](/security/tetragon/policies/04-dangerous-commands)     | Monitor dangerous command patterns        |
+| [collector-config.yaml](/security/tetragon/collector-config)                                 | OTel Collector config for Tetragon logs   |
+| [SETUP.md](/security/tetragon/SETUP)                                                         | Step-by-step setup guide                  |
 
 ## Next Steps
 
