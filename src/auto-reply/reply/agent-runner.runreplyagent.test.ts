@@ -738,6 +738,46 @@ describe("runReplyAgent typing (heartbeat)", () => {
     }
   });
 
+  it("reconciles onModelSelected with runtime model metadata", async () => {
+    const onModelSelected = vi.fn();
+    state.runEmbeddedPiAgentMock.mockResolvedValueOnce({
+      payloads: [{ text: "final" }],
+      meta: {
+        agentMeta: {
+          provider: "anthropic",
+          model: "claude-opus-4-6",
+        },
+      },
+    });
+
+    const fallbackSpy = vi
+      .spyOn(modelFallbackModule, "runWithModelFallback")
+      .mockImplementationOnce(
+        async ({ run }: { run: (provider: string, model: string) => Promise<unknown> }) => ({
+          result: await run("deepinfra", "moonshotai/Kimi-K2.5"),
+          provider: "deepinfra",
+          model: "moonshotai/Kimi-K2.5",
+          attempts: [],
+        }),
+      );
+
+    try {
+      const { run } = createMinimalRun({
+        opts: { onModelSelected },
+      });
+      await run();
+
+      expect(onModelSelected).toHaveBeenCalled();
+      expect(onModelSelected).toHaveBeenLastCalledWith({
+        provider: "anthropic",
+        model: "claude-opus-4-6",
+        thinkLevel: "low",
+      });
+    } finally {
+      fallbackSpy.mockRestore();
+    }
+  });
+
   it("announces model fallback only once per active fallback state", async () => {
     const sessionEntry: SessionEntry = {
       sessionId: "session",
