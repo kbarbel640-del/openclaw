@@ -516,9 +516,14 @@ async function resolveExecRefs(params: {
   }
 
   const timeoutMs = normalizePositiveInt(params.providerConfig.timeoutMs, DEFAULT_EXEC_TIMEOUT_MS);
+  const defaultNoOutputTimeoutMs =
+    params.providerConfig.noOutputTimeoutMs === undefined &&
+    typeof params.providerConfig.timeoutMs === "number"
+      ? timeoutMs
+      : DEFAULT_EXEC_NO_OUTPUT_TIMEOUT_MS;
   const noOutputTimeoutMs = normalizePositiveInt(
     params.providerConfig.noOutputTimeoutMs,
-    DEFAULT_EXEC_NO_OUTPUT_TIMEOUT_MS,
+    defaultNoOutputTimeoutMs,
   );
   const maxOutputBytes = normalizePositiveInt(
     params.providerConfig.maxOutputBytes,
