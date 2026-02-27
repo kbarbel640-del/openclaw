@@ -1,4 +1,5 @@
 import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk";
+import { resolveFeishuAccount } from "./accounts.js";
 import { sendMediaFeishu } from "./media.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { sendMessageFeishu } from "./send.js";
@@ -21,11 +22,16 @@ export const feishuOutbound: ChannelOutboundAdapter = {
     // Upload and send media if URL provided
     if (mediaUrl) {
       try {
+        // Check if native audio message mode is enabled
+        const account = resolveFeishuAccount({ cfg, accountId: accountId ?? undefined });
+        const useNativeAudio = account.config?.useNativeAudioMessage ?? false;
+
         const result = await sendMediaFeishu({
           cfg,
           to,
           mediaUrl,
           accountId: accountId ?? undefined,
+          useAudioType: useNativeAudio,
         });
         return { channel: "feishu", ...result };
       } catch (err) {

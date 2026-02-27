@@ -110,6 +110,17 @@ const TopicSessionModeSchema = z.enum(["disabled", "enabled"]).optional();
  */
 const ReplyInThreadSchema = z.enum(["disabled", "enabled"]).optional();
 
+/**
+ * Native audio message mode for voice/TTS replies.
+ * - "disabled" (default): Audio files sent as msg_type="media" (generic media player)
+ * - "enabled": Audio files sent as msg_type="audio" (native voice message UI with waveform)
+ *
+ * When enabled, opus/ogg audio files are sent using Feishu's native audio message type,
+ * displaying with voice message UI (similar to user-sent voice messages) instead of
+ * generic media player UI.
+ */
+const UseNativeAudioMessageSchema = z.boolean().optional();
+
 export const FeishuGroupSchema = z
   .object({
     requireMention: z.boolean().optional(),
@@ -147,6 +158,7 @@ const FeishuSharedConfigShape = {
   streaming: StreamingModeSchema,
   tools: FeishuToolsConfigSchema,
   replyInThread: ReplyInThreadSchema,
+  useNativeAudioMessage: UseNativeAudioMessageSchema,
 };
 
 /**

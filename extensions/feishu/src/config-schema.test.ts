@@ -117,3 +117,33 @@ describe("FeishuConfigSchema replyInThread", () => {
     expect(result.accounts?.main?.replyInThread).toBe("enabled");
   });
 });
+
+describe("FeishuConfigSchema useNativeAudioMessage", () => {
+  it("accepts useNativeAudioMessage=true", () => {
+    const result = FeishuConfigSchema.parse({ useNativeAudioMessage: true });
+    expect(result.useNativeAudioMessage).toBe(true);
+  });
+
+  it("accepts useNativeAudioMessage=false", () => {
+    const result = FeishuConfigSchema.parse({ useNativeAudioMessage: false });
+    expect(result.useNativeAudioMessage).toBe(false);
+  });
+
+  it("useNativeAudioMessage defaults to undefined", () => {
+    const result = FeishuConfigSchema.parse({});
+    expect(result.useNativeAudioMessage).toBeUndefined();
+  });
+
+  it("accepts account-level useNativeAudioMessage override", () => {
+    const result = FeishuConfigSchema.parse({
+      useNativeAudioMessage: false,
+      accounts: {
+        main: {
+          useNativeAudioMessage: true,
+        },
+      },
+    });
+    expect(result.useNativeAudioMessage).toBe(false);
+    expect(result.accounts?.main?.useNativeAudioMessage).toBe(true);
+  });
+});
