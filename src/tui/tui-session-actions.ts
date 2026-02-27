@@ -207,6 +207,17 @@ export function createSessionActions(context: SessionActionContext) {
       next.model = selection.model;
     }
 
+    // When the session has no entry yet (brand-new session not in the store),
+    // resolveModelSelection returns the current sessionInfo values which may
+    // still be empty.  Fall back to the agent defaults so the status bar shows
+    // the configured model instead of "unknown".
+    if (!next.model && defaults?.model) {
+      next.model = defaults.model;
+    }
+    if (!next.modelProvider && defaults?.modelProvider) {
+      next.modelProvider = defaults.modelProvider;
+    }
+
     state.sessionInfo = next;
     updateAutocompleteProvider();
     updateFooter();
