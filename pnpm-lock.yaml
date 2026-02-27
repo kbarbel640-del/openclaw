@@ -412,6 +412,16 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
 
+  extensions/tuitui:
+    dependencies:
+      undici:
+        specifier: 7.22.0
+        version: 7.22.0
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
   extensions/twitch:
     dependencies:
       '@twurple/api':
