@@ -301,3 +301,55 @@ export const DEFAULT_CONFIG: PlimsollConfig = {
   loopThreshold: 3,
   loopWindowSeconds: 60,
 };
+
+// ─── DeFi Tool Classification ───────────────────────────────────
+
+/** Exact tool names that are always classified as DeFi. */
+export const DEFI_TOOLS = new Set([
+  "swap",
+  "transfer",
+  "approve",
+  "bridge",
+  "stake",
+  "unstake",
+  "deposit",
+  "withdraw",
+  "borrow",
+  "repay",
+  "lend",
+  "supply",
+  "send",
+  "send_transaction",
+]);
+
+/**
+ * Keyword fallback pattern for plugin-registered DeFi tools.
+ *
+ * Matches "swap", "transfer", or "bridge" as standalone segments
+ * separated by underscores, hyphens, or at start/end of string.
+ * This avoids false positives on unrelated tools whose names
+ * happen to contain these substrings (e.g. "swapfile", "transcribe").
+ *
+ * Examples:
+ *   "token_swap"        → match (swap is a segment)
+ *   "uniswap_v3_swap"   → match (swap is a segment)
+ *   "cross_chain_bridge" → match (bridge is a segment)
+ *   "file_transfer"     → match (transfer is a segment)
+ *   "swapfile"          → no match (swap is not a standalone segment)
+ *   "transcribe"        → no match (no keyword present)
+ *   "read_file"         → no match
+ */
+const DEFI_KEYWORD_RE = /(?:^|[-_])(?:swap|transfer|bridge)(?:$|[-_])/i;
+
+/**
+ * Classify whether a tool name represents a DeFi operation.
+ *
+ * Two-tier classification:
+ *   1. Exact match against DEFI_TOOLS set (O(1) lookup).
+ *   2. Keyword fallback via DEFI_KEYWORD_RE for plugin-registered
+ *      tools with DeFi keywords as underscore/hyphen segments.
+ */
+export function isDefiTool(toolName: string): boolean {
+  if (DEFI_TOOLS.has(toolName)) return true;
+  return DEFI_KEYWORD_RE.test(toolName);
+}

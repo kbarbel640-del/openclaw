@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { evaluate, DEFAULT_CONFIG } from "./firewall.js";
+import { evaluate, DEFAULT_CONFIG, isDefiTool, DEFI_TOOLS } from "./firewall.js";
 import type { PlimsollConfig, Verdict } from "./firewall.js";
 
 const SESSION = "test-session";
@@ -150,6 +150,75 @@ describe("Plimsoll Firewall", () => {
       const session = freshSession();
       const v = evaluate(session, "swap", { to: "0xabc", amount: 100 }, DEFAULT_CONFIG);
       expect(v.blocked).toBe(false);
+    });
+  });
+
+  describe("isDefiTool — classification boundaries", () => {
+    describe("exact matches (DEFI_TOOLS set)", () => {
+      it.each([
+        "swap",
+        "transfer",
+        "approve",
+        "bridge",
+        "stake",
+        "unstake",
+        "deposit",
+        "withdraw",
+        "borrow",
+        "repay",
+        "lend",
+        "supply",
+        "send",
+        "send_transaction",
+      ])("classifies '%s' as DeFi", (name) => {
+        expect(isDefiTool(name)).toBe(true);
+      });
+    });
+
+    describe("keyword fallback — true positives", () => {
+      it.each([
+        ["token_swap", "swap as trailing segment"],
+        ["swap_tokens", "swap as leading segment"],
+        ["uniswap_v3_swap", "swap as trailing segment in compound name"],
+        ["cross_chain_bridge", "bridge as trailing segment"],
+        ["bridge_usdc", "bridge as leading segment"],
+        ["eth_bridge_v2", "bridge as middle segment"],
+        ["usdc_transfer", "transfer as trailing segment"],
+        ["transfer_erc20", "transfer as leading segment"],
+        ["batch-swap", "swap with hyphen separator"],
+        ["multi-bridge-relay", "bridge with hyphen separator"],
+      ])("classifies '%s' as DeFi (%s)", (name) => {
+        expect(isDefiTool(name)).toBe(true);
+      });
+    });
+
+    describe("keyword fallback — true negatives (benign tools)", () => {
+      it.each([
+        ["read_file", "no DeFi keyword"],
+        ["exec", "no DeFi keyword"],
+        ["write_file", "no DeFi keyword"],
+        ["get_balance", "no DeFi keyword"],
+        ["list_tokens", "no DeFi keyword"],
+        ["transcribe", "no DeFi keyword despite containing 'trans'"],
+        ["swapfile", "swap is not a standalone segment"],
+        ["bridgetown", "bridge is not a standalone segment"],
+      ])("classifies '%s' as non-DeFi (%s)", (name) => {
+        expect(isDefiTool(name)).toBe(false);
+      });
+    });
+
+    describe("known false-negative aliases (documented gap)", () => {
+      // These are DeFi-related tool names that the keyword fallback
+      // intentionally does NOT match. If coverage of these is needed,
+      // add them to the DEFI_TOOLS set directly.
+      it.each([
+        ["exchange", "synonym for swap, not in keyword list"],
+        ["liquidate", "DeFi action, not in keyword list"],
+        ["flash_loan", "DeFi action, not in keyword list"],
+        ["mint_nft", "DeFi-adjacent, not in keyword list"],
+      ])("does NOT classify '%s' (%s) — extend DEFI_TOOLS if needed", (name) => {
+        expect(isDefiTool(name)).toBe(false);
+      });
     });
   });
 });

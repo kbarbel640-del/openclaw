@@ -18,33 +18,8 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { evaluate, DEFAULT_CONFIG } from "./src/firewall.js";
+import { evaluate, DEFAULT_CONFIG, isDefiTool, DEFI_TOOLS } from "./src/firewall.js";
 import type { PlimsollConfig } from "./src/firewall.js";
-
-/** Tool names that involve financial transactions. */
-const DEFI_TOOLS = new Set([
-  "swap",
-  "transfer",
-  "approve",
-  "bridge",
-  "stake",
-  "unstake",
-  "deposit",
-  "withdraw",
-  "borrow",
-  "repay",
-  "lend",
-  "supply",
-  "send",
-  "send_transaction",
-]);
-
-function isDefiTool(toolName: string): boolean {
-  if (DEFI_TOOLS.has(toolName)) return true;
-  // Catch plugin-registered DeFi tools by keyword
-  const lower = toolName.toLowerCase();
-  return lower.includes("swap") || lower.includes("transfer") || lower.includes("bridge");
-}
 
 const plugin = {
   id: "plimsoll-security",
