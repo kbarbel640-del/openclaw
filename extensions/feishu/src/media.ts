@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
+import { fileURLToPath } from "url";
 import { withTempDownloadPath, type ClawdbotConfig } from "openclaw/plugin-sdk";
 import { resolveFeishuAccount } from "./accounts.js";
 import { createFeishuClient } from "./client.js";
@@ -401,7 +402,10 @@ export async function sendMediaFeishu(params: {
     buffer = mediaBuffer;
     name = fileName ?? "file";
   } else if (mediaUrl) {
-    const loaded = await getFeishuRuntime().media.loadWebMedia(mediaUrl, {
+    // Delegate all URL/path loading (including local paths) to the shared loader,
+    // which enforces localRoots/sandbox rules to prevent file exfiltration.
+    const normalizedUrl = mediaUrl.startsWith("file://") ? fileURLToPath(mediaUrl) : mediaUrl;
+    const loaded = await getFeishuRuntime().media.loadWebMedia(normalizedUrl, {
       maxBytes: mediaMaxBytes,
       optimizeImages: false,
     });
