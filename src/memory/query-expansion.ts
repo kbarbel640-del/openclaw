@@ -630,6 +630,129 @@ const STOP_WORDS_ZH = new Set([
   "告诉",
 ]);
 
+const STOP_WORDS_TR = new Set([
+  // Determiners
+  "bir",
+  "bu",
+  "şu",
+  "o",
+  "her",
+  "bazı",
+  "diğer",
+  // Pronouns (nominative)
+  "ben",
+  "sen",
+  "biz",
+  "siz",
+  "onlar",
+  // Pronouns (genitive)
+  "benim",
+  "senin",
+  "bizim",
+  "sizin",
+  "onların",
+  "onun",
+  // Pronouns (accusative)
+  "beni",
+  "seni",
+  "bizi",
+  "sizi",
+  "onları",
+  // Pronouns (dative)
+  "bana",
+  "sana",
+  "bize",
+  "size",
+  "onlara",
+  // Demonstratives
+  "bunu",
+  "buna",
+  "bunlar",
+  "onu",
+  "ona",
+  // Common verbs / auxiliaries
+  "olan",
+  "olarak",
+  "oldu",
+  "olur",
+  "var",
+  "yok",
+  // Negation
+  "değil",
+  // Postpositions
+  "ile",
+  "için",
+  "gibi",
+  "kadar",
+  "göre",
+  "doğru",
+  "sonra",
+  "önce",
+  "beri",
+  "karşı",
+  "rağmen",
+  "üzere",
+  // Conjunctions
+  "ve",
+  "veya",
+  "ama",
+  "fakat",
+  "ancak",
+  "çünkü",
+  "eğer",
+  "ise",
+  "ki",
+  "da",
+  "de",
+  "hem",
+  "ya",
+  "ne",
+  "bile",
+  // Question words
+  "nasıl",
+  "neden",
+  "niçin",
+  "niye",
+  "nerede",
+  "nereye",
+  "nereden",
+  "kim",
+  "hangi",
+  // Question particles
+  "mı",
+  "mu",
+  "mü",
+  // Time references (vague)
+  "dün",
+  "bugün",
+  "yarın",
+  "şimdi",
+  "henüz",
+  "artık",
+  "hâlâ",
+  // Adverbs
+  "çok",
+  "en",
+  "daha",
+  "hiç",
+  "pek",
+  "sadece",
+  "yalnız",
+  "hep",
+  // Vague references
+  "şey",
+  "şeyler",
+  "birşey",
+  // Filler words
+  "yani",
+  "zaten",
+  "aslında",
+  "belki",
+  "acaba",
+  // Request words
+  "lütfen",
+]);
+
 /**
  * Check if a token looks like a meaningful keyword.
  * Returns false for short tokens, numbers-only, etc.
@@ -734,7 +857,8 @@ export function extractKeywords(query: string): string[] {
       STOP_WORDS_AR.has(token) ||
       STOP_WORDS_ZH.has(token) ||
       STOP_WORDS_KO.has(token) ||
-      STOP_WORDS_JA.has(token)
+      STOP_WORDS_JA.has(token) ||
+      STOP_WORDS_TR.has(token)
     ) {
       continue;
     }
