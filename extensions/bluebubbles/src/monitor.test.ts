@@ -1741,7 +1741,7 @@ describe("BlueBubbles webhook monitor", () => {
   });
 
   describe("inbound debouncing", () => {
-    it("coalesces text-only then attachment webhook events by messageId", async () => {
+    it("coalesces events with different GUIDs from the same sender in the same chat", async () => {
       vi.useFakeTimers();
       try {
         const account = createMockAccount({ dmPolicy: "open" });
@@ -1814,7 +1814,6 @@ describe("BlueBubbles webhook monitor", () => {
           path: "/bluebubbles-webhook",
         });
 
-        const messageId = "race-msg-1";
         const chatGuid = "iMessage;-;+15551234567";
 
         const payloadA = {
@@ -1824,7 +1823,7 @@ describe("BlueBubbles webhook monitor", () => {
             handle: { address: "+15551234567" },
             isGroup: false,
             isFromMe: false,
-            guid: messageId,
+            guid: "race-msg-1",
             chatGuid,
             date: Date.now(),
           },
@@ -1837,7 +1836,7 @@ describe("BlueBubbles webhook monitor", () => {
             handle: { address: "+15551234567" },
             isGroup: false,
             isFromMe: false,
-            guid: messageId,
+            guid: "race-msg-2",
             chatGuid,
             attachments: [
               {
