@@ -37,7 +37,9 @@ describe("buildTelegramMessageContext audio transcript body", () => {
 
     expect(ctx).not.toBeNull();
     expect(transcribeFirstAudioMock).toHaveBeenCalledTimes(1);
-    expect(ctx?.ctxPayload?.BodyForAgent).toBe("hey bot please help");
+    // BodyForAgent gets a timestamp prefix (see #25334).
+    expect(ctx?.ctxPayload?.BodyForAgent).toContain("hey bot please help");
+    expect(ctx?.ctxPayload?.BodyForAgent).toMatch(/^\[.*\d{4}-\d{2}-\d{2} \d{2}:\d{2}.*\]/);
     expect(ctx?.ctxPayload?.Body).toContain("hey bot please help");
     expect(ctx?.ctxPayload?.Body).not.toContain("<media:audio>");
   });
