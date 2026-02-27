@@ -142,8 +142,15 @@ function resolveSlackChannelPolicyEntry(
   const groupChannel = params.groupChannel;
   const channelName = groupChannel?.replace(/^#/, "");
   const normalizedName = normalizeHyphenSlug(channelName);
+  // Slack delivers channel IDs in uppercase (e.g. C0ABC12345) but operators
+  // commonly store them in lowercase in config. Include both case variants so
+  // the lookup is case-insensitive without requiring a full entry-scan.
+  const channelIdLower = channelId ? channelId.toLowerCase() : "";
+  const channelIdUpper = channelId ? channelId.toUpperCase() : "";
   const candidates = [
     channelId ?? "",
+    channelIdLower !== channelId ? channelIdLower : "",
+    channelIdUpper !== channelId ? channelIdUpper : "",
     channelName ? `#${channelName}` : "",
     channelName ?? "",
     normalizedName,

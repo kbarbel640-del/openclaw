@@ -61,6 +61,52 @@ describe("group mentions (slack)", () => {
     });
     expect(wildcardTools).toEqual({ deny: ["exec"] });
   });
+
+  it("matches channel ID case-insensitively (Slack delivers uppercase, config may be lowercase)", () => {
+    // Config has lowercase channel ID; Slack delivers uppercase
+    const cfgLower = {
+      channels: {
+        slack: {
+          botToken: "xoxb-test",
+          appToken: "xapp-test",
+          channels: {
+            c0abc12345: {
+              requireMention: false,
+              tools: { allow: ["message.send"] },
+            },
+            "*": { requireMention: true },
+          },
+        },
+      },
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any;
+
+    // Slack event delivers uppercase channel ID
+    expect(resolveSlackGroupRequireMention({ cfg: cfgLower, groupId: "C0ABC12345" })).toBe(false);
+    expect(
+      resolveSlackGroupToolPolicy({ cfg: cfgLower, groupId: "C0ABC12345", senderId: "user:bob" }),
+    ).toEqual({ allow: ["message.send"] });
+  });
+
+  it("matches channel ID when config has uppercase and event delivers uppercase", () => {
+    const cfgUpper = {
+      channels: {
+        slack: {
+          botToken: "xoxb-test",
+          appToken: "xapp-test",
+          channels: {
+            C0ABC12345: {
+              requireMention: false,
+            },
+            "*": { requireMention: true },
+          },
+        },
+      },
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any;
+
+    expect(resolveSlackGroupRequireMention({ cfg: cfgUpper, groupId: "C0ABC12345" })).toBe(false);
+  });
 });
 
 describe("group mentions (telegram)", () => {

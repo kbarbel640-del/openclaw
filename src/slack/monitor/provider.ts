@@ -118,6 +118,17 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
     log: (message) => runtime.log?.(warn(message)),
   });
 
+  // Warn at startup when allowlist policy is active but no channels are configured,
+  // since this silently drops all channel events (fail-closed).
+  const channelKeysCount = Object.keys(channelsConfig ?? {}).filter((k) => k !== "*").length;
+  if (groupPolicy === "allowlist" && channelKeysCount === 0) {
+    runtime.log?.(
+      warn(
+        `slack (${account.accountId}): groupPolicy is "allowlist" but no channels are configured — all channel events will be dropped. Add channel entries or set groupPolicy to "open".`,
+      ),
+    );
+  }
+
   const resolveToken = slackCfg.userToken?.trim() || botToken;
   const useAccessGroups = cfg.commands?.useAccessGroups !== false;
   const reactionMode = slackCfg.reactionNotifications ?? "own";
