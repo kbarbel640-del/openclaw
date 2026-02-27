@@ -20,6 +20,7 @@ import type {
   TtsMode,
   TtsProvider,
   TtsModelOverrideConfig,
+  VoiceNoteLoopMode,
 } from "../config/types.tts.js";
 import { logVerbose } from "../globals.js";
 import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
@@ -100,6 +101,7 @@ export type ResolvedTtsConfig = {
   provider: TtsProvider;
   providerSource: "config" | "default";
   summaryModel?: string;
+  voiceNoteLoop: VoiceNoteLoopMode;
   modelOverrides: ResolvedTtsModelOverrides;
   elevenlabs: {
     apiKey?: string;
@@ -270,6 +272,7 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
     provider: raw.provider ?? "edge",
     providerSource,
     summaryModel: raw.summaryModel?.trim() || undefined,
+    voiceNoteLoop: raw.voiceNoteLoop ?? "disabled",
     modelOverrides: resolveModelOverridePolicy(raw.modelOverrides),
     elevenlabs: {
       apiKey: raw.elevenlabs?.apiKey,
