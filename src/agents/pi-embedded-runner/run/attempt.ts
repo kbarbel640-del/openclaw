@@ -11,6 +11,7 @@ import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
 import type { OpenClawConfig } from "../../../config/config.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
+import { isAbortError } from "../../../infra/unhandled-rejections.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 import type {
@@ -843,7 +844,12 @@ export async function runEmbeddedAttempt(
         } else {
           runAbortController.abort(reason);
         }
-        void activeSession.abort();
+        // AbortError from in-flight requests is expected during timeout aborts.
+        activeSession.abort().catch((err) => {
+          if (!isAbortError(err)) {
+            log.warn(`activeSession.abort() failed unexpectedly: ${String(err)}`);
+          }
+        });
       };
       const abortable = <T>(promise: Promise<T>): Promise<T> => {
         const signal = runAbortController.signal;
