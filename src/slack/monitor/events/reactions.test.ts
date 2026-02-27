@@ -1,3 +1,4 @@
+// Re-trigger CI after rebase
 import { describe, expect, it, vi } from "vitest";
 import { registerSlackReactionEvents } from "./reactions.js";
 import {
