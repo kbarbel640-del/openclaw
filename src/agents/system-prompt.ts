@@ -97,15 +97,17 @@ function buildTimeSection(params: { userTimezone?: string; userTime?: string }) 
   if (!params.userTimezone) {
     return [];
   }
-  const formattedDate = params.userTime ?? new Date().toLocaleString("en-US", {
-    timeZone: params.userTimezone,
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const formattedDate =
+    params.userTime ??
+    new Date().toLocaleString("en-US", {
+      timeZone: params.userTimezone,
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
   return ["## Current Date & Time", `${formattedDate} (${params.userTimezone})`, ""];
 }
 
