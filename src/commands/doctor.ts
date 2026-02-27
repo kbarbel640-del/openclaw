@@ -42,6 +42,7 @@ import {
   noteDeprecatedLegacyEnvVars,
 } from "./doctor-platform-notes.js";
 import { createDoctorPrompter, type DoctorOptions } from "./doctor-prompter.js";
+import { maybeRepairDeprecatedProviders } from "./doctor-provider-migration.js";
 import { maybeRepairSandboxImages, noteSandboxScopeWarnings } from "./doctor-sandbox.js";
 import { noteSecurityWarnings } from "./doctor-security.js";
 import { noteSessionLockHealth } from "./doctor-session-locks.js";
@@ -114,6 +115,7 @@ export async function doctorCommand(
     note(lines.join("\n"), "Gateway");
   }
 
+  cfg = await maybeRepairDeprecatedProviders(cfg, prompter);
   cfg = await maybeRepairAnthropicOAuthProfileId(cfg, prompter);
   cfg = await maybeRemoveDeprecatedCliAuthProfiles(cfg, prompter);
   await noteAuthProfileHealth({
