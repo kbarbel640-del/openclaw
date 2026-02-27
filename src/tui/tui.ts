@@ -23,7 +23,7 @@ import { GatewayChatClient } from "./gateway-chat.js";
 import { editorTheme, theme } from "./theme/theme.js";
 import { createCommandHandlers } from "./tui-command-handlers.js";
 import { createEventHandlers } from "./tui-event-handlers.js";
-import { formatTokens } from "./tui-formatters.js";
+import { formatContextBar } from "./tui-formatters.js";
 import { createLocalShellRunner } from "./tui-local-shell.js";
 import { createOverlayHandlers } from "./tui-overlays.js";
 import { createSessionActions } from "./tui-session-actions.js";
@@ -517,11 +517,8 @@ export async function runTui(opts: TuiOptions) {
   const updateHeader = () => {
     const sessionLabel = formatSessionKey(currentSessionKey);
     const agentLabel = formatAgentLabel(currentAgentId);
-    header.setText(
-      theme.header(
-        `openclaw tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`,
-      ),
-    );
+    const headerLine = `openclaw tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`;
+    header.setText(theme.header(headerLine));
   };
 
   const busyStates = new Set(["sending", "waiting", "streaming", "running"]);
@@ -573,6 +570,13 @@ export async function runTui(opts: TuiOptions) {
       return;
     }
     const elapsed = formatElapsed(statusStartedAt);
+    const contextBar = formatContextBar(
+      sessionInfo.totalTokens ?? null,
+      sessionInfo.contextTokens ?? null,
+      10,
+      { green: theme.success, yellow: theme.accent, red: theme.error },
+    );
+    const contextSuffix = contextBar ? `\n${contextBar}` : "";
 
     if (activityStatus === "waiting") {
       waitingTick++;
@@ -583,12 +587,12 @@ export async function runTui(opts: TuiOptions) {
           elapsed,
           connectionStatus,
           phrases: waitingPhrase ? [waitingPhrase] : undefined,
-        }),
+        }) + contextSuffix,
       );
       return;
     }
 
-    statusLoader.setMessage(`${activityStatus} • ${elapsed} | ${connectionStatus}`);
+    statusLoader.setMessage(`${activityStatus} • ${elapsed} | ${connectionStatus}${contextSuffix}`);
   };
 
   const startStatusTimer = () => {
@@ -663,8 +667,17 @@ export async function runTui(opts: TuiOptions) {
       statusLoader?.stop();
       statusLoader = null;
       ensureStatusText();
-      const text = activityStatus ? `${connectionStatus} | ${activityStatus}` : connectionStatus;
-      statusText?.setText(theme.dim(text));
+      const statusLine = activityStatus
+        ? `${connectionStatus} | ${activityStatus}`
+        : connectionStatus;
+      const contextBar = formatContextBar(
+        sessionInfo.totalTokens ?? null,
+        sessionInfo.contextTokens ?? null,
+        10,
+        { green: theme.success, yellow: theme.accent, red: theme.error },
+      );
+      const statusWithContext = contextBar ? `${statusLine}\n${contextBar}` : statusLine;
+      statusText?.setText(theme.dim(statusWithContext));
     }
     lastActivityStatus = activityStatus;
   };
@@ -699,7 +712,6 @@ export async function runTui(opts: TuiOptions) {
         ? `${sessionInfo.modelProvider}/${sessionInfo.model}`
         : sessionInfo.model
       : "unknown";
-    const tokens = formatTokens(sessionInfo.totalTokens ?? null, sessionInfo.contextTokens ?? null);
     const think = sessionInfo.thinkingLevel ?? "off";
     const verbose = sessionInfo.verboseLevel ?? "off";
     const reasoning = sessionInfo.reasoningLevel ?? "off";
@@ -712,7 +724,6 @@ export async function runTui(opts: TuiOptions) {
       think !== "off" ? `think ${think}` : null,
       verbose !== "off" ? `verbose ${verbose}` : null,
       reasoningLabel,
-      tokens,
     ].filter(Boolean);
     footer.setText(theme.dim(footerParts.join(" | ")));
   };
