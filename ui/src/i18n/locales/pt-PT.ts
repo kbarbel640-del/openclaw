@@ -71,8 +71,7 @@ export const pt_PT: TranslationMap = {
       uptime: "Tempo de Atividade",
       tickInterval: "Intervalo de Tick",
       lastChannelsRefresh: "Última Atualização de Canais",
-      channelsHint:
-        "Utilize Canais para vincular WhatsApp, Telegram, Discord, Signal ou iMessage.",
+      channelsHint: "Utilize Canais para vincular WhatsApp, Telegram, Discord, Signal ou iMessage.",
     },
     stats: {
       instances: "Instâncias",
@@ -106,16 +105,14 @@ export const pt_PT: TranslationMap = {
     },
     insecure: {
       hint: "Esta página é HTTP, pelo que o navegador bloqueia a identidade do dispositivo. Utilize HTTPS (Tailscale Serve) ou abra {url} no anfitrião do gateway.",
-      stayHttp:
-        "Se precisar de permanecer em HTTP, defina {config} (apenas token).",
+      stayHttp: "Se precisar de permanecer em HTTP, defina {config} (apenas token).",
     },
   },
   chat: {
     disconnected: "Desligado do gateway.",
     refreshTitle: "Atualizar dados do chat",
     thinkingToggle: "Alternar saída de pensamento/trabalho do assistente",
-    focusToggle:
-      "Alternar modo de foco (ocultar barra lateral + cabeçalho da página)",
+    focusToggle: "Alternar modo de foco (ocultar barra lateral + cabeçalho da página)",
     onboardingDisabled: "Desativado durante a integração",
   },
   languages: {
