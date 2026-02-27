@@ -1,0 +1,44 @@
+{
+  "id": "secret-wallet",
+  "name": "Secret Wallet",
+  "description": "macOS Keychain-based credential manager plugin with selective inject and gated write tools.",
+  "version": "0.2.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "binaryPath": {
+        "type": "string",
+        "description": "Absolute path to secret-wallet binary (or omit to use PATH)"
+      },
+      "allowWriteTools": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable mutating tools (`secret_wallet_add`, `secret_wallet_remove`). Default false."
+      },
+      "allowInjectTool": {
+        "type": "boolean",
+        "default": false,
+        "description": "Enable command execution tool (`secret_wallet_inject`). Default false."
+      }
+    }
+  },
+  "uiHints": {
+    "binaryPath": {
+      "label": "Binary Path",
+      "help": "Path to secret-wallet CLI binary. Leave empty to use system PATH.",
+      "placeholder": "/usr/local/bin/secret-wallet",
+      "advanced": true
+    },
+    "allowWriteTools": {
+      "label": "Enable Write Tools",
+      "help": "Allow secret_wallet_add and secret_wallet_remove (off by default).",
+      "advanced": true
+    },
+    "allowInjectTool": {
+      "label": "Enable Inject Tool",
+      "help": "Allow secret_wallet_inject (runs commands with selected secrets only).",
+      "advanced": true
+    }
+  }
+}
