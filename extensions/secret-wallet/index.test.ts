@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import register from "./index.js";
 
 type Registered = {
@@ -7,11 +6,13 @@ type Registered = {
   tool: { name: string } | null;
 };
 
-function collectRegisteredTools(config: {
-  allowWriteTools?: boolean;
-  allowInjectTool?: boolean;
-  binaryPath?: string;
-} = {}) {
+function collectRegisteredTools(
+  config: {
+    allowWriteTools?: boolean;
+    allowInjectTool?: boolean;
+    binaryPath?: string;
+  } = {},
+) {
   const registered: Registered[] = [];
   const api = {
     pluginConfig: config,
@@ -34,11 +35,7 @@ describe("secret-wallet plugin registration", () => {
   it("registers read tools by default", () => {
     const registered = collectRegisteredTools();
     const names = registered.map((entry) => entry.tool?.name).filter(Boolean);
-    expect(names).toEqual([
-      "secret_wallet_status",
-      "secret_wallet_list",
-      "secret_wallet_get",
-    ]);
+    expect(names).toEqual(["secret_wallet_status", "secret_wallet_list", "secret_wallet_get"]);
     expect(registered.every((entry) => entry.optional === true)).toBe(true);
   });
 
@@ -57,9 +54,7 @@ describe("secret-wallet plugin registration", () => {
     const collected: Array<{ name: string } | null> = [];
     const api = {
       pluginConfig: { allowWriteTools: true, allowInjectTool: true },
-      registerTool(
-        factory: (ctx: { sandboxed?: boolean }) => { name: string } | null,
-      ) {
+      registerTool(factory: (ctx: { sandboxed?: boolean }) => { name: string } | null) {
         collected.push(factory({ sandboxed: true }));
       },
     };

@@ -13,19 +13,9 @@
     "declaration": false,
     "sourceMap": false,
     "paths": {
-      "openclaw/plugin-sdk": [
-        "./types/openclaw-plugin-sdk.d.ts"
-      ]
+      "openclaw/plugin-sdk": ["./types/openclaw-plugin-sdk.d.ts"]
     }
   },
-  "include": [
-    "index.ts",
-    "src/**/*.ts",
-    "types/**/*.d.ts"
-  ],
-  "exclude": [
-    "dist",
-    "node_modules",
-    "**/*.test.ts"
-  ]
+  "include": ["index.ts", "src/**/*.ts", "types/**/*.d.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
 }

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import { runSecretWallet } from "./runner.js";
 import {
   createSecretWalletInjectTool,
@@ -22,11 +21,7 @@ describe("secret-wallet tool surface", () => {
     const readNames = createSecretWalletReadTools({}).map((tool) => tool.name);
     const writeNames = createSecretWalletWriteTools({}).map((tool) => tool.name);
 
-    expect(readNames).toEqual([
-      "secret_wallet_status",
-      "secret_wallet_list",
-      "secret_wallet_get",
-    ]);
+    expect(readNames).toEqual(["secret_wallet_status", "secret_wallet_list", "secret_wallet_get"]);
     expect(writeNames).toEqual(["secret_wallet_add", "secret_wallet_remove"]);
   });
 
@@ -46,16 +41,7 @@ describe("secret-wallet tool surface", () => {
     expect(runMock).toHaveBeenCalledTimes(1);
     expect(runMock).toHaveBeenCalledWith(
       "/usr/local/bin/secret-wallet",
-      [
-        "inject",
-        "--only",
-        "OPENAI_KEY",
-        "--only",
-        "DB_URL",
-        "--",
-        "node",
-        "server.js",
-      ],
+      ["inject", "--only", "OPENAI_KEY", "--only", "DB_URL", "--", "node", "server.js"],
       { timeoutMs: 120_000 },
     );
   });

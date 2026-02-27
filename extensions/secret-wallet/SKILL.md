@@ -50,6 +50,7 @@ secret-wallet status
 ## Security Model
 
 Defense in Depth -- 7 independent layers:
+
 1. Physical device security (FileVault)
 2. Secure Enclave (T2/M1/M2 hardware)
 3. OS-level Keychain ACL
@@ -89,10 +90,10 @@ Recommended plugin config:
 
 ## Why Not .env Files?
 
-| Aspect | .env files | Secret Wallet |
-|--------|-----------|---------------|
-| Storage | Plaintext on disk | macOS Keychain (AES-256) |
-| Git risk | Easy to commit | Nothing to commit |
-| Access control | File permissions | TouchID biometric |
-| Process isolation | Loaded globally | Child process only |
-| Hardware backing | None | Secure Enclave |
+| Aspect            | .env files        | Secret Wallet            |
+| ----------------- | ----------------- | ------------------------ |
+| Storage           | Plaintext on disk | macOS Keychain (AES-256) |
+| Git risk          | Easy to commit    | Nothing to commit        |
+| Access control    | File permissions  | TouchID biometric        |
+| Process isolation | Loaded globally   | Child process only       |
+| Hardware backing  | None              | Secure Enclave           |

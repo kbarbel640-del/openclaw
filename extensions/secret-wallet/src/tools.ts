@@ -72,7 +72,10 @@ function createGetTool(config: PluginConfig) {
       if (!result.ok) {
         return {
           content: [
-            { type: "text" as const, text: `Failed to get secret '${params.name}': ${result.error}` },
+            {
+              type: "text" as const,
+              text: `Failed to get secret '${params.name}': ${result.error}`,
+            },
           ],
         };
       }
@@ -113,7 +116,10 @@ function createAddTool(config: PluginConfig) {
       if (!result.ok) {
         return {
           content: [
-            { type: "text" as const, text: `Failed to store secret '${params.name}': ${result.error}` },
+            {
+              type: "text" as const,
+              text: `Failed to store secret '${params.name}': ${result.error}`,
+            },
           ],
         };
       }
@@ -195,7 +201,10 @@ function createInjectTool(config: PluginConfig) {
       }
       return {
         content: [
-          { type: "text" as const, text: result.stdout || "Command executed with selected secrets." },
+          {
+            type: "text" as const,
+            text: result.stdout || "Command executed with selected secrets.",
+          },
         ],
       };
     },

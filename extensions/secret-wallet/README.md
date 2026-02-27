@@ -1,6 +1,7 @@
 # OpenClaw Secret Wallet Plugin
 
 OpenClaw plugin for the `secret-wallet` CLI with safer default behavior:
+
 - read tools are available
 - write tools are gated (`allowWriteTools=false` by default)
 - inject tool is gated (`allowInjectTool=false` by default)
@@ -31,11 +32,11 @@ brew install baekho-lim/tap/secret-wallet
         config: {
           binaryPath: "/usr/local/bin/secret-wallet",
           allowWriteTools: false,
-          allowInjectTool: true
-        }
-      }
-    }
-  }
+          allowInjectTool: true,
+        },
+      },
+    },
+  },
 }
 ```
 

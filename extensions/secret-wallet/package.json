@@ -1,8 +1,6 @@
 {
   "name": "@baekho-lim/openclaw-secret-wallet",
   "version": "0.2.0",
-  "type": "module",
-  "main": "./dist/index.js",
   "description": "OpenClaw plugin for secret-wallet with selective inject and gated write tools",
   "files": [
     "dist",
@@ -10,23 +8,25 @@
     "SKILL.md",
     "README.md"
   ],
+  "type": "module",
+  "main": "./dist/index.js",
   "scripts": {
-    "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p tsconfig.json",
-    "test": "vitest run -c vitest.config.ts",
+    "clean": "rm -rf dist",
     "pack:smoke": "TMPDIR=$(mktemp -d) && npm pack --pack-destination \"$TMPDIR\" >/dev/null && TAR=$(ls -1 \"$TMPDIR\"/*.tgz | head -1) && tar -tzf \"$TAR\" | grep -q '^package/dist/index.js$'",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "test": "vitest run -c vitest.config.ts"
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.47"
-  },
-  "peerDependencies": {
-    "openclaw": ">=2026.1.29"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.29"
   },
   "openclaw": {
     "extensions": [

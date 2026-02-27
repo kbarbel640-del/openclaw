@@ -1,5 +1,4 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-
 import {
   createSecretWalletInjectTool,
   createSecretWalletReadTools,
