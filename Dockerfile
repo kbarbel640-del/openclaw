@@ -9,6 +9,7 @@ RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
 RUN corepack enable
+RUN corepack prepare pnpm@9.15.4 --activate
 
 WORKDIR /app
 
@@ -19,20 +20,12 @@ RUN apt-get update && \
     procps \
     file \
     git \
-    libnspr4 \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libdbus-1-3 \
-    libcups2 \
-    libxkbcommon0 \
-    libatspi2.0-0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 && \
+    ca-certificates \
+    curl \
+    unzip \
+    tzdata \
+    openssh-client \
+    less && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
@@ -55,6 +48,7 @@ COPY scripts ./scripts
 
 RUN pnpm install --frozen-lockfile
 
+RUN node /app/node_modules/playwright-core/cli.js install-deps chromium
 ENV PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
 RUN mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
     node /app/node_modules/playwright-core/cli.js install chromium && \
@@ -71,25 +65,17 @@ ENV NODE_ENV=production
 # Allow non-root user to write temp files during runtime/tests.
 RUN chown -R node:node /app
 
-# Initialize browser defaults on first run (Docker).
-ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
+
 
 # Security hardening: Run as non-root user
 # The node:22-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
+# Install Homebrew packages as linuxbrew
+USER linuxbrew
+RUN brew install jq ripgrep ffmpeg yt-dlp duckdb sqlite python3 && brew cleanup
+
+# Runtime user
 USER node
-RUN brew install \
-    jq \
-    ripgrep \
-    ffmpeg \
-    yt-dlp \
-    duckdb \
-    sqlite \
-    python3
-# Start gateway server with default config.
-# Binds to loopback (127.0.0.1) by default for security.
-#
-# For container platforms requiring external health checks:
-#   1. Set OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD env var
-#   2. Override CMD: ["node","openclaw.mjs","gateway","--allow-unconfigured","--bind","lan"]
+
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]

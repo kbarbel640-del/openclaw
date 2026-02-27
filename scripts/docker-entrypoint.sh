@@ -18,12 +18,12 @@ if [ ! -f "$CONFIG_PATH" ]; then
   if [ -n "$CHROME_PATH" ]; then
     cat > "$CONFIG_PATH" <<EOF
 {
-  browser: {
-    enabled: true,
-    defaultProfile: "openclaw",
-    headless: true,
-    noSandbox: true,
-    executablePath: "${CHROME_PATH}"
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "openclaw",
+    "headless": true,
+    "noSandbox": true,
+    "executablePath": "${CHROME_PATH}"
   }
 }
 EOF
