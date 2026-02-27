@@ -115,9 +115,22 @@ export function resolveTranscriptPolicy(params: {
   const sanitizeThoughtSignatures =
     isOpenRouterGemini || isGoogle ? { allowBase64Only: true, includeCamelCase: true } : undefined;
 
+  // Mistral models require strict9 tool call ID sanitization regardless of the API
+  // transport. Proxy providers like NVIDIA NIM or OpenRouter use openai-completions
+  // but forward requests directly to Mistral, which enforces the 9-char alphanumeric
+  // constraint. Without this override, `!isOpenAi` suppresses sanitization and the
+  // upstream rejects every tool call with a 400 (see #28492).
+  const forceMistralSanitize = isMistral && !isOpenAiProvider(provider);
+
   return {
-    sanitizeMode: isOpenAi ? "images-only" : needsNonImageSanitize ? "full" : "images-only",
-    sanitizeToolCallIds: !isOpenAi && sanitizeToolCallIds,
+    sanitizeMode: forceMistralSanitize
+      ? "full"
+      : isOpenAi
+        ? "images-only"
+        : needsNonImageSanitize
+          ? "full"
+          : "images-only",
+    sanitizeToolCallIds: forceMistralSanitize || (!isOpenAi && sanitizeToolCallIds),
     toolCallIdMode,
     repairToolUseResultPairing,
     preserveSignatures: false,
