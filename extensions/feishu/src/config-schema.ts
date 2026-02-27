@@ -100,6 +100,16 @@ const FeishuToolsConfigSchema = z
  */
 const TopicSessionModeSchema = z.enum(["disabled", "enabled"]).optional();
 
+/**
+ * Reply-in-thread mode for group chats.
+ * - "disabled" (default): Bot replies are normal inline replies
+ * - "enabled": Bot replies create or continue a Feishu topic thread
+ *
+ * When enabled, the Feishu reply API is called with `reply_in_thread: true`,
+ * causing the reply to appear as a topic (话题) under the original message.
+ */
+const ReplyInThreadSchema = z.enum(["disabled", "enabled"]).optional();
+
 export const FeishuGroupSchema = z
   .object({
     requireMention: z.boolean().optional(),
@@ -109,6 +119,7 @@ export const FeishuGroupSchema = z
     allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     systemPrompt: z.string().optional(),
     topicSessionMode: TopicSessionModeSchema,
+    replyInThread: ReplyInThreadSchema,
   })
   .strict();
 
@@ -135,6 +146,7 @@ const FeishuSharedConfigShape = {
   renderMode: RenderModeSchema,
   streaming: StreamingModeSchema,
   tools: FeishuToolsConfigSchema,
+  replyInThread: ReplyInThreadSchema,
 };
 
 /**
