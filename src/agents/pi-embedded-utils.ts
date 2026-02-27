@@ -207,7 +207,10 @@ export function stripThinkingTagsFromText(text: string): string {
   return stripReasoningTagsFromText(text, { mode: "strict", trim: "both" });
 }
 
-export function extractAssistantText(msg: AssistantMessage): string {
+export function extractAssistantText(
+  msg: AssistantMessage,
+  opts?: { fallbackToThinking?: boolean },
+): string {
   const extracted =
     extractTextFromChatContent(msg.content, {
       sanitizeText: (text) =>
@@ -220,7 +223,27 @@ export function extractAssistantText(msg: AssistantMessage): string {
   // Only apply keyword-based error rewrites when the assistant message is actually an error.
   // Otherwise normal prose that *mentions* errors (e.g. "context overflow") can get clobbered.
   const errorContext = msg.stopReason === "error" || Boolean(msg.errorMessage?.trim());
-  return sanitizeUserFacingText(extracted, { errorContext });
+  const sanitized = sanitizeUserFacingText(extracted, { errorContext });
+
+  if (sanitized) {
+    return sanitized;
+  }
+
+  // Fallback: some reasoning models (e.g. Ollama glm-4.7-flash, Qwen 3) put
+  // their actual answer in the `reasoning` field instead of `content`. The
+  // upstream pi-ai library converts this to thinking blocks. When no text
+  // blocks exist, use thinking content as the reply so the response isn't
+  // silently dropped. (#27806)
+  // Callers that require strict text-only output (e.g. image tool) can opt out
+  // by passing { fallbackToThinking: false }.
+  if (opts?.fallbackToThinking !== false) {
+    const thinking = extractAssistantThinking(msg);
+    if (thinking) {
+      return sanitizeUserFacingText(thinking, { errorContext });
+    }
+  }
+
+  return sanitized;
 }
 
 export function extractAssistantThinking(msg: AssistantMessage): string {
