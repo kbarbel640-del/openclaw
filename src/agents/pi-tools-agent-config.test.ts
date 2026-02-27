@@ -576,6 +576,8 @@ describe("Agent-specific tool filtering", () => {
         workspaceAccess: "none",
         containerName: "test-container",
         containerWorkdir: "/workspace",
+        skillsDir: "/tmp/sandbox/.sandbox-skills",
+        skillsMount: "/skills",
         docker: {
           image: "test-image",
           containerPrefix: "test-",

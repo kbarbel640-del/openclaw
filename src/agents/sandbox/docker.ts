@@ -109,7 +109,11 @@ export function execDockerRaw(
 import { formatCliCommand } from "../../cli/command-format.js";
 import { defaultRuntime } from "../../runtime.js";
 import { computeSandboxConfigHash } from "./config-hash.js";
-import { DEFAULT_SANDBOX_IMAGE, SANDBOX_AGENT_WORKSPACE_MOUNT } from "./constants.js";
+import {
+  DEFAULT_SANDBOX_IMAGE,
+  SANDBOX_AGENT_WORKSPACE_MOUNT,
+  SANDBOX_SKILLS_MOUNT,
+} from "./constants.js";
 import { readRegistry, updateRegistry } from "./registry.js";
 import { resolveSandboxAgentId, resolveSandboxScopeKey, slugifySessionKey } from "./shared.js";
 import type { SandboxConfig, SandboxDockerConfig, SandboxWorkspaceAccess } from "./types.js";
@@ -382,6 +386,7 @@ async function createSandboxContainer(params: {
   workspaceDir: string;
   workspaceAccess: SandboxWorkspaceAccess;
   agentWorkspaceDir: string;
+  skillsDir?: string;
   scopeKey: string;
   configHash?: string;
 }) {
@@ -394,7 +399,11 @@ async function createSandboxContainer(params: {
     scopeKey,
     configHash: params.configHash,
     includeBinds: false,
-    bindSourceRoots: [workspaceDir, params.agentWorkspaceDir],
+    bindSourceRoots: [
+      workspaceDir,
+      params.agentWorkspaceDir,
+      ...(params.skillsDir ? [params.skillsDir] : []),
+    ],
   });
   args.push("--workdir", cfg.workdir);
   const mainMountSuffix =
@@ -406,6 +415,9 @@ async function createSandboxContainer(params: {
       "-v",
       `${params.agentWorkspaceDir}:${SANDBOX_AGENT_WORKSPACE_MOUNT}${agentMountSuffix}`,
     );
+  }
+  if (params.skillsDir) {
+    args.push("-v", `${params.skillsDir}:${SANDBOX_SKILLS_MOUNT}:ro`);
   }
   appendCustomBinds(args, cfg);
   args.push(cfg.image, "sleep", "infinity");
@@ -437,6 +449,7 @@ export async function ensureSandboxContainer(params: {
   sessionKey: string;
   workspaceDir: string;
   agentWorkspaceDir: string;
+  skillsDir?: string;
   cfg: SandboxConfig;
 }) {
   const scopeKey = resolveSandboxScopeKey(params.cfg.scope, params.sessionKey);
@@ -448,6 +461,7 @@ export async function ensureSandboxContainer(params: {
     workspaceAccess: params.cfg.workspaceAccess,
     workspaceDir: params.workspaceDir,
     agentWorkspaceDir: params.agentWorkspaceDir,
+    skillsDir: params.skillsDir,
   });
   const now = Date.now();
   const state = await dockerContainerState(containerName);
@@ -493,6 +507,7 @@ export async function ensureSandboxContainer(params: {
       workspaceDir: params.workspaceDir,
       workspaceAccess: params.cfg.workspaceAccess,
       agentWorkspaceDir: params.agentWorkspaceDir,
+      skillsDir: params.skillsDir,
       scopeKey,
       configHash: expectedHash,
     });
