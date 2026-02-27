@@ -1,5 +1,5 @@
 import { ChannelType } from "@buape/carbon";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __testing as sessionBindingTesting,
   registerSessionBindingAdapter,
@@ -14,6 +14,19 @@ import {
   createNoopThreadBindingManager,
   createThreadBindingManager,
 } from "./thread-bindings.js";
+
+const readAllowFromStoreMock = vi.hoisted(() => vi.fn());
+const upsertPairingRequestMock = vi.hoisted(() => vi.fn());
+const sendMessageDiscordMock = vi.hoisted(() => vi.fn().mockResolvedValue({ messageId: "m1" }));
+
+vi.mock("../../pairing/pairing-store.js", () => ({
+  readChannelAllowFromStore: (...args: unknown[]) => readAllowFromStoreMock(...args),
+  upsertChannelPairingRequest: (...args: unknown[]) => upsertPairingRequestMock(...args),
+}));
+
+vi.mock("../send.js", () => ({
+  sendMessageDiscord: (...args: unknown[]) => sendMessageDiscordMock(...args),
+}));
 
 function createThreadBinding(
   overrides?: Partial<
@@ -74,6 +87,9 @@ describe("resolvePreflightMentionRequirement", () => {
 describe("preflightDiscordMessage", () => {
   beforeEach(() => {
     sessionBindingTesting.resetSessionBindingAdaptersForTests();
+    readAllowFromStoreMock.mockClear().mockResolvedValue([]);
+    upsertPairingRequestMock.mockClear().mockResolvedValue({ code: "PAIRCODE", created: true });
+    sendMessageDiscordMock.mockClear();
   });
 
   it("bypasses mention gating in bound threads for allowed bot senders", async () => {
@@ -164,6 +180,100 @@ describe("preflightDiscordMessage", () => {
     expect(result).not.toBeNull();
     expect(result?.boundSessionKey).toBe(threadBinding.targetSessionKey);
     expect(result?.shouldRequireMention).toBe(false);
+  });
+
+  it("uses account-scoped pairing lookups for DM authorization", async () => {
+    readAllowFromStoreMock.mockImplementation(
+      async (_channel: string, _env: NodeJS.ProcessEnv | undefined, accountId?: string) =>
+        accountId ? [] : ["attacker-id"],
+    );
+    upsertPairingRequestMock.mockResolvedValue({ code: "ZXCVBN12", created: true });
+
+    const client = {
+      fetchChannel: async (channelId: string) => ({
+        id: channelId,
+        type: ChannelType.DM,
+        name: "direct-message",
+      }),
+      rest: {},
+    } as unknown as import("@buape/carbon").Client;
+
+    const result = await preflightDiscordMessage({
+      cfg: {
+        channels: {
+          discord: {
+            dmPolicy: "pairing",
+            allowFrom: [],
+          },
+        },
+      } as import("../../config/config.js").OpenClawConfig,
+      discordConfig: {
+        dmPolicy: "pairing",
+        allowFrom: [],
+      } as NonNullable<import("../../config/config.js").OpenClawConfig["channels"]>["discord"],
+      accountId: "work",
+      token: "token-work",
+      runtime: { log: vi.fn(), error: vi.fn() } as unknown as import("../../runtime.js").RuntimeEnv,
+      botUserId: "openclaw-bot",
+      guildHistories: new Map(),
+      historyLimit: 0,
+      mediaMaxBytes: 1_000_000,
+      textLimit: 4_000,
+      replyToMode: "all",
+      dmEnabled: true,
+      groupDmEnabled: true,
+      ackReactionScope: "direct",
+      groupPolicy: "open",
+      allowFrom: [],
+      threadBindings: createThreadBindingManager({
+        accountId: "work",
+        persist: false,
+        enableSweeper: false,
+      }),
+      data: {
+        channel_id: "dm-work",
+        author: {
+          id: "attacker-id",
+          bot: false,
+          username: "attacker",
+          discriminator: "1111",
+        },
+        message: {
+          id: "msg-account-scope",
+          content: "hello",
+          timestamp: new Date().toISOString(),
+          channelId: "dm-work",
+          attachments: [],
+          mentionedUsers: [],
+          mentionedRoles: [],
+          mentionedEveryone: false,
+          author: {
+            id: "attacker-id",
+            bot: false,
+            username: "attacker",
+            discriminator: "1111",
+          },
+        },
+      } as unknown as import("./listeners.js").DiscordMessageEvent,
+      client,
+    });
+
+    expect(readAllowFromStoreMock).toHaveBeenCalledWith("discord", process.env, "work");
+    expect(upsertPairingRequestMock).toHaveBeenCalledWith({
+      channel: "discord",
+      id: "attacker-id",
+      accountId: "work",
+      meta: {
+        tag: "attacker#1111",
+        name: "attacker",
+      },
+    });
+    expect(sendMessageDiscordMock).toHaveBeenCalledWith(
+      "user:attacker-id",
+      expect.stringContaining("Pairing code: ZXCVBN12"),
+      expect.objectContaining({ accountId: "work", token: "token-work" }),
+    );
+    expect(result).toBeNull();
   });
 });
 
