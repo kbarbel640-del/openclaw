@@ -41,7 +41,9 @@ describe("sessionsCommand model resolution", () => {
     vi.useRealTimers();
   });
 
-  it("prefers runtime model fields for subagent sessions in JSON output", async () => {
+  it("prefers modelOverride over runtime model fields for subagent sessions in JSON output", async () => {
+    // sessions.json output is used by UIs like the TUI session picker / status bar.
+    // It should reflect the user's selected model (override) immediately after /model.
     const model = await resolveSubagentModel(
       {
         modelProvider: "openai-codex",
@@ -50,7 +52,7 @@ describe("sessionsCommand model resolution", () => {
       },
       "subagent-1",
     );
-    expect(model).toBe("gpt-5.3-codex");
+    expect(model).toBe("pi:opus");
   });
 
   it("falls back to modelOverride when runtime model is missing", async () => {

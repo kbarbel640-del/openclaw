@@ -280,7 +280,11 @@ describe("gateway session utils", () => {
 });
 
 describe("resolveSessionModelRef", () => {
-  test("prefers runtime model/provider from session entry", () => {
+  test("prefers override over runtime model/provider", () => {
+    // When the user sets a model override via /model, it should take precedence
+    // over the runtime model recorded from a previous run. This ensures the
+    // status bar reflects the user's intent immediately after switching models,
+    // without requiring a new agent run to update the display.
     const cfg = {
       agents: {
         defaults: {
@@ -298,7 +302,29 @@ describe("resolveSessionModelRef", () => {
       providerOverride: "anthropic",
     });
 
-    expect(resolved).toEqual({ provider: "openai-codex", model: "gpt-5.3-codex" });
+    expect(resolved).toEqual({ provider: "anthropic", model: "claude-opus-4-6" });
+  });
+
+  test("preserves providerOverride for slash-containing modelOverride (wrapper providers)", () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "anthropic/claude-opus-4-6" },
+        },
+      },
+    } as OpenClawConfig;
+
+    const resolved = resolveSessionModelRef(cfg, {
+      sessionId: "s-wrap",
+      updatedAt: Date.now(),
+      modelOverride: "anthropic/claude-sonnet-4-6",
+      providerOverride: "openrouter",
+    });
+
+    expect(resolved).toEqual({
+      provider: "openrouter",
+      model: "anthropic/claude-sonnet-4-6",
+    });
   });
 
   test("preserves openrouter provider when model contains vendor prefix", () => {
@@ -323,7 +349,7 @@ describe("resolveSessionModelRef", () => {
     });
   });
 
-  test("falls back to override when runtime model is not recorded yet", () => {
+  test("uses override when runtime model is not recorded yet", () => {
     const cfg = {
       agents: {
         defaults: {
@@ -336,6 +362,27 @@ describe("resolveSessionModelRef", () => {
       sessionId: "s2",
       updatedAt: Date.now(),
       modelOverride: "openai-codex/gpt-5.3-codex",
+    });
+
+    expect(resolved).toEqual({ provider: "openai-codex", model: "gpt-5.3-codex" });
+  });
+
+  test("falls back to runtime model when no override is set", () => {
+    // When there is no modelOverride (e.g. session using the default model),
+    // the runtime model from the last run should be used.
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "anthropic/claude-opus-4-6" },
+        },
+      },
+    } as OpenClawConfig;
+
+    const resolved = resolveSessionModelRef(cfg, {
+      sessionId: "s-runtime",
+      updatedAt: Date.now(),
+      modelProvider: "openai-codex",
+      model: "gpt-5.3-codex",
     });
 
     expect(resolved).toEqual({ provider: "openai-codex", model: "gpt-5.3-codex" });
@@ -683,74 +730,24 @@ describe("listSessionsFromStore search", () => {
     expect(result.sessions.map((session) => session.key)).toEqual(["agent:main:cron:job-1"]);
   });
 
-  test("does not guess provider for legacy runtime model without modelProvider", () => {
+  test("uses resolved agent default in listings when no override exists (ignores legacy runtime model)", () => {
+    // For session listings (used by TUI status bar / session picker), the model
+    // should reflect what would be used *now* if the user sends a message.
+    // That means:
+    // - if modelOverride exists => show override
+    // - otherwise => show resolved agent default
+    //
+    // Legacy sessions may have a runtime `model` recorded from a previous run.
+    // We intentionally do NOT surface that historical runtime model here.
     const cfg = {
       session: { mainKey: "main" },
       agents: {
         defaults: {
           model: { primary: "google-gemini-cli/gemini-3-pro-preview" },
-        },
-      },
-    } as OpenClawConfig;
-    const now = Date.now();
-    const store: Record<string, SessionEntry> = {
-      "agent:main:main": {
-        sessionId: "sess-main",
-        updatedAt: now,
-        model: "claude-sonnet-4-6",
-      } as SessionEntry,
-    };
-
-    const result = listSessionsFromStore({
-      cfg,
-      storePath: "/tmp/sessions.json",
-      store,
-      opts: {},
-    });
-
-    expect(result.sessions[0]?.modelProvider).toBeUndefined();
-    expect(result.sessions[0]?.model).toBe("claude-sonnet-4-6");
-  });
-
-  test("infers provider for legacy runtime model when allowlist match is unique", () => {
-    const cfg = {
-      session: { mainKey: "main" },
-      agents: {
-        defaults: {
-          model: { primary: "google-gemini-cli/gemini-3-pro-preview" },
+          // allowlist entries that would otherwise allow inferring providers
+          // from legacy runtime models (kept here to ensure we still ignore them)
           models: {
             "anthropic/claude-sonnet-4-6": {},
-          },
-        },
-      },
-    } as OpenClawConfig;
-    const now = Date.now();
-    const store: Record<string, SessionEntry> = {
-      "agent:main:main": {
-        sessionId: "sess-main",
-        updatedAt: now,
-        model: "claude-sonnet-4-6",
-      } as SessionEntry,
-    };
-
-    const result = listSessionsFromStore({
-      cfg,
-      storePath: "/tmp/sessions.json",
-      store,
-      opts: {},
-    });
-
-    expect(result.sessions[0]?.modelProvider).toBe("anthropic");
-    expect(result.sessions[0]?.model).toBe("claude-sonnet-4-6");
-  });
-
-  test("infers wrapper provider for slash-prefixed legacy runtime model when allowlist match is unique", () => {
-    const cfg = {
-      session: { mainKey: "main" },
-      agents: {
-        defaults: {
-          model: { primary: "google-gemini-cli/gemini-3-pro-preview" },
-          models: {
             "vercel-ai-gateway/anthropic/claude-sonnet-4-6": {},
           },
         },
@@ -761,6 +758,8 @@ describe("listSessionsFromStore search", () => {
       "agent:main:main": {
         sessionId: "sess-main",
         updatedAt: now,
+        // legacy runtime model from a past run
+        modelProvider: "vercel-ai-gateway",
         model: "anthropic/claude-sonnet-4-6",
       } as SessionEntry,
     };
@@ -772,8 +771,8 @@ describe("listSessionsFromStore search", () => {
       opts: {},
     });
 
-    expect(result.sessions[0]?.modelProvider).toBe("vercel-ai-gateway");
-    expect(result.sessions[0]?.model).toBe("anthropic/claude-sonnet-4-6");
+    expect(result.sessions[0]?.modelProvider).toBe("google-gemini-cli");
+    expect(result.sessions[0]?.model).toBe("gemini-3-pro-preview");
   });
 
   test("exposes unknown totals when freshness is stale or missing", () => {
