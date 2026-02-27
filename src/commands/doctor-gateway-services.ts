@@ -312,7 +312,6 @@ export async function maybeRepairGatewayServiceConfig(
         ...cfg.gateway,
         auth: {
           ...cfg.gateway?.auth,
-          mode: cfg.gateway?.auth?.mode ?? "token",
           token: gatewayTokenForRepair,
         },
       },

@@ -108,12 +108,10 @@ export async function runDaemonInstall(opts: DaemonInstallOptions) {
     try {
       const snapshot = await readConfigFileSnapshot();
       if (snapshot.exists && !snapshot.valid) {
-        const msg = "Warning: config file exists but is invalid; skipping token persistence.";
-        if (json) {
-          warnings.push(msg);
-        } else {
-          defaultRuntime.log(msg);
-        }
+        fail(
+          "Config file exists but is invalid; cannot persist gateway token for daemon install. Fix config and rerun.",
+        );
+        return;
       } else {
         const baseConfig = snapshot.exists ? snapshot.config : {};
         const baseToken = baseConfig.gateway?.auth?.token?.trim();
@@ -136,12 +134,8 @@ export async function runDaemonInstall(opts: DaemonInstallOptions) {
         token = nextToken;
       }
     } catch (err) {
-      const msg = `Warning: could not persist token to config: ${String(err)}`;
-      if (json) {
-        warnings.push(msg);
-      } else {
-        defaultRuntime.log(msg);
-      }
+      fail(`Could not persist gateway token to config: ${String(err)}`);
+      return;
     }
   }
 

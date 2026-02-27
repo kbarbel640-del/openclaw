@@ -242,6 +242,33 @@ describe("maybeRepairGatewayServiceConfig", () => {
       },
     );
   });
+
+  it("preserves password auth mode when persisting embedded fallback token", async () => {
+    await withEnvAsync(
+      {
+        OPENCLAW_GATEWAY_TOKEN: undefined,
+        CLAWDBOT_GATEWAY_TOKEN: undefined,
+      },
+      async () => {
+        setupGatewayTokenRepairScenario();
+
+        const cfg: OpenClawConfig = {
+          gateway: {
+            auth: {
+              password: "config-password",
+            },
+          },
+        };
+
+        await runRepair(cfg);
+
+        const persisted = mocks.writeConfigFile.mock.calls[0]?.[0] as OpenClawConfig;
+        expect(persisted.gateway?.auth?.token).toBe("stale-token");
+        expect(persisted.gateway?.auth?.password).toBe("config-password");
+        expect(persisted.gateway?.auth?.mode).toBeUndefined();
+      },
+    );
+  });
 });
 
 describe("maybeScanExtraGatewayServices", () => {
