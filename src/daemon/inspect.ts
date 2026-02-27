@@ -59,13 +59,94 @@ function resolveHomeDir(env: Record<string, string | undefined>): string {
 
 type Marker = (typeof EXTRA_MARKERS)[number];
 
-function detectMarker(content: string): Marker | null {
-  const lower = content.toLowerCase();
+/**
+ * Known service name prefixes that indicate a gateway-related service.
+ * Systemd names: "openclaw-", "clawdbot-", "moltbot-"
+ * Launchd labels: "ai.openclaw.", plus legacy markers in the label.
+ */
+const SYSTEMD_GATEWAY_NAME_PREFIXES = ["openclaw-", "clawdbot-", "moltbot-"];
+const LAUNCHD_GATEWAY_LABEL_PREFIXES = ["ai.openclaw."];
+
+function detectMarkerFromName(name: string, prefixes: string[]): Marker | null {
+  const lower = name.toLowerCase();
+  for (const prefix of prefixes) {
+    if (lower.startsWith(prefix)) {
+      for (const marker of EXTRA_MARKERS) {
+        if (prefix.includes(marker)) {
+          return marker;
+        }
+      }
+    }
+  }
+  // Also check legacy marker names directly in the label/name
   for (const marker of EXTRA_MARKERS) {
-    if (lower.includes(marker)) {
+    if (marker !== "openclaw" && lower.includes(marker)) {
       return marker;
     }
   }
+  return null;
+}
+
+/**
+ * Detects a marker by checking if the service file's ExecStart / command
+ * actually invokes a known gateway binary (e.g. `openclaw gateway run`,
+ * `clawdbot gateway`, `moltbot`). Avoids false positives from incidental
+ * mentions of "openclaw" in paths, descriptions, or working directories.
+ */
+function detectMarkerFromCommand(content: string): Marker | null {
+  const lower = content.toLowerCase();
+  // Extract ExecStart lines (systemd) or look for ProgramArguments (launchd plist)
+  const execStartMatch = lower.match(/execstart\s*=\s*(.+)/);
+  const commandLine = execStartMatch?.[1] ?? "";
+
+  // For launchd plists, look at ProgramArguments content
+  const plistCommandMatch = lower.match(
+    /<key>programarguments<\/key>\s*<array>([\s\S]*?)<\/array>/,
+  );
+  const plistArgs = plistCommandMatch?.[1] ?? "";
+
+  const searchTarget = `${commandLine} ${plistArgs}`;
+  if (!searchTarget.trim()) {
+    return null;
+  }
+
+  for (const marker of EXTRA_MARKERS) {
+    if (searchTarget.includes(marker)) {
+      return marker;
+    }
+  }
+  return null;
+}
+
+/**
+ * Detects whether a service file represents a gateway-like service.
+ *
+ * Uses a three-tier heuristic:
+ * 1. Service name/label prefix matching (most reliable)
+ * 2. ExecStart/command content matching (checks actual binary invocation)
+ * 3. Structured OPENCLAW_SERVICE_MARKER env vars in file contents
+ *
+ * Avoids flagging unrelated services that merely contain "openclaw" in
+ * paths, descriptions, or working directories.
+ */
+function detectServiceMarker(name: string, content: string, namePrefixes: string[]): Marker | null {
+  // Tier 1: check service name/label for known prefixes
+  const nameMarker = detectMarkerFromName(name, namePrefixes);
+  if (nameMarker) {
+    return nameMarker;
+  }
+
+  // Tier 2: check if the service's ExecStart/command invokes a known binary
+  const commandMarker = detectMarkerFromCommand(content);
+  if (commandMarker) {
+    return commandMarker;
+  }
+
+  // Tier 3: check for structured service marker env vars
+  if (hasGatewayServiceMarker(content)) {
+    return "openclaw";
+  }
+
   return null;
 }
 
@@ -196,8 +277,10 @@ async function scanLaunchdDir(params: {
   });
 
   for (const { name: labelFromName, fullPath, contents } of candidates) {
-    const marker = detectMarker(contents);
     const label = tryExtractPlistLabel(contents) ?? labelFromName;
+    // Use targeted detection: name prefix, then ExecStart/command, then structured env markers.
+    // This avoids false positives from incidental mentions of "openclaw" in descriptions or paths.
+    const marker = detectServiceMarker(label, contents, LAUNCHD_GATEWAY_LABEL_PREFIXES);
     if (!marker) {
       const legacyLabel = isLegacyLabel(labelFromName) || isLegacyLabel(label);
       if (!legacyLabel) {
@@ -244,7 +327,10 @@ async function scanSystemdDir(params: {
   });
 
   for (const { entry, name, fullPath, contents } of candidates) {
-    const marker = detectMarker(contents);
+    // Use targeted detection: name prefix, then ExecStart command, then structured env markers.
+    // This avoids false positives from unrelated services that merely reference "openclaw" in
+    // paths, descriptions, or working directories (e.g. voice pipelines, custom daemons).
+    const marker = detectServiceMarker(name, contents, SYSTEMD_GATEWAY_NAME_PREFIXES);
     if (!marker) {
       continue;
     }
