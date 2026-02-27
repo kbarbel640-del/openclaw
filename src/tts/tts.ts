@@ -14,13 +14,7 @@ import type { ReplyPayload } from "../auto-reply/types.js";
 import { normalizeChannelId } from "../channels/plugins/index.js";
 import type { ChannelId } from "../channels/plugins/types.js";
 import type { OpenClawConfig } from "../config/config.js";
-import type {
-  TtsConfig,
-  TtsAutoMode,
-  TtsMode,
-  TtsProvider,
-  TtsModelOverrideConfig,
-} from "../config/types.tts.js";
+import type { TtsConfig, TtsAutoMode, TtsMode, TtsProvider, TtsModelOverrideConfig } from "../config/types.tts.js";
 import { logVerbose } from "../globals.js";
 import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
 import { stripMarkdown } from "../line/markdown-to-line.js";
@@ -55,6 +49,7 @@ const DEFAULT_OPENAI_VOICE = "alloy";
 const DEFAULT_EDGE_VOICE = "en-US-MichelleNeural";
 const DEFAULT_EDGE_LANG = "en-US";
 const DEFAULT_EDGE_OUTPUT_FORMAT = "audio-24khz-48kbitrate-mono-mp3";
+const TELEGRAM_EDGE_OUTPUT_FORMAT = "ogg-24khz-16bit-mono-opus";
 
 const DEFAULT_ELEVENLABS_VOICE_SETTINGS = {
   stability: 0.5,
@@ -222,9 +217,7 @@ export function normalizeTtsAutoMode(value: unknown): TtsAutoMode | undefined {
   return undefined;
 }
 
-function resolveModelOverridePolicy(
-  overrides: TtsModelOverrideConfig | undefined,
-): ResolvedTtsModelOverrides {
+function resolveModelOverridePolicy(overrides: TtsModelOverrideConfig | undefined): ResolvedTtsModelOverrides {
   const enabled = overrides?.enabled ?? true;
   if (!enabled) {
     return {
@@ -273,15 +266,12 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
       applyTextNormalization: raw.elevenlabs?.applyTextNormalization,
       languageCode: raw.elevenlabs?.languageCode,
       voiceSettings: {
-        stability:
-          raw.elevenlabs?.voiceSettings?.stability ?? DEFAULT_ELEVENLABS_VOICE_SETTINGS.stability,
+        stability: raw.elevenlabs?.voiceSettings?.stability ?? DEFAULT_ELEVENLABS_VOICE_SETTINGS.stability,
         similarityBoost:
-          raw.elevenlabs?.voiceSettings?.similarityBoost ??
-          DEFAULT_ELEVENLABS_VOICE_SETTINGS.similarityBoost,
+          raw.elevenlabs?.voiceSettings?.similarityBoost ?? DEFAULT_ELEVENLABS_VOICE_SETTINGS.similarityBoost,
         style: raw.elevenlabs?.voiceSettings?.style ?? DEFAULT_ELEVENLABS_VOICE_SETTINGS.style,
         useSpeakerBoost:
-          raw.elevenlabs?.voiceSettings?.useSpeakerBoost ??
-          DEFAULT_ELEVENLABS_VOICE_SETTINGS.useSpeakerBoost,
+          raw.elevenlabs?.voiceSettings?.useSpeakerBoost ?? DEFAULT_ELEVENLABS_VOICE_SETTINGS.useSpeakerBoost,
         speed: raw.elevenlabs?.voiceSettings?.speed ?? DEFAULT_ELEVENLABS_VOICE_SETTINGS.speed,
       },
     },
@@ -405,11 +395,7 @@ function updatePrefs(prefsPath: string, update: (prefs: TtsUserPrefs) => void): 
   atomicWriteFileSync(prefsPath, JSON.stringify(prefs, null, 2));
 }
 
-export function isTtsEnabled(
-  config: ResolvedTtsConfig,
-  prefsPath: string,
-  sessionAuto?: string,
-): boolean {
+export function isTtsEnabled(config: ResolvedTtsConfig, prefsPath: string, sessionAuto?: string): boolean {
   return resolveTtsAutoMode({ config, prefsPath, sessionAuto }) !== "off";
 }
 
@@ -491,14 +477,19 @@ function resolveChannelId(channel: string | undefined): ChannelId | null {
   return channel ? normalizeChannelId(channel) : null;
 }
 
-function resolveEdgeOutputFormat(config: ResolvedTtsConfig): string {
+function resolveEdgeOutputFormat(config: ResolvedTtsConfig, channelId?: ChannelId | null): string {
+  // If the user explicitly configured an edge output format, respect it.
+  if (config.edge.outputFormatConfigured) {
+    return config.edge.outputFormat;
+  }
+  // For Telegram, default to OGG/Opus so voice bubbles work out of the box.
+  if (channelId === "telegram") {
+    return TELEGRAM_EDGE_OUTPUT_FORMAT;
+  }
   return config.edge.outputFormat;
 }
 
-export function resolveTtsApiKey(
-  config: ResolvedTtsConfig,
-  provider: TtsProvider,
-): string | undefined {
+export function resolveTtsApiKey(config: ResolvedTtsConfig, provider: TtsProvider): string | undefined {
   if (provider === "elevenlabs") {
     return config.elevenlabs.apiKey || process.env.ELEVENLABS_API_KEY || process.env.XI_API_KEY;
   }
@@ -567,7 +558,7 @@ export async function textToSpeech(params: {
         const tempRoot = resolvePreferredOpenClawTmpDir();
         mkdirSync(tempRoot, { recursive: true, mode: 0o700 });
         const tempDir = mkdtempSync(path.join(tempRoot, "tts-"));
-        let edgeOutputFormat = resolveEdgeOutputFormat(config);
+        let edgeOutputFormat = resolveEdgeOutputFormat(config, channelId);
         const fallbackEdgeOutputFormat =
           edgeOutputFormat !== DEFAULT_EDGE_OUTPUT_FORMAT ? DEFAULT_EDGE_OUTPUT_FORMAT : undefined;
 
@@ -591,9 +582,7 @@ export async function textToSpeech(params: {
           edgeResult = await attemptEdgeTts(edgeOutputFormat);
         } catch (err) {
           if (fallbackEdgeOutputFormat && fallbackEdgeOutputFormat !== edgeOutputFormat) {
-            logVerbose(
-              `TTS: Edge output ${edgeOutputFormat} failed; retrying with ${fallbackEdgeOutputFormat}.`,
-            );
+            logVerbose(`TTS: Edge output ${edgeOutputFormat} failed; retrying with ${fallbackEdgeOutputFormat}.`);
             edgeOutputFormat = fallbackEdgeOutputFormat;
             try {
               edgeResult = await attemptEdgeTts(edgeOutputFormat);
@@ -857,9 +846,7 @@ export async function maybeApplyTtsToPayload(params: {
 
   if (textForAudio.length > maxLength) {
     if (!isSummarizationEnabled(prefsPath)) {
-      logVerbose(
-        `TTS: truncating long text (${textForAudio.length} > ${maxLength}), summarization disabled.`,
-      );
+      logVerbose(`TTS: truncating long text (${textForAudio.length} > ${maxLength}), summarization disabled.`);
       textForAudio = `${textForAudio.slice(0, maxLength - 3)}...`;
     } else {
       try {
