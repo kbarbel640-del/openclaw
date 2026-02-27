@@ -241,7 +241,7 @@ describe("web processMessage inbound contract", () => {
     expect(groupHistories.get("whatsapp:default:group:123@g.us") ?? []).toHaveLength(0);
   });
 
-  it("suppresses non-final WhatsApp payload delivery", async () => {
+  it("suppresses tool payloads but delivers block and final WhatsApp payloads", async () => {
     const rememberSentText = vi.fn();
     await processMessage(
       makeProcessMessageArgs({
@@ -249,7 +249,6 @@ describe("web processMessage inbound contract", () => {
         groupHistoryKey: "+1555",
         rememberSentText,
         cfg: {
-          channels: { whatsapp: { blockStreaming: true } },
           messages: {},
           session: { store: sessionStorePath },
         } as unknown as ReturnType<typeof import("../../../config/config.js").loadConfig>,
@@ -269,17 +268,27 @@ describe("web processMessage inbound contract", () => {
       | undefined;
     expect(deliver).toBeTypeOf("function");
 
+    // Tool payloads are always suppressed (reasoning/tool updates stay internal)
     await deliver?.({ text: "tool payload" }, { kind: "tool" });
-    await deliver?.({ text: "block payload" }, { kind: "block" });
     expect(deliverWebReplyMock).not.toHaveBeenCalled();
     expect(rememberSentText).not.toHaveBeenCalled();
 
+    // Block payloads are delivered when the deliver callback is invoked
+    await deliver?.({ text: "block payload" }, { kind: "block" });
+    expect(deliverWebReplyMock).toHaveBeenCalledTimes(1);
+    expect(rememberSentText).toHaveBeenCalledTimes(1);
+
+    deliverWebReplyMock.mockClear();
+    rememberSentText.mockClear();
+
+    // Final payloads are always delivered
     await deliver?.({ text: "final payload" }, { kind: "final" });
     expect(deliverWebReplyMock).toHaveBeenCalledTimes(1);
     expect(rememberSentText).toHaveBeenCalledTimes(1);
   });
 
-  it("forces disableBlockStreaming for WhatsApp dispatch", async () => {
+  it("respects blockStreaming config for WhatsApp dispatch", async () => {
+    // When blockStreaming is true, disableBlockStreaming should be false
     await processMessage(
       makeProcessMessageArgs({
         routeSessionKey: "agent:main:whatsapp:direct:+1555",
@@ -291,6 +300,31 @@ describe("web processMessage inbound contract", () => {
         } as unknown as ReturnType<typeof import("../../../config/config.js").loadConfig>,
         msg: {
           id: "msg1",
+          from: "+1555",
+          to: "+2000",
+          chatType: "direct",
+          body: "hi",
+        },
+      }),
+    );
+
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const replyOptions = (capturedDispatchParams as any)?.replyOptions;
+    expect(replyOptions?.disableBlockStreaming).toBe(false);
+  });
+
+  it("defaults disableBlockStreaming to true when blockStreaming is not configured", async () => {
+    capturedDispatchParams = undefined;
+    await processMessage(
+      makeProcessMessageArgs({
+        routeSessionKey: "agent:main:whatsapp:direct:+1555",
+        groupHistoryKey: "+1555",
+        cfg: {
+          messages: {},
+          session: { store: sessionStorePath },
+        } as unknown as ReturnType<typeof import("../../../config/config.js").loadConfig>,
+        msg: {
+          id: "msg2",
           from: "+1555",
           to: "+2000",
           chatType: "direct",

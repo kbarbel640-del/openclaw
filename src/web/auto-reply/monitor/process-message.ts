@@ -51,6 +51,14 @@ export type GroupHistoryEntry = {
   senderJid?: string;
 };
 
+function resolveWhatsAppBlockStreamingEnabled(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  accountId: string;
+}): boolean {
+  const account = resolveWhatsAppAccount({ cfg: params.cfg, accountId: params.accountId });
+  return account.blockStreaming ?? false;
+}
+
 async function resolveWhatsAppCommandAuthorized(params: {
   cfg: ReturnType<typeof loadConfig>;
   msg: WebInboundMsg;
@@ -373,9 +381,9 @@ export async function processMessage(params: {
         }
       },
       deliver: async (payload: ReplyPayload, info) => {
-        if (info.kind !== "final") {
-          // Only deliver final replies to external messaging channels (WhatsApp).
-          // Block (reasoning/thinking) and tool updates are meant for the internal
+        if (info.kind !== "final" && info.kind !== "block") {
+          // Only deliver final and block-streaming replies to external messaging channels (WhatsApp).
+          // Reasoning/thinking and tool updates are meant for the internal
           // web UI only; sending them here leaks chain-of-thought to end users.
           return;
         }
@@ -421,9 +429,10 @@ export async function processMessage(params: {
       onReplyStart: params.msg.sendComposing,
     },
     replyOptions: {
-      // WhatsApp delivery intentionally suppresses non-final payloads.
-      // Keep block streaming disabled so final replies are still produced.
-      disableBlockStreaming: true,
+      disableBlockStreaming: !resolveWhatsAppBlockStreamingEnabled({
+        cfg: params.cfg,
+        accountId: params.route.accountId,
+      }),
       onModelSelected,
     },
   });
