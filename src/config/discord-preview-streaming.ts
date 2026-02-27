@@ -123,7 +123,7 @@ export function resolveSlackStreamingMode(
   }
   // Legacy `streaming` was a Slack native-streaming toggle; preview mode stayed replace.
   if (typeof params.streaming === "boolean") {
-    return "partial";
+    return params.streaming ? "partial" : "off";
   }
   return "partial";
 }
