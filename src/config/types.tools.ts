@@ -492,6 +492,25 @@ export type ToolsConfig = {
       userAgent?: string;
       /** Use Readability to extract main content (default: true). */
       readability?: boolean;
+      /** Maximum response body size in bytes before truncation. */
+      maxResponseBytes?: number;
+      /**
+       * SSRF policy overrides for web fetch requests.
+       * By default, web_fetch blocks private/internal/special-use IP addresses.
+       * Users behind TUN-mode proxies (Surge, Clash, etc.) that use fake-IP DNS
+       * (198.18.0.0/15) need to allow the RFC 2544 benchmark range.
+       */
+      ssrfPolicy?: {
+        /** Allow private/internal network addresses (default: false). Use with caution. */
+        dangerouslyAllowPrivateNetwork?: boolean;
+        /**
+         * Allow RFC 2544 benchmark range (198.18.0.0/15) (default: false).
+         * Enable this if your proxy uses fake-IP mode (Surge Enhanced Mode,
+         * Clash fake-ip, Shadowrocket, etc.) where all DNS queries resolve
+         * to addresses in this range.
+         */
+        allowRfc2544BenchmarkRange?: boolean;
+      };
       firecrawl?: {
         /** Enable Firecrawl fallback (default: true when apiKey is set). */
         enabled?: boolean;
