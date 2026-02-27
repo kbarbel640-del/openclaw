@@ -36,12 +36,31 @@ const PARSE_ERR_RE = /can't parse entities|parse entities|find end of the entity
 const EMPTY_TEXT_ERR_RE = /message text is empty/i;
 const VOICE_FORBIDDEN_RE = /VOICE_MESSAGES_FORBIDDEN/;
 const FILE_TOO_BIG_RE = /file is too big/i;
-const TELEGRAM_MEDIA_SSRF_POLICY = {
+const DEFAULT_TELEGRAM_MEDIA_SSRF_POLICY = {
   // Telegram file downloads should trust api.telegram.org even when DNS/proxy
   // resolution maps to private/internal ranges in restricted networks.
   allowedHostnames: ["api.telegram.org"],
   allowRfc2544BenchmarkRange: true,
 };
+
+/** Build SSRF policy, adding the custom apiRoot hostname when configured. */
+function buildSsrfPolicy(apiRoot?: string) {
+  if (!apiRoot) {
+    return DEFAULT_TELEGRAM_MEDIA_SSRF_POLICY;
+  }
+  try {
+    const hostname = new URL(apiRoot).hostname;
+    if (hostname && hostname !== "api.telegram.org") {
+      return {
+        allowedHostnames: ["api.telegram.org", hostname],
+        allowRfc2544BenchmarkRange: true,
+      };
+    }
+  } catch {
+    // Malformed URL -- fall through to default
+  }
+  return DEFAULT_TELEGRAM_MEDIA_SSRF_POLICY;
+}
 
 export async function deliverReplies(params: {
   replies: ReplyPayload[];
@@ -313,6 +332,7 @@ export async function resolveMedia(
   maxBytes: number,
   token: string,
   proxyFetch?: typeof fetch,
+  apiRoot?: string,
 ): Promise<{
   path: string;
   contentType?: string;
@@ -320,14 +340,16 @@ export async function resolveMedia(
   stickerMetadata?: StickerMetadata;
 } | null> {
   const msg = ctx.message;
+  const fileApiBase = apiRoot ?? "https://api.telegram.org";
+  const ssrfPolicy = buildSsrfPolicy(apiRoot);
   const downloadAndSaveTelegramFile = async (filePath: string, fetchImpl: typeof fetch) => {
-    const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
+    const url = `${fileApiBase}/file/bot${token}/${filePath}`;
     const fetched = await fetchRemoteMedia({
       url,
       fetchImpl,
       filePathHint: filePath,
       maxBytes,
-      ssrfPolicy: TELEGRAM_MEDIA_SSRF_POLICY,
+      ssrfPolicy,
     });
     const originalName = fetched.fileName ?? filePath;
     return saveMediaBuffer(fetched.buffer, fetched.contentType, "inbound", maxBytes, originalName);
