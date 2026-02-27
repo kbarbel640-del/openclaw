@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { withEnv } from "../test-utils/env.js";
@@ -279,5 +280,51 @@ describe("buildWorkspaceSkillSnapshot", () => {
 
     expect(snapshot.skills.map((s) => s.name)).not.toContain("root-big-skill");
     expect(snapshot.prompt).not.toContain("root-big-skill");
+  });
+
+  it("applies skillFilter to restrict skills to the allowlist", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-"));
+    await writeSkill({
+      dir: path.join(workspaceDir, "skills", "alpha"),
+      name: "alpha",
+      description: "Alpha skill",
+    });
+    await writeSkill({
+      dir: path.join(workspaceDir, "skills", "bravo"),
+      name: "bravo",
+      description: "Bravo skill",
+    });
+    await writeSkill({
+      dir: path.join(workspaceDir, "skills", "charlie"),
+      name: "charlie",
+      description: "Charlie skill",
+    });
+
+    const snapshot = buildWorkspaceSkillSnapshot(workspaceDir, {
+      managedSkillsDir: path.join(workspaceDir, ".managed"),
+      bundledSkillsDir: path.join(workspaceDir, ".bundled"),
+      skillFilter: ["alpha", "charlie"],
+    });
+
+    // Only the skills in the filter should appear
+    expect(snapshot.skills.map((skill) => skill.name).toSorted()).toEqual(["alpha", "charlie"]);
+  });
+
+  it("returns empty snapshot when skillFilter is an empty array", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-"));
+    await writeSkill({
+      dir: path.join(workspaceDir, "skills", "alpha"),
+      name: "alpha",
+      description: "Alpha skill",
+    });
+
+    const snapshot = buildWorkspaceSkillSnapshot(workspaceDir, {
+      managedSkillsDir: path.join(workspaceDir, ".managed"),
+      bundledSkillsDir: path.join(workspaceDir, ".bundled"),
+      skillFilter: [],
+    });
+
+    expect(snapshot.prompt).toBe("");
+    expect(snapshot.skills).toEqual([]);
   });
 });
