@@ -371,6 +371,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "acp.stream.maxChunkChars": "ACP Stream Max Chunk Chars",
   "acp.runtime.ttlMinutes": "ACP Runtime TTL (minutes)",
   "acp.runtime.installCommand": "ACP Runtime Install Command",
+  "acp.runtime.permissionProfile": "ACP Runtime Permission Profile",
   models: "Models",
   "models.mode": "Model Catalog Mode",
   "models.providers": "Model Providers",
